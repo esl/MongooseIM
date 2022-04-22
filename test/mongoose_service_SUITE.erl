@@ -1,217 +1,166 @@
-%%%-------------------------------------------------------------------
-%%% @doc
-%%%
-%%% @end
-%%%-------------------------------------------------------------------
 -module(mongoose_service_SUITE).
+
 -compile([export_all, nowarn_export_all]).
--include_lib("common_test/include/ct.hrl").
+
 -include_lib("eunit/include/eunit.hrl").
 
-
 all() ->
-    [
-        starts_service,
-        ensure,
-        verify_deps,
-        start_deps,
-        module_deps,
-        misconfigured
-    ].
+    [starts_and_stops_services,
+     ensures_service,
+     reverts_config_when_service_fails_to_start,
+     does_not_change_config_when_service_fails_to_stop,
+     replaces_services,
+     replaces_services_with_new_deps,
+     replaces_services_with_old_deps,
+     replaces_services_with_same_deps].
 
-services() -> [service_a, service_b, service_c, service_d, service_e, service_f, service_g,
-               service_h, service_i, service_j, service_k, service_l].
-
-dep_services() -> [service_c, service_d, service_e, service_f, service_g, service_h].
-
-%%      c
-%%     / \
-%%    d   e
-%%   / \ / \
-%%  f   g   h
-%%  ^       |
-%%  |       |
-%%   -------
-
-%%    i
-%%   / \
-%%  j   k <--
-%%       \   |
-%%        l--
-
-service_deps() ->
-    [
-        {service_c, [service_d, service_e]},
-        {service_d, [service_f, service_g]},
-        {service_e, [service_g, service_h]},
-        {service_h, [service_f]},
-        % and now for something completely cicrular
-        {service_i, [service_j, service_k]},
-        {service_k, [service_l]},
-        {service_l, [service_k]}
-    ].
-
-init_per_testcase(misconfigured, C) ->
-    mongoose_service:start(),
-    mongoose_config:set_opt(services, [{service_a, []}]),
-    meck:new(service_a, [non_strict]),
-    meck:expect(service_a, deps, fun() -> [service_b] end),
-    C;
-
-init_per_testcase(module_deps, C) ->
-    init_per_testcase(generic, C),
-    mongoose_config:set_opt(hosts, [<<"localhost">>]),
-    mongoose_config:set_opt(host_types, []),
-    mongoose_config:set_opt({modules, <<"localhost">>}, #{module_a => []}),
-    meck:new(module_a, [non_strict]),
-    meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),
-    meck:expect(module_a, start, fun(_, _) -> ok end),
-    meck:expect(module_a, stop, fun(_) -> ok end),
-    C;
-init_per_testcase(_, C) ->
-    mongoose_service:start(),
-    ets:new(testservice, [named_table]),
-    meck:new(services(), [non_strict]),
-    lists:map(fun(S) ->
-                  meck:expect(S, start, fun(_Opts) -> increment(S), done end)
-              end, services()),
-    lists:map(fun(S) ->
-                  meck:expect(S, stop, fun() -> decrement(S) end)
-              end, services()),
-    mongoose_config:set_opt(services, [{Serv, []} || Serv <- services()]),
-    lists:map(fun(Serv) ->
-                  meck:expect(Serv, deps, fun() -> proplists:get_value(Serv, service_deps()) end)
-              end,
-              proplists:get_keys(service_deps())),
+init_per_suite(C) ->
     C.
 
-end_per_testcase(misconfigured, C) ->
-    mongoose_config:unset_opt(services),
-    meck:unload(service_a),
-    C;
+end_per_suite(_C) ->
+    ok.
 
-end_per_testcase(module_deps, C) ->
-    mongoose_config:unset_opt(hosts),
-    mongoose_config:unset_opt(host_types),
-    mongoose_config:unset_opt({modules, <<"localhost">>}),
-    meck:unload(module_a),
-    end_per_testcase(generic, C);
-end_per_testcase(_, C) ->
-    mongoose_config:unset_opt(services),
-    meck:unload(services()),
-    lists:foreach(fun mongoose_service:stop_service/1, services()),
-    mongoose_service:stop(),
+init_per_testcase(_TC, C) ->
+    [mock_service(Service) || Service <- test_services()],
     C.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
-%% tests
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+end_per_testcase(_, _C) ->
+    mongoose_config:unset_opt(services),
+    meck:unload(test_services()).
 
-starts_service(_C) ->
-    {ok, done} = mongoose_service:start_service(service_a, []),
-    {error, already_started} = mongoose_service:start_service(service_a, []),
-    ?assertEqual(1, read(service_a)),
-    {ok, done} = mongoose_service:start_service(service_b, []),
-    {error, already_started} = mongoose_service:start_service(service_b, []),
-    ?assertEqual(1, read(service_b)),
-    ok = mongoose_service:stop_service(service_a),
-    ?assertEqual(0, read(service_a)),
-    {error, not_running} = mongoose_service:stop_service(service_a),
-    ?assertEqual(0, read(service_a)),
-    ok = mongoose_service:stop_service(service_b),
-    ?assertEqual(0, read(service_b)),
-    {error, not_running} = mongoose_service:stop_service(service_b),
-    ?assertEqual(0, read(service_b)),
-    ok.
+%% Test cases
 
-ensure(_C) ->
-    ok = mongoose_service:ensure_loaded(service_a),
-    ok = mongoose_service:ensure_loaded(service_a),
-    ok = mongoose_service:ensure_loaded(service_a),
-    ?assertEqual(1, read(service_a)),
-    ok = mongoose_service:stop_service(service_a),
-    ?assertEqual(0, read(service_a)),
-    ok.
+starts_and_stops_services(_Config) ->
+    set_services(Services = #{service_a => #{}, service_b => [{opt, val}]}),
+    ok = mongoose_service:start(),
+    check_started(maps:to_list(Services)),
 
-verify_deps(_) ->
-    mongoose_service:check_deps(service_c),
-    mongoose_service:check_deps(service_d),
-    mongoose_service:check_deps(service_e),
-    mongoose_service:check_deps(service_f),
-    mongoose_service:check_deps(service_g),
-    mongoose_service:check_deps(service_g),
-    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_i)),
-    mongoose_service:check_deps(service_j),
-    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_k)),
-    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_l)),
-    ok.
+    ok = mongoose_service:stop(),
+    check_stopped([service_a, service_b]).
 
-start_deps(_) ->
-    assert_loaded([]),
-    mongoose_service:ensure_loaded(service_f),
-    assert_loaded([service_f]),
-    mongoose_service:ensure_loaded(service_d),
-    assert_loaded([service_d, service_f, service_g]),
-    mongoose_service:ensure_loaded(service_e),
-    assert_loaded([service_d, service_e, service_f, service_g, service_h]),
-    mongoose_service:ensure_loaded(service_c),
-    assert_loaded(dep_services()),
-    lists:foreach(fun mongoose_service:stop_service/1, services()),
-    assert_loaded([]),
-    mongoose_service:ensure_loaded(service_c),
-    assert_loaded(dep_services()),
-    ok.
+ensures_service(_Config) ->
+    set_services(#{}),
+    ?assertEqual({started, start_result}, mongoose_service:ensure_started(service_a, #{})),
+    ?assertEqual(#{service_a => #{}}, get_services()),
 
-module_deps(_) ->
-    assert_loaded([]),
-    meck:new(gen_mod, [passthrough]),
-    meck:expect(gen_mod, is_app_running, fun(_Mooo) -> true end),
-    ?assertError({service_not_loaded, _}, mongoose_modules:start()),
-    meck:unload(gen_mod),
-    mongoose_service:ensure_loaded(service_c),
-    mongoose_modules:start(),
-    ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
-    ok.
+    ?assertEqual(already_started, mongoose_service:ensure_started(service_a, #{})),
+    ?assertEqual(#{service_a => #{}}, get_services()),
 
-misconfigured(_) ->
-    ?assertError({service_not_configured, service_b}, mongoose_service:ensure_loaded(service_a)),
-    ok.
+    ?assertEqual({restarted, #{}, start_result},
+                 mongoose_service:ensure_started(service_a, #{opt => val})),
+    ?assertEqual(#{service_a => #{opt => val}}, get_services()),
 
+    ?assertEqual({stopped, #{opt => val}}, mongoose_service:ensure_stopped(service_a)),
+    ?assertEqual(#{}, get_services()),
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
-%% helpers
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ?assertEqual(already_stopped, mongoose_service:ensure_stopped(service_a)),
+    ?assertEqual(#{}, get_services()).
 
-increment(S) ->
-    Ni = case ets:lookup(testservice, S) of
-             [{S, I}] -> I + 1;
-             [] -> 1
-         end,
-    ets:insert(testservice, {S, Ni}).
+reverts_config_when_service_fails_to_start(_Config) ->
+    set_services(#{}),
+    meck:expect(service_a, start, fun(_) -> error(something_awful) end),
+    ?assertError(something_awful, mongoose_service:ensure_started(service_a, #{})),
+    ?assertEqual(#{}, get_services()).
 
-decrement(S) ->
-    Ni = case ets:lookup(testservice, S) of
-             [{S, I}] -> I - 1;
-             [] -> -1
-         end,
-    ets:insert(testservice, {S, Ni}).
+does_not_change_config_when_service_fails_to_stop(_Config) ->
+    set_services(#{service_a => #{}}),
+    meck:expect(service_a, stop, fun() -> error(something_awful) end),
+    ?assertError(something_awful, mongoose_service:ensure_stopped(service_a)),
+    ?assertEqual(#{service_a => #{}}, get_services()).
 
-read(S) ->
-    case ets:lookup(testservice, S) of
-        [{S, I}] -> I;
-        [] -> 0
-    end.
+replaces_services(_Config) ->
+    set_services(Services = #{service_a => #{}, service_b => #{opt => val}, service_c => #{}}),
+    ok = mongoose_service:start(),
+    check_started(maps:to_list(Services)),
 
-assert_loaded(Loaded) ->
-    _ = [{S, mongoose_service:is_loaded(S)} || S <- services()],
-    NotLoaded = sets:to_list(
-                    sets:subtract(
-                        sets:from_list(dep_services()),
-                        sets:from_list(Loaded))),
-    ?assert(lists:all(fun mongoose_service:is_loaded/1, Loaded)),
-    ?assert(lists:all(fun(S) -> not mongoose_service:is_loaded(S) end, NotLoaded)),
-    ok.
+    %% Stop service_a, change opts for service_b, do not change service_c, start service_d
+    NewServices = #{service_b => #{new_opt => new_val}, service_c => #{}, service_d => #{}},
+    ok = mongoose_service:replace_services([service_a], NewServices),
+    check_stopped([service_a, service_b]),
+    check_not_stopped([service_c]),
+    check_started([{service_b, #{new_opt => new_val}}, {service_d, #{}}]),
+    ?assertEqual(NewServices, get_services()),
+
+    ok = mongoose_service:stop(),
+    check_stopped([service_b, service_c, service_d]).
+
+replaces_services_with_new_deps(_Config) ->
+    set_deps(#{service_b => [service_c]}),
+    set_services(Services = #{service_a => #{}}),
+    ok = mongoose_service:start(),
+    check_started(maps:to_list(Services)),
+
+    %% Start service_b, which depends on service_c
+    ok = mongoose_service:replace_services([], #{service_b => #{}}),
+    check_not_stopped([service_a]),
+    check_started([{service_b, #{}}, {service_c, #{}}]),
+    ?assertEqual(Services#{service_b => #{}, service_c => #{}}, get_services()),
+
+    ok = mongoose_service:stop(),
+    check_stopped([service_a, service_b, service_c]).
+
+replaces_services_with_old_deps(_Config) ->
+    set_deps(#{service_a => [service_c]}),
+    set_services(Services = #{service_a => #{}, service_c => #{}}),
+    ok = mongoose_service:start(),
+    check_started(maps:to_list(Services)),
+
+    %% Stop service_a, which depends on service_c, and start service_b
+    ok = mongoose_service:replace_services([service_a], #{service_b => #{}}),
+    check_stopped([service_a, service_c]),
+    check_started([{service_b, #{}}]),
+    ?assertEqual(#{service_b => #{}}, get_services()),
+
+    ok = mongoose_service:stop(),
+    check_stopped([service_b]).
+
+replaces_services_with_same_deps(_Config) ->
+    set_deps(#{service_a => [service_c], service_b => [service_c]}),
+    set_services(Services = #{service_a => #{}, service_c => #{}}),
+    ok = mongoose_service:start(),
+    check_started(maps:to_list(Services)),
+
+    %% Stop service_a, and start service_b, both depending on service_c
+    ok = mongoose_service:replace_services([service_a], #{service_b => #{}}),
+    check_stopped([service_a]),
+    check_not_stopped([service_c]),
+    check_started([{service_b, #{}}]),
+    ?assertEqual(#{service_b => #{}, service_c => #{}}, get_services()),
+
+    ok = mongoose_service:stop(),
+    check_stopped([service_b]).
+
+%% Helpers
+
+set_services(Services) ->
+    mongoose_config:set_opt(services, Services).
+
+get_services() ->
+    mongoose_config:get_opt(services).
+
+check_started(ServicesWithOpts) ->
+    lists:foreach(fun({Service, Opts}) ->
+                          ?assert(meck:called(Service, start, [Opts]))
+                  end, ServicesWithOpts).
+
+check_stopped(Services) ->
+    lists:foreach(fun(Service) ->
+                          ?assert(meck:called(Service, stop, []))
+                  end, Services).
+
+check_not_stopped(Services) ->
+    lists:foreach(fun(Service) ->
+                          ?assertNot(meck:called(Service, stop, []))
+                  end, Services).
+
+mock_service(Service) ->
+    meck:new(Service, [non_strict]),
+    meck:expect(Service, start, fun(_) -> start_result end),
+    meck:expect(Service, stop, fun() -> ok end).
+
+set_deps(DepsMap) ->
+    maps:fold(fun(Service, Deps, _) -> meck:expect(Service, deps, fun() -> Deps end) end,
+              undefined, DepsMap).
+
+test_services() ->
+    [service_a, service_b, service_c, service_d].

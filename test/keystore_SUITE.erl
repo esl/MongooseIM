@@ -1,6 +1,7 @@
 -module(keystore_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -compile([export_all, nowarn_export_all]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 
 -define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
 
@@ -11,7 +12,6 @@ all() ->
      module_startup_create_ram_key,
      module_startup_create_ram_key_of_given_size,
      module_startup_for_multiple_domains,
-     module_startup_non_unique_key_ids,
      multiple_domains_one_stopped
     ].
 
@@ -54,7 +54,7 @@ clean_after_testcase(C) ->
 %%
 
 module_startup_no_opts(_) ->
-    ok = mod_keystore:start(<<"localhost">>, []).
+    ok = mod_keystore:start(<<"localhost">>, default_mod_config(mod_keystore)).
 
 module_startup_read_key_from_file(_) ->
     %% given
@@ -103,18 +103,6 @@ module_startup_for_multiple_domains(_Config) ->
     ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
         get_key(<<"second.com">>, key_from_file)).
 
-module_startup_non_unique_key_ids(_) ->
-    %% given
-    NonUniqueKeyIDsOpts = [{keys, [{some_key, ram},
-                                   {some_key, {file, "some_key.dat"}}]}],
-    %% when
-    try
-        mod_keystore:start(<<"localhost">>, NonUniqueKeyIDsOpts)
-    %% then
-    catch
-        error:non_unique_key_ids -> ok
-    end.
-
 multiple_domains_one_stopped(_Config) ->
     % given
     [] = get_key(<<"first.com">>, key_from_file),
@@ -135,40 +123,19 @@ multiple_domains_one_stopped(_Config) ->
 %% Helpers
 %%
 
-start_async(M, F, A) ->
-    Self = self(),
-    P = spawn(fun () ->
-                      erlang:apply(M, F, A),
-                      Self ! started,
-                      helper_loop()
-              end),
-    receive
-        started ->
-            %ct:pal("started", []),
-            {ok, P}
-        after timer:seconds(1) ->
-            ct:fail("async start timeout")
-    end.
-
-helper_loop() ->
-    receive
-        stop -> exit(normal);
-        _    -> helper_loop()
-    end.
-
 key_at(Path, Data) ->
     ok = file:write_file(Path, Data),
     {ok, Path}.
 
 key_from_file(KeyFile) ->
-    [{keys, [{key_from_file, {file, KeyFile}}]}].
+    mod_config(mod_keystore, #{keys => #{key_from_file => {file, KeyFile}}}).
 
 ram_key() ->
-    [{keys, [{ram_key, ram}]}].
+    mod_config(mod_keystore, #{keys => #{ram_key => ram}}).
 
 sized_ram_key(Size) ->
-    [{keys, [{ram_key, ram}]},
-     {ram_key_size, Size}].
+    mod_config(mod_keystore, #{keys => #{ram_key => ram},
+                               ram_key_size => Size}).
 
 mock_mongoose_metrics() ->
     meck:new(mongoose_metrics, []),
@@ -183,7 +150,3 @@ mock_mongoose_metrics() ->
       Result :: mod_keystore:key_list().
 get_key(HostType, KeyName) ->
     mongoose_hooks:get_key(HostType, KeyName).
-
-%%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
-%%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},
-%%                        {asdqwe_provision_psk, {file, "priv/asdqwe_access_psk"}}]}]},

@@ -26,6 +26,8 @@
 %% -------------------------------
 %% Pubsub constants
 -define(ERR_EXTENDED(E, C), mod_pubsub:extended_error(E, C)).
+-define(PROCNAME, mongooseim_mod_pubsub).
+-define(LOOPNAME, mongooseim_mod_pubsub_loop).
 
 %% The actual limit can be configured with mod_pubsub's option max_items_node
 -define(MAXITEMS, 10).

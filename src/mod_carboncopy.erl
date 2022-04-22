@@ -74,9 +74,9 @@ is_carbon_copy(Packet) ->
         _ -> false
     end.
 
-start(HostType, Opts) ->
-    %% execute disable/enable actions in the c2s process itself
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+%% Default IQDisc is no_queue:
+%% executes disable/enable actions in the c2s process itself
+start(HostType, #{iqdisc := IQDisc}) ->
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm,
                                              fun ?MODULE:iq_handler2/5, #{}, IQDisc),
@@ -97,7 +97,10 @@ hooks(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
+    #section{
+       format_items = map,
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"iqdisc">> => no_queue}}.
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->

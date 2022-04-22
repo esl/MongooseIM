@@ -196,6 +196,6 @@ is_valid_namespace(Namespace) -> Namespace =/= <<>>.
 error_iq(IQ=#iq{sub_el=SubElem}, ErrorStanza) ->
     IQ#iq{type = error, sub_el = [SubElem, ErrorStanza]}.
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

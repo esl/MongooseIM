@@ -8,7 +8,7 @@
 %% required for ets:fun2ms/1 pseudo function
 -include_lib("stdlib/include/ms_transform.hrl").
 
--export([start/2, stop/0]).
+-export([start/0, start/2, stop/0]).
 -export([start_link/2]).
 -export([get_host_type/1]).
 -export([is_static/1]).
@@ -34,13 +34,19 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--ignore_xref([get_start_args/0, start_link/2, stop/0]).
+-ignore_xref([get_start_args/0, start_link/2, start/2, stop/0]).
 
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
 
 -type host_type() :: mongooseim:host_type().
 -type domain() :: mongooseim:domain_name().
+-type pair() :: {domain(), host_type()}.
+
+start() ->
+    Pairs = get_static_pairs(),
+    AllowedHostTypes = mongoose_config:get_opt(host_types),
+    start(Pairs, AllowedHostTypes).
 
 -ifdef(TEST).
 
@@ -176,6 +182,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
+%% Domains should be nameprepped using `jid:nameprep'
+-spec get_static_pairs() -> [pair()].
+get_static_pairs() ->
+    [{H, H} || H <- mongoose_config:get_opt(hosts)].
+
 for_each_selected_domain('$end_of_table', _) -> ok;
 for_each_selected_domain({MatchList, Continuation}, Func) ->
     [safely:apply_and_log(Func, Args, log_context(Args)) || Args <- MatchList],

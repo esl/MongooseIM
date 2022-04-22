@@ -19,55 +19,56 @@
 %% DB backend behaviour definition
 %%--------------------------------------------------------------------
 
--callback init(Host :: jid:server(), Opts :: list()) -> ok.
+-callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
--callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
+-callback enable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                  Node :: mod_event_pusher_push:pubsub_node(),
                  Form :: mod_event_pusher_push:form()) ->
                     ok | {error, Reason :: term()}.
 
--callback disable(UserJID :: jid:jid()) ->
+-callback disable(mongooseim:host_type(), UserJID :: jid:jid()) ->
     ok | {error, Reason :: term()}.
 
--callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
+-callback disable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                   Node :: mod_event_pusher_push:pubsub_node() | undefined) ->
                      ok | {error, Reason :: term()}.
 
--callback get_publish_services(User :: jid:jid()) ->
+-callback get_publish_services(mongooseim:host_type(), UserJID :: jid:jid()) ->
     {ok, [mod_event_pusher_push:publish_service()]} | {error, Reason :: term()}.
 
+%% API
 
--spec init(Host :: jid:server(), Opts :: list()) -> ok.
-init(Host, Opts) ->
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(HostType, Opts) ->
     TrackedFuns = [enable, disable, get_publish_services],
-    mongoose_backend:init(Host, ?MAIN_MODULE, TrackedFuns, Opts),
-    Args = [Host, Opts],
-    mongoose_backend:call(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    Args = [HostType, Opts],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec enable(Host :: jid:server(),
+-spec enable(mongooseim:host_type(),
              UserJID :: jid:jid(), PubsubJID :: jid:jid(),
              Node :: mod_event_pusher_push:pubsub_node(),
              Form :: mod_event_pusher_push:form()) ->
                 ok | {error, Reason :: term()}.
-enable(Host, UserJID, PubsubJID, Node, Form) ->
-    Args = [UserJID, PubsubJID, Node, Form],
-    mongoose_backend:call_tracked(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+enable(HostType, UserJID, PubsubJID, Node, Form) ->
+    Args = [HostType, UserJID, PubsubJID, Node, Form],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec disable(Host :: jid:server(), UserJID :: jid:jid()) ->
+-spec disable(mongooseim:host_type(), UserJID :: jid:jid()) ->
     ok | {error, Reason :: term()}.
-disable(Host, UserJID) ->
-    Args = [UserJID],
-    mongoose_backend:call_tracked(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+disable(HostType, UserJID) ->
+    Args = [HostType, UserJID],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec disable(Host :: jid:server(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
+-spec disable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
               Node :: mod_event_pusher_push:pubsub_node() | undefined) ->
                  ok | {error, Reason :: term()}.
-disable(Host, UserJID, PubsubJID, Node) ->
-    Args = [UserJID, PubsubJID, Node],
-    mongoose_backend:call_tracked(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+disable(HostType, UserJID, PubsubJID, Node) ->
+    Args = [HostType, UserJID, PubsubJID, Node],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_publish_services(Host :: jid:server(), User :: jid:jid()) ->
+-spec get_publish_services(mongooseim:host_type(), User :: jid:jid()) ->
     {ok, [mod_event_pusher_push:publish_service()]} | {error, Reason :: term()}.
-get_publish_services(Host, User) ->
-    Args = [User],
-    mongoose_backend:call_tracked(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+get_publish_services(HostType, User) ->
+    Args = [HostType, User],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

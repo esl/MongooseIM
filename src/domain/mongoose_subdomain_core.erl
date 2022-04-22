@@ -257,6 +257,7 @@ remove_subdomains(SubdomainItems) ->
 
 -spec remove_subdomain(subdomain_item()) -> ok.
 remove_subdomain(#subdomain_item{subdomain = Subdomain} = SubdomainItem) ->
+    mongoose_hooks:unregister_subhost(Subdomain),
     ets:delete(?SUBDOMAINS_TABLE, Subdomain),
     SubdomainInfo = convert_subdomain_item_to_map(SubdomainItem),
     mongoose_lazy_routing:maybe_remove_subdomain(SubdomainInfo).
@@ -273,6 +274,7 @@ add_subdomain(RegItem, Domain) ->
     #subdomain_item{subdomain = Subdomain} = Item = make_subdomain_item(RegItem, Domain),
     case ets:insert_new(?SUBDOMAINS_TABLE, Item) of
         true ->
+            mongoose_hooks:register_subhost(Subdomain, false),
             check_subdomain_name(Item),
             %% even if the subdomain name check fails, it's not easy to solve this
             %% collision. so the best thing we can do is to report it and just keep

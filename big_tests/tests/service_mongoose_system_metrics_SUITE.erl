@@ -1,7 +1,8 @@
 -module(service_mongoose_system_metrics_SUITE).
 
+-compile([export_all, nowarn_export_all]).
+
 -include_lib("common_test/include/ct.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(SERVER_URL, "http://localhost:8765").
@@ -18,45 +19,7 @@
     ev = "",
     el = "" }).
 
-%% API
--export([
-         all/0,
-         suite/0,
-         groups/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2
-        ]).
-
--export([
-         system_metrics_are_not_reported_when_not_allowed/1,
-         periodic_report_available/1,
-         all_clustered_mongooses_report_the_same_client_id/1,
-         system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
-         system_metrics_are_reported_to_configurable_google_analytics/1,
-         system_metrics_are_reported_to_a_json_file/1,
-         module_backend_is_reported/1,
-         mongoose_version_is_reported/1,
-         cluster_uptime_is_reported/1,
-         xmpp_components_are_reported/1,
-         api_are_reported/1,
-         transport_mechanisms_are_reported/1,
-         outgoing_pools_are_reported/1,
-         xmpp_stanzas_counts_are_reported/1,
-         config_type_is_reported/1
-        ]).
-
--export([
-         just_removed_from_config_logs_question/1,
-         in_config_unmodified_logs_request_for_agreement/1,
-         in_config_with_explicit_no_report_goes_off_silently/1,
-         in_config_with_explicit_reporting_goes_on_silently/1
-        ]).
-
--import(distributed_helper, [mim/0, mim2/0, mim3/0,
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4,
                              require_rpc_nodes/1
                             ]).
 
@@ -66,6 +29,7 @@
                            common/1]).
 
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [mod_config/2, config/2]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -78,7 +42,6 @@ all() ->
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
      system_metrics_are_reported_to_configurable_google_analytics,
      system_metrics_are_reported_to_a_json_file,
-     module_backend_is_reported,
      mongoose_version_is_reported,
      cluster_uptime_is_reported,
      xmpp_components_are_reported,
@@ -87,11 +50,16 @@ all() ->
      outgoing_pools_are_reported,
      xmpp_stanzas_counts_are_reported,
      config_type_is_reported,
+     {group, module_opts},
      {group, log_transparency}
     ].
 
 groups() ->
     [
+     {module_opts, [], [
+                        module_opts_are_reported,
+                        rdbms_module_opts_are_reported
+                       ]},
      {log_transparency, [], [
                              just_removed_from_config_logs_question,
                              in_config_unmodified_logs_request_for_agreement,
@@ -106,27 +74,22 @@ groups() ->
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    case system_metrics_service_is_enabled(mim()) of
-        false ->
-            ct:fail("service_mongoose_system_metrics is not running");
-        true ->
-            [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
-            http_helper:start(8765, "/[...]", fun handler_init/1),
-            Config1 = escalus:init_per_suite(Config),
-            Config2 = ejabberd_node_utils:init(Config1),
-            dynamic_modules:save_modules(host_type(), Config2)
-    end.
+    [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
+    http_helper:start(8765, "/[...]", fun handler_init/1),
+    Config1 = escalus:init_per_suite(Config),
+    Config2 = dynamic_services:save_services([mim(), mim2()], Config1),
+    ejabberd_node_utils:init(Config2).
 
 end_per_suite(Config) ->
     http_helper:stop(),
-    Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
-    [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
-    dynamic_modules:restore_modules(Config),
+    dynamic_services:restore_services(Config),
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+init_per_group(module_opts, Config) ->
+    dynamic_modules:save_modules(host_type(), Config);
 init_per_group(log_transparency, Config) ->
     logger_ct_backend:start(),
     logger_ct_backend:capture(warning),
@@ -134,6 +97,8 @@ init_per_group(log_transparency, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(module_opts, Config) ->
+    dynamic_modules:restore_modules(Config);
 end_per_group(log_transparency, Config) ->
     logger_ct_backend:stop_capture(),
     Config;
@@ -160,17 +125,26 @@ init_per_testcase(xmpp_components_are_reported, Config) ->
     Config1 = get_components(common(Config), Config),
     enable_system_metrics(mim()),
     Config1;
-init_per_testcase(module_backend_is_reported, Config) ->
-    create_events_collection(),
-    DefModVCardConfig = config_parser_helper:default_mod_config(mod_vcard),
-    dynamic_modules:ensure_modules(host_type(), [{mod_vcard, DefModVCardConfig}]),
-    enable_system_metrics(mim()),
-    Config;
 init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     escalus:init_per_testcase(CN, Config1);
+init_per_testcase(rdbms_module_opts_are_reported = CN, Config) ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        false ->
+            {skip, "RDBMS is not available"};
+        true ->
+            create_events_collection(),
+            dynamic_modules:ensure_modules(host_type(), required_modules(CN)),
+            enable_system_metrics(mim()),
+            Config
+    end;
+init_per_testcase(module_opts_are_reported = CN, Config) ->
+    create_events_collection(),
+    dynamic_modules:ensure_modules(host_type(), required_modules(CN)),
+    enable_system_metrics(mim()),
+    Config;
 init_per_testcase(_TestcaseName, Config) ->
     create_events_collection(),
     enable_system_metrics(mim()),
@@ -215,62 +189,85 @@ periodic_report_available(_Config) ->
         true).
 
 all_clustered_mongooses_report_the_same_client_id(_Config) ->
-    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
+    mongoose_helper:wait_until(fun is_host_count_reported/0, true),
     all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
-    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
-    mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    mongoose_helper:wait_until(fun is_host_count_reported/0, true),
+    mongoose_helper:wait_until(fun are_modules_reported/0, true),
     events_are_reported_to_primary_tracking_id(),
     all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
-    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
-    mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    mongoose_helper:wait_until(fun is_host_count_reported/0, true),
+    mongoose_helper:wait_until(fun are_modules_reported/0, true),
     events_are_reported_to_both_tracking_ids(),
     all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_a_json_file(_Config) ->
-    ReportFilePath = distributed_helper:rpc(mim(), mongoose_system_metrics_file, location, []),
-    ReportLastModified = distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath]),
+    ReportFilePath = rpc(mim(), mongoose_system_metrics_file, location, []),
+    ReportLastModified = rpc(mim(), filelib, last_modified, [ReportFilePath]),
     Fun = fun() ->
-        ReportLastModified < distributed_helper:rpc(mim(), filelib, last_modified, [ReportFilePath])
+        ReportLastModified < rpc(mim(), filelib, last_modified, [ReportFilePath])
     end,
     mongoose_helper:wait_until(Fun, true),
     %% now we read the content of the file and check if it's a valid JSON
-    {ok, File} = distributed_helper:rpc(mim(), file, read_file, [ReportFilePath]),
+    {ok, File} = rpc(mim(), file, read_file, [ReportFilePath]),
     jiffy:decode(File).
 
-module_backend_is_reported(_Config) ->
-    mongoose_helper:wait_until(fun modules_are_reported/0, true),
-    mongoose_helper:wait_until(fun mod_vcard_backend_is_reported/0, true).
+module_opts_are_reported(_Config) ->
+    mongoose_helper:wait_until(fun are_modules_reported/0, true),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    check_module_backend(mod_bosh, mnesia),
+    check_module_backend(mod_event_pusher, push),
+    check_module_backend(mod_event_pusher_push, Backend),
+    check_module_backend(mod_http_upload, s3),
+    check_module_backend(mod_last, Backend),
+    check_module_backend(mod_muc, Backend),
+    check_module_backend(mod_muc_light, Backend),
+    check_module_backend(mod_offline, Backend),
+    check_module_backend(mod_privacy, Backend),
+    check_module_backend(mod_private, Backend),
+    check_module_backend(mod_pubsub, Backend),
+    check_module_opt(mod_push_service_mongoosepush, api_version, <<"\"v3\"">>),
+    check_module_backend(mod_roster, Backend),
+    check_module_backend(mod_vcard, Backend).
+
+rdbms_module_opts_are_reported(_Config) ->
+    mongoose_helper:wait_until(fun are_modules_reported/0, true),
+    check_module_backend(mod_auth_token, rdbms),
+    check_module_backend(mod_inbox, rdbms),
+    check_module_backend(mod_mam_meta, rdbms).
+
+check_module_backend(Module, Backend) ->
+    check_module_opt(Module, backend, atom_to_binary(Backend)).
 
 mongoose_version_is_reported(_Config) ->
-    mongoose_helper:wait_until(fun mongoose_version_is_reported/0, true).
+    mongoose_helper:wait_until(fun is_mongoose_version_reported/0, true).
 
 cluster_uptime_is_reported(_Config) ->
-    mongoose_helper:wait_until(fun cluster_uptime_is_reported/0, true).
+    mongoose_helper:wait_until(fun is_cluster_uptime_reported/0, true).
 
 xmpp_components_are_reported(Config) ->
     CompOpts = ?config(component1, Config),
     {Component, Addr, _} = connect_component(CompOpts),
-    mongoose_helper:wait_until(fun xmpp_components_are_reported/0, true),
+    mongoose_helper:wait_until(fun are_xmpp_components_reported/0, true),
     mongoose_helper:wait_until(fun more_than_one_component_is_reported/0, true),
     disconnect_component(Component, Addr).
 
 api_are_reported(_Config) ->
-    mongoose_helper:wait_until(fun api_are_reported/0, true).
+    mongoose_helper:wait_until(fun is_api_reported/0, true).
 
 transport_mechanisms_are_reported(_Config) ->
-    mongoose_helper:wait_until(fun transport_mechanisms_are_reported/0, true).
+    mongoose_helper:wait_until(fun are_transport_mechanisms_reported/0, true).
 
 outgoing_pools_are_reported(_Config) ->
-    mongoose_helper:wait_until(fun outgoing_pools_are_reported/0, true).
+    mongoose_helper:wait_until(fun are_outgoing_pools_reported/0, true).
 
 xmpp_stanzas_counts_are_reported(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
-        mongoose_helper:wait_until(fun message_count_is_reported/0, true),
-        mongoose_helper:wait_until(fun iq_count_is_reported/0, true),
+        mongoose_helper:wait_until(fun is_message_count_reported/0, true),
+        mongoose_helper:wait_until(fun is_iq_count_reported/0, true),
         Sent = get_metric_value(<<"xmppMessageSent">>),
         Received = get_metric_value(<<"xmppMessageReceived">>),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
@@ -280,11 +277,10 @@ xmpp_stanzas_counts_are_reported(Config) ->
     end).
 
 config_type_is_reported(_Config) ->
-    mongoose_helper:wait_until(fun config_type_is_reported/0, true).
+    mongoose_helper:wait_until(fun is_config_type_reported/0, true).
 
 just_removed_from_config_logs_question(_Config) ->
     disable_system_metrics(mim3()),
-    remove_service_from_config(service_mongoose_system_metrics),
     %% WHEN
     Result = distributed_helper:rpc(
                mim3(), service_mongoose_system_metrics, verify_if_configured, []),
@@ -308,7 +304,7 @@ in_config_unmodified_logs_request_for_agreement(_Config) ->
 in_config_with_explicit_no_report_goes_off_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_module(mim(), [no_report]),
+    start_system_metrics_service(mim(), #{report => false}),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -322,7 +318,7 @@ in_config_with_explicit_no_report_goes_off_silently(_Config) ->
 in_config_with_explicit_reporting_goes_on_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_module(mim(), [report]),
+    start_system_metrics_service(mim(), #{report => true}),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -337,15 +333,65 @@ in_config_with_explicit_reporting_goes_on_silently(_Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+required_modules(CaseName) ->
+    lists:filter(fun({Module, _Opts}) -> is_module_supported(Module) end,
+                 modules_to_test(CaseName)).
+
+modules_to_test(module_opts_are_reported) ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    [required_module(mod_bosh),
+     required_module(mod_event_pusher,
+                     #{push => config([modules, mod_event_pusher, push], #{backend => Backend})}),
+     required_module(mod_http_upload, s3),
+     required_module(mod_last, Backend),
+     required_module(mod_muc, Backend),
+     required_module(mod_muc_light, Backend),
+     required_module(mod_offline, Backend),
+     required_module(mod_privacy, Backend),
+     required_module(mod_private, Backend),
+     required_module(mod_pubsub, Backend),
+     required_module(mod_push_service_mongoosepush),
+     required_module(mod_roster, Backend),
+     required_module(mod_vcard, Backend)];
+modules_to_test(rdbms_module_opts_are_reported) ->
+    [required_module(mod_auth_token),
+     required_module(mod_inbox),
+     required_module(mod_mam_meta)].
+
+required_module(Module) ->
+    required_module(Module, #{}).
+
+required_module(Module, Backend) when is_atom(Backend) ->
+    {Module, mod_config(Module, #{backend => Backend})};
+required_module(Module, Opts) ->
+    {Module, mod_config(Module, Opts)}.
+
+check_module_opt(Module, Key, Value) ->
+    case is_module_supported(Module) of
+        true ->
+            ?assertEqual(true, is_module_opt_reported(Module, Key, Value));
+        false ->
+            ct:log("Skipping unsupported module ~p", [Module])
+    end.
+
+is_module_supported(Module) ->
+    is_host_type_static() orelse supports_dynamic_domains(Module).
+
+is_host_type_static() ->
+    rpc(mim(), mongoose_domain_core, is_static, [host_type()]).
+
+supports_dynamic_domains(Module) ->
+    rpc(mim(), gen_mod, does_module_support, [Module, dynamic_domains]).
+
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
     UniqueSortedTab = lists:usort([Cid || #event{cid = Cid} <- Tab]),
     1 = length(UniqueSortedTab).
 
-hosts_count_is_reported() ->
+is_host_count_reported() ->
     is_in_table(<<"hosts">>).
 
-modules_are_reported() ->
+are_modules_reported() ->
     is_in_table(<<"module">>).
 
 is_in_table(EventCategory) ->
@@ -370,22 +416,23 @@ get_events_collection_size() ->
     ets:info(?ETS_TABLE, size).
 
 enable_system_metrics(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}]).
-
-enable_system_metrics(Node, Timers) ->
-    UrlArgs = [google_analytics_url, ?SERVER_URL],
-    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
-    start_system_metrics_module(Node, Timers).
+    enable_system_metrics(Node, #{initial_report => 100, periodic_report => 100}).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, ?TRACKING_ID_EXTRA}]).
+    enable_system_metrics(Node, #{initial_report => 100, periodic_report => 100,
+                                  tracking_id => ?TRACKING_ID_EXTRA}).
 
-start_system_metrics_module(Node, Args) ->
-    distributed_helper:rpc(
-      Node, mongoose_service, start_service, [service_mongoose_system_metrics, Args]).
+enable_system_metrics(Node, Opts) ->
+    UrlArgs = [google_analytics_url, ?SERVER_URL],
+    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
+    start_system_metrics_service(Node, Opts).
+
+start_system_metrics_service(Node, ExtraOpts) ->
+    Opts = config([services, service_mongoose_system_metrics], ExtraOpts),
+    dynamic_services:ensure_started(Node, service_mongoose_system_metrics, Opts).
 
 disable_system_metrics(Node) ->
-    distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
+    dynamic_services:ensure_stopped(Node, service_mongoose_system_metrics),
     mongoose_helper:successful_rpc(Node, mongoose_config, unset_opt, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
@@ -403,11 +450,6 @@ system_metrics_service_is_enabled(Node) ->
 
 system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
-
-remove_service_from_config(Service) ->
-    Services = distributed_helper:rpc(mim3(), mongoose_config, get_opt, [services]),
-    NewServices = proplists:delete(Service, Services),
-    distributed_helper:rpc(mim3(), mongoose_config, set_opt, [services, NewServices]).
 
 events_are_reported_to_primary_tracking_id() ->
     events_are_reported_to_tracking_ids([primary_tracking_id()]).
@@ -427,42 +469,45 @@ events_are_reported_to_tracking_ids(ConfiguredTrackingIds) ->
     ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || Tid <- ConfiguredTrackingIds]),
     ?assertEqual(ExpectedTrackingIds, ActualTrackingIds).
 
-feature_is_reported(EventCategory, EventAction) ->
+is_feature_reported(EventCategory, EventAction) ->
     length(match_events(EventCategory, EventAction)) > 0.
 
-feature_is_reported(EventCategory, EventAction, EventLabel) ->
+is_feature_reported(EventCategory, EventAction, EventLabel) ->
     length(match_events(EventCategory, EventAction, EventLabel)) > 0.
 
-mod_vcard_backend_is_reported() ->
-    feature_is_reported(<<"mod_vcard">>, <<"backend">>).
+is_module_backend_reported(Module, Backend) ->
+    is_feature_reported(atom_to_binary(Module), <<"backend">>, atom_to_binary(Backend)).
 
-mongoose_version_is_reported() ->
-    feature_is_reported(<<"cluster">>, <<"mim_version">>).
+is_module_opt_reported(Module, Key, Value) ->
+    is_feature_reported(atom_to_binary(Module), atom_to_binary(Key), Value).
 
-cluster_uptime_is_reported() ->
-    feature_is_reported(<<"cluster">>, <<"uptime">>).
+is_mongoose_version_reported() ->
+    is_feature_reported(<<"cluster">>, <<"mim_version">>).
 
-xmpp_components_are_reported() ->
-    feature_is_reported(<<"cluster">>, <<"number_of_components">>).
+is_cluster_uptime_reported() ->
+    is_feature_reported(<<"cluster">>, <<"uptime">>).
 
-config_type_is_reported() ->
-    IsToml = feature_is_reported(<<"cluster">>, <<"config_type">>, <<"toml">>),
-    IsCfg = feature_is_reported(<<"cluster">>, <<"config_type">>, <<"cfg">>),
+are_xmpp_components_reported() ->
+    is_feature_reported(<<"cluster">>, <<"number_of_components">>).
+
+is_config_type_reported() ->
+    IsToml = is_feature_reported(<<"cluster">>, <<"config_type">>, <<"toml">>),
+    IsCfg = is_feature_reported(<<"cluster">>, <<"config_type">>, <<"cfg">>),
     IsToml orelse IsCfg.
 
-api_are_reported() ->
+is_api_reported() ->
     is_in_table(<<"http_api">>).
 
-transport_mechanisms_are_reported() ->
+are_transport_mechanisms_reported() ->
     is_in_table(<<"transport_mechanism">>).
 
-outgoing_pools_are_reported() ->
+are_outgoing_pools_reported() ->
     is_in_table(<<"outgoing_pools">>).
 
-iq_count_is_reported() ->
+is_iq_count_reported() ->
     is_in_table(<<"xmppIqSent">>).
 
-message_count_is_reported() ->
+is_message_count_reported() ->
     is_in_table(<<"xmppMessageSent">>) andalso is_in_table(<<"xmppMessageReceived">>).
 
 assert_message_count_is_incremented(Sent, Received) ->

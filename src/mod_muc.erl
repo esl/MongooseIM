@@ -75,9 +75,9 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    can_access_identity/4, can_access_room/4, acc_room_affiliations/2, create_instant_room/6,
-    disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
-    online_rooms_number/0, register_room/4, restore_room/3, start_link/2]).
+    broadcast_service_message/2, can_access_identity/4, can_access_room/4, acc_room_affiliations/2,
+    create_instant_room/6, disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4,
+    remove_domain/3, online_rooms_number/0, register_room/4, restore_room/3, start_link/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -493,7 +493,6 @@ init({HostType, Opts}) ->
                            text => <<"Only one MUC domain would work with this host type">>})
     end,
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
-    register_for_global_distrib(HostType),
     %% Loading
     case LoadPermRoomsAtStartup of
         false ->
@@ -602,9 +601,7 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
 
 terminate(_Reason, #muc_state{host_type = HostType,
                               subdomain_pattern = SubdomainPattern}) ->
-    mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
-    unregister_for_global_distrib(HostType),
-    ok.
+    mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -1371,9 +1368,9 @@ ensure_metrics(_Host) ->
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
 
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
@@ -1407,12 +1404,3 @@ make_server_host(To, #muc_state{host_type = HostType,
         {fqdn, _} ->
             HostType
     end.
-
-register_for_global_distrib(HostType) ->
-    %% Would not work for multitenancy
-    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
-    mongoose_hooks:register_subhost(SubHost, false).
-
-unregister_for_global_distrib(HostType) ->
-    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
-    mongoose_hooks:unregister_subhost(SubHost).

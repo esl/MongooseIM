@@ -24,7 +24,6 @@
 -behaviour(mongoose_module_metrics).
 
 %% API
--export([default_host/0]).
 -export([server_host_to_muc_host/2]).
 -export([config_schema/1]).
 
@@ -172,7 +171,7 @@ delete_room({_, RoomS} = RoomUS) ->
 start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
-    mod_muc_light_codec_backend:start(HostType, [{backend, Codec}]),
+    mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
     ejabberd_hooks:add(hooks(HostType)),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),
@@ -831,6 +830,6 @@ maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms],
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

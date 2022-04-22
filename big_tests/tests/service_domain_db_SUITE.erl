@@ -1,7 +1,6 @@
 -module(service_domain_db_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4]).
@@ -26,6 +25,7 @@
          stop_listener/1]).
 
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [config/2]).
 
 -define(INV_PWD, <<"basic auth provided, invalid password">>).
 -define(NO_PWD, <<"basic auth is required">>).
@@ -167,15 +167,12 @@ rest_cases() ->
      rest_enable_domain_fails_if_service_disabled,
      rest_delete_domain_cleans_data_from_mam].
 
--define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
-
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    Conf1 = store_conf(mim()),
-    Conf2 = store_conf(mim2()),
-    Conf3 = store_conf(mim3()),
+    Config0 = dynamic_services:save_services(all_nodes(), Config),
+    Config1 = dynamic_modules:save_modules(dummy_auth_host_type(), Config0),
     ensure_nodes_know_each_other(),
     service_disabled(mim()),
     service_disabled(mim2()),
@@ -183,30 +180,19 @@ init_per_suite(Config) ->
     prepare_test_queries(mim()),
     prepare_test_queries(mim2()),
     erase_database(mim()),
-    Config1 = ejabberd_node_utils:init(mim(), Config),
-    Config2 = dynamic_modules:save_modules(dummy_auth_host_type(), Config1),
-    escalus:init_per_suite([{mim_conf1, Conf1},
-                            {mim_conf2, Conf2},
-                            {mim_conf3, Conf3},
-                            {service_setup, per_testcase} | Config2]).
-
-store_conf(Node) ->
-    Loaded = rpc(Node, mongoose_service, is_loaded, [service_domain_db]),
-    ServiceOpts = rpc(Node, mongoose_service, get_service_opts, [service_domain_db]),
-    CoreOpts = rpc(Node, mongoose_domain_core, get_start_args, []),
-    #{loaded => Loaded, service_opts => ServiceOpts, core_opts => CoreOpts}.
+    Config2 = ejabberd_node_utils:init(mim(), Config1),
+    escalus:init_per_suite([{service_setup, per_testcase} | Config2]).
 
 end_per_suite(Config) ->
-    Conf1 = proplists:get_value(mim_conf1, Config),
-    Conf2 = proplists:get_value(mim_conf2, Config),
-    Conf3 = proplists:get_value(mim_conf3, Config),
-    restore_conf(mim(), Conf1),
-    restore_conf(mim2(), Conf2),
-    restore_conf(mim3(), Conf3),
+    [restart_domain_core(Node) || Node <- all_nodes()],
+    dynamic_services:restore_services(Config),
     domain_helper:insert_configured_domains(),
     dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
+
+all_nodes() ->
+    [mim(), mim2(), mim3()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -225,7 +211,7 @@ init_per_group(rest_without_auth, Config) ->
 init_per_group(GroupName, Config) ->
     Config1 = save_service_setup_option(GroupName, Config),
     case ?config(service_setup, Config) of
-        per_group -> setup_service([], Config1);
+        per_group -> setup_service(#{}, Config1);
         per_testcase -> ok
     end,
     Config1.
@@ -242,7 +228,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
     maybe_setup_meck(db_crash_on_initial_load_restarts_service),
-    init_with(mim(), [], []),
+    restart_domain_core(mim(), [], []),
     Config;
 init_per_testcase(TestcaseName, Config) ->
     maybe_setup_meck(TestcaseName),
@@ -253,9 +239,9 @@ init_per_testcase(TestcaseName, Config) ->
     init_per_testcase2(TestcaseName, Config).
 
 service_opts(db_events_table_gets_truncated) ->
-    [{event_cleaning_interval, 1}, {event_max_age, 3}];
+    #{event_cleaning_interval => 1, event_max_age => 3};
 service_opts(_) ->
-    [].
+    #{}.
 
 end_per_testcase(TestcaseName, Config) ->
     end_per_testcase2(TestcaseName, Config),
@@ -288,14 +274,14 @@ end_per_testcase2(_, Config) ->
 setup_service(Opts, Config) ->
     ServiceEnabled = proplists:get_value(service, Config, false),
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
-             {<<"erlang-solutions.com">>, <<"type2">>},
-             {<<"erlang-solutions.local">>, <<"type2">>}],
-    init_with(mim(), Pairs1, host_types_for_mim()),
-    init_with(mim2(), [], host_types_for_mim2()),
+              {<<"erlang-solutions.com">>, <<"type2">>},
+              {<<"erlang-solutions.local">>, <<"type2">>}],
+    restart_domain_core(mim(), Pairs1, host_types_for_mim()),
+    restart_domain_core(mim2(), [], host_types_for_mim2()),
     case ServiceEnabled of
         true ->
             service_enabled(mim(), Opts),
-            service_enabled(mim2(), []);
+            service_enabled(mim2(), #{});
         false ->
             ok
     end.
@@ -492,7 +478,7 @@ db_records_are_restored_on_mim_restart(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
     service_disabled(mim()),
-    init_with(mim(), [], [<<"type1">>]),
+    restart_domain_core(mim(), [], [<<"type1">>]),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     service_enabled(mim()),
     %% DB still contains data
@@ -507,7 +493,7 @@ db_record_is_ignored_if_domain_static(_) ->
     %% Simulate MIM restart
     service_disabled(mim()),
     %% Only one domain is static
-    init_with(mim(), [{<<"example.com">>, <<"cfggroup">>}], [<<"dbgroup">>, <<"cfggroup">>]),
+    restart_domain_core(mim(), [{<<"example.com">>, <<"cfggroup">>}], [<<"dbgroup">>, <<"cfggroup">>]),
     service_enabled(mim()),
     %% DB still contains data
     {ok, #{host_type := <<"dbgroup">>, enabled := true}} =
@@ -1050,20 +1036,25 @@ rest_delete_domain_cleans_data_from_mam(Config) ->
 %%--------------------------------------------------------------------
 
 service_enabled(Node) ->
-    service_enabled(Node, []),
+    service_enabled(Node, #{}),
     sync_local(Node).
 
-service_enabled(Node, Opts) ->
-    rpc(Node, mongoose_service, start_service, [service_domain_db, Opts]),
+service_enabled(Node, ExtraOpts) ->
+    Opts = config([services, service_domain_db], ExtraOpts),
+    dynamic_services:ensure_started(Node, service_domain_db, Opts),
     true = rpc(Node, service_domain_db, enabled, []).
 
 service_disabled(Node) ->
-    rpc(Node, mongoose_service, stop_service, [service_domain_db]),
+    dynamic_services:ensure_stopped(Node, service_domain_db),
     false = rpc(Node, service_domain_db, enabled, []).
 
-init_with(Node, Pairs, AllowedHostTypes) ->
-    rpc(Node, mongoose_domain_core, stop, []),
-    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
+restart_domain_core(Node, Pairs, AllowedHostTypes) ->
+    ok = rpc(Node, mongoose_domain_core, stop, []),
+    ok = rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
+
+restart_domain_core(Node) ->
+    ok = rpc(Node, mongoose_domain_core, stop, []),
+    ok = rpc(Node, mongoose_domain_core, start, []).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -1088,13 +1079,13 @@ erase_database(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
         true ->
             prepare_test_queries(Node),
-            rpc(Node, mongoose_domain_sql, erase_database, []);
+            rpc(Node, mongoose_domain_sql, erase_database, [global]);
         false -> ok
     end.
 
 prepare_test_queries(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, []);
+        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, [global]);
         false -> ok
     end.
 
@@ -1157,17 +1148,6 @@ sync_local(Node) ->
 
 force_check_for_updates(Node) ->
     ok = rpc(Node, service_domain_db, force_check_for_updates, []).
-
-restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
-    rpc(Node, mongoose_service, stop_service, [service_domain_db]),
-    [Pairs, AllowedHostTypes] = CoreOpts,
-    init_with(Node, Pairs, AllowedHostTypes),
-    case Loaded of
-        true ->
-            rpc(Node, mongoose_service, start_service, [service_domain_db, ServiceOpts]);
-        _ ->
-            ok
-    end.
 
 %% Needed for pg2 group to work
 %% So, multiple node tests work

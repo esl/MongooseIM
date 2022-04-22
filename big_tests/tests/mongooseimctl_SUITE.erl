@@ -15,7 +15,6 @@
 %%==============================================================================
 -module(mongooseimctl_SUITE).
 -compile([export_all, nowarn_export_all, nowarn_shadow_vars]).
-
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -27,6 +26,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
+-import(config_parser_helper, [config/2, default_mod_config/1]).
 
 -define(HTTP_UPLOAD_FILENAME, "tmp.txt").
 -define(HTTP_UPLOAD_FILESIZE, "5").
@@ -50,17 +50,6 @@
 -define(S3_BUCKET_URL, "http://localhost:9000/mybucket/").
 -define(S3_REGION, "eu-east-25").
 -define(S3_ACCESS_KEY_ID, "AKIAIAOAONIULXQGMOUA").
--define(MINIO_OPTS(AddAcl),
-    [
-        {max_file_size, 1234},
-        {s3, [
-            {bucket_url, ?S3_BUCKET_URL},
-            {add_acl, AddAcl},
-            {region, ?S3_REGION},
-            {access_key_id, ?S3_ACCESS_KEY_ID},
-            {secret_access_key, "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"}
-        ]}
-    ]).
 
 %%Prefix MUST be a constant string, otherwise it results in compilation error
 -define(GET_URL(Prefix, Sting), fun() -> Prefix ++ URL = Sting, URL end()).
@@ -201,9 +190,9 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                       {roster_template, TemplatePath} | Config1]),
     dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last,
-        config_parser_helper:default_mod_config(mod_last)}]),
+        default_mod_config(mod_last)}]),
     dynamic_modules:ensure_modules(domain_helper:secondary_host_type(),
-        [{mod_last, config_parser_helper:default_mod_config(mod_last)}]),
+        [{mod_last, default_mod_config(mod_last)}]),
     prepare_roster_template(TemplatePath, domain()),
     %% dump_and_load requires at least one mnesia table
     %% ensure, that passwd table is available
@@ -225,7 +214,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(basic, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
+    dynamic_modules:ensure_modules(domain_helper:host_type(),
+        [{mod_offline, default_mod_config(mod_offline)}]),
     Config;
 init_per_group(private, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(),
@@ -247,13 +237,24 @@ init_per_group(roster_advanced, Config) ->
             {skip, command_process_rosteritems_supports_only_mnesia}
     end;
 init_per_group(upload_without_acl, Config) ->
-    dynamic_modules:start(host_type(),  mod_http_upload, ?MINIO_OPTS(false)),
+    dynamic_modules:start(host_type(), mod_http_upload, mod_http_upload_config(false)),
     [{with_acl, false} | Config];
 init_per_group(upload_with_acl, Config) ->
-    dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(true)),
+    dynamic_modules:start(host_type(), mod_http_upload, mod_http_upload_config(true)),
     [{with_acl, true} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
+
+mod_http_upload_config(AddAcl) ->
+    config([modules, mod_http_upload],
+        #{max_file_size => 1234,
+          s3 => #{bucket_url => <<?S3_BUCKET_URL>>,
+                  add_acl => AddAcl,
+                  region => <<?S3_REGION>>,
+                  access_key_id => <<?S3_ACCESS_KEY_ID>>,
+                  secret_access_key => <<"CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8">>
+                 }
+        }).
 
 end_per_group(basic, Config) ->
     dynamic_modules:stop(domain_helper:host_type(), mod_offline),
@@ -422,7 +423,7 @@ real_upload(Config, ContentType) ->
     ?assertMatch({_, 0}, Ret),
     ok.
 %%--------------------------------------------------------------------
-%% mod_admin_extra_accounts tests
+%% service_admin_extra_accounts tests
 %%--------------------------------------------------------------------
 
 change_password(Config) ->
@@ -534,7 +535,7 @@ delete_old_users_vhost(Config) ->
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_accounts tests
+%% service_admin_extra_accounts tests
 %%--------------------------------------------------------------------
 
 %% Checks both num_resources and resource_num
@@ -617,7 +618,7 @@ set_presence(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_vcard tests
+%% service_admin_extra_vcard tests
 %%--------------------------------------------------------------------
 
 vcard_rw(Config) ->
@@ -653,7 +654,7 @@ vcard2_multi_rw(Config) ->
     true = (lists:member("sales", OrgUnits) andalso lists:member("marketing", OrgUnits)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_vcard tests
+%% service_admin_extra_vcard tests
 %%--------------------------------------------------------------------
 
 rosteritem_rw(Config) ->
@@ -946,7 +947,7 @@ push_roster_alltoall(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_last tests
+%% service_admin_extra_last tests
 %%--------------------------------------------------------------------
 
 set_last(Config) ->
@@ -983,7 +984,7 @@ set_last(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_private tests
+%% service_admin_extra_private tests
 %%--------------------------------------------------------------------
 
 private_rw(Config) ->
@@ -1001,7 +1002,7 @@ private_rw(Config) ->
                 children = [#xmlcdata{ content = <<"1">> }]}} = exml:parse(list_to_binary(Result)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_stanza tests
+%% service_admin_extra_stanza tests
 %%--------------------------------------------------------------------
 
 send_message(Config) ->
@@ -1081,7 +1082,7 @@ create_stanza(Name1, JID2) ->
     exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Name1, "Hi"), JID2)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_stats tests
+%% service_admin_extra_stats tests
 %%--------------------------------------------------------------------
 
 stats_global(Config) ->

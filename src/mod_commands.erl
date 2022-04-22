@@ -96,7 +96,7 @@ commands() ->
       {function, unregister},
       {action, delete},
       {args, [{host, binary}, {user, binary}]},
-      {result, {msg, binary}}
+      {result, ok}
      ],
      [
       {name, list_sessions},
@@ -116,7 +116,7 @@ commands() ->
       {function, kick_session},
       {action, delete},
       {args, [{host, binary}, {user, binary}, {res, binary}]},
-      {result, {msg, binary}}
+      {result, ok}
      ],
      [
       {name, list_contacts},

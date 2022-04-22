@@ -18,15 +18,13 @@
          insert_dummy_event/1]).
 
 %% interfaces only for integration tests
--export([prepare_test_queries/0,
-         erase_database/0,
+-export([prepare_test_queries/1,
+         erase_database/1,
          insert_full_event/2,
          insert_domain_settings_without_event/2]).
 
--ignore_xref([erase_database/0, prepare_test_queries/0, get_enabled_dynamic/0,
+-ignore_xref([erase_database/1, prepare_test_queries/1, get_enabled_dynamic/0,
               insert_full_event/2, insert_domain_settings_without_event/2]).
-
--include("mongoose_logger.hrl").
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -35,9 +33,8 @@
 -type row() :: {event_id(), domain(), mongooseim:host_type() | null}.
 -export_type([row/0]).
 
-start(_Opts) ->
+start(#{db_pool := Pool}) ->
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
-    Pool = get_db_pool(),
     True = sql_true(Pool),
     %% Settings
     prepare(domain_insert_settings, domain_settings, [domain, host_type],
@@ -85,8 +82,7 @@ start(_Opts) ->
               " ORDER BY domain_events.id ">>),
     ok.
 
-prepare_test_queries() ->
-    Pool = get_db_pool(),
+prepare_test_queries(Pool) ->
     True = sql_true(Pool),
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
@@ -160,8 +156,8 @@ select_from(FromId, Limit) ->
     Rows.
 
 get_enabled_dynamic() ->
-    prepare_test_queries(),
     Pool = get_db_pool(),
+    prepare_test_queries(Pool),
     {selected, Rows} = execute_successfully(Pool, domain_get_enabled_dynamic, []),
     Rows.
 
@@ -232,8 +228,7 @@ insert_full_event_mssql(EventId, Domain) ->
 %% ----------------------------------------------------------------------------
 %% For testing
 
-erase_database() ->
-    Pool = get_db_pool(),
+erase_database(Pool) ->
     execute_successfully(Pool, domain_erase_events, []),
     execute_successfully(Pool, domain_erase_settings, []).
 
@@ -298,10 +293,7 @@ row_to_map({HostType, Enabled}) ->
     #{host_type => HostType, enabled => mongoose_rdbms:to_bool(Enabled)}.
 
 get_db_pool() ->
-    proplists:get_value(db_pool, get_service_opts(), global).
-
-get_service_opts() ->
-    mongoose_service:get_service_opts(service_domain_db).
+    mongoose_config:get_opt([services, service_domain_db, db_pool]).
 
 transaction(F) ->
     transaction(F, 3, []).

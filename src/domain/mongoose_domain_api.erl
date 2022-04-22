@@ -31,15 +31,12 @@
 
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
--type pair() :: {domain(), host_type()}.
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
 
 
 -spec init() -> ok | {error, term()}.
 init() ->
-    Pairs = get_static_pairs(),
-    AllowedHostTypes = mongoose_config:get_opt(host_types),
-    mongoose_domain_core:start(Pairs, AllowedHostTypes),
+    mongoose_domain_core:start(),
     mongoose_subdomain_core:start(),
     mongoose_lazy_routing:start().
 
@@ -182,11 +179,6 @@ check_domain(Domain, HostType) ->
         true ->
             ok
     end.
-
-%% Domains should be nameprepped using `jid:nameprep'
--spec get_static_pairs() -> [pair()].
-get_static_pairs() ->
-    [{H, H} || H <- mongoose_config:get_opt(hosts)].
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->

@@ -147,7 +147,7 @@ archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for MUC archives
 
--spec start(HostType :: host_type(), Opts :: list()) -> any().
+-spec start(host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
     ensure_metrics(HostType),
@@ -155,7 +155,7 @@ start(HostType, Opts) ->
     add_iq_handlers(HostType, Opts),
     ok.
 
--spec stop(HostType :: host_type()) -> any().
+-spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
     ejabberd_hooks:delete(hooks(HostType)),

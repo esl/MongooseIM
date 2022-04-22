@@ -16,15 +16,10 @@
 %% ---------------------------------------------------------------------------
 %% Config
 
-default_cleaning_interval() ->
-    1800. %% 30 minutes
-
-default_max_age() ->
-    7200. %% 2 hours
-
 %% ---------------------------------------------------------------------------
 %% Client code
 
+-spec start(mongoose_service:options()) -> ok.
 start(Opts) ->
     ChildSpec =
         {?MODULE,
@@ -33,6 +28,7 @@ start(Opts) ->
     supervisor:start_child(ejabberd_sup, ChildSpec),
     ok.
 
+-spec stop() -> ok.
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
@@ -44,9 +40,7 @@ start_link(Opts) ->
 %% ---------------------------------------------------------------------------
 %% Server callbacks
 
-init(Opts) ->
-    Interval = proplists:get_value(event_cleaning_interval, Opts, default_cleaning_interval()),
-    MaxAge = proplists:get_value(event_max_age, Opts, default_max_age()),
+init(#{event_cleaning_interval := Interval, event_max_age := MaxAge}) ->
     ?LOG_INFO(#{what => domain_cleaner_start, cleaning_interval => Interval, max_age => MaxAge}),
     State = #{max_age => MaxAge},
     self() ! schedule_removal,

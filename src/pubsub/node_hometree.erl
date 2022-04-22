@@ -27,7 +27,7 @@
 -module(node_hometree).
 -behaviour(gen_pubsub_node).
 -author('christophe.romain@process-one.net').
-
+-include("mongoose.hrl").
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
@@ -40,9 +40,7 @@ based_on() ->  node_flat.
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
     Owner = mod_pubsub:service_jid(Host),
-    mod_pubsub:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
-    mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>,
-                           Owner, <<"hometree">>),
+    spawn(fun() -> continue_init(Host, ServerHost, Owner) end),
     ok.
 
 terminate(Host, ServerHost) ->
@@ -82,3 +80,26 @@ node_to_path(Node) ->
 
 path_to_node([]) -> <<>>;
 path_to_node(Path) -> mongoose_bin:join([<<"">> | Path], <<"/">>).
+
+continue_init(Host, ServerHost, Owner) ->
+    % we have to wait for mod_pubsub to be up and running before we try to use it
+    Proc = gen_mod:get_module_proc(ServerHost, ?PROCNAME),
+    case wait_for(Proc, 5) of
+        {ok, _} ->
+            mod_pubsub:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
+            mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>, Owner, <<"hometree">>);
+        {error, E} ->
+            error(E)
+    end.
+
+wait_for(_Proc, 0) ->
+    ?LOG_ERROR(#{what => plugin_init_failed, plugin => ?MODULE}),
+    {error, no_pubsub_proc};
+wait_for(Proc, Retries) ->
+    case whereis(Proc) of
+        undefined ->
+            timer:sleep(timer:seconds(1)),
+            wait_for(Proc, Retries - 1);
+        P ->
+            {ok, P}
+    end.

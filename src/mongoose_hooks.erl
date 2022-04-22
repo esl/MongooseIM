@@ -19,6 +19,7 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
+         extend_inbox_message/3,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
@@ -31,10 +32,10 @@
          rest_user_send_packet/4,
          session_cleanup/5,
          set_vcard/3,
-         unacknowledged_message/3,
+         unacknowledged_message/2,
          unregister_command/1,
          unregister_subhost/1,
-         user_available_hook/3,
+         user_available_hook/2,
          user_ping_response/5,
          user_ping_timeout/2,
          user_receive_packet/6,
@@ -285,6 +286,13 @@ filter_packet(Acc) ->
 inbox_unread_count(LServer, Acc, User) ->
     run_hook_for_host_type(inbox_unread_count, LServer, Acc, [User]).
 
+-spec extend_inbox_message(mongoose_acc:t(), mod_inbox:inbox_res(), jlib:iq()) ->
+    [exml:element()].
+extend_inbox_message(MongooseAcc, InboxRes, IQ) ->
+    HostType = mongoose_acc:host_type(MongooseAcc),
+    HookParams = #{mongoose_acc => MongooseAcc, inbox_res => InboxRes, iq => IQ},
+    run_fold(extend_inbox_message, HostType, [], HookParams).
+
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(HostType, KeyName) -> Result when
     HostType :: mongooseim:host_type(),
@@ -312,18 +320,18 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
     run_hook_for_host_type(presence_probe_hook, HostType, Acc, [From, To, Pid]).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
--spec push_notifications(Server, Acc, NotificationForms, Options) -> Result when
-    Server :: jid:server(),
+-spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
+    HostType :: mongooseim:host_type(),
     Acc :: ok | mongoose_acc:t(),
     NotificationForms :: [#{atom() => binary()}],
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
-push_notifications(Server, Acc, NotificationForms, Options) ->
-    Params = #{server => Server, options => Options,
+push_notifications(HostType, Acc, NotificationForms, Options) ->
+    Params = #{host_type => HostType, options => Options,
                notification_forms => NotificationForms},
-    Args = [Server, NotificationForms, Options],
+    Args = [HostType, NotificationForms, Options],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(push_notifications, Server, Acc, ParamsWithLegacyArgs).
+    run_hook_for_host_type(push_notifications, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `register_command' hook is called when a command
 %%% is registered in `mongoose_commands'.
@@ -334,7 +342,7 @@ register_command(Command) ->
     run_global_hook(register_command, Command, []).
 
 %%% @doc The `register_subhost' hook is called when a component
-%%% is registered for ejabberd_router.
+%%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
     LDomain :: binary(),
     IsHidden :: boolean(),
@@ -405,12 +413,12 @@ set_vcard(HostType, UserJID, VCard) ->
     run_hook_for_host_type(set_vcard, HostType, {error, no_handler_defined},
                            [HostType, UserJID, VCard]).
 
--spec unacknowledged_message(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+-spec unacknowledged_message(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-unacknowledged_message(HostType, Acc, JID) ->
+unacknowledged_message(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
     Params = #{jid => JID},
     Args = [JID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
@@ -425,19 +433,19 @@ unregister_command(Command) ->
     run_global_hook(unregister_command, Command, []).
 
 %%% @doc The `unregister_subhost' hook is called when a component
-%%% is unregistered from ejabberd_router.
+%%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.
 -spec unregister_subhost(LDomain) -> Result when
     LDomain :: binary(),
     Result :: any().
 unregister_subhost(LDomain) ->
     run_global_hook(unregister_subhost, ok, [LDomain]).
 
--spec user_available_hook(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+-spec user_available_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-user_available_hook(HostType, Acc, JID) ->
+user_available_hook(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(user_available_hook, HostType, Acc, [JID]).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping.

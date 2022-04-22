@@ -170,18 +170,10 @@ set_vcard(User, Host, Name, Subname, SomeContent) ->
 %%
 %% Internal vcard
 
--spec get_module_resource(jid:server()) -> string().
-get_module_resource(Server) ->
-    case gen_mod:get_module_opt(Server, ?MODULE, module_resource, none) of
-        none -> atom_to_list(?MODULE);
-        R when is_list(R) -> R
-    end.
-
-
 -spec get_vcard_content(jid:jid(), any()) ->
     {error, string()} | list(binary()).
 get_vcard_content(#jid{lserver = LServer} = NoResJID, Data) ->
-    JID = jid:replace_resource(NoResJID, list_to_binary(get_module_resource(LServer))),
+    JID = jid:replace_resource(NoResJID, atom_to_binary(?MODULE)),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,

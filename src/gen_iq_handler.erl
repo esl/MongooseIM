@@ -28,8 +28,7 @@
 
 %% Old API. Get rid of it once all the modules adopted.
 -export([add_iq_handler/6,
-         remove_iq_handler/3,
-         check_type/1]).
+         remove_iq_handler/3]).
 
 %% New API.
 -export([add_iq_handler_for_domain/6,
@@ -60,13 +59,6 @@ add_iq_handler(Component, Domain, Namespace, Module, Function, ExecutionType) ->
                         Namespace :: binary()) -> any().
 remove_iq_handler(Component, Domain, Namespace) ->
     gen_iq_component:unregister_iq_handler(Component, Domain, Namespace).
-
--spec check_type(execution_type()) -> execution_type().
-check_type(no_queue)  -> no_queue;
-check_type(parallel)  -> parallel;
-check_type(one_queue) -> one_queue;
-check_type({queues, Int}) when is_integer(Int), Int > 0 ->
-    {queues, Int}.
 
 %%====================================================================
 %% New API.

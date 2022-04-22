@@ -21,7 +21,10 @@ options("host_types") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {sm_backend, {mnesia, []}},
+     {services, #{service_domain_db => config([services, service_domain_db],
+                                              #{event_cleaning_interval => 1000,
+                                                event_max_age => 5000})}},
+     {sm_backend, mnesia},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"some host type">>}, default_s2s()},
@@ -39,11 +42,11 @@ options("host_types") ->
       auth_with_methods(#{external => #{instances => 1,
                                         program => "/usr/bin/bash"},
                           http => #{}})},
-     {{modules, <<"another host type">>}, #{mod_offline => []}},
+     {{modules, <<"another host type">>}, #{mod_offline => default_mod_config(mod_offline)}},
      {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
-     {{modules, <<"yet another host type">>}, #{mod_amp => []}},
+     {{modules, <<"yet another host type">>}, #{mod_amp => #{}}},
      {{replaced_wait_timeout, <<"another host type">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"some host type">>}, 2000},
@@ -60,17 +63,16 @@ options("miscellaneous") ->
      {hosts, [<<"localhost">>, <<"anonymous.localhost">>]},
      {language, <<"en">>},
      {listen,
-      [#{ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules =>
-             [{"_", "/ws-xmpp", mod_websockets,
-               [{ejabberd_service, [{access, all},
-                                   {max_fsm_queue, 1000},
-                                   {password, "secret"},
-                                   {shaper_rule, fast}]}]}],
-         port => 5280, proto => tcp,
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]}]},
+      [config([listen, http],
+              #{port => 5280,
+                handlers => [{"_", "/ws-xmpp", mod_websockets,
+                              [{service, maps:merge(extra_service_listener_config(),
+                                                    #{password => "secret",
+                                                      shaper_rule => fast,
+                                                      max_fsm_queue => 1000})}]
+                             }],
+                transport => #{num_acceptors => 10, max_connections => 1024}
+               })]},
      {loglevel, warning},
      {mongooseimctl_access_commands,
       [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]},
@@ -79,14 +81,13 @@ options("miscellaneous") ->
      {routing_modules,
       [mongoose_router_global, mongoose_router_localdomain]},
      {services,
-      [{service_mongoose_system_metrics,
-        [{initial_report, 300000},
-         {periodic_report, 10800000},
-         report,
-         {tracking_id, "UA-123456789"}]}]},
+      #{service_mongoose_system_metrics => #{initial_report => 20000,
+                                             periodic_report => 300000,
+                                             report => true,
+                                             tracking_id => "UA-123456789"}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, custom_auth()},
      {{auth, <<"localhost">>}, custom_auth()},
      {{modules, <<"anonymous.localhost">>}, #{}},
@@ -108,9 +109,10 @@ options("modules") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
+     {services, #{}},
      {{s2s, <<"dummy_host">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, all_modules()},
@@ -126,104 +128,113 @@ options("mongooseim-pgsql") ->
       [<<"localhost">>, <<"anonymous.localhost">>, <<"localhost.bis">>]},
      {language, <<"en">>},
      {listen,
-      [#{access => c2s, ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, max_stanza_size => 65536, module => ejabberd_c2s,
-         port => 5222, proto => tcp, shaper => c2s_shaper,
-         tls => [{certfile, "priv/dc1.pem"}, {dhfile, "priv/dh.pem"}, starttls],
-         zlib => 10000},
-       #{access => c2s, ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, max_stanza_size => 65536, module => ejabberd_c2s,
-         port => 5223, proto => tcp, shaper => c2s_shaper, zlib => 4096},
-       #{ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules =>
-             [{"_", "/http-bind", mod_bosh, []},
-              {"_", "/ws-xmpp", mod_websockets,
-               [{ejabberd_service, [{access, all},
-                                   {password, "secret"},
-                                   {shaper_rule, fast}]}]}],
-         port => 5280, proto => tcp,
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]},
-       #{ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules =>
-             [{"_", "/http-bind", mod_bosh, []},
-              {"_", "/ws-xmpp", mod_websockets,
-               [{max_stanza_size, 100},
-                {ping_rate, 120000},
-                {timeout, infinity}]},
-              {"localhost", "/api", mongoose_api_admin,
-               [{auth, {<<"ala">>, <<"makotaipsa">>}}]},
-              {"localhost", "/api/contacts/{:jid}", mongoose_api_client, []}],
-         port => 5285, proto => tcp,
-         ssl =>
-             [{certfile, "priv/cert.pem"},
-              {keyfile, "priv/dc1.pem"},
-              {password, []}],
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]},
-       #{ip_address => "127.0.0.1",
-         ip_tuple => {127, 0, 0, 1},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules => [{"localhost", "/api", mongoose_api_admin, []}],
-         port => 8088, proto => tcp,
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]},
-       #{ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules =>
-             [{"_", "/api-docs/[...]", cowboy_static,
-               {priv_dir, cowboy_swagger, "swagger",
-                [{mimetypes, cow_mimetypes, all}]}},
-              {"_", "/api-docs/swagger.json", cowboy_swagger_json_handler, #{}},
-              {"_", "/api-docs", cowboy_swagger_redirect_handler, #{}},
-              {"_", "/api/sse", lasse_handler, [mongoose_client_api_sse]},
-              {"_", "/api/contacts/[:jid]", mongoose_client_api_contacts, []},
-              {"_", "/api/messages/[:with]", mongoose_client_api_messages, []},
-              {"_", "/api/rooms/[:id]", mongoose_client_api_rooms, []},
-              {"_", "/api/rooms/[:id]/config",
-               mongoose_client_api_rooms_config, []},
-              {"_", "/api/rooms/[:id]/messages",
-               mongoose_client_api_rooms_messages, []},
-              {"_", "/api/rooms/:id/users/[:user]",
-               mongoose_client_api_rooms_users, []}],
-         port => 8089, proto => tcp,
-         protocol_options => [{compress, true}],
-         ssl =>
-             [{certfile, "priv/cert.pem"},
-              {keyfile, "priv/dc1.pem"},
-              {password, []}],
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]},
-       #{ip_address => "127.0.0.1",
-         ip_tuple => {127, 0, 0, 1},
-         ip_version => 4, module => ejabberd_cowboy,
-         modules =>
-             [{"localhost", "/api", mongoose_api,
-               [{handlers, [mongoose_api_metrics, mongoose_api_users]}]}],
-         port => 5288, proto => tcp,
-         transport_options => [{max_connections, 1024}, {num_acceptors, 10}]},
-       #{ip_address => "0",
-         ip_tuple => {0, 0, 0, 0},
-         ip_version => 4, max_stanza_size => 131072,
-         module => ejabberd_s2s_in, port => 5269, proto => tcp,
-         shaper => s2s_shaper,
-         tls => [{dhfile, "priv/dh.pem"}]},
-       #{access => all, ip_address => "127.0.0.1",
-         ip_tuple => {127, 0, 0, 1},
-         ip_version => 4, module => ejabberd_service, password => "secret",
-         port => 8888, proto => tcp, shaper_rule => fast},
-       #{access => all, conflict_behaviour => kick_old,
-         ip_address => "127.0.0.1",
-         ip_tuple => {127, 0, 0, 1},
-         ip_version => 4, module => ejabberd_service, password => "secret",
-         port => 8666, proto => tcp, shaper_rule => fast},
-       #{access => all, hidden_components => true, ip_address => "127.0.0.1",
-         ip_tuple => {127, 0, 0, 1},
-         ip_version => 4, module => ejabberd_service, password => "secret",
-         port => 8189, proto => tcp, shaper_rule => fast}]},
+      [config([listen, c2s],
+              #{port => 5222,
+                access => c2s,
+                shaper => c2s_shaper,
+                max_stanza_size => 65536,
+                zlib => 10000,
+                tls => [{certfile, "priv/dc1.pem"}, {dhfile, "priv/dh.pem"}, starttls]
+               }),
+       config([listen, c2s],
+              #{port => 5223,
+                access => c2s,
+                shaper => c2s_shaper,
+                max_stanza_size => 65536,
+                zlib => 4096
+               }),
+       config([listen, http],
+              #{port => 5280,
+                handlers => [{"_", "/http-bind", mod_bosh, []},
+                             {"_", "/ws-xmpp", mod_websockets,
+                              [{service, maps:merge(extra_service_listener_config(),
+                                                    #{password => "secret", shaper_rule => fast})}]
+                             }],
+                transport => #{num_acceptors => 10, max_connections => 1024}
+               }),
+       config([listen, http],
+              #{port => 5285,
+                handlers => [{"_", "/http-bind", mod_bosh, []},
+                             {"_", "/ws-xmpp", mod_websockets,
+                              [{max_stanza_size, 100},
+                               {ping_rate, 120000},
+                               {timeout, infinity}]},
+                             {"localhost", "/api", mongoose_api_admin,
+                              [{auth, {<<"ala">>, <<"makotaipsa">>}}]},
+                             {"localhost", "/api/contacts/{:jid}", mongoose_api_client, []}],
+                transport => #{num_acceptors => 10, max_connections => 1024},
+                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+               }),
+       config([listen, http],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8088,
+                transport => #{num_acceptors => 10, max_connections => 1024},
+                handlers => [{"localhost", "/api", mongoose_api_admin, []}]
+               }),
+       config([listen, http],
+              #{port => 8089,
+                handlers => [{"_", "/api-docs/[...]", cowboy_static,
+                              {priv_dir, cowboy_swagger, "swagger",
+                               [{mimetypes, cow_mimetypes, all}]}},
+                             {"_", "/api-docs/swagger.json", cowboy_swagger_json_handler, #{}},
+                             {"_", "/api-docs", cowboy_swagger_redirect_handler, #{}},
+                             {"_", "/api/sse", lasse_handler, [mongoose_client_api_sse]},
+                             {"_", "/api/contacts/[:jid]", mongoose_client_api_contacts, []},
+                             {"_", "/api/messages/[:with]", mongoose_client_api_messages, []},
+                             {"_", "/api/rooms/[:id]", mongoose_client_api_rooms, []},
+                             {"_", "/api/rooms/[:id]/config",
+                              mongoose_client_api_rooms_config, []},
+                             {"_", "/api/rooms/[:id]/messages",
+                              mongoose_client_api_rooms_messages, []},
+                             {"_", "/api/rooms/:id/users/[:user]",
+                              mongoose_client_api_rooms_users, []}],
+                protocol => #{compress => true},
+                transport => #{num_acceptors => 10, max_connections => 1024},
+                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+               }),
+       config([listen, http],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 5288,
+                transport => #{num_acceptors => 10, max_connections => 1024},
+                handlers =>
+                    [{"localhost", "/api", mongoose_api,
+                      [{handlers, [mongoose_api_metrics, mongoose_api_users]}]}]
+               }),
+       config([listen, s2s],
+              #{port => 5269,
+                shaper => s2s_shaper,
+                max_stanza_size => 131072,
+                tls => [{dhfile, "priv/dh.pem"}]
+               }),
+       config([listen, service],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8888,
+                access => all,
+                shaper_rule => fast,
+                password => "secret"
+               }),
+       config([listen, service],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8666,
+                access => all,
+                shaper_rule => fast,
+                password => "secret",
+                conflict_behaviour => kick_old
+               }),
+       config([listen, service],
+              #{ip_address => "127.0.0.1",
+                ip_tuple => {127, 0, 0, 1},
+                port => 8189,
+                access => all,
+                shaper_rule => fast,
+                password => "secret",
+                hidden_components => true
+               })
+      ]},
      {loglevel, warning},
      {max_fsm_queue, 1000},
      {mongooseimctl_access_commands, []},
@@ -244,13 +255,13 @@ options("mongooseim-pgsql") ->
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
-      [{service_admin_extra,
-        [{submods,
-          [node, accounts, sessions, vcard, gdpr, upload, roster, last, private,
-           stanza, stats]}]},
-       {service_mongoose_system_metrics,
-        [{initial_report, 300000}, {periodic_report, 10800000}]}]},
-     {sm_backend, {mnesia, []}},
+      #{service_admin_extra =>
+            #{submods => [node, accounts, sessions, vcard, gdpr, upload,
+                          roster, last, private, stanza, stats]},
+        service_mongoose_system_metrics =>
+            #{initial_report => 300000,
+              periodic_report => 10800000}}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{allow_multiple_connections => true,
                                        protocol => both},
@@ -352,10 +363,11 @@ options("outgoing_pools") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
+     {services, #{}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"localhost.bis">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{auth, <<"localhost.bis">>}, default_auth()},
@@ -378,7 +390,8 @@ options("s2s_only") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {sm_backend, {mnesia, []}},
+     {services, #{}},
+     {sm_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, #{}},
@@ -390,7 +403,6 @@ options("s2s_only") ->
 
 all_modules() ->
     #{mod_mam_rdbms_user => #{muc => true, pm => true},
-      mod_event_pusher_hook_translator => [],
       mod_mam_muc =>
           mod_config(mod_mam_muc,
                      #{archive_chat_markers => true,
@@ -398,67 +410,32 @@ all_modules() ->
                                               #{enabled => false}),
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
-      mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
+      mod_caps => default_mod_config(mod_caps),
       mod_mam_cache_user => (default_config([modules, mod_mam_meta, cache]))#{muc => true, pm => true},
       mod_offline =>
-          [{access_max_user_messages, max_user_offline_messages},
-           {backend, riak},
-           {bucket_type, <<"offline">>}],
+           mod_config(mod_offline, #{backend => riak,
+                                     riak => #{bucket_type => <<"offline">>}}),
       mod_ping =>
           mod_config(mod_ping, #{ping_interval => 60000,
                                  ping_req_timeout => 32000,
                                  send_pings => true,
                                  timeout_action => none}),
       mod_event_pusher =>
-          [{backends,
-            [{http,
-              [{callback_module, mod_event_pusher_http_defaults},
-               {path, "/notifications"},
-               {pool_name, http_pool}]},
-             {push,
-              [{backend, mnesia},
-               {plugin_module, mod_event_pusher_push_plugin_defaults},
-               {virtual_pubsub_hosts,
-                [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
-               {wpool, [{workers, 200}]}]},
-             {rabbit,
-              [{chat_msg_exchange,
-                [{name, <<"chat_msg">>},
-                 {recv_topic, <<"chat_msg_recv">>},
-                 {sent_topic, <<"chat_msg_sent">>}]},
-               {groupchat_msg_exchange,
-                [{name, <<"groupchat_msg">>},
-                 {recv_topic, <<"groupchat_msg_recv">>},
-                 {sent_topic, <<"groupchat_msg_sent">>}]},
-               {presence_exchange,
-                [{name, <<"presence">>}, {type, <<"topic">>}]}]},
-             {sns,
-              [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-               {account_id, "123456789012"},
-               {muc_messages_topic, "user_messagegroup_sent"},
-               {plugin_module, mod_event_pusher_sns_defaults},
-               {pm_messages_topic, "user_message_sent"},
-               {pool_size, 100},
-               {presence_updates_topic, "user_presence_updated"},
-               {publish_retry_count, 2},
-               {publish_retry_time_ms, 50},
-               {region, "eu-west-1"},
-               {secret_access_key,
-                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-               {sns_host, "sns.eu-west-1.amazonaws.com"}]}]}],
-      mod_event_pusher_push =>
-          [{backend, mnesia},
-           {plugin_module, mod_event_pusher_push_plugin_defaults},
-           {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
-           {wpool, [{workers, 200}]}],
+          #{http => custom_mod_event_pusher_http(),
+            push => custom_mod_event_pusher_push(),
+            rabbit => custom_mod_event_pusher_rabbit(),
+            sns => custom_mod_event_pusher_sns()},
+      mod_event_pusher_http => custom_mod_event_pusher_http(),
+      mod_event_pusher_push => custom_mod_event_pusher_push(),
+      mod_event_pusher_rabbit => custom_mod_event_pusher_rabbit(),
+      mod_event_pusher_sns => custom_mod_event_pusher_sns(),
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
       mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
       mod_keystore =>
-          [{keys,
-            [{access_secret, ram},
-             {access_psk, {file, "priv/access_psk"}},
-             {provision_psk, {file, "priv/provision_psk"}}]},
-           {ram_key_size, 1000}],
+          mod_config(mod_keystore, #{keys => #{access_secret => ram,
+                                               access_psk => {file, "priv/access_psk"},
+                                               provision_psk => {file, "priv/provision_psk"}},
+                                     ram_key_size => 1000}),
       mod_global_distrib =>
           mod_config(mod_global_distrib,
                      #{global_host => <<"example.com">>,
@@ -481,19 +458,19 @@ all_modules() ->
                                    })
                       }),
       mod_pubsub =>
-          [{access_createnode, pubsub_createnode},
-           {backend, rdbms},
-           {ignore_pep_from_offline, false},
-           {last_item_cache, mnesia},
-           {max_items_node, 1000},
-           {pep_mapping, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}]},
-           {plugins, [<<"flat">>, <<"pep">>]}],
+          mod_config(mod_pubsub, #{access => pubsub_createnode,
+                                   backend => rdbms,
+                                   ignore_pep_from_offline => false,
+                                   last_item_cache => mnesia,
+                                   max_items_node => 1000,
+                                   pep_mapping => #{<<"urn:xmpp:microblog:0">> => <<"mb">>},
+                                   plugins => [<<"flat">>, <<"pep">>]}),
       mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
                                                refresh => #{unit => days, value => 13}},
                           iqdisc => one_queue},
-      mod_carboncopy => [{iqdisc, no_queue}],
+      mod_carboncopy => #{iqdisc => no_queue},
       mod_mam =>
           mod_config(mod_mam,
                      #{archive_chat_markers => true,
@@ -525,11 +502,11 @@ all_modules() ->
                        userdesc => <<"cn">>}),
       mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
-          [{listen_port, 5600},
-           {local_host, "localhost"},
-           {proxy_host, "localhost"},
-           {proxy_port, 5600},
-           {sdp_origin, "127.0.0.1"}],
+          mod_config(mod_jingle_sip, #{listen_port => 9998,
+                                       local_host => "localhost",
+                                       proxy_host => "proxy.com",
+                                       proxy_port => 9999,
+                                       sdp_origin => "127.0.0.1"}),
       mod_mam_rdbms_prefs => #{pm => true},
       mod_extdisco =>
           #{iqdisc => one_queue,
@@ -540,7 +517,7 @@ all_modules() ->
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
-      mod_csi => [{buffer_max, 40}],
+      mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
       mod_muc_log =>
           mod_config(mod_muc_log,
                      #{access_log => muc,
@@ -548,14 +525,19 @@ all_modules() ->
                        outdir => "www/muc",
                        top_link => {"/", "Home"}}),
       mod_http_upload =>
-          [{backend, s3},
-           {expiration_time, 120},
-           {host, {prefix, <<"upload.">>}},
-           {s3, [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-                {add_acl, true},
-                {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-                {region, "eu-west-1"},
-                {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}]}],
+          mod_config(
+            mod_http_upload,
+            #{backend => s3,
+              expiration_time => 120,
+              host => {prefix, <<"upload.">>},
+              s3 => config([modules, mod_http_upload, s3],
+                           #{access_key_id => <<"AKIAIOSFODNN7EXAMPLE">>,
+                             add_acl => true,
+                             bucket_url => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+                             region => <<"eu-west-1">>,
+                             secret_access_key => <<"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY">>
+                            })
+             }),
       mod_muc_light =>
           mod_config(mod_muc_light, #{all_can_configure => true,
                                       all_can_invite => true,
@@ -574,28 +556,13 @@ all_modules() ->
           #{api_version => <<"v3">>,
             max_http_connections => 100,
             pool_name => mongoose_push_http},
-      mod_event_pusher_sns =>
-          [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-           {account_id, "123456789012"},
-           {muc_messages_topic, "user_messagegroup_sent"},
-           {plugin_module, mod_event_pusher_sns_defaults},
-           {pm_messages_topic, "user_message_sent"},
-           {pool_size, 100},
-           {presence_updates_topic, "user_presence_updated"},
-           {publish_retry_count, 2},
-           {publish_retry_time_ms, 50},
-           {region, "eu-west-1"},
-           {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-           {sns_host, "sns.eu-west-1.amazonaws.com"}],
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
-      mod_event_pusher_http =>
-          [{configs,
-            [[{callback_module, mod_event_pusher_http_defaults},
-              {path, "/notifications"},
-              {pool_name, http_pool}]]}],
       mod_inbox =>
           #{backend => rdbms,
             async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+            boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
+            bin_ttl => 30,
+            bin_clean_after => timer:hours(1),
             iqdisc => no_queue,
             aff_changes => true,
             groupchat => [muclight],
@@ -616,23 +583,12 @@ all_modules() ->
                              full_text_search => false,
                              same_mam_id_for_peers => false,
                              user_prefs_store => rdbms}}),
-      mod_register =>
-          [{access, all},
-           {password_strength, 32},
-           {registration_watchers, [<<"JID1">>, <<"JID2">>]},
-           {welcome_message, {"Subject", "Body"}}],
+      mod_register => mod_config(mod_register, #{access => all,
+                                                 password_strength => 32,
+                                                 registration_watchers => [<<"JID1">>, <<"JID2">>],
+                                                 welcome_message => {"Subject", "Body"}}),
       mod_mam_rdbms_arch =>
           mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
-      mod_event_pusher_rabbit =>
-          [{chat_msg_exchange,
-            [{name, <<"chat_msg">>},
-             {recv_topic, <<"chat_msg_recv">>},
-             {sent_topic, <<"chat_msg_sent">>}]},
-           {groupchat_msg_exchange,
-            [{name, <<"groupchat_msg">>},
-             {recv_topic, <<"groupchat_msg_recv">>},
-             {sent_topic, <<"groupchat_msg_sent">>}]},
-           {presence_exchange, [{name, <<"presence">>}, {type, <<"topic">>}]}],
       mod_bosh =>
           #{backend => mnesia, inactivity => 20, max_wait => infinity,
             server_acks => true, max_pause => 120},
@@ -674,21 +630,63 @@ all_modules() ->
                                                            repeat_after => 1800}})
     }.
 
+custom_mod_event_pusher_http() ->
+    #{handlers =>
+          [#{callback_module => mod_event_pusher_http_defaults,
+             path => <<"notifications">>,
+             pool_name => http_pool}]}.
+
+custom_mod_event_pusher_push() ->
+    #{iqdisc => one_queue,
+      backend => mnesia,
+      plugin_module => mod_event_pusher_push_plugin_defaults,
+      virtual_pubsub_hosts =>
+          [{fqdn,<<"host1">>},{fqdn,<<"host2">>}],
+      wpool => #{strategy => available_worker,
+                 workers => 200,
+                 call_timeout => 5000}}.
+
+custom_mod_event_pusher_rabbit() ->
+    #{chat_msg_exchange => #{name => <<"chat_msg">>,
+                             recv_topic => <<"chat_msg_recv">>,
+                             sent_topic => <<"chat_msg_sent">>,
+                             type => <<"topic">>},
+      groupchat_msg_exchange => #{name => <<"groupchat_msg">>,
+                                  recv_topic => <<"groupchat_msg_recv">>,
+                                  sent_topic => <<"groupchat_msg_sent">>,
+                                  type => <<"topic">>},
+      presence_exchange => #{name => <<"presence">>,
+                             type => <<"topic">>}}.
+
+custom_mod_event_pusher_sns() ->
+    #{access_key_id => "AKIAIOSFODNN7EXAMPLE",
+      account_id => "123456789012",
+      muc_messages_topic => "user_messagegroup_sent",
+      plugin_module => mod_event_pusher_sns_defaults,
+      pm_messages_topic => "user_message_sent",
+      pool_size => 100,
+      presence_updates_topic => "user_presence_updated",
+      publish_retry_count => 2,
+      publish_retry_time_ms => 50,
+      region => "eu-west-1",
+      secret_access_key => "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      sns_host => "eu-west-1.amazonaws.com"}.
+
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
-      mod_amp => [], mod_blocking => default_mod_config(mod_blocking),
+      mod_amp => #{}, mod_blocking => default_mod_config(mod_blocking),
       mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => [], mod_commands => [],
+      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => #{},
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
-      mod_muc_commands => [], mod_muc_light_commands => [],
-      mod_offline => [{backend, rdbms}],
+      mod_muc_commands => #{}, mod_muc_light_commands => #{},
+      mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>
-          [{access, register},
-           {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
-           {welcome_message, {"Hello", "I am MongooseIM"}}],
+          mod_config(mod_register, #{access => register,
+                                     ip_access => [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}],
+                                     welcome_message => {"Hello", "I am MongooseIM"}}),
       mod_roster => mod_config(mod_roster, #{backend => rdbms}),
       mod_sic => default_mod_config(mod_sic),
       mod_stream_management => default_mod_config(mod_stream_management),
@@ -808,7 +806,10 @@ default_pool_wpool_opts(rdbms) ->
       strategy => best_worker,
       call_timeout => 60000};
 default_pool_wpool_opts(_) ->
-    #{workers => 10,
+    default_wpool_opts().
+
+default_wpool_opts() ->
+     #{workers => 10,
       strategy => best_worker,
       call_timeout => 5000}.
 
@@ -855,6 +856,13 @@ default_mod_config(mod_bosh) ->
       server_acks => false, max_pause => 120};
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
+default_mod_config(mod_caps) ->
+    #{cache_size => 1000,
+      cache_life_time => timer:hours(24) div 1000};
+default_mod_config(mod_csi) ->
+    #{buffer_max => 20};
+default_mod_config(mod_carboncopy) ->
+    #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
     #{extra_domains => [], server_info => [],
       users_can_see_hidden_services => true, iqdisc => one_queue};
@@ -867,79 +875,37 @@ default_mod_config(mod_global_distrib) ->
       redis => default_config([modules, mod_global_distrib, redis]),
       cache => default_config([modules, mod_global_distrib, cache]),
       bounce => default_config([modules, mod_global_distrib, bounce])};
-default_mod_config(mod_last) ->
-    #{iqdisc => one_queue, backend => mnesia};
+default_mod_config(mod_http_upload) ->
+    #{iqdisc => one_queue,
+      host => {prefix, <<"upload.">>},
+      backend => s3,
+      expiration_time => 60,
+      token_bytes => 32,
+      max_file_size => 1024 * 1024 * 10,
+      s3 => default_config([modules, mod_http_upload, s3])};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+      boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
+      bin_ttl => 30,
+      bin_clean_after => timer:hours(1),
       groupchat => [muclight],
       aff_changes => true,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
-default_mod_config(mod_muc_light) ->
-    #{backend => mnesia,
-      host => {prefix, <<"muclight.">>},
-      equal_occupants => false,
-      legacy_mode => false,
-      rooms_per_user => infinity,
-      blocking => true,
-      all_can_configure => false,
-      all_can_invite => false,
-      max_occupants => infinity,
-      rooms_per_page => 10,
-      rooms_in_rosters => false,
-      config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
-                        {<<"subject">>, <<>>, subject, binary}]};
-default_mod_config(mod_ping) ->
-    #{send_pings => false,
-      ping_interval => 60*1000,
-      timeout_action => none,
-      ping_req_timeout => 32*1000,
-      iqdisc => no_queue};
-default_mod_config(mod_privacy) ->
-    #{backend => mnesia};
-default_mod_config(mod_private) ->
-    #{iqdisc => one_queue, backend => rdbms};
-default_mod_config(mod_push_service_mongoosepush) ->
-    #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
-default_mod_config(mod_roster) ->
-    #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
-default_mod_config(mod_shared_roster_ldap) ->
-    #{pool_tag => default, deref => never, filter => <<"">>,
-      groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,
-      memberattr => <<"memberUid">>, memberattr_format => <<"%u">>, memberattr_format_re => <<"">>,
-      auth_check => true, user_cache_validity => 300, group_cache_validity => 300, user_cache_size => 1000,
-      group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
-default_mod_config(mod_sic) ->
-    #{iqdisc => one_queue};
-default_mod_config(mod_smart_markers) ->
-    #{keep_private => false,
-      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
-      backend => rdbms, iqdisc => no_queue};
-default_mod_config(mod_stream_management) ->
-    #{backend => mnesia,
-      buffer => true,
-      buffer_max => 100,
-      ack => true,
-      ack_freq => 1,
-      resume_timeout => 600,
-      stale_h => default_config([modules, mod_stream_management, stale_h])};
-default_mod_config(mod_time) ->
-    #{iqdisc => one_queue};
-default_mod_config(mod_vcard) ->
-    #{iqdisc => parallel,
-      host => {prefix, <<"vjud.">>},
-      search => true,
-      backend => mnesia,
-      matches => 30};
-default_mod_config(mod_version) ->
-    #{iqdisc => no_queue, os_info => false};
+default_mod_config(mod_jingle_sip) ->
+    #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
+      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => []};
+default_mod_config(mod_keystore) ->
+    #{ram_key_size => 2048, keys => #{}};
+default_mod_config(mod_last) ->
+    #{iqdisc => one_queue, backend => mnesia};
+default_mod_config(mod_mam) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
 default_mod_config(mod_mam_meta) ->
     (common_mam_config())#{backend => rdbms, cache_users => true,
                            cache => default_config([modules, mod_mam_meta, cache])};
-default_mod_config(mod_mam) ->
-    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
 default_mod_config(mod_mam_muc) ->
     maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
 default_mod_config(mod_mam_rdbms_arch) ->
@@ -975,6 +941,20 @@ default_mod_config(mod_muc) ->
       hibernated_room_check_interval => infinity,
       hibernated_room_timeout => infinity,
       default_room => default_room_opts()};
+default_mod_config(mod_muc_light) ->
+    #{backend => mnesia,
+      host => {prefix, <<"muclight.">>},
+      equal_occupants => false,
+      legacy_mode => false,
+      rooms_per_user => infinity,
+      blocking => true,
+      all_can_configure => false,
+      all_can_invite => false,
+      max_occupants => infinity,
+      rooms_per_page => 10,
+      rooms_in_rosters => false,
+      config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
+                        {<<"subject">>, <<>>, subject, binary}]};
 default_mod_config(mod_muc_log) ->
     #{outdir => "www/muc",
       access_log => muc_admin,
@@ -984,7 +964,68 @@ default_mod_config(mod_muc_log) ->
       css_file => false,
       timezone => local,
       top_link => {"/", "Home"},
-      spam_prevention => true}.
+      spam_prevention => true};
+default_mod_config(mod_ping) ->
+    #{send_pings => false,
+      ping_interval => 60 * 1000,
+      timeout_action => none,
+      ping_req_timeout => 32 * 1000,
+      iqdisc => no_queue};
+default_mod_config(mod_offline) ->
+    #{backend => mnesia,
+      access_max_user_messages => max_user_offline_messages,
+      store_groupchat_messages => false};
+default_mod_config(mod_offline_chatmarkers) ->
+    #{backend => rdbms,
+      store_groupchat_messages => false};
+default_mod_config(mod_privacy) ->
+    #{backend => mnesia};
+default_mod_config(mod_private) ->
+    #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_pubsub) ->
+    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access => all,
+      max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
+      last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
+      default_node_config => [], item_publisher => false, sync_broadcast => false};
+default_mod_config(mod_push_service_mongoosepush) ->
+    #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
+default_mod_config(mod_register) ->
+    #{iqdisc => one_queue, access => all, registration_watchers => [],
+      password_strength => 0, ip_access => []};
+default_mod_config(mod_roster) ->
+    #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_shared_roster_ldap) ->
+    #{pool_tag => default, deref => never, filter => <<"">>,
+      groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,
+      memberattr => <<"memberUid">>, memberattr_format => <<"%u">>, memberattr_format_re => <<"">>,
+      auth_check => true, user_cache_validity => 300, group_cache_validity => 300, user_cache_size => 1000,
+      group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
+default_mod_config(mod_sic) ->
+    #{iqdisc => one_queue};
+default_mod_config(mod_smart_markers) ->
+    #{keep_private => false,
+      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+      backend => rdbms, iqdisc => no_queue};
+default_mod_config(mod_stream_management) ->
+    #{backend => mnesia,
+      buffer => true,
+      buffer_max => 100,
+      ack => true,
+      ack_freq => 1,
+      resume_timeout => 600,
+      stale_h => default_config([modules, mod_stream_management, stale_h])};
+default_mod_config(mod_time) ->
+    #{iqdisc => one_queue};
+default_mod_config(mod_vcard) ->
+    #{iqdisc => parallel,
+      host => {prefix, <<"vjud.">>},
+      search => true,
+      backend => mnesia,
+      matches => 30};
+default_mod_config(mod_version) ->
+    #{iqdisc => no_queue, os_info => false};
+default_mod_config(_) ->
+    #{}.
 
 default_room_opts() ->
     #{title => <<>>,
@@ -1012,8 +1053,75 @@ default_room_opts() ->
       subject => <<>>,
       subject_author => <<>>}.
 
+common_xmpp_listener_config() ->
+    (common_listener_config())#{backlog => 100,
+                                proxy_protocol => false,
+                                hibernate_after => 0,
+                                max_stanza_size => infinity,
+                                num_acceptors => 100}.
+
+common_listener_config() ->
+    #{ip_address => "0",
+      ip_tuple => {0, 0, 0, 0},
+      ip_version => 4,
+      proto => tcp}.
+
+extra_service_listener_config() ->
+    #{access => all,
+      shaper_rule => none,
+      check_from => true,
+      hidden_components => false,
+      conflict_behaviour => disconnect}.
+
+default_config([listen, http]) ->
+    (common_listener_config())#{module => ejabberd_cowboy,
+                                transport => default_config([listen, http, transport]),
+                                protocol => default_config([listen, http, protocol]),
+                                handlers => []};
+default_config([listen, http, transport]) ->
+    #{num_acceptors => 100,
+      max_connections => 1024};
+default_config([listen, http, protocol]) ->
+    #{compress => false};
+default_config([listen, c2s]) ->
+    (common_xmpp_listener_config())#{module => ejabberd_c2s,
+                                     access => all,
+                                     shaper => none};
+default_config([listen, s2s]) ->
+    (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
+                                     shaper => none};
+default_config([listen, service]) ->
+    Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
+    Extra#{module => ejabberd_service};
 default_config([modules, M]) ->
     default_mod_config(M);
+default_config([modules, mod_event_pusher, http]) ->
+    #{handlers => []};
+default_config([modules, mod_event_pusher, push]) ->
+    #{iqdisc => one_queue,
+      backend => mnesia,
+      wpool => default_config([modules, mod_event_pusher, push, wpool]),
+      plugin_module => mod_event_pusher_push_plugin_defaults,
+      virtual_pubsub_hosts => []};
+default_config([modules, mod_event_pusher, push, wpool]) ->
+    (default_wpool_opts())#{strategy := available_worker};
+default_config([modules, mod_event_pusher, rabbit] = P) ->
+    #{presence_exchange => default_config(P ++ [presence_exchange]),
+      chat_msg_exchange => default_config(P ++ [chat_msg_exchange]),
+      groupchat_msg_exchange => default_config(P ++ [groupchat_msg_exchange])};
+default_config([modules, mod_event_pusher, rabbit, presence_exchange]) ->
+    #{name => <<"presence">>, type => <<"topic">>};
+default_config([modules, mod_event_pusher, rabbit, chat_msg_exchange]) ->
+    #{name => <<"chat_msg">>, type => <<"topic">>,
+      sent_topic => <<"chat_msg_sent">>, recv_topic => <<"chat_msg_recv">>};
+default_config([modules, mod_event_pusher, rabbit, groupchat_msg_exchange]) ->
+    #{name => <<"groupchat_msg">>, type => <<"topic">>,
+      sent_topic => <<"groupchat_msg_sent">>, recv_topic => <<"groupchat_msg_recv">>};
+default_config([modules, mod_event_pusher, sns]) ->
+    #{plugin_module => mod_event_pusher_sns_defaults,
+      pool_size => 100,
+      publish_retry_count => 2,
+      publish_retry_time_ms => 50};
 default_config([modules, mod_global_distrib, connections]) ->
     #{connections_per_endpoint => 1,
       endpoint_refresh_interval => 60,
@@ -1034,6 +1142,8 @@ default_config([modules, mod_global_distrib, bounce]) ->
     #{enabled => true,
       resend_after_ms => 200,
       max_retries => 4};
+default_config([modules, mod_http_upload, s3]) ->
+    #{add_acl => false};
 default_config([modules, mod_privacy, riak]) ->
     #{defaults_bucket_type => <<"privacy_defaults">>,
       names_bucket_type => <<"privacy_lists_names">>,
@@ -1107,7 +1217,17 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
                           {<<"Organization Name">>, <<"ORGNAME">>},
                           {<<"Organization Unit">>, <<"ORGUNIT">>}],
       search_operator => 'and',
-      binary_search_fields => []}.
+      binary_search_fields => []};
+default_config([services, service_admin_extra]) ->
+    #{submods => [node, accounts, sessions, vcard, roster, last,
+                  private, stanza, stats, gdpr, upload, domain]};
+default_config([services, service_domain_db]) ->
+    #{event_cleaning_interval => 1800,
+      event_max_age => 7200,
+      db_pool => global};
+default_config([services, service_mongoose_system_metrics]) ->
+    #{initial_report => timer:minutes(5),
+      periodic_report => timer:hours(3)}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
@@ -1119,6 +1239,11 @@ common_mam_config() ->
       default_result_limit => 50,
       max_result_limit => 50,
       async_writer => default_config([modules, mod_mam_meta, async_writer])}.
+
+mod_event_pusher_http_handler() ->
+    #{pool_name => http_pool,
+      path => <<>>,
+      callback_module => mod_event_pusher_http_defaults}.
 
 config(Path, Opts) ->
     maps:merge(default_config(Path), Opts).

@@ -34,9 +34,12 @@
     {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 
 -spec start(jid:lserver(), gen_mod:module_opts()) -> ok.
-start(ServerHost, Opts) ->
+start(ServerHost, Opts = #{last_item_cache := CacheBackend}) ->
+    % mongoose_backend extracts the "backend" option, but the cache backend is under the "last_item_cache" key
+    % the "backend" from Opts relates to the backend for mod_pubsub
+    OptsWithBackend = Opts#{backend => CacheBackend},
     TrackedFuns = [upsert_last_item, delete_last_item, get_last_item],
-    mongoose_backend:init(ServerHost, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(ServerHost, ?MAIN_MODULE, TrackedFuns, OptsWithBackend),
     Args = [ServerHost],
     mongoose_backend:call(ServerHost, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

@@ -501,12 +501,12 @@ CREATE TABLE dbo.inbox(
     luser NVARCHAR(150) NOT NULL,
     lserver NVARCHAR(150) NOT NULL,
     remote_bare_jid NVARCHAR(150) NOT NULL,
-    content VARBINARY(max) NOT NULL,
-    unread_count INT NOT NULL,
     msg_id NVARCHAR(250) NOT NULL,
+    box NVARCHAR(64) DEFAULT 'inbox',
+    content VARBINARY(max) NOT NULL,
     timestamp BIGINT NOT NULL,
-    archive TINYINT DEFAULT 0,
     muted_until BIGINT DEFAULT 0,
+    unread_count INT NOT NULL,
     CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
         lserver ASC,
         luser ASC,
@@ -516,6 +516,12 @@ CREATE TABLE dbo.inbox(
 GO
 
 CREATE INDEX i_inbox_su_ts ON inbox(lserver, luser, timestamp);
+GO
+
+CREATE INDEX i_inbox_us_box ON inbox(lserver, luser, box);
+GO
+
+CREATE INDEX i_inbox_box ON inbox(box);
 GO
 
 CREATE TABLE dbo.pubsub_nodes (

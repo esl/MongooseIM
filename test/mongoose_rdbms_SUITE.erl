@@ -39,13 +39,13 @@ tests() ->
 init_per_group(odbc, Config) ->
     case code:ensure_loaded(eodbc) of
         {module, eodbc} ->
-            mongoose_backend:init(global, mongoose_rdbms, [], [{backend, odbc}]),
+            mongoose_backend:init(global, mongoose_rdbms, [], #{backend => odbc}),
             [{db_type, odbc} | Config];
         _ ->
             {skip, no_odbc_application}
     end;
 init_per_group(Group, Config) ->
-    mongoose_backend:init(global, mongoose_rdbms, [], [{backend, Group}]),
+    mongoose_backend:init(global, mongoose_rdbms, [], #{backend => Group}),
     [{db_type, Group} | Config].
 
 end_per_group(_, Config) ->

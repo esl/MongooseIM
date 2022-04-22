@@ -11,25 +11,10 @@
 -define(NS_XDATA, <<"jabber:x:data">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
 
--define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
--define(S3_OPTS, ?MOD_HTTP_UPLOAD_OPTS(?S3_HOSTNAME, true)).
-
--define(MINIO_HOSTNAME, "http://127.0.0.1:9000/mybucket/").
--define(MINIO_OPTS(AddAcl), ?MOD_HTTP_UPLOAD_OPTS(?MINIO_HOSTNAME, AddAcl)).
+-define(S3_HOSTNAME, <<"http://bucket.s3-eu-east-25.example.com">>).
+-define(MINIO_HOSTNAME, <<"http://127.0.0.1:9000/mybucket/">>).
 
 -define(MINIO_TEST_DATA, "qwerty").
-
--define(MOD_HTTP_UPLOAD_OPTS(Host, AddAcl),
-    [
-        {max_file_size, 1234},
-        {s3, [
-            {bucket_url, Host},
-            {add_acl, AddAcl},
-            {region, "eu-east-25"},
-            {access_key_id, "AKIAIAOAONIULXQGMOUA"},
-            {secret_access_key, "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"}
-        ]}
-    ]).
 
 -export([all/0, groups/0, suite/0,
 	 init_per_suite/1, end_per_suite/1,
@@ -37,8 +22,6 @@
 	 init_per_testcase/2, end_per_testcase/2]).
 
 -export([
-	 does_not_advertise_max_size_if_unset/1,
-
 	 test_minio_upload_without_content_type/1,
 	 test_minio_upload_with_content_type/1,
 
@@ -64,12 +47,11 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mod_http_upload_s3}, {group, unset_size},
-     {group, real_upload_with_acl}, {group, real_upload_without_acl}].
+    [{group, mod_http_upload_s3}, {group, real_upload_with_acl},
+     {group, real_upload_without_acl}].
 
 groups() ->
-    [{unset_size, [], [does_not_advertise_max_size_if_unset]},
-     {real_upload_with_acl, [], [test_minio_upload_without_content_type,
+    [{real_upload_with_acl, [], [test_minio_upload_without_content_type,
                                  test_minio_upload_with_content_type]},
      {real_upload_without_acl, [], [test_minio_upload_without_content_type,
                                     test_minio_upload_with_content_type]},
@@ -100,29 +82,26 @@ suite() ->
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
-
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(unset_size, Config) ->
-    dynamic_modules:start(host_type(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
-    escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(real_upload_without_acl, Config) ->
     case mongoose_helper:should_minio_be_running(Config) of
         true ->
-            dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(false)),
+            dynamic_modules:start(host_type(), mod_http_upload,
+                create_opts(?MINIO_HOSTNAME, false)),
             escalus:create_users(Config, escalus:get_users([bob]));
         false -> {skip, "minio is not running"}
     end;
 init_per_group(real_upload_with_acl, Config) ->
     case mongoose_helper:should_minio_be_running(Config) of
         true ->
-            dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(true)),
+            dynamic_modules:start(host_type(), mod_http_upload, create_opts(?MINIO_HOSTNAME, true)),
             [{with_acl, true} | escalus:create_users(Config, escalus:get_users([bob]))];
         false -> {skip, "minio is not running"}
     end;
 init_per_group(_, Config) ->
-    dynamic_modules:start(host_type(), mod_http_upload, ?S3_OPTS),
+    dynamic_modules:start(host_type(), mod_http_upload, create_opts(?S3_HOSTNAME, true)),
     escalus:create_users(Config, escalus:get_users([bob])).
 
 end_per_group(_, Config) ->
@@ -134,6 +113,19 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+create_opts(Host, AddAcl) ->
+    config_parser_helper:mod_config(mod_http_upload,
+    #{
+        max_file_size => 1234,
+        s3 => #{
+            bucket_url => Host,
+            add_acl => AddAcl,
+            region => <<"eu-east-25">>,
+            access_key_id => <<"AKIAIAOAONIULXQGMOUA">>,
+            secret_access_key => <<"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">>
+        }
+    }).
 
 %%--------------------------------------------------------------------
 %% Service discovery test
@@ -177,16 +169,6 @@ advertises_max_file_size(Config) ->
               escalus:assert(has_type, [<<"result">>], Form),
               escalus:assert(has_ns, [?NS_XDATA], Form),
               escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form),
-              escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
-      end).
-
-does_not_advertise_max_size_if_unset(Config) ->
-    escalus:story(
-      Config, [{bob, 1}],
-      fun(Bob) ->
-              ServJID = upload_service(Bob),
-              Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-              undefined = exml_query:path(Result, {element, <<"x">>}),
               escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
       end).
 
@@ -256,8 +238,8 @@ urls_contain_s3_hostname(Config) ->
               ServJID = upload_service(Bob),
               Request = create_slot_request_stanza(ServJID, <<"filename.jpg">>, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
-              escalus:assert(fun url_contains/3, [<<"get">>, <<?S3_HOSTNAME>>], Result),
-              escalus:assert(fun url_contains/3, [<<"put">>, <<?S3_HOSTNAME>>], Result)
+              escalus:assert(fun url_contains/3, [<<"get">>, ?S3_HOSTNAME], Result),
+              escalus:assert(fun url_contains/3, [<<"put">>, ?S3_HOSTNAME], Result)
       end).
 
 test_minio_upload_without_content_type(Config) ->

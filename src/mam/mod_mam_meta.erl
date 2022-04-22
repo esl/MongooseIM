@@ -35,12 +35,12 @@
 supported_features() ->
     [dynamic_domains].
 
--spec start(Host :: jid:server(), Opts :: list()) -> any().
-start(_Host, _Opts) ->
+-spec start(mongooseim:host_type(), module_opts()) -> any().
+start(_HostType, _Opts) ->
     ok.
 
--spec stop(Host :: jid:server()) -> any().
-stop(_Host) ->
+-spec stop(mongooseim:host_type()) -> any().
+stop(_HostType) ->
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().

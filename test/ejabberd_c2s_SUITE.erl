@@ -1,14 +1,12 @@
 -module(ejabberd_c2s_SUITE).
 -include_lib("eunit/include/eunit.hrl").
--include("ejabberd_c2s.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -compile([export_all, nowarn_export_all]).
 
--define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).
 -define(am(E, I), ?assertMatch(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
 
+-import(config_parser_helper, [config/2]).
 
 all() -> [
           c2s_start_stop_test,
@@ -108,7 +106,7 @@ c2s_is_killed_when_too_many_messages_in_the_queue(_) ->
                    (Event, StateName, ProcState) ->
                         meck:passthrough([Event, StateName, ProcState])
                 end),
-    {ok, C2SPid} = given_c2s_started([{max_fsm_queue, MaxQueueSize}]),
+    {ok, C2SPid} = given_c2s_started(#{max_fsm_queue => MaxQueueSize}),
 
     %% We want to monitor the c2s process and not being linked to it
     Ref = erlang:monitor(process, C2SPid),
@@ -236,20 +234,19 @@ setsession_stanza() ->
             []}]}.
 
 given_c2s_started() ->
-    given_c2s_started([]).
+    given_c2s_started(#{}).
 
-given_c2s_started(Opts) ->
-    ejabberd_c2s:start_link({ejabberd_socket, self()},
-                            Opts ++ c2s_default_opts()).
+given_c2s_started(ExtraOpts) ->
+    ejabberd_c2s:start_link({ejabberd_socket, self()}, c2s_opts(ExtraOpts)).
 
 when_c2s_is_stopped(Pid) ->
     stop_c2s(Pid),
     sync_c2s(Pid).
 
-c2s_default_opts() ->
-    [{access, c2s},
-     {shaper, c2s_shaper},
-     {max_stanza_size, 65536}].
+c2s_opts(ExtraOpts) ->
+    config([listen, c2s], ExtraOpts#{access => c2s,
+                                     shaper => c2s_shaper,
+                                     max_stanza_size => 65536}).
 
 stop_c2s(C2SPid) when is_pid(C2SPid) ->
     _R = ejabberd_c2s:stop(C2SPid).

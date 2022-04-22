@@ -62,8 +62,6 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
--export([config_metrics/1]).
-
 -ignore_xref([archive_message_from_ct/1,
               archive_size/2, archive_size_with_host_type/3, delete_archive/2,
               determine_amp_strategy/5, disco_local_features/1, filter_packet/1,
@@ -208,15 +206,15 @@ archive_id(Server, User)
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(HostType :: host_type(), Opts :: list()) -> any().
+-spec start(host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
-    add_id_handlers(HostType, Opts),
+    add_iq_handlers(HostType, Opts),
     ok.
 
--spec stop(HostType :: host_type()) -> any().
+-spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
     ejabberd_hooks:delete(hooks(HostType)),
@@ -736,16 +734,12 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
-config_metrics(HostType) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
-
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
-     {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
+     {filter_local_packet, HostType, ?MODULE, filter_packet, 60},
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
      {amp_determine_strategy, HostType, ?MODULE, determine_amp_strategy, 20},
@@ -753,7 +747,7 @@ hooks(HostType) ->
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)].
 
-add_id_handlers(HostType, Opts) ->
+add_iq_handlers(HostType, Opts) ->
     Component = ejabberd_sm,
     %% `parallel' is the only one recommended here.
     ExecutionType = gen_mod:get_opt(iqdisc, Opts, parallel),

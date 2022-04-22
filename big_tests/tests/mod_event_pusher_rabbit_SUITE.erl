@@ -7,19 +7,15 @@
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_rabbit_SUITE).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("exml/include/exml.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
 
 -include("assert_received_match.hrl").
 
--import(distributed_helper, [mim/0,
-                             rpc/4]).
-
+-import(distributed_helper, [mim/0, rpc/4]).
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [config/2]).
 
 -export([suite/0, all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1,
@@ -48,17 +44,6 @@
 -define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
 -define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
--define(MOD_EVENT_PUSHER_RABBIT_CFG,
-        [{presence_exchange, [{name, ?PRESENCE_EXCHANGE}]},
-         {chat_msg_exchange, [{name, ?CHAT_MSG_EXCHANGE},
-                              {sent_topic, ?CHAT_MSG_SENT_TOPIC},
-                              {recv_topic, ?CHAT_MSG_RECV_TOPIC}]},
-         {groupchat_msg_exchange, [{name, ?GROUP_CHAT_MSG_EXCHANGE},
-                                   {sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
-                                   {recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}]}
-        ]).
--define(MOD_EVENT_PUSHER_CFG, [{backends,
-                                [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
 -define(WPOOL_CFG, #{type => rabbit, scope => host, tag => event_pusher,
                      opts => #{workers => 20, strategy => best_worker, call_timeout => 5000},
                      conn_opts => #{confirms_enabled => false,
@@ -81,7 +66,8 @@
 
 all() ->
     [
-     {group, initialization_on_startup},
+     {group, pool_startup},
+     {group, module_startup},
      {group, presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish}
@@ -89,9 +75,12 @@ all() ->
 
 groups() ->
     G = [
-         {initialization_on_startup, [],
+         {pool_startup, [],
           [
-           rabbit_pool_starts_with_default_config,
+           rabbit_pool_starts_with_default_config
+          ]},
+         {module_startup, [],
+          [
            exchanges_are_created_on_module_startup
           ]},
          {presence_status_publish, [],
@@ -140,23 +129,39 @@ end_per_suite(Config) ->
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
-init_per_group(initialization_on_startup, Config) ->
-    Config;
-init_per_group(_, Config0) ->
+init_per_group(GroupName, Config0) ->
     Domain = domain(),
     Config = dynamic_modules:save_modules(Domain, Config0),
-    dynamic_modules:ensure_modules(Domain,
-                                   [{mod_event_pusher, ?MOD_EVENT_PUSHER_CFG}]),
+    dynamic_modules:ensure_modules(Domain, required_modules(GroupName)),
     Config.
 
-end_per_group(initialization_on_startup, Config) ->
-    Config;
+required_modules(pool_startup) ->
+    [{mod_event_pusher, stopped}];
+required_modules(GroupName) ->
+    [{mod_event_pusher, #{rabbit => mod_event_pusher_rabbit_opts(GroupName)}}].
+
+mod_event_pusher_rabbit_opts(GroupName) ->
+    ExtraOpts = extra_exchange_opts(GroupName),
+    maps:map(fun(Key, Opts) ->
+                     config([modules, mod_event_pusher, rabbit, Key], maps:merge(Opts, ExtraOpts))
+             end, basic_exchanges()).
+
+basic_exchanges() ->
+    #{presence_exchange => #{name => ?PRESENCE_EXCHANGE},
+      chat_msg_exchange => #{name => ?CHAT_MSG_EXCHANGE,
+                             sent_topic => ?CHAT_MSG_SENT_TOPIC,
+                             recv_topic => ?CHAT_MSG_RECV_TOPIC},
+      groupchat_msg_exchange => #{name => ?GROUP_CHAT_MSG_EXCHANGE,
+                                  sent_topic => ?GROUP_CHAT_MSG_SENT_TOPIC,
+                                  recv_topic => ?GROUP_CHAT_MSG_RECV_TOPIC}
+     }.
+
+extra_exchange_opts(module_startup) -> #{type => <<"headers">>};
+extra_exchange_opts(_) -> #{}.
+
 end_per_group(_, Config) ->
     delete_exchanges(),
-    Domain = domain(),
-    dynamic_modules:stop(Domain, mod_event_pusher),
-    dynamic_modules:restore_modules(Config),
-    escalus:delete_users(Config, escalus:get_users([bob, alice])).
+    dynamic_modules:restore_modules(Config).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
     Config;
@@ -166,18 +171,12 @@ init_per_testcase(CaseName, Config0) ->
     Config = Config2 ++ connect_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
-    Config;
-end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
-    delete_exchanges(),
-    stop_mod_event_pusher_rabbit(),
-    close_rabbit_connection(Config),
-    Config;
+end_per_testcase(rabbit_pool_starts_with_default_config, _Config) ->
+    ok;
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
     close_rabbit_connection(Config),
     escalus:end_per_testcase(CaseName, Config).
-
 
 %%--------------------------------------------------------------------
 %% GROUP initialization_on_startup
@@ -200,18 +199,12 @@ rabbit_pool_starts_with_default_config(_Config) ->
     stop_rabbit_wpool(RabbitWpool).
 
 exchanges_are_created_on_module_startup(Config) ->
-    %% GIVEN
+    %% GIVEN module is started with custom exchange types
     Connection = proplists:get_value(rabbit_connection, Config),
     ExCustomType = <<"headers">>,
-    Exchanges = [{?PRESENCE_EXCHANGE, ExCustomType},
-                 {?CHAT_MSG_EXCHANGE, ExCustomType},
-                 {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType}],
-    ConfigWithCustomExchangeType =
-        extend_config_with_exchange_type(ExCustomType),
-    %% WHEN
-    start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
+    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE],
     %% THEN exchanges are created
-    [?assert(ensure_exchange_present(Connection, Exchange))
+    [?assert(ensure_exchange_present(Connection, {Exchange, ExCustomType}))
      || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
@@ -623,12 +616,6 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %% Utils
 %%--------------------------------------------------------------------
 
-start_mod_event_pusher_rabbit(Config) ->
-    dynamic_modules:start(domain(), mod_event_pusher_rabbit, Config).
-
-stop_mod_event_pusher_rabbit() ->
-    dynamic_modules:stop(domain(), mod_event_pusher_rabbit).
-
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).
 
@@ -701,15 +688,6 @@ cleanup_muc(Config) ->
 user_room_jid(RoomJID, UserJID) ->
     Nick = nick(UserJID),
     <<RoomJID/binary, "/", Nick/binary>>.
-
-extend_config_with_exchange_type(ExType) ->
-    lists:map(fun({Ex, Opts}) when
-                        Ex == presence_exchange orelse
-                        Ex == chat_msg_exchange orelse
-                        Ex == groupchat_msg_exchange ->
-                      {Ex, Opts ++ [{type, ExType}]};
-                 (Other) -> Other
-              end, ?MOD_EVENT_PUSHER_RABBIT_CFG).
 
 is_rabbitmq_available() ->
     try amqp_connection:start(#amqp_params_network{}) of

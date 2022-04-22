@@ -93,13 +93,13 @@
 
 -type state() :: #state{}.
 
--spec start_link(mongooseim:host_type(), list()) -> any().
+-spec start_link(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_link(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE,
                           [HostType, Opts], []).
 
--spec start(mongooseim:host_type(), list()) -> any().
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},
@@ -115,12 +115,15 @@ stop(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"cache_size">> => #option{type = integer,
-                                             validate = positive},
-                 <<"cache_life_time">> => #option{type = integer,
-                                                  validate = positive}
-                }
-      }.
+        items = #{<<"cache_size">> => #option{type = integer,
+                                              validate = positive},
+                  <<"cache_life_time">> => #option{type = integer,
+                                                   validate = positive}
+                 },
+        defaults = #{<<"cache_size">> => 1000,
+                     <<"cache_life_time">> => timer:hours(24) div 1000},
+        format_items = map
+       }.
 
 supported_features() -> [dynamic_domains].
 
@@ -352,10 +355,8 @@ init_db(mnesia) ->
                           disc_only_copies).
 
 -spec init(list()) -> {ok, state()}.
-init([HostType, Opts]) ->
+init([HostType, #{cache_size := MaxSize, cache_life_time := LifeTime}]) ->
     init_db(db_type(HostType)),
-    MaxSize = gen_mod:get_opt(cache_size, Opts, 1000),
-    LifeTime = gen_mod:get_opt(cache_life_time, Opts, timer:hours(24) div 1000),
     cache_tab:new(caps_features, [{max_size, MaxSize}, {life_time, LifeTime}]),
     ejabberd_hooks:add(hooks(HostType)),
     {ok, #state{host_type = HostType}}.

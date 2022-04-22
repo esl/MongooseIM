@@ -25,6 +25,7 @@
                           stop_ejabberd/0,
                           use_config_file/2,
                           start_ejabberd_with_config/2]).
+-import(config_parser_helper, [default_config/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -214,12 +215,14 @@ mixed_requests(_Config) ->
     Responses = lists:duplicate(50, {TextPong, true, TextPong, true}).
 
 start_cowboy_returns_error_eaddrinuse(_C) ->
-    Opts = [{transport_options, #{socket_opts => [{port, 8088},
-                                                  {ip, {127, 0, 0, 1}}]}},
-            {modules, []},
-            {retries, {2, 10}}],
-    {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts),
-    Result = ejabberd_cowboy:start_cowboy(a_ref_2, Opts),
+    Opts = #{port => 8088,
+             ip_tuple => {127, 0, 0, 1},
+             ip_address => "127.0.0.1",
+             handlers => [],
+             transport => default_config([listen, http, transport]),
+             protocol => default_config([listen, http, protocol])},
+    {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts, 2, 10),
+    Result = ejabberd_cowboy:start_cowboy(a_ref_2, Opts, 2, 10),
     {error, eaddrinuse} = Result.
 
 %%--------------------------------------------------------------------

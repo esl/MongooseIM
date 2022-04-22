@@ -43,9 +43,9 @@ init_per_group(with_mod_dynamic_domains_test, Config) ->
     [ok = rpc(mim(), meck, new, [Module, [passthrough, no_link]])
      || Module <- MockedModules],
     dynamic_modules:start(?HOST_TYPE, mod_dynamic_domains_test,
-                          [{host1, subhost_pattern("subdomain1.@HOST@")},
-                           {host2, subhost_pattern("subdomain2.@HOST@")},
-                           {namespace, <<"dummy.namespace">>}]),
+                          #{host1 => subhost_pattern("subdomain1.@HOST@"),
+                            host2 => subhost_pattern("subdomain2.@HOST@"),
+                            namespace => <<"dummy.namespace">>}),
     [{reset_meck, MockedModules} | Config];
 init_per_group(_, Config) ->
     Config.

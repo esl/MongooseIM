@@ -497,7 +497,8 @@ get_entity_affiliations(Host, #jid{} = Owner) ->
     get_entity_affiliations(Host, jid:to_lower(Owner));
 get_entity_affiliations(Host, LOwner) ->
     {ok, States} = mod_pubsub_db_backend:get_states_by_bare(LOwner),
-    NodeTree = mod_pubsub:tree(Host),
+    HT = mod_pubsub:host_to_host_type(Host),
+    NodeTree = mod_pubsub:tree(HT),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                                 case gen_pubsub_nodetree:get_node(NodeTree, N) of
                                     #pubsub_node{nodeid = {Host, _}} = Node -> [{Node, A} | Acc];
@@ -529,7 +530,8 @@ get_entity_subscriptions(Host, Owner) ->
                      {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(LOwner),
                      States0
              end,
-    NodeTree = mod_pubsub:tree(Host),
+    HT = mod_pubsub:host_to_host_type(Host),
+    NodeTree = mod_pubsub:tree(HT),
     Reply = lists:foldl(fun (PubSubState, Acc) ->
                                 get_entity_subscriptions_loop(NodeTree, PubSubState, Acc)
                         end,
@@ -588,7 +590,8 @@ set_subscriptions(Nidx, LOwner, Subscription, SubId) ->
 get_pending_nodes(Host, Owner) ->
     LOwner = jid:to_lower(Owner),
     {ok, Nidxs} = mod_pubsub_db_backend:get_idxs_of_own_nodes_with_pending_subs(LOwner),
-    NodeTree = mod_pubsub:tree(Host),
+    HT = mod_pubsub:host_to_host_type(Host),
+    NodeTree = mod_pubsub:tree(HT),
     {result,
      lists:foldl(fun(N, Acc) ->
                          case gen_pubsub_nodetree:get_node(NodeTree, N) of

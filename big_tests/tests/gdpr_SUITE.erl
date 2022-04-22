@@ -396,13 +396,13 @@ roster_required_modules() ->
 
 roster_backend_opts(riak) ->
     RiakDefaults = config_parser_helper:default_config([modules, mod_roster, riak]),
-    config_parser_helper:mod_config(mod_roster, #{backend => riak, riak => RiakDefaults});
+    mod_config(mod_roster, #{backend => riak, riak => RiakDefaults});
 roster_backend_opts(Backend) ->
-    config_parser_helper:mod_config(mod_roster, #{backend => Backend}).
+    mod_config(mod_roster, #{backend => Backend}).
 
 vcard_required_modules() ->
     Backend = pick_enabled_backend(),
-    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, vcard_backend_opts(Backend))}].
+    [{mod_vcard, mod_config(mod_vcard, vcard_backend_opts(Backend))}].
 
 vcard_backend_opts(riak) ->
     #{backend => riak, riak => #{bucket_type => <<"vcard">>,
@@ -411,19 +411,22 @@ vcard_backend_opts(Backend) ->
     #{backend => Backend}.
 
 offline_required_modules() ->
-    [{mod_offline, [{backend, pick_enabled_backend()}]}].
+    [{mod_offline, mod_offline_config(pick_enabled_backend())}].
+
+mod_offline_config(riak) ->
+    config_parser_helper:mod_config(mod_offline, #{backend => riak, riak => #{bucket_type => <<"offline">>}});
+mod_offline_config(Backend) ->
+    config_parser_helper:mod_config(mod_offline, #{backend => Backend}).
 
 pubsub_required_modules() ->
     pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
 pubsub_required_modules(Plugins) ->
     HostPattern = subhost_pattern("pubsub.@HOST@"),
-    [{mod_caps, []}, {mod_pubsub, [
-                                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                                   {host, HostPattern},
-                                   {nodetree, <<"tree">>},
-                                   {plugins, Plugins}
-                                  ]
-                     }].
+    PubsubConfig = mod_config(mod_pubsub, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                            host => HostPattern,
+                                            nodetree => nodetree_tree,
+                                            plugins => Plugins}),
+    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)}, {mod_pubsub, PubsubConfig}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),
@@ -445,9 +448,9 @@ private_required_modules() ->
     [{mod_private, create_private_config(pick_enabled_backend())}].
 
 create_private_config(riak) ->
-    config_parser_helper:mod_config(mod_private, #{backend => riak, riak => #{bucket_type => <<"private">>}});
+    mod_config(mod_private, #{backend => riak, riak => #{bucket_type => <<"private">>}});
 create_private_config(Backend) ->
-    config_parser_helper:mod_config(mod_private, #{backend => Backend}).
+    mod_config(mod_private, #{backend => Backend}).
 
 private_started() ->
     dynamic_modules:ensure_modules(host_type(), private_required_modules()).

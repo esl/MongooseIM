@@ -16,7 +16,7 @@
                               Acc :: mongoose_acc:t()) ->
     mod_inbox:count_res().
 handle_outgoing_message(HostType, User, Remote, Packet, Acc) ->
-    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Remote, Packet),
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Remote, Packet, Acc),
     mod_inbox_utils:maybe_write_to_inbox(
       HostType, User, Remote, Packet, Acc, fun mod_inbox_utils:write_to_sender_inbox/5).
 

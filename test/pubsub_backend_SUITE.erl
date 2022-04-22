@@ -58,6 +58,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     mod_pubsub_db_mnesia:stop(),
     mnesia:stop(),
+    mnesia:delete_schema([node()]),
     Config.
 
 init_per_group(_GroupName, Config) ->

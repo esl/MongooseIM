@@ -31,7 +31,6 @@
 -export([start/0, stop/0,
          %% Server
          status/0,
-         send_service_message_all_mucs/2,
          %% Accounts
          register/3, register/2, unregister/2,
          registered_users/1,
@@ -58,7 +57,7 @@
     get_loglevel/0, import_users/1, install_fallback_mnesia/1,
     join_cluster/1, leave_cluster/0, load_mnesia/1, mnesia_change_nodename/4,
     register/2, register/3, registered_users/1, remove_from_cluster/1,
-    restore_mnesia/1, send_service_message_all_mucs/2, set_master/1, status/0,
+    restore_mnesia/1, set_master/1, status/0,
     stop/0, unregister/2]).
 
 -include("mongoose.hrl").
@@ -279,7 +278,6 @@ do_leave_cluster() ->
             {error, {E, R}}
     end.
 
-
 -spec status() -> {'mongooseim_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
@@ -293,18 +291,6 @@ status() ->
                 {ok, io_lib:format("mongooseim ~s is running in that node", [Version])}
         end,
     {Is_running, String1 ++ String2}.
-
-
--spec send_service_message_all_mucs(Subject :: string() | binary(),
-                              AnnouncementText :: string() | binary()) -> 'ok'.
-send_service_message_all_mucs(Subject, AnnouncementText) ->
-    Message = io_lib:format("~s~n~s", [Subject, AnnouncementText]),
-    lists:foreach(
-      fun(Host) ->
-              MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
-              mod_muc:broadcast_service_message(MUCHost, Message)
-      end,
-      ?MYHOSTS).
 
 %%%
 %%% Account management

@@ -35,6 +35,8 @@
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
 -import(config_parser_helper, [merge_with_default_pool_config/1, default_s2s/0,
+                               extra_service_listener_config/0,
+                               mod_event_pusher_http_handler/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -80,38 +82,16 @@ groups() ->
                             replaced_wait_timeout,
                             hide_service_name,
                             domain_certfile]},
-     {listen, [parallel], [listen_portip,
-                           listen_proto,
-                           listen_duplicate,
-                           listen_ip_version,
-                           listen_backlog,
-                           listen_proxy_protocol,
-                           listen_num_acceptors,
-                           listen_access,
-                           listen_shaper,
-                           listen_xml_socket,
-                           listen_zlib,
-                           listen_hibernate_after,
-                           listen_max_fsm_queue,
-                           listen_max_stanza_size,
-                           listen_tls_mode,
-                           listen_tls_module,
-                           listen_tls_verify,
-                           listen_tls_verify_mode,
-                           listen_tls_crl_files,
-                           listen_tls_certfile,
-                           listen_tls_cacertfile,
-                           listen_tls_dhfile,
-                           listen_tls_ciphers,
-                           listen_tls_versions,
-                           listen_tls_protocol_options,
-                           listen_check_from,
-                           listen_hidden_components,
-                           listen_conflict_behaviour,
-                           listen_password,
-                           listen_http_num_acceptors,
-                           listen_http_max_connections,
-                           listen_http_compress,
+     {listen, [parallel], [listen_duplicate,
+                           listen_c2s,
+                           listen_c2s_fast_tls,
+                           listen_c2s_just_tls,
+                           listen_s2s,
+                           listen_s2s_tls,
+                           listen_service,
+                           listen_http,
+                           listen_http_tls,
+                           listen_http_transport,
                            listen_http_handlers,
                            listen_http_handlers_websockets,
                            listen_http_handlers_lasse,
@@ -233,6 +213,7 @@ groups() ->
                             mod_muc_light,
                             mod_muc_light_config_schema,
                             mod_offline,
+                            mod_offline_chatmarkers,
                             mod_ping,
                             mod_privacy,
                             mod_private,
@@ -257,6 +238,7 @@ groups() ->
                             modules_without_config,
                             incorrect_module]},
      {services, [parallel], [service_admin_extra,
+                             service_domain_db,
                              service_mongoose_system_metrics]}
     ].
 
@@ -313,8 +295,8 @@ supported_features(_Config) ->
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [],
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{},
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -405,9 +387,9 @@ all_metrics_are_global(_Config) ->
     ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
 
 sm_backend(_Config) ->
-    ?cfg(sm_backend, {mnesia, []}, #{}), % default
-    ?cfg(sm_backend, {mnesia, []}, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
-    ?cfg(sm_backend, {redis, []}, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
+    ?cfg(sm_backend, mnesia, #{}), % default
+    ?cfg(sm_backend, mnesia, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
+    ?cfg(sm_backend, redis, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
 
 max_fsm_queue(_Config) ->
@@ -484,371 +466,274 @@ domain_certfile(_Config) ->
 
 %% tests: listen
 
-listen_portip(_Config) ->
-    ?cfg(listen, [], #{}),
-    ?cfg(listener_config(ejabberd_c2s, #{}), listen_raw(<<"c2s">>, #{})),
-    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "192.168.1.16",
-                                         ip_tuple => {192, 168, 1, 16}}),
-         listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.16">>})),
-    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "2001:db8:3:4:5:6:7:8",
-                                         ip_tuple => {8193, 3512, 3, 4, 5, 6, 7, 8},
-                                         ip_version => 6}),
-         listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?err(listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.999">>})),
-    ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"ip_address">> => <<"192.168.1.16">>}]}}),
-    ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => <<"5222">>}]}}),
-    ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 522222}]}}).
-
-listen_proto(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{}),
-         listen_raw(<<"c2s">>, #{<<"proto">> => <<"tcp">>})),
-    ?cfg(listener_config(ejabberd_c2s, #{proto => udp}),
-         listen_raw(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
-    ?err(listen_raw(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
-
 listen_duplicate(_Config) ->
-    ?cfg(listen, [listener(ejabberd_c2s, #{}),
-                  listener(ejabberd_c2s, #{port => 5223})],
-         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
-                                             <<"ip_address">> => <<"0">>},
+    ?cfg(listen, [listener(c2s, #{port => 5222}),
+                  listener(c2s, #{port => 5223})],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222, <<"ip_address">> => <<"0">>},
                                            #{<<"port">> => 5223}]}}),
     ?err([#{reason := duplicate_listeners,
             duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
-         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
-                                             <<"ip_address">> => <<"0">>},
-                                           #{<<"port">> => 5222}]}}).
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222, <<"ip_address">> => <<"0">>},
+                                           #{<<"port">> => 5222}]}}),
+    ?err([#{reason := duplicate_listeners,
+            duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222, <<"ip_address">> => <<"0">>}],
+                             <<"s2s">> => [#{<<"port">> => 5222}]}}).
 
-listen_ip_version(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{}),
-         listen_raw(<<"c2s">>, #{<<"ip_version">> => 4})),
-    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "::",
-                                         ip_tuple => {0, 0, 0, 0, 0, 0, 0, 0},
-                                         ip_version => 6}),
-         listen_raw(<<"c2s">>, #{<<"ip_version">> => 6})),
-    ?err(listen_raw(<<"c2s">>, #{<<"ip_version">> => 7})).
+listen_c2s(_Config) ->
+    T = fun(Opts) -> listen_raw(c2s, maps:merge(#{<<"port">> => 5222}, Opts)) end,
+    P = [listen, 1],
+    ?cfg(P, config([listen, c2s], #{port => 5222}), T(#{})),
+    test_listen(P, T),
+    test_listen_xmpp(P, T),
+    ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
+    ?cfg(P ++ [shaper], c2s_shaper, T(#{<<"shaper">> => <<"c2s_shaper">>})),
+    ?cfg(P ++ [zlib], 1024, T(#{<<"zlib">> => 1024})),
+    ?cfg(P ++ [max_fsm_queue], 1000, T(#{<<"max_fsm_queue">> => 1000})),
+    ?cfg(P ++ [allowed_auth_methods], [rdbms, http],
+         T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"http">>]})),
+    ?err(T(#{<<"access">> => <<>>})),
+    ?err(T(#{<<"shaper">> => <<>>})),
+    ?err(T(#{<<"zlib">> => 0})),
+    ?err(T(#{<<"max_fsm_queue">> => 0})),
+    ?err(T(#{<<"allowed_auth_methods">> => [<<"bad_method">>]})),
+    ?err(T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"rdbms">>]})).
 
-listen_backlog(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{backlog => 10}),
-         listen_raw(<<"c2s">>, #{<<"backlog">> => 10})),
-    ?err(listen_raw(<<"c2s">>, #{<<"backlog">> => -10})).
+listen_c2s_fast_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
+                                       <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    ?cfg(P, [], T(#{<<"module">> => <<"fast_tls">>})),
+    ?cfg(P, [starttls], T(#{<<"mode">> => <<"starttls">>})),
+    ?cfg(P, [verify_peer], T(#{<<"verify_peer">> => true})),
+    ?cfg(P, [verify_none], T(#{<<"verify_peer">> => false})),
+    ?cfg(P, [{certfile, "priv/cert.pem"}], T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P, [{cafile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P, [{protocol_options, ["nosslv2"]}], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
+    ?err(T(#{<<"mode">> => <<"stopttls">>})),
+    ?err(T(#{<<"module">> => <<"slow_tls">>})),
+    ?err(T(#{<<"verify_peer">> => <<"maybe">>})),
+    ?err(T(#{<<"crl_files">> => [<<"file1">>, <<"file2">>]})), % only for just_tls
+    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(#{<<"protocol_options">> => [<<>>]})).
 
-listen_proxy_protocol(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{proxy_protocol => true}),
-         listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => true})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{proxy_protocol => true}),
-         listen_raw(<<"s2s">>, #{<<"proxy_protocol">> => true})),
-    ?cfg(listener_config(ejabberd_service, #{proxy_protocol => true}),
-         listen_raw(<<"service">>, #{<<"proxy_protocol">> => true})),
-    ?err(listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => <<"awesome">>})).
+listen_c2s_just_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
+                                       <<"tls">> => Opts#{<<"module">> => <<"just_tls">>}}) end,
+    P = [listen, 1, tls],
+    BaseOpts = [{tls_module, just_tls}],
+    ?cfg(P, BaseOpts, T(#{})),
+    ?cfg(P, BaseOpts ++ [{ssl_options, [{verify_fun, {selfsigned_peer, false}}]}],
+         T(#{<<"verify_mode">> => <<"selfsigned_peer">>, <<"disconnect_on_failure">> => false})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{verify_fun, {peer, true}}]}],
+         T(#{<<"verify_mode">> => <<"peer">>})),
+    ?cfg(P,  BaseOpts ++ [{crlfiles, ["file1", "file2"]}],
+         T(#{<<"crl_files">> => [<<"file1">>, <<"file2">>]})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{certfile, "priv/cert.pem"}]}],
+         T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{cacertfile, "priv/ca.pem"}]}],
+         T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{dhfile, "priv/dh.pem"}]}],
+         T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}],
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P,  BaseOpts ++ [{ssl_options, [{versions, ['tlsv1.2', 'tlsv1.3']}]}],
+         T(#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+    ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
+    ?err(T(#{<<"verify_mode">> => <<"peer">>, <<"disconnect_on_failure">> => <<"sometimes">>})),
+    ?err(T(#{<<"crl_files">> => [<<>>]})),
+    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})),
+    ?err(T(#{<<"protocol_options">> => [<<"nosslv2">>]})). % only for fast_tls
 
-listen_num_acceptors(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{acceptors_num => 100}),
-         listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 100})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{acceptors_num => 100}),
-         listen_raw(<<"s2s">>, #{<<"num_acceptors">> => 100})),
-    ?cfg(listener_config(ejabberd_service, #{acceptors_num => 100}),
-         listen_raw(<<"service">>, #{<<"num_acceptors">> => 100})),
-    ?err(listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 0})).
+listen_s2s(_Config) ->
+    T = fun(Opts) -> listen_raw(s2s, maps:merge(#{<<"port">> => 5269}, Opts)) end,
+    P = [listen, 1],
+    ?cfg(P, config([listen, s2s], #{port => 5269}), T(#{})),
+    test_listen(P, T),
+    test_listen_xmpp(P, T),
+    ?cfg(P ++ [shaper], s2s_shaper, T(#{<<"shaper">> => <<"s2s_shaper">>})),
+    ?err(T(#{<<"shaper">> => <<>>})).
 
-listen_access(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{access => rule1}),
-         listen_raw(<<"c2s">>, #{<<"access">> => <<"rule1">>})),
-    ?cfg(listener_config(ejabberd_service, #{access => rule1}),
-         listen_raw(<<"service">>, #{<<"access">> => <<"rule1">>})),
-    ?err(listen_raw(<<"c2s">>, #{<<"access">> => <<>>})).
+listen_s2s_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    ?cfg(P, [{cafile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P, [{protocol_options, ["nosslv2"]}], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
+    ?err(T(#{<<"cacertfile">> => <<>>})),
+    ?err(T(#{<<"dhfile">> => 12})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(#{<<"protocol_options">> => [<<>>]})).
 
-listen_shaper(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{shaper => c2s_shaper}),
-         listen_raw(<<"c2s">>, #{<<"shaper">> => <<"c2s_shaper">>})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{shaper => s2s_shaper}),
-         listen_raw(<<"s2s">>, #{<<"shaper">> => <<"s2s_shaper">>})),
-    ?cfg(listener_config(ejabberd_service, #{shaper_rule => fast}),
-         listen_raw(<<"service">>, #{<<"shaper_rule">> => <<"fast">>})),
-    ?err(listen_raw(<<"s2s">>, #{<<"shaper">> => <<>>})).
+listen_service(_Config) ->
+    T = fun(Opts) -> listen_raw(service, maps:merge(#{<<"port">> => 8888,
+                                                      <<"password">> => <<"secret">>}, Opts))
+        end,
+    P = [listen, 1],
+    ?cfg(P, config([listen, service], #{port => 8888, password => "secret"}), T(#{})),
+    test_listen(P, T),
+    test_listen_xmpp(P, T),
+    ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
+    ?cfg(P ++ [shaper_rule], fast, T(#{<<"shaper_rule">> => <<"fast">>})),
+    ?cfg(P ++ [check_from], false, T(#{<<"check_from">> => false})),
+    ?cfg(P ++ [hidden_components], true, T(#{<<"hidden_components">> => true})),
+    ?cfg(P ++ [conflict_behaviour], kick_old, T(#{<<"conflict_behaviour">> => <<"kick_old">>})),
+    ?cfg(P ++ [max_fsm_queue], 1000, T(#{<<"max_fsm_queue">> => 1000})),
+    ?err(T(#{<<"access">> => <<>>})),
+    ?err(T(#{<<"shaper_rule">> => <<>>})),
+    ?err(T(#{<<"check_from">> => 1})),
+    ?err(T(#{<<"hidden_components">> => <<"yes">>})),
+    ?err(T(#{<<"conflict_behaviour">> => <<"kill_server">>})),
+    ?err(T(#{<<"password">> => <<>>})),
+    ?err(T(#{<<"password">> => undefined})),
+    ?err(T(#{<<"max_fsm_queue">> => 0})).
 
-listen_xml_socket(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{xml_socket => true}),
-         listen_raw(<<"c2s">>, #{<<"xml_socket">> => true})),
-    ?err(listen_raw(<<"c2s">>, #{<<"xml_socket">> => 10})).
+listen_http(_Config) ->
+    T = fun(Opts) -> listen_raw(http, maps:merge(#{<<"port">> => 5280}, Opts)) end,
+    P = [listen, 1],
+    ?cfg(P, config([listen, http], #{port => 5280}), T(#{})),
+    test_listen(P, T).
 
-listen_zlib(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{zlib => 1024}),
-         listen_raw(<<"c2s">>, #{<<"zlib">> => 1024})),
-    ?err(listen_raw(<<"c2s">>, #{<<"zlib">> => 0})).
+listen_http_tls(_Config) ->
+    T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"tls">> => Opts}) end,
+    P = [listen, 1, tls],
+    ?cfg(P, [{verify, verify_peer}], T(#{<<"verify_peer">> => true})),
+    ?cfg(P, [{verify_mode, peer}], T(#{<<"verify_mode">> => <<"peer">>})),
+    ?cfg(P, [{certfile, "priv/cert.pem"}], T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P, [{cacertfile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?err(T(#{<<"verify_peer">> => 0})),
+    ?err(T(#{<<"verify_mode">> => <<"pear">>})),
+    ?err(T(#{<<"certfile">> => <<>>})),
+    ?err(T(#{<<"cacertfile">> => <<>>})),
+    ?err(T(#{<<"dhfile">> => 12})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})).
 
-listen_hibernate_after(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{hibernate_after => 10}),
-         listen_raw(<<"c2s">>, #{<<"hibernate_after">> => 10})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{hibernate_after => 10}),
-         listen_raw(<<"s2s">>, #{<<"hibernate_after">> => 10})),
-    ?cfg(listener_config(ejabberd_service, #{hibernate_after => 10}),
-         listen_raw(<<"service">>, #{<<"hibernate_after">> => 10})),
-    ?err(listen_raw(<<"c2s">>, #{<<"hibernate_after">> => -10})).
+listen_http_transport(_Config) ->
+    T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"transport">> => Opts}) end,
+    P = [listen, 1, transport],
+    ?cfg(P ++ [num_acceptors], 10, T(#{<<"num_acceptors">> => 10})),
+    ?cfg(P ++ [max_connections], 1024, T(#{<<"max_connections">> => 1024})),
+    ?err(T(#{<<"num_acceptors">> => 0})),
+    ?err(T(#{<<"max_connections">> => -1})).
 
-listen_max_stanza_size(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{max_stanza_size => 10000}),
-         listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{max_stanza_size => 10000}),
-         listen_raw(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?cfg(listener_config(ejabberd_service, #{max_stanza_size => 10000}),
-         listen_raw(<<"service">>, #{<<"max_stanza_size">> => 10000})),
-    ?err(listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
-
-listen_max_fsm_queue(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{max_fsm_queue => 1000}),
-         listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 1000})),
-    ?cfg(listener_config(ejabberd_service, #{max_fsm_queue => 1000}),
-         listen_raw(<<"service">>, #{<<"max_fsm_queue">> => 1000})),
-    ?err(listen_raw(<<"s2s">>, #{<<"max_fsm_queue">> => 1000})), % only for c2s and service
-    ?err(listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 0})).
-
-listen_tls_mode(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [starttls]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"starttls">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"stoptls">>}})).
-
-listen_tls_module(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => []}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"fast_tls">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"slow_tls">>}})).
-
-listen_tls_verify(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [verify_peer]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [verify_none]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}, verify_peer]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{verify, verify_peer}]}),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}, verify_none]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_peer">> => false}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => <<"maybe">>}})).
-
-listen_tls_verify_mode(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options, [{verify_fun, {peer, true}}]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_mode">> => <<"peer">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options, [{verify_fun,
-                                                                 {selfsigned_peer, false}}]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_mode">> => <<"selfsigned_peer">>,
-                                                <<"disconnect_on_failure">> => false}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{verify_mode, peer}]}),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"peer">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_mode">> => <<"peer">>,
-                                                <<"disconnect_on_failure">> => <<"false">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"verify_mode">> => <<"whatever">>}})),
-    ?err(listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"whatever">>}})).
-
-listen_tls_crl_files(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {crlfiles, ["file1", "file2"]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"crl_files">> => [<<"file1">>,
-                                                                    <<"file2">>]}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"crl_files">> => [<<>>]}})),
-    %% only for just_tls
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"crl_files">> => [<<"file1">>,
-                                                                    <<"file2">>]}})).
-
-listen_tls_certfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{certfile, "priv/cert.pem"}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"priv/cert.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options, [{certfile, "priv/cert.pem"}]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"certfile">> => <<"priv/cert.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{certfile, "priv/cert.pem"}]}),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"priv/cert.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"no_such_file.pem">>}})).
-
-listen_tls_cacertfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{cafile, "priv/ca.pem"}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{cafile, "priv/ca.pem"}]}),
-         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options, [{cacertfile, "priv/ca.pem"}]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"cacertfile">> => <<"priv/ca.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{cacertfile, "priv/ca.pem"}]}),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"no_such_file.pem">>}})).
-
-listen_tls_dhfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{dhfile, "priv/dh.pem"}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{dhfile, "priv/dh.pem"}]}),
-         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options, [{dhfile, "priv/dh.pem"}]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"dhfile">> => <<"priv/dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{dhfile, "priv/dh.pem"}]}),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"no_such_file.pem">>}})).
-
-listen_tls_ciphers(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
-         listen_raw(<<"c2s">>,
-                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options,
-                                                  [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]}),
-         listen_raw(<<"c2s">>,
-                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                     <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
-         listen_raw(<<"s2s">>,
-                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
-         listen_raw(<<"http">>,
-                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?err(listen_raw(<<"c2s">>,
-                    #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
-
-listen_tls_versions(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
-                                                 {ssl_options,
-                                                  [{versions, ['tlsv1.2', 'tlsv1.3']}]}]}),
-         listen_raw(<<"c2s">>,
-                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                     <<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]}})),
-    ?err(listen_raw(<<"c2s">>,
-                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                     <<"versions">> => <<"tlsv1.2">>}})).
-
-listen_tls_protocol_options(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, #{tls => [{protocol_options, ["nosslv2"]}]}),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
-    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{protocol_options, ["nosslv2"]}]}),
-         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
-    ?err(listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"protocol_options">> => [<<"nosslv2">>]}})).
-
-listen_check_from(_Config) ->
-    ?cfg(listener_config(ejabberd_service, #{service_check_from => false}),
-         listen_raw(<<"service">>, #{<<"check_from">> => false})),
-    ?err(listen_raw(<<"service">>, #{<<"check_from">> => 1})).
-
-listen_hidden_components(_Config) ->
-    ?cfg(listener_config(ejabberd_service, #{hidden_components => true}),
-         listen_raw(<<"service">>, #{<<"hidden_components">> => true})),
-    ?err(listen_raw(<<"service">>, #{<<"hidden_components">> => <<"yes">>})).
-
-listen_conflict_behaviour(_Config) ->
-    ?cfg(listener_config(ejabberd_service, #{conflict_behaviour => kick_old}),
-         listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kick_old">>})),
-    ?err(listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kill_server">>})).
-
-listen_password(_Config) ->
-    ?cfg(listener_config(ejabberd_service, #{password => "secret"}),
-         listen_raw(<<"service">>, #{<<"password">> => <<"secret">>})),
-    ?err(listen_raw(<<"service">>, #{<<"password">> => <<>>})).
-
-listen_http_num_acceptors(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{num_acceptors, 10}]}),
-         listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 10}})),
-    ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 0}})).
-
-listen_http_max_connections(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{max_connections, 100}]}),
-         listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => 100}})),
-    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{max_connections, infinity}]}),
-         listen_raw(<<"http">>, #{<<"transport">> =>
-                                      #{<<"max_connections">> => <<"infinity">>}})),
-    ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => -1}})).
-
-listen_http_compress(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{protocol_options => [{compress, true}]}),
-         listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => true}})),
-    ?err(listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => 0}})).
+listen_http_protocol(_Config) ->
+    T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"protocol">> => Opts}) end,
+    P = [listen, 1, protocol],
+    ?cfg(P ++ [compress], true, T(#{<<"compress">> => true})),
+    ?err(T(#{<<"compress">> => 1})).
 
 listen_http_handlers(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"_", "/http-bind", mod_bosh, []}]}),
-         listen_raw(<<"http">>, #{<<"handlers">> =>
-                                      #{<<"mod_bosh">> =>
-                                            [#{<<"host">> => <<"_">>,
-                                               <<"path">> => <<"/http-bind">>}]}})),
-    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
-                                      #{<<"mod_bosch">> =>
-                                            [#{<<"host">> => <<"dishwasher">>,
-                                               <<"path">> => <<"/cutlery">>}]}})),
-    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
-                                      #{<<"mod_bosh">> =>
-                                            [#{<<"host">> => <<"pathless">>}]}})),
-    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
-                                      #{<<"mod_bosh">> =>
-                                            [#{<<"host">> => <<>>,
-                                               <<"path">> => <<"/">>}]}})),
-    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
-                                      #{<<"mod_bosh">> =>
-                                            [#{<<"path">> => <<"hostless">>}]}})).
+    T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"handlers">> => Opts}) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"_", "/http-bind", mod_bosh, []}],
+         T(#{<<"mod_bosh">> => [#{<<"host">> => <<"_">>,
+                                  <<"path">> => <<"/http-bind">>}]})),
+    ?err(T(#{<<"mod_bosch">> => [#{<<"host">> => <<"dishwasher">>,
+                                   <<"path">> => <<"/cutlery">>}]})),
+    ?err(T(#{<<"mod_bosh">> => [#{<<"host">> => <<"pathless">>}]})),
+    ?err(T(#{<<"mod_bosh">> => [#{<<"host">> => <<>>, <<"path">> => <<"/">>}]})),
+    ?err(T(#{<<"mod_bosh">> => [#{<<"path">> => <<"hostless">>}]})).
 
 listen_http_handlers_websockets(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mod_websockets, []}]}),
-         http_handler_raw(<<"mod_websockets">>, #{})),
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mod_websockets,
-                                                         [{ejabberd_service, [{access, all}]}]
-                                                        }]}),
-         http_handler_raw(<<"mod_websockets">>, #{<<"service">> => #{<<"access">> => <<"all">>}})),
-    ?err(http_handler_raw(<<"mod_websockets">>, #{<<"service">> => <<"unbelievable">>})).
+    T = fun(Opts) -> http_handler_raw(<<"mod_websockets">>, Opts) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"localhost", "/api", mod_websockets, []}], T(#{})),
+    ?cfg(P, [{"localhost", "/api", mod_websockets,
+              [{service, maps:merge(extra_service_listener_config(), #{password => "secret"})}]
+             }],
+         T(#{<<"service">> => #{<<"password">> => <<"secret">>}})),
+    ?err(T(#{<<"service">> => #{}})).
 
 listen_http_handlers_lasse(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", lasse_handler,
-                                                         [mongoose_client_api_sse]
-                                                        }]}),
-         http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mongoose_client_api_sse">>})),
-    ?err(http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mooongooose_api_ssie">>})),
-    ?err(http_handler_raw(<<"lasse_handler">>, #{})).
+    T = fun(Opts) -> http_handler_raw(<<"lasse_handler">>, Opts) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"localhost", "/api", lasse_handler, [mongoose_client_api_sse]}],
+         T(#{<<"module">> => <<"mongoose_client_api_sse">>})),
+    ?err(T(#{<<"module">> => <<"mooongooose_api_ssie">>})),
+    ?err(T(#{})).
 
 listen_http_handlers_static(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", cowboy_static,
-                                                         {priv_dir, cowboy_swagger, "swagger",
-                                                          [{mimetypes, cow_mimetypes, all}]}
-                                                        }]}),
-         http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
-                                                 <<"app">> => <<"cowboy_swagger">>,
-                                                 <<"content_path">> => <<"swagger">>})),
-    ?err(http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
-                                                 <<"app">> => <<"cowboy_swagger">>})).
+    T = fun(Opts) -> http_handler_raw(<<"cowboy_static">>, Opts) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"localhost", "/api", cowboy_static,
+              {priv_dir, cowboy_swagger, "swagger",
+               [{mimetypes, cow_mimetypes, all}]}
+             }],
+         T(#{<<"type">> => <<"priv_dir">>, <<"app">> => <<"cowboy_swagger">>,
+             <<"content_path">> => <<"swagger">>})),
+    ?cfg(P, [{"localhost", "/api", cowboy_static,
+              {file, "swagger", [{mimetypes, cow_mimetypes, all}]}
+             }],
+         T(#{<<"type">> => <<"file">>, <<"content_path">> => <<"swagger">>})),
+    ?err(T(#{<<"type">> => <<"priv_dir">>, <<"app">> => <<"cowboy_swagger">>})).
 
 listen_http_handlers_api(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mongoose_api,
-                                                         [{handlers, [mongoose_api_metrics,
-                                                                      mongoose_api_users]}]}
-                                                       ]}),
-         http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"mongoose_api_metrics">>,
-                                                                   <<"mongoose_api_users">>]})),
-    ?err(http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
-    ?err(http_handler_raw(<<"mongoose_api">>, #{})).
+    T = fun(Opts) -> http_handler_raw(<<"mongoose_api">>, Opts) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"localhost", "/api", mongoose_api,
+              [{handlers, [mongoose_api_metrics,
+                           mongoose_api_users]}]}
+            ],
+         T(#{<<"handlers">> => [<<"mongoose_api_metrics">>, <<"mongoose_api_users">>]})),
+    ?err(T(#{<<"handlers">> => [<<"not_an_api_module">>]})),
+    ?err(T(#{})).
 
 listen_http_handlers_domain(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy,
-                         #{modules => [{"localhost", "/api", mongoose_domain_handler,
-                                        [{password, <<"cool">>}, {username, <<"admin">>}]
-                                       }]}),
-         http_handler_raw(<<"mongoose_domain_handler">>,
-                          #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
-    ?cfg(listener_config(ejabberd_cowboy,
-                         #{modules => [{"localhost", "/api", mongoose_domain_handler,
-                                        [] }]}),
-         http_handler_raw(<<"mongoose_domain_handler">>, #{})),
+    T = fun(Opts) -> http_handler_raw(<<"mongoose_domain_handler">>, Opts) end,
+    P = [listen, 1, handlers],
+    ?cfg(P, [{"localhost", "/api", mongoose_domain_handler,
+              [{password, <<"cool">>}, {username, <<"admin">>}]
+             }],
+         T(#{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
+    ?cfg(P, [{"localhost", "/api", mongoose_domain_handler, []}], T(#{})),
     %% Both username and password required. Or none.
-    ?err(http_handler_raw(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
-    ?err(http_handler_raw(<<"mongoose_domain_handler">>, #{<<"password">> => <<"cool">>})).
+    ?err(T(#{<<"username">> => <<"admin">>})),
+    ?err(T(#{<<"password">> => <<"cool">>})).
+
+test_listen(P, T) ->
+    ?cfg(P ++ [ip_address], "192.168.1.16", T(#{<<"ip_address">> => <<"192.168.1.16">>})),
+    ?cfg(P ++ [ip_tuple], {192, 168, 1, 16}, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
+    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_address">> => <<"192.168.1.16">>})),
+    ?cfg(P ++ [ip_address], "2001:db8:3:4:5:6:7:8",
+         T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
+    ?cfg(P ++ [ip_tuple], {8193, 3512, 3, 4, 5, 6, 7, 8},
+         T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
+    ?cfg(P ++ [ip_version], 6,
+         T(#{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
+    ?cfg(P ++ [ip_version], 4, T(#{<<"ip_version">> => 4})),
+    ?cfg(P ++ [ip_version], 6, T(#{<<"ip_version">> => 6})),
+    ?cfg(P ++ [ip_address], "::", T(#{<<"ip_version">> => 6})),
+    ?cfg(P ++ [ip_tuple], {0, 0, 0, 0, 0, 0, 0, 0}, T(#{<<"ip_version">> => 6})),
+    ?cfg(P ++ [proto], tcp, T(#{<<"proto">> => <<"tcp">>})),
+    ?err(T(#{<<"ip_address">> => <<"192.168.1.999">>})),
+    ?err(T(#{<<"port">> => <<"5222">>})),
+    ?err(T(#{<<"port">> => 522222})),
+    ?err(T(#{<<"port">> => undefined})),
+    ?err(T(#{<<"ip_version">> => 7})),
+    ?err(T(#{<<"proto">> => <<"udp">>})). % only TCP is accepted
+
+test_listen_xmpp(P, T) ->
+    ?cfg(P ++ [backlog], 10, T(#{<<"backlog">> => 10})),
+    ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
+    ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
+    ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
+    ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
+    ?err(T(#{<<"backlog">> => -10})),
+    ?err(T(#{<<"proxy_protocol">> => <<"awesome">>})),
+    ?err(T(#{<<"hibernate_after">> => -10})),
+    ?err(T(#{<<"max_stanza_size">> => <<"unlimited">>})),
+    ?err(T(#{<<"num_acceptors">> => 0})).
 
 %% tests: auth
 
@@ -1575,7 +1460,7 @@ s2s_max_retry_delay(_Config) ->
 
 mod_adhoc(_Config) ->
     check_module_defaults(mod_adhoc),
-    check_iqdisc_map(mod_adhoc),
+    check_iqdisc(mod_adhoc),
     P = [modules, mod_adhoc],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
@@ -1586,7 +1471,7 @@ mod_adhoc(_Config) ->
 
 mod_auth_token(_Config) ->
     check_module_defaults(mod_auth_token),
-    check_iqdisc_map(mod_auth_token),
+    check_iqdisc(mod_auth_token),
     P = [modules, mod_auth_token],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_auth_token">> => #{K => V}}} end,
     ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
@@ -1629,10 +1514,11 @@ mod_bosh(_Config) ->
     ?errh(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
+    check_module_defaults(mod_caps),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
-    ?cfgh(M(cache_size, 10), T(<<"cache_size">>, 10)),
-    ?cfgh(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+    P = [modules, mod_caps],
+    ?cfgh(P ++ [cache_size], 10, T(<<"cache_size">>, 10)),
+    ?cfgh(P ++ [cache_life_time], 10, T(<<"cache_life_time">>, 10)),
     ?errh(T(<<"cache_size">>, 0)),
     ?errh(T(<<"cache_size">>, <<"infinity">>)),
     ?errh(T(<<"cache_life_time">>, 0)),
@@ -1655,15 +1541,16 @@ mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
+    check_module_defaults(mod_csi),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
-    ?cfgh(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
-    ?cfgh(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+    P = [modules, mod_csi],
+    ?cfgh(P ++ [buffer_max], 10, T(<<"buffer_max">>, 10)),
+    ?cfgh(P ++ [buffer_max], infinity, T(<<"buffer_max">>, <<"infinity">>)),
     ?errh(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
     check_module_defaults(mod_disco),
-    check_iqdisc_map(mod_disco),
+    check_iqdisc(mod_disco),
     P = [modules, mod_disco],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?cfgh(P ++ [users_can_see_hidden_services], true,
@@ -1700,7 +1587,7 @@ mod_disco(_Config) ->
 
 mod_extdisco(_Config) ->
     check_module_defaults(mod_extdisco),
-    check_iqdisc_map(mod_extdisco),
+    check_iqdisc(mod_extdisco),
     P = [modules, mod_extdisco, service],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_extdisco">> =>
@@ -1724,7 +1611,7 @@ mod_extdisco(_Config) ->
 
 mod_inbox(_Config) ->
     check_module_defaults(mod_inbox),
-    check_iqdisc_map(mod_inbox),
+    check_iqdisc(mod_inbox),
     P = [modules, mod_inbox],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
     ChatMarkers = [<<"displayed">>, <<"received">>, <<"acknowledged">>],
@@ -1732,12 +1619,23 @@ mod_inbox(_Config) ->
     ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
     ?cfgh(P ++ [reset_markers], ChatMarkers, T(#{<<"reset_markers">> => ChatMarkers})),
     ?cfgh(P ++ [groupchat], [muc, muclight], T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
+    ?cfgh(P ++ [boxes],
+          [<<"inbox">>, <<"archive">>, <<"bin">>, <<"favourites">>, <<"spam">>],
+          T(#{<<"boxes">> => [<<"favourites">>, <<"spam">>]})),
+    ?cfgh(P ++ [bin_ttl], 30, T(#{<<"bin_ttl">> => 30})),
+    ?cfgh(P ++ [bin_clean_after], 43200000, T(#{<<"bin_clean_after">> => 12})),
     ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
     ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),
     ?errh(T(#{<<"backend">> => <<"nodejs">>})),
+    ?errh(T(#{<<"pool_size">> => -1})),
     ?errh(T(#{<<"reset_markers">> => 1})),
     ?errh(T(#{<<"reset_markers">> => [<<"destroyed">>]})),
     ?errh(T(#{<<"groupchat">> => [<<"test">>]})),
+    ?errh(T(#{<<"boxes">> => [<<"archive">>]})),
+    ?errh(T(#{<<"boxes">> => [<<"duplicate">>, <<"duplicate">>]})),
+    ?errh(T(#{<<"boxes">> => <<"test">>})),
+    ?errh(T(#{<<"bin_ttl">> => true})),
+    ?errh(T(#{<<"bin_clean_after">> => -1})),
     ?errh(T(#{<<"aff_changes">> => 1})),
     ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
@@ -1904,36 +1802,34 @@ global_distrib_expected_connections() ->
                                     {{127, 0, 0, 1}, 5555}]}).
 
 mod_event_pusher_sns(_Config) ->
-    RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
-                     <<"secret_access_key">> => <<"KEY">>,
+    RequiredOpts = #{<<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>,
                      <<"region">> => <<"eu-west-1">>,
-                     <<"account_id">> => <<"123456789012">>,
-                     <<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>},
-    ExpectedCfg = [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-                   {secret_access_key, "KEY"},
-                   {region, "eu-west-1"},
-                   {account_id, "123456789012"},
-                   {sns_host, "sns.eu-west-1.amazonaws.com"}],
+                     <<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
+                     <<"secret_access_key">> => <<"KEY">>,
+                     <<"account_id">> => <<"123456789012">>},
+    ExpectedCfg = #{sns_host => "sns.eu-west-1.amazonaws.com",
+                    region => "eu-west-1",
+                    access_key_id => "AKIAIOSFODNN7EXAMPLE",
+                    secret_access_key => "KEY",
+                    account_id => "123456789012"},
+    P = [modules, mod_event_pusher, sns],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"sns">> => Opts}}}}
+                           #{<<"mod_event_pusher">> => #{<<"sns">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{sns, Cfg}]}]) end,
-    ?cfgh(M(ExpectedCfg),
-          T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{presence_updates_topic, "pres"}]),
+    ?cfgh(P, config(P, ExpectedCfg), T(RequiredOpts)),
+    ?cfgh(P ++ [presence_updates_topic], "pres",
           T(RequiredOpts#{<<"presence_updates_topic">> => <<"pres">>})),
-    ?cfgh(M(ExpectedCfg ++ [{pm_messages_topic, "pm"}]),
+    ?cfgh(P ++ [pm_messages_topic], "pm",
           T(RequiredOpts#{<<"pm_messages_topic">> => <<"pm">>})),
-    ?cfgh(M(ExpectedCfg ++ [{muc_messages_topic, "muc"}]),
+    ?cfgh(P ++ [muc_messages_topic], "muc",
           T(RequiredOpts#{<<"muc_messages_topic">> => <<"muc">>})),
-    ?cfgh(M(ExpectedCfg ++ [{plugin_module, mod_event_pusher_sns_defaults}]),
+    ?cfgh(P ++ [plugin_module], mod_event_pusher_sns_defaults,
           T(RequiredOpts#{<<"plugin_module">> => <<"mod_event_pusher_sns_defaults">>})),
-    ?cfgh(M(ExpectedCfg ++ [{pool_size, 10}]),
+    ?cfgh(P ++ [pool_size], 10,
           T(RequiredOpts#{<<"pool_size">> => 10})),
-    ?cfgh(M(ExpectedCfg ++ [{publish_retry_count, 1}]),
+    ?cfgh(P ++ [publish_retry_count], 1,
           T(RequiredOpts#{<<"publish_retry_count">> => 1})),
-    ?cfgh(M(ExpectedCfg ++ [{publish_retry_time_ms, 100}]),
+    ?cfgh(P ++ [publish_retry_time_ms], 100,
           T(RequiredOpts#{<<"publish_retry_time_ms">> => 100})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     [?errh(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
@@ -1946,101 +1842,109 @@ mod_event_pusher_sns(_Config) ->
     ?errh(T(RequiredOpts#{<<"publish_retry_time_ms">> => -1})).
 
 mod_event_pusher_push(_Config) ->
+    P = [modules, mod_event_pusher, push],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"push">> => Opts}}}}
+                           #{<<"mod_event_pusher">> => #{<<"push">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{push, Cfg}]}]) end,
-    ?cfgh(M([{backend, rdbms}]),
-          T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{wpool, [{workers, 200}]}]),
-          T(#{<<"wpool">> => #{<<"workers">> => 200}})),
-    ?cfgh(M([{plugin_module, mod_event_pusher_push_plugin_defaults}]),
-          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
-    ?cfgh(M([{virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]}]),
+    ?cfgh(P, default_config(P), T(#{})),
+    check_iqdisc(P, T),
+    test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [plugin_module], mod_event_pusher_push_plugin_enhanced,
+          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_enhanced">>})),
+    ?cfgh(P ++ [virtual_pubsub_hosts], [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}],
           T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
-    ?cfgh(M([{virtual_pubsub_hosts, [{prefix, <<"pubsub.">>}, {prefix, <<"pub-sub.">>}]}]),
+    ?cfgh(P ++ [virtual_pubsub_hosts], [{prefix, <<"pubsub.">>}, {prefix, <<"pub-sub.">>}],
           T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOST@">>, <<"pub-sub.@HOST@">>]})),
     ?errh(T(#{<<"backend">> => <<"redis">>})),
     ?errh(T(#{<<"wpool">> => true})),
-    ?errh(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
     ?errh(T(#{<<"plugin_module">> => <<"wow_cool_but_missing">>})),
     ?errh(T(#{<<"plugin_module">> => 1})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub.@HOST@.as.well">>]})).
 
+test_wpool(P, T) ->
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [workers], 200, T(#{<<"workers">> => 200})),
+    ?cfgh(P ++ [strategy], random_worker, T(#{<<"strategy">> => <<"random_worker">>})),
+    ?cfgh(P ++ [call_timeout], 1000, T(#{<<"call_timeout">> => 1000})),
+    ?errh(T(#{<<"workers">> => 0})),
+    ?errh(T(#{<<"strategy">> => <<"worst_worker">>})),
+    ?errh(T(#{<<"workers">> => 0})).
+
 mod_event_pusher_http(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> =>
+    P = [modules, mod_event_pusher, http, handlers],
+    T = fun(Handlers) -> #{<<"modules">> =>
                            #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"http">> => Opts}}}}
+                                 #{<<"http">> => #{<<"handlers">> => Handlers}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{http, Cfg}]}]) end,
-    ?cfgh(M([{pool_name, http_pool}]),
-          T(#{<<"pool_name">> => <<"http_pool">>})),
-    ?cfgh(M([{path, "/notifications"}]),
-          T(#{<<"path">> => <<"/notifications">>})),
-    ?cfgh(M([{callback_module, mod_event_pusher_http_defaults}]),
-          T(#{<<"callback_module">> => <<"mod_event_pusher_http_defaults">>})),
-    ?errh(T(#{<<"pool_name">> => <<>>})),
-    ?errh(T(#{<<"path">> => true})),
-    ?errh(T(#{<<"callback_module">> => <<"wow_cool_but_missing">>})),
-    ?errh(T(#{<<"callback_module">> => 1})).
+    DefaultHandler = mod_event_pusher_http_handler(),
+    ?cfgh(P, [DefaultHandler], T([#{}])),
+    ?cfgh(P, [DefaultHandler#{pool_name => my_pool}],
+          T([#{<<"pool_name">> => <<"my_pool">>}])),
+    ?cfgh(P, [DefaultHandler#{path => <<"notifications">>}],
+          T([#{<<"path">> => <<"/notifications">>}])),
+    ?cfgh(P, [DefaultHandler#{callback_module => mod_event_pusher_http}], % existing module
+          T([#{<<"callback_module">> => <<"mod_event_pusher_http">>}])),
+    ?cfgh(P, [DefaultHandler, DefaultHandler#{pool_name => my_pool}], % two handlers
+          T([#{}, #{<<"pool_name">> => <<"my_pool">>}])),
+    ?errh(T([#{<<"pool_name">> => <<>>}])),
+    ?errh(T([#{<<"path">> => true}])),
+    ?errh(T([#{<<"callback_module">> => <<"wow_cool_but_missing">>}])),
+    ?errh(T([#{<<"callback_module">> => 1}])),
+    ?errh(T([#{}, #{}])). % handlers have to be unique
 
 mod_event_pusher_rabbit(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"rabbit">> => Opts}}}}
+    P = [modules, mod_event_pusher, rabbit],
+    T = fun(Key, Opts) -> #{<<"modules">> =>
+                                #{<<"mod_event_pusher">> =>
+                                      #{<<"rabbit">> => #{Key => Opts}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{rabbit, Cfg}]}]) end,
-    ?cfgh(M([{presence_exchange, [{name, <<"pres">>}]}]),
-          T(#{<<"presence_exchange">> => #{<<"name">> => <<"pres">>}})),
-    ?cfgh(M([{presence_exchange, [{type, <<"topic">>}]}]),
-          T(#{<<"presence_exchange">> => #{<<"type">> => <<"topic">>}})),
+    test_event_pusher_rabbit_exchange(P ++ [presence_exchange],
+                                      fun(Opts) -> T(<<"presence_exchange">>, Opts) end),
+    test_event_pusher_rabbit_msg_exchange(P ++ [chat_msg_exchange],
+                                          fun(Opts) -> T(<<"chat_msg_exchange">>, Opts) end),
+    test_event_pusher_rabbit_msg_exchange(P ++ [groupchat_msg_exchange],
+                                          fun(Opts) -> T(<<"groupchat_msg_exchange">>, Opts) end).
 
-    %% first two keys are the same as before, test them together
-    ?cfgh(M([{chat_msg_exchange, [{name, <<"pres1">>},
-                                  {type, <<"topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"name">> => <<"pres1">>,
-                                           <<"type">> => <<"topic1">>}})),
-    ?cfgh(M([{chat_msg_exchange, [{sent_topic, <<"sent_topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"sent_topic">> => <<"sent_topic1">>}})),
-    ?cfgh(M([{chat_msg_exchange, [{recv_topic, <<"recv_topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"recv_topic">> => <<"recv_topic1">>}})),
+test_event_pusher_rabbit_msg_exchange(P, T) ->
+    test_event_pusher_rabbit_exchange(P, T),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [sent_topic], <<"outgoing">>, T(#{<<"sent_topic">> => <<"outgoing">>})),
+    ?cfgh(P ++ [recv_topic], <<"incoming">>, T(#{<<"recv_topic">> => <<"incoming">>})),
+    ?errh(T(#{<<"sent_topic">> => <<>>})),
+    ?errh(T(#{<<"recv_topic">> => <<>>})).
 
-    %% all keys are the same as before, test them together
-    ?cfgh(M([{groupchat_msg_exchange, [{name, <<"pres2">>},
-                                       {type, <<"topic2">>},
-                                       {sent_topic, <<"sent_topic2">>},
-                                       {recv_topic, <<"recv_topic2">>}]}]),
-          T(#{<<"groupchat_msg_exchange">> => #{<<"name">> => <<"pres2">>,
-                                                <<"type">> => <<"topic2">>,
-                                                <<"sent_topic">> => <<"sent_topic2">>,
-                                                <<"recv_topic">> => <<"recv_topic2">>}})),
-
-    Exchanges = [<<"presence_exchange">>, <<"chat_msg_exchange">>, <<"groupchat_msg_exchange">>],
-    Keys = [<<"name">>, <<"topic">>, <<"sent_topic">>, <<"recv_topic">>],
-    [?errh(T(#{Exch => #{Key => <<>>}})) || Exch <- Exchanges, Key <- Keys],
-    [?errh(T(#{Exch => #{<<"badkey">> => <<"goodvalue">>}})) || Exch <- Exchanges],
-    ?errh(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
+test_event_pusher_rabbit_exchange(P, T) ->
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [name], <<"notifications">>, T(#{<<"name">> => <<"notifications">>})),
+    ?cfgh(P ++ [type], <<"direct">>, T(#{<<"type">> => <<"direct">>})),
+    ?errh(T(#{<<"name">> => <<>>})),
+    ?errh(T(#{<<"type">> => <<>>})).
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_http_upload, Cfg) end,
+    P = [modules, mod_http_upload],
     RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
-    ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{host, {prefix, <<"upload.">>}}]),
+    S3Cfg = http_upload_s3_expected_cfg(),
+    ?cfgh(P, mod_config(mod_http_upload,
+        #{host => <<"upload.@HOST@">>,
+          s3 => config_parser_helper:config([modules, mod_http_upload, s3], S3Cfg)
+         }),
+        T(RequiredOpts)),
+    ?cfgh(P ++ [s3], S3Cfg#{add_acl => false}, T(RequiredOpts)),
+    ?cfgh(P ++ [host], {prefix, <<"upload.">>},
           T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
-    ?cfgh(M(ExpectedCfg ++ [{host, {fqdn, <<"upload.test">>}}]),
+    ?cfgh(P ++ [host], {fqdn, <<"upload.test">>},
           T(RequiredOpts#{<<"host">> => <<"upload.test">>})),
-    ?cfgh(M(ExpectedCfg ++ [{backend, s3}]),
+    ?cfgh(P ++ [backend], s3,
           T(RequiredOpts#{<<"backend">> => <<"s3">>})),
-    ?cfgh(M(ExpectedCfg ++ [{expiration_time, 666}]),
+    ?cfgh(P ++ [expiration_time], 666,
           T(RequiredOpts#{<<"expiration_time">> => 666})),
-    ?cfgh(M(ExpectedCfg ++ [{token_bytes, 32}]),
+    ?cfgh(P ++ [token_bytes], 32,
           T(RequiredOpts#{<<"token_bytes">> => 32})),
-    ?cfgh(M(ExpectedCfg ++ [{max_file_size, 42}]),
+    ?cfgh(P ++ [max_file_size], 42,
           T(RequiredOpts#{<<"max_file_size">> => 42})),
     ?errh(T(#{})), %% missing 's3'
     ?errh(T(RequiredOpts#{<<"backend">> => <<"">>})),
@@ -2051,17 +1955,16 @@ mod_http_upload(_Config) ->
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"not.supported.any.more.@HOSTS@">>]})),
-    check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
+    check_iqdisc(mod_http_upload, RequiredOpts).
 
 mod_http_upload_s3(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
                                               #{<<"s3">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_http_upload, [{s3, Cfg}]) end,
     RequiredOpts = http_upload_s3_required_opts(),
     ExpectedCfg = http_upload_s3_expected_cfg(),
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{add_acl, true}]),
-          T(RequiredOpts#{<<"add_acl">> => true})),
+    P = [modules, mod_http_upload, s3],
+    ?cfgh(P, ExpectedCfg#{add_acl => false}, T(RequiredOpts)),
+    ?cfgh(P ++ [add_acl], true, T(RequiredOpts#{<<"add_acl">> => true})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"bucket_url">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"region">> => true})),
@@ -2076,24 +1979,30 @@ http_upload_s3_required_opts() ->
       <<"secret_access_key">> => <<"ILOVEU">>}.
 
 http_upload_s3_expected_cfg() ->
-    [{access_key_id, "PLEASE"},
-     {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-     {region, "antarctica-1"},
-     {secret_access_key, "ILOVEU"}].
+    #{access_key_id => <<"PLEASE">>,
+      bucket_url => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+      region => <<"antarctica-1">>,
+      secret_access_key => <<"ILOVEU">>}.
 
 mod_jingle_sip(_Config) ->
+    check_module_defaults(mod_jingle_sip),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_jingle_sip, Cfg) end,
-    ?cfgh(M([{proxy_host, "proxxxy"}]),
-          T(#{<<"proxy_host">> => <<"proxxxy">>})),
-    ?cfgh(M([{proxy_port, 5601}]),
+    P = [modules, mod_jingle_sip],
+    ?cfgh(P ++ [proxy_host], "proxxxy.com",
+          T(#{<<"proxy_host">> => <<"proxxxy.com">>})),
+    ?cfgh(P ++ [proxy_port], 5601,
           T(#{<<"proxy_port">> => 5601})),
-    ?cfgh(M([{listen_port, 5602}]),
+    ?cfgh(P ++ [listen_port], 5602,
           T(#{<<"listen_port">> => 5602})),
-    ?cfgh(M([{local_host, "localhost"}]),
+    ?cfgh(P ++ [local_host], "localhost",
           T(#{<<"local_host">> => <<"localhost">>})),
-    ?cfgh(M([{sdp_origin, "127.0.0.1"}]),
+    ?cfgh(P ++ [sdp_origin], "127.0.0.1",
           T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
+    ?cfgh(P ++ [transport], "tcp",
+          T(#{<<"transport">> => <<"tcp">>})),
+    ?cfgh(P ++ [username_to_phone], [{<<"2000006168">>, <<"+919177074440">>}],
+          T(#{<<"username_to_phone">> => [#{<<"username">> => <<"2000006168">>,
+                                            <<"phone">> => <<"+919177074440">>}]})),
     ?errh(T(#{<<"proxy_host">> => 1})),
     ?errh(T(#{<<"proxy_port">> => 1000000})),
     ?errh(T(#{<<"listen_port">> => -1})),
@@ -2101,9 +2010,10 @@ mod_jingle_sip(_Config) ->
     ?errh(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
+    check_module_defaults(mod_keystore),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_keystore, Cfg) end,
-    ?cfgh(M([{ram_key_size, 1024}]),
+    P = [modules, mod_keystore],
+    ?cfgh(P ++ [ram_key_size], 1024,
           T(#{<<"ram_key_size">> => 1024})),
     ?errh(T(#{<<"ram_key_size">> => -1})).
 
@@ -2111,12 +2021,12 @@ mod_keystore_keys(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> =>
                                               #{<<"keys">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_keystore, [{keys, Cfg}]) end,
+    P = [modules, mod_keystore, keys],
     RequiredOpts = #{<<"name">> => <<"access_secret">>,
                      <<"type">> => <<"ram">>},
-    ?cfgh(M([{access_secret, ram}]),
+    ?cfgh(P ++ [access_secret], ram,
           T([RequiredOpts])),
-    ?cfgh(M([{access_secret, {file, "priv/access_psk"}}]),
+    ?cfgh(P ++ [access_secret], {file, "priv/access_psk"},
           T([RequiredOpts#{<<"type">> => <<"file">>,
                            <<"path">> => <<"priv/access_psk">>}])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
@@ -2124,10 +2034,15 @@ mod_keystore_keys(_Config) ->
     ?errh(T([RequiredOpts#{<<"type">> => <<"rampampam">>}])),
     ?errh(T([RequiredOpts#{<<"type">> => <<"file">>}])),
     ?errh(T([RequiredOpts#{<<"type">> => <<"file">>,
-                           <<"path">> => <<"does/not/exists">>}])).
+                           <<"path">> => <<"does/not/exists">>}])),
+    ?errh(T([#{<<"name">> => <<"same_name_twice">>,
+               <<"type">> => <<"ram">>},
+             #{<<"name">> => <<"same_name_twice">>,
+               <<"type">> => <<"file">>,
+               <<"path">> => <<"priv/access_psk">>}])).
 
 mod_last(_Config) ->
-    check_iqdisc_map(mod_last),
+    check_iqdisc(mod_last),
     check_module_defaults(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
     P = [modules, mod_last],
@@ -2143,8 +2058,8 @@ mod_mam_meta(_Config) ->
     check_module_defaults(mod_mam_meta),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
     P = [modules, mod_mam_meta],
-    test_cache_config(fun(Opts) -> T(#{<<"cache">> => Opts}) end, P ++ [cache]),
-    test_mod_mam_meta(T, P).
+    test_cache_config(P ++ [cache], fun(Opts) -> T(#{<<"cache">> => Opts}) end),
+    test_mod_mam_meta(P, T).
 
 mod_mam_meta_riak(_Config) ->
     T = fun(Opts) ->
@@ -2162,7 +2077,7 @@ mod_mam_meta_riak(_Config) ->
 mod_mam_meta_pm(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"pm">> => Opts}}} end,
     P = [modules, mod_mam_meta, pm],
-    test_mod_mam_meta(T, P),
+    test_mod_mam_meta(P, T),
     ?cfgh(P, default_config(P), T(#{})),
     ?cfgh(P ++ [archive_groupchats], true, T(#{<<"archive_groupchats">> => true})),
     ?cfgh(P ++ [same_mam_id_for_peers], true, T(#{<<"same_mam_id_for_peers">> => true})),
@@ -2173,7 +2088,7 @@ mod_mam_meta_pm(_Config) ->
 mod_mam_meta_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
     P = [modules, mod_mam_meta, muc],
-    test_mod_mam_meta(T, P),
+    test_mod_mam_meta(P, T),
     ?cfgh(P, default_config(P), T(#{})),
     ?cfgh(P ++ [host], {prefix, <<"muc.">>}, T(#{<<"host">> => <<"muc.@HOST@">>})),
     ?cfgh(P ++ [host], {fqdn, <<"muc.test">>}, T(#{<<"host">> => <<"muc.test">>})),
@@ -2183,8 +2098,8 @@ mod_mam_meta_muc(_Config) ->
     ?errh(T(#{<<"archive_groupchats">> => true})), % pm-only
     ?errh(T(#{<<"same_mam_id_for_peers">> => true})). % pm-only
 
-test_mod_mam_meta(T, P) ->
-    test_async_writer(T, P),
+test_mod_mam_meta(P, T) ->
+    test_async_writer(P, T),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
     ?cfgh(P ++ [no_stanzaid_element], true,
@@ -2228,7 +2143,7 @@ test_mod_mam_meta(T, P) ->
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errh(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
-test_cache_config(T, P) ->
+test_cache_config(P, T) ->
     ?cfgh(P ++ [module], internal, T(#{<<"module">> => <<"internal">>})),
     ?cfgh(P ++ [time_to_live], 8600, T(#{<<"time_to_live">> => 8600})),
     ?cfgh(P ++ [time_to_live], infinity, T(#{<<"time_to_live">> => <<"infinity">>})),
@@ -2241,7 +2156,7 @@ test_cache_config(T, P) ->
     ?errh(T(#{<<"number_of_segments">> => <<"infinity">>})),
     ?errh(T(#{<<"cache">> => []})).
 
-test_async_writer(ParentT, ParentP) ->
+test_async_writer(ParentP, ParentT) ->
     P = ParentP ++ [async_writer],
     T = fun(Opts) -> ParentT(#{<<"async_writer">> => Opts}) end,
     ?cfgh(P ++ [flush_interval], 1500, T(#{<<"flush_interval">> => 1500})),
@@ -2438,7 +2353,7 @@ mod_muc_light(_Config) ->
     check_module_defaults(mod_muc_light),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
     P = [modules, mod_muc_light],
-    test_cache_config(fun(Opts) -> T(#{<<"cache_affs">> => Opts}) end, P ++ [cache_affs]),
+    test_cache_config(P ++ [cache_affs], fun(Opts) -> T(#{<<"cache_affs">> => Opts}) end),
     ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
     ?cfgh(P ++ [host], {prefix, <<"muclight.">>},
@@ -2512,23 +2427,35 @@ mod_muc_light_config_schema(_Config) ->
                     <<"internal_key">> => <<>>}])).
 
 mod_offline(_Config) ->
+    check_module_defaults(mod_offline),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_offline, Cfg) end,
-    ?cfgh(M([{access_max_user_messages, max_user_offline_messages}]),
-          T(#{<<"access_max_user_messages">> => <<"max_user_offline_messages">>})),
-    ?cfgh(M([{backend, rdbms}]),
+    P = [modules, mod_offline],
+    ?cfgh(P ++ [access_max_user_messages], custom_max_user_offline_messages,
+          T(#{<<"access_max_user_messages">> => <<"custom_max_user_offline_messages">>})),
+    ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{bucket_type, <<"test">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
     ?errh(T(#{<<"access_max_user_messages">> => 1})),
     ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     ?errh(T(#{<<"riak">> => #{<<"bucket">> => <<"leaky">>}})).
 
+mod_offline_chatmarkers(_Config) ->
+    check_module_defaults(mod_offline_chatmarkers),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline_chatmarkers">> => Opts}} end,
+    P = [modules, mod_offline_chatmarkers],
+    ?cfgh(P ++ [backend], rdbms,
+          T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [store_groupchat_messages], true,
+          T(#{<<"store_groupchat_messages">> => true})),
+    ?errh(T(#{<<"store_groupchat_messages">> => 1})),
+    ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})).
+
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
     P = [modules, mod_ping],
-    check_iqdisc_map(mod_ping),
+    check_iqdisc(mod_ping),
     check_module_defaults(mod_ping),
     ?cfgh(P ++ [send_pings], true,
           T(#{<<"send_pings">> => true})),
@@ -2570,7 +2497,7 @@ test_privacy_opts(Module) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
-    check_iqdisc_map(mod_private),
+    check_iqdisc(mod_private),
     check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
@@ -2583,31 +2510,32 @@ mod_private(_Config) ->
 
 mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),
+    check_module_defaults(mod_pubsub),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_pubsub, Cfg) end,
-    ?cfgh(M([{host, {prefix, <<"pubsub.">>}}]),
+    P = [modules, mod_pubsub],
+    ?cfgh(P ++ [host], {prefix, <<"pubsub.">>},
           T(#{<<"host">> => <<"pubsub.@HOST@">>})),
-    ?cfgh(M([{host, {fqdn, <<"pubsub.test">>}}]),
+    ?cfgh(P ++ [host], {fqdn, <<"pubsub.test">>},
           T(#{<<"host">> => <<"pubsub.test">>})),
-    ?cfgh(M([{backend, rdbms}]),
+    ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{access_createnode, all}]),
+    ?cfgh(P ++ [access], all,
           T(#{<<"access_createnode">> => <<"all">>})),
-    ?cfgh(M([{max_items_node, 20}]),
+    ?cfgh(P ++ [max_items_node], 20,
           T(#{<<"max_items_node">> => 20})),
-    ?cfgh(M([{max_subscriptions_node, 30}]),
+    ?cfgh(P ++ [max_subscriptions_node], 30,
           T(#{<<"max_subscriptions_node">> => 30})),
-    ?cfgh(M([{nodetree, <<"tree">>}]),
+    ?cfgh(P ++ [nodetree], nodetree_tree,
           T(#{<<"nodetree">> => <<"tree">>})),
-    ?cfgh(M([{ignore_pep_from_offline, false}]),
+    ?cfgh(P ++ [ignore_pep_from_offline], false,
           T(#{<<"ignore_pep_from_offline">> => false})),
-    ?cfgh(M([{last_item_cache, rdbms}]),
+    ?cfgh(P ++ [last_item_cache], rdbms,
           T(#{<<"last_item_cache">> => <<"rdbms">>})),
-    ?cfgh(M([{plugins, [<<"flat">>, <<"dag">>]}]),
+    ?cfgh(P ++ [plugins], [<<"flat">>, <<"dag">>],
           T(#{<<"plugins">> => [<<"flat">>, <<"dag">>]})),
-    ?cfgh(M([{item_publisher, true}]),
+    ?cfgh(P ++ [item_publisher], true,
           T(#{<<"item_publisher">> => true})),
-    ?cfgh(M([{sync_broadcast, false}]),
+    ?cfgh(P ++ [sync_broadcast], false,
           T(#{<<"sync_broadcast">> => false})),
     ?errh(T(#{<<"host">> => <<"">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
@@ -2627,10 +2555,10 @@ mod_pubsub(_Config) ->
 mod_pubsub_pep_mapping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
                                               #{<<"pep_mapping">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_pubsub, [{pep_mapping, Cfg}]) end,
+    P = [modules, mod_pubsub, pep_mapping],
     RequiredOpts = #{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
                      <<"node">> => <<"mb">>},
-    ?cfgh(M([{<<"urn:xmpp:microblog:0">>, <<"mb">>}]),
+    ?cfgh(P ++ [<<"urn:xmpp:microblog:0">>], <<"mb">>,
           T([RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     [?errh(T([RequiredOpts#{Key => <<>>}])) || Key <- maps:keys(RequiredOpts)].
@@ -2638,40 +2566,40 @@ mod_pubsub_pep_mapping(_Config) ->
 mod_pubsub_default_node_config(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> =>
                                               #{<<"default_node_config">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_pubsub, [{default_node_config, Cfg}]) end,
-    ?cfgh(M([{access_model, open}]),
+    P = [modules, mod_pubsub, default_node_config],
+    ?cfgh(P, [{access_model, open}],
           T(#{<<"access_model">> => <<"open">>})),
-    ?cfgh(M([{deliver_notifications, true}]),
+    ?cfgh(P, [{deliver_notifications, true}],
           T(#{<<"deliver_notifications">> => true})),
-    ?cfgh(M([{deliver_payloads, false}]),
+    ?cfgh(P, [{deliver_payloads, false}],
           T(#{<<"deliver_payloads">> => false})),
-    ?cfgh(M([{max_items, 1000}]),
+    ?cfgh(P, [{max_items, 1000}],
           T(#{<<"max_items">> => 1000})),
-    ?cfgh(M([{max_payload_size, 1000}]),
+    ?cfgh(P, [{max_payload_size, 1000}],
           T(#{<<"max_payload_size">> => 1000})),
-    ?cfgh(M([{node_type, dag}]),
+    ?cfgh(P, [{node_type, dag}],
           T(#{<<"node_type">> => <<"dag">>})),
-    ?cfgh(M([{notification_type, headline}]),
+    ?cfgh(P, [{notification_type, headline}],
           T(#{<<"notification_type">> => <<"headline">>})),
-    ?cfgh(M([{notify_config, true}]),
+    ?cfgh(P, [{notify_config, true}],
           T(#{<<"notify_config">> => true})),
-    ?cfgh(M([{notify_delete, false}]),
+    ?cfgh(P, [{notify_delete, false}],
           T(#{<<"notify_delete">> => false})),
-    ?cfgh(M([{notify_retract, true}]),
+    ?cfgh(P, [{notify_retract, true}],
           T(#{<<"notify_retract">> => true})),
-    ?cfgh(M([{persist_items, false}]),
+    ?cfgh(P, [{persist_items, false}],
           T(#{<<"persist_items">> => false})),
-    ?cfgh(M([{presence_based_delivery, true}]),
+    ?cfgh(P, [{presence_based_delivery, true}],
           T(#{<<"presence_based_delivery">> => true})),
-    ?cfgh(M([{publish_model, open}]),
+    ?cfgh(P, [{publish_model, open}],
           T(#{<<"publish_model">> => <<"open">>})),
-    ?cfgh(M([{purge_offline, false}]),
+    ?cfgh(P, [{purge_offline, false}],
           T(#{<<"purge_offline">> => false})),
-    ?cfgh(M([{roster_groups_allowed, [<<"friends">>]}]),
+    ?cfgh(P, [{roster_groups_allowed, [<<"friends">>]}],
           T(#{<<"roster_groups_allowed">> => [<<"friends">>]})),
-    ?cfgh(M([{send_last_published_item, on_sub_and_presence}]),
+    ?cfgh(P, [{send_last_published_item, on_sub_and_presence}],
           T(#{<<"send_last_published_item">> => <<"on_sub_and_presence">>})),
-    ?cfgh(M([{subscribe, true}]),
+    ?cfgh(P, [{subscribe, true}],
           T(#{<<"subscribe">> => true})),
     ?errh(T(#{<<"access_model">> => <<>>})),
     ?errh(T(#{<<"deliver_notifications">> => <<"yes">>})),
@@ -2706,46 +2634,41 @@ mod_push_service_mongoosepush(_Config) ->
     ?errh(T(#{<<"max_http_connections">> => -1})).
 
 mod_register(_Config) ->
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"0.0.0.0"}]}
-                                ]),
+    check_module_defaults(mod_register),
+    check_iqdisc(mod_register),
+    P = [modules, mod_register],
+    ?cfgh(P ++ [access], register,
+          ip_access_register(<<"127.0.0.1">>)),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "0.0.0.0"}],
           ip_access_register(<<"0.0.0.0">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"0.0.0.4"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "0.0.0.4"}],
           ip_access_register(<<"0.0.0.4">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"::1"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "::1"}],
           ip_access_register(<<"::1">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"::1/128"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "::1/128"}],
           ip_access_register(<<"::1/128">>)),
     ?errh(invalid_ip_access_register()),
     ?errh(invalid_ip_access_register_ipv6()),
     ?errh(ip_access_register(<<"hello">>)),
     ?errh(ip_access_register(<<"0.d">>)),
-    ?cfgh(modopts(mod_register, [{welcome_message, {"Subject", "Body"}}]),
+    ?cfgh(P ++ [welcome_message], {"Subject", "Body"},
           welcome_message()),
     %% List of jids
-    ?cfgh(modopts(mod_register, [{registration_watchers,
-                                  [<<"alice@bob">>, <<"ilovemongoose@help">>]}]),
+    ?cfgh(P ++ [registration_watchers], [<<"alice@bob">>, <<"ilovemongoose@help">>],
           registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>])),
     ?errh(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>])),
     %% non-negative integer
-    ?cfgh(modopts(mod_register, [{password_strength, 42}]),
+    ?cfgh(P ++ [password_strength], 42,
           password_strength_register(42)),
     ?errh(password_strength_register(<<"42">>)),
     ?errh(password_strength_register(<<"strong">>)),
     ?errh(password_strength_register(-150)),
     ?errh(welcome_message(<<"Subject">>, 1)),
-    ?errh(welcome_message(1, <<"Body">>)),
-    check_iqdisc(mod_register).
+    ?errh(welcome_message(1, <<"Body">>)).
 
 welcome_message() ->
     welcome_message(<<"Subject">>, <<"Body">>).
@@ -2783,7 +2706,7 @@ registration_watchers(JidBins) ->
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 mod_roster(_Config) ->
-    check_iqdisc_map(mod_roster),
+    check_iqdisc(mod_roster),
     check_module_defaults(mod_roster),
     P = [modules, mod_roster],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
@@ -2877,11 +2800,11 @@ mod_shared_roster_ldap(_Config) ->
 
 mod_sic(_Config) ->
     check_module_defaults(mod_sic),
-    check_iqdisc_map(mod_sic).
+    check_iqdisc(mod_sic).
 
 mod_smart_markers(_Config) ->
     check_module_defaults(mod_smart_markers),
-    check_iqdisc_map(mod_smart_markers),
+    check_iqdisc(mod_smart_markers),
     P = [modules, mod_smart_markers],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_smart_markers">> => Opts}} end,
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
@@ -2921,12 +2844,12 @@ mod_stream_management_stale_h(_Config) ->
     ?errh(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc_map(mod_time),
+    check_iqdisc(mod_time),
     check_module_defaults(mod_time).
 
 mod_vcard(_Config) ->
     check_module_defaults(mod_vcard),
-    check_iqdisc_map(mod_vcard),
+    check_iqdisc(mod_vcard),
     P = [modules, mod_vcard],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
     ?cfgh(P ++ [iqdisc], one_queue,
@@ -3043,14 +2966,14 @@ mod_vcard_ldap_search_reported(_Config) ->
 
 mod_version(_Config) ->
     check_module_defaults(mod_version),
-    check_iqdisc_map(mod_version),
+    check_iqdisc(mod_version),
     P = [modules, mod_version],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
     ?cfgh(P ++ [os_info], true, T(#{<<"os_info">> => true})),
     ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
-    ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?cfgh([modules, mod_amp], #{}, #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 incorrect_module(_Config) ->
@@ -3059,94 +2982,86 @@ incorrect_module(_Config) ->
 %% Services
 
 service_admin_extra(_Config) ->
+    P = [services, service_admin_extra],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_admin_extra">> => Opts}} end,
-    ?cfg(servopts(service_admin_extra, [{submods, [node]}]),
-         T(#{<<"submods">> => [<<"node">>]})),
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [submods], [node], T(#{<<"submods">> => [<<"node">>]})),
     ?err(T(#{<<"submods">> => 1})),
     ?err(T(#{<<"submods">> => [1]})),
-    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})),
-    ok.
+    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})).
+
+service_domain_db(_Config) ->
+    P = [services, service_domain_db],
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_domain_db">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [event_cleaning_interval], 1000, T(#{<<"event_cleaning_interval">> => 1000})),
+    ?cfg(P ++ [event_max_age], 5000, T(#{<<"event_max_age">> => 5000})),
+    ?cfg(P ++ [db_pool], my_pool, T(#{<<"db_pool">> => <<"my_pool">>})),
+    ?err(T(#{<<"event_cleaning_interval">> => 0})),
+    ?err(T(#{<<"event_max_age">> => 0})),
+    ?err(T(#{<<"db_pool">> => 10})).
 
 service_mongoose_system_metrics(_Config) ->
-    M = service_mongoose_system_metrics,
+    P = [services, service_mongoose_system_metrics],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_mongoose_system_metrics">> => Opts}} end,
-    ?cfg(servopts(M, [{initial_report, 5000}]),
-         T(#{<<"initial_report">> => 5000})),
-    ?cfg(servopts(M, [{periodic_report, 5000}]),
-         T(#{<<"periodic_report">> => 5000})),
-    ?cfg(servopts(M, [{tracking_id, "UA-123456789"}]),
-         T(#{<<"tracking_id">> => <<"UA-123456789">>})),
-    ?cfg(servopts(M, [no_report]),
-         T(#{<<"report">> => false})),
-    %% error cases
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [initial_report], 5000, T(#{<<"initial_report">> => 5000})),
+    ?cfg(P ++ [periodic_report], 5000, T(#{<<"periodic_report">> => 5000})),
+    ?cfg(P ++ [tracking_id], "UA-123456789", T(#{<<"tracking_id">> => <<"UA-123456789">>})),
+    ?cfg(P ++ [report], true, T(#{<<"report">> => true})),
     ?err(T(#{<<"initial_report">> => <<"forever">>})),
     ?err(T(#{<<"periodic_report">> => <<"forever">>})),
     ?err(T(#{<<"initial_report">> => -1})),
     ?err(T(#{<<"periodic_report">> => -1})),
     ?err(T(#{<<"tracking_id">> => 666})),
-    ok.
+    ?err(T(#{<<"report">> => <<"maybe">>})).
 
 %% Helpers for module tests
 
-iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
-iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
-
-iq_disc_generic(Module, RequiredOpts, Value) ->
-    Opts = RequiredOpts#{<<"iqdisc">> => Value},
-    #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
-
 check_iqdisc(Module) ->
-    check_iqdisc(Module, [], #{}).
+    P = [modules, Module],
+    T = fun(Opts) -> #{<<"modules">> => #{atom_to_binary(Module) => Opts}} end,
+    check_iqdisc(P, T).
 
-check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
-
-check_iqdisc_map(Module) ->
-    check_iqdisc_map(Module, #{}).
-
-check_iqdisc_map(Module, RequiredOpts) ->
-    ?cfgh([modules, Module, iqdisc], {queues, 10},
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh([modules, Module, iqdisc], parallel,
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
+check_iqdisc(Module, RequiredOpts) when is_map(RequiredOpts) ->
+    P = [modules, Module],
+    T = fun(Opts) ->
+                #{<<"modules">> => #{atom_to_binary(Module) => maps:merge(RequiredOpts, Opts)}}
+        end,
+    check_iqdisc(P, T);
+check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
+    P = ParentP ++ [iqdisc],
+    T = fun(Opts) -> ParentT(#{<<"iqdisc">> => Opts}) end,
+    ?cfgh(P, {queues, 10}, T(#{<<"type">> => <<"queues">>, <<"workers">> => 10})),
+    ?cfgh(P, parallel, T(#{<<"type">> => <<"parallel">>})),
+    ?cfgh(P, one_queue, T(#{<<"type">> => <<"one_queue">>})),
+    ?cfgh(P, no_queue, T(#{<<"type">> => <<"no_queue">>})),
+    ?errh(T(#{<<"type">> => <<"one_queue_and_a_half">>})),
+    ?errh(T(#{<<"type">> => <<"queues">>, <<"workers">> => 0})),
+    ?errh(T(#{<<"type">> => <<"no_queue">>, <<"workers">> => 10})),
+    ?errh(T(#{<<"workers">> => 10})).
 
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
 
-modopts(Mod, Opts) ->
-    [{[modules, Mod], Opts}].
-
-servopts(Service, Opts) ->
-    [{services, [{Service, Opts}]}].
-
 %% helpers for 'listen' tests
 
-listener_config(Mod, Opts) ->
-    [{listen, [listener(Mod, Opts)]}].
-
-listener(Mod, Opts) ->
-    maps:merge(#{port => 5222,
-                 ip_address => "0",
-                 ip_tuple => {0, 0, 0, 0},
-                 ip_version => 4,
-                 proto => tcp,
-                 module => Mod}, Opts).
+listener(Type, Opts) ->
+    config([listen, Type], Opts).
 
 http_handler_raw(Type, Opts) ->
-    listen_raw(<<"http">>, #{<<"handlers">> =>
-                                 #{Type =>
-                                       [Opts#{<<"host">> => <<"localhost">>,
-                                              <<"path">> => <<"/api">>}]
-                                  }}).
+    listen_raw(http, #{<<"port">> => 5280,
+                       <<"handlers">> => #{Type =>
+                                               [Opts#{<<"host">> => <<"localhost">>,
+                                                      <<"path">> => <<"/api">>}]
+                                          }}).
 
 listen_raw(Type, Opts) ->
-    #{<<"listen">> => #{Type => [Opts#{<<"port">> => 5222}]}}.
+    #{<<"listen">> => #{atom_to_binary(Type) => [remove_undefined(Opts)]}}.
+
+remove_undefined(M) ->
+    maps:filter(fun(_, V) -> V =/= undefined end, M).
 
 %% helpers for 'auth' tests
 
@@ -3239,20 +3154,13 @@ assert_option(Key, Value, Config) ->
 get_config_value([TopKey | Rest], Config) ->
     case lists:keyfind(TopKey, 1, Config) of
         false -> ct:fail({"option not found", TopKey, Config});
-        {_, TopValue} -> lists:foldl(fun maps:get/2, TopValue, Rest)
+        {_, TopValue} -> lists:foldl(fun get_value/2, TopValue, Rest)
     end.
 
--spec assert_error([mongoose_config_parser_toml:config()]) ->
-          [mongoose_config_parser_toml:config_error()].
-assert_error(Config) ->
-    case extract_errors(Config) of
-        [] ->
-            ct:fail({"Expected errors but found none", Config});
-        Errors ->
-            [?assertMatch(#{class := error,
-                            what := toml_processing_failed}, Error) || Error <- Errors],
-            Errors
-    end.
+get_value(Index, List) when is_integer(Index), Index > 0, is_list(List) ->
+    lists:nth(Index, List);
+get_value(Key, Map) when not is_integer(Key), is_map(Map) ->
+    maps:get(Key, Map).
 
 %% helpers for file tests
 
@@ -3291,8 +3199,6 @@ compare_nodes([listen], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
 compare_nodes([outgoing_pools], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
-compare_nodes([services], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
 compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
@@ -3302,8 +3208,6 @@ compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
                                  ?eq(K1, K2),
                                  compare_nodes(Node ++ [K1], MV1, MV2)
                          end);
-compare_nodes([{modules, _}, _Module], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) ->
     ?eq({Node, V1}, {Node, V2}).
 
@@ -3314,12 +3218,8 @@ handle_listener(V1, V2) ->
 
 handle_listener_option({tls, O1}, {tls, O2}) ->
     compare_unordered_lists(O1, O2);
-handle_listener_option({ssl, O1}, {ssl, O2}) ->
-    compare_unordered_lists(O1, O2);
-handle_listener_option({modules, M1}, {modules, M2}) ->
+handle_listener_option({handlers, M1}, {handlers, M2}) ->
     compare_unordered_lists(M1, M2, fun handle_listener_module/2);
-handle_listener_option({transport_options, O1}, {transport_options, O2}) ->
-    compare_unordered_lists(O1, O2);
 handle_listener_option(V1, V2) -> ?eq(V1, V2).
 
 handle_listener_module({H1, P1, M1}, M2) ->
@@ -3368,19 +3268,11 @@ handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
 
-handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
-    compare_unordered_lists(Configs1, Configs2, fun handle_module_options/2);
-handle_module_options({Name, Opts = [{_, _}|_]}, {Name2, Opts2 = [{_, _}|_]}) ->
-    ?eq(Name, Name2),
-    compare_unordered_lists(Opts, Opts2, fun handle_module_options/2);
-handle_module_options(V1, V2) ->
-    ?eq(V1, V2).
-
 %% Generic assertions, use the 'F' handler for any custom cases
-compare_unordered_lists(L1, L2) ->
+compare_unordered_lists(L1, L2) when is_list(L1), is_list(L2) ->
     compare_unordered_lists(L1, L2, fun(V1, V2) -> ?eq(V1, V2) end).
 
-compare_unordered_lists(L1, L2, F) ->
+compare_unordered_lists(L1, L2, F) when is_list(L1), is_list(L2) ->
     SL1 = lists:sort(L1),
     SL2 = lists:sort(L2),
     compare_ordered_lists(SL1, SL2, F).

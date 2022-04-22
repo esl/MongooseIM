@@ -11,7 +11,9 @@ To use it, enable mod\_inbox in the config file.
 * **Default:** `"rdbms"`
 * **Example:** `backend = "rdbms_async"`
 
-Only RDBMS storage is supported, but `rdbms` means flushes to inbox are synchronous with each message, while `rdbms_async` is instead asynchronous. For performance reasons, `rdbms_async` is almost always preferred, but, it doesn't ensure the same consistency characteristics, as different MongooseIM nodes might race on updates.
+Only RDBMS storage is supported, but `rdbms` means flushes to DB are synchronous with each message, while `rdbms_async` is instead asynchronous.
+
+Regular `rdbms` has worse performance characteristics, but it has better consistency properties, as events aren't lost nor reordered. `rdbms_async` processes events asynchronously and potentially unloading a lot of aggregation from the DB. Like the case of the asynchronous workers for MAM, it is the preferred method, with the risk messages being lost on an ungraceful shutdown.
 
 #### `modules.mod_inbox.async_writer.pool_size`
 * **Syntax:** non-negative integer
@@ -19,6 +21,32 @@ Only RDBMS storage is supported, but `rdbms` means flushes to inbox are synchron
 * **Example:** `modules.mod_inbox.async_writer.pool_size = 32`
 
 Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
+
+### `modules.mod_inbox.boxes`
+* **Syntax:** array of strings.
+* **Default:** `[]`
+* **Example:** `["classified", "spam"]`
+
+A list of supported inbox boxes by the server. This can be used by clients to classify their inbox entries in any way that fits the end-user. The strings provided here will be used verbatim in the IQ query as described in [Inbox – Filtering and Ordering](../open-extensions/inbox.md#filtering-and-ordering).
+
+!!! note
+    `inbox`, `archive`, and `bin` are reserved box names and are always enabled, therefore they don't need to –and must not– be specified in this section. `all` has a special meaning in the box query and therefore is also not allowed as a box name.
+
+    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), or through an [admin API endpoint](../mod_inbox_commands#admin-endpoint).
+
+#### `modules.mod_inbox.bin_ttl`
+* **Syntax:** non-negative integer, expressed in days.
+* **Default:** `30`
+* **Example:** `modules.mod_inbox.bin_ttl = 7`
+
+How old entries in the bin can be before the automatic bin cleaner collects them. A value of `7` would mean that entries that have been in the bin for more than 7 days will be cleaned on the next bin collection.
+
+#### `modules.mod_inbox.bin_clean_after`
+* **Syntax:** non-negative integer, expressed in hours
+* **Default:** `1`
+* **Example:** `modules.mod_inbox.bin_clean_after = 24`
+
+How often the automatic garbage collection runs over the bin.
 
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
@@ -81,6 +109,7 @@ or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
 ```toml
 [modules.mod_inbox]
+  backend = "rdbms_async"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true

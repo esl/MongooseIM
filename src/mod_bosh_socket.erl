@@ -192,7 +192,7 @@ get_cached_responses(Pid) ->
 %%--------------------------------------------------------------------
 init([HostType, Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
-    C2SOpts = [{xml_socket, true}],
+    C2SOpts = #{access => all, shaper => none, xml_socket => true, hibernate_after => 0},
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),

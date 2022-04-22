@@ -68,7 +68,7 @@ init(Req, Opts) ->
     Req1 = add_sec_websocket_protocol_header(Req),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets request">>,
                  req => Req, opts => Opts}),
-    Timeout = gen_mod:get_opt(timeout, Opts, 60000),
+    Timeout = proplists:get_value(timeout, Opts, 60000),
 
     AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
     %% upgrade protocol
@@ -83,10 +83,10 @@ terminate(_Reason, _Req, _State) ->
 
 % Called for every new websocket connection.
 websocket_init(Opts) ->
-    PingRate = gen_mod:get_opt(ping_rate, Opts, none),
-    MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
-    Peer = gen_mod:get_opt(peer, Opts),
-    PeerCert = gen_mod:get_opt(peercert, Opts),
+    PingRate = proplists:get_value(ping_rate, Opts, none),
+    MaxStanzaSize = proplists:get_value(max_stanza_size, Opts, infinity),
+    Peer = proplists:get_value(peer, Opts),
+    PeerCert = proplists:get_value(peercert, Opts),
     maybe_send_ping_request(PingRate),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets connection">>,
                  peer => Peer, opts => Opts}),
@@ -195,15 +195,15 @@ send_to_fsm(FSM, StreamElement) ->
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                  | _],
                 #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
-    case lists:keyfind(<<"xmlns">>, 1, Attrs) of
-        {<<"xmlns">>, ?NS_COMPONENT} ->
-            ServiceOpts = gen_mod:get_opt(ejabberd_service, Opts, []),
+    case {lists:keyfind(<<"xmlns">>, 1, Attrs), proplists:get_value(service, Opts)} of
+        {{<<"xmlns">>, ?NS_COMPONENT}, #{} = ServiceOpts} ->
             do_start_fsm(ejabberd_service, ServiceOpts, State);
         _ ->
             {stop, State}
     end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
-                #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
+                #ws_state{fsm_pid = undefined} = State) ->
+    Opts = #{access => all, shaper => none, xml_socket => true, hibernate_after => 0},
     do_start_fsm(ejabberd_c2s, Opts, State);
 maybe_start_fsm(_Els, State) ->
     {ok, State}.
@@ -212,8 +212,7 @@ do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert
     SocketData = #websocket{pid = self(),
                             peername = Peer,
                             peercert = PeerCert},
-    Opts1 = [{xml_socket, true} | Opts],
-    case call_fsm_start(FSMModule, SocketData, Opts1) of
+    case call_fsm_start(FSMModule, SocketData, Opts) of
         {ok, Pid} ->
             ?LOG_DEBUG(#{what => ws_c2s_started,
                          text => <<"WebSockets starts c2s process">>,

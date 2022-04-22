@@ -1,7 +1,7 @@
 -module(mod_websockets_SUITE).
 -compile([export_all, nowarn_export_all]).
 -include_lib("eunit/include/eunit.hrl").
--define(HANDSHAKE_TIMEOUT, 3000).
+
 -define(eq(E, I), ?assertEqual(E, I)).
 -define(PORT, 5280).
 -define(IP, {127, 0, 0, 1}).
@@ -12,6 +12,7 @@
 %The 300ms is just an additional overhead
 -define(IDLE_TIMEOUT, ?NEW_TIMEOUT * 2 + 300).
 
+-import(config_parser_helper, [default_config/1]).
 
 all() ->
     ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
@@ -57,20 +58,23 @@ setup() ->
     meck:expect(gen_mod,get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
                                     (A, B, C) -> meck:passthrough([A, B, C]) end),
     meck:expect(supervisor, start_child,
-                fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
-                                         infinity, worker, [_]}) -> {ok, self()};
-                   (A,B) -> meck:passthrough([A,B])
+                fun(mongoose_listener_sup, _) -> {ok, self()};
+                   (A, B) -> meck:passthrough([A, B])
                 end),
     %% Start websocket cowboy listening
 
-    Opts = [{num_acceptors, 10},
-            {max_connections, 1024},
-            {modules, [{"_", "/http-bind", mod_bosh},
-                       {"_", "/ws-xmpp", mod_websockets,
-                        [{timeout, ?IDLE_TIMEOUT},
-                         {ping_rate, ?FAST_PING_RATE}]}]}],
-    ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
-
+    Handlers = [{"_", "/http-bind", mod_bosh},
+                {"_", "/ws-xmpp", mod_websockets,
+                 [{timeout, ?IDLE_TIMEOUT},
+                  {ping_rate, ?FAST_PING_RATE}]}],
+    ejabberd_cowboy:start_listener(#{port => ?PORT,
+                                     ip_tuple => ?IP,
+                                     ip_address => "127.0.0.1",
+                                     ip_version => 4,
+                                     proto => tcp,
+                                     handlers => Handlers,
+                                     transport => default_config([listen, http, transport]),
+                                     protocol => default_config([listen, http, protocol])}).
 
 teardown() ->
     meck:unload(),

@@ -18,7 +18,7 @@ It's all about tailoring PubSub to your needs!
 
 ### `modules.mod_pubsub.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).

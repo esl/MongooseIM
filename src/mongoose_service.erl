@@ -18,79 +18,165 @@
 
 -include("mongoose.hrl").
 
--export([start/0, stop/0,
-         start_service/2,
-         stop_service/1,
+%% API
+-export([start/0,
+         stop/0,
          config_spec/1,
+         get_deps/1,
          is_loaded/1,
-         assert_loaded/1,
-         ensure_loaded/1,
-         ensure_loaded/2,
-         purge_service/1,
-         get_service_opts/1,
-         loaded_services_with_opts/0
-         ]).
+         assert_loaded/1]).
 
--export([check_deps/1]). % for testing
+%% Shell utilities
+-export([loaded_services_with_opts/0]).
 
--ignore_xref([behaviour_info/1, check_deps/1, ensure_loaded/1, purge_service/1,
-              get_service_opts/1, start_service/2, stop/0]).
+%% Service management utilities for tests
+-export([replace_services/2, ensure_stopped/1, ensure_started/2]).
 
-%%Question marks:
-%%do we need the 'keep config' facility?
-%%does anybody use the 'wait' option in stopping gen_mod?
+-ignore_xref([loaded_services_with_opts/0, replace_services/2, ensure_stopped/1, ensure_started/2]).
 
--define(ETAB, mongoose_services).
+-type service() :: module().
+-type opt_key() :: atom().
+-type opt_value() :: mongoose_config:value().
+-type options() :: #{opt_key() => opt_value()}.
+-type start_result() :: any().
+-type service_list() :: [{service(), options()}].
+-type service_map() :: #{service() => options()}.
 
--type service() :: atom().
--type options() :: [term()].
+-export_type([service/0, service_list/0, service_map/0, options/0]).
 
--export_type([service/0]).
-
--callback start(Opts :: list()) -> any().
+-callback start(options()) -> start_result().
 -callback stop() -> any().
 -callback config_spec() -> mongoose_config_spec:config_section().
-%%optional:
-%%-callback deps() -> [service()].
+-callback deps() -> [service()].
 
+-optional_callbacks([deps/0]).
+
+%% @doc Start all configured services in the dependency order.
 -spec start() -> ok.
 start() ->
-    ets:new(?ETAB, [named_table, public, {read_concurrency, true}]),
+    [start_service(Service, Opts) || {Service, Opts} <- sorted_services()],
     ok.
 
+%% @doc Stop all configured services in the reverse dependency order
+%% to avoid stopping services which have other services dependent on them.
 -spec stop() -> ok.
-stop() -> catch ets:delete(?ETAB), ok.
+stop() ->
+    [stop_service(Service) || {Service, _Opts} <- lists:reverse(sorted_services())],
+    ok.
 
--spec start_service(service(), options() | undefined) -> ok | {error, already_started}.
-start_service(Service, undefined) ->
-    error({service_not_configured, Service});
-start_service(Service, Opts) when is_list(Opts) ->
-    case is_loaded(Service) of
-        true -> {error, already_started};
-        false -> run_start_service(Service, Opts)
-    end.
+%% @doc Replace services at runtime - only for testing and debugging.
+%% Running services from ToStop are stopped and services from ToEnsure are (re)started when needed.
+%% Unused dependencies are stopped if no running services depend on them anymore.
+%% To prevent an unused dependency from being stopped, you need to include it in ToEnsure.
+-spec replace_services([service()], service_map()) -> ok.
+replace_services(ToStop, ToEnsure) ->
+    Current = loaded_services_with_opts(),
+    Old = maps:with(ToStop ++ maps:keys(ToEnsure), Current),
+    OldWithDeps = mongoose_service_deps:resolve_deps(Old),
+    SortedOldWithDeps = mongoose_service_deps:sort_deps(OldWithDeps),
+    WithoutOld = maps:without(maps:keys(OldWithDeps), Current),
+    WithNew = maps:merge(WithoutOld, ToEnsure),
+    Target = mongoose_service_deps:resolve_deps(WithNew),
 
--spec stop_service(service()) -> ok | {error, not_running}.
-stop_service(Service) ->
-    case is_loaded(Service) of
-        false -> {error, not_running};
-        true -> run_stop_service(Service)
-    end.
+    %% Stop each affected service if it is not in Target (stop deps first)
+    [ensure_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
+        not maps:is_key(Service, Target)],
+
+    %% Ensure each service from Target
+    [ensure_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
+    ok.
 
 -spec config_spec(service()) -> mongoose_config_spec:config_section().
 config_spec(Service) ->
     Service:config_spec().
 
--spec ensure_loaded(service()) -> ok.
-ensure_loaded(Service) ->
-    Options = mongoose_config:get_opt(services, []),
-    start_service(Service, proplists:get_value(Service, Options)),
-    ok.
+-spec get_deps(service()) -> [service()].
+get_deps(Service) ->
+    case backend_module:is_exported(Service, deps, 0) of
+        true -> Service:deps();
+        false -> []
+    end.
 
--spec ensure_loaded(service(), options()) -> ok.
-ensure_loaded(Service, Opts) ->
-    start_service(Service, Opts),
-    ok.
+-spec sorted_services() -> service_list().
+sorted_services() ->
+    mongoose_service_deps:sort_deps(loaded_services_with_opts()).
+
+-spec set_services(service_map()) -> ok.
+set_services(Services) ->
+    mongoose_config:set_opt(services, Services).
+
+-spec ensure_stopped(service()) -> {stopped, options()} | already_stopped.
+ensure_stopped(Service) ->
+    case loaded_services_with_opts() of
+        #{Service := Opts} = Services ->
+            stop_service(Service, Services),
+            {stopped, Opts};
+        _Services ->
+            already_stopped
+    end.
+
+-spec ensure_started(service(), options()) ->
+          {started, start_result()} | {restarted, options(), start_result()} | already_started.
+ensure_started(Service, Opts) ->
+    case loaded_services_with_opts() of
+        #{Service := Opts} ->
+            already_started;
+        #{Service := PrevOpts} = Services ->
+            stop_service(Service, Services),
+            {ok, Result} = start_service(Service, Opts, Services),
+            {restarted, PrevOpts, Result};
+        Services ->
+            {ok, Result} = start_service(Service, Opts, Services),
+            {started, Result}
+    end.
+
+-spec start_service(service(), options(), service_map()) -> {ok, start_result()}.
+start_service(Service, Opts, Services) ->
+    set_services(Services#{Service => Opts}),
+    try
+        start_service(Service, Opts)
+    catch
+        C:R:S ->
+            set_services(Services),
+            erlang:raise(C, R, S)
+    end.
+
+-spec stop_service(service(), service_map()) -> ok.
+stop_service(Service, Services) ->
+    stop_service(Service),
+    set_services(maps:remove(Service, Services)).
+
+start_service(Service, Opts) ->
+    assert_loaded(Service),
+    try
+        Res = Service:start(Opts),
+        ?LOG_INFO(#{what => service_started, service => Service,
+                    text => <<"Started MongooseIM service">>}),
+        case Res of
+            {ok, _} -> Res;
+            _ -> {ok, Res}
+        end
+    catch Class:Reason:Stacktrace ->
+            ?LOG_CRITICAL(#{what => service_startup_failed,
+                            text => <<"Failed to start MongooseIM service">>,
+                            service => Service, opts => Opts,
+                            class => Class, reason => Reason, stacktrace => Stacktrace}),
+            erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+stop_service(Service) ->
+    assert_loaded(Service),
+    try Service:stop() of
+        _ ->
+            ?LOG_INFO(#{what => service_stopped, service => Service,
+                        text => <<"Stopped MongooseIM service">>}),
+            ok
+    catch Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => service_stop_failed, service => Service,
+                         text => <<"Failed to stop MongooseIM service">>,
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+            erlang:raise(Class, Reason, Stacktrace)
+    end.
 
 -spec assert_loaded(service()) -> ok.
 assert_loaded(Service) ->
@@ -98,115 +184,18 @@ assert_loaded(Service) ->
         true ->
             ok;
         false ->
-            error({service_not_loaded, Service})
+            error(#{what => service_not_loaded,
+                    text => <<"Service missing from mongoose_config">>,
+                    service => Service})
     end.
 
 -spec is_loaded(service()) -> boolean().
 is_loaded(Service) ->
-    ets:member(?ETAB, Service).
-
--spec get_service_opts(service()) -> options().
-get_service_opts(Service) ->
-    case ets:lookup(?ETAB, Service) of
-        [] -> [];
-        [{Service, Opts}] -> Opts
+    case mongoose_config:lookup_opt([services, Service]) of
+        {ok, _Opts} -> true;
+        {error, not_found} -> false
     end.
 
--spec loaded_services_with_opts() -> [{service(), options()}].
+-spec loaded_services_with_opts() -> service_map().
 loaded_services_with_opts() ->
-    ets:tab2list(?ETAB).
-
-%% @doc to be used as an emergency feature if serviced crashed while stopping and is not
-%% running but still lingers in the services tab
--spec purge_service(service()) -> ok.
-purge_service(Service) ->
-    ets:delete(?ETAB, Service),
-    ok.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-run_start_service(Service, Opts0) ->
-    start_deps(Service),
-    Opts = proplists:unfold(Opts0),
-    ets:insert(?ETAB, {Service, Opts}),
-    try
-        Res = Service:start(Opts),
-        ?LOG_INFO(#{what => service_startup_started, service => Service,
-                    text => <<"Started MongooseIM service">>}),
-        case Res of
-            {ok, _} -> Res;
-            _ -> {ok, Res}
-        end
-    catch
-        Class:Reason:Stacktrace ->
-            ets:delete(?ETAB, Service),
-            ?LOG_CRITICAL(#{what => service_startup_failed,
-                            text => <<"Failed to start MongooseIM service">>,
-                            service => Service, opts => Opts,
-                            class => Class, reason => Reason, stacktrace => Stacktrace}),
-            case is_app_running(mongooseim) of
-                true ->
-                    erlang:raise(Class, Reason, Stacktrace);
-                false ->
-                    ?LOG_CRITICAL(#{what => stopping_mongooseim,
-                                    text => <<"mongooseim initialization was aborted "
-                                              "because a service start failed.">>,
-                                    service => Service, opts => Opts,
-                                    class => Class, reason => Reason, stacktrace => Stacktrace}),
-                    timer:sleep(3000),
-                    ErrorText = io_lib:format("Stopping MongooseIM because of bad service~n"
-                                              "service=~p ~nreason=~0p ~nstactrace=~0p",
-                                              [Service, Reason, Stacktrace]),
-                    erlang:halt(string:substr(lists:flatten(ErrorText), 1, 199))
-            end
-    end.
-
-run_stop_service(Service) ->
-    try Service:stop() of
-        _ ->
-            ?LOG_INFO(#{what => service_stopped, service => Service,
-                        text => <<"Stopped MongooseIM service">>}),
-            ets:delete(?ETAB, Service),
-            ok
-    catch Class:Reason:Stacktrace ->
-            ets:delete(?ETAB, Service),
-            ?LOG_ERROR(#{what => service_stop_failed, service => Service,
-                         text => <<"Failed to stop MongooseIM service">>,
-                         class => Class, reason => Reason, stacktrace => Stacktrace})
-    end.
-
--spec is_app_running(_) -> boolean().
-is_app_running(AppName) ->
-    %% Use a high timeout to prevent a false positive in a high load system
-    Timeout = 15000,
-    lists:keymember(AppName, 1, application:which_applications(Timeout)).
-
--spec start_deps(service()) -> ok.
-start_deps(Service) ->
-    check_deps(Service), % make sure there are no circular deps
-    lists:map(fun ensure_loaded/1, get_deps(Service)),
-    ok.
-
-check_deps(Service) ->
-    check_deps(Service, []).
-
-check_deps(Service, Stack) ->
-    case lists:member(Service, Stack) of
-        true ->
-            error({circular_deps_detected, Service});
-        false ->
-            lists:foreach(fun(Serv) -> check_deps(Serv, [Service | Stack]) end,
-                          get_deps(Service))
-    end.
-
--spec get_deps(service()) -> [service()].
-get_deps(Service) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Service),
-    case erlang:function_exported(Service, deps, 0) of
-        true ->
-            Service:deps();
-        _ ->
-            []
-    end.
+    mongoose_config:get_opt(services).

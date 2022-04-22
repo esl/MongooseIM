@@ -24,6 +24,8 @@
 
 -import(domain_helper, [host_type/0]).
 
+-import(config_parser_helper, [mod_config/2, mod_event_pusher_http_handler/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -58,9 +60,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(no_prefix, Config) ->
-    set_modules(Config, []);
+    set_modules(Config, #{});
 init_per_group(with_prefix, Config) ->
-    set_modules(Config, [{path, "/prefix"}]).
+    set_modules(Config, #{path => <<"prefix">>}).
 
 end_per_group(_GroupName, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -177,16 +179,21 @@ start_pool() ->
 stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]).
 
-set_modules(Config0, Opts) ->
+set_modules(Config0, ExtraHandlerOpts) ->
     Config = dynamic_modules:save_modules(host_type(), Config0),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(host_type()),
-    ModOffline = mongoose_helper:backend_for_module(mod_offline, Backend),
-    ModOpts = [{backends,
-                    [{http,
-                        [{worker_timeout, 500},
-                         {host, http_notifications_host()}] ++ Opts}]}],
+    ModOffline = create_offline_config(Backend),
+    Handler = maps:merge(mod_event_pusher_http_handler(), ExtraHandlerOpts),
+    ModOpts = #{http => #{handlers => [Handler]}},
     dynamic_modules:ensure_modules(host_type(), [{mod_event_pusher, ModOpts} | ModOffline]),
     Config.
+
+-spec create_offline_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
+create_offline_config(riak) ->
+    [{mod_offline, mod_config(mod_offline, #{backend => riak,
+                                             riak => #{bucket_type => <<"offline">>}})}];
+create_offline_config(Backend) ->
+    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 
 start_http_listener(simple_message, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1);

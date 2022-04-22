@@ -235,12 +235,8 @@
 {{/outgoing_pools}}
 
 [services.service_admin_extra]
-  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats", "domain"]
 
 [services.service_mongoose_system_metrics]
-  initial_report = 300_000
-  periodic_report = 10_800_000
 
 {{#service_domain_db}}
 [services.service_domain_db]
@@ -288,7 +284,6 @@
 {{{mod_private}}}
 {{/mod_private}}
 [modules.mod_register]
-  welcome_message = {body = "", subject = ""}
   ip_access = [
     {address = "127.0.0.0/8", policy = "allow"},
     {address = "0.0.0.0/0", policy = "deny"}

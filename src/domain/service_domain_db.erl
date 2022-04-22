@@ -27,6 +27,7 @@
 %% ---------------------------------------------------------------------------
 %% Client code
 
+-spec start(mongoose_service:options()) -> ok.
 start(Opts) ->
     mongoose_domain_sql:start(Opts),
     ChildSpec =
@@ -37,6 +38,7 @@ start(Opts) ->
     mongoose_domain_db_cleaner:start(Opts),
     ok.
 
+-spec stop() -> ok.
 stop() ->
     mongoose_domain_db_cleaner:stop(),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
@@ -54,14 +56,17 @@ restart() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{
-               <<"event_cleaning_interval">> => #option{type = integer,
-                                                        validate = positive},
-               <<"event_max_age">> => #option{type = integer,
-                                              validate = positive},
-               <<"db_pool">> => #option{type = atom,
-                                        validate = pool_name}
-              }}.
+    #section{items = #{<<"event_cleaning_interval">> => #option{type = integer,
+                                                                validate = positive},
+                       <<"event_max_age">> => #option{type = integer,
+                                                      validate = positive},
+                       <<"db_pool">> => #option{type = atom,
+                                                validate = pool_name}
+                      },
+             defaults = #{<<"event_cleaning_interval">> => 1800, % 30 minutes
+                          <<"event_max_age">> => 7200, % 2 hours
+                          <<"db_pool">> => global},
+             format_items = map}.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).

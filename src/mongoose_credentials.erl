@@ -29,14 +29,11 @@
 
 -type opts() :: #{}.
 
--spec make_opts(ejabberd_listener:opts()) -> opts().
-make_opts(Opts) ->
-    case lists:keyfind(allowed_auth_methods, 1, Opts) of
-        {allowed_auth_methods, Methods} ->
-            #{allowed_modules => ejabberd_auth:methods_to_modules(Methods)};
-        _ ->
-            #{}
-    end.
+-spec make_opts(mongoose_listener:options()) -> opts().
+make_opts(#{allowed_auth_methods := Methods}) ->
+    #{allowed_modules => ejabberd_auth:methods_to_modules(Methods)};
+make_opts(#{}) ->
+    #{}.
 
 -spec new(jid:lserver(), binary(), opts()) -> mongoose_credentials:t().
 new(LServer, HostType, Opts) when is_binary(LServer), is_binary(HostType) ->

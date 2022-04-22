@@ -51,10 +51,8 @@
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
--spec start(mongooseim:host_type(), list()) -> ok.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
     ejabberd_hooks:add(hooks(HostType)),
@@ -78,7 +76,7 @@ iq_handlers() ->
 
 hooks(HostType) ->
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-    {c2s_unauthenticated_iq, HostType, ?MODULE, unauthenticated_iq_register, 50}].
+     {c2s_unauthenticated_iq, HostType, ?MODULE, unauthenticated_iq_register, 50}].
 
 %%%
 %%% config_spec
@@ -96,13 +94,22 @@ config_spec() ->
                  <<"password_strength">> => #option{type = integer,
                                                     validate = non_negative},
                  <<"ip_access">> => #list{items = ip_access_spec()}
-                }
+                },
+       format_items = map,
+       defaults = #{<<"iqdisc">> => one_queue,
+                    <<"access">> => all,
+                    <<"registration_watchers">> => [],
+                    <<"password_strength">> => 0,
+                    <<"ip_access">> => []}
       }.
 
 welcome_message_spec() ->
     #section{
         items = #{<<"body">> => #option{type = string},
                   <<"subject">> => #option{type = string}},
+        defaults = #{<<"body">> => "",
+                     <<"subject">> => ""},
+        format_items = map,
         process = fun ?MODULE:process_welcome_message/1
     }.
 
@@ -114,18 +121,16 @@ ip_access_spec() ->
                                           validate = {enum, [allow, deny]}}
                 },
         required = all,
+        format_items = map,
         process = fun ?MODULE:process_ip_access/1
     }.
 
 supported_features() -> [dynamic_domains].
 
-process_ip_access(KVs) ->
-    {[[{address, Address}], [{policy, Policy}]], []} = proplists:split(KVs, [address, policy]),
+process_ip_access(#{policy := Policy, address := Address}) ->
     {Policy, Address}.
 
-process_welcome_message(KVs) ->
-    Body = proplists:get_value(body, KVs, ""),
-    Subject = proplists:get_value(subject, KVs, ""),
+process_welcome_message(#{subject := Subject, body := Body}) ->
     {Subject, Body}.
 
 %%%
@@ -259,7 +264,7 @@ attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, 
 inband_registration_and_cancelation_allowed(_HostType, _ServerDomain, no_JID) ->
     true;
 inband_registration_and_cancelation_allowed(HostType, ServerDomain, JID) ->
-    Rule = gen_mod:get_module_opt(HostType, ?MODULE, access, none),
+    Rule = gen_mod:get_module_opt(HostType, ?MODULE, access),
     allow =:= acl:match_rule(HostType, ServerDomain,  Rule, JID).
 
 process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
@@ -331,7 +336,7 @@ try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
             {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             JID = jid:make(User, Server, <<>>),
-            Access = gen_mod:get_module_opt(HostType, ?MODULE, access, all),
+            Access = gen_mod:get_module_opt(HostType, ?MODULE, access),
             IPAccess = get_ip_access(HostType),
             case {acl:match_rule(HostType, Server, Access, JID),
                   check_ip_access(SourceRaw, IPAccess)} of
@@ -367,10 +372,10 @@ verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw, Lang) 
     end.
 
 send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, welcome_message, {"", ""}) of
-        {"", ""} ->
+    case gen_mod:lookup_module_opt(HostType, ?MODULE, welcome_message) of
+        {error, not_found} ->
             ok;
-        {Subj, Body} ->
+        {ok, {Subj, Body}} ->
             ejabberd_router:route(
               jid:make_noprep(<<>>, Server, <<>>),
               JID,
@@ -378,13 +383,11 @@ send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
                      children = [#xmlel{name = <<"subject">>,
                                         children = [#xmlcdata{content = Subj}]},
                                  #xmlel{name = <<"body">>,
-                                        children = [#xmlcdata{content = Body}]}]});
-        _ ->
-            ok
+                                        children = [#xmlcdata{content = Body}]}]})
     end.
 
 send_registration_notifications(HostType, #jid{lserver = Domain} = UJID, Source) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, registration_watchers, []) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, registration_watchers) of
         [] -> ok;
         JIDs when is_list(JIDs) ->
             Body = lists:flatten(
@@ -472,7 +475,7 @@ write_time({{Y, Mo, D}, {H, Mi, S}}) ->
                   [Y, Mo, D, H, Mi, S]).
 
 is_strong_password(HostType, Password) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, password_strength, 0) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, password_strength) of
         Entropy when is_number(Entropy), Entropy == 0 ->
             true;
         Entropy when is_number(Entropy), Entropy > 0 ->
@@ -488,7 +491,7 @@ is_strong_password(HostType, Password) ->
 %%%
 
 get_ip_access(HostType) ->
-    IPAccess = gen_mod:get_module_opt(HostType, ?MODULE, ip_access, []),
+    IPAccess = gen_mod:get_module_opt(HostType, ?MODULE, ip_access),
     lists:flatmap(
       fun({Access, {IP, Mask}}) ->
               [{Access, IP, Mask}];

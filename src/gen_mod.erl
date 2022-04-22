@@ -31,20 +31,17 @@
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
          start_module/3,
-         start_backend_module/3,
          stop_module/2,
          does_module_support/2,
          config_spec/1,
          % Get/set opts by host or from a list
          get_opt/2,
          get_opt/3,
-         get_opt/4,
+         lookup_module_opt/3,
          get_module_opt/3,
          get_module_opt/4,
          get_module_opts/2,
          get_loaded_module_opts/2,
-         get_opt_subhost/3,
-         get_module_opt_subhost/3,
 
          loaded_modules/0,
          loaded_modules/1,
@@ -64,13 +61,11 @@
 -include("mongoose.hrl").
 
 -type module_feature() :: atom().
--type domain_name() :: mongooseim:domain_name().
 -type host_type() :: mongooseim:host_type().
 -type key_path() :: mongoose_config:key_path().
 -type opt_key() :: atom().
 -type opt_value() :: mongoose_config:value().
--type module_opts() :: [{opt_key(), opt_value()}] % deprecated, will be removed
-                     | #{opt_key() => opt_value()}. % recommended
+-type module_opts() ::  #{opt_key() => opt_value()}.
 
 -callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
@@ -94,9 +89,7 @@
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.
--spec start_module(HostType :: host_type(),
-                   Module :: module(),
-                   Opts :: [any()]) -> {ok, term()}.
+-spec start_module(host_type(), module(), module_opts()) -> {ok, term()}.
 start_module(HostType, Module, Opts) ->
     assert_loaded(HostType, Module),
     start_module_for_host_type(HostType, Module, Opts).
@@ -174,11 +167,6 @@ is_common_test_running() ->
         false
     end.
 
-%% @deprecated To be removed when mod_pubsub does not use it anymore
-start_backend_module(Module, Opts, TrackedFuncs) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    backend_module:create(Module, Backend, TrackedFuncs).
-
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->
     %% Use a high timeout to prevent a false positive in a high load system
@@ -248,76 +236,48 @@ wait_for_stop(MonitorReference) ->
 get_opt(Path, Opts) when is_list(Path), is_map(Opts) ->
     lists:foldl(fun maps:get/2, Opts, Path);
 get_opt(Opt, Opts) when is_map(Opts) ->
-    maps:get(Opt, Opts);
-get_opt(Opt, Opts) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            throw({undefined_option, Opt});
-        {value, {_, Val}} ->
-            Val
-    end.
+    maps:get(Opt, Opts).
 
 -spec get_opt(opt_key() | key_path(), module_opts(), opt_value()) -> opt_value().
 get_opt(Path, Opts, Default) ->
     try
         get_opt(Path, Opts)
     catch
-        error:{badkey, _} -> Default;
-        throw:{undefined_option, _} -> Default
+        error:{badkey, _} -> Default
     end.
 
-%% @deprecated Processing should be done in the config spec
-get_opt(Opt, Opts, F, Default) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            Default;
-        {value, {_, Val}} ->
-            F(Val)
-    end.
+-spec lookup_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) ->
+          {ok, opt_value()} | {error, not_found}.
+lookup_module_opt(HostType, Module, Key) ->
+    mongoose_config:lookup_opt(config_path(HostType, Module, Key)).
 
 -spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path(), opt_value()) ->
           opt_value().
-get_module_opt(HostType, Module, Opt, Default) ->
+get_module_opt(HostType, Module, Key, Default) ->
     %% Fail in dev builds.
     %% It protects against passing something weird as a Module argument
     %% or against wrong argument order.
     ?ASSERT_MODULE(Module),
-    ModuleOpts = get_module_opts(HostType, Module),
-    get_opt(Opt, ModuleOpts, Default).
+    mongoose_config:get_opt(config_path(HostType, Module, Key), Default).
 
 -spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) -> opt_value().
-get_module_opt(HostType, Module, Opt) ->
-    ?ASSERT_MODULE(Module),
-    ModuleOpts = get_loaded_module_opts(HostType, Module),
-    get_opt(Opt, ModuleOpts).
+get_module_opt(HostType, Module, Key) ->
+    mongoose_config:get_opt(config_path(HostType, Module, Key)).
+
+-spec config_path(mongooseim:host_type(), module(), opt_key() | key_path()) -> key_path().
+config_path(HostType, Module, Path) when is_list(Path) ->
+    [{modules, HostType}, Module] ++ Path;
+config_path(HostType, Module, Key) when is_atom(Key) ->
+    [{modules, HostType}, Module, Key].
 
 -spec get_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_module_opts(HostType, Module) ->
-    mongoose_config:get_opt([{modules, HostType}, Module], []).
+    ?ASSERT_MODULE(Module),
+    mongoose_config:get_opt([{modules, HostType}, Module], #{}).
 
 -spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module]).
-
--spec get_opt_subhost(domain_name(),
-                      list(),
-                      mongoose_subdomain_utils:subdomain_pattern()) ->
-    domain_name().
-get_opt_subhost(Host, Opts, Default) ->
-    %% TODO: try to get rid of this interface
-    Val = get_opt(host, Opts, Default),
-    mongoose_subdomain_utils:get_fqdn(Val, Host).
-
--spec get_module_opt_subhost(domain_name(),
-                             module(),
-                             mongoose_subdomain_utils:subdomain_pattern()) ->
-    domain_name().
-get_module_opt_subhost(Host, Module, Default) ->
-    %% TODO: try to get rid of this interface
-    %% note that get_module_opt/4 requires host_type(), while
-    %% mongoose_subdomain_utils:get_fqdn/2 expects domain_name()
-    Spec = get_module_opt(Host, Module, host, Default),
-    mongoose_subdomain_utils:get_fqdn(Spec, Host).
 
 -spec loaded_modules() -> [module()].
 loaded_modules() ->
@@ -377,10 +337,7 @@ is_loaded(HostType, Module) ->
 
 -spec get_deps(host_type(), module(), module_opts()) -> gen_mod_deps:module_deps().
 get_deps(HostType, Module, Opts) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, deps, 2) of
+    case backend_module:is_exported(Module, deps, 2) of
         true ->
             Deps = Module:deps(HostType, Opts),
             lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
@@ -390,10 +347,7 @@ get_deps(HostType, Module, Opts) ->
 
 -spec get_required_services(host_type(), module(), module_opts()) -> [mongoose_service:service()].
 get_required_services(HostType, Module, Options) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, deps, 2) of
+    case backend_module:is_exported(Module, deps, 2) of
         true ->
             [Service || {service, Service} <- Module:deps(HostType, Options)];
         _ ->
