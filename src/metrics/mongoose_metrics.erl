@@ -20,10 +20,6 @@
 
 %% API
 -export([init/0,
-         create_global_metrics/0,
-         init_predefined_host_type_metrics/1,
-         init_subscriptions/0,
-         make_host_type_name/1,
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
          update/3,
@@ -46,10 +42,9 @@
          get_report_interval/0
         ]).
 
--ignore_xref([create_global_metrics/0, get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
+-ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
               get_rdbms_data_stats/0, get_rdbms_data_stats/1, get_up_time/0,
-              init_subscriptions/0, make_host_type_name/1, remove_host_type_metrics/1,
-              get_report_interval/0]).
+              remove_host_type_metrics/1, get_report_interval/0]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
@@ -68,7 +63,7 @@ init() ->
     create_global_metrics(),
     lists:foreach(
         fun(HostType) ->
-            mongoose_metrics:init_predefined_host_type_metrics(HostType)
+            init_predefined_host_type_metrics(HostType)
         end, ?ALL_HOST_TYPES),
     init_subscriptions().
 
