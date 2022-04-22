@@ -68,10 +68,10 @@ invite_user(#{user := UserJID}, #{<<"room">> := RoomJID, <<"recipient">> := Reci
     format_result(Res, #{room => jid:to_binary(RoomJID)}).
 
 -spec kick_user(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
-kick_user(#{user := _UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
+kick_user(#{user := UserJID}, #{<<"room">> := RoomJID, <<"nick">> := Nick,
                                 <<"reason">> := Reason}) ->
     Reason2 = null_to_default(Reason, mongoose_graphql_muc_helper:default_kick_reason("user")),
-    Res = mod_muc_api:kick_user_from_room(RoomJID, Nick, Reason2),
+    Res = mod_muc_api:kick_user_from_room(RoomJID, UserJID, Nick, Reason2),
     format_result(Res, #{room => jid:to_binary(RoomJID)}).
 
 -spec send_message_to_room(map(), map()) -> {ok, binary()} | {error, resolver_error()}.

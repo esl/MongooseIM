@@ -38,6 +38,7 @@ user_muc_handler() ->
      user_try_get_nonexistent_room_config,
      user_invite_user,
      user_kick_user,
+     user_try_kick_user_without_moderator_resource,
      user_send_message_to_room,
      user_send_message_to_room_with_specified_res,
      user_send_private_message,
@@ -77,6 +78,7 @@ admin_muc_handler() ->
      admin_invite_user_with_password,
      admin_try_invite_user_to_nonexistent_room,
      admin_kick_user,
+     admin_try_kick_user_in_room_without_moderators,
      admin_send_message_to_room,
      admin_send_private_message,
      admin_get_room_messages,
@@ -266,6 +268,17 @@ admin_kick_user_story(Config, Alice, Bob) ->
     ?assertEqual(Reason,
                  exml_query:path(KickStanza, [{element, <<"x">>}, {element, <<"item">>},
                                               {element, <<"reason">>}, cdata])).
+
+admin_try_kick_user_in_room_without_moderators(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
+                               fun admin_try_kick_user_in_room_without_moderators/3).
+
+admin_try_kick_user_in_room_without_moderators(Config, _Alice, Bob) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    BobNick = <<"Bobek">>,
+    enter_room(RoomJID, Bob, BobNick),
+    Res = execute_auth(kick_user_body(RoomJID, BobNick, null), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_send_message_to_room(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
@@ -637,6 +650,17 @@ user_kick_user_story(Config, Alice, Bob) ->
     ?assertEqual(Reason,
                  exml_query:path(KickStanza, [{element, <<"x">>}, {element, <<"item">>},
                                               {element, <<"reason">>}, cdata])).
+
+user_try_kick_user_without_moderator_resource(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}], fun user_try_kick_user_without_moderator_resource/3).
+
+user_try_kick_user_without_moderator_resource(Config, Alice, Bob) ->
+    RoomJIDBin = ?config(room_jid, Config),
+    RoomJID = jid:from_binary(RoomJIDBin),
+    BobNick = <<"Bobek">>,
+    enter_room(RoomJID, Bob, BobNick),
+    Res = execute_user(kick_user_body(RoomJID, BobNick, null), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_send_message_to_room(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],

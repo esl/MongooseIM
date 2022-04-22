@@ -17,6 +17,7 @@
          send_message_to_room/3,
          send_private_message/4,
          kick_user_from_room/3,
+         kick_user_from_room/4,
          set_affiliation/3,
          set_affiliation/4,
          enter_room/3,
@@ -58,6 +59,9 @@
 -define(DELETE_NONEXISTENT_ROOM_RESULT, {room_not_found, "Cannot remove non-existent room"}).
 -define(USER_NOT_FOUND_RESULT, {user_not_found, "Given user not found"}).
 -define(MUC_SERVER_NOT_FOUND_RESULT, {muc_server_not_found, "MUC server not found"}).
+-define(MODERATOR_NOT_FOUND_RESULT, {moderator_not_found, "Moderator user not found"}).
+-define(MODERATOR_RES_NOT_FOUND_RESULT,
+        {moderator_not_found, "Resource with moderator role not found"}).
 
 -spec get_rooms(jid:lserver(), jid:jid(), non_neg_integer() | undefined,
                 non_neg_integer()) -> get_rooms_result().
@@ -185,22 +189,33 @@ send_private_message(RoomJID, SenderJID, ToNick, Message) ->
     ejabberd_router:route(SenderJID, RoomJIDRes, Stanza),
     {ok, "Message sent successfully"}.
 
--spec kick_user_from_room(jid:jid(), binary(), binary()) -> {ok, iolist()}.
+-spec kick_user_from_room(jid:jid(), binary(), binary()) ->
+    {ok | room_not_found | moderator_not_found, iolist()}.
 kick_user_from_room(RoomJID, Nick, ReasonIn) ->
     %% All the machinery which is already deeply embedded in the MUC
     %% modules will perform the neccessary checking.
-    SenderJID = room_moderator(RoomJID),
-    Reason = #xmlel{name = <<"reason">>,
-                    children = [#xmlcdata{content = ReasonIn}]
-                   },
-    Item = #xmlel{name = <<"item">>,
-                  attrs = [{<<"nick">>, Nick},
-                           {<<"role">>, <<"none">>}],
-                  children = [ Reason ]
-                 },
-    IQ = iq(<<"set">>, SenderJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
-    ejabberd_router:route(SenderJID, RoomJID, IQ),
-    {ok, "Kick message sent successfully"}.
+    case room_moderator(RoomJID) of
+        {ok, SenderJID} ->
+            kick_user_from_room_raw(RoomJID, SenderJID, Nick, ReasonIn);
+        {error, moderator_not_found} ->
+            ?MODERATOR_NOT_FOUND_RESULT;
+        {error, not_found} ->
+            ?ROOM_NOT_FOUND_RESULT
+    end.
+
+-spec kick_user_from_room(jid:jid(), jid:jid(), binary(), binary()) ->
+    {ok | room_not_found | moderator_not_found, iolist()}.
+kick_user_from_room(RoomJID, UserJID, Nick, ReasonIn) ->
+    %% All the machinery which is already deeply embedded in the MUC
+    %% modules will perform the neccessary checking.
+    case try_add_role_resource(RoomJID, UserJID, moderator) of
+        {ok, #jid{lresource = <<>>}} ->
+            ?MODERATOR_RES_NOT_FOUND_RESULT;
+        {ok, SenderJID} ->
+            kick_user_from_room_raw(RoomJID, SenderJID, Nick, ReasonIn);
+        {error, not_found} ->
+            ?ROOM_NOT_FOUND_RESULT
+    end.
 
 -spec delete_room(jid:jid(), binary()) -> {ok | room_not_found, iolist()}.
 delete_room(RoomJID, Reason) ->
@@ -376,15 +391,34 @@ exit_room(RoomJID, UserJID) ->
 
 %% Internal
 
--spec try_add_role_res(jid:jid() | pid(), jid:jid(), mod_muc:role()) -> jid:jid().
-try_add_role_res(Room, InUserJID, Role) ->
-    Res = [UserJID || #user{jid = UserJID, role = Role2} <- room_users(Room),
-                      jid:are_bare_equal(InUserJID, UserJID), Role =:= Role2],
-    case Res of
-        [UserJID | _] ->
-            UserJID;
-        _ ->
-            InUserJID
+-spec kick_user_from_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> {ok, iolist()}.
+kick_user_from_room_raw(RoomJID, ModJID, Nick, ReasonIn) ->
+    Reason = #xmlel{name = <<"reason">>,
+                    children = [#xmlcdata{content = ReasonIn}]
+                   },
+    Item = #xmlel{name = <<"item">>,
+                  attrs = [{<<"nick">>, Nick},
+                           {<<"role">>, <<"none">>}],
+                  children = [ Reason ]
+                 },
+    IQ = iq(<<"set">>, ModJID, RoomJID, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
+    ejabberd_router:route(ModJID, RoomJID, IQ),
+    {ok, "Kick message sent successfully"}.
+
+-spec try_add_role_resource(jid:jid(), jid:jid(), mod_muc:role()) ->
+    {ok, jid:jid()} | {error, not_found}.
+try_add_role_resource(RoomJID, InUserJID, Role) ->
+    case mod_muc_room:get_room_users(RoomJID) of
+        {ok, Users} ->
+            case [UserJID || #user{jid = UserJID, role = Role2} <- Users,
+                             jid:are_bare_equal(InUserJID, UserJID), Role =:= Role2] of
+                [UserJID | _] ->
+                    {ok, UserJID};
+                _ ->
+                    {ok, InUserJID}
+            end;
+        Error ->
+            Error
     end.
 
 filter_affs_by_type(undefined, Affs) -> Affs;
@@ -510,17 +544,15 @@ address_attributes(Sender, Recipient) ->
      {<<"to">>, jid:to_binary(jid:to_lower(Recipient))}].
 
 room_moderator(RoomJID) ->
-    [JIDStruct|_] =
-        [UserJID || #user{jid = UserJID,
-                          role = moderator} <- room_users(RoomJID)],
-    JIDStruct.
-
-room_users(#jid{} = RoomJID) ->
-    {ok, Affiliations} = mod_muc_room:get_room_users(RoomJID),
-    Affiliations;
-room_users(RoomPID) when is_pid(RoomPID)->
-    {ok, Affiliations} = gen_fsm_compat:sync_send_all_state_event(RoomPID, get_room_users),
-    Affiliations.
+    case mod_muc_room:get_room_users(RoomJID) of
+        {ok, Users} ->
+            case [UserJID || #user{jid = UserJID, role = moderator} <- Users] of
+                [ModJID | _] -> {ok, ModJID};
+                [] -> {error, moderator_not_found}
+            end;
+        Error ->
+            Error
+    end.
 
 room_users_aff(RoomJID) ->
     case mod_muc_room:get_room_affiliations(RoomJID) of
