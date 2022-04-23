@@ -87,6 +87,7 @@ admin_muc_handler() ->
      admin_try_set_nonexistent_room_user_affiliation,
      admin_set_user_role,
      admin_try_set_nonexistent_room_user_role,
+     admin_try_set_user_role_in_room_without_moderators,
      admin_make_user_enter_room,
      admin_make_user_enter_room_with_password,
      admin_make_user_enter_room_bare_jid,
@@ -451,6 +452,16 @@ admin_set_user_role(Config, Alice, Bob) ->
     Res2 = execute_auth(set_user_role_body(RoomJID, BobNick, moderator), Config),
     assert_success(?SET_ROLE_PATH, Res2),
     assert_user_role(RoomJID, Bob, moderator).
+
+admin_try_set_user_role_in_room_without_moderators(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}], fun admin_try_set_user_role_in_room_without_moderators/3).
+
+admin_try_set_user_role_in_room_without_moderators(Config, _Alice, Bob) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    BobNick = <<"Boobek">>,
+    enter_room(RoomJID, Bob, BobNick),
+    Res = execute_auth(set_user_role_body(RoomJID, BobNick, visitor), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_set_nonexistent_room_user_role(Config) ->
     Res = execute_auth(set_user_role_body(?NONEXISTENT_ROOM, <<"Alice">>, moderator), Config),

@@ -38,6 +38,10 @@
 %% API exports
 -export([get_room_users/1,
          get_room_affiliations/1,
+         set_admin_items/3,
+         get_room_config/1,
+         change_room_config/2,
+         delete_room/2,
          is_room_owner/2,
          can_access_room/2,
          can_access_identity/2]).
@@ -225,6 +229,49 @@ is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm_compat:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-type error_xml() :: #xmlel{}.
+-type item_xml() :: #xmlel{}.
+
+-spec set_admin_items(jid:jid(), jid:jid(), [item_xml()]) ->
+    ok | {error, not_found | error_xml()}.
+set_admin_items(RoomJID, ModJID, Items) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:sync_send_event(Pid, {set_admin_items, ModJID, Items});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec get_room_config(jid:jid()) ->
+    {ok, config()} | {error, not_found}.
+get_room_config(RoomJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:sync_send_all_state_event(Pid, get_config);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec change_room_config(jid:jid(), config()) ->
+    {ok, config()} | {error, not_found}.
+change_room_config(RoomJID, NewConfig) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:sync_send_all_state_event(Pid, {change_config, NewConfig});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec delete_room(jid:jid(), binary()) ->
+    ok | {error, not_found}.
+delete_room(RoomJID, ReasonIn) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:send_all_state_event(Pid, {destroy, ReasonIn});
         {error, Reason} ->
             {error, Reason}
     end.

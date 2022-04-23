@@ -73,32 +73,27 @@ get_rooms(MUCServer, From, Limit, Index) ->
 -spec get_room_config(jid:jid(), jid:jid()) ->
     {ok, mod_muc_room:config()} | {not_allowed | room_not_found, iolist()}.
 get_room_config(RoomJID, UserJID) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            case gen_fsm_compat:sync_send_all_state_event(Pid, {is_room_owner, UserJID}) of
-                {ok, true} ->
-                    {ok, Config} = gen_fsm_compat:sync_send_all_state_event(Pid, get_config),
-                    {ok, Config};
-                {ok, false} ->
-                    {not_allowed, "Given user does not have permission to read config"}
-            end;
+    case mod_muc_room:is_room_owner(RoomJID, UserJID) of
+        {ok, true} ->
+            {ok, Config} = mod_muc_room:get_room_config(RoomJID),
+            {ok, Config};
+        {ok, false} ->
+            {not_allowed, "Given user does not have permission to read config"};
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
 -spec get_room_config(jid:jid()) -> {ok, mod_muc_room:config()} | {room_not_found, iolist()}.
 get_room_config(RoomJID) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            {ok, Config} = gen_fsm_compat:sync_send_all_state_event(Pid, get_config),
+    case mod_muc_room:get_room_config(RoomJID) of
+        {ok, Config} ->
             {ok, Config};
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
-
 -spec create_instant_room(jid:lserver(), binary(), jid:jid(), binary()) ->
-    {ok, short_room_desc()} | {internal | not_found, iolist()}.
+    {ok, short_room_desc()} | {internal | user_not_found | room_not_found, iolist()}.
 create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly receive stanzas as a
@@ -124,16 +119,13 @@ create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
     end.
 
 -spec modify_room_config(jid:jid(), jid:jid(), room_conf_mod_fun()) ->
-    {ok, mod_muc_room:config()} | {room_not_found, iolist()}.
+    {ok, mod_muc_room:config()} | {not_allowed | room_not_found, iolist()}.
 modify_room_config(RoomJID, UserJID, Fun) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            case gen_fsm_compat:sync_send_all_state_event(Pid, {is_room_owner, UserJID}) of
-                {ok, true} ->
-                    modify_room_config_raw(Pid, Fun);
-                {ok, false} ->
-                    {not_allowed, "Given user does not have permission to change the config"}
-            end;
+    case mod_muc_room:is_room_owner(RoomJID, UserJID) of
+        {ok, true} ->
+            {ok, modify_room_config_raw(RoomJID, Fun)};
+        {ok, false} ->
+            {not_allowed, "Given user does not have permission to change the config"};
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
@@ -142,13 +134,14 @@ modify_room_config(RoomJID, UserJID, Fun) ->
     {ok, mod_muc_room:config()} | {room_not_found, iolist()}.
 modify_room_config(RoomJID, Fun) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            modify_room_config_raw(Pid, Fun);
+        {ok, _} ->
+            {ok, modify_room_config_raw(RoomJID, Fun)};
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec invite_to_room(jid:jid(), jid:jid(), jid:jid(), binary()) -> {ok, iolist()}.
+-spec invite_to_room(jid:jid(), jid:jid(), jid:jid(), binary()) ->
+    {ok | internal | room_not_found, iolist()}.
 invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) ->
     case verify_room(RoomJID, SenderJID) of
         ok ->
@@ -219,26 +212,22 @@ kick_user_from_room(RoomJID, UserJID, Nick, ReasonIn) ->
 
 -spec delete_room(jid:jid(), binary()) -> {ok | room_not_found, iolist()}.
 delete_room(RoomJID, Reason) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            gen_fsm_compat:send_all_state_event(Pid, {destroy, Reason}),
+    case mod_muc_room:delete_room(RoomJID, Reason) of
+        ok ->
             ?ROOM_DELETED_SUCC_RESULT;
         {error, not_found} ->
             ?DELETE_NONEXISTENT_ROOM_RESULT
     end.
 
 -spec delete_room(jid:jid(), jid:jid(), binary()) ->
-    {ok | room_not_found, iolist()}.
+    {ok | not_allowed | room_not_found, iolist()}.
 delete_room(RoomJID, OwnerJID, Reason) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            case gen_fsm_compat:sync_send_all_state_event(Pid, {is_room_owner, OwnerJID}) of
-                {ok, true} ->
-                    gen_fsm_compat:send_all_state_event(Pid, {destroy, Reason}),
-                    ?ROOM_DELETED_SUCC_RESULT;
-                {ok, false} ->
-                    {not_allowed, "Given user does not have permission to delete this room"}
-            end;
+    case mod_muc_room:is_room_owner(RoomJID, OwnerJID) of
+        {ok, true} ->
+            ok = mod_muc_room:delete_room(RoomJID, Reason),
+            ?ROOM_DELETED_SUCC_RESULT;
+        {ok, false} ->
+            {not_allowed, "Given user does not have permission to delete this room"};
         {error, not_found} ->
             ?DELETE_NONEXISTENT_ROOM_RESULT
     end.
@@ -251,18 +240,16 @@ get_room_users(RoomJID) ->
            ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec get_room_users(jid:jid(), jid:jid()) -> {ok, [user_map()]} | {room_not_found, iolist()}.
+-spec get_room_users(jid:jid(), jid:jid()) ->
+    {ok, [user_map()]} | {not_allowed | room_not_found, iolist()}.
 get_room_users(RoomJID, UserJID) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            case gen_fsm_compat:sync_send_all_state_event(Pid, {can_access_room, UserJID}) of
-                {ok, true} ->
-                    {ok, Users} = gen_fsm_compat:sync_send_all_state_event(Pid, get_room_users),
-                    WithJID = can_access_identity(Pid, UserJID),
-                    {ok, [to_user_map(U, WithJID) || U <- Users]};
-                {ok, false} ->
-                    ?USER_CANNOT_ACCESS_ROOM_RESULT
-            end;
+    case mod_muc_room:can_access_room(RoomJID, UserJID) of
+        {ok, true} ->
+            {ok, Users} = mod_muc_room:get_room_users(RoomJID),
+            {ok, WithJID} = mod_muc_room:can_access_identity(RoomJID, UserJID),
+            {ok, [to_user_map(U, WithJID) || U <- Users]};
+        {ok, false} ->
+            ?USER_CANNOT_ACCESS_ROOM_RESULT;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
@@ -280,7 +267,7 @@ get_room_messages(RoomJID, PageSize, Before) ->
 
 -spec get_room_messages(jid:jid(), jid:jid(), integer() | undefined,
                         mod_mam:unix_timestamp() | undefined) ->
-    {ok, list()} | {muc_server_not_found | room_not_found | internal | not_room_member, iolist()}.
+    {ok, list()} | {muc_server_not_found | room_not_found | internal | not_allowed, iolist()}.
 get_room_messages(RoomJID, UserJID, PageSize, Before) ->
     case mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver) of
         {ok, HostType} ->
@@ -334,15 +321,12 @@ set_affiliation(RoomJID, UserJID, Affiliation) ->
 -spec set_affiliation(jid:jid(), jid:jid(), jid:jid(), mod_muc:affiliation()) ->
     {ok | room_not_found | not_allowed, iolist()}.
 set_affiliation(RoomJID, FromJID, UserJID, Affiliation) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            AffItem = affiliation_item(UserJID, Affiliation),
-            case gen_fsm_compat:sync_send_event(Pid, {set_admin_items, FromJID, [AffItem]}) of
-                ok ->
-                    {ok, "Affiliation set successfully"};
-                {error, Error} ->
-                    format_xml_error(Error, Affiliation, <<"affiliation">>)
-            end;
+    AffItem = affiliation_item(UserJID, Affiliation),
+    case mod_muc_room:set_admin_items(RoomJID, FromJID, [AffItem]) of
+        ok ->
+            {ok, "Affiliation set successfully"};
+        {error, Error} ->
+            format_xml_error(Error, Affiliation, <<"affiliation">>);
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
@@ -350,31 +334,34 @@ set_affiliation(RoomJID, FromJID, UserJID, Affiliation) ->
 -spec set_role(jid:jid(), binary(), mod_muc:role()) ->
     {ok | room_not_found | not_allowed, iolist()}.
 set_role(RoomJID, Nick, Role) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            ModJID = room_moderator(RoomJID),
-            set_role(Pid, ModJID, Nick, Role);
+    case room_moderator(RoomJID) of
+        {ok, ModJID} ->
+            case mod_muc_room:set_admin_items(RoomJID, ModJID, [role_item(Nick, Role)]) of
+                ok ->
+                    {ok, "Role set successfully"};
+                {error, Error} ->
+                    format_xml_error(Error, Role, <<"role">>)
+            end;
+        {error, moderator_not_found} ->
+            ?MODERATOR_NOT_FOUND_RESULT;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec set_role(jid:jid() | pid(), jid:jid(), binary(), mod_muc:role()) ->
+-spec set_role(jid:jid(), jid:jid(), binary(), mod_muc:role()) ->
     {ok | room_not_found | not_allowed, iolist()}.
-set_role(#jid{} = RoomJID, ModJID, Nick, Role) ->
-    case mod_muc:room_jid_to_pid(RoomJID) of
-        {ok, Pid} ->
-            set_role(Pid, ModJID, Nick, Role);
+set_role(RoomJID, UserJID, Nick, Role) ->
+    RoleItem = role_item(Nick, Role),
+    case try_add_role_resource(RoomJID, UserJID, moderator) of
+        {ok, ModJID} ->
+            case mod_muc_room:set_admin_items(RoomJID, ModJID, [RoleItem]) of
+                ok ->
+                    {ok, "Role set successfully"};
+                {error, Error} ->
+                    format_xml_error(Error, Role, <<"role">>)
+            end;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
-    end;
-set_role(Pid, ModJID, Nick, Role) when is_pid(Pid) ->
-    RoleItem = role_item(Nick, Role),
-    ModJIDRes = try_add_role_res(Pid, ModJID, moderator),
-    case gen_fsm_compat:sync_send_event(Pid, {set_admin_items, ModJIDRes, [RoleItem]}) of
-        ok ->
-            {ok, "Role set successfully"};
-        {error, Error} ->
-            format_xml_error(Error, Role, <<"role">>)
     end.
 
 -spec enter_room(jid:jid(), jid:jid(), binary() | undefined) -> {ok, iolist()}.
@@ -428,18 +415,11 @@ format_xml_error(#xmlel{name = <<"error">>}, Aff, Op) ->
     Msg = io_lib:format("Given user does not have permission to set the ~p ~s", [Aff, Op]),
     {not_allowed, Msg}.
 
--spec can_access_identity(pid(), jid:jid()) -> boolean().
-can_access_identity(Pid, UserJID) ->
-    {ok, WithJID} = gen_fsm_compat:sync_send_all_state_event(Pid, {can_access_identity, UserJID}),
-    WithJID.
-
--spec modify_room_config_raw(pid(), room_conf_mod_fun()) -> {ok, mod_muc_room:config()}.
-modify_room_config_raw(Pid, Fun) ->
-    {ok, Config} = gen_fsm_compat:sync_send_all_state_event(Pid, get_config),
-    NewConfig = Fun(Config),
-    {ok, NewConfig2} =
-        gen_fsm_compat:sync_send_all_state_event(Pid, {change_config, NewConfig}),
-    {ok, NewConfig2}.
+-spec modify_room_config_raw(jid:jid(), room_conf_mod_fun()) -> mod_muc_room:config().
+modify_room_config_raw(RoomJID, Fun) ->
+    {ok, Config} = mod_muc_room:get_room_config(RoomJID),
+    {ok, NewConfig2} = mod_muc_room:change_room_config(RoomJID, Fun(Config)),
+    NewConfig2.
 
 -spec to_user_map(mod_muc_room:user(), boolean()) -> user_map().
 to_user_map(#user{role = Role, nick = Nick}, false = _WithJID) ->
