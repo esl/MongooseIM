@@ -5,7 +5,6 @@
          validate_list/2]).
 
 -include("mongoose.hrl").
--include("mongoose_config_spec.hrl").
 -include_lib("jid/include/jid.hrl").
 
 -type validator() ::
