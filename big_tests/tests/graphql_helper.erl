@@ -2,8 +2,9 @@
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
--export([execute/3, execute_auth/2, execute_user/3, get_listener_port/1, get_listener_config/1]).
--export([init_admin_handler/1]).
+-export([execute/3, execute_auth/2, execute_domain_auth/2, execute_user/3]).
+-export([init_admin_handler/1, init_domain_admin_handler/1, end_domain_admin_handler/1]).
+-export([get_listener_port/1, get_listener_config/1]).
 -export([get_ok_value/2, get_err_msg/1, get_err_msg/2, make_creds/1,
          user_to_bin/1, user_to_jid/1, user_to_full_bin/1]).
 
@@ -29,6 +30,11 @@ execute_auth(Body, Config) ->
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
     execute(Ep, Body, {User, Password}).
+
+execute_domain_auth(Body, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Creds = ?config(domain_admin, Config),
+    execute(Ep, Body, Creds).
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -56,6 +62,18 @@ init_admin_handler(Config) ->
         false ->
             ct:fail(<<"Admin credentials are not defined in config">>)
     end.
+
+init_domain_admin_handler(Config) ->
+    Domain = domain_helper:domain(),
+    Password = base16:encode(crypto:strong_rand_bytes(8)),
+    Creds = {<<"admin@", Domain/binary>>, Password},
+    ok = domain_helper:set_domain_password(mim(), Domain, Password),
+    [{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config].
+
+end_domain_admin_handler(Config) ->
+    {JID, _} = ?config(domain_admin, Config),
+    Domain = escalus_utils:get_server(JID),
+    domain_helper:delete_domain_password(mim(), Domain).
 
 get_listener_opts(EpName) ->
     #{handlers := Handlers} = get_listener_config(EpName),
