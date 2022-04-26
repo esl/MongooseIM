@@ -95,6 +95,8 @@ to_json(Req, State) -> json_request(Req, State).
 
 %% Internal
 
+check_auth(Auth, #{schema_endpoint := <<"domain_admin">>} = State) ->
+    auth_domain_admin(Auth, State);
 check_auth(Auth, #{schema_endpoint := <<"admin">>} = State) ->
     auth_admin(Auth, State);
 check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
@@ -103,21 +105,43 @@ check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
 auth_user({basic, User, Password}, State) ->
     JID = jid:from_binary(User),
     case mongoose_api_common:check_password(JID, Password) of
-        {true, _} -> {ok, State#{authorized => true, schema_ctx => #{user => JID}}};
+        {true, _} -> {ok, State#{authorized => true,
+                                 authorized_as => user,
+                                 schema_ctx => #{user => JID}}};
         _ -> error
     end;
 auth_user(_, State) ->
     {ok, State#{authorized => false}}.
 
 auth_admin({basic, Username, Password}, #{username := Username, password := Password} = State) ->
-    {ok, State#{authorized => true}};
+    {ok, State#{authorized => true,
+                schema_ctx => #{authorized_as => admin}
+               }};
 auth_admin({basic, _, _}, _) ->
     error;
 auth_admin(_, #{username := _, password := _} = State) ->
     {ok, State#{authorized => false}};
 auth_admin(_, State) ->
     % auth credentials not provided in config
-    {ok, State#{authorized => true}}.
+    {ok, State#{authorized => true,
+                schema_ctx => #{authorized_as => admin}}}.
+
+auth_domain_admin({basic, Username, Password}, State) ->
+    case jid:to_lus(jid:from_binary(Username)) of
+        {<<"admin">>, Domain} ->
+            case mongoose_domain_api:check_domain_password(Domain, Password) of
+                ok ->
+                    {ok, State#{authorized => true,
+                                schema_ctx => #{authorized_as => domain_admin,
+                                                admin => jid:from_binary(Username)}}};
+                {error, _} ->
+                    error
+            end;
+        _ ->
+            error
+    end;
+auth_domain_admin(_, State) ->
+    {ok, State#{authorized => false}}.
 
 run_request(#{document := undefined}, Req, State) ->
     reply_error(make_error(decode, no_query_supplied), Req, State);

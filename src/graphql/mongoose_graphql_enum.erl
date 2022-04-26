@@ -10,6 +10,8 @@ input(<<"PresenceType">>, Type) ->
     {ok, list_to_binary(string:to_lower(binary_to_list(Type)))};
 input(<<"AuthStatus">>, <<"AUTHORIZED">>) -> {ok, 'AUTHORIZED'};
 input(<<"AuthStatus">>, <<"UNAUTHORIZED">>)  -> {ok, 'UNAUTHORIZED'};
+input(<<"AuthType">>, <<"ADMIN">>) -> {ok, admin};
+input(<<"AuthType">>, <<"DOMAIN_ADMIN">>)  -> {ok, domain_admin};
 input(<<"Affiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"Affiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"Affiliation">>, <<"NONE">>) -> {ok, none};
@@ -34,6 +36,8 @@ output(<<"PresenceType">>, Type) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Type)))};
 output(<<"AuthStatus">>, Status) ->
     {ok, atom_to_binary(Status, utf8)};
+output(<<"AuthType">>, Type) ->
+    {ok, list_to_binary(string:to_upper(atom_to_list(Type)))};
 output(<<"Affiliation">>, Aff) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))};
 output(<<"BlockingAction">>, Action) ->
