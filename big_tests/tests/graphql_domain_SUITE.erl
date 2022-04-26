@@ -35,7 +35,11 @@ domain_handler() ->
      get_domains_by_host_type,
      get_domain_details,
      delete_domain,
-     get_domains_after_deletion].
+     get_domains_after_deletion,
+     set_domain_password,
+     set_nonexistent_domain_password,
+     delete_domain_password
+    ].
 
 init_per_suite(Config) ->
     case mongoose_helper:is_rdbms_enabled(?HOST_TYPE) of
@@ -206,6 +210,29 @@ get_domains_after_deletion(Config) ->
     ParsedResult = ok_result(<<"domains">>, <<"domainsByHostType">>, Result),
     ?assertEqual([], ParsedResult).
 
+set_domain_password(Config) ->
+    Result = execute_auth(#{query => set_domain_password_call(),
+                   variables => #{domain => domain_helper:domain(),
+                                  password => <<"secret">>},
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = ok_result(<<"domains">>, <<"setDomainPassword">>, Result),
+    ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
+
+set_nonexistent_domain_password(Config) ->
+    Domain = <<"unknown-domain.com">>,
+    Result = execute_auth(#{query => set_domain_password_call(),
+                   variables => #{domain => Domain,
+                                  password => <<"secret">>},
+                   operationName => <<"M1">>}, Config),
+    domain_not_found_error_formatting(Result, Domain, <<"setDomainPassword">>).
+
+delete_domain_password(Config) ->
+    Result = execute_auth(#{query => delete_domain_password_call(),
+                   variables => #{domain => domain_helper:domain()},
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = ok_result(<<"domains">>, <<"deleteDomainPassword">>, Result),
+    ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
+
 create_domain_call() ->
     <<"mutation M1($domain: String!, $hostType: String!)
            {domains
@@ -269,6 +296,14 @@ delete_domain_call() ->
                    }
                }
            }">>.
+
+set_domain_password_call() ->
+    <<"mutation M1($domain: String!, $password: String!)"
+      "{ domains { setDomainPassword(domain: $domain, password: $password)} }">>.
+
+delete_domain_password_call() ->
+    <<"mutation M1($domain: String!)"
+      "{ domains { deleteDomainPassword(domain: $domain)} }">>.
 
 %% Helpers
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
