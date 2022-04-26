@@ -395,5 +395,5 @@ set_stanza_id(Acc, From, Packet) ->
 set_stanza_id(undefined, _From, _Acc, Packet) ->
     Packet;
 set_stanza_id(MamId, From, _Acc, Packet) ->
-    By = jid:to_binary(jid:to_bare(From)),
+    By = jid:to_bare_binary(From),
     mod_mam_utils:replace_arcid_elem(<<"stanza-id">>, By, MamId, Packet).
