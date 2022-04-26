@@ -1120,7 +1120,7 @@ stats_host(Config) ->
 %%--------------------------------------------------------------------
 
 can_execute_admin_queries_with_permissions(Config) ->
-    Query = "query { checkAuth }",
+    Query = "query { checkAuth { authStatus } }",
     Res = mongooseimctl("graphql", [Query], Config),
     ?assertMatch({_, 0}, Res),
     Data = element(1, Res),
