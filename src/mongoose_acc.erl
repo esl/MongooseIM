@@ -81,7 +81,6 @@
         timestamp := integer(), %microsecond
         origin_pid := pid(),
         origin_location := location(),
-        origin_stanza := binary() | undefined,
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
         host_type := binary() | undefined,
@@ -124,11 +123,10 @@
 
 -spec new(Params :: new_acc_params()) -> t().
 new(#{ location := Location, lserver := LServer } = Params) ->
-    {ElementBin, Stanza} =
-    case maps:get(element, Params, undefined) of
-        undefined -> {undefined, undefined};
-        Element -> {exml:to_binary(Element), stanza_from_params(Params)}
-    end,
+    Stanza = case maps:get(element, Params, undefined) of
+                 undefined -> undefined;
+                 _Element -> stanza_from_params(Params)
+             end,
     HostType = get_host_type(Params),
     #{
       mongoose_acc => true,
@@ -136,7 +134,6 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       timestamp => os:system_time(microsecond),
       origin_pid => self(),
       origin_location => Location,
-      origin_stanza => ElementBin,
       stanza => Stanza,
       lserver => LServer,
       host_type => HostType,
@@ -341,7 +338,6 @@ default_non_strippable() ->
      timestamp,
      origin_pid,
      origin_location,
-     origin_stanza,
      stanza,
      lserver,
      host_type,
