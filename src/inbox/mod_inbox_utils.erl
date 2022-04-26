@@ -211,7 +211,7 @@ bool_to_binary(_) -> error.
 
 build_inbox_entry_key(FromJid, ToJid) ->
     {LUser, LServer} = jid:to_lus(FromJid),
-    ToBareJid = jid:nameprep(jid:to_binary(jid:to_lus(ToJid))),
+    ToBareJid = jid:nameprep(jid:to_bare_binary(ToJid)),
     {LUser, LServer, ToBareJid}.
 
 -spec build_forward_el(inbox_res()) -> exml:element().

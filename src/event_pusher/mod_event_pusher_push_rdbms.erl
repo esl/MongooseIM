@@ -35,7 +35,7 @@ init(_HostType, _Opts) ->
       Form :: mod_event_pusher_push:form(),
       Result :: ok | {error, term()}.
 enable(HostType, User, PubSub, Node, Forms) ->
-    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtUser = jid:to_bare_binary(User),
     ExtPubSub = jid:to_binary(PubSub),
     ExtForms = encode_form(Forms),
     execute_delete(HostType, ExtUser, Node, ExtPubSub),
@@ -47,19 +47,19 @@ enable(HostType, User, PubSub, Node, Forms) ->
 
 -spec disable(mongooseim:host_type(), User :: jid:jid()) -> ok.
 disable(HostType, User) ->
-    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtUser = jid:to_bare_binary(User),
     execute_delete(HostType, ExtUser),
     ok.
 
 -spec disable(mongooseim:host_type(), User :: jid:jid(), PubSub :: jid:jid(),
               Node :: mod_event_pusher_push:pubsub_node() | undefined) -> ok.
 disable(HostType, User, PubSub, undefined) ->
-    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtUser = jid:to_bare_binary(User),
     ExtPubSub = jid:to_binary(PubSub),
     execute_delete(HostType, ExtUser, ExtPubSub),
     ok;
 disable(HostType, User, PubSub, Node) ->
-    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtUser = jid:to_bare_binary(User),
     ExtPubSub = jid:to_binary(PubSub),
     execute_delete(HostType, ExtUser, Node, ExtPubSub),
     ok.
@@ -69,7 +69,7 @@ disable(HostType, User, PubSub, Node) ->
            Node :: mod_event_pusher_push:pubsub_node(),
            Form :: mod_event_pusher_push:form()}]}.
 get_publish_services(HostType, User) ->
-    ExtUser = jid:to_binary(jid:to_lus(User)),
+    ExtUser = jid:to_bare_binary(User),
     {selected, Rows} = execute_select(HostType, ExtUser),
     {ok, decode_rows(Rows)}.
 
