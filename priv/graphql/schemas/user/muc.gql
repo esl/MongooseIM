@@ -34,7 +34,7 @@ type MUCUserQuery @protected{
   listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
   getRoomConfig(room: JID!): MUCRoomConfig
-  "Get users list of a given MUC room"
+  "Get the user list of a given MUC room"
   listRoomUsers(room: JID!): [MUCRoomUser!]
   "Get the affiliation list of given MUC room"
   listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]

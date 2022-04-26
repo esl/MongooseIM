@@ -80,7 +80,7 @@ admin_muc_handler() ->
      admin_try_invite_user_to_nonexistent_room,
      admin_kick_user,
      admin_try_kick_user_from_nonexistent_room,
-     admin_try_kick_user_in_room_without_moderators,
+     admin_try_kick_user_from_room_without_moderators,
      admin_send_message_to_room,
      admin_send_private_message,
      admin_get_room_messages,
@@ -273,11 +273,11 @@ admin_kick_user_story(Config, Alice, Bob) ->
                  exml_query:path(KickStanza, [{element, <<"x">>}, {element, <<"item">>},
                                               {element, <<"reason">>}, cdata])).
 
-admin_try_kick_user_in_room_without_moderators(Config) ->
+admin_try_kick_user_from_room_without_moderators(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
-                               fun admin_try_kick_user_in_room_without_moderators/3).
+                               fun admin_try_kick_user_from_room_without_moderators/3).
 
-admin_try_kick_user_in_room_without_moderators(Config, _Alice, Bob) ->
+admin_try_kick_user_from_room_without_moderators(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),

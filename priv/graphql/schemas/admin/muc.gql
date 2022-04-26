@@ -34,9 +34,9 @@ type MUCAdminQuery @protected{
   listRooms(mucDomain: String!, from: JID, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
   getRoomConfig(room: JID!): MUCRoomConfig
-  "Get users list of given MUC room"
+  "Get the user list of a given MUC room"
   listRoomUsers(room: JID!): [MUCRoomUser!]
-  "Get affiliations list of given MUC room"
+  "Get the affiliation list of given MUC room"
   listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
   "Get the MUC room archived messages"
   getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
