@@ -13,6 +13,12 @@
 -define(assertPermissionsSuccess(Config, Doc),
         ?assertMatch(ok, check_permissions(Config, Doc))).
 
+-define(assertDomainPermissionsFailed(Config, Domain, Args, Doc),
+        ?assertThrow({error, #{error_term := {no_permissions, _, domain, Args}}},
+                     check_domain_permissions(Config, Domain, Doc))).
+-define(assertPermissionsSuccess(Config, Domain, Doc),
+        ?assertMatch(ok, check_domain_permissions(Config, Domain, Doc))).
+
 -define(assertErrMsg(Code, MsgContains, ErrorMsg),
         assert_err_msg(Code, MsgContains, ErrorMsg)).
 
@@ -26,8 +32,10 @@ all() ->
      {group, error_handling},
      {group, error_formatting},
      {group, permissions},
+     {group, domain_permissions},
      {group, user_listener},
-     {group, admin_listener}].
+     {group, admin_listener},
+     {group, domain_admin_listener}].
 
 groups() ->
     [{protected_graphql, [parallel], protected_graphql()},
@@ -35,7 +43,9 @@ groups() ->
      {error_handling, [parallel], error_handling()},
      {error_formatting, [parallel], error_formatting()},
      {permissions, [parallel], permissions()},
+     {domain_permissions, [parallel], domain_permissions()},
      {admin_listener, [parallel], admin_listener()},
+     {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
 
 protected_graphql() ->
@@ -81,11 +91,26 @@ permissions() ->
      check_union_permissions
     ].
 
+domain_permissions() ->
+    [check_field_domain_permissions,
+     check_child_object_field_domain_permissions,
+     check_interface_field_domain_permissions
+    ].
+
 user_listener() ->
     [auth_user_can_access_protected_types | common_tests()].
+
 admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
      auth_admin_can_access_protected_types | common_tests()].
+
+domain_admin_listener() ->
+    [auth_domain_admin_can_access_protected_types,
+     auth_domain_admin_wrong_password_error,
+     auth_domain_admin_nonexistent_domain_error,
+     auth_domain_admin_cannot_access_other_domain,
+     auth_domain_admin_can_access_owned_domain
+     | common_tests()].
 
 common_tests() ->
     [malformed_auth_header_error,
@@ -122,9 +147,16 @@ init_per_group(admin_listener, Config) ->
                     {password, <<"secret">>},
                     {schema_endpoint, <<"admin">>}],
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
-init_per_group(no_creds_admin_listener, Config) ->
-    ListenerOpts = [{schema_endpoint, <<"admin">>}],
-    init_ep_listener(5559, admin_schema_ep, ListenerOpts, Config);
+init_per_group(domain_admin_listener, Config) ->
+    meck:new(mongoose_domain_api, [no_link]),
+    meck:expect(mongoose_domain_api, check_domain_password,
+                fun
+                    (<<"localhost">>, <<"makota">>) -> ok;
+                    (<<"localhost">>, _) -> {error, wrong_password};
+                    (_, _) -> {error, not_found}
+                end),
+    ListenerOpts = [{schema_endpoint, <<"domain_admin">>}],
+    init_ep_listener(5560, adminn_schema_ep, ListenerOpts, Config);
 init_per_group(_G, Config) ->
     Config.
 
@@ -133,6 +165,10 @@ end_per_group(user_listener, Config) ->
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(admin_listener, Config) ->
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(domain_admin_listener, Config) ->
+    meck:unload(mongoose_domain_api),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(_, Config) ->
@@ -168,7 +204,10 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_interface_permissions;
                                   C =:= check_interface_field_permissions;
                                   C =:= check_inline_fragment_permissions;
-                                  C =:= check_union_permissions ->
+                                  C =:= check_union_permissions;
+                                  C =:= check_field_domain_permissions;
+                                  C =:= check_child_object_field_domain_permissions;
+                                  C =:= check_interface_field_domain_permissions ->
     {Mapping, Pattern} = example_permissions_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -396,6 +435,36 @@ check_union_permissions(Config) ->
     ?assertPermissionsFailed(Config, FDoc),
     ?assertPermissionsFailed(Config, FDoc2).
 
+%% Domain permissions
+
+check_field_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Domain}} | Config],
+    Doc = <<"{ field protectedField }">>,
+    Doc2 = <<"query Q1($domain: String) { protectedField domainProtectedField(argA: $domain"
+             ", argB: \"domain\") }">>,
+    FDoc = <<"{protectedField domainProtectedField(argA: \"domain.com\","
+             " argB: \"domain.com\") }">>,
+    ?assertPermissionsSuccess(Config, Domain, Doc),
+    ?assertPermissionsSuccess(Config2, Domain, Doc2),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
+
+check_child_object_field_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Domain}} | Config],
+    Doc = <<"{ obj { field protectedField } }">>,
+    Doc2 = <<"query Q1($domain: String) { obj { protectedField domainProtectedField(argA: $domain"
+             ", argB: \"domain\") } }">>,
+    FDoc = <<"{ obj {protectedField domainProtectedField(argA: \"domain.com\","
+             " argB: \"domain.com\") } }">>,
+    ?assertPermissionsSuccess(Config, Domain, Doc),
+    ?assertPermissionsSuccess(Config2, Domain, Doc2),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
+
+check_interface_field_domain_permissions(_Config) ->
+    %% FIXME provide implementation
+    ok.
+
 %% Error formatting
 
 format_internal_crash(_Config) ->
@@ -493,6 +562,36 @@ auth_admin_can_access_protected_types(Config) ->
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
     assert_access_granted(Status, Data).
+
+auth_domain_admin_can_access_protected_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
+    assert_access_granted(Status, Data).
+
+auth_domain_admin_wrong_password_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"mapsa">>}),
+    assert_no_permissions(wrong_credentials, Status, Data).
+
+auth_domain_admin_nonexistent_domain_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost2">>, <<"makota">>}),
+    assert_no_permissions(wrong_credentials, Status, Data).
+
+auth_domain_admin_can_access_owned_domain(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ fieldDP(argA: \"localhost\") }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
+    assert_access_granted(Status, Data).
+
+auth_domain_admin_cannot_access_other_domain(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field fieldDP(argA: \"domain.com\") }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
+    assert_no_permissions(no_permissions, Status, Data).
 
 malformed_auth_header_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
@@ -609,7 +708,21 @@ check_permissions(Config, Doc) ->
     {ok, Ast} = graphql:parse(Doc),
     {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
     ok = graphql:validate(Ast2),
-    ok = mongoose_graphql_permissions:check_permissions(Op, false, Ast2).
+    Ctx = #{operation_name => Op, authorized => false, params => #{}},
+    ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
+
+check_domain_permissions(Config, Domain, Doc) ->
+    Ep = ?config(endpoint, Config),
+    Args = proplists:get_value(args, Config, #{}),
+    Op = proplists:get_value(op, Config, undefined),
+    {ok, Ast} = graphql:parse(Doc),
+    {ok, #{ast := Ast2, fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
+    ok = graphql:validate(Ast2),
+    Coerced = graphql:type_check_params(Ep, FunEnv, Op, Args),
+    Admin = jid:make_bare(<<"admin">>, Domain),
+    Ctx = #{operation_name => Op, authorized => true, authorized_as => domain_admin,
+            admin => Admin, params => Coerced},
+    ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
 
 request(Doc, Authorized) ->
     request(undefined, Doc, Authorized).
@@ -656,8 +769,9 @@ example_permissions_schema_data(Config) ->
               #{'UserQuery' => mongoose_graphql_default_resolver,
                 'UserMutation' => mongoose_graphql_default_resolver,
                 default => mongoose_graphql_default_resolver},
-         interfaces => #{default => mongoose_graphql_default_resolver},
-         unions => #{default => mongoose_graphql_default_resolver}},
+          enums => #{default => mongoose_graphql_default_resolver},
+          interfaces => #{default => mongoose_graphql_default_resolver},
+          unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
 
 example_listener_schema_data(Config) ->
@@ -666,7 +780,8 @@ example_listener_schema_data(Config) ->
         #{objects =>
               #{'UserQuery' => mongoose_graphql_default_resolver,
                 'UserMutation' => mongoose_graphql_default_resolver,
-                default => mongoose_graphql_default_resolver}},
+                default => mongoose_graphql_default_resolver},
+          enums => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
 
 -spec init_ep_listener(integer(), atom(), [{atom(), term()}], [{atom(), term()}]) ->

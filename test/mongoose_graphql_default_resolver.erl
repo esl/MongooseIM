@@ -6,6 +6,8 @@
 
 execute(_Ctx, _Obj, <<"field">>, _Attrs) ->
     {ok, <<"Test field">>};
+execute(_Ctx, _Obj, <<"fieldDP">>, _Attrs) ->
+    {ok, <<"Test field">>};
 execute(_Ctx, _Obj, <<"id">>, #{<<"value">> := Value}) ->
     {ok, Value};
 execute(_Ctx, _Obj, Field, _Attrs) ->

@@ -3,11 +3,20 @@ schema{
   mutation: UserMutation
 }
 
-directive @protected on FIELD_DEFINITION | OBJECT | INTERFACE
+#directive @protected on FIELD_DEFINITION | OBJECT | INTERFACE
+directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
+  on FIELD_DEFINITION | OBJECT | INTERFACE
+
+enum ProtectionType{
+  DOMAIN
+  DEFAULT
+}
 
 type UserQuery{
   field: String
   protectedField: String @protected
+  domainProtectedField(argA: String, argB: String):
+    String @protected(type: DOMAIN, args: ["argA"])
   interface: Interface
   union: UnionT
   obj: Object
@@ -35,6 +44,8 @@ type Object implements Interface{
   otherName: String @protected
   protectedName: String
   protectedField: String @protected
+  domainProtectedField(argA: String, argB: String):
+    String @protected(type: DOMAIN, args: ["argA"])
   field: String
 }
 
