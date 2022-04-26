@@ -346,6 +346,9 @@ large_event_dont_crash_formatter(_Config) ->
 %%
 
 example_acc(Body) ->
+    Elem = {xmlel, <<"message">>,
+            [{<<"type">>, <<"chat">>}, {<<"id">>, <<"1111">>}],
+            [{xmlel, <<"body">>,[], [{xmlcdata, Body}]}]},
     #{lserver => <<"localhost">>,
       mongoose_acc => true,
       non_strippable => [],
@@ -353,14 +356,8 @@ example_acc(Body) ->
                            line => 116,
                            mfa => {ejabberd_router,route,3}},
       origin_pid => self(),
-      origin_stanza => <<"<message type='chat' id='1111'><body>",
-                         Body/binary,
-                         "</body></message>">>,
       ref => make_ref(),
-      stanza => #{element => {xmlel,<<"message">>,
-                              [{<<"type">>,<<"chat">>},{<<"id">>,<<"1111">>}],
-                              [{xmlel,<<"body">>,[],
-                                [{xmlcdata,Body}]}]},
+      stanza => #{element => Elem,
                   from_jid => {jid,<<"userA">>,<<"localhost">>,<<>>,<<"usera">>,<<"localhost">>,<<>>},
                   name => <<"message">>,
                   ref => make_ref(),
