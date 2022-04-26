@@ -9,7 +9,7 @@ Only an authenticated admin can execute these queries.
 """
 type AdminQuery{
   "Check authorization status"
-  checkAuth: AuthStatus
+  checkAuth: AdminAuthInfo
   "Domain management"
   domains: DomainAdminQuery
   "Account management"

@@ -21,10 +21,5 @@ execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, #{}};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
     {ok, roster};
-execute(#{authorized := Authorized}, _Obj, <<"checkAuth">>, _Args) ->
-    case Authorized of
-        true ->
-            {ok, 'AUTHORIZED'};
-        false ->
-            {ok, 'UNAUTHORIZED'}
-    end.
+execute(_Ctx, _Obj, <<"checkAuth">>, _Args) ->
+    {ok, admin}.

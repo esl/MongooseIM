@@ -128,6 +128,7 @@ graphql_parse(Doc) ->
 admin_mapping_rules() ->
     #{objects => #{
         'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
