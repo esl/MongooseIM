@@ -151,13 +151,13 @@ acc_is_formatted(Config) ->
                       <<"pid">> := Pid},
       % Because of the format_acc_filter/2 we don't get the full accumulator
       <<"acc_timestamp">> := DateTimeStrBin2,
-      <<"from_jid">> := <<"userA@localhost">>,
+      <<"from_jid">> := <<"usera@localhost">>,
       <<"origin_pid">> := Pid,
       % format_packet_filter/2 changes the packet
       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-acc</body></message>">>,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
       <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
-      <<"to_jid">> := <<"userB@localhost">>,
+      <<"to_jid">> := <<"userb@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
 
     ?assert(is_integer(calendar:rfc3339_to_system_time(binary_to_list(DateTimeStrBin)))),
@@ -196,13 +196,13 @@ acc_is_preserved(Config) ->
       % Because of the preserve_acc_filter/2 we get the full accumulator as acc_original
       <<"acc_original">> := A,
       <<"acc_timestamp">> := DateTimeStrBin2,
-      <<"from_jid">> := <<"userA@localhost">>,
+      <<"from_jid">> := <<"usera@localhost">>,
       <<"origin_pid">> := Pid,
       % format_packet_filter/2 changes the packet
       <<"packet">> := <<"<message type='chat' id='1111'><body>JSON-match-this-preserve-acc</body></message>">>,
       <<"routing_modules">> := [<<"mongoose_router_1">>, <<"mongoose_router_2">>],
       <<"routing_result">> := [<<"{{inside,two_tuples}}">>,<<"{inside,one_tuple}">>],
-      <<"to_jid">> := <<"userB@localhost">>,
+      <<"to_jid">> := <<"userb@localhost">>,
       <<"what">> := <<"routing_result">>} = Decoded,
 
     % This is not ideal but that's how the filter behaves
@@ -348,7 +348,7 @@ large_event_dont_crash_formatter(_Config) ->
 example_acc(Body) ->
     Elem = {xmlel, <<"message">>,
             [{<<"type">>, <<"chat">>}, {<<"id">>, <<"1111">>}],
-            [{xmlel, <<"body">>,[], [{xmlcdata, Body}]}]},
+            [{xmlel, <<"body">>, [], [{xmlcdata, Body}]}]},
     #{lserver => <<"localhost">>,
       mongoose_acc => true,
       non_strippable => [],
@@ -358,10 +358,10 @@ example_acc(Body) ->
       origin_pid => self(),
       ref => make_ref(),
       stanza => #{element => Elem,
-                  from_jid => {jid,<<"userA">>,<<"localhost">>,<<>>,<<"usera">>,<<"localhost">>,<<>>},
+                  from_jid => {jid, <<"usera">>, <<"localhost">>, <<>>},
                   name => <<"message">>,
                   ref => make_ref(),
-                  to_jid => {jid,<<"userB">>,<<"localhost">>,<<>>,<<"userb">>,<<"localhost">>,<<>>},
+                  to_jid => {jid, <<"userb">>, <<"localhost">>, <<>>},
                   type => <<"chat">>},
       timestamp => 1598878576962100}.
 

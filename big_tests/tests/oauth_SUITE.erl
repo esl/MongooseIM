@@ -161,7 +161,7 @@ token_login_failure(Config, User, Token) ->
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
-    JID = rpc(mim(), jid, from_binary, [BJID]),
+    JID = jid:from_binary(BJID),
     HostType = domain_helper:host_type(),
     Token = rpc(mim(), mod_auth_token, token, [HostType, JID, refresh]),
     ValidSeqNo = rpc(mim(), mod_auth_token_rdbms, get_valid_sequence_number, [HostType, JID]),
@@ -280,7 +280,7 @@ token_revocation_test(Config) ->
 get_owner_seqno_to_revoke(Config, User) ->
     {_, RefreshToken} = request_tokens_once_logged_in_impl(Config, User),
     [_, BOwner, _, SeqNo, _] = binary:split(RefreshToken, <<0>>, [global]),
-    Owner = rpc(mim(), jid, from_binary, [BOwner]),
+    Owner = jid:from_binary(BOwner),
     {Owner, binary_to_integer(SeqNo), RefreshToken}.
 
 revoke_token(Owner) ->
@@ -433,8 +433,7 @@ make_provision_token(Config, User, VCard) ->
     ExpiryFarInTheFuture = {{2055, 10, 27}, {10, 54, 22}},
     Username = escalus_users:get_username(Config, User),
     Domain = escalus_users:get_server(Config, User),
-    ServerSideJID = {jid, Username, Domain, <<>>,
-                     Username, Domain, <<>>},
+    ServerSideJID = jid:make(Username, Domain, <<>>),
     T0 = {token, provision,
           ExpiryFarInTheFuture,
           ServerSideJID,

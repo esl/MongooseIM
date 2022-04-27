@@ -876,15 +876,13 @@ process_outgoing_stanza(Acc, StateData) ->
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
-    #jid{user = User, server = Server} = FromJID = mongoose_acc:from_jid(Acc),
+    FromJID = mongoose_acc:from_jid(Acc),
     HostType = mongoose_acc:host_type(Acc),
     Res = mongoose_hooks:c2s_update_presence(HostType, Acc),
     El = mongoose_acc:element(Res),
     Res1 = mongoose_hooks:user_send_packet(Res, FromJID, ToJID, El),
-    {_Acc1, NState} = case ToJID of
-                          #jid{user = User,
-                               server = Server,
-                               resource = <<>>} ->
+    {_Acc1, NState} = case jid:are_bare_equal(FromJID, ToJID) of
+                          true ->
                                presence_update(Res1, FromJID, StateData);
                           _ ->
                                presence_track(Res1, StateData)
@@ -983,13 +981,10 @@ handle_event(_Event, StateName, StateData) ->
 -> {'reply', Reply :: [any()], statename(), state()}
    | {'reply', Reply :: 'ok' | {_, _, _, _}, statename(), state(), timeout()}.
 handle_sync_event(get_presence, _From, StateName, StateData) ->
-    User = StateData#state.user,
+    #jid{luser = User, lresource = Resource} = StateData#state.jid,
     PresLast = StateData#state.pres_last,
-
     Show = get_showtag(PresLast),
     Status = get_statustag(PresLast),
-    Resource = StateData#state.resource,
-
     Reply = {User, Resource, Show, Status},
     fsm_reply(Reply, StateName, StateData);
 handle_sync_event(get_info, _From, StateName, StateData) ->
@@ -3256,7 +3251,7 @@ handle_sasl_success(State, Creds) ->
                             authenticated = true,
                             auth_module = AuthModule,
                             user = User,
-                            jid = jid:make(User, Server, <<>>)},
+                            jid = jid:make_bare(User, Server)},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
                 stream_id => StreamID, auth_module => AuthModule,
                 c2s_state => NewState}),

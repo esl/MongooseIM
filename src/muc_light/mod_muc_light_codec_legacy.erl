@@ -50,7 +50,7 @@ decode(_, _, _, _Acc) ->
 encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     Aff = get_sender_aff(AffUsers, US),
-    FromNick = jid:to_binary(jid:to_lus(Sender)),
+    FromNick = jid:to_bare_binary(Sender),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},

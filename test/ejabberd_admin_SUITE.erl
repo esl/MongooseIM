@@ -26,10 +26,10 @@ end_per_suite(_Config) ->
 init_per_group(_, Config) ->
     meck:new(ejabberd_auth, [no_link]),
     meck:expect(ejabberd_auth, try_register,
-                fun(#jid{user = <<"existing_user">>}, _) -> {error, exists};
-                   (#jid{user = <<"null_password_user">>}, _) -> {error, null_password};
-                   (#jid{server = <<"not_allowed_domain">>}, _) -> {error, not_allowed};
-                   (#jid{user = <<"invalid_jid_user">>}, _) -> {error, invalid_jid};
+                fun(#jid{luser = <<"existing_user">>}, _) -> {error, exists};
+                   (#jid{luser = <<"null_password_user">>}, _) -> {error, null_password};
+                   (#jid{lserver = <<"not_allowed_domain">>}, _) -> {error, not_allowed};
+                   (#jid{luser = <<"invalid_jid_user">>}, _) -> {error, invalid_jid};
                    (_, _) -> ok
                 end),
     Config.

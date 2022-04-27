@@ -171,7 +171,7 @@ fetch_markers(IQ, Acc, From, Peer, Thread, TS, Private) ->
     Markers = mod_smart_markers_backend:get_conv_chat_marker(HostType, From, Peer, Thread, TS, Private),
     SubEl = #xmlel{name = <<"query">>,
                    attrs = [{<<"xmlns">>, ?NS_ESL_SMART_MARKERS},
-                            {<<"peer">>, jid:to_binary(jid:to_lus(Peer))}],
+                            {<<"peer">>, jid:to_bare_binary(Peer)}],
                    children = build_result(Markers)},
     IQ#iq{type = result, sub_el = SubEl}.
 

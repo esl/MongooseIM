@@ -1111,7 +1111,7 @@ delete_vcards(Config) ->
 
 get_jid_record(JID) ->
     [User, Server] = binary:split(JID, <<"@">>),
-    {jid, User, Server, <<"">>, User, Server, <<"">>}.
+    jid:make_bare(User, Server).
 
 vcard_rpc(JID, Stanza) ->
     Res = rpc(mim(), ejabberd_router, route, [JID, JID, Stanza]),

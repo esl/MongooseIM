@@ -198,8 +198,8 @@ registration_conflict(Config) ->
 admin_notify(Config) ->
     [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
-    [Username1, _Server1, _Pass1] = escalus_users:get_usp(Config, UserSpec1),
-    [Username2, _Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
+    Username1 = jid:str_tolower(escalus_users:get_username(Config, UserSpec1)),
+    Username2 = jid:str_tolower(escalus_users:get_username(Config, UserSpec2)),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
     rpc(mim(), ejabberd_auth, try_register, [mongoose_helper:make_jid(AdminU, AdminS), AdminP]),

@@ -229,7 +229,7 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
                             AddStanzaid :: boolean()) ->
           AlteredPacket :: exml:element().
 maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
-    BareTo = jid:to_binary(jid:to_bare(To)),
+    BareTo = jid:to_bare_binary(To),
     case AddStanzaid of
         true ->
             replace_arcid_elem(<<"stanza-id">>, BareTo, MessID, Packet);
@@ -419,7 +419,7 @@ retracted_element(#{retract_on := stanza_id,
            children = [#xmlel{name = <<"stanza-id">>,
                               attrs = [{<<"xmlns">>, ?NS_STANZAID},
                                        {<<"id">>, StanzaID},
-                                       {<<"by">>, jid:to_binary(jid:to_bare(LocJid))}]} |
+                                       {<<"by">>, jid:to_bare_binary(LocJid)}]} |
                        MaybeOriginId
                       ]}.
 
@@ -945,7 +945,7 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 -spec bare_jid(undefined | jid:jid()) -> undefined | binary().
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
+    jid:to_bare_binary(jid:to_lower(JID)).
 
 -spec full_jid(jid:jid()) -> binary().
 full_jid(JID) ->

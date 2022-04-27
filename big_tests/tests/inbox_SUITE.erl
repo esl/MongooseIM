@@ -1397,7 +1397,7 @@ rpc_stop_hook_handler(HookExtra, HostType) ->
 hook_handler_fn(Acc,
                 #{args := [_HostType, User, _Stored]} = _Params,
                 #{test_case_pid := Pid} = _Extra) ->
-    Pid ! {input, User#jid.user},
+    Pid ! {input, User#jid.luser},
     {ok, Acc}.
 
 verify_hook_listener(RoomName) ->

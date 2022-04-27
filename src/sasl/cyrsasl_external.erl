@@ -197,7 +197,7 @@ verify_server(Jid, Server) ->
     JidRecord = jid:binary_to_bare(Jid),
     case JidRecord#jid.lserver of
         Server ->
-            {ok, JidRecord#jid.user};
+            {ok, JidRecord#jid.luser};
         _ ->
             {error, <<"not-authorized">>}
     end.

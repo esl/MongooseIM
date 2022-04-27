@@ -685,9 +685,8 @@ check_caller(Caller, #mongoose_command{caller_pos = CallerPos}, Args) ->
     ACaller = lists:nth(CallerPos, Args),
     CallerJid = jid:from_binary(Caller),
     ACallerJid = jid:from_binary(ACaller),
-    ACal = {ACallerJid#jid.user, ACallerJid#jid.server},
-    case {CallerJid#jid.user, CallerJid#jid.server} of
-        ACal ->
+    case jid:are_bare_equal(CallerJid, ACallerJid) of
+        true ->
             ok;
         _ ->
             throw({denied, "Caller ids do not match"})
