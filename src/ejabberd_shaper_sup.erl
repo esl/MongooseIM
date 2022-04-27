@@ -64,5 +64,8 @@ init([]) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 100,
                  period => 5},
-    Shapers = shaper_srv:child_specs(),
+    Names = shaper_srv:worker_names(),
+    ets:new(?MODULE, [named_table, protected, {read_concurrency, true}]),
+    [ ets:insert(?MODULE, Name) || Name <- Names],
+    Shapers = shaper_srv:child_specs(Names),
     {ok, { SupFlags, Shapers }}.

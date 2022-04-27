@@ -9,7 +9,8 @@
 
 %% API Function Exports
 -export([start_link/1,
-         child_specs/0,
+         worker_names/0,
+         child_specs/1,
          wait/5,
          reset_shapers/1,
          reset_all_shapers/1]).
@@ -33,9 +34,24 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec child_specs() -> [supervisor:child_spec()].
-child_specs() ->
-    [child_spec(ProcName) ||  ProcName <- worker_names(<<>>)].
+-spec worker_names() -> [{non_neg_integer(), atom()}].
+worker_names() ->
+    [{N, build_worker_name(N)} || N <- lists:seq(0, worker_count() - 1)].
+
+-spec child_specs([{non_neg_integer(), atom()}]) -> [supervisor:child_spec()].
+child_specs(WorkerNames) ->
+    [child_spec(ProcName) || {_N, ProcName} <- WorkerNames].
+
+-spec build_worker_name(integer()) -> atom().
+build_worker_name(N) ->
+    list_to_atom(worker_prefix() ++ integer_to_list(N)).
+
+-spec worker_prefix() -> string().
+worker_prefix() ->
+    "ejabberd_shaper_".
+
+worker_count() ->
+    10.
 
 -spec child_spec(atom()) -> supervisor:child_spec().
 child_spec(ProcName) ->
@@ -50,29 +66,18 @@ child_spec(ProcName) ->
 start_link(ProcName) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [], []).
 
--spec worker_prefix() -> string().
-worker_prefix() ->
-    "ejabberd_shaper_".
+-spec worker_name(non_neg_integer()) -> atom().
+worker_name(N) ->
+    ets:lookup_element(ejabberd_shaper_sup, N, 2).
 
-worker_count(_HostType) ->
-    10.
+-spec worker_number(term()) -> non_neg_integer().
+worker_number(Tag) ->
+    erlang:phash2(Tag, worker_count()).
 
--spec worker_names(mongooseim:host_type()) -> [atom()].
-worker_names(HostType) ->
-    [worker_name(HostType, N) || N <- lists:seq(0, worker_count(HostType) - 1)].
-
--spec worker_name(jid:server(), integer()) -> atom().
-worker_name(_Host, N) ->
-    list_to_atom(worker_prefix() ++ integer_to_list(N)).
-
--spec select_worker(mongooseim:host_type(), _) -> atom().
-select_worker(HostType, Tag) ->
-    N = worker_number(HostType, Tag),
-    worker_name(HostType, N).
-
--spec worker_number(mongooseim:host_type(), _) -> non_neg_integer().
-worker_number(HostType, Tag) ->
-    erlang:phash2(Tag, worker_count(HostType)).
+-spec select_worker(term()) -> atom().
+select_worker(Tag) ->
+    N = worker_number(Tag),
+    worker_name(N).
 
 %% @doc Shapes the caller from executing the action.
 -spec wait(HostType :: mongooseim:host_type(),
@@ -81,12 +86,12 @@ worker_number(HostType, Tag) ->
            FromJID :: jid:jid() | global,
            Size :: integer()) -> ok | {error, max_delay_reached}.
 wait(HostType, Domain, Action, FromJID, Size) ->
-    gen_server:call(select_worker(HostType, FromJID),
+    gen_server:call(select_worker(FromJID),
                     {wait, HostType, Domain, Action, FromJID, Size}).
 
 %% @doc Ask all shaper servers to forget current shapers and read settings again
-reset_all_shapers(HostType) ->
-    [reset_shapers(ProcName) || ProcName <- worker_names(HostType)].
+reset_all_shapers(_HostType) ->
+    [reset_shapers(ProcName) || {_N, ProcName} <- ets:tab2list(ejabberd_shaper_sup)].
 
 %% @doc Ask server to forget its shapers
 reset_shapers(ProcName) ->
