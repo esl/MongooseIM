@@ -3,10 +3,11 @@
 %% entry point - returns the entire spec
 -export([root/0]).
 
-%% spec parts used by modules and services
+%% spec parts used by http handlers, modules and services
 -export([wpool_items/0,
          wpool_defaults/0,
-         iqdisc/0]).
+         iqdisc/0,
+         xmpp_listener_extra/1]).
 
 %% callbacks for the 'process' step
 -export([process_root/1,
@@ -18,7 +19,6 @@
          process_tls_sni/1,
          process_xmpp_tls/1,
          process_fast_tls/1,
-         process_http_handler/2,
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
@@ -262,7 +262,7 @@ listen() ->
 
 %% path: listen.*[]
 listener(Type) ->
-    merge_sections(listener_common(), listener_extra(Type)).
+    mongoose_config_utils:merge_sections(listener_common(), listener_extra(Type)).
 
 listener_common() ->
     #section{items = #{<<"port">> => #option{type = integer,
@@ -284,9 +284,9 @@ listener_extra(http) ->
     #section{items = #{<<"tls">> => http_listener_tls(),
                        <<"transport">> => http_transport(),
                        <<"protocol">> => http_protocol(),
-                       <<"handlers">> => http_handlers()}};
+                       <<"handlers">> => mongoose_http_handler:config_spec()}};
 listener_extra(Type) ->
-    merge_sections(xmpp_listener_common(), xmpp_listener_extra(Type)).
+    mongoose_config_utils:merge_sections(xmpp_listener_common(), xmpp_listener_extra(Type)).
 
 xmpp_listener_common() ->
     #section{items = #{<<"backlog">> => #option{type = integer,
@@ -437,71 +437,6 @@ http_protocol() ->
        defaults = #{<<"compress">> => false},
        include = always
       }.
-
-%% path: listen.http[].handlers
-http_handlers() ->
-    Keys = [<<"mod_websockets">>,
-            <<"lasse_handler">>,
-            <<"cowboy_static">>,
-            <<"mongoose_api">>,
-            <<"mongoose_api_admin">>,
-            <<"mongoose_domain_handler">>,
-            default],
-    #section{
-       items = maps:from_list([{Key, #list{items = http_handler(Key),
-                                           wrap = none}} || Key <- Keys]),
-       validate_keys = module,
-       include = always
-      }.
-
-%% path: listen.http[].handlers.*[]
-http_handler(Key) ->
-    ExtraItems = http_handler_items(Key),
-    RequiredKeys = case http_handler_required(Key) of
-                       all -> all;
-                       Keys -> Keys ++ [<<"host">>, <<"path">>]
-                   end,
-    #section{
-       items = ExtraItems#{<<"host">> => #option{type = string,
-                                                 validate = non_empty},
-                           <<"path">> => #option{type = string}
-                          },
-       required = RequiredKeys,
-       process = fun ?MODULE:process_http_handler/2
-      }.
-
-http_handler_items(<<"mod_websockets">>) ->
-    #{<<"timeout">> => #option{type = int_or_infinity,
-                               validate = non_negative},
-      <<"ping_rate">> => #option{type = integer,
-                                 validate = positive},
-      <<"max_stanza_size">> => #option{type = int_or_infinity,
-                                       validate = positive},
-      <<"service">> => xmpp_listener_extra(service)
-     };
-http_handler_items(<<"lasse_handler">>) ->
-    #{<<"module">> => #option{type = atom,
-                              validate = module}};
-http_handler_items(<<"cowboy_static">>) ->
-    #{<<"type">> => #option{type = atom},
-      <<"app">> => #option{type = atom},
-      <<"content_path">> => #option{type = string}};
-http_handler_items(<<"mongoose_api">>) ->
-    #{<<"handlers">> => #list{items = #option{type = atom,
-                                              validate = module}}};
-http_handler_items(<<"mongoose_api_admin">>) ->
-    #{<<"username">> => #option{type = binary},
-      <<"password">> => #option{type = binary}};
-http_handler_items(<<"mongoose_domain_handler">>) ->
-    #{<<"username">> => #option{type = binary},
-      <<"password">> => #option{type = binary}};
-http_handler_items(_) ->
-    #{}.
-
-http_handler_required(<<"lasse_handler">>) -> all;
-http_handler_required(<<"cowboy_static">>) -> [<<"type">>, <<"content_path">>];
-http_handler_required(<<"mongoose_api">>) -> all;
-http_handler_required(_) -> [].
 
 %% path: (host_config[].)auth
 auth() ->
@@ -1167,39 +1102,6 @@ listener_module(<<"c2s">>) -> ejabberd_c2s;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
 listener_module(<<"service">>) -> ejabberd_service.
 
-process_http_handler([item, Type | _], KVs) ->
-    {[[{host, Host}], [{path, Path}]], Opts} = proplists:split(KVs, [host, path]),
-    HandlerOpts = process_http_handler_opts(Type, Opts),
-    {Host, Path, binary_to_atom(Type, utf8), HandlerOpts}.
-
-process_http_handler_opts(<<"lasse_handler">>, [{module, Module}]) ->
-    [Module];
-process_http_handler_opts(<<"cowboy_static">>, Opts) ->
-    case proplists:split(Opts, [type, app, content_path]) of
-        {[[{type, Type}], [{app, App}], [{content_path, Path}]], []} ->
-            {Type, App, Path, [{mimetypes, cow_mimetypes, all}]};
-        {[[{type, Type}], [], [{content_path, Path}]], []} ->
-            {Type, Path, [{mimetypes, cow_mimetypes, all}]}
-    end;
-process_http_handler_opts(<<"mongoose_api_admin">>, Opts) ->
-    {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
-    case {UserOpts, PassOpts} of
-        {[], []} -> [];
-        {[{username, User}], [{password, Pass}]} -> [{auth, {User, Pass}}]
-    end;
-process_http_handler_opts(<<"mongoose_domain_handler">>, Opts) ->
-    {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
-    case {UserOpts, PassOpts} of
-        {[], []} -> ok;
-        {[{username, _User}], [{password, _Pass}]} -> ok;
-        _ -> error(#{what => both_username_and_password_required,
-                     handler => mongoose_domain_handler, opts => Opts})
-    end,
-    Opts;
-process_http_handler_opts(<<"cowboy_swagger_redirect_handler">>, []) -> #{};
-process_http_handler_opts(<<"cowboy_swagger_json_handler">>, []) -> #{};
-process_http_handler_opts(_, Opts) -> Opts.
-
 process_sasl_external(V) when V =:= standard;
                               V =:= common_name;
                               V =:= auth_id ->
@@ -1340,12 +1242,3 @@ process_s2s_address(M) ->
 
 process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
-
-%% Helpers
-
-merge_sections(BasicSection, ExtraSection) ->
-    #section{items = Items1, required = Required1, defaults = Defaults1} = BasicSection,
-    #section{items = Items2, required = Required2, defaults = Defaults2} = ExtraSection,
-    BasicSection#section{items = maps:merge(Items1, Items2),
-                         required = Required1 ++ Required2,
-                         defaults = maps:merge(Defaults1, Defaults2)}.

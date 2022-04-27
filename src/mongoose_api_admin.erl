@@ -10,10 +10,15 @@
 %% @end
 -module(mongoose_api_admin).
 -author("ludwikbukowski").
+
+-behaviour(mongoose_http_handler).
 -behaviour(cowboy_rest).
 
-%% ejabberd_cowboy exports
--export([cowboy_router_paths/2]).
+%% mongoose_http_handler callbacks
+-export([config_spec/0, routes/1]).
+
+%% config processing callbacks
+-export([process_config/1]).
 
 %% cowboy_rest exports
 -export([allowed_methods/2,
@@ -31,6 +36,7 @@
 
 -include("mongoose_api.hrl").
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -import(mongoose_api_common, [error_response/4,
                               action_to_method/1,
@@ -41,20 +47,36 @@
 
 -type credentials() :: {Username :: binary(), Password :: binary()} | any.
 
+-type handler_options() :: #{path := string(), username => binary(), password => binary(),
+                             atom() => any()}.
+
 %%--------------------------------------------------------------------
-%% ejabberd_cowboy callbacks
+%% mongoose_http_handler callbacks
 %%--------------------------------------------------------------------
 
-%% @doc This is implementation of ejabberd_cowboy callback.
-%% Returns list of all available http paths.
--spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, Opts) ->
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"username">> => #option{type = binary},
+                       <<"password">> => #option{type = binary}},
+             format_items = map,
+             process = fun ?MODULE:process_config/1}.
+
+-spec process_config(handler_options()) -> handler_options().
+process_config(Opts) ->
+    case maps:is_key(username, Opts) =:= maps:is_key(password, Opts) of
+        true ->
+            Opts;
+        false ->
+            error(#{what => both_username_and_password_required, opts => Opts})
+    end.
+
+-spec routes(handler_options()) -> mongoose_http_handler:routes().
+routes(Opts = #{path := BasePath}) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
         try
             Commands = mongoose_commands:list(admin),
-            [handler_path(Base, Command, Opts) || Command <- Commands]
+            [handler_path(BasePath, Command, Opts) || Command <- Commands]
         catch
             Class:Err:StackTrace ->
                 ?LOG_ERROR(#{what => getting_command_list_error,
@@ -68,15 +90,17 @@ cowboy_router_paths(Base, Opts) ->
 
 init(Req, Opts) ->
     Bindings = maps:to_list(cowboy_req:bindings(Req)),
-    CommandCategory = proplists:get_value(command_category, Opts),
-    CommandSubCategory = proplists:get_value(command_subcategory, Opts),
-    Auth = proplists:get_value(auth, Opts, any),
+    #{command_category := CommandCategory, command_subcategory := CommandSubCategory} = Opts,
+    Auth = auth_opts(Opts),
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(admin),
                             bindings = Bindings,
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory,
                             auth = Auth},
     {cowboy_rest, Req, State}.
+
+auth_opts(#{username := UserName, password := Password}) -> {UserName, Password};
+auth_opts(#{}) -> any.
 
 options(Req, State) ->
     Req1 = set_cors_headers(Req),
@@ -187,11 +211,9 @@ from_json(Req, #http_api_state{command_category = Category,
             end
     end.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), [{atom(), term()}]) ->
-    ejabberd_cowboy:route().
-handler_path(Base, Command, ExtraOpts) ->
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t(), handler_options()) ->
+          ejabberd_cowboy:route().
+handler_path(Base, Command, CommonOpts) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
-        ?MODULE, [{command_category, mongoose_commands:category(Command)},
-                  {command_subcategory, mongoose_commands:subcategory(Command)} | ExtraOpts]}.
-
-
+     ?MODULE, CommonOpts#{command_category => mongoose_commands:category(Command),
+                          command_subcategory => mongoose_commands:subcategory(Command)}}.

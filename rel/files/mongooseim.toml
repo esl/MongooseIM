@@ -59,6 +59,7 @@
   [[listen.http.handlers.mongoose_api_admin]]
     host = "localhost"
     path = "/api"
+
   [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
@@ -74,49 +75,9 @@
   {{{https_config}}}
   {{/https_config}}
 
-  [[listen.http.handlers.lasse_handler]]
+  [[listen.http.handlers.mongoose_client_api]]
     host = "_"
-    path = "/api/sse"
-    module = "mongoose_client_api_sse"
-
-  [[listen.http.handlers.mongoose_client_api_messages]]
-    host = "_"
-    path = "/api/messages/[:with]"
-
-  [[listen.http.handlers.mongoose_client_api_contacts]]
-    host = "_"
-    path = "/api/contacts/[:jid]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms]]
-    host = "_"
-    path = "/api/rooms/[:id]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_config]]
-    host = "_"
-    path = "/api/rooms/[:id]/config"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_users]]
-    host = "_"
-    path = "/api/rooms/:id/users/[:user]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_messages]]
-    host = "_"
-    path = "/api/rooms/[:id]/messages"
-
-  [[listen.http.handlers.cowboy_swagger_redirect_handler]]
-    host = "_"
-    path = "/api-docs"
-
-  [[listen.http.handlers.cowboy_swagger_json_handler]]
-    host = "_"
-    path = "/api-docs/swagger.json"
-
-  [[listen.http.handlers.cowboy_static]]
-    host = "_"
-    path = "/api-docs/[...]"
-    type = "priv_dir"
-    app = "cowboy_swagger"
-    content_path = "swagger"
+    path = "/api"
 
 [[listen.http]]
   {{#http_api_old_endpoint}}
@@ -128,7 +89,6 @@
   [[listen.http.handlers.mongoose_api]]
     host = "localhost"
     path = "/api"
-    handlers = ["mongoose_api_metrics", "mongoose_api_users"]
 
 [[listen.c2s]]
   port = {{{c2s_port}}}

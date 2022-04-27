@@ -1,5 +1,10 @@
 -module(mongoose_client_api).
 
+-behaviour(mongoose_http_handler).
+
+%% mongoose_http_handler callbacks
+-export([config_spec/0, routes/1]).
+
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([is_authorized/2]).
@@ -16,7 +21,49 @@
               options/2, to_json/2]).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
+-include("mongoose_config_spec.hrl").
+
+-type handler_options() :: #{path := string(), handlers := [module()], docs := boolean(),
+                             atom() => any()}.
+
+%% mongoose_http_handler callbacks
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    HandlerModules = [Module || {_, Module, _} <- api_paths()],
+    #section{items = #{<<"handlers">> => #list{items = #option{type = atom,
+                                                               validate = {enum, HandlerModules}},
+                                               validate = unique},
+                       <<"docs">> => #option{type = boolean}},
+             defaults = #{<<"handlers">> => HandlerModules,
+                          <<"docs">> => true},
+             format_items = map}.
+
+-spec routes(handler_options()) -> mongoose_http_handler:routes().
+routes(Opts = #{path := BasePath}) ->
+    [{[BasePath, Path], Module, ModuleOpts}
+     || {Path, Module, ModuleOpts} <- api_paths(Opts)] ++ api_doc_paths(Opts).
+
+api_paths(#{handlers := HandlerModules}) ->
+    lists:filter(fun({_, Module, _}) -> lists:member(Module, HandlerModules) end, api_paths()).
+
+api_paths() ->
+    [{"/sse", lasse_handler, #{module => mongoose_client_api_sse}},
+     {"/messages/[:with]", mongoose_client_api_messages, #{}},
+     {"/contacts/[:jid]", mongoose_client_api_contacts, #{}},
+     {"/rooms/[:id]", mongoose_client_api_rooms, #{}},
+     {"/rooms/[:id]/config", mongoose_client_api_rooms_config, #{}},
+     {"/rooms/:id/users/[:user]", mongoose_client_api_rooms_users, #{}},
+     {"/rooms/[:id]/messages", mongoose_client_api_rooms_messages, #{}}].
+
+api_doc_paths(#{docs := true}) ->
+    [{"/api-docs", cowboy_swagger_redirect_handler, #{}},
+     {"/api-docs/swagger.json", cowboy_swagger_json_handler, #{}},
+     {"/api-docs/[...]", cowboy_static, {priv_dir, cowboy_swagger, "swagger",
+                                         [{mimetypes, cow_mimetypes, all}]}
+     }];
+api_doc_paths(#{docs := false}) ->
+    [].
 
 init(Req, _Opts) ->
     State = #{},

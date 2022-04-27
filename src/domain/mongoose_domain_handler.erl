@@ -1,9 +1,14 @@
 %% REST API for domain actions.
 -module(mongoose_domain_handler).
+
+-behaviour(mongoose_http_handler).
 -behaviour(cowboy_rest).
 
-%% ejabberd_cowboy exports
--export([cowboy_router_paths/2]).
+%% mongoose_http_handler callbacks
+-export([config_spec/0, routes/1]).
+
+%% config processing callbacks
+-export([process_config/1]).
 
 %% Standard cowboy_rest callbacks.
 -export([init/2,
@@ -20,17 +25,37 @@
 -ignore_xref([cowboy_router_paths/2, handle_domain/2, to_json/2]).
 
 -include("mongoose_logger.hrl").
+-include("mongoose_config_spec.hrl").
 -type state() :: map().
 
--spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-        ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, Opts) ->
-    [{[Base, "/domains/:domain"], ?MODULE, Opts}].
+-type handler_options() :: #{path := string(), username => binary(), password => binary(),
+                             atom() => any()}.
 
-%% cowboy_rest callbacks:
-%% Opts could be `[{password, <<\"secret\">>}, {username, <<\"admin\">>}]'.
+%% mongoose_http_handler callbacks
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"username">> => #option{type = binary},
+                       <<"password">> => #option{type = binary}},
+             format_items = map,
+             process = fun ?MODULE:process_config/1}.
+
+process_config(Opts) ->
+    case maps:is_key(username, Opts) =:= maps:is_key(password, Opts) of
+        true ->
+            Opts;
+        false ->
+            error(#{what => both_username_and_password_required, opts => Opts})
+    end.
+
+-spec routes(handler_options()) -> mongoose_http_handler:routes().
+routes(Opts = #{path := BasePath}) ->
+    [{[BasePath, "/domains/:domain"], ?MODULE, Opts}].
+
+%% cowboy_rest callbacks
+
 init(Req, Opts) ->
-    {cowboy_rest, Req, maps:from_list(Opts)}.
+    {cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>], Req, State}.

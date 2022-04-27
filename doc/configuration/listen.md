@@ -420,16 +420,16 @@ Recommended port number: 5280 for BOSH/WS.
 There are the following options for each of the HTTP listeners:
 
 ### `listen.http.handlers`
-* **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types, e.g.
+* **Syntax:** each handler is specified in a subsection starting with `[[listen.http.handlers.type]]` where `type` is one of the allowed handler types, handling different connection types:
 
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
-    * `mongoose_api_*`, `mongoose_client_api_*`, ... - for REST API.
+    * `mongoose_api_admin`, `mongoose_api_client`(obsolete), `mongoose_client_api`, `mongoose_domain_handler`, `mongoose_api` - for REST API.
 
     These types are described below in more detail.
     The double-bracket syntax is used because there can be multiple handlers of a given type, so for each type there is a TOML array of one or more tables (subsections).
 
-* **Default:** there is no default, all handlers need to be specified explicitly.
+* **Default:** `[]` - no handlers enabled, all of them need to be specified explicitly.
 * **Example:** two handlers, one for BOSH and one for WebSockets
 ```toml
   [[listen.http.handlers.mod_bosh]]
@@ -459,10 +459,12 @@ Path for this handler.
 
 ### Handler types: BOSH - `mod_bosh`
 
+The recommended configuration is shown in [Example 1](#example-1-bosh-and-ws) below.
 To handle incoming BOSH traffic you need to configure the `mod_bosh` module in the `modules` section as well.
 
 ### Handler types: WebSockets - `mod_websockets`
 
+The recommended configuration is shown in [Example 1](#example-1-bosh-and-ws) below.
 Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
 You can pass the following optional parameters:
 
@@ -490,7 +492,7 @@ Maximum allowed incoming stanza size.
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
 #### `listen.http.handlers.mod_websockets.service`
-* **Syntax:** an array of `listen.service.*` options
+* **Syntax:** a table of `listen.service.*` options
 * **Default:** not set
 * **Example:**
 
@@ -506,6 +508,7 @@ See the [service](#xmpp-components-listenservice) listener section for details.
 
 ### Handler types: REST API - Admin - `mongoose_api_admin`
 
+The recommended configuration is shown in [Example 2](#example-2-admin-api) below.
 For more information about the API, see the [REST interface](../rest-api/Administration-backend.md) documentation.
 The following options are supported for this handler:
 
@@ -523,19 +526,32 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 
 Required to enable authentication for the admin API.
 
-### Handler types: REST API - Client
-
-To enable the REST API for clients, several handlers need to be added:
-
-* `mongoose_client_api_*` - handles individual API endpoints. You can add and remove these to enable particular functionality.
-* `lasse_handler` - provides the [SSE handler](https://github.com/inaka/lasse) which is required for the client HTTP API, should not be changed.
-* `cowboy_*` - hosts the Swagger web-based documentation, should not be changed, but can be removed to disable the API docs.
+### Handler types: REST API - Client - `mongoose_client_api`
 
 The recommended configuration is shown in [Example 3](#example-3-client-api) below.
 Please refer to [REST interface](../rest-api/Client-frontend.md) documentation for more information.
+The following options are supported for this handler:
+
+#### `listen.http.handlers.mongoose_client_api.handlers`
+* **Syntax:** array of strings - Erlang modules
+* **Default:** all API handler modules enabled
+* **Example:** `handlers = ["mongoose_client_api_messages", "mongoose_client_api_sse"]`
+
+The client API consists of several modules, each of them implementing a subset of the functionality.
+By default all modules are enabled, so you don't need to change this option.
+For a list of allowed modules, you need to consult the [source code](https://github.com/esl/MongooseIM/blob/master/src/mongoose_client_api/mongoose_client_api.erl).
+
+#### `listen.http.handlers.mongoose_client_api.docs`
+* **Syntax:** boolean
+* **Default:** `true`
+* **Example:** `docs = "false"`
+
+The Swagger documentation of the client API is hosted at the `/api-docs` path.
+You can disable the hosted documentation by setting this option to `false`.
 
 ### Handler types: REST API - Domain management - `mongoose_domain_handler`
 
+The recommended configuration is shown in [Example 4](#example-4-domain-api) below.
 This handler enables dynamic domain management for different host types.
 For more information about the API, see the [REST interface](../rest-api/Dynamic-domains.md) documentation.
 The following options are supported for this handler:
@@ -562,7 +578,7 @@ The following option is required:
 
 #### `listen.http.handlers.mongoose_api.handlers`
 * **Syntax:** array of strings - Erlang modules
-* **Default:** not set, this is a mandatory option for this handler
+* **Default:** all API handler modules enabled
 * **Example:** `handlers = ["mongoose_api_metrics"]`
 
 ### Transport options
@@ -720,49 +736,9 @@ REST API for clients.
   transport.max_connections = 1024
   protocol.compress = true
 
-  [[listen.http.handlers.lasse_handler]]
+  [[listen.http.handlers.mongoose_client_api]]
     host = "_"
-    path = "/api/sse"
-    module = "mongoose_client_api_sse"
-
-  [[listen.http.handlers.mongoose_client_api_messages]]
-    host = "_"
-    path = "/api/messages/[:with]"
-
-  [[listen.http.handlers.mongoose_client_api_contacts]]
-    host = "_"
-    path = "/api/contacts/[:jid]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms]]
-    host = "_"
-    path = "/api/rooms/[:id]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_config]]
-    host = "_"
-    path = "/api/rooms/[:id]/config"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_users]]
-    host = "_"
-    path = "/api/rooms/:id/users/[:user]"
-
-  [[listen.http.handlers.mongoose_client_api_rooms_messages]]
-    host = "_"
-    path = "/api/rooms/[:id]/messages"
-
-  [[listen.http.handlers.cowboy_swagger_redirect_handler]]
-    host = "_"
-    path = "/api-docs"
-
-  [[listen.http.handlers.cowboy_swagger_json_handler]]
-    host = "_"
-    path = "/api-docs/swagger.json"
-
-  [[listen.http.handlers.cowboy_static]]
-    host = "_"
-    path = "/api-docs/[...]"
-    type = "priv_dir"
-    app = "cowboy_swagger"
-    content_path = "swagger"
+    path = "/api"
 ```
 
 #### Example 4. Domain API

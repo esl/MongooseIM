@@ -92,11 +92,13 @@ groups() ->
                            listen_http,
                            listen_http_tls,
                            listen_http_transport,
-                           listen_http_handlers,
+                           listen_http_handlers_invalid,
+                           listen_http_handlers_bosh,
                            listen_http_handlers_websockets,
-                           listen_http_handlers_lasse,
-                           listen_http_handlers_static,
+                           listen_http_handlers_client_api,
                            listen_http_handlers_api,
+                           listen_http_handlers_api_admin,
+                           listen_http_handlers_api_client,
                            listen_http_handlers_domain]},
      {auth, [parallel], [auth_methods,
                          auth_password,
@@ -633,73 +635,72 @@ listen_http_protocol(_Config) ->
     ?cfg(P ++ [compress], true, T(#{<<"compress">> => true})),
     ?err(T(#{<<"compress">> => 1})).
 
-listen_http_handlers(_Config) ->
+listen_http_handlers_invalid(_Config) ->
     T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"handlers">> => Opts}) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"_", "/http-bind", mod_bosh, []}],
-         T(#{<<"mod_bosh">> => [#{<<"host">> => <<"_">>,
-                                  <<"path">> => <<"/http-bind">>}]})),
     ?err(T(#{<<"mod_bosch">> => [#{<<"host">> => <<"dishwasher">>,
-                                   <<"path">> => <<"/cutlery">>}]})),
-    ?err(T(#{<<"mod_bosh">> => [#{<<"host">> => <<"pathless">>}]})),
-    ?err(T(#{<<"mod_bosh">> => [#{<<"host">> => <<>>, <<"path">> => <<"/">>}]})),
-    ?err(T(#{<<"mod_bosh">> => [#{<<"path">> => <<"hostless">>}]})).
+                                   <<"path">> => <<"/cutlery">>}]})).
+
+listen_http_handlers_bosh(_Config) ->
+    test_listen_http_handler(mod_bosh).
 
 listen_http_handlers_websockets(_Config) ->
-    T = fun(Opts) -> http_handler_raw(<<"mod_websockets">>, Opts) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"localhost", "/api", mod_websockets, []}], T(#{})),
-    ?cfg(P, [{"localhost", "/api", mod_websockets,
-              [{service, maps:merge(extra_service_listener_config(), #{password => "secret"})}]
-             }],
+    {P, T} = test_listen_http_handler(mod_websockets),
+    ?cfg(P ++ [timeout], 30000, T(#{<<"timeout">> => 30000})),
+    ?cfg(P ++ [ping_rate], 20, T(#{<<"ping_rate">> => 20})),
+    ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
+    ?cfg(P ++ [service], maps:merge(extra_service_listener_config(), #{password => "secret"}),
          T(#{<<"service">> => #{<<"password">> => <<"secret">>}})),
+    ?err(T(#{<<"timeout">> => -1})),
+    ?err(T(#{<<"ping_rate">> => 0})),
+    ?err(T(#{<<"max_stanza_size">> => 0})),
     ?err(T(#{<<"service">> => #{}})).
 
-listen_http_handlers_lasse(_Config) ->
-    T = fun(Opts) -> http_handler_raw(<<"lasse_handler">>, Opts) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"localhost", "/api", lasse_handler, [mongoose_client_api_sse]}],
-         T(#{<<"module">> => <<"mongoose_client_api_sse">>})),
-    ?err(T(#{<<"module">> => <<"mooongooose_api_ssie">>})),
-    ?err(T(#{})).
-
-listen_http_handlers_static(_Config) ->
-    T = fun(Opts) -> http_handler_raw(<<"cowboy_static">>, Opts) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"localhost", "/api", cowboy_static,
-              {priv_dir, cowboy_swagger, "swagger",
-               [{mimetypes, cow_mimetypes, all}]}
-             }],
-         T(#{<<"type">> => <<"priv_dir">>, <<"app">> => <<"cowboy_swagger">>,
-             <<"content_path">> => <<"swagger">>})),
-    ?cfg(P, [{"localhost", "/api", cowboy_static,
-              {file, "swagger", [{mimetypes, cow_mimetypes, all}]}
-             }],
-         T(#{<<"type">> => <<"file">>, <<"content_path">> => <<"swagger">>})),
-    ?err(T(#{<<"type">> => <<"priv_dir">>, <<"app">> => <<"cowboy_swagger">>})).
+listen_http_handlers_client_api(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_client_api),
+    ?cfg(P ++ [handlers], [mongoose_client_api_messages],
+         T(#{<<"handlers">> => [<<"mongoose_client_api_messages">>]})),
+    ?cfg(P ++ [docs], false, T(#{<<"docs">> => false})),
+    ?err(T(#{<<"handlers">> => [not_a_module]})),
+    ?err(T(#{<<"docs">> => <<"maybe">>})).
 
 listen_http_handlers_api(_Config) ->
-    T = fun(Opts) -> http_handler_raw(<<"mongoose_api">>, Opts) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"localhost", "/api", mongoose_api,
-              [{handlers, [mongoose_api_metrics,
-                           mongoose_api_users]}]}
-            ],
-         T(#{<<"handlers">> => [<<"mongoose_api_metrics">>, <<"mongoose_api_users">>]})),
-    ?err(T(#{<<"handlers">> => [<<"not_an_api_module">>]})),
-    ?err(T(#{})).
+    {P, T} = test_listen_http_handler(mongoose_api),
+    ?cfg(P ++ [handlers], [mongoose_api_metrics],
+         T(#{<<"handlers">> => [<<"mongoose_api_metrics">>]})),
+    ?err(T(#{<<"handlers">> => [not_a_module]})).
+
+listen_http_handlers_api_admin(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_api_admin),
+    test_listen_http_handler_creds(P, T).
+
+listen_http_handlers_api_client(_Config) ->
+    test_listen_http_handler(mongoose_api_client).
 
 listen_http_handlers_domain(_Config) ->
-    T = fun(Opts) -> http_handler_raw(<<"mongoose_domain_handler">>, Opts) end,
-    P = [listen, 1, handlers],
-    ?cfg(P, [{"localhost", "/api", mongoose_domain_handler,
-              [{password, <<"cool">>}, {username, <<"admin">>}]
-             }],
-         T(#{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
-    ?cfg(P, [{"localhost", "/api", mongoose_domain_handler, []}], T(#{})),
+    {P, T} = test_listen_http_handler(mongoose_domain_handler),
+    test_listen_http_handler_creds(P, T).
+
+test_listen_http_handler_creds(P, T) ->
+    CredsRaw = #{<<"username">> => <<"user">>, <<"password">> => <<"pass">>},
+    ?cfg(P ++ [username], <<"user">>, T(CredsRaw)),
+    ?cfg(P ++ [password], <<"pass">>, T(CredsRaw)),
     %% Both username and password required. Or none.
-    ?err(T(#{<<"username">> => <<"admin">>})),
-    ?err(T(#{<<"password">> => <<"cool">>})).
+    [?err(T(maps:remove(Key, CredsRaw))) || Key <- maps:keys(CredsRaw)],
+    ?err(CredsRaw#{<<"username">> => 1}),
+    ?err(CredsRaw#{<<"password">> => 1}).
+
+test_listen_http_handler(Module) ->
+    T = fun(Opts) -> http_handler_raw(Module, Opts) end,
+    P = [listen, 1, handlers, 1],
+    ?cfg(P, config([listen, http, handlers, Module], #{host => "localhost", path => "/api"}),
+         T(#{})),
+    ?cfg(P ++ [host], '_', T(#{<<"host">> => <<"_">>})),
+    ?cfg(P ++ [path], "/my-path", T(#{<<"path">> => <<"/my-path">>})),
+    ?err(T(#{<<"host">> => <<>>})),
+    ?err(T(#{<<"host">> => undefined})),
+    ?err(T(#{<<"path">> => 12})),
+    ?err(T(#{<<"path">> => undefined})),
+    {P, T}.
 
 test_listen(P, T) ->
     ?cfg(P ++ [ip_address], "192.168.1.16", T(#{<<"ip_address">> => <<"192.168.1.16">>})),
@@ -3051,11 +3052,10 @@ listener(Type, Opts) ->
     config([listen, Type], Opts).
 
 http_handler_raw(Type, Opts) ->
+    MergedOpts = maps:merge(#{<<"host">> => <<"localhost">>, <<"path">> => <<"/api">>}, Opts),
     listen_raw(http, #{<<"port">> => 5280,
-                       <<"handlers">> => #{Type =>
-                                               [Opts#{<<"host">> => <<"localhost">>,
-                                                      <<"path">> => <<"/api">>}]
-                                          }}).
+                       <<"handlers">> => #{atom_to_binary(Type) => [remove_undefined(MergedOpts)]}}
+              ).
 
 listen_raw(Type, Opts) ->
     #{<<"listen">> => #{atom_to_binary(Type) => [remove_undefined(Opts)]}}.
@@ -3196,7 +3196,7 @@ handle_config_option(Opt1, Opt2) ->
 -spec compare_nodes(mongoose_config:key_path(), mongoose_config:value(), mongoose_config:value()) ->
           any().
 compare_nodes([listen], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_listener/2);
+    compare_ordered_lists(V1, V2, fun handle_listener/2);
 compare_nodes([outgoing_pools], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
 compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
@@ -3214,31 +3214,14 @@ compare_nodes(Node, V1, V2) ->
 %% Comparisons of internal config option parts
 
 handle_listener(V1, V2) ->
+    ct:pal("Listeners: ~p~n~p", [V1,V2]),
     compare_maps(V1, V2, fun handle_listener_option/2).
 
 handle_listener_option({tls, O1}, {tls, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_listener_option({handlers, M1}, {handlers, M2}) ->
-    compare_unordered_lists(M1, M2, fun handle_listener_module/2);
+    compare_ordered_lists(M1, M2, fun compare_maps/2);
 handle_listener_option(V1, V2) -> ?eq(V1, V2).
-
-handle_listener_module({H1, P1, M1}, M2) ->
-    handle_listener_module({H1, P1, M1, []}, M2);
-handle_listener_module({H1, P1, M1, O1}, {H2, P2, M2, O2}) ->
-    ?eq(H1, H2),
-    ?eq(P1, P2),
-    ?eq(M1, M2),
-    compare_listener_module_options(M1, O1, O2).
-
-compare_listener_module_options(mod_websockets, L1, L2) ->
-    E1 = proplists:get_value(ejabberd_service, L1, []),
-    E2 = proplists:get_value(ejabberd_service, L2, []),
-    T1 = proplists:delete(ejabberd_service, L1),
-    T2 = proplists:delete(ejabberd_service, L2),
-    compare_unordered_lists(E1, E2),
-    compare_unordered_lists(T1, T2);
-compare_listener_module_options(_, O1, O2) ->
-    ?eq(O1, O2).
 
 handle_item_with_opts({M1, O1}, {M2, O2}) ->
     ?eq(M1, M2),

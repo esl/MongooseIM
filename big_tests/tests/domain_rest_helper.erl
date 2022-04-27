@@ -114,9 +114,10 @@ listener_opts(Params) ->
              transport => config([listen, http, transport], #{num_acceptors => 10})}).
 
 domain_handler(Params) ->
-    {"localhost", "/api", mongoose_domain_handler, handler_opts(Params)}.
+    maps:merge(#{host => "localhost", path => "/api", module => mongoose_domain_handler},
+               handler_opts(Params)).
 
 handler_opts(#{skip_auth := true}) ->
-    [];
+    #{};
 handler_opts(_Params) ->
-    [{password, <<"secret">>}, {username, <<"admin">>}].
+    #{password => <<"secret">>, username => <<"admin">>}.
