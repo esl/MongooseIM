@@ -11,10 +11,12 @@ input(<<"PresenceType">>, Type) ->
 input(<<"Affiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"Affiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"Affiliation">>, <<"NONE">>) -> {ok, none};
+input(<<"AddressTags">>, Name) -> {ok, Name};
 input(<<"BlockingAction">>, <<"ALLOW">>) -> {ok, allow};
 input(<<"BlockingAction">>, <<"DENY">>) -> {ok, deny};
 input(<<"BlockedEntityType">>, <<"USER">>) -> {ok, user};
 input(<<"BlockedEntityType">>, <<"ROOM">>) -> {ok, room};
+input(<<"EmailTags">>, Name) -> {ok, Name};
 input(<<"SubAction">>, <<"INVITE">>) -> {ok, invite};
 input(<<"SubAction">>, <<"ACCEPT">>) -> {ok, accept};
 input(<<"SubAction">>, <<"DECLINE">>) -> {ok, decline};
@@ -28,7 +30,9 @@ input(<<"MUCAffiliation">>, <<"NONE">>) -> {ok, none};
 input(<<"MUCAffiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"MUCAffiliation">>, <<"OUTCAST">>) -> {ok, outcast};
 input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
-input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner}.
+input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
+input(<<"PrivacyClassification">>, Name) -> {ok, Name};
+input(<<"TelephoneTags">>, Name) -> {ok, Name}.
 
 output(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Show)))};
@@ -59,4 +63,7 @@ output(<<"ContactAsk">>, Type) when Type =:= subscrube;
 output(<<"MUCRole">>, Role) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Role)))};
 output(<<"MUCAffiliation">>, Aff) ->
-    {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))}.
+    {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))};
+output(<<"EmailTags">>, Name) -> {ok, Name};
+output(<<"PrivacyClassification">>, Name) -> {ok, Name};
+output(<<"TelephoneTags">>, Name) -> {ok, Name}.

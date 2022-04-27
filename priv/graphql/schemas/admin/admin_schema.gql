@@ -23,7 +23,9 @@ type AdminQuery{
   "MUC Light room management"
   muc_light: MUCLightAdminQuery
   "Roster/Contacts management"
-  roster: RosterAdminQuery 
+  roster: RosterAdminQuery
+  "Vcard management"
+  vcard: VcardAdminQuery
 }
 
 """
@@ -45,4 +47,6 @@ type AdminMutation @protected{
   muc_light: MUCLightAdminMutation
   "Roster/Contacts management"
   roster: RosterAdminMutation
+  "Vcard management"
+  vcard: VcardAdminMutation
 }

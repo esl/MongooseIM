@@ -1,0 +1,323 @@
+type Vcard{
+    "Formatted name from Vcard"
+    formattedName: String
+    "Person's name details"
+    nameComponents: NameComponents
+    "User's nickname"
+    nickname: [String]
+    "User's photo"
+    photo: [String]
+    "Birthday date"
+    birthday: [String]
+    "Address"
+    address: [Address]
+    "Label"
+    label: [Label]
+    "Telephone properties"
+    telephone: [Telephone]
+    "Email Addresses"
+    email: [Email]
+    "JabberId"
+    jabberId: [String]
+    "Mailer"
+    mailer: [String]
+    "Time zone"
+    timeZone: [String]
+    "Geographical position"
+    geo: [GeographicalPosition]
+    "Title property"
+    title: [String]
+    "Role property"
+    role: [String]
+    "Logo property"
+    logo: [String]
+    "Agent"
+    agent: [String]
+    "Organization"
+    org: [Organization]
+    "Categories"
+    categories: [Keyword]
+    "Note"
+    note: [String]
+    "Identifier of product that generated the vCard property"
+    prodId: [String]
+    "Last revised property. The value must be an ISO 8601 formatted UTC date/time."
+    rev: [String]
+    "Sort string property."
+    sortString: [String]
+    "Formatted name pronunciation property."
+    sound: [String]
+    "Unique identifier property"
+    uid: [String]
+    "Directory URL property"
+    url: [String]
+    "Free-form descriptive text"
+    desc: [String]
+    "Privacy classification property"
+    class: [Privacy]
+    "Authentication credential or encryption  key property"
+    key: [Key]
+}
+
+type Keyword{
+    keyword: [String]
+}
+
+type NameComponents{
+    "Family name"
+    family: String
+    "Given name"
+    givenName: String
+    "Middle name"
+    middleName: String
+    "Prefix"
+    prefix: String
+    "Sufix"
+    sufix: String
+}
+
+type Address{
+    "Address tags"
+    tags: [AddressTags]
+    "Pobox"
+    pobox: String
+    "EXTADD ?"
+    extadd: String
+    "Street name"
+    street: String
+    "Locality Name"
+    locality: String
+    "Region name"
+    region: String
+    "Postal code"
+    pcode: String
+    "Country name"
+    country: String
+}
+
+type Label{
+    "Label tags"
+    tags: [AddressTags]
+    "Line"
+    line: [String]
+}
+
+type Telephone{
+    "Telephone tags"
+    tags: [TelephoneTags]
+    "Number"
+    number: String
+}
+
+type Email{
+    "Email tags"
+    tags: [EmailTags]
+    "UserId"
+    userId: String
+}
+
+type GeographicalPosition{
+    "Geographical latitude"
+    lat: String
+    "Geographical longtitude"
+    lon: String
+}
+
+type Organization{
+    "Organization name"
+    orgname: String
+    "Organization unit"
+    orgunit: String
+}
+
+type Privacy{
+    "Privacy classification"
+    tags: [PrivacyClassification]
+}
+
+type Key{
+    "Credential"
+    credential: String
+}
+
+input VcardInput{
+    "Formatted name from Vcard"
+    formattedName: String!
+    "Person's name details"
+    nameComponents: NameComponentsInput!
+    "User's nickname"
+    nickname: [String]
+    "User's photo"
+    photo: [String!]
+    "Birthday date"
+    birthday: [String!]
+    "Address"
+    address: [AddressInput!]
+    "Label"
+    label: [LabelInput!]
+    "Telephone properties"
+    telephone: [TelephoneInput!]
+    "Email Addresses"
+    email: [EmailInput!]
+    "JabberId"
+    jabberId: [String!]
+    "Mailer"
+    mailer: [String!]
+    "Time zone"
+    timeZone: [String!]
+    "Geographical position"
+    geo: [GeographicalPositionInput!]
+    "Title property"
+    title: [String!]
+    "Role property"
+    role: [String!]
+    "Logo property"
+    logo: [String!]
+    "Agent"
+    agent: [String!]
+    "Organization"
+    org: [OrganizationInput!]
+    "Categories"
+    categories: [KeywordInput!]
+    "Note"
+    note: [String!]
+    "Identifier of product that generated the vCard property"
+    prodId: [String!]
+    "Last revised property. The value must be an ISO 8601 formatted UTC date/time."
+    rev: [String!]
+    "Sort string property."
+    sortString: [String!]
+    "Formatted name pronunciation property."
+    sound: [String!]
+    "Unique identifier property"
+    uid: [String!]
+    "Directory URL property"
+    url: [String!]
+    "Free-form descriptive text"
+    desc: [String!]
+    "Privacy classification property"
+    class: [PrivacyInput!]
+    "Authentication credential or encryption  key property"
+    key: [KeyInput!]
+}
+
+input KeywordInput{
+    keyword: [String!]
+}
+
+input NameComponentsInput{
+    "Family name"
+    family: String
+    "Given name"
+    givenName: String
+    "Middle name"
+    middleName: String
+    "Prefix"
+    prefix: String
+    "Sufix"
+    sufix: String
+}
+
+input AddressInput{
+    "Address tags"
+    tags: [AddressTags!]
+    "Pobox"
+    pobox: String
+    "EXTADD ?"
+    extadd: String
+    "Street name"
+    street: String
+    "Locality Name"
+    locality: String
+    "Region name"
+    region: String
+    "Postal code"
+    pcode: String
+    "Country name"
+    country: String
+}
+
+input LabelInput{
+    "Label tags"
+    tags: [AddressTags!]
+    "Line"
+    line: [String!]!
+}
+
+input TelephoneInput{
+    "Telephone tags"
+    tags: [TelephoneTags!]
+    "Number"
+    number: String!
+}
+
+input EmailInput{
+    "Email tags"
+    tags: [EmailTags!]
+    "UserId"
+    userId: String!
+}
+
+input GeographicalPositionInput{
+    "Geographical latitude"
+    lat: String!
+    "Geographical longtitude"
+    lon: String!
+}
+
+input OrganizationInput{
+    "Organization name"
+    orgname: String!
+    "Organization unit"
+    orgunit: [String!]
+}
+
+input PrivacyInput{
+    "Privacy classification"
+    tags: [PrivacyClassification!]
+}
+
+input KeyInput{
+    "Credential"
+    credential: String!
+}
+
+enum PrivacyClassification{
+    PUBLIC
+    PRIVATE
+    CONFIDENTIAL
+}
+
+enum AddressTags{
+    HOME
+    WORK
+    POSTAL
+    PARCEL
+    DOM
+    PREF
+    INTL
+}
+
+enum TelephoneTags{
+    HOME
+    WORK
+    VOICE
+    FAX
+    PAGER
+    MSG
+    CELL
+    VIDEO
+    BBS
+    MODEM
+    ISDN
+    PCS
+    PREF
+}
+
+enum EmailTags{
+    HOME
+    WORK
+    INTERNET
+    PREF
+    X400
+}
