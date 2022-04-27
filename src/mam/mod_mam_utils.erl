@@ -105,12 +105,8 @@
 
 -ifdef(MAM_INLINE_UTILS).
 -compile({inline, [
-                   rsm_ns_binary/0,
-                   mam_ns_binary/0,
-                   is_archived_elem_for/2,
                    is_valid_message/4,
                    is_valid_message_type/3,
-                   is_valid_message_children/3,
                    encode_compact_uuid/2,
                    get_one_of_path/3,
                    delay/2,
@@ -134,10 +130,6 @@
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
 -export_type([direction/0, retraction_id/0, retraction_info/0]).
-
-%% Constants
-rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
-
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -510,7 +502,7 @@ result_set(FirstId, LastId, undefined, undefined)
               || LastId =/= undefined],
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, rsm_ns_binary()}],
+       attrs = [{<<"xmlns">>, ?NS_RSM}],
        children = FirstEl ++ LastEl};
 result_set(FirstId, LastId, FirstIndexI, CountI)
   when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
@@ -528,7 +520,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
                  children = [#xmlcdata{content = integer_to_binary(CountI)}]},
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, rsm_ns_binary()}],
+       attrs = [{<<"xmlns">>, ?NS_RSM}],
        children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
