@@ -32,8 +32,8 @@
 config_spec() ->
     HandlerModules = [Module || {_, Module, _} <- api_paths()],
     #section{items = #{<<"handlers">> => #list{items = #option{type = atom,
-                                                              validate = {enum, HandlerModules}},
-                                              validate = unique},
+                                                               validate = {enum, HandlerModules}},
+                                               validate = unique},
                        <<"docs">> => #option{type = boolean}},
              defaults = #{<<"handlers">> => HandlerModules,
                           <<"docs">> => true},
