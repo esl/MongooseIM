@@ -58,22 +58,95 @@ admin_set_vcard(Config) ->
                                     fun admin_set_vcard/3).
 
 admin_set_vcard(Config, Alice, _Bob) ->
-    Query = <<"mutation M1($vcard: VcardInput!, $user: JID!)
-               { vcard { setVcard(vcard: $vcard, user: $user) {formattedName nameComponents {givenName} nickname photo address {tags} }}}">>,
+    Query = get_full_vcard_as_result_mutation(),
     OpName = <<"M1">>,
-    Vcard = #{formattedName => <<"TestName">>,
-              nameComponents => #{},
-              address => #{tags => [<<"HOME">>, <<"WORK">>, <<"INTL">>], country => <<"COUNTRY123">>, street => <<"TESTSTREET123">>, region => <<"REGION777">>, locality => <<"LOCALITY123">>},
-              org => [#{orgname => <<"TESTNAME">>, orgunit => [<<"TEST1">>, <<"TEST2">>]}, #{orgname => <<"TESTNAME2">>}], telephone => [#{tags => [<<"HOME">>, <<"WORK">>],
-              number => <<"590190190">>}],
-              class => #{tags => [<<"CONFIDENTIAL">>, <<"PRIVATE">>]},
-              categories => #{keyword => [<<"ABX">>, <<"HHHH">>]},
-              key => [#{credential => <<"TESTCREDENTIAL1">>}, #{credential => <<"TESTCREDENTIAL2">>}]
-              },
+    Vcard = #{
+        <<"formattedName">> => <<"TestName">>,
+        <<"nameComponents">> => #{
+            <<"family">> => <<"familyName">>,
+            <<"givenName">> => <<"givenName">>,
+            <<"middleName">> => <<"middleName">>,
+            <<"prefix">> => <<"prefix">>,
+            <<"sufix">> => <<"sufix">>
+        },
+        <<"nickname">> => [<<"NicknameTest">>],
+        <<"photo">> => [<<"photoTest">>],
+        <<"birthday">> => [<<"birthdayTest">>],
+        <<"address">> => [
+            #{
+                <<"tags">> => [<<"HOME">>],
+                <<"pobox">> => <<"poboxTest">>,
+                <<"extadd">> => <<"extaddTest">>,
+                <<"street">> => <<"TESTSTREET123">>,
+                <<"locality">> => <<"LOCALITY123">>,
+                <<"region">> => <<"REGION777">>,
+                <<"pcode">> => <<"PcodeTest">>,
+                <<"country">> => <<"COUNTRY123">>
+            }
+        ],
+        <<"label">> => [
+           #{
+                <<"tags">> => [<<"WORK">>],
+                <<"line">> => [<<"LineTest">>]
+            }
+        ],
+        <<"telephone">> => [
+            #{
+                <<"tags">> => [<<"HOME">>],
+                <<"number">> => <<"590190190">>
+            }
+        ],
+        <<"email">> => [
+            #{
+                <<"tags">> => [<<"PREF">>],
+                <<"userId">> => <<"userIDTEst">>
+            }
+        ],
+        <<"jabberId">> => [<<"JabberId">>],
+        <<"mailer">> => [<<"MailerTest">>],
+        <<"timeZone">> => [<<"TimeZoneTest">>],
+        <<"geo">> => [
+            #{
+                <<"lat">> => <<"LatitudeTest">>,
+                <<"lon">> => <<"LongtitudeTest">>
+            }
+        ],
+        <<"title">> => [<<"TitleTest">>],
+        <<"role">> => [<<"roleTest">>],
+        <<"logo">> => [<<"LogoTest">>],
+        <<"agent">> => [<<"AgentTest">>],
+        <<"org">> =>[
+            #{
+                <<"orgname">> => <<"TESTNAME">>,
+                <<"orgunit">> => [<<"TEST1">>, <<"TEST2">>]
+            }
+        ],
+        <<"categories">> => [
+            #{
+                <<"keyword">> => [<<"KeywordTest">>]
+            }
+        ],
+        <<"note">> => [<<"NoteTest">>],
+        <<"prodId">> => [<<"ProdIdTest">>],
+        <<"rev">> => [<<"revTest">>],
+        <<"sortString">> => [<<"sortStringTest">>],
+        <<"sound">> => [<<"SoundTest">>],
+        <<"uid">> => [<<"UidTest">>],
+        <<"url">> => [<<"UrlTest">>],
+        <<"desc">> => [<<"DescTest">>],
+        <<"class">> => [
+            #{<<"tags">> => [<<"CONFIDENTIAL">>]}
+        ],
+        <<"key">> => [
+            #{<<"credential">> => <<"TESTCREDENTIAL1">>}
+        ]
+    },
     Vars = #{user => user_to_bin(Alice), vcard => Vcard},
     Body = #{query => Query, operationName => OpName, variables => Vars},
-    execute_auth(Body, Config).
-    %escalus_client:send(Alice, ).
+    GraphQlRequest = execute_auth(Body, Config),
+    ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
+    ?assertEqual(Vcard, ParsedResult).
+    %Stanza = escalus_client:send_and_wait(Alice, escalus_stanza:vcard_request()).
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -86,3 +159,91 @@ admin_get_vcard(Config, Alice, _Bob) ->
     Vars = #{user => user_to_bin(Alice)},
     Body = #{query => Query, operationName => OpName, variables => Vars},
     execute_auth(Body, Config).
+
+%% Helpers
+ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
+    maps:get(What2, maps:get(What1, Data)).
+
+get_full_vcard_as_result_mutation() ->
+    <<"mutation M1($vcard: VcardInput!, $user: JID!)
+       {vcard
+       {setVcard(vcard: $vcard, user: $user)
+                {
+                    formattedName
+                    nameComponents
+                    {
+                        family
+                        givenName
+                        middleName
+                        prefix
+                        sufix
+                    }
+                    nickname
+                    photo
+                    birthday
+                    address
+                    {
+                        tags
+                        pobox
+                        extadd
+                        street
+                        locality
+                        region
+                        pcode
+                        country
+                    }
+                    label
+                    {
+                        tags
+                        line
+                    }
+                    telephone
+                    {
+                        tags
+                        number
+                    }
+                    email
+                    {
+                       tags
+                       userId
+                    }
+                    jabberId
+                    mailer
+                    timeZone
+                    geo
+                    {
+                        lat
+                        lon
+                    }
+                    title
+                    role
+                    logo
+                    agent
+                    org
+                    {
+                        orgname
+                        orgunit
+                    }
+                    categories
+                    {
+                        keyword
+                    }
+                    note
+                    prodId
+                    rev
+                    sortString
+                    sound
+                    uid
+                    url
+                    desc
+                    class
+                    {
+                        tags
+                    }
+                    key
+                    {
+                        credential
+                    }
+                }
+            }
+        }">>.

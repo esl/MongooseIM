@@ -155,7 +155,7 @@ transform_from_xml(<<"JABBERID">>, Value, Acc) ->
 transform_from_xml(<<"MAILER">>, Value, Acc) ->
     proccess_simple(<<"mailer">>, Value, Acc);
 transform_from_xml(<<"TZ">>, Value, Acc) ->
-    proccess_simple(<<"timezone">>, Value, Acc);
+    proccess_simple(<<"timeZone">>, Value, Acc);
 transform_from_xml(<<"GEO">>, Value, Acc) ->
     proccess_complex(<<"geo">>, Value, Acc, fun geo_components_proccess/2);
 transform_from_xml(<<"TITLE">>, Value, Acc) ->
@@ -167,13 +167,13 @@ transform_from_xml(<<"LOGO">>, Value, Acc) ->
 transform_from_xml(<<"AGENT">>, Value, Acc) ->
     proccess_simple(<<"agent">>, Value, Acc);
 transform_from_xml(<<"ORG">>, Value, Acc) ->
-    proccess_complex(<<"geo">>, Value, Acc, fun org_components_proccess/2);
+    proccess_complex(<<"org">>, Value, Acc, fun org_components_proccess/2);
 transform_from_xml(<<"CATEGORIES">>, Value, Acc) ->
     proccess_complex(<<"categories">>, Value, Acc, fun categories_components_proccess/2);
 transform_from_xml(<<"NOTE">>, Value, Acc) ->
     proccess_simple(<<"note">>, Value, Acc);
 transform_from_xml(<<"PRODID">>, Value, Acc) ->
-    proccess_simple(<<"prodid">>, Value, Acc);
+    proccess_simple(<<"prodId">>, Value, Acc);
 transform_from_xml(<<"REV">>, Value, Acc) ->
     proccess_simple(<<"rev">>, Value, Acc);
 transform_from_xml(<<"SOR">>, Value, Acc) ->
@@ -192,7 +192,8 @@ transform_from_xml(<<"KEY">>, Value, Acc) ->
     proccess_complex(<<"key">>, Value, Acc, fun key_components_proccess/2).
 
 proccess_value([{_, Value}]) ->
-    Value; proccess_value(_) ->
+    Value;
+proccess_value(_) ->
     null.
 
 proccess_simple(Name, [{_, Value}], Acc) ->
@@ -237,7 +238,8 @@ address_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
 label_components_proccess(#xmlel{name = <<"LINE">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"line">> => proccess_value(Value)});
+    List = maps:get(<<"line">>, Acc, []),
+    maps:merge(Acc, #{<<"line">> => List ++ [{ok, proccess_value(Value)}]});
 label_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
