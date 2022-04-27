@@ -1111,14 +1111,13 @@ maybe_set_client_xmlns(true, Packet) ->
 maybe_set_client_xmlns(false, Packet) ->
     Packet.
 
-
 -spec action_to_shaper_name(mam_iq:action()) -> atom().
 action_to_shaper_name(Action) ->
     list_to_atom(atom_to_list(Action) ++ "_shaper").
 
 -spec action_to_global_shaper_name(mam_iq:action()) -> atom().
-action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
-
+action_to_global_shaper_name(Action) ->
+    list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 -spec wait_shaper(mongooseim:host_type(), jid:server(), mam_iq:action(), jid:jid()) ->
     'ok' | {'error', 'max_delay_reached'}.
