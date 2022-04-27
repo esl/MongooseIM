@@ -1,5 +1,12 @@
-enum MUCRoomRole{
+enum MUCAffiliation{
+  OWNER
+  ADMIN
+  MEMBER
+  OUTCAST
   NONE
+}
+
+enum MUCRole{
   VISITOR
   PARTICIPANT
   MODERATOR
@@ -8,7 +15,12 @@ enum MUCRoomRole{
 type MUCRoomUser{
   jid: JID
   nick: String!
-  role: MUCRoomRole!
+  role: MUCRole!
+}
+
+type MUCRoomAffiliation{
+  jid: JID!
+  affiliation: MUCAffiliation!
 }
 
 type MUCRoomDesc{

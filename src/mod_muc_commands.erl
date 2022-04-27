@@ -29,12 +29,10 @@
 -export([send_message_to_room/4]).
 -export([kick_user_from_room/3]).
 
+-include_lib("jid/include/jid.hrl").
+
 -ignore_xref([create_instant_room/4, invite_to_room/5, kick_user_from_room/3,
               send_message_to_room/4]).
-
--include("mongoose.hrl").
--include("jlib.hrl").
--include("mod_muc_room.hrl").
 
 start(_, _) ->
     mongoose_commands:register(commands()).
@@ -116,74 +114,49 @@ commands() ->
     ].
 
 create_instant_room(Domain, Name, Owner, Nick) ->
-    %% Because these stanzas are sent on the owner's behalf through
-    %% the HTTP API, they will certainly recieve stanzas as a
-    %% consequence, even if their client(s) did not initiate this.
-    OwnerJID = jid:binary_to_bare(Owner),
-    BareRoomJID = #jid{server = MUCDomain} = room_jid(Domain, Name),
-    UserRoomJID = jid:make(Name, MUCDomain, Nick),
-    %% Send presence to create a room.
-    ejabberd_router:route(OwnerJID, UserRoomJID,
-                          presence(OwnerJID, UserRoomJID)),
-    %% Send IQ set to unlock the room.
-    ejabberd_router:route(OwnerJID, BareRoomJID,
-                          declination(OwnerJID, BareRoomJID)),
-    case verify_room(BareRoomJID, OwnerJID) of
-        ok ->
-            Name;
-        Error ->
-            Error
+    case jid:binary_to_bare(Owner) of
+        error ->
+            error;
+        OwnerJID ->
+            #jid{luser = RName, lserver = MUCServer} = room_jid(Domain, Name),
+            case mod_muc_api:create_instant_room(MUCServer, RName, OwnerJID, Nick) of
+                {ok, #{title := RName}} -> RName;
+                Error -> make_rest_error(Error)
+            end
     end.
 
 invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
     case mongoose_stanza_helper:parse_from_to(Sender, Recipient) of
-        {ok, SenderJid, RecipientJid} ->
-            RoomJid = room_jid(Domain, Name),
-            case verify_room(RoomJid, SenderJid) of
-                ok ->
-                    %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
-                    X = #xmlel{name = <<"x">>,
-                               attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                                        {<<"jid">>, jid:to_binary(RoomJid)},
-                                        {<<"reason">>, Reason}]
-                    },
-                    Invite = message(SenderJid, RecipientJid, <<>>, [ X ]),
-                    ejabberd_router:route(SenderJid, RecipientJid, Invite);
+        {ok, SenderJID, RecipientJID} ->
+            RoomJID = room_jid(Domain, Name),
+            case mod_muc_api:invite_to_room(RoomJID, SenderJID, RecipientJID, Reason) of
+                {ok, _} ->
+                    ok;
                 Error ->
-                    Error
+                    make_rest_error(Error)
             end;
         Error ->
             Error
     end.
 
 send_message_to_room(Domain, Name, Sender, Message) ->
-    RoomJid = room_jid(Domain, Name),
+    RoomJID = room_jid(Domain, Name),
     case jid:from_binary(Sender) of
         error ->
             error;
-        SenderJid ->
-            Body = #xmlel{name = <<"body">>,
-                          children = [ #xmlcdata{ content = Message } ]
-                         },
-            Stanza = message(SenderJid, RoomJid, <<"groupchat">>, [ Body ]),
-            ejabberd_router:route(SenderJid, RoomJid, Stanza)
+        SenderJID ->
+            mod_muc_api:send_message_to_room(RoomJID, SenderJID, Message)
     end.
 
 kick_user_from_room(Domain, Name, Nick) ->
-    %% All the machinery which is already deeply embedded in the MUC
-    %% modules will perform the neccessary checking.
-    RoomJid = room_jid(Domain, Name),
-    SenderJid = room_moderator(RoomJid),
-    Reason = #xmlel{name = <<"reason">>,
-                    children = [ #xmlcdata{ content = reason() } ]
-                   },
-    Item = #xmlel{name = <<"item">>,
-                  attrs = [{<<"nick">>, Nick},
-                           {<<"role">>, <<"none">>}],
-                  children = [ Reason ]
-                 },
-    IQ = iq(<<"set">>, SenderJid, RoomJid, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
-    ejabberd_router:route(SenderJid, RoomJid, IQ).
+    Reason = <<"User kicked from the admin REST API">>,
+    RoomJID = room_jid(Domain, Name),
+    case mod_muc_api:kick_user_from_room(RoomJID, Nick, Reason) of
+        {ok, _} ->
+            ok;
+        Error ->
+            make_rest_error(Error)
+    end.
 
 %%--------------------------------------------------------------------
 %% Ancillary
@@ -195,77 +168,7 @@ room_jid(Domain, Name) ->
     MUCDomain = mod_muc:server_host_to_muc_host(HostType, Domain),
     jid:make(Name, MUCDomain, <<>>).
 
--spec verify_room(jid:jid(), jid:jid()) ->
-    ok | {error, internal | not_found, term()}.
-verify_room(BareRoomJID, OwnerJID) ->
-    case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
-        {ok, true} ->
-            ok;
-        {ok, false} ->
-            {error, internal, "room is locked"};
-        {error, not_found} ->
-            {error, not_found, "room does not exist"}
-    end.
-
-iq(Type, Sender, Recipient, Children)
-  when is_binary(Type), is_list(Children) ->
-    Addresses = address_attributes(Sender, Recipient),
-    #xmlel{name = <<"iq">>,
-           attrs = Addresses ++ [{<<"type">>, Type}],
-           children = Children
-          }.
-
-message(Sender, Recipient, Type, Contents)
-  when is_binary(Type), is_list(Contents) ->
-    Addresses = address_attributes(Sender, Recipient),
-    Attributes = case Type of
-                     <<>> -> Addresses;
-                     _ -> [{<<"type">>, Type}|Addresses]
-                 end,
-    #xmlel{name = <<"message">>,
-           attrs = Attributes,
-           children = Contents
-          }.
-
-query(XMLNameSpace, Children)
-  when is_binary(XMLNameSpace), is_list(Children) ->
-    #xmlel{name = <<"query">>,
-           attrs = [{<<"xmlns">>, XMLNameSpace}],
-           children = Children
-          }.
-
-presence(Sender, Recipient) ->
-    #xmlel{name = <<"presence">>,
-           attrs = address_attributes(Sender, Recipient),
-           children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC}]}]
-          }.
-
-declination(Sender, Recipient) ->
-    iq(<<"set">>, Sender, Recipient, [ data_submission() ]).
-
-data_submission() ->
-    query(?NS_MUC_OWNER, [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                       {<<"type">>, <<"submit">>}]}]).
-
-address_attributes(Sender, Recipient) ->
-    [
-     {<<"from">>, jid:to_binary(Sender)},
-     {<<"to">>, jid:to_binary(Recipient)}
-    ].
-
-reason() ->
-    <<"Kicked through HTTP Administration API.">>.
-
-
-room_moderator(RoomJID) ->
-    [JIDStruct|_] =
-        [ UserJID
-          || #user{ jid = UserJID,
-                    role = moderator } <- room_users(RoomJID) ],
-    JIDStruct.
-
-room_users(RoomJID) ->
-    {ok, Affiliations} = mod_muc_room:get_room_users(RoomJID),
-    Affiliations.
+make_rest_error({room_not_found, ErrMsg}) -> {error, not_found, ErrMsg};
+make_rest_error({user_not_found, ErrMsg}) -> {error, not_found, ErrMsg};
+make_rest_error({moderator_not_found, ErrMsg}) -> {error, not_found, ErrMsg};
+make_rest_error({internal, ErrMsg}) -> {error, internal, ErrMsg}.

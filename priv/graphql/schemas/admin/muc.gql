@@ -9,11 +9,21 @@ type MUCAdminMutation @protected{
   "Kick a user from a MUC room"
   kickUser(room: JID!, nick: String!, reason: String): String
   "Send a message to a MUC room"
-  sendMessageToRoom(room: JID!, from: JID!, body: String!): String
+  sendMessageToRoom(room: JID!, from: FullJID!, body: String!): String
+  "Send a private message to a MUC room user"
+  sendPrivateMessage(room: JID!, from: FullJID!, toNick: String!, body: String!): String
   "Remove a MUC room"
   deleteRoom(room: JID!, reason: String): String
   "Change configuration of a MUC room"
   changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig
+  "Change a user role"
+  setUserRole(room: JID!, nick: String!, role: MUCRole!): String
+  "Change a user affiliation"
+  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String
+  "Make a user enter the room with a given nick"
+  enterRoom(room: JID!, user: FullJID!, nick: String!, password: String): String
+  "Make a user with the given nick exit the room"
+  exitRoom(room: JID!, user: FullJID!, nick: String!): String
 }
 
 """
@@ -24,8 +34,10 @@ type MUCAdminQuery @protected{
   listRooms(mucDomain: String!, from: JID, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
   getRoomConfig(room: JID!): MUCRoomConfig
-  "Get users list of given MUC room"
+  "Get the user list of a given MUC room"
   listRoomUsers(room: JID!): [MUCRoomUser!]
+  "Get the affiliation list of given MUC room"
+  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
   "Get the MUC room archived messages"
   getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
 }

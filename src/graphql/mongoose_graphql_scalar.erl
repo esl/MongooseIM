@@ -2,6 +2,8 @@
 -export([input/2, output/2]).
 -ignore_xref([input/2, output/2]).
 
+-include_lib("jid/include/jid.hrl").
+
 -spec input(Type, Value) -> {ok, Coerced} | {error, Reason}
   when
     Type :: binary(),
@@ -11,6 +13,7 @@
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
 input(<<"Stanza">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
+input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
@@ -36,6 +39,14 @@ jid_from_binary(Value) ->
             {error, failed_to_parse_jid};
         Jid ->
             {ok, Jid}
+    end.
+
+full_jid_from_binary(Value) ->
+    case jid_from_binary(Value) of
+        {ok, #jid{lresource = <<>>}} ->
+            {error, jid_without_resource};
+        Result ->
+            Result
     end.
 
 binary_to_microseconds(DT) ->

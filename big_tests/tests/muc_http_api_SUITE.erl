@@ -126,7 +126,7 @@ invite_online_user_to_room(Config) ->
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
-        {{<<"404">>, _}, <<"room does not exist">>} = rest_helper:post(admin, Path, Body),
+        {{<<"404">>, _}, <<"Room not found">>} = rest_helper:post(admin, Path, Body),
         set_up_room(Config, Alice),
         {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
@@ -280,7 +280,7 @@ failed_invites(Config) ->
         BAlice = escalus_client:short_jid(Alice),
         BBob = escalus_client:short_jid(Bob),
         % non-existing room
-        {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
+        {{<<"404">>, _}, <<"Room not found">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
         % invite with bad jid
         {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
         {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
@@ -293,7 +293,7 @@ failed_messages(Config) ->
         % non-existing room
         BAlice = escalus_client:short_jid(Alice),
         BBob = escalus_client:short_jid(Bob),
-        {{<<"404">>, _}, <<"room does not exist">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
+        {{<<"404">>, _}, <<"Room not found">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
         % invite with bad jid
         {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
         {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
