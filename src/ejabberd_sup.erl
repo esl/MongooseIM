@@ -146,9 +146,9 @@ init([]) ->
          worker,
          [mod_muc_iq]},
     ShaperSup =
-        {ejabberd_shaper_sup,
-          {ejabberd_shaper_sup, start_link, []},
-          permanent, infinity, supervisor, [ejabberd_shaper_sup]},
+        {mongoose_shaper_sup,
+          {mongoose_shaper_sup, start_link, []},
+          permanent, infinity, supervisor, [mongoose_shaper_sup]},
     PG =
         {pg,
           {pg, start_link, [mim_scope]},
