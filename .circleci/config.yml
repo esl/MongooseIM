@@ -29,7 +29,7 @@ commands:
     steps:
       - run:
           name: Prepare cache key
-          command: tools/make-certs-cache-key.sh > certs_cache_key
+          command: tools/make-certs-cache-key.sh > certs_cache_key && cat certs_cache_key
       - restore_cache:
           name: Restore certificates
           key: *CERT_KEY
@@ -42,7 +42,7 @@ commands:
           name: Print cert hashes for debugging
           command: find tools/ssl -type f -exec md5sum {} \; | sort
       - run:
-          name: Continue if certificate data is valid
+          name: Continue if certificate exists
           command: test -f tools/ssl/mongooseim/key.pem
       - save_cache:
           name: Cache built certs
