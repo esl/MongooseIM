@@ -23,8 +23,8 @@
         max_delay :: non_neg_integer(),
         %% How many seconds to store each shaper
         ttl :: non_neg_integer(),
-        shapers :: dict:dict(),
-        a_times :: dict:dict()
+        shapers :: map(),
+        a_times :: map()
     }).
 -type state() :: #state{}.
 
@@ -101,8 +101,8 @@ reset_shapers(ProcName) ->
 init(Args) ->
     State = #state{max_delay = proplists:get_value(max_delay, Args, 3000),
                    ttl = proplists:get_value(ttl, Args, 120),
-                   shapers = dict:new(),
-                   a_times = dict:new()
+                   shapers = #{},
+                   a_times = #{}
                   },
     GCInt = proplists:get_value(gc_interval, Args, 30),
     timer:send_interval(timer:seconds(GCInt), delete_old_shapers),
@@ -151,31 +151,31 @@ new_key(Domain, Action, FromJID) ->
 -spec find_or_create_shaper(mongooseim:host_type(), key(), state()) ->
     shaper:shaper().
 find_or_create_shaper(HostType, Key, #state{shapers = Shapers}) ->
-    case dict:find(Key, Shapers) of
-        {ok, Shaper} -> Shaper;
-        error -> create_shaper(HostType, Key)
+    case Shapers of
+        #{Key := Shaper} -> Shaper;
+        _ -> create_shaper(HostType, Key)
     end.
 
 -spec update_access_time(key(), _, state()) -> state().
 update_access_time(Key, Now, State = #state{a_times = Times}) ->
-    State#state{a_times = dict:store(Key, Now, Times)}.
+    State#state{a_times = maps:put(Key, Now, Times)}.
 
 -spec save_shaper(key(), shaper:shaper(), state()) -> state().
 save_shaper(Key, Shaper, State = #state{shapers = Shapers}) ->
-    State#state{shapers = dict:store(Key, Shaper, Shapers)}.
+    State#state{shapers = maps:put(Key, Shaper, Shapers)}.
 
 -spec init_dicts(state()) -> state().
 init_dicts(State) ->
-    State#state{shapers = dict:new(), a_times = dict:new()}.
+    State#state{shapers = #{}, a_times = #{}}.
 
 -spec delete_old_shapers(state()) -> state().
 delete_old_shapers(State = #state{shapers = Shapers, a_times = Times, ttl = TTL}) ->
     Min = subtract_seconds(TTL),
     %% Copy recently modified shapers
-    dict:fold(fun
+    maps:fold(fun
         (_, ATime, Acc) when ATime < Min -> Acc; %% skip too old
         (Key, ATime, Acc) ->
-            Shaper = dict:fetch(Key, Shapers),
+            Shaper = maps:get(Key, Shapers),
             update_access_time(Key, ATime, save_shaper(Key, Shaper, Acc))
         end, init_dicts(State), Times).
 
