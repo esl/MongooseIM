@@ -8,10 +8,6 @@ input(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_lower(binary_to_list(Show)))};
 input(<<"PresenceType">>, Type) ->
     {ok, list_to_binary(string:to_lower(binary_to_list(Type)))};
-input(<<"AuthStatus">>, <<"AUTHORIZED">>) -> {ok, 'AUTHORIZED'};
-input(<<"AuthStatus">>, <<"UNAUTHORIZED">>)  -> {ok, 'UNAUTHORIZED'};
-input(<<"AuthType">>, <<"ADMIN">>) -> {ok, admin};
-input(<<"AuthType">>, <<"DOMAIN_ADMIN">>)  -> {ok, domain_admin};
 input(<<"Affiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"Affiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"Affiliation">>, <<"NONE">>) -> {ok, none};

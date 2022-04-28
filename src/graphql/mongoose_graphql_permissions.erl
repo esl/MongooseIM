@@ -121,7 +121,7 @@ check_field(#field{id = Name, selection_set = Set, args = Args,
                 #{type := Type, args := PArgs} = protected_dir_args_to_map(Dir),
                 Acc = check_field_args(Type, Ctx, PArgs, Args2),
                 acc_path(name(Name), Acc);
-            _ ->
+            [] ->
                false
         end,
     check_field_type(Res, Ctx, Params, Set, Name).
@@ -156,8 +156,6 @@ acc_path(_Field, false) -> false;
 acc_path(Field, {true, Acc}) -> {true, acc_path(Field, Acc)};
 acc_path(Field, #{path := Path} = Acc) ->
     Acc#{path => [Field | Path]}.
-%acc_path(Field, Acc) ->
-    %Acc#{path => [Field]}.
 
 protected_dir_args_to_map(#directive{args = Args}) ->
     Default = #{type => {enum, <<"DEFAULT">>}, args => []},

@@ -93,8 +93,8 @@ permissions() ->
 
 domain_permissions() ->
     [check_field_domain_permissions,
-     check_child_object_field_domain_permissions,
-     check_interface_field_domain_permissions
+     check_child_object_field_domain_permissions
+     %check_interface_field_domain_permissions TODO
     ].
 
 user_listener() ->

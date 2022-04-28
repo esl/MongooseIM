@@ -1,4 +1,4 @@
-"Inforamtion about user request authorization"
+"Information about user request authorization"
 type AdminAuthInfo{
   "Authorized for a domain"
   domain: String

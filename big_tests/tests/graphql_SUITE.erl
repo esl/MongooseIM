@@ -16,6 +16,7 @@
 -define(assertUserAuth(Username, Auth, Data),
         assert_auth(#{<<"username">> => Username,
                       <<"authStatus">> => atom_to_binary(Auth)}, Data)).
+
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 

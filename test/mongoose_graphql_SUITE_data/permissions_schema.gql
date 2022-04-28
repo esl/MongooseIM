@@ -3,7 +3,6 @@ schema{
   mutation: UserMutation
 }
 
-#directive @protected on FIELD_DEFINITION | OBJECT | INTERFACE
 directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
   on FIELD_DEFINITION | OBJECT | INTERFACE
 

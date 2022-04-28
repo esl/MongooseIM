@@ -27,14 +27,14 @@ execute(_Ctx, admin, <<"enableDomain">>, #{<<"domain">> := Domain}) ->
         ok ->
             {ok, #domain{enabled = true, domain = Domain}};
         {error, Error} ->
-            error_handler(Error, Domain, <<"">>)
+            error_handler(Error, Domain, <<>>)
     end;
 execute(_Ctx, admin, <<"disableDomain">>, #{<<"domain">> := Domain}) ->
     case mongoose_domain_api:disable_domain(Domain) of
         ok ->
             {ok, #domain{enabled = false, domain = Domain}};
         {error, Error} ->
-            error_handler(Error, Domain, <<"">>)
+            error_handler(Error, Domain, <<>>)
     end;
 execute(_Ctx, admin, <<"setDomainPassword">>,
         #{<<"domain">> := Domain, <<"password">> := Password}) ->
@@ -42,7 +42,7 @@ execute(_Ctx, admin, <<"setDomainPassword">>,
         ok ->
             {ok, <<"Domain password set successfully">>};
         {error, Error} ->
-            error_handler(Error, Domain, <<"">>)
+            error_handler(Error, Domain, <<>>)
     end;
 execute(_Ctx, admin, <<"deleteDomainPassword">>, #{<<"domain">> := Domain}) ->
     ok = mongoose_domain_api:delete_domain_password(Domain),
