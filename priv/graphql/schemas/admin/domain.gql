@@ -14,6 +14,10 @@ type DomainAdminMutation @protected{
   enableDomain(domain: String!): Domain
   "Disable domain"
   disableDomain(domain: String!): Domain
+  "Create or update domain admin password"
+  setDomainPassword(domain: String!, password: String!): String
+  "Delete domain admin password"
+  deleteDomainPassword(domain: String!): String
 }
 
 "A result of domain removal"

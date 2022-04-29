@@ -44,6 +44,8 @@ init() ->
 -spec get_endpoint(atom()) -> graphql:endpoint_context().
 get_endpoint(admin) ->
     graphql_schema:get_endpoint_ctx(?ADMIN_EP_NAME);
+get_endpoint(domain_admin) ->
+    graphql_schema:get_endpoint_ctx(?ADMIN_EP_NAME);
 get_endpoint(user) ->
     graphql_schema:get_endpoint_ctx(?USER_EP_NAME);
 get_endpoint(Name) ->
@@ -72,12 +74,12 @@ execute(Ep, #{document := Doc,
         {ok, #{ast := Ast2,
                fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
         ok = graphql:validate(Ast2),
-        ok = mongoose_graphql_permissions:check_permissions(OpName, AuthStatus, Ast2),
         Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars),
         Ctx2 = Ctx#{params => Coerced,
                     operation_name => OpName,
                     authorized => AuthStatus,
                     error_module => mongoose_graphql_errors},
+        ok = mongoose_graphql_permissions:check_permissions(Ctx2, Ast2),
         {ok, graphql:execute(Ep, Ctx2, Ast2)}
     catch
         throw:{error, Err} ->
@@ -126,6 +128,7 @@ graphql_parse(Doc) ->
 admin_mapping_rules() ->
     #{objects => #{
         'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,

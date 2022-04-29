@@ -7,6 +7,10 @@
          disable_domain/1,
          enable_domain/1]).
 
+-export([select_domain_admin/1,
+         set_domain_admin/2,
+         delete_domain_admin/1]).
+
 -export([select_domain/1,
          get_minmax_event_id/0,
          count_events_between_ids/2,
@@ -80,10 +84,24 @@ start(#{db_pool := Pool}) ->
                    "domain_settings.enabled = ", True/binary, ") "
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
+    %% Admins
+    prepare(domain_insert_admin, domain_admins, [domain, password],
+            <<"INSERT INTO domain_admins (domain, password) VALUES (?, ?)">>),
+    prepare(domain_update_admin, domain_admins, [password, domain],
+            <<"UPDATE domain_admins"
+              " SET password = ? "
+              " WHERE domain = ?">>),
+    prepare(domain_delete_admin, domain_admins, [domain],
+            <<"DELETE FROM domain_admins WHERE domain = ?">>),
+    prepare(domain_select_admin, domain_admins, [domain],
+            <<"SELECT domain, password"
+              " FROM domain_admins WHERE domain = ?">>),
     ok.
 
 prepare_test_queries(Pool) ->
     True = sql_true(Pool),
+    prepare(domain_erase_admins, domain_admins, [],
+            <<"DELETE FROM domain_admins">>),
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
     prepare(domain_erase_events, domain_events, [],
@@ -147,6 +165,47 @@ disable_domain(Domain) ->
 
 enable_domain(Domain) ->
     set_enabled(Domain, true).
+
+select_domain_admin(Domain) ->
+    Pool = get_db_pool(),
+    case execute_successfully(Pool, domain_select_admin, [Domain]) of
+        {selected, []} ->
+            {error, not_found};
+        {selected, [Row]} ->
+             {ok, Row}
+    end.
+
+set_domain_admin(Domain, Password) ->
+    transaction(fun(Pool) ->
+                    case select_domain_admin(Domain) of
+                        {ok, _} ->
+                            update_domain_admin(Pool, Domain, Password),
+                            ok;
+                        {error, not_found} ->
+                            insert_domain_admin(Pool, Domain, Password),
+                            ok
+                    end
+                end).
+
+delete_domain_admin(Domain) ->
+    transaction(fun(Pool) ->
+                    case select_domain_admin(Domain) of
+                        {ok, _} ->
+                            {updated, 1} = delete_domain_admin(Pool, Domain),
+                            ok;
+                        {error, not_found} ->
+                            ok
+                    end
+                end).
+
+insert_domain_admin(Pool, Domain, Password) ->
+    execute_successfully(Pool, domain_insert_admin, [Domain, Password]).
+
+update_domain_admin(Pool, Domain, Password) ->
+    execute_successfully(Pool, domain_update_admin, [Password, Domain]).
+
+delete_domain_admin(Pool, Domain) ->
+    execute_successfully(Pool, domain_delete_admin, [Domain]).
 
 %% Returns smallest id first
 select_from(FromId, Limit) ->
@@ -230,7 +289,8 @@ insert_full_event_mssql(EventId, Domain) ->
 
 erase_database(Pool) ->
     execute_successfully(Pool, domain_erase_events, []),
-    execute_successfully(Pool, domain_erase_settings, []).
+    execute_successfully(Pool, domain_erase_settings, []),
+    execute_successfully(Pool, domain_erase_admins, []).
 
 insert_domain_settings_without_event(Domain, HostType) ->
     Pool = get_db_pool(),

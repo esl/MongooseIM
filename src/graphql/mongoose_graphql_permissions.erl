@@ -22,20 +22,52 @@
 %% @end
 -module(mongoose_graphql_permissions).
 
--export([check_permissions/3]).
+-export([check_permissions/2]).
 
 -include_lib("graphql/src/graphql_schema.hrl").
 -include_lib("graphql/src/graphql_internal.hrl").
 -include_lib("graphql/include/graphql.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -type auth_status() :: boolean().
+-type auth_role() :: user | admin | domain_admin.
+-type params() :: map().
+-type auth_ctx() :: #{operation_name := binary(),
+                      params := params(),
+                      authorized := auth_status(),
+                      authorized_as => auth_role(),
+                      user => jid:jid(),
+                      admin => jid:jid(),
+                      atom() => any()}.
+-type no_access_info() :: #{path := [binary()],
+                            type := atom(),
+                            invalid := [binary()]}.
+-type field_check_result() :: ok | no_access_info().
 -type document() :: #document{}.
+-type definitions() :: [any()].
 
-%% @doc Checks if query can be executed by unauthorized request. If not, throws
-%% an error. When request is authorized, just skip.
+%% @doc Checks if query can be executed by unauthorized request or authorized as one
+%% of the roles (USER, ADMIN, DOMAIN_ADMIN). If not, throw an error.
+%%
+%% The USER and ADMIN can execute each query because they are on separated GraphQL
+%% instances that serves different queries.
+%%
+%% The DOMAIN_ADMIN use the same GraphQL instance as ADMIN, but have permissions
+%% only to administrate own domain.
 %% @end
--spec check_permissions(binary(), auth_status(), document()) -> ok.
-check_permissions(OpName, false, #document{definitions = Definitions}) ->
+-spec check_permissions(auth_ctx(), document()) -> ok.
+check_permissions(#{operation_name := OpName, authorized := false},
+                  #document{definitions = Definitions}) ->
+    check_unauthorized_request_permissions(OpName, Definitions);
+check_permissions(#{operation_name := OpName, authorized_as := domain_admin,
+                    admin := #jid{lserver = Domain}, params := Params},
+                  #document{definitions = Definitions}) ->
+    check_domain_authorized_request_permissions(OpName, Domain, Params, Definitions);
+check_permissions(#{authorized := true}, _) ->
+    ok.
+
+-spec check_unauthorized_request_permissions(binary(), definitions()) -> ok.
+check_unauthorized_request_permissions(OpName, Definitions) ->
     Op = lists:filter(fun(D) -> is_req_operation(D, OpName) end, Definitions),
     case Op of
         [#op{schema = Schema, selection_set = Set} = Op1] ->
@@ -58,11 +90,94 @@ check_permissions(OpName, false, #document{definitions = Definitions}) ->
             end;
         _ ->
             ok
-    end;
-check_permissions(_, true, _) ->
-    ok.
+    end.
+
+-spec check_domain_authorized_request_permissions(binary(), binary(),
+                                                  params(), definitions()) -> ok.
+check_domain_authorized_request_permissions(OpName, Domain, Params, Definitions) ->
+    Op = lists:filter(fun(D) -> is_req_operation(D, OpName) end, Definitions),
+    case Op of
+        [#op{selection_set = Set}] ->
+            case check_fields(#{domain => Domain}, Params, Set) of
+                ok ->
+                    ok;
+                #{invalid := Args, path := Path, type := Type} ->
+                    OpName2 = op_name(OpName),
+                    Error = {no_permissions, OpName2, Type, Args},
+                    Path2 = lists:reverse([OpName2 | Path]),
+                    graphql_err:abort(Path2, authorize, Error)
+            end;
+        _ ->
+            ok
+    end.
 
 % Internal
+
+-spec check_fields(map(), map(), [any()]) -> field_check_result().
+check_fields(Ctx, Params, Fields) ->
+    Fun = fun(F, ok) -> check_field(F, Ctx, Params);
+             (_, NoAccessInfo) -> NoAccessInfo
+          end,
+    lists:foldl(Fun, ok, Fields).
+
+-spec check_field(field() | any(), map(), map()) -> field_check_result().
+check_field(#field{id = Name, selection_set = Set, args = Args,
+                   schema = #schema_field{directives = Directives}}, Ctx, Params) ->
+    Args2 = maps:from_list([prepare_arg(ArgName, Type, Params) || {ArgName, Type} <- Args]),
+    Res = check_field_args(Ctx, Args2, Directives),
+    Res2 = check_field_type(Res, Ctx, Params, Set),
+    add_path(Res2, name(Name));
+check_field(_, _, _) -> ok.
+
+-spec check_field_args(map(), map(), [graphql:directive()]) -> field_check_result().
+check_field_args(Ctx, Args, Directives) ->
+    case lists:filter(fun is_protected_directive/1, Directives) of
+        [#directive{} = Dir] ->
+            #{type := {enum, Type}, args := PArgs} = protected_dir_args_to_map(Dir),
+            check_field_args(Type, Ctx, PArgs, Args);
+        [] ->
+            ok
+    end.
+
+-spec check_field_args(binary(), map(), [binary()], map()) -> field_check_result().
+check_field_args(<<"DOMAIN">>, #{domain := Domain}, ProtectedArgs, Args) ->
+    InvalidArgs =
+        lists:filter(fun(N) -> not arg_eq(maps:get(N, Args), Domain) end, ProtectedArgs),
+    make_result(InvalidArgs, domain);
+check_field_args(<<"DEFAULT">>, _Ctx, _ProtectedArgs, _Args) ->
+    ok.
+
+-spec check_field_type(field_check_result(), map(), map(), [any()]) -> field_check_result().
+check_field_type(ok, Ctx, Params, Set) ->
+    check_fields(Ctx, Params, Set);
+check_field_type(NoAccessInfo, _, _, _) ->
+    NoAccessInfo.
+
+prepare_arg(ArgName, #{value := #var{id = Name}}, Vars) ->
+    {ArgName, maps:get(name(Name), Vars)};
+prepare_arg(ArgName, #{value := Val}, _) ->
+    {ArgName, Val}.
+
+arg_eq(Domain, Domain) -> true;
+arg_eq(#jid{lserver = Domain}, Domain) ->  true;
+arg_eq(_, _) ->  false.
+
+make_result([], _) ->
+    ok;
+make_result(InvalidArgs, Type) when is_atom(Type) ->
+    #{type => Type, path => [], invalid => InvalidArgs}.
+
+add_path(ok, _) -> ok;
+add_path(#{path := Path} = Acc, FieldName) ->
+    Acc#{path => [FieldName | Path]}.
+
+protected_dir_args_to_map(#directive{args = Args}) ->
+    Default = #{type => {enum, <<"DEFAULT">>}, args => []},
+    ArgsMap = maps:from_list([{binary_to_atom(name(N)), V} || {N, V} <- Args]),
+    maps:merge(Default, ArgsMap).
+
+name({name, _, N}) -> N;
+name(N) when is_binary(N) -> N.
 
 op_name(undefined) ->
     <<"ROOT">>;

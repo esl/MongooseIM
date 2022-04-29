@@ -49,7 +49,7 @@
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
  {<<"graphql">>,
   {git,"https://github.com/Premwoik/graphql-erlang.git",
-       {ref,"469728e9126f132450ad0b8239bd2ad12ee7b605"}},
+       {ref,"72bf290d50b4b5e2f462e06ccfdc5645a6d6401a"}},
   0},
  {<<"gun">>,{pkg,<<"gun">>,<<"1.3.3">>},0},
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.13.0">>},1},

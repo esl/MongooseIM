@@ -1,2 +1,7 @@
 "Marks the resource to be accessed only by authorized requests"
-directive @protected on FIELD_DEFINITION | OBJECT | INTERFACE
+directive @protected (type: String = ALL, args: [String!] = []) on FIELD_DEFINITION | OBJECT | INTERFACE
+
+enum ProtectedType{
+  DOMAIN
+  ALL
+}

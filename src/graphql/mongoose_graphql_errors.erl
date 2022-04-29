@@ -98,7 +98,12 @@ authorize_err_msg({request_error, {header, <<"authorization">>}, _}) ->
 authorize_err_msg(wrong_credentials) ->
     "The provided credentials are wrong";
 authorize_err_msg({no_permissions, Op}) ->
-    io_lib:format("Cannot execute query ~s without permissions", [Op]).
+    io_lib:format("Cannot execute query ~s without permissions", [Op]);
+authorize_err_msg({no_permissions, Op, Res, InvalidArgs}) ->
+    InvalidArgs2 = lists:join(", ", InvalidArgs),
+    Format = "Cannot execute query ~s without permissions to the given ~s. "
+                ++ "Args with invalid value: ~s",
+    io_lib:format(Format, [Op, Res, InvalidArgs2]).
 
 parse_err_msg({parser_error, {Line, graphql_parser, Msg}}) ->
     io_lib:format("Cannot parse line ~B because of ~s", [Line, Msg]);
