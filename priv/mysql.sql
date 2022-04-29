@@ -521,7 +521,7 @@ CREATE TABLE offline_markers (
 
 CREATE INDEX i_offline_markers ON offline_markers(jid);
 
-CREATE TABLE domain_admin(
+CREATE TABLE domain_admins(
      domain VARCHAR(250) NOT NULL,
      password VARCHAR(250) NOT NULL,
      PRIMARY KEY(domain)

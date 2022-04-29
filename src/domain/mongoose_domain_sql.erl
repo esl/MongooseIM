@@ -85,21 +85,23 @@ start(#{db_pool := Pool}) ->
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
     %% Admins
-    prepare(domain_insert_admin, domain_admin, [domain, password],
-            <<"INSERT INTO domain_admin (domain, password) VALUES (?, ?)">>),
-    prepare(domain_update_admin, domain_admin, [password, domain],
-            <<"UPDATE domain_admin"
+    prepare(domain_insert_admin, domain_admins, [domain, password],
+            <<"INSERT INTO domain_admins (domain, password) VALUES (?, ?)">>),
+    prepare(domain_update_admin, domain_admins, [password, domain],
+            <<"UPDATE domain_admins"
               " SET password = ? "
               " WHERE domain = ?">>),
-    prepare(domain_delete_admin, domain_admin, [domain],
-            <<"DELETE FROM domain_admin WHERE domain = ?">>),
-    prepare(domain_select_admin, domain_admin, [domain],
+    prepare(domain_delete_admin, domain_admins, [domain],
+            <<"DELETE FROM domain_admins WHERE domain = ?">>),
+    prepare(domain_select_admin, domain_admins, [domain],
             <<"SELECT domain, password"
-              " FROM domain_admin WHERE domain = ?">>),
+              " FROM domain_admins WHERE domain = ?">>),
     ok.
 
 prepare_test_queries(Pool) ->
     True = sql_true(Pool),
+    prepare(domain_erase_admins, domain_admins, [],
+            <<"DELETE FROM domain_admins">>),
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
     prepare(domain_erase_events, domain_events, [],
@@ -200,7 +202,7 @@ insert_domain_admin(Pool, Domain, Password) ->
     execute_successfully(Pool, domain_insert_admin, [Domain, Password]).
 
 update_domain_admin(Pool, Domain, Password) ->
-    execute_successfully(Pool, domain_update_admin, [Domain, Password]).
+    execute_successfully(Pool, domain_update_admin, [Password, Domain]).
 
 delete_domain_admin(Pool, Domain) ->
     execute_successfully(Pool, domain_delete_admin, [Domain]).
@@ -287,7 +289,8 @@ insert_full_event_mssql(EventId, Domain) ->
 
 erase_database(Pool) ->
     execute_successfully(Pool, domain_erase_events, []),
-    execute_successfully(Pool, domain_erase_settings, []).
+    execute_successfully(Pool, domain_erase_settings, []),
+    execute_successfully(Pool, domain_erase_admins, []).
 
 insert_domain_settings_without_event(Domain, HostType) ->
     Pool = get_db_pool(),
