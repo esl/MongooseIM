@@ -58,7 +58,7 @@ admin_set_vcard(Config) ->
                                     fun admin_set_vcard/3).
 
 admin_set_vcard(Config, Alice, _Bob) ->
-    Query = get_full_vcard_as_result_mutation(),
+    Query = admin_get_full_vcard_as_result_mutation(),
     OpName = <<"M1">>,
     Vcard = #{
         <<"formattedName">> => <<"TestName">>,
@@ -85,46 +85,29 @@ admin_set_vcard(Config, Alice, _Bob) ->
             }
         ],
         <<"label">> => [
-           #{
-                <<"tags">> => [<<"WORK">>],
-                <<"line">> => [<<"LineTest">>]
-            }
+           #{<<"tags">> => [<<"WORK">>], <<"line">> => [<<"LineTest">>]}
         ],
         <<"telephone">> => [
-            #{
-                <<"tags">> => [<<"HOME">>],
-                <<"number">> => <<"590190190">>
-            }
+            #{<<"tags">> => [<<"HOME">>], <<"number">> => <<"590190190">>}
         ],
         <<"email">> => [
-            #{
-                <<"tags">> => [<<"PREF">>],
-                <<"userId">> => <<"userIDTEst">>
-            }
+            #{<<"tags">> => [<<"PREF">>], <<"userId">> => <<"userIDTEst">>}
         ],
         <<"jabberId">> => [<<"JabberId">>],
         <<"mailer">> => [<<"MailerTest">>],
         <<"timeZone">> => [<<"TimeZoneTest">>],
         <<"geo">> => [
-            #{
-                <<"lat">> => <<"LatitudeTest">>,
-                <<"lon">> => <<"LongtitudeTest">>
-            }
+            #{<<"lat">> => <<"LatitudeTest">>, <<"lon">> => <<"LongtitudeTest">>}
         ],
         <<"title">> => [<<"TitleTest">>],
         <<"role">> => [<<"roleTest">>],
         <<"logo">> => [<<"LogoTest">>],
         <<"agent">> => [<<"AgentTest">>],
         <<"org">> =>[
-            #{
-                <<"orgname">> => <<"TESTNAME">>,
-                <<"orgunit">> => [<<"TEST1">>, <<"TEST2">>]
-            }
+            #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>]}
         ],
         <<"categories">> => [
-            #{
-                <<"keyword">> => [<<"KeywordTest">>]
-            }
+            #{<<"keyword">> => [<<"KeywordTest">>]}
         ],
         <<"note">> => [<<"NoteTest">>],
         <<"prodId">> => [<<"ProdIdTest">>],
@@ -146,104 +129,136 @@ admin_set_vcard(Config, Alice, _Bob) ->
     GraphQlRequest = execute_auth(Body, Config),
     ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
     ?assertEqual(Vcard, ParsedResult).
-    %Stanza = escalus_client:send_and_wait(Alice, escalus_stanza:vcard_request()).
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_get_vcard/3).
 
 admin_get_vcard(Config, Alice, _Bob) ->
-    Query = <<"query Q1($user: JID!)
-               { vcard { getVcard(user: $user) {formattedName nameComponents {givenName} nickname telephone{number}}}}">>,
-    OpName = <<"Q1">>,
+    Client1Fields = [{<<"ADR">>, [{<<"POBOX">>, <<"TESTPobox">>}, {<<"EXTADD">>, <<"TESTExtadd">>},
+        {<<"STREET">>, <<"TESTStreet">>}, {<<"LOCALITY">>, <<"TESTLocality">>},
+        {<<"REGION">>, <<"TESTRegion">>}, {<<"PCODE">>, <<"TESTPCODE">>},
+        {<<"CTRY">>, <<"TESTCTRY">>}, {<<"HOME">>, []}, {<<"WORK">>, []}]}],
+    escalus_client:send_and_wait(Alice, escalus_stanza:vcard_update(Client1Fields)),
     Vars = #{user => user_to_bin(Alice)},
-    Body = #{query => Query, operationName => OpName, variables => Vars},
-    execute_auth(Body, Config).
+    Body = #{query => admin_get_address_query(), operationName => <<"Q1">>, variables => Vars},
+    GraphQlRequest = execute_auth(Body, Config),
+    ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
+    ?assertEqual(#{<<"address">> => [#{<<"pobox">> => <<"TESTPobox">>,
+        <<"extadd">> => <<"TESTExtadd">>, <<"street">> => <<"TESTStreet">>,
+        <<"locality">> => <<"TESTLocality">>, <<"region">> => <<"TESTRegion">>,
+        <<"pcode">> => <<"TESTPCODE">>, <<"country">> => <<"TESTCTRY">>,
+        <<"tags">> => [<<"HOME">>, <<"WORK">>]}]}, ParsedResult).
 
 %% Helpers
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
     maps:get(What2, maps:get(What1, Data)).
 
-get_full_vcard_as_result_mutation() ->
-    <<"mutation M1($vcard: VcardInput!, $user: JID!)
-       {vcard
-       {setVcard(vcard: $vcard, user: $user)
-                {
-                    formattedName
-                    nameComponents
-                    {
-                        family
-                        givenName
-                        middleName
-                        prefix
-                        sufix
-                    }
-                    nickname
-                    photo
-                    birthday
-                    address
-                    {
-                        tags
-                        pobox
-                        extadd
-                        street
-                        locality
-                        region
-                        pcode
-                        country
-                    }
-                    label
-                    {
-                        tags
-                        line
-                    }
-                    telephone
-                    {
-                        tags
-                        number
-                    }
-                    email
-                    {
+
+admin_get_address_query() ->
+    <<"query Q1($user: JID!)
+       {
+           vcard
+           {
+               getVcard(user: $user)
+               {
+                   address
+                   {
                        tags
-                       userId
-                    }
-                    jabberId
-                    mailer
-                    timeZone
-                    geo
-                    {
-                        lat
-                        lon
-                    }
-                    title
-                    role
-                    logo
-                    agent
-                    org
-                    {
-                        orgname
-                        orgunit
-                    }
-                    categories
-                    {
-                        keyword
-                    }
-                    note
-                    prodId
-                    rev
-                    sortString
-                    sound
-                    uid
-                    url
-                    desc
-                    class
-                    {
-                        tags
-                    }
-                    key
-                    {
-                        credential
-                    }
-                }
-            }
-        }">>.
+                       pobox
+                       extadd
+                       street
+                       locality
+                       region
+                       pcode
+                       country
+                   }
+               }
+           }
+       }">>.
+
+admin_get_full_vcard_as_result_mutation() ->
+    <<"mutation M1($vcard: VcardInput!, $user: JID!)
+       {
+           vcard
+           {
+               setVcard(vcard: $vcard, user: $user)
+               {
+                   formattedName
+                   nameComponents
+                   {
+                       family
+                       givenName
+                       middleName
+                       prefix
+                       sufix
+                   }
+                   nickname
+                   photo
+                   birthday
+                   address
+                   {
+                       tags
+                       pobox
+                       extadd
+                       street
+                       locality
+                       region
+                       pcode
+                       country
+                   }
+                   label
+                   {
+                       tags
+                       line
+                   }
+                   telephone
+                   {
+                       tags
+                       number
+                   }
+                   email
+                   {
+                      tags
+                      userId
+                   }
+                   jabberId
+                   mailer
+                   timeZone
+                   geo
+                   {
+                       lat
+                       lon
+                   }
+                   title
+                   role
+                   logo
+                   agent
+                   org
+                   {
+                       orgname
+                       orgunit
+                   }
+                   categories
+                   {
+                       keyword
+                   }
+                   note
+                   prodId
+                   rev
+                   sortString
+                   sound
+                   uid
+                   url
+                   desc
+                   class
+                   {
+                       tags
+                   }
+                   key
+                   {
+                       credential
+                   }
+               }
+           }
+       }">>.

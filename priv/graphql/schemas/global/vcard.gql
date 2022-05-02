@@ -127,7 +127,7 @@ type Organization{
     "Organization name"
     orgname: String
     "Organization unit"
-    orgunit: String
+    orgunit: [String]
 }
 
 type Privacy{

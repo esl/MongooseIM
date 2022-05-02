@@ -18,14 +18,27 @@
          org_components_proccess/2
         ]).
 
+-ignore_xref([name_components_proccess/2,
+              address_components_proccess/2,
+              label_components_proccess/2,
+              telephone_components_proccess/2,
+              email_components_proccess/2,
+              geo_components_proccess/2,
+              transform_from_graphql/1,
+              to_gql_format/1,
+              org_components_proccess/2]).
+
 set_vcard(HostType, LUser, LServer, Vcard) ->
     mod_vcard:unsafe_set_vcard(HostType, #jid{user = LUser, lserver = LServer}, transform_from_graphql(Vcard)).
 
 get_vcard(HostType, LUser, LServer) ->
     try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
         {ok, VCARD} ->
+               io:format("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n"),
+               io:format("~p", [VCARD]),
+               io:format("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n"),
                [#xmlel{children = VcardData}] = VCARD,
-               to_gql_format(VcardData);
+               {ok, to_gql_format(VcardData)};
         {error, Reason} ->
                {error, Reason}
         catch E:R:Stack ->
@@ -71,61 +84,22 @@ transform_subfield_and_value(Name, Value) ->
     construct_xmlel(from_gql_to_xml(Name), [{xmlcdata, Value}]).
 
 proccess_child_map(Value) ->
-    io:format("~p", [maps:to_list(Value)]),
     lists:foldl(fun({Name, SubfieldValue}, Acc) ->
                     Acc ++ transform_subfield_and_value(Name, SubfieldValue)
                 end, [], maps:to_list(Value)).
 
 from_gql_to_xml(<<"formattedName">>) -> <<"FN">>;
 from_gql_to_xml(<<"nameComponents">>) -> <<"N">>;
-from_gql_to_xml(<<"nickname">>) -> <<"NICKNAME">>;
-from_gql_to_xml(<<"photo">>) -> <<"PHOTO">>;
 from_gql_to_xml(<<"birthday">>) -> <<"BDAY">>;
 from_gql_to_xml(<<"address">>) -> <<"ADR">>;
-from_gql_to_xml(<<"label">>) -> <<"LABEL">>;
 from_gql_to_xml(<<"telephone">>) -> <<"TEL">>;
-from_gql_to_xml(<<"email">>) -> <<"EMAIL">>;
-from_gql_to_xml(<<"jabberId">>) -> <<"JABBERID">>;
-from_gql_to_xml(<<"mailer">>) -> <<"MAILER">>;
 from_gql_to_xml(<<"timeZone">>) -> <<"TZ">>;
-from_gql_to_xml(<<"geo">>) -> <<"GEO">>;
-from_gql_to_xml(<<"title">>) -> <<"TITLE">>;
-from_gql_to_xml(<<"role">>) -> <<"ROLE">>;
-from_gql_to_xml(<<"logo">>) -> <<"LOGO">>;
-from_gql_to_xml(<<"agent">>) -> <<"AGENT">>;
-from_gql_to_xml(<<"org">>) -> <<"ORG">>;
-from_gql_to_xml(<<"categories">>) -> <<"CATEGORIES">>;
-from_gql_to_xml(<<"note">>) -> <<"NOTE">>;
-from_gql_to_xml(<<"prodId">>) -> <<"PRODID">>;
-from_gql_to_xml(<<"rev">>) -> <<"REV">>;
 from_gql_to_xml(<<"sortString">>) -> <<"SOR">>;
-from_gql_to_xml(<<"sound">>) -> <<"SOUND">>;
-from_gql_to_xml(<<"uid">>) -> <<"UID">>;
-from_gql_to_xml(<<"url">>) -> <<"URL">>;
-from_gql_to_xml(<<"desc">>) -> <<"DESC">>;
-from_gql_to_xml(<<"class">>) -> <<"CLASS">>;
-from_gql_to_xml(<<"key">>) -> <<"KEY">>;
-from_gql_to_xml(<<"lat">>) -> <<"LAT">>;
-from_gql_to_xml(<<"lon">>) -> <<"LON">>;
-from_gql_to_xml(<<"orgname">>) -> <<"ORGNAME">>;
-from_gql_to_xml(<<"locality">>) -> <<"LOCALITY">>;
-from_gql_to_xml(<<"orgunit">>) -> <<"ORGUNIT">>;
 from_gql_to_xml(<<"givenName">>) -> <<"GIVEN">>;
 from_gql_to_xml(<<"middleName">>) -> <<"MIDDLE">>;
-from_gql_to_xml(<<"family">>) -> <<"FAMILY">>;
-from_gql_to_xml(<<"prefix">>) -> <<"PREFIX">>;
-from_gql_to_xml(<<"sufix">>) -> <<"SUFIX">>;
-from_gql_to_xml(<<"pobox">>) -> <<"POBOX">>;
-from_gql_to_xml(<<"extadd">>) -> <<"EXTADD">>;
-from_gql_to_xml(<<"street">>) -> <<"STREET">>;
-from_gql_to_xml(<<"region">>) -> <<"REGION">>;
-from_gql_to_xml(<<"pcode">>) -> <<"PCODE">>;
-from_gql_to_xml(<<"number">>) -> <<"NUMBER">>;
-from_gql_to_xml(<<"line">>) -> <<"LINE">>;
-from_gql_to_xml(<<"userId">>) -> <<"USERID">>;
 from_gql_to_xml(<<"credential">>) -> <<"CRED">>;
-from_gql_to_xml(<<"keyword">>) -> <<"KEYWORD">>;
-from_gql_to_xml(<<"country">>) -> <<"CTRY">>.
+from_gql_to_xml(<<"country">>) -> <<"CTRY">>;
+from_gql_to_xml(Name) -> list_to_binary(string:to_upper(binary_to_list(Name))).
 
 to_gql_format(Vcard) ->
     lists:foldl(fun(#xmlel{name = Name, children = Value}, Acc) ->
@@ -209,30 +183,30 @@ proccess_complex(Name, Value, Acc, Fun) ->
                                         end, #{}, Value)}]}.
 
 name_components_proccess(#xmlel{name = <<"FAMILY">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"family">> => proccess_value(Value)});
+    maps:put(<<"family">>, proccess_value(Value), Acc);
 name_components_proccess(#xmlel{name = <<"GIVEN">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"givenName">> => proccess_value(Value)});
+    maps:put(<<"givenName">>, proccess_value(Value), Acc);
 name_components_proccess(#xmlel{name = <<"MIDDLE">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"middleName">> => proccess_value(Value)});
+    maps:put(<<"middleName">>, proccess_value(Value), Acc);
 name_components_proccess(#xmlel{name = <<"PREFIX">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"prefix">> => proccess_value(Value)});
+    maps:put(<<"prefix">>, proccess_value(Value), Acc);
 name_components_proccess(#xmlel{name = <<"SUFIX">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"sufix">> => proccess_value(Value)}).
+    maps:put(<<"sufix">>, proccess_value(Value), Acc).
 
 address_components_proccess(#xmlel{name = <<"POBOX">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"pobox">> => proccess_value(Value)});
+    maps:put(<<"pobox">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"EXTADD">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"extadd">> => proccess_value(Value)});
+    maps:put(<<"extadd">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"STREET">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"street">> => proccess_value(Value)});
+    maps:put(<<"street">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"LOCALITY">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"locality">> => proccess_value(Value)});
+    maps:put(<<"locality">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"REGION">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"region">> => proccess_value(Value)});
+    maps:put(<<"region">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"PCODE">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"pcode">> => proccess_value(Value)});
+    maps:put(<<"pcode">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = <<"CTRY">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"country">> => proccess_value(Value)});
+    maps:put(<<"country">>, proccess_value(Value), Acc);
 address_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
@@ -245,24 +219,24 @@ label_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
 telephone_components_proccess(#xmlel{name = <<"NUMBER">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"number">> => proccess_value(Value)});
+    maps:put(<<"number">>, proccess_value(Value), Acc);
 telephone_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
 email_components_proccess(#xmlel{name = <<"USERID">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"userId">> => proccess_value(Value)});
+    maps:put(<<"userId">>, proccess_value(Value), Acc);
 email_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
 geo_components_proccess(#xmlel{name = <<"LAT">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"lat">> => proccess_value(Value)});
+    maps:put(<<"lat">>, proccess_value(Value), Acc);
 geo_components_proccess(#xmlel{name = <<"LON">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"lon">> => proccess_value(Value)}).
+    maps:put(<<"lon">>, proccess_value(Value), Acc).
 
 org_components_proccess(#xmlel{name = <<"ORGNAME">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"orgname">> => proccess_value(Value)});
+    maps:put(<<"orgname">>, proccess_value(Value), Acc);
 org_components_proccess(#xmlel{name = <<"ORGUNIT">>, children = Value}, Acc) ->
     List = maps:get(<<"orgunit">>, Acc, []),
     maps:merge(Acc, #{<<"orgunit">> => List ++ [{ok, proccess_value(Value)}]}).
@@ -272,7 +246,7 @@ categories_components_proccess(#xmlel{name = <<"KEYWORD">>, children = Value}, A
     maps:merge(Acc, #{<<"keyword">> => List ++ [{ok, proccess_value(Value)}]}).
 
 key_components_proccess(#xmlel{name = <<"CRED">>, children = Value}, Acc) ->
-    maps:merge(Acc, #{<<"credential">> => proccess_value(Value)}).
+    maps:put(<<"credential">>, proccess_value(Value), Acc).
 
 class_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),

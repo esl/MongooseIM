@@ -3,6 +3,8 @@
 
 -export([execute/4]).
 
+-import(mongoose_graphql_helper, [make_error/2, format_result/2, null_to_default/2]).
+
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
@@ -11,47 +13,16 @@
 
 -define(UNKNOWN_DOMAIN_RESULT, {unknown_domain, "Domain not found"}).
 
-execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := #jid{luser = _LUser,
-                                                          lserver = _LServer} = _CallerJID}) ->
-    {ok, #{<<"formattedName">> => <<"TestName">>,
-           <<"nameComponents">> => #{<<"family">> => <<"TestFamily">>,
-                                     <<"givenName">> => <<"TestGiven">>,
-                                     <<"middleName">> => <<"Test middle">>,
-                                     <<"prefix">> => <<"Test prefix">>,
-                                     <<"sufix">> => <<"Test sufix">>},
-           <<"nickname">> => [{ok, <<"Test nickname">>}],
-           <<"photo">> => [{ok, <<"TestPhoto">>}],
-           <<"birthday">> => [{ok, <<"TestBirthday">>}],
-           <<"address">> => [{ok, #{<<"tags">> => [],
-                                    <<"pobox">> => <<"TestPobox">>,
-                                    <<"extadd">> => <<"Test Extadd">>,
-                                    <<"street">> => <<"TestStreet">>,
-                                    <<"locality">> => <<"testLocality">>,
-                                    <<"region">> => <<"TestRegion">>,
-                                    <<"pcode">> => <<"TestPcode">>,
-                                    <<"country">> => <<"TestCountry">>}}],
-           <<"label">> => [{ok, #{<<"tags">> => [], <<"line">> => []}}],
-           <<"telephone">> => [{ok, #{<<"tags">> => [], <<"number">> => "123456789"}}],
-           <<"email">> => [{ok, #{<<"tags">> => [], <<"userId">> => <<"UserId">>}}],
-           <<"jabberId">> => [{ok, <<"TestJabberId">>}],
-           <<"mailer">> => [{ok, <<"TestMailer">>}],
-           <<"timeZone">> => [{ok, <<"TestTimezone">>}],
-           <<"geo">> => [{ok, #{<<"lat">> => <<"latitude">>, <<"lon">> => <<"longtitude">>}}],
-           <<"title">> => [{ok, <<"testTitle">>}],
-           <<"role">> => [{ok, <<"testRole">>}],
-           <<"logo">> => [{ok, <<"testLogo">>}],
-           <<"agent">> => [{ok, <<"testAgent">>}],
-           <<"org">> => [{ok, #{<<"orgname">> => <<"testOrgname">>,
-                                <<"orgunit">> => [{ok, <<"testOrgunit">>}]}}],
-           <<"categories">> => [{ok, <<"testCategories">>}],
-           <<"note">> => [{ok, <<"testNote">>}],
-           <<"prodId">> => [{ok, <<"testProdId">>}],
-           <<"rev">> => [{ok, <<"testRev">>}],
-           <<"sortString">> => [{ok, <<"testSortString">>}],
-           <<"phonetic">> => [{ok, <<"testPhonetic">>}],
-           <<"uid">> => [{ok, <<"testUid">>}],
-           <<"url">> => [{ok, <<"testUrl">>}],
-           <<"desc">> => [{ok, <<"testDesc">>}],
-           <<"class">> => [{ok, <<"testClass">>}],
-           <<"key">> => [{ok, <<"testKey">>}]
-    }}.
+execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := #jid{luser = LUser,
+                                                          lserver = LServer} = CallerJID}) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case mod_vcard_api:get_vcard(HostType, LUser, LServer) of
+                {ok, _} = Vcard ->
+                    Vcard;
+                Error ->
+                    make_error(Error, #{user => CallerJID})
+            end;
+        Error ->
+            make_error(Error, #{user => CallerJID})
+    end.
