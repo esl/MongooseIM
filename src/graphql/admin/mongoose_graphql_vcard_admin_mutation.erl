@@ -5,6 +5,8 @@
 
 -export([execute/4]).
 
+-import(mongoose_graphql_helper, [make_error/2, format_result/2, null_to_default/2]).
+
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
@@ -13,11 +15,11 @@
 
 -define(UNKNOWN_DOMAIN_RESULT, {unknown_domain, "Domain not found"}).
 
-execute(_Ctx, vcard, <<"setVcard">>,
-        #{<<"user">> := #jid{luser = LUser, lserver = LServer} = _CallerJID,
-          <<"vcard">> := Vcard}) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            mod_vcard_api:set_vcard(HostType, LUser, LServer, Vcard),
-            mod_vcard_api:get_vcard(HostType, LUser, LServer)
-       end.
+execute(_Ctx, vcard, <<"setVcard">>, #{<<"user">> := CallerJID, <<"vcard">> := VCARD}) ->
+    case mod_vcard_api:set_vcard(CallerJID, VCARD) of
+        {ok, _} = Vcard -> Vcard;
+        {error, not_found} ->
+            make_error({error, "User does not exist"}, #{user => CallerJID});
+        _ ->
+            make_error({error, "Internal server error"}, #{user => CallerJID})
+    end.

@@ -34,7 +34,9 @@ end_per_suite(Config) ->
 
 admin_vcard_handler() ->
     [admin_set_vcard,
+     admin_set_vcard_no_user,
      admin_get_vcard].
+%     admin_get_vcard_no_user].
 
 init_per_group(admin_vcard, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -69,12 +71,12 @@ admin_set_vcard(Config, Alice, _Bob) ->
             <<"prefix">> => <<"prefix">>,
             <<"sufix">> => <<"sufix">>
         },
-        <<"nickname">> => [<<"NicknameTest">>],
-        <<"photo">> => [<<"photoTest">>],
-        <<"birthday">> => [<<"birthdayTest">>],
+        <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
+        <<"photo">> => [<<"photoTest">>, <<"SecondPhoto">>],
+        <<"birthday">> => [<<"birthdayTest">>, <<"SecondBirthday">>],
         <<"address">> => [
             #{
-                <<"tags">> => [<<"HOME">>],
+                <<"tags">> => [<<"HOME">>, <<"WORK">>],
                 <<"pobox">> => <<"poboxTest">>,
                 <<"extadd">> => <<"extaddTest">>,
                 <<"street">> => <<"TESTSTREET123">>,
@@ -82,46 +84,64 @@ admin_set_vcard(Config, Alice, _Bob) ->
                 <<"region">> => <<"REGION777">>,
                 <<"pcode">> => <<"PcodeTest">>,
                 <<"country">> => <<"COUNTRY123">>
+            },
+            #{
+                <<"tags">> => [<<"HOME">>, <<"WORK">>, <<"POSTAL">>],
+                <<"pobox">> => <<"poboxTestSecond">>,
+                <<"extadd">> => <<"extaddTestSecond">>,
+                <<"street">> => <<"TESTSTREET123Second">>,
+                <<"locality">> => <<"LOCALITY123Second">>,
+                <<"region">> => <<"REGION777TEST">>,
+                <<"pcode">> => <<"PcodeTestSECOND">>,
+                <<"country">> => <<"COUNTRY123SECOND">>
             }
         ],
         <<"label">> => [
-           #{<<"tags">> => [<<"WORK">>], <<"line">> => [<<"LineTest">>]}
+           #{<<"tags">> => [<<"WORK">>, <<"HOME">>], <<"line">> => [<<"LineTest">>, <<"AAA">>]},
+           #{<<"tags">> => [<<"POSTAL">>, <<"WORK">>], <<"line">> => [<<"LineTest2">>, <<"AAA">>]}
         ],
         <<"telephone">> => [
-            #{<<"tags">> => [<<"HOME">>], <<"number">> => <<"590190190">>}
+            #{<<"tags">> => [<<"HOME">>, <<"BBS">>], <<"number">> => <<"590190190">>},
+            #{<<"tags">> => [<<"WORK">>, <<"BBS">>], <<"number">> => <<"590190191">>}
         ],
         <<"email">> => [
-            #{<<"tags">> => [<<"PREF">>], <<"userId">> => <<"userIDTEst">>}
+            #{<<"tags">> => [<<"PREF">>], <<"userId">> => <<"userIDTEst">>},
+            #{<<"tags">> => [<<"PREF">>, <<"HOME">>], <<"userId">> => <<"userIDTEsTETt">>}
         ],
-        <<"jabberId">> => [<<"JabberId">>],
-        <<"mailer">> => [<<"MailerTest">>],
-        <<"timeZone">> => [<<"TimeZoneTest">>],
+        <<"jabberId">> => [<<"JabberId">>, <<"JabberIDSecind">>],
+        <<"mailer">> => [<<"MailerTest">>, <<"MailerSecond">>],
+        <<"timeZone">> => [<<"TimeZoneTest">>, <<"TimeZOneSecond">>],
         <<"geo">> => [
-            #{<<"lat">> => <<"LatitudeTest">>, <<"lon">> => <<"LongtitudeTest">>}
+            #{<<"lat">> => <<"LatitudeTest">>, <<"lon">> => <<"LongtitudeTest">>},
+            #{<<"lat">> => <<"LatitudeTest2">>, <<"lon">> => <<"LongtitudeTest2">>}
         ],
-        <<"title">> => [<<"TitleTest">>],
-        <<"role">> => [<<"roleTest">>],
-        <<"logo">> => [<<"LogoTest">>],
-        <<"agent">> => [<<"AgentTest">>],
+        <<"title">> => [<<"TitleTest">>, <<"SEcondTest">>],
+        <<"role">> => [<<"roleTest">>, <<"SecondRole">>],
+        <<"logo">> => [<<"LogoTest">>, <<"SecondLogo">>],
+        <<"agent">> => [<<"AgentTest">>, <<"SecondAgent">>],
         <<"org">> =>[
-            #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>]}
+            #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>, <<"TEST2">>]},
+            #{<<"orgname">> => <<"TESTNAME123">>, <<"orgunit">> => [<<"test1">>]}
         ],
         <<"categories">> => [
-            #{<<"keyword">> => [<<"KeywordTest">>]}
+            #{<<"keyword">> => [<<"KeywordTest">>]},
+            #{<<"keyword">> => [<<"KeywordTest">>, <<"Keyword2">>]}
         ],
-        <<"note">> => [<<"NoteTest">>],
-        <<"prodId">> => [<<"ProdIdTest">>],
-        <<"rev">> => [<<"revTest">>],
-        <<"sortString">> => [<<"sortStringTest">>],
-        <<"sound">> => [<<"SoundTest">>],
-        <<"uid">> => [<<"UidTest">>],
-        <<"url">> => [<<"UrlTest">>],
-        <<"desc">> => [<<"DescTest">>],
+        <<"note">> => [<<"NoteTest">>, <<"NOTE2">>],
+        <<"prodId">> => [<<"ProdIdTest">>, <<"PRodTEST2">>],
+        <<"rev">> => [<<"revTest">>, <<"RevTest2">>],
+        <<"sortString">> => [<<"sortStringTest">>, <<"String2">>],
+        <<"sound">> => [<<"SoundTest">>, <<"Sound2">>],
+        <<"uid">> => [<<"UidTest">>, <<"UID2">>],
+        <<"url">> => [<<"UrlTest">>, <<"URL2">>],
+        <<"desc">> => [<<"DescTest">>, <<"DESC2">>],
         <<"class">> => [
+            #{<<"tags">> => [<<"CONFIDENTIAL">>, <<"PRIVATE">>]},
             #{<<"tags">> => [<<"CONFIDENTIAL">>]}
         ],
         <<"key">> => [
-            #{<<"credential">> => <<"TESTCREDENTIAL1">>}
+            #{<<"credential">> => <<"TESTCREDENTIAL1">>},
+            #{<<"credential">> => <<"TESTCREDENTIAL2">>}
         ]
     },
     Vars = #{user => user_to_bin(Alice), vcard => Vcard},
@@ -129,6 +149,19 @@ admin_set_vcard(Config, Alice, _Bob) ->
     GraphQlRequest = execute_auth(Body, Config),
     ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
     ?assertEqual(Vcard, ParsedResult).
+
+admin_set_vcard_no_user(Config) ->
+    Query = admin_get_full_vcard_as_result_mutation(),
+    OpName = <<"M1">>,
+    Vcard = #{
+        <<"formattedName">> => <<"TestName">>,
+        <<"nameComponents">> => #{}
+    },
+    Vars = #{user => <<"AAAAA">>, vcard => Vcard},
+    Body = #{query => Query, operationName => OpName, variables => Vars},
+    GraphQlRequest = execute_auth(Body, Config),
+    ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest).
+
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -139,16 +172,17 @@ admin_get_vcard(Config, Alice, _Bob) ->
         {<<"STREET">>, <<"TESTStreet">>}, {<<"LOCALITY">>, <<"TESTLocality">>},
         {<<"REGION">>, <<"TESTRegion">>}, {<<"PCODE">>, <<"TESTPCODE">>},
         {<<"CTRY">>, <<"TESTCTRY">>}, {<<"HOME">>, []}, {<<"WORK">>, []}]}],
+    ExpectedResult = #{<<"address">> => [#{<<"pobox">> => <<"TESTPobox">>,
+        <<"extadd">> => <<"TESTExtadd">>, <<"street">> => <<"TESTStreet">>,
+        <<"locality">> => <<"TESTLocality">>, <<"region">> => <<"TESTRegion">>,
+        <<"pcode">> => <<"TESTPCODE">>, <<"country">> => <<"TESTCTRY">>,
+        <<"tags">> => [<<"HOME">>, <<"WORK">>]}]},
     escalus_client:send_and_wait(Alice, escalus_stanza:vcard_update(Client1Fields)),
     Vars = #{user => user_to_bin(Alice)},
     Body = #{query => admin_get_address_query(), operationName => <<"Q1">>, variables => Vars},
     GraphQlRequest = execute_auth(Body, Config),
     ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
-    ?assertEqual(#{<<"address">> => [#{<<"pobox">> => <<"TESTPobox">>,
-        <<"extadd">> => <<"TESTExtadd">>, <<"street">> => <<"TESTStreet">>,
-        <<"locality">> => <<"TESTLocality">>, <<"region">> => <<"TESTRegion">>,
-        <<"pcode">> => <<"TESTPCODE">>, <<"country">> => <<"TESTCTRY">>,
-        <<"tags">> => [<<"HOME">>, <<"WORK">>]}]}, ParsedResult).
+    ?assertEqual(ExpectedResult, ParsedResult).
 
 %% Helpers
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->

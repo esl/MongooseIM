@@ -6,9 +6,9 @@
 -include("mod_vcard.hrl").
 
 -export([transform_from_graphql/1,
-         set_vcard/4,
+         set_vcard/2,
          to_gql_format/1,
-         get_vcard/3,
+         get_vcard/1,
          name_components_proccess/2,
          address_components_proccess/2,
          label_components_proccess/2,
@@ -28,8 +28,39 @@
               to_gql_format/1,
               org_components_proccess/2]).
 
-set_vcard(HostType, LUser, LServer, Vcard) ->
-    mod_vcard:unsafe_set_vcard(HostType, #jid{user = LUser, lserver = LServer}, transform_from_graphql(Vcard)).
+set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case set_vcard(HostType, UserJID, Vcard) of
+                ok ->
+                    case get_vcard(HostType, LUser, LServer) of
+                        {ok, _} = Result ->
+                            Result;
+                        Error ->
+                            Error
+                    end;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+get_vcard(#jid{luser = LUser, lserver = LServer}) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case get_vcard(HostType, LUser, LServer) of
+                {ok, _} = Vcard ->
+                    Vcard;
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+set_vcard(HostType, UserJID, Vcard) ->
+    mod_vcard:unsafe_set_vcard(HostType, UserJID, transform_from_graphql(Vcard)).
 
 get_vcard(HostType, LUser, LServer) ->
     try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of

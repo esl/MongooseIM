@@ -13,16 +13,11 @@
 
 -define(UNKNOWN_DOMAIN_RESULT, {unknown_domain, "Domain not found"}).
 
-execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := #jid{luser = LUser,
-                                                          lserver = LServer} = CallerJID}) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            case mod_vcard_api:get_vcard(HostType, LUser, LServer) of
-                {ok, _} = Vcard ->
-                    Vcard;
-                Error ->
-                    make_error(Error, #{user => CallerJID})
-            end;
-        Error ->
-            make_error(Error, #{user => CallerJID})
+execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := CallerJID}) ->
+    case mod_vcard_api:get_vcard(CallerJID) of
+        {ok, _} = Vcard -> Vcard;
+        {error, not_found} ->
+            make_error({error, "User does not exist"}, #{user => CallerJID});
+        _ ->
+            make_error({error, "Internal server error"}, #{user => CallerJID})
     end.
