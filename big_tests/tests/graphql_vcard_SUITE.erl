@@ -17,11 +17,11 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [%{group, user_vcard},
+    [{group, user_vcard},
      {group, admin_vcard}].
 
 groups() ->
-    [%{user_vcard, [], user_vcard_handler()},
+    [{user_vcard, [], user_vcard_handler()},
      {admin_vcard, [], admin_vcard_handler()}].
 
 init_per_suite(Config) ->
@@ -43,6 +43,10 @@ admin_vcard_handler() ->
      admin_get_vcard,
      admin_get_vcard_no_user].
 
+user_vcard_handler() ->
+    [user_set_vcard,
+     user_get_vcard].
+
 init_per_group(admin_vcard, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(user_vcard, Config) ->
@@ -59,6 +63,38 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+%user test cases
+user_set_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_set_vcard/2).
+
+user_set_vcard(Config, Alice) ->
+    Query = user_get_full_vcard_as_result_mutation(),
+    OpName = <<"M1">>,
+    Vcard = complete_vcard_input(),
+    Vars = #{vcard => Vcard},
+    Body = #{query => Query, operationName => OpName, variables => Vars},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
+    ?assertEqual(Vcard, ParsedResult).
+
+user_get_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_vcard/2).
+
+user_get_vcard(Config, Alice) ->
+    Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
+    {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
+    {<<"HOME">>, []}]}],
+    ExpectedResult = #{<<"formattedName">> => <<"TESTNAME">>,
+        <<"email">> => [#{<<"userId">> => <<"TESTEMAIL">>, <<"tags">> => [<<"HOME">>, <<"WORK">>]},
+                        #{<<"userId">> => <<"TESTEMAIL2">>, <<"tags">> => [<<"HOME">>]}]},
+    escalus_client:send_and_wait(Alice, escalus_stanza:vcard_update(Client1Fields)),
+    Body = #{query => user_get_query(), operationName => <<"Q1">>, variables => #{}},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
+    ?assertEqual(ExpectedResult, ParsedResult).
+
 %% Admin test cases
 admin_set_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -67,88 +103,7 @@ admin_set_vcard(Config) ->
 admin_set_vcard(Config, Alice, _Bob) ->
     Query = admin_get_full_vcard_as_result_mutation(),
     OpName = <<"M1">>,
-    Vcard = #{
-        <<"formattedName">> => <<"TestName">>,
-        <<"nameComponents">> => #{
-            <<"family">> => <<"familyName">>,
-            <<"givenName">> => <<"givenName">>,
-            <<"middleName">> => <<"middleName">>,
-            <<"prefix">> => <<"prefix">>,
-            <<"sufix">> => <<"sufix">>
-        },
-        <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
-        <<"photo">> => [<<"photoTest">>, <<"SecondPhoto">>],
-        <<"birthday">> => [<<"birthdayTest">>, <<"SecondBirthday">>],
-        <<"address">> => [
-            #{
-                <<"tags">> => [<<"HOME">>, <<"WORK">>],
-                <<"pobox">> => <<"poboxTest">>,
-                <<"extadd">> => <<"extaddTest">>,
-                <<"street">> => <<"TESTSTREET123">>,
-                <<"locality">> => <<"LOCALITY123">>,
-                <<"region">> => <<"REGION777">>,
-                <<"pcode">> => <<"PcodeTest">>,
-                <<"country">> => <<"COUNTRY123">>
-            },
-            #{
-                <<"tags">> => [<<"HOME">>, <<"WORK">>, <<"POSTAL">>],
-                <<"pobox">> => <<"poboxTestSecond">>,
-                <<"extadd">> => <<"extaddTestSecond">>,
-                <<"street">> => <<"TESTSTREET123Second">>,
-                <<"locality">> => <<"LOCALITY123Second">>,
-                <<"region">> => <<"REGION777TEST">>,
-                <<"pcode">> => <<"PcodeTestSECOND">>,
-                <<"country">> => <<"COUNTRY123SECOND">>
-            }
-        ],
-        <<"label">> => [
-           #{<<"tags">> => [<<"WORK">>, <<"HOME">>], <<"line">> => [<<"LineTest">>, <<"AAA">>]},
-           #{<<"tags">> => [<<"POSTAL">>, <<"WORK">>], <<"line">> => [<<"LineTest2">>, <<"AAA">>]}
-        ],
-        <<"telephone">> => [
-            #{<<"tags">> => [<<"HOME">>, <<"BBS">>], <<"number">> => <<"590190190">>},
-            #{<<"tags">> => [<<"WORK">>, <<"BBS">>], <<"number">> => <<"590190191">>}
-        ],
-        <<"email">> => [
-            #{<<"tags">> => [<<"PREF">>], <<"userId">> => <<"userIDTEst">>},
-            #{<<"tags">> => [<<"PREF">>, <<"HOME">>], <<"userId">> => <<"userIDTEsTETt">>}
-        ],
-        <<"jabberId">> => [<<"JabberId">>, <<"JabberIDSecind">>],
-        <<"mailer">> => [<<"MailerTest">>, <<"MailerSecond">>],
-        <<"timeZone">> => [<<"TimeZoneTest">>, <<"TimeZOneSecond">>],
-        <<"geo">> => [
-            #{<<"lat">> => <<"LatitudeTest">>, <<"lon">> => <<"LongtitudeTest">>},
-            #{<<"lat">> => <<"LatitudeTest2">>, <<"lon">> => <<"LongtitudeTest2">>}
-        ],
-        <<"title">> => [<<"TitleTest">>, <<"SEcondTest">>],
-        <<"role">> => [<<"roleTest">>, <<"SecondRole">>],
-        <<"logo">> => [<<"LogoTest">>, <<"SecondLogo">>],
-        <<"agent">> => [<<"AgentTest">>, <<"SecondAgent">>],
-        <<"org">> =>[
-            #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>, <<"TEST2">>]},
-            #{<<"orgname">> => <<"TESTNAME123">>, <<"orgunit">> => [<<"test1">>]}
-        ],
-        <<"categories">> => [
-            #{<<"keyword">> => [<<"KeywordTest">>]},
-            #{<<"keyword">> => [<<"KeywordTest">>, <<"Keyword2">>]}
-        ],
-        <<"note">> => [<<"NoteTest">>, <<"NOTE2">>],
-        <<"prodId">> => [<<"ProdIdTest">>, <<"PRodTEST2">>],
-        <<"rev">> => [<<"revTest">>, <<"RevTest2">>],
-        <<"sortString">> => [<<"sortStringTest">>, <<"String2">>],
-        <<"sound">> => [<<"SoundTest">>, <<"Sound2">>],
-        <<"uid">> => [<<"UidTest">>, <<"UID2">>],
-        <<"url">> => [<<"UrlTest">>, <<"URL2">>],
-        <<"desc">> => [<<"DescTest">>, <<"DESC2">>],
-        <<"class">> => [
-            #{<<"tags">> => [<<"CONFIDENTIAL">>, <<"PRIVATE">>]},
-            #{<<"tags">> => [<<"CONFIDENTIAL">>]}
-        ],
-        <<"key">> => [
-            #{<<"credential">> => <<"TESTCREDENTIAL1">>},
-            #{<<"credential">> => <<"TESTCREDENTIAL2">>}
-        ]
-    },
+    Vcard = complete_vcard_input(),
     Vars = #{user => user_to_bin(Alice), vcard => Vcard},
     Body = #{query => Query, operationName => OpName, variables => Vars},
     GraphQlRequest = execute_auth(Body, Config),
@@ -158,10 +113,7 @@ admin_set_vcard(Config, Alice, _Bob) ->
 admin_set_vcard_no_user(Config) ->
     Query = admin_get_full_vcard_as_result_mutation(),
     OpName = <<"M1">>,
-    Vcard = #{
-        <<"formattedName">> => <<"TestName">>,
-        <<"nameComponents">> => #{}
-    },
+    Vcard = complete_vcard_input(),
     Vars = #{user => <<"AAAAA">>, vcard => Vcard},
     Body = #{query => Query, operationName => OpName, variables => Vars},
     GraphQlRequest = execute_auth(Body, Config),
@@ -206,6 +158,89 @@ ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
 error_result(What, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
     maps:get(What, Data).
 
+complete_vcard_input() ->
+   #{<<"formattedName">> => <<"TestName">>,
+     <<"nameComponents">> => #{
+         <<"family">> => <<"familyName">>,
+         <<"givenName">> => <<"givenName">>,
+         <<"middleName">> => <<"middleName">>,
+         <<"prefix">> => <<"prefix">>,
+         <<"sufix">> => <<"sufix">>
+     },
+     <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
+     <<"photo">> => [<<"photoTest">>, <<"SecondPhoto">>],
+     <<"birthday">> => [<<"birthdayTest">>, <<"SecondBirthday">>],
+     <<"address">> => [
+         #{
+             <<"tags">> => [<<"HOME">>, <<"WORK">>],
+             <<"pobox">> => <<"poboxTest">>,
+             <<"extadd">> => <<"extaddTest">>,
+             <<"street">> => <<"TESTSTREET123">>,
+             <<"locality">> => <<"LOCALITY123">>,
+             <<"region">> => <<"REGION777">>,
+             <<"pcode">> => <<"PcodeTest">>,
+             <<"country">> => <<"COUNTRY123">>
+         },
+         #{
+             <<"tags">> => [<<"HOME">>, <<"WORK">>, <<"POSTAL">>],
+             <<"pobox">> => <<"poboxTestSecond">>,
+             <<"extadd">> => <<"extaddTestSecond">>,
+             <<"street">> => <<"TESTSTREET123Second">>,
+             <<"locality">> => <<"LOCALITY123Second">>,
+             <<"region">> => <<"REGION777TEST">>,
+             <<"pcode">> => <<"PcodeTestSECOND">>,
+             <<"country">> => <<"COUNTRY123SECOND">>
+         }
+     ],
+     <<"label">> => [
+        #{<<"tags">> => [<<"WORK">>, <<"HOME">>], <<"line">> => [<<"LineTest">>, <<"AAA">>]},
+        #{<<"tags">> => [<<"POSTAL">>, <<"WORK">>], <<"line">> => [<<"LineTest2">>, <<"AAA">>]}
+     ],
+     <<"telephone">> => [
+         #{<<"tags">> => [<<"HOME">>, <<"BBS">>], <<"number">> => <<"590190190">>},
+         #{<<"tags">> => [<<"WORK">>, <<"BBS">>], <<"number">> => <<"590190191">>}
+     ],
+     <<"email">> => [
+         #{<<"tags">> => [<<"PREF">>], <<"userId">> => <<"userIDTEst">>},
+         #{<<"tags">> => [<<"PREF">>, <<"HOME">>], <<"userId">> => <<"userIDTEsTETt">>}
+     ],
+     <<"jabberId">> => [<<"JabberId">>, <<"JabberIDSecind">>],
+     <<"mailer">> => [<<"MailerTest">>, <<"MailerSecond">>],
+     <<"timeZone">> => [<<"TimeZoneTest">>, <<"TimeZOneSecond">>],
+     <<"geo">> => [
+         #{<<"lat">> => <<"LatitudeTest">>, <<"lon">> => <<"LongtitudeTest">>},
+         #{<<"lat">> => <<"LatitudeTest2">>, <<"lon">> => <<"LongtitudeTest2">>}
+     ],
+     <<"title">> => [<<"TitleTest">>, <<"SEcondTest">>],
+     <<"role">> => [<<"roleTest">>, <<"SecondRole">>],
+     <<"logo">> => [<<"LogoTest">>, <<"SecondLogo">>],
+     <<"agent">> => [<<"AgentTest">>, <<"SecondAgent">>],
+     <<"org">> =>[
+         #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>, <<"TEST2">>]},
+         #{<<"orgname">> => <<"TESTNAME123">>, <<"orgunit">> => [<<"test1">>]}
+     ],
+     <<"categories">> => [
+         #{<<"keyword">> => [<<"KeywordTest">>]},
+         #{<<"keyword">> => [<<"KeywordTest">>, <<"Keyword2">>]}
+     ],
+     <<"note">> => [<<"NoteTest">>, <<"NOTE2">>],
+     <<"prodId">> => [<<"ProdIdTest">>, <<"PRodTEST2">>],
+     <<"rev">> => [<<"revTest">>, <<"RevTest2">>],
+     <<"sortString">> => [<<"sortStringTest">>, <<"String2">>],
+     <<"sound">> => [<<"SoundTest">>, <<"Sound2">>],
+     <<"uid">> => [<<"UidTest">>, <<"UID2">>],
+     <<"url">> => [<<"UrlTest">>, <<"URL2">>],
+     <<"desc">> => [<<"DescTest">>, <<"DESC2">>],
+     <<"class">> => [
+         #{<<"tags">> => [<<"CONFIDENTIAL">>, <<"PRIVATE">>]},
+         #{<<"tags">> => [<<"CONFIDENTIAL">>]}
+     ],
+     <<"key">> => [
+         #{<<"credential">> => <<"TESTCREDENTIAL1">>},
+         #{<<"credential">> => <<"TESTCREDENTIAL2">>}
+     ]
+    }.
+
 admin_get_address_query() ->
     <<"query Q1($user: JID!)
        {
@@ -228,88 +263,115 @@ admin_get_address_query() ->
            }
        }">>.
 
-admin_get_full_vcard_as_result_mutation() ->
-    <<"mutation M1($vcard: VcardInput!, $user: JID!)
+user_get_query() ->
+    <<"query Q1
        {
            vcard
            {
-               setVcard(vcard: $vcard, user: $user)
+               getVcard
                {
-                   formattedName
-                   nameComponents
-                   {
-                       family
-                       givenName
-                       middleName
-                       prefix
-                       sufix
-                   }
-                   nickname
-                   photo
-                   birthday
-                   address
-                   {
-                       tags
-                       pobox
-                       extadd
-                       street
-                       locality
-                       region
-                       pcode
-                       country
-                   }
-                   label
-                   {
-                       tags
-                       line
-                   }
-                   telephone
-                   {
-                       tags
-                       number
-                   }
-                   email
-                   {
-                      tags
-                      userId
-                   }
-                   jabberId
-                   mailer
-                   timeZone
-                   geo
-                   {
-                       lat
-                       lon
-                   }
-                   title
-                   role
-                   logo
-                   agent
-                   org
-                   {
-                       orgname
-                       orgunit
-                   }
-                   categories
-                   {
-                       keyword
-                   }
-                   note
-                   prodId
-                   rev
-                   sortString
-                   sound
-                   uid
-                   url
-                   desc
-                   class
-                   {
-                       tags
-                   }
-                   key
-                   {
-                       credential
-                   }
+                    formattedName
+                    email
+                    {
+                        userId
+                        tags
+                    }
                }
+           }
+       }">>.
+
+admin_get_full_vcard_as_result_mutation() ->
+    ResultFormat = get_full_vcard_as_result(),
+    <<
+       <<"mutation M1($vcard: VcardInput!, $user: JID!)">>/binary,
+       <<"{vcard{setVcard(vcard: $vcard, user: $user)">>/binary,
+       ResultFormat/binary,
+       <<"}}">>/binary
+    >>.
+
+user_get_full_vcard_as_result_mutation() ->
+    ResultFormat = get_full_vcard_as_result(),
+    <<
+       <<"mutation M1($vcard: VcardInput!){vcard{setVcard(vcard: $vcard)">>/binary,
+       ResultFormat/binary,
+       <<"}}">>/binary
+    >>.
+
+get_full_vcard_as_result() ->
+    <<"{
+           formattedName
+           nameComponents
+           {
+               family
+               givenName
+               middleName
+               prefix
+               sufix
+           }
+           nickname
+           photo
+           birthday
+           address
+           {
+               tags
+               pobox
+               extadd
+               street
+               locality
+               region
+               pcode
+               country
+           }
+           label
+           {
+               tags
+               line
+           }
+           telephone
+           {
+               tags
+               number
+           }
+           email
+           {
+              tags
+              userId
+           }
+           jabberId
+           mailer
+           timeZone
+           geo
+           {
+               lat
+               lon
+           }
+           title
+           role
+           logo
+           agent
+           org
+           {
+               orgname
+               orgunit
+           }
+           categories
+           {
+               keyword
+           }
+           note
+           prodId
+           rev
+           sortString
+           sound
+           uid
+           url
+           desc
+           class
+           {
+               tags
+           }
+           key
+           {
+               credential
            }
        }">>.

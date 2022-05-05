@@ -1,0 +1,13 @@
+"""
+Allow user to set its vcard
+"""
+type VcardUserMutation @protected{
+    setVcard(vcard: VcardInput!): Vcard
+}
+
+"""
+Allow user to get its vcard
+"""
+type VcardUserQuery @protected{
+    getVcard: Vcard
+}

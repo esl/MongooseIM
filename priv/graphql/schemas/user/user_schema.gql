@@ -22,6 +22,8 @@ type UserQuery{
   stanza: StanzaUserQuery
   "Roster/Contacts management"
   roster: RosterUserQuery
+  "Vcard management"
+  vcard: VcardUserQuery
 }
 
 """
@@ -39,4 +41,6 @@ type UserMutation @protected{
   stanza: StanzaUserMutation
   "Roster/Contacts management"
   roster: RosterUserMutation
+  "Vcard management"
+  vcard: VcardUserMutation
 }

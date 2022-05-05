@@ -1,4 +1,4 @@
--module(mongoose_graphql_vcard_admin_query).
+-module(mongoose_graphql_vcard_user_query).
 -behaviour(mongoose_graphql).
 
 -export([execute/4]).
@@ -11,7 +11,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := CallerJID}) ->
+execute(#{user := CallerJID}, vcard, <<"getVcard">>, _) ->
     case mod_vcard_api:get_vcard(CallerJID) of
         {ok, _} = Vcard -> Vcard;
         {error, not_found} ->

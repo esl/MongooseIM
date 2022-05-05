@@ -1,5 +1,7 @@
--module(mongoose_graphql_vcard_admin_query).
+-module(mongoose_graphql_vcard_user_mutation).
 -behaviour(mongoose_graphql).
+
+-include("mod_vcard.hrl").
 
 -export([execute/4]).
 
@@ -11,8 +13,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := CallerJID}) ->
-    case mod_vcard_api:get_vcard(CallerJID) of
+execute(#{user := CallerJID}, vcard, <<"setVcard">>, #{<<"vcard">> := VCARD}) ->
+    case mod_vcard_api:set_vcard(CallerJID, VCARD) of
         {ok, _} = Vcard -> Vcard;
         {error, not_found} ->
             make_error({error, "User does not exist"}, #{user => CallerJID});

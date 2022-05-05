@@ -64,6 +64,7 @@ output(<<"MUCRole">>, Role) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Role)))};
 output(<<"MUCAffiliation">>, Aff) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))};
+output(<<"AddressTags">>, Name) -> {ok, Name};
 output(<<"EmailTags">>, Name) -> {ok, Name};
 output(<<"PrivacyClassification">>, Name) -> {ok, Name};
 output(<<"TelephoneTags">>, Name) -> {ok, Name}.

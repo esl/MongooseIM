@@ -13,8 +13,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--define(UNKNOWN_DOMAIN_RESULT, {unknown_domain, "Domain not found"}).
-
 execute(_Ctx, vcard, <<"setVcard">>, #{<<"user">> := CallerJID, <<"vcard">> := VCARD}) ->
     case mod_vcard_api:set_vcard(CallerJID, VCARD) of
         {ok, _} = Vcard -> Vcard;
