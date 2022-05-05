@@ -8,6 +8,7 @@ directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
 
 enum ProtectionType{
   DOMAIN
+  GLOBAL
   DEFAULT
 }
 
@@ -24,6 +25,7 @@ type UserQuery{
     String @protected(type: DOMAIN, args: ["domains.domain", "domains.domains.domain"])
   domainJIDProtectedField(argA: JID, argB: JID):
     String @protected(type: DOMAIN, args: ["argA"])
+  onlyForGlobalAdmin: String @protected(type: GLOBAL)
   interface: Interface
   union: UnionT
   obj: Object

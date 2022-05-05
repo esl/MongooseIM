@@ -144,6 +144,8 @@ check_field_args(<<"DOMAIN">>, #{domain := Domain}, ProtectedArgs, Args) ->
     InvalidArgs =
         lists:filter(fun(N) -> not arg_eq(get_arg(N, Args), Domain) end, ProtectedArgs),
     make_result(InvalidArgs, domain);
+check_field_args(<<"GLOBAL">>, #{domain := _}, _, _Args) ->
+    make_result(no_args, global);
 check_field_args(<<"DEFAULT">>, _Ctx, _ProtectedArgs, _Args) ->
     ok.
 
@@ -185,6 +187,8 @@ arg_eq(_, _) ->
 
 make_result([], _) ->
     ok;
+make_result(no_args, Type) when is_atom(Type) ->
+    #{type => Type, path => [], invalid => []};
 make_result(InvalidArgs, Type) when is_atom(Type) ->
     #{type => Type, path => [], invalid => InvalidArgs}.
 

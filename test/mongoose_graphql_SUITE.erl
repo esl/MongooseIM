@@ -9,9 +9,9 @@
 
 -define(assertPermissionsFailed(Config, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
-                     check_permissions(Config, Doc))).
+                     check_permissions(Config, false, Doc))).
 -define(assertPermissionsSuccess(Config, Doc),
-        ?assertMatch(ok, check_permissions(Config, Doc))).
+        ?assertMatch(ok, check_permissions(Config, false, Doc))).
 
 -define(assertDomainPermissionsFailed(Config, Domain, Args, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _, domain, Args}}},
@@ -97,7 +97,8 @@ domain_permissions() ->
      check_field_list_arg_domain_permissions,
      check_field_jid_arg_domain_permissions,
      check_child_object_field_domain_permissions,
-     check_field_subdomain_permissions
+     check_field_subdomain_permissions,
+     check_field_global_permissions
      %check_interface_field_domain_permissions TODO
     ].
 
@@ -214,6 +215,7 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_field_list_arg_domain_permissions;
                                   C =:= check_field_jid_arg_domain_permissions;
                                   C =:= check_field_subdomain_permissions;
+                                  C =:= check_field_global_permissions;
                                   C =:= check_child_object_field_domain_permissions;
                                   C =:= check_interface_field_domain_permissions ->
     {Mapping, Pattern} = example_permissions_schema_data(Config),
@@ -520,6 +522,13 @@ check_field_subdomain_permissions(Config) ->
     ?assertPermissionsSuccess(Config2, Domain, Doc),
     ?assertDomainPermissionsFailed(FConfig2, Domain, [<<"argA">>], Doc).
 
+check_field_global_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Doc = <<"{ protectedField onlyForGlobalAdmin }">>,
+    ?assertMatch(ok, check_permissions(Config, true, Doc)),
+    ?assertThrow({error, #{error_term := {no_permissions, _, global, []}}},
+                 check_domain_permissions(Config, Domain, Doc)).
+
 %% Error formatting
 
 format_internal_crash(_Config) ->
@@ -757,13 +766,13 @@ make_error(Phase, Term) ->
 make_error(Path, Phase, Term) ->
     #{path => Path, phase => Phase, error_term => Term}.
 
-check_permissions(Config, Doc) ->
+check_permissions(Config, Auth, Doc) ->
     Ep = ?config(endpoint, Config),
     Op = proplists:get_value(op, Config, undefined),
     {ok, Ast} = graphql:parse(Doc),
     {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
     ok = graphql:validate(Ast2),
-    Ctx = #{operation_name => Op, authorized => false, params => #{}},
+    Ctx = #{operation_name => Op, authorized => Auth, params => #{}},
     ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
 
 check_domain_permissions(Config, Domain, Doc) ->
