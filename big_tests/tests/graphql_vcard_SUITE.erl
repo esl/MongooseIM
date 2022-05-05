@@ -25,8 +25,13 @@ groups() ->
      {admin_vcard, [], admin_vcard_handler()}].
 
 init_per_suite(Config) ->
-    Config2 = escalus:init_per_suite(Config),
-    dynamic_modules:save_modules(domain_helper:host_type(), Config2).
+    case vcard_helper:is_vcard_ldap() of
+        true ->
+            {skip, ldap_vcard_is_not_supported};
+        _ ->
+            Config2 = escalus:init_per_suite(Config),
+            dynamic_modules:save_modules(domain_helper:host_type(), Config2)
+    end.
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -35,8 +40,8 @@ end_per_suite(Config) ->
 admin_vcard_handler() ->
     [admin_set_vcard,
      admin_set_vcard_no_user,
-     admin_get_vcard].
-%     admin_get_vcard_no_user].
+     admin_get_vcard,
+     admin_get_vcard_no_user].
 
 init_per_group(admin_vcard, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -160,7 +165,8 @@ admin_set_vcard_no_user(Config) ->
     Vars = #{user => <<"AAAAA">>, vcard => Vcard},
     Body = #{query => Query, operationName => OpName, variables => Vars},
     GraphQlRequest = execute_auth(Body, Config),
-    ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest).
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"User does not exist">>, ParsedResult).
 
 
 admin_get_vcard(Config) ->
@@ -184,10 +190,21 @@ admin_get_vcard(Config, Alice, _Bob) ->
     ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
     ?assertEqual(ExpectedResult, ParsedResult).
 
+admin_get_vcard_no_user(Config) ->
+    Query = admin_get_address_query(),
+    OpName = <<"Q1">>,
+    Vars = #{user => <<"AAAAA">>},
+    Body = #{query => Query, operationName => OpName, variables => Vars},
+    GraphQlRequest = execute_auth(Body, Config),
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"User does not exist">>, ParsedResult).
+
 %% Helpers
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
     maps:get(What2, maps:get(What1, Data)).
 
+error_result(What, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
+    maps:get(What, Data).
 
 admin_get_address_query() ->
     <<"query Q1($user: JID!)

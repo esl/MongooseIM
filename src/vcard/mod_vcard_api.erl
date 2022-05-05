@@ -65,9 +65,6 @@ set_vcard(HostType, UserJID, Vcard) ->
 get_vcard(HostType, LUser, LServer) ->
     try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
         {ok, VCARD} ->
-               io:format("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n"),
-               io:format("~p", [VCARD]),
-               io:format("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n"),
                [#xmlel{children = VcardData}] = VCARD,
                {ok, to_gql_format(VcardData)};
         {error, Reason} ->
