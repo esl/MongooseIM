@@ -253,6 +253,8 @@ meck_config(Config) ->
                 end,
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
+                fun({auth_method, _}) -> undefined end),
+    meck:expect(ejabberd_config, get_local_option,
                 fun(auth_opts, _Host) ->
                         [
                          {host, ?AUTH_HOST},
