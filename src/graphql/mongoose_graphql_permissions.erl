@@ -142,7 +142,7 @@ check_field_args(Ctx, Args, Directives) ->
 -spec check_field_args(binary(), map(), [binary()], map()) -> field_check_result().
 check_field_args(<<"DOMAIN">>, #{domain := Domain}, ProtectedArgs, Args) ->
     InvalidArgs =
-        lists:filter(fun(N) -> not arg_eq(maps:get(N, Args), Domain) end, ProtectedArgs),
+        lists:filter(fun(N) -> not arg_eq(get_arg(N, Args), Domain) end, ProtectedArgs),
     make_result(InvalidArgs, domain);
 check_field_args(<<"DEFAULT">>, _Ctx, _ProtectedArgs, _Args) ->
     ok.
@@ -158,9 +158,18 @@ prepare_arg(ArgName, #{value := #var{id = Name}}, Vars) ->
 prepare_arg(ArgName, #{value := Val}, _) ->
     {ArgName, Val}.
 
-arg_eq(Domain, Domain) -> true;
-arg_eq(#jid{lserver = Domain}, Domain) ->  true;
-arg_eq(_, _) ->  false.
+get_arg(Name, Args) ->
+    Path = binary:split(Name, <<".">>),
+    lists:foldl(fun(N, ArgsMap) -> maps:get(N, ArgsMap) end, Args, Path).
+
+arg_eq(Domain, Domain) ->
+    true;
+arg_eq(Subdomain, Domain) when is_binary(Subdomain), is_binary(Domain) ->
+    nomatch =/= re:run(Subdomain, io_lib:format("\\.~s$", [Domain]));
+arg_eq(#jid{lserver = Domain1}, Domain2) ->
+    arg_eq(Domain1, Domain2);
+arg_eq(_, _) ->
+    false.
 
 make_result([], _) ->
     ok;

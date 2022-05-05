@@ -93,7 +93,10 @@ permissions() ->
 
 domain_permissions() ->
     [check_field_domain_permissions,
-     check_child_object_field_domain_permissions
+     check_field_input_arg_domain_permissions,
+     check_field_jid_arg_domain_permissions,
+     check_child_object_field_domain_permissions,
+     check_field_subdomain_permissions
      %check_interface_field_domain_permissions TODO
     ].
 
@@ -206,6 +209,9 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_inline_fragment_permissions;
                                   C =:= check_union_permissions;
                                   C =:= check_field_domain_permissions;
+                                  C =:= check_field_input_arg_domain_permissions;
+                                  C =:= check_field_jid_arg_domain_permissions;
+                                  C =:= check_field_subdomain_permissions;
                                   C =:= check_child_object_field_domain_permissions;
                                   C =:= check_interface_field_domain_permissions ->
     {Mapping, Pattern} = example_permissions_schema_data(Config),
@@ -464,6 +470,39 @@ check_child_object_field_domain_permissions(Config) ->
 check_interface_field_domain_permissions(_Config) ->
     %% FIXME provide implementation
     ok.
+
+check_field_input_arg_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    DomainInput = #{<<"domain">> => Domain, <<"notDomain">> => <<"random text here">>},
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Domain,
+                                        <<"domainInput">> => DomainInput}} | Config],
+    Doc = <<"query Q1($domain: String, $domainInput: DomainInput!) "
+             "{ domainInputProtectedField(argA: $domain, argB: $domainInput)"
+             "  domainProtectedField(argA: $domain, argB: \"domain.com\") }">>,
+
+    FDoc = <<"{ domainInputProtectedField(argA: \"do.com\", argB: { domain: \"do.com\" }) }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>, <<"argB.domain">>], FDoc).
+
+check_field_jid_arg_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Config2 = [{op, <<"Q1">>},
+               {args, #{<<"jid">> => <<"bob@", Domain/binary>>}} | Config],
+    Doc = <<"query Q1($jid: JID) { domainJIDProtectedField(argA: $jid, argB: \"bob@bob\") }">>,
+    FDoc = <<"{ domainJIDProtectedField(argA: \"bob@do.com\", argB: \"bob@do.com\") }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
+
+check_field_subdomain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Subdomain = <<"test.", Domain/binary>>,
+    FSubdomain = <<"test.1", Domain/binary>>,
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Subdomain}} | Config],
+    FConfig2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => FSubdomain}} | Config],
+    Doc = <<"query Q1($domain: String) "
+             "{ protectedField domainProtectedField(argA: $domain, argB: \"do.com\") }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(FConfig2, Domain, [<<"argA">>], Doc).
 
 %% Error formatting
 
@@ -770,6 +809,7 @@ example_permissions_schema_data(Config) ->
                 'UserMutation' => mongoose_graphql_default_resolver,
                 default => mongoose_graphql_default_resolver},
           enums => #{default => mongoose_graphql_default_resolver},
+          scalars => #{default => mongoose_graphql_scalar},
           interfaces => #{default => mongoose_graphql_default_resolver},
           unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.

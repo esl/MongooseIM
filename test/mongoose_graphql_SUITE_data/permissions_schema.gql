@@ -11,10 +11,16 @@ enum ProtectionType{
   DEFAULT
 }
 
+scalar JID
+
 type UserQuery{
   field: String
   protectedField: String @protected
   domainProtectedField(argA: String, argB: String):
+    String @protected(type: DOMAIN, args: ["argA"])
+  domainInputProtectedField(argA: String, argB: DomainInput):
+    String @protected(type: DOMAIN, args: ["argA", "argB.domain"])
+  domainJIDProtectedField(argA: JID, argB: JID):
     String @protected(type: DOMAIN, args: ["argA"])
   interface: Interface
   union: UnionT
@@ -70,3 +76,8 @@ type O2 @protected{
 }
 
 union UnionT = O1 | O2
+
+input DomainInput{
+  domain: String!
+  notDomain: String
+}
