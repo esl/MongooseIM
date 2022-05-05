@@ -85,16 +85,16 @@ start(#{db_pool := Pool}) ->
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
     %% Admins
-    prepare(domain_insert_admin, domain_admins, [domain, password],
-            <<"INSERT INTO domain_admins (domain, password) VALUES (?, ?)">>),
-    prepare(domain_update_admin, domain_admins, [password, domain],
+    prepare(domain_insert_admin, domain_admins, [domain, pass_details],
+            <<"INSERT INTO domain_admins (domain, pass_details) VALUES (?, ?)">>),
+    prepare(domain_update_admin, domain_admins, [pass_details, domain],
             <<"UPDATE domain_admins"
-              " SET password = ? "
+              " SET pass_details = ? "
               " WHERE domain = ?">>),
     prepare(domain_delete_admin, domain_admins, [domain],
             <<"DELETE FROM domain_admins WHERE domain = ?">>),
     prepare(domain_select_admin, domain_admins, [domain],
-            <<"SELECT domain, password"
+            <<"SELECT domain, pass_details"
               " FROM domain_admins WHERE domain = ?">>),
     ok.
 
@@ -176,13 +176,14 @@ select_domain_admin(Domain) ->
     end.
 
 set_domain_admin(Domain, Password) ->
+    PassDetails = mongoose_scram:serialize(mongoose_scram:password_to_scram(Password)),
     transaction(fun(Pool) ->
                     case select_domain_admin(Domain) of
                         {ok, _} ->
-                            update_domain_admin(Pool, Domain, Password),
+                            update_domain_admin(Pool, Domain, PassDetails),
                             ok;
                         {error, not_found} ->
-                            insert_domain_admin(Pool, Domain, Password),
+                            insert_domain_admin(Pool, Domain, PassDetails),
                             ok
                     end
                 end).
@@ -198,11 +199,11 @@ delete_domain_admin(Domain) ->
                     end
                 end).
 
-insert_domain_admin(Pool, Domain, Password) ->
-    execute_successfully(Pool, domain_insert_admin, [Domain, Password]).
+insert_domain_admin(Pool, Domain, PassDetails) ->
+    execute_successfully(Pool, domain_insert_admin, [Domain, PassDetails]).
 
-update_domain_admin(Pool, Domain, Password) ->
-    execute_successfully(Pool, domain_update_admin, [Password, Domain]).
+update_domain_admin(Pool, Domain, PassDetails) ->
+    execute_successfully(Pool, domain_update_admin, [PassDetails, Domain]).
 
 delete_domain_admin(Pool, Domain) ->
     execute_successfully(Pool, domain_delete_admin, [Domain]).

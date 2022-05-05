@@ -732,7 +732,7 @@ CREATE INDEX i_offline_markers ON offline_markers(jid);
 
 CREATE TABLE domain_admins(
      domain VARCHAR(250) NOT NULL PRIMARY KEY,
-     password VARCHAR(250) NOT NULL
+     pass_details NVARCHAR(max) NOT NULL
 );
 
 -- Mapping from domain hostname to host_type.
