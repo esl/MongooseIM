@@ -39,7 +39,7 @@ maybe_init_stale_h(_, _) -> ok.
     SMID :: mod_stream_management:smid(),
     SID :: ejabberd_sm:sid().
 register_smid(_HostType, SMID, SID) ->
-    cets:insert(?TABLE, [{{sid, SID}, SMID}, {{smid, SMID}, SID}]).
+    cets:insert_many(?TABLE, [{{sid, SID}, SMID}, {{smid, SMID}, SID}]).
 
 -spec unregister_smid(mongooseim:host_type(), ejabberd_sm:sid()) ->
     {ok, SMID :: mod_stream_management:smid()} | {error, smid_not_found}.
