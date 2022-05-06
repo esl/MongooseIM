@@ -4,18 +4,25 @@ Allow admin to get information about sessions.
 type SessionAdminQuery @protected{
   "Get the list of established sessions for a specified domain or globally"
   listSessions(domain: String): [Session!]
+    @protected(type: DOMAIN, args: ["domain"])
   "Get the number of established sessions for a specified domain or globally"
   countSessions(domain: String): Int 
+    @protected(type: DOMAIN, args: ["domain"])
   "Get information about all sessions of a user"
   listUserSessions(user: JID!): [Session!]
+    @protected(type: DOMAIN, args: ["user"])
   "Get the number of resources of a user"
   countUserResources(user: JID!): Int
+    @protected(type: DOMAIN, args: ["user"])
   "Get the resource string of the n-th session of a user"
   getUserResource(user: JID!, number: Int): String
+    @protected(type: DOMAIN, args: ["user"])
   "Get the list of logged users with this status for a specified domain or globally"
   listUsersWithStatus(domain: String, status: String!): [UserStatus!]
+    @protected(type: DOMAIN, args: ["domain"])
   "Get the number of logged users with this status for a specified domain or globally"
   countUsersWithStatus(domain: String, status: String!): Int
+    @protected(type: DOMAIN, args: ["domain"])
 }
 
 """
@@ -24,8 +31,10 @@ Allow admin to manage sessions.
 type SessionAdminMutation @protected{
   "Kick a user session. User JID should contain resource"
   kickUser(user: JID!, reason: String!): SessionPayload
+    @protected(type: DOMAIN, args: ["user"])
   "Set presence of a session. User JID should contain resource"
   setPresence(user: JID!, type: PresenceType!, show: PresenceShow, status: String, priority: Int): SessionPayload
+    @protected(type: DOMAIN, args: ["user"])
 }
 
 "Presence type field values"
