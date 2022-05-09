@@ -42,6 +42,9 @@ interface Interface{
   name: String
   otherName: String
   protectedName: String @protected
+  protectedDomainName(domain: String):
+    String @protected(type: DOMAIN, args: ["domain"])
+  domainName(domain: String): String
 }
 
 interface ProtectedInterface @protected{
@@ -52,6 +55,9 @@ type Object implements Interface{
   name: String
   otherName: String @protected
   protectedName: String
+  protectedDomainName(domain: String): String
+  domainName(domain: String):
+    String @protected(type: DOMAIN, args: ["domain"])
   protectedField: String @protected
   domainProtectedField(argA: String, argB: String):
     String @protected(type: DOMAIN, args: ["argA"])
@@ -62,6 +68,8 @@ type ProtectedObject implements Interface @protected{
   name: String
   otherName: String
   protectedName: String
+  domainName(domain: String): String
+  protectedDomainName(domain: String): String
   type: String
 }
 

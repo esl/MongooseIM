@@ -98,8 +98,8 @@ domain_permissions() ->
      check_field_jid_arg_domain_permissions,
      check_child_object_field_domain_permissions,
      check_field_subdomain_permissions,
-     check_field_global_permissions
-     %check_interface_field_domain_permissions TODO
+     check_field_global_permissions,
+     check_interface_field_domain_permissions
     ].
 
 user_listener() ->
@@ -423,10 +423,10 @@ check_interface_field_permissions(Config) ->
     Doc = <<"{ interface { protectedName } }">>,
     FieldProtectedNotEnaugh = <<"{ obj { protectedName } }">>,
     FieldProtectedEnaugh = <<"{ obj { otherName } }">>,
-    % field is protected in interface and object, so cannnot be accessed.
+    % Field is protected in interface and object, so cannot be accessed.
     ?assertPermissionsFailed(Config, Doc),
     ?assertPermissionsFailed(Config, FieldProtectedEnaugh),
-    % field is protected only in interface, so can by accessed from implementing objects.
+    % Field is protected only in an interface, so can be accessed from implementing objects.
     ?assertPermissionsSuccess(Config, FieldProtectedNotEnaugh).
 
 check_inline_fragment_permissions(Config) ->
@@ -471,9 +471,23 @@ check_child_object_field_domain_permissions(Config) ->
     ?assertPermissionsSuccess(Config2, Domain, Doc2),
     ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
 
-check_interface_field_domain_permissions(_Config) ->
-    %% FIXME provide implementation
-    ok.
+check_interface_field_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    OkDomain = <<"{ interface { protectedDomainName(domain: \"my-domain.com\") } }">>,
+    OkDomain1 = <<"{ obj { protectedDomainName(domain: \"my-domain.com\") } }">>,
+    OkDomain2 = <<"{ obj { domainName(domain: \"my-domain.com\") } }">>,
+    WrongDomain = <<"{ interface { protectedDomainName(domain: \"domain.com\") } }">>,
+    WrongDomain1 = <<"{ obj { domainName(domain: \"domain.com\") } }">>,
+    ProtectedNotEnaugh = <<"{ obj { protectedDomainName(domain: \"domain.com\") } }">>,
+    ?assertPermissionsSuccess(Config, Domain, OkDomain),
+    ?assertPermissionsSuccess(Config, Domain, OkDomain1),
+    ?assertPermissionsSuccess(Config, Domain, OkDomain2),
+    % Field is protected in interface and object, so cannot be accessed with the wrong domain.
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domain">>], WrongDomain),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domain">>], WrongDomain1),
+    % Field is protected only in an interface, so can be accessed from implementing objects
+    % with the wrong domain.
+    ?assertPermissionsSuccess(Config, Domain, ProtectedNotEnaugh).
 
 check_field_input_arg_domain_permissions(Config) ->
     Domain = <<"my-domain.com">>,
