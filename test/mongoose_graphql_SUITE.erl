@@ -94,6 +94,7 @@ permissions() ->
 domain_permissions() ->
     [check_field_domain_permissions,
      check_field_input_arg_domain_permissions,
+     check_field_list_arg_domain_permissions,
      check_field_jid_arg_domain_permissions,
      check_child_object_field_domain_permissions,
      check_field_subdomain_permissions
@@ -210,6 +211,7 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_union_permissions;
                                   C =:= check_field_domain_permissions;
                                   C =:= check_field_input_arg_domain_permissions;
+                                  C =:= check_field_list_arg_domain_permissions;
                                   C =:= check_field_jid_arg_domain_permissions;
                                   C =:= check_field_subdomain_permissions;
                                   C =:= check_child_object_field_domain_permissions;
@@ -477,12 +479,26 @@ check_field_input_arg_domain_permissions(Config) ->
     Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Domain,
                                         <<"domainInput">> => DomainInput}} | Config],
     Doc = <<"query Q1($domain: String, $domainInput: DomainInput!) "
-             "{ domainInputProtectedField(argA: $domain, argB: $domainInput)"
-             "  domainProtectedField(argA: $domain, argB: \"domain.com\") }">>,
+            "{ domainInputProtectedField(argA: $domain, argB: $domainInput)"
+            "  domainProtectedField(argA: $domain, argB: \"domain.com\") }">>,
 
     FDoc = <<"{ domainInputProtectedField(argA: \"do.com\", argB: { domain: \"do.com\" }) }">>,
     ?assertPermissionsSuccess(Config2, Domain, Doc),
     ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>, <<"argB.domain">>], FDoc).
+
+
+check_field_list_arg_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Domains = [#{<<"domain">> => Domain, <<"notDomain">> => <<"random text here">>},
+               #{<<"domain">> => <<"muc.", Domain/binary>>,
+                 <<"domains">> => #{<<"domain">> => Domain}}],
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domains">> => Domains}} | Config],
+    Doc = <<"query Q1($domains: [DomainInput!]) "
+            "{ domainListInputProtectedField(domains: $domains) }">>,
+
+    FDoc = <<"{ domainListInputProtectedField(domains: [{ domain: \"do.com\" }]) }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domains.domain">>], FDoc).
 
 check_field_jid_arg_domain_permissions(Config) ->
     Domain = <<"my-domain.com">>,

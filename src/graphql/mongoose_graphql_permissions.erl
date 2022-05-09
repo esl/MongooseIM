@@ -158,16 +158,28 @@ prepare_arg(ArgName, #{value := #var{id = Name}}, Vars) ->
 prepare_arg(ArgName, #{value := Val}, _) ->
     {ArgName, Val}.
 
-get_arg(Name, Args) ->
-    Path = binary:split(Name, <<".">>),
-    lists:foldl(fun(N, ArgsMap) -> maps:get(N, ArgsMap) end, Args, Path).
+get_arg(Name, Args) when is_binary(Name)->
+    Path = binary:split(Name, <<".">>, [global]),
+    get_arg(Path, Args);
+get_arg([], Value) -> Value;
+get_arg(_, null) -> null;
+get_arg(Path, List) when is_list(List) ->
+    [get_arg(Path, ArgsMap) || ArgsMap <- List];
+get_arg([Name | Path], ArgsMap) ->
+    get_arg(Path, maps:get(Name, ArgsMap, null)).
 
+arg_eq(Args, Domain) when is_list(Args) ->
+    lists:all(fun(Arg) -> arg_eq(Arg, Domain) end, Args);
 arg_eq(Domain, Domain) ->
     true;
 arg_eq(Subdomain, Domain) when is_binary(Subdomain), is_binary(Domain) ->
     nomatch =/= re:run(Subdomain, io_lib:format("\\.~s$", [Domain]));
 arg_eq(#jid{lserver = Domain1}, Domain2) ->
     arg_eq(Domain1, Domain2);
+arg_eq(null, _) ->
+    % The arg is optional, and the value is not present, so we assume that
+    % the domain admin has access.
+    true;
 arg_eq(_, _) ->
     false.
 

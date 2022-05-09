@@ -20,6 +20,8 @@ type UserQuery{
     String @protected(type: DOMAIN, args: ["argA"])
   domainInputProtectedField(argA: String, argB: DomainInput):
     String @protected(type: DOMAIN, args: ["argA", "argB.domain"])
+  domainListInputProtectedField(domains: [DomainInput!]):
+    String @protected(type: DOMAIN, args: ["domains.domain", "domains.domains.domain"])
   domainJIDProtectedField(argA: JID, argB: JID):
     String @protected(type: DOMAIN, args: ["argA"])
   interface: Interface
@@ -79,5 +81,6 @@ union UnionT = O1 | O2
 
 input DomainInput{
   domain: String!
+  domains: [DomainInput!]
   notDomain: String
 }
