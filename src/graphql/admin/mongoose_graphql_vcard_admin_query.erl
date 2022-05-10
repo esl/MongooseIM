@@ -14,8 +14,6 @@
 execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := CallerJID}) ->
     case mod_vcard_api:get_vcard(CallerJID) of
         {ok, _} = Vcard -> Vcard;
-        {error, not_found} ->
-            make_error({error, "User does not exist"}, #{user => CallerJID});
-        _ ->
-            make_error({error, "Internal server error"}, #{user => CallerJID})
+        {ErrorCode, ErrorMessage} ->
+            make_error({ErrorCode, ErrorMessage}, #{user => CallerJID})
     end.

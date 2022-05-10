@@ -1,13 +1,15 @@
 """
-Allow user to set its vcard
+Allow user to set own vcard
 """
 type VcardUserMutation @protected{
+    "Set user's own vcard"
     setVcard(vcard: VcardInput!): Vcard
 }
 
 """
-Allow user to get its vcard
+Allow user to get user's vcard
 """
 type VcardUserQuery @protected{
-    getVcard: Vcard
+    "Get user's vcard"
+    getVcard(user: JID): Vcard
 }

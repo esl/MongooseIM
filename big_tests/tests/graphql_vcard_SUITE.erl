@@ -39,13 +39,19 @@ end_per_suite(Config) ->
 
 admin_vcard_handler() ->
     [admin_set_vcard,
+    admin_set_vcard_incomplete_fields,
      admin_set_vcard_no_user,
      admin_get_vcard,
+     admin_get_vcard_no_vcard,
      admin_get_vcard_no_user].
 
 user_vcard_handler() ->
     [user_set_vcard,
-     user_get_vcard].
+     user_get_their_own_vcard,
+     user_get_their_own_vcard_no_vcard,
+     user_get_others_vcard,
+     user_get_others_vcard_no_user,
+     user_get_others_vcard_no_vcard].
 
 init_per_group(admin_vcard, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -69,20 +75,24 @@ user_set_vcard(Config) ->
                                     fun user_set_vcard/2).
 
 user_set_vcard(Config, Alice) ->
-    Query = user_get_full_vcard_as_result_mutation(),
-    OpName = <<"M1">>,
+    QuerySet = user_get_full_vcard_as_result_mutation(),
     Vcard = complete_vcard_input(),
     Vars = #{vcard => Vcard},
-    Body = #{query => Query, operationName => OpName, variables => Vars},
-    GraphQlRequest = execute_user(Body, Alice, Config),
-    ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
-    ?assertEqual(Vcard, ParsedResult).
+    BodySet = #{query => QuerySet, operationName => <<"M1">>, variables => Vars},
+    GraphQlRequestSet = execute_user(BodySet, Alice, Config),
+    ParsedResultSet = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequestSet),
+    ?assertEqual(Vcard, ParsedResultSet),
+    QueryGet = user_get_full_vcard_as_result_query(),
+    BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => #{}},
+    GraphQlRequestGet = execute_user(BodyGet, Alice, Config),
+    ParsedResultGet = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequestGet),
+    ?assertEqual(Vcard, ParsedResultGet).
 
-user_get_vcard(Config) ->
+user_get_their_own_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_vcard/2).
+                                    fun user_get_their_own_vcard/2).
 
-user_get_vcard(Config, Alice) ->
+user_get_their_own_vcard(Config, Alice) ->
     Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
     {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
     {<<"HOME">>, []}]}],
@@ -95,20 +105,96 @@ user_get_vcard(Config, Alice) ->
     ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
     ?assertEqual(ExpectedResult, ParsedResult).
 
+user_get_their_own_vcard_no_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_their_own_vcard_no_vcard/2).
+
+user_get_their_own_vcard_no_vcard(Config, Alice) ->
+    Body = #{query => user_get_query(), operationName => <<"Q1">>, variables => #{}},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"Vcard for user not found">>, ParsedResult).
+
+user_get_others_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_others_vcard/3).
+
+user_get_others_vcard(Config, Alice, Bob) ->
+    Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
+    {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
+    {<<"HOME">>, []}]}],
+    ExpectedResult = #{<<"formattedName">> => <<"TESTNAME">>,
+        <<"email">> => [#{<<"userId">> => <<"TESTEMAIL">>, <<"tags">> => [<<"HOME">>, <<"WORK">>]},
+                        #{<<"userId">> => <<"TESTEMAIL2">>, <<"tags">> => [<<"HOME">>]}]},
+    escalus_client:send_and_wait(Bob, escalus_stanza:vcard_update(Client1Fields)),
+    Body = #{query => user_get_query(), operationName => <<"Q1">>,
+             variables => #{user => user_to_bin(Bob)}},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
+    ?assertEqual(ExpectedResult, ParsedResult).
+
+user_get_others_vcard_no_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_others_vcard_no_vcard/3).
+
+user_get_others_vcard_no_vcard(Config, Alice, Bob) ->
+    Body = #{query => user_get_query(), operationName => <<"Q1">>,
+             variables => #{user => user_to_bin(Bob)}},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"Vcard for user not found">>, ParsedResult).
+
+user_get_others_vcard_no_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_others_vcard_no_user/2).
+
+user_get_others_vcard_no_user(Config, Alice) ->
+    Body = #{query => user_get_query(), operationName => <<"Q1">>,
+             variables => #{user => <<"AAAAA">>}},
+    GraphQlRequest = execute_user(Body, Alice, Config),
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"User does not exist">>, ParsedResult).
+
 %% Admin test cases
 admin_set_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_set_vcard/3).
 
 admin_set_vcard(Config, Alice, _Bob) ->
-    Query = admin_get_full_vcard_as_result_mutation(),
-    OpName = <<"M1">>,
+    QuerySet = admin_get_full_vcard_as_result_mutation(),
     Vcard = complete_vcard_input(),
-    Vars = #{user => user_to_bin(Alice), vcard => Vcard},
-    Body = #{query => Query, operationName => OpName, variables => Vars},
-    GraphQlRequest = execute_auth(Body, Config),
-    ParsedResult = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequest),
-    ?assertEqual(Vcard, ParsedResult).
+    VarsSet = #{user => user_to_bin(Alice), vcard => Vcard},
+    BodySet = #{query => QuerySet, operationName => <<"M1">>, variables => VarsSet},
+    GraphQlRequestSet = execute_auth(BodySet, Config),
+    ParsedResultSet = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequestSet),
+    ?assertEqual(Vcard, ParsedResultSet),
+    QueryGet = admin_get_full_vcard_as_result_query(),
+    VarsGet = #{user => user_to_bin(Alice)},
+    BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => VarsGet},
+    GraphQlRequestGet = execute_auth(BodyGet, Config),
+    ParsedResultGet = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequestGet),
+    ?assertEqual(Vcard, ParsedResultGet).
+
+admin_set_vcard_incomplete_fields(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_set_vcard_incomplete_fields/3).
+
+admin_set_vcard_incomplete_fields(Config, Alice, _Bob) ->
+    QuerySet = admin_get_full_vcard_as_result_mutation(),
+    VcardInput = address_vcard_input(),
+    [VcardAddress] = maps:get(<<"address">> ,VcardInput),
+    Vcard = [maps:put(<<"pcode">>, null, VcardAddress)],
+    VarsSet = #{user => user_to_bin(Alice), vcard => VcardInput},
+    BodySet = #{query => QuerySet, operationName => <<"M1">>, variables => VarsSet},
+    GraphQlRequestSet = execute_auth(BodySet, Config),
+    ParsedResultSet = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequestSet),
+    ?assertEqual(Vcard, maps:get(<<"address">>, ParsedResultSet)),
+    QueryGet = admin_get_full_vcard_as_result_query(),
+    VarsGet = #{user => user_to_bin(Alice)},
+    BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => VarsGet},
+    GraphQlRequestGet = execute_auth(BodyGet, Config),
+    ParsedResultGet = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequestGet),
+    ?assertEqual(Vcard, maps:get(<<"address">>, ParsedResultGet)).
 
 admin_set_vcard_no_user(Config) ->
     Query = admin_get_full_vcard_as_result_mutation(),
@@ -119,7 +205,6 @@ admin_set_vcard_no_user(Config) ->
     GraphQlRequest = execute_auth(Body, Config),
     ParsedResult = error_result(<<"message">>, GraphQlRequest),
     ?assertEqual(<<"User does not exist">>, ParsedResult).
-
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -142,6 +227,19 @@ admin_get_vcard(Config, Alice, _Bob) ->
     ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
     ?assertEqual(ExpectedResult, ParsedResult).
 
+admin_get_vcard_no_vcard(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_get_vcard_no_vcard/2).
+
+admin_get_vcard_no_vcard(Config, Alice) ->
+    Query = admin_get_address_query(),
+    OpName = <<"Q1">>,
+    Vars = #{user => user_to_bin(Alice)},
+    Body = #{query => Query, operationName => OpName, variables => Vars},
+    GraphQlRequest = execute_auth(Body, Config),
+    ParsedResult = error_result(<<"message">>, GraphQlRequest),
+    ?assertEqual(<<"Vcard for user not found">>, ParsedResult).
+
 admin_get_vcard_no_user(Config) ->
     Query = admin_get_address_query(),
     OpName = <<"Q1">>,
@@ -158,6 +256,21 @@ ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
 error_result(What, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
     maps:get(What, Data).
 
+address_vcard_input() ->
+   #{<<"formattedName">> => <<"TestName">>,
+     <<"nameComponents">> => #{},
+     <<"address">> => [
+         #{
+             <<"tags">> => [<<"HOME">>, <<"WORK">>],
+             <<"pobox">> => <<"poboxTest">>,
+             <<"extadd">> => <<"extaddTest">>,
+             <<"street">> => <<"TESTSTREET123">>,
+             <<"locality">> => <<"LOCALITY123">>,
+             <<"region">> => <<"REGION777">>,
+             <<"country">> => <<"COUNTRY123">>
+         }
+     ]}.
+
 complete_vcard_input() ->
    #{<<"formattedName">> => <<"TestName">>,
      <<"nameComponents">> => #{
@@ -165,7 +278,7 @@ complete_vcard_input() ->
          <<"givenName">> => <<"givenName">>,
          <<"middleName">> => <<"middleName">>,
          <<"prefix">> => <<"prefix">>,
-         <<"sufix">> => <<"sufix">>
+         <<"suffix">> => <<"sufix">>
      },
      <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
      <<"photo">> => [<<"photoTest">>, <<"SecondPhoto">>],
@@ -264,11 +377,11 @@ admin_get_address_query() ->
        }">>.
 
 user_get_query() ->
-    <<"query Q1
+    <<"query Q1($user: JID)
        {
            vcard
            {
-               getVcard
+               getVcard(user: $user)
                {
                     formattedName
                     email
@@ -282,82 +395,53 @@ user_get_query() ->
 
 admin_get_full_vcard_as_result_mutation() ->
     ResultFormat = get_full_vcard_as_result(),
-    <<
-       <<"mutation M1($vcard: VcardInput!, $user: JID!)">>/binary,
-       <<"{vcard{setVcard(vcard: $vcard, user: $user)">>/binary,
-       ResultFormat/binary,
-       <<"}}">>/binary
-    >>.
+    <<"mutation M1($vcard: VcardInput!, $user: JID!)",
+      "{vcard{setVcard(vcard: $vcard, user: $user)", ResultFormat/binary, "}}">>.
 
 user_get_full_vcard_as_result_mutation() ->
     ResultFormat = get_full_vcard_as_result(),
-    <<
-       <<"mutation M1($vcard: VcardInput!){vcard{setVcard(vcard: $vcard)">>/binary,
-       ResultFormat/binary,
-       <<"}}">>/binary
-    >>.
+    <<"mutation M1($vcard: VcardInput!){vcard{setVcard(vcard: $vcard)",
+      ResultFormat/binary, "}}">>.
+
+user_get_full_vcard_as_result_query() ->
+    ResultFormat = get_full_vcard_as_result(),
+    <<"query Q1($user: JID){vcard{getVcard(user: $user)",
+      ResultFormat/binary, "}}">>.
+
+admin_get_full_vcard_as_result_query() ->
+    ResultFormat = get_full_vcard_as_result(),
+    <<"query Q1($user: JID!)",
+      "{vcard{getVcard(user: $user)", ResultFormat/binary, "}}">>.
 
 get_full_vcard_as_result() ->
     <<"{
            formattedName
            nameComponents
-           {
-               family
-               givenName
-               middleName
-               prefix
-               sufix
-           }
+           { family givenName middleName prefix suffix }
            nickname
            photo
            birthday
            address
-           {
-               tags
-               pobox
-               extadd
-               street
-               locality
-               region
-               pcode
-               country
-           }
+           { tags pobox extadd street locality region pcode country }
            label
-           {
-               tags
-               line
-           }
+           { tags line }
            telephone
-           {
-               tags
-               number
-           }
+           { tags number }
            email
-           {
-              tags
-              userId
-           }
+           { tags userId }
            jabberId
            mailer
            timeZone
            geo
-           {
-               lat
-               lon
-           }
+           { lat lon }
            title
            role
            logo
            agent
            org
-           {
-               orgname
-               orgunit
-           }
+           { orgname orgunit }
            categories
-           {
-               keyword
-           }
+           { keyword }
            note
            prodId
            rev
@@ -367,11 +451,7 @@ get_full_vcard_as_result() ->
            url
            desc
            class
-           {
-               tags
-           }
+           { tags }
            key
-           {
-               credential
-           }
+           { credential }
        }">>.

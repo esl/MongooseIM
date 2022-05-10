@@ -2,6 +2,7 @@
 Allow admin to set user's vcard
 """
 type VcardAdminMutation @protected{
+    "Set a new vcard for a user"
     setVcard(user: JID!, vcard: VcardInput!): Vcard
 }
 
@@ -9,5 +10,6 @@ type VcardAdminMutation @protected{
 Allow admin to get user's vcard
 """
 type VcardAdminQuery @protected{
+    "Get user's vcard"
     getVcard(user: JID!): Vcard
 }

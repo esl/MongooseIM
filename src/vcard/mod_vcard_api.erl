@@ -1,81 +1,58 @@
-%methods used in vcard graphQL API
+%% @doc Provide an interface for frontends (like graphql or ctl) to manage vcard.
 -module(mod_vcard_api).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
--export([transform_from_graphql/1,
-         set_vcard/2,
-         to_gql_format/1,
-         get_vcard/1,
-         name_components_proccess/2,
-         address_components_proccess/2,
-         label_components_proccess/2,
-         telephone_components_proccess/2,
-         email_components_proccess/2,
-         geo_components_proccess/2,
-         org_components_proccess/2
-        ]).
+-type vcard_map() :: #{binary() => vcard_subelement_binary() | vcard_subelement_map()}.
+-type vcard_subelement_binary() :: binary() | [{ok, binary()}].
+-type vcard_subelement_map() :: #{binary() => binary() | [{ok, binary()}]}.
 
--ignore_xref([name_components_proccess/2,
-              address_components_proccess/2,
-              label_components_proccess/2,
-              telephone_components_proccess/2,
-              email_components_proccess/2,
-              geo_components_proccess/2,
-              transform_from_graphql/1,
-              to_gql_format/1,
-              org_components_proccess/2]).
+-export([set_vcard/2,
+         get_vcard/1]).
 
+-spec set_vcard(jid:jid(), vcard_map()) ->
+     {ok, vcard_map()} | {not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
 set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             case set_vcard(HostType, UserJID, Vcard) of
                 ok ->
-                    case get_vcard(HostType, LUser, LServer) of
-                        {ok, _} = Result ->
-                            Result;
-                        Error ->
-                            Error
-                    end;
-                Error ->
-                    Error
+                    get_vcard_from_db(HostType, LUser, LServer);
+                _ ->
+                    {internal, "Internal server error"}
             end;
-        Error ->
-            Error
+        _ ->
+            {not_found, "User does not exist"}
     end.
 
+-spec get_vcard(jid:jid()) ->
+     {ok, vcard_map()} | {not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
 get_vcard(#jid{luser = LUser, lserver = LServer}) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            case get_vcard(HostType, LUser, LServer) of
-                {ok, _} = Vcard ->
-                    Vcard;
-                Error ->
-                    Error
-            end;
-        Error ->
-            Error
+            get_vcard_from_db(HostType, LUser, LServer);
+        _ ->
+            {not_found, "User does not exist"}
     end.
 
 set_vcard(HostType, UserJID, Vcard) ->
-    mod_vcard:unsafe_set_vcard(HostType, UserJID, transform_from_graphql(Vcard)).
+    mod_vcard:unsafe_set_vcard(HostType, UserJID, transform_from_map(Vcard)).
 
-get_vcard(HostType, LUser, LServer) ->
-    try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
-        {ok, VCARD} ->
-               [#xmlel{children = VcardData}] = VCARD,
-               {ok, to_gql_format(VcardData)};
-        {error, Reason} ->
-               {error, Reason}
-        catch E:R:Stack ->
-            ?LOG_ERROR(#{what => vcard_sm_iq_get_failed,
-                         class => E, reason => R, stacktrace => Stack}),
-            {error, error}
-        end.
+get_vcard_from_db(HostType, LUser, LServer) ->
+    ItemNotFoundError = mongoose_xmpp_errors:item_not_found(),
+    case mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
+        {ok, Result} ->
+            [#xmlel{children = VcardData}] = Result,
+            {ok, to_map_format(VcardData)};
+        {error, ItemNotFoundError} ->
+            {vcard_not_found, "Vcard for user not found"};
+        _ ->
+            {internal, "Internal server error"}
+    end.
 
-transform_from_graphql(Vcard) ->
+transform_from_map(Vcard) ->
     #xmlel{name = <<"vCard">>,
            attrs = [{<<"xmlns">>, <<"vcard-temp">>}],
            children = lists:foldl(fun({Name, Value}, Acc) ->
@@ -94,9 +71,9 @@ transform_field_and_value(Name, Value) when is_list(Value) ->
                     Acc ++ transform_field_and_value(Name, Element)
                 end, [], Value);
 transform_field_and_value(Name, Value) when is_map(Value) ->
-    construct_xmlel(from_gql_to_xml(Name), proccess_child_map(Value));
+    construct_xmlel(from_map_to_xml(Name), process_child_map(Value));
 transform_field_and_value(Name, Value) ->
-    construct_xmlel(from_gql_to_xml(Name), [{xmlcdata, Value}]).
+    construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Value}]).
 
 transform_subfield_and_value(_Name, null) ->
     [];
@@ -106,30 +83,30 @@ transform_subfield_and_value(<<"tags">>, TagsList) ->
                 end, [], TagsList);
 transform_subfield_and_value(Name, Value) when is_list(Value) ->
     lists:foldl(fun(Element, Acc) ->
-                    Acc ++ construct_xmlel(from_gql_to_xml(Name), [{xmlcdata, Element}])
+                    Acc ++ construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Element}])
                 end, [], Value);
 transform_subfield_and_value(Name, Value) ->
-    construct_xmlel(from_gql_to_xml(Name), [{xmlcdata, Value}]).
+    construct_xmlel(from_map_to_xml(Name), [{xmlcdata, Value}]).
 
-proccess_child_map(Value) ->
+process_child_map(Value) ->
     lists:foldl(fun({Name, SubfieldValue}, Acc) ->
                     Acc ++ transform_subfield_and_value(Name, SubfieldValue)
                 end, [], maps:to_list(Value)).
 
-from_gql_to_xml(<<"formattedName">>) -> <<"FN">>;
-from_gql_to_xml(<<"nameComponents">>) -> <<"N">>;
-from_gql_to_xml(<<"birthday">>) -> <<"BDAY">>;
-from_gql_to_xml(<<"address">>) -> <<"ADR">>;
-from_gql_to_xml(<<"telephone">>) -> <<"TEL">>;
-from_gql_to_xml(<<"timeZone">>) -> <<"TZ">>;
-from_gql_to_xml(<<"sortString">>) -> <<"SOR">>;
-from_gql_to_xml(<<"givenName">>) -> <<"GIVEN">>;
-from_gql_to_xml(<<"middleName">>) -> <<"MIDDLE">>;
-from_gql_to_xml(<<"credential">>) -> <<"CRED">>;
-from_gql_to_xml(<<"country">>) -> <<"CTRY">>;
-from_gql_to_xml(Name) -> list_to_binary(string:to_upper(binary_to_list(Name))).
+from_map_to_xml(<<"formattedName">>) -> <<"FN">>;
+from_map_to_xml(<<"nameComponents">>) -> <<"N">>;
+from_map_to_xml(<<"birthday">>) -> <<"BDAY">>;
+from_map_to_xml(<<"address">>) -> <<"ADR">>;
+from_map_to_xml(<<"telephone">>) -> <<"TEL">>;
+from_map_to_xml(<<"timeZone">>) -> <<"TZ">>;
+from_map_to_xml(<<"sortString">>) -> <<"SOR">>;
+from_map_to_xml(<<"givenName">>) -> <<"GIVEN">>;
+from_map_to_xml(<<"middleName">>) -> <<"MIDDLE">>;
+from_map_to_xml(<<"credential">>) -> <<"CRED">>;
+from_map_to_xml(<<"country">>) -> <<"CTRY">>;
+from_map_to_xml(Name) -> list_to_binary(string:to_upper(binary_to_list(Name))).
 
-to_gql_format(Vcard) ->
+to_map_format(Vcard) ->
     lists:foldl(fun(#xmlel{name = Name, children = Value}, Acc) ->
         maps:merge(Acc, transform_from_xml(Name, Value, Acc))
     end, #{}, Vcard).
@@ -137,145 +114,145 @@ to_gql_format(Vcard) ->
 transform_from_xml(<<"FN">>, [{_, Value}], _) ->
     #{<<"formattedName">> => Value};
 transform_from_xml(<<"N">>, Value, _) ->
-    #{<<"nameComponents">> => lists:foldl(fun name_components_proccess/2, #{}, Value)};
+    #{<<"nameComponents">> => lists:foldl(fun name_components_process/2, #{}, Value)};
 transform_from_xml(<<"NICKNAME">>, Value, Acc) ->
-    proccess_simple(<<"nickname">>, Value, Acc);
+    simple_process(<<"nickname">>, Value, Acc);
 transform_from_xml(<<"PHOTO">>, Value, Acc) ->
-    proccess_simple(<<"photo">>, Value, Acc);
+    simple_process(<<"photo">>, Value, Acc);
 transform_from_xml(<<"BDAY">>, Value, Acc) ->
-    proccess_simple(<<"birthday">>, Value, Acc);
+    simple_process(<<"birthday">>, Value, Acc);
 transform_from_xml(<<"ADR">>, Value, Acc) ->
-    proccess_complex(<<"address">>, Value, Acc, fun address_components_proccess/2);
+    complex_process(<<"address">>, Value, Acc, fun address_components_process/2);
 transform_from_xml(<<"LABEL">>, Value, Acc) ->
-    proccess_complex(<<"label">>, Value, Acc, fun label_components_proccess/2);
+    complex_process(<<"label">>, Value, Acc, fun label_components_process/2);
 transform_from_xml(<<"TEL">>, Value, Acc) ->
-    proccess_complex(<<"telephone">>, Value, Acc, fun telephone_components_proccess/2);
+    complex_process(<<"telephone">>, Value, Acc, fun telephone_components_process/2);
 transform_from_xml(<<"EMAIL">>, Value, Acc) ->
-    proccess_complex(<<"email">>, Value, Acc, fun email_components_proccess/2);
+    complex_process(<<"email">>, Value, Acc, fun email_components_process/2);
 transform_from_xml(<<"JABBERID">>, Value, Acc) ->
-    proccess_simple(<<"jabberId">>, Value, Acc);
+    simple_process(<<"jabberId">>, Value, Acc);
 transform_from_xml(<<"MAILER">>, Value, Acc) ->
-    proccess_simple(<<"mailer">>, Value, Acc);
+    simple_process(<<"mailer">>, Value, Acc);
 transform_from_xml(<<"TZ">>, Value, Acc) ->
-    proccess_simple(<<"timeZone">>, Value, Acc);
+    simple_process(<<"timeZone">>, Value, Acc);
 transform_from_xml(<<"GEO">>, Value, Acc) ->
-    proccess_complex(<<"geo">>, Value, Acc, fun geo_components_proccess/2);
+    complex_process(<<"geo">>, Value, Acc, fun geo_components_process/2);
 transform_from_xml(<<"TITLE">>, Value, Acc) ->
-    proccess_simple(<<"title">>, Value, Acc);
+    simple_process(<<"title">>, Value, Acc);
 transform_from_xml(<<"ROLE">>, Value, Acc) ->
-    proccess_simple(<<"role">>, Value, Acc);
+    simple_process(<<"role">>, Value, Acc);
 transform_from_xml(<<"LOGO">>, Value, Acc) ->
-    proccess_simple(<<"logo">>, Value, Acc);
+    simple_process(<<"logo">>, Value, Acc);
 transform_from_xml(<<"AGENT">>, Value, Acc) ->
-    proccess_simple(<<"agent">>, Value, Acc);
+    simple_process(<<"agent">>, Value, Acc);
 transform_from_xml(<<"ORG">>, Value, Acc) ->
-    proccess_complex(<<"org">>, Value, Acc, fun org_components_proccess/2);
+    complex_process(<<"org">>, Value, Acc, fun org_components_process/2);
 transform_from_xml(<<"CATEGORIES">>, Value, Acc) ->
-    proccess_complex(<<"categories">>, Value, Acc, fun categories_components_proccess/2);
+    complex_process(<<"categories">>, Value, Acc, fun categories_components_process/2);
 transform_from_xml(<<"NOTE">>, Value, Acc) ->
-    proccess_simple(<<"note">>, Value, Acc);
+    simple_process(<<"note">>, Value, Acc);
 transform_from_xml(<<"PRODID">>, Value, Acc) ->
-    proccess_simple(<<"prodId">>, Value, Acc);
+    simple_process(<<"prodId">>, Value, Acc);
 transform_from_xml(<<"REV">>, Value, Acc) ->
-    proccess_simple(<<"rev">>, Value, Acc);
+    simple_process(<<"rev">>, Value, Acc);
 transform_from_xml(<<"SOR">>, Value, Acc) ->
-    proccess_simple(<<"sortString">>, Value, Acc);
+    simple_process(<<"sortString">>, Value, Acc);
 transform_from_xml(<<"SOUND">>, Value, Acc) ->
-    proccess_simple(<<"sound">>, Value, Acc);
+    simple_process(<<"sound">>, Value, Acc);
 transform_from_xml(<<"UID">>, Value, Acc) ->
-    proccess_simple(<<"uid">>, Value, Acc);
+    simple_process(<<"uid">>, Value, Acc);
 transform_from_xml(<<"URL">>, Value, Acc) ->
-    proccess_simple(<<"url">>, Value, Acc);
+    simple_process(<<"url">>, Value, Acc);
 transform_from_xml(<<"DESC">>, Value, Acc) ->
-    proccess_simple(<<"desc">>, Value, Acc);
+    simple_process(<<"desc">>, Value, Acc);
 transform_from_xml(<<"CLASS">>, Value, Acc) ->
-    proccess_complex(<<"class">>, Value, Acc, fun class_components_proccess/2);
+    complex_process(<<"class">>, Value, Acc, fun class_components_process/2);
 transform_from_xml(<<"KEY">>, Value, Acc) ->
-    proccess_complex(<<"key">>, Value, Acc, fun key_components_proccess/2).
+    complex_process(<<"key">>, Value, Acc, fun key_components_process/2).
 
-proccess_value([{_, Value}]) ->
+process_value([{_, Value}]) ->
     Value;
-proccess_value(_) ->
+process_value(_) ->
     null.
 
-proccess_simple(Name, [{_, Value}], Acc) ->
+simple_process(Name, [{_, Value}], Acc) ->
     List = maps:get(Name, Acc, []),
     #{Name => List ++ [{ok, Value}]};
-proccess_simple(_, _, _) ->
+simple_process(_, _, _) ->
     #{}.
 
-proccess_complex(Name, Value, Acc, Fun) ->
+complex_process(Name, Value, Acc, Fun) ->
     List = maps:get(Name, Acc, []),
     #{Name => List ++ [{ok, lists:foldl(fun(Element, Accumulator) ->
                                             Fun(Element, Accumulator)
                                         end, #{}, Value)}]}.
 
-name_components_proccess(#xmlel{name = <<"FAMILY">>, children = Value}, Acc) ->
-    maps:put(<<"family">>, proccess_value(Value), Acc);
-name_components_proccess(#xmlel{name = <<"GIVEN">>, children = Value}, Acc) ->
-    maps:put(<<"givenName">>, proccess_value(Value), Acc);
-name_components_proccess(#xmlel{name = <<"MIDDLE">>, children = Value}, Acc) ->
-    maps:put(<<"middleName">>, proccess_value(Value), Acc);
-name_components_proccess(#xmlel{name = <<"PREFIX">>, children = Value}, Acc) ->
-    maps:put(<<"prefix">>, proccess_value(Value), Acc);
-name_components_proccess(#xmlel{name = <<"SUFIX">>, children = Value}, Acc) ->
-    maps:put(<<"sufix">>, proccess_value(Value), Acc).
+name_components_process(#xmlel{name = <<"FAMILY">>, children = Value}, Acc) ->
+    maps:put(<<"family">>, process_value(Value), Acc);
+name_components_process(#xmlel{name = <<"GIVEN">>, children = Value}, Acc) ->
+    maps:put(<<"givenName">>, process_value(Value), Acc);
+name_components_process(#xmlel{name = <<"MIDDLE">>, children = Value}, Acc) ->
+    maps:put(<<"middleName">>, process_value(Value), Acc);
+name_components_process(#xmlel{name = <<"PREFIX">>, children = Value}, Acc) ->
+    maps:put(<<"prefix">>, process_value(Value), Acc);
+name_components_process(#xmlel{name = <<"SUFFIX">>, children = Value}, Acc) ->
+    maps:put(<<"suffix">>, process_value(Value), Acc).
 
-address_components_proccess(#xmlel{name = <<"POBOX">>, children = Value}, Acc) ->
-    maps:put(<<"pobox">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"EXTADD">>, children = Value}, Acc) ->
-    maps:put(<<"extadd">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"STREET">>, children = Value}, Acc) ->
-    maps:put(<<"street">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"LOCALITY">>, children = Value}, Acc) ->
-    maps:put(<<"locality">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"REGION">>, children = Value}, Acc) ->
-    maps:put(<<"region">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"PCODE">>, children = Value}, Acc) ->
-    maps:put(<<"pcode">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = <<"CTRY">>, children = Value}, Acc) ->
-    maps:put(<<"country">>, proccess_value(Value), Acc);
-address_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
+address_components_process(#xmlel{name = <<"POBOX">>, children = Value}, Acc) ->
+    maps:put(<<"pobox">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"EXTADD">>, children = Value}, Acc) ->
+    maps:put(<<"extadd">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"STREET">>, children = Value}, Acc) ->
+    maps:put(<<"street">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"LOCALITY">>, children = Value}, Acc) ->
+    maps:put(<<"locality">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"REGION">>, children = Value}, Acc) ->
+    maps:put(<<"region">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"PCODE">>, children = Value}, Acc) ->
+    maps:put(<<"pcode">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = <<"CTRY">>, children = Value}, Acc) ->
+    maps:put(<<"country">>, process_value(Value), Acc);
+address_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
-label_components_proccess(#xmlel{name = <<"LINE">>, children = Value}, Acc) ->
+label_components_process(#xmlel{name = <<"LINE">>, children = Value}, Acc) ->
     List = maps:get(<<"line">>, Acc, []),
-    maps:merge(Acc, #{<<"line">> => List ++ [{ok, proccess_value(Value)}]});
-label_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
+    maps:merge(Acc, #{<<"line">> => List ++ [{ok, process_value(Value)}]});
+label_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
-telephone_components_proccess(#xmlel{name = <<"NUMBER">>, children = Value}, Acc) ->
-    maps:put(<<"number">>, proccess_value(Value), Acc);
-telephone_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
+telephone_components_process(#xmlel{name = <<"NUMBER">>, children = Value}, Acc) ->
+    maps:put(<<"number">>, process_value(Value), Acc);
+telephone_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
-email_components_proccess(#xmlel{name = <<"USERID">>, children = Value}, Acc) ->
-    maps:put(<<"userId">>, proccess_value(Value), Acc);
-email_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
+email_components_process(#xmlel{name = <<"USERID">>, children = Value}, Acc) ->
+    maps:put(<<"userId">>, process_value(Value), Acc);
+email_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
 
-geo_components_proccess(#xmlel{name = <<"LAT">>, children = Value}, Acc) ->
-    maps:put(<<"lat">>, proccess_value(Value), Acc);
-geo_components_proccess(#xmlel{name = <<"LON">>, children = Value}, Acc) ->
-    maps:put(<<"lon">>, proccess_value(Value), Acc).
+geo_components_process(#xmlel{name = <<"LAT">>, children = Value}, Acc) ->
+    maps:put(<<"lat">>, process_value(Value), Acc);
+geo_components_process(#xmlel{name = <<"LON">>, children = Value}, Acc) ->
+    maps:put(<<"lon">>, process_value(Value), Acc).
 
-org_components_proccess(#xmlel{name = <<"ORGNAME">>, children = Value}, Acc) ->
-    maps:put(<<"orgname">>, proccess_value(Value), Acc);
-org_components_proccess(#xmlel{name = <<"ORGUNIT">>, children = Value}, Acc) ->
+org_components_process(#xmlel{name = <<"ORGNAME">>, children = Value}, Acc) ->
+    maps:put(<<"orgname">>, process_value(Value), Acc);
+org_components_process(#xmlel{name = <<"ORGUNIT">>, children = Value}, Acc) ->
     List = maps:get(<<"orgunit">>, Acc, []),
-    maps:merge(Acc, #{<<"orgunit">> => List ++ [{ok, proccess_value(Value)}]}).
+    maps:merge(Acc, #{<<"orgunit">> => List ++ [{ok, process_value(Value)}]}).
 
-categories_components_proccess(#xmlel{name = <<"KEYWORD">>, children = Value}, Acc) ->
+categories_components_process(#xmlel{name = <<"KEYWORD">>, children = Value}, Acc) ->
     List = maps:get(<<"keyword">>, Acc, []),
-    maps:merge(Acc, #{<<"keyword">> => List ++ [{ok, proccess_value(Value)}]}).
+    maps:merge(Acc, #{<<"keyword">> => List ++ [{ok, process_value(Value)}]}).
 
-key_components_proccess(#xmlel{name = <<"CRED">>, children = Value}, Acc) ->
-    maps:put(<<"credential">>, proccess_value(Value), Acc).
+key_components_process(#xmlel{name = <<"CRED">>, children = Value}, Acc) ->
+    maps:put(<<"credential">>, process_value(Value), Acc).
 
-class_components_proccess(#xmlel{name = Name, children = []}, Acc) ->
+class_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).

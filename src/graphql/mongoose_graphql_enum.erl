@@ -31,7 +31,7 @@ input(<<"MUCAffiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"MUCAffiliation">>, <<"OUTCAST">>) -> {ok, outcast};
 input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
 input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
-input(<<"PrivacyClassification">>, Name) -> {ok, Name};
+input(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 input(<<"TelephoneTags">>, Name) -> {ok, Name}.
 
 output(<<"PresenceShow">>, Show) ->
@@ -66,5 +66,5 @@ output(<<"MUCAffiliation">>, Aff) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))};
 output(<<"AddressTags">>, Name) -> {ok, Name};
 output(<<"EmailTags">>, Name) -> {ok, Name};
-output(<<"PrivacyClassification">>, Name) -> {ok, Name};
+output(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 output(<<"TelephoneTags">>, Name) -> {ok, Name}.

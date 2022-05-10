@@ -13,11 +13,9 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(_Ctx, vcard, <<"setVcard">>, #{<<"user">> := CallerJID, <<"vcard">> := VCARD}) ->
-    case mod_vcard_api:set_vcard(CallerJID, VCARD) of
+execute(_Ctx, vcard, <<"setVcard">>, #{<<"user">> := CallerJID, <<"vcard">> := VcardInput}) ->
+    case mod_vcard_api:set_vcard(CallerJID, VcardInput) of
         {ok, _} = Vcard -> Vcard;
-        {error, not_found} ->
-            make_error({error, "User does not exist"}, #{user => CallerJID});
-        _ ->
-            make_error({error, "Internal server error"}, #{user => CallerJID})
+        {ErrorCode, ErrorMessage} ->
+            make_error({ErrorCode, ErrorMessage}, #{user => CallerJID})
     end.
