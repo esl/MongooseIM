@@ -99,7 +99,10 @@ authorize_err_msg(wrong_credentials) ->
     "The provided credentials are wrong";
 authorize_err_msg({no_permissions, Op}) ->
     io_lib:format("Cannot execute query ~s without permissions", [Op]);
-authorize_err_msg({no_permissions, Op, Res, InvalidArgs}) ->
+authorize_err_msg({no_permissions, Op, #{type := global}}) ->
+    Format = "Cannot execute query ~s without a global admin permissions",
+    io_lib:format(Format, [Op]);
+authorize_err_msg({no_permissions, Op, #{type := Res, invalid_args := InvalidArgs}}) ->
     InvalidArgs2 = lists:join(", ", InvalidArgs),
     Format = "Cannot execute query ~s without permissions to the given ~s. "
                 ++ "Args with invalid value: ~s",
