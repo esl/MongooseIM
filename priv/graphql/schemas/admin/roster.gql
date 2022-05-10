@@ -19,7 +19,7 @@ type RosterAdminMutation @protected{
     @protected(type: DOMAIN, args: ["user"])
   "Manage mutual subscription between given users"
   setMutualSubscription(userA: JID!, userB: JID!, action: MutualSubAction!): String
-    @protected(type: DOMAIN, args: ["user", "userB"])
+    @protected(type: DOMAIN, args: ["userA", "userB"])
   "Set mutual subscriptions between the user and each of the given contacts"
   subscribeToAll(user: ContactInput!, contacts: [ContactInput!]!): [String]!
     @protected(type: DOMAIN, args: ["user"])

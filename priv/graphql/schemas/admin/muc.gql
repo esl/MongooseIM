@@ -7,13 +7,13 @@ type MUCAdminMutation @protected{
     @protected(type: DOMAIN, args: ["mucDomain"])
   "Invite a user to a MUC room"
   inviteUser(room: JID!, sender: JID!, recipient: JID!, reason: String): String
-    @protected(type: DOMAIN, args: ["room", "sender"])
+    @protected(type: DOMAIN, args: ["sender"])
   "Kick a user from a MUC room"
   kickUser(room: JID!, nick: String!, reason: String): String
     @protected(type: DOMAIN, args: ["room"])
   "Send a message to a MUC room"
   sendMessageToRoom(room: JID!, from: FullJID!, body: String!): String
-    @protected(type: DOMAIN, args: ["room", "from"])
+    @protected(type: DOMAIN, args: ["from"])
   "Send a private message to a MUC room user"
   sendPrivateMessage(room: JID!, from: FullJID!, toNick: String!, body: String!): String
     @protected(type: DOMAIN, args: ["room", "from"])
@@ -31,10 +31,10 @@ type MUCAdminMutation @protected{
     @protected(type: DOMAIN, args: ["room"])
   "Make a user enter the room with a given nick"
   enterRoom(room: JID!, user: FullJID!, nick: String!, password: String): String
-    @protected(type: DOMAIN, args: ["room", "user"])
+    @protected(type: DOMAIN, args: ["user"])
   "Make a user with the given nick exit the room"
   exitRoom(room: JID!, user: FullJID!, nick: String!): String
-    @protected(type: DOMAIN, args: ["room", "user"])
+    @protected(type: DOMAIN, args: ["user"])
 }
 
 """
