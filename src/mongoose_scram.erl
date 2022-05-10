@@ -11,9 +11,9 @@
          enabled/2,
          iterations/0,
          iterations/1,
-         password_to_scram/1,
          password_to_scram/2,
          password_to_scram/3,
+         password_to_scram_sha/3,
          check_password/2,
          check_digest/4
         ]).
@@ -82,12 +82,9 @@ iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 iterations(HostType) ->
     mongoose_config:get_opt([{auth, HostType}, password, scram_iterations]).
 
-password_to_scram(Password) ->
-    IterationCount = ?SCRAM_DEFAULT_ITERATION_COUNT,
-    ServerStoredKeys = [do_password_to_scram(Password, IterationCount, HashType)
-                        || {HashType, _Prefix} <- supported_sha_types()],
-    ResultList = lists:merge([{iteration_count, IterationCount}], ServerStoredKeys),
-    maps:from_list(ResultList).
+password_to_scram_sha(Password, IterationCount, HashType) ->
+    ScramHash = do_password_to_scram(Password, IterationCount, HashType),
+    maps:from_list([{iteration_count, IterationCount}, ScramHash]).
 
 password_to_scram(HostType, Password) ->
     password_to_scram(HostType, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).

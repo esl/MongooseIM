@@ -176,7 +176,9 @@ select_domain_admin(Domain) ->
     end.
 
 set_domain_admin(Domain, Password) ->
-    PassDetails = mongoose_scram:serialize(mongoose_scram:password_to_scram(Password)),
+    Iterations = mongoose_scram:iterations(),
+    HashMap = mongoose_scram:password_to_scram_sha(Password, Iterations, sha512),
+    PassDetails = mongoose_scram:serialize(HashMap),
     transaction(fun(Pool) ->
                     case select_domain_admin(Domain) of
                         {ok, _} ->
