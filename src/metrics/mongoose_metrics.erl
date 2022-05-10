@@ -28,6 +28,7 @@
          get_metric_value/1,
          get_metric_values/1,
          get_metric_value/2,
+         sample_metric/1,
          get_host_type_metric_names/1,
          get_global_metric_names/0,
          get_aggregated_values/1,
@@ -44,7 +45,8 @@
 
 -ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
               get_rdbms_data_stats/0, get_rdbms_data_stats/1, get_up_time/0,
-              remove_host_type_metrics/1, get_report_interval/0]).
+              remove_host_type_metrics/1, get_report_interval/0,
+              sample_metric/1]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
@@ -130,6 +132,10 @@ get_metric_values(Metric) when is_list(Metric) ->
     exometer:get_values(Metric);
 get_metric_values(HostType) ->
     exometer:get_values([HostType]).
+
+%% Force update a probe metric
+sample_metric(Metric) ->
+    exometer:sample(Metric).
 
 get_host_type_metric_names(HostType) ->
     HostTypeName = make_host_type_name(HostType),

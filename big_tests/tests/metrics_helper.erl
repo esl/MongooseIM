@@ -27,6 +27,9 @@ get_counter_value(HostType, Metric) ->
             {error, unknown_counter}
     end.
 
+sample(Name) ->
+    rpc(mim(), mongoose_metrics, sample_metric, [[global, Name]]).
+
 assert_counter(Value, CounterName) ->
     assert_counter(domain_helper:host_type(mim), Value, CounterName).
 
