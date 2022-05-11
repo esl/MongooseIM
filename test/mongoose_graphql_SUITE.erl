@@ -9,12 +9,13 @@
 
 -define(assertPermissionsFailed(Config, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
-                     check_permissions(Config, Doc))).
+                     check_permissions(Config, false, Doc))).
 -define(assertPermissionsSuccess(Config, Doc),
-        ?assertMatch(ok, check_permissions(Config, Doc))).
+        ?assertMatch(ok, check_permissions(Config, false, Doc))).
 
 -define(assertDomainPermissionsFailed(Config, Domain, Args, Doc),
-        ?assertThrow({error, #{error_term := {no_permissions, _, domain, Args}}},
+        ?assertThrow({error, #{error_term := {no_permissions, _,#{type := domain,
+                                                                  invalid_args := Args}}}},
                      check_domain_permissions(Config, Domain, Doc))).
 -define(assertPermissionsSuccess(Config, Domain, Doc),
         ?assertMatch(ok, check_domain_permissions(Config, Domain, Doc))).
@@ -93,8 +94,14 @@ permissions() ->
 
 domain_permissions() ->
     [check_field_domain_permissions,
-     check_child_object_field_domain_permissions
-     %check_interface_field_domain_permissions TODO
+     check_field_input_arg_domain_permissions,
+     check_field_list_arg_domain_permissions,
+     check_field_null_arg_domain_permissions,
+     check_field_jid_arg_domain_permissions,
+     check_child_object_field_domain_permissions,
+     check_field_subdomain_permissions,
+     check_field_global_permissions,
+     check_interface_field_domain_permissions
     ].
 
 user_listener() ->
@@ -109,6 +116,7 @@ domain_admin_listener() ->
      auth_domain_admin_wrong_password_error,
      auth_domain_admin_nonexistent_domain_error,
      auth_domain_admin_cannot_access_other_domain,
+     auth_domain_admin_cannot_access_global,
      auth_domain_admin_can_access_owned_domain
      | common_tests()].
 
@@ -155,8 +163,24 @@ init_per_group(domain_admin_listener, Config) ->
                     (<<"localhost">>, _) -> {error, wrong_password};
                     (_, _) -> {error, not_found}
                 end),
+    meck:expect(mongoose_domain_api, get_subdomain_info,
+                fun (_) -> {error, not_found} end),
     ListenerOpts = [{schema_endpoint, <<"domain_admin">>}],
-    init_ep_listener(5560, adminn_schema_ep, ListenerOpts, Config);
+    init_ep_listener(5560, domain_admin_schema_ep, ListenerOpts, Config);
+init_per_group(domain_permissions, Config) ->
+    meck:new(mongoose_domain_api, [no_link]),
+    meck:expect(mongoose_domain_api, get_subdomain_info,
+                fun
+                    (<<"subdomain.test-domain.com">>) ->
+                        {ok, #{parent_domain => <<"test-domain.com">>}};
+                    (<<"subdomain.test-domain2.com">>) ->
+                        {ok, #{parent_domain => <<"test-domain2.com">>}};
+                    (_) ->
+                        {error, not_found}
+                end),
+    Domains = [{<<"subdomain.test-domain.com">>, <<"test-domain.com">>},
+               {<<"subdomain.test-domain2.com">>, <<"test-domain2.com">>}],
+    [{domains, Domains} | Config];
 init_per_group(_G, Config) ->
     Config.
 
@@ -171,6 +195,8 @@ end_per_group(domain_admin_listener, Config) ->
     meck:unload(mongoose_domain_api),
     ?config(test_process, Config) ! stop,
     Config;
+end_per_group(domain_permissions, _Config) ->
+    meck:unload(mongoose_domain_api);
 end_per_group(_, Config) ->
     Config.
 
@@ -206,6 +232,12 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_inline_fragment_permissions;
                                   C =:= check_union_permissions;
                                   C =:= check_field_domain_permissions;
+                                  C =:= check_field_input_arg_domain_permissions;
+                                  C =:= check_field_list_arg_domain_permissions;
+                                  C =:= check_field_null_arg_domain_permissions;
+                                  C =:= check_field_jid_arg_domain_permissions;
+                                  C =:= check_field_subdomain_permissions;
+                                  C =:= check_field_global_permissions;
                                   C =:= check_child_object_field_domain_permissions;
                                   C =:= check_interface_field_domain_permissions ->
     {Mapping, Pattern} = example_permissions_schema_data(Config),
@@ -411,13 +443,13 @@ check_interface_permissions(Config) ->
 
 check_interface_field_permissions(Config) ->
     Doc = <<"{ interface { protectedName } }">>,
-    FieldProtectedNotEnaugh = <<"{ obj { protectedName } }">>,
-    FieldProtectedEnaugh = <<"{ obj { otherName } }">>,
-    % field is protected in interface and object, so cannnot be accessed.
+    FieldProtectedNotEnough = <<"{ obj { protectedName } }">>,
+    FieldProtectedEnough = <<"{ obj { otherName } }">>,
+    % Field is protected in interface and object, so it cannot be accessed.
     ?assertPermissionsFailed(Config, Doc),
-    ?assertPermissionsFailed(Config, FieldProtectedEnaugh),
-    % field is protected only in interface, so can by accessed from implementing objects.
-    ?assertPermissionsSuccess(Config, FieldProtectedNotEnaugh).
+    ?assertPermissionsFailed(Config, FieldProtectedEnough),
+    % Field is protected only in an interface, so it can be accessed from implementing objects.
+    ?assertPermissionsSuccess(Config, FieldProtectedNotEnough).
 
 check_inline_fragment_permissions(Config) ->
     Doc = <<"{ interface { name otherName ... on Object { field } } }">>,
@@ -461,9 +493,79 @@ check_child_object_field_domain_permissions(Config) ->
     ?assertPermissionsSuccess(Config2, Domain, Doc2),
     ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
 
-check_interface_field_domain_permissions(_Config) ->
-    %% FIXME provide implementation
-    ok.
+check_interface_field_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    OkDomain = <<"{ interface { protectedDomainName(domain: \"my-domain.com\") } }">>,
+    OkDomain1 = <<"{ obj { protectedDomainName(domain: \"my-domain.com\") } }">>,
+    OkDomain2 = <<"{ obj { domainName(domain: \"my-domain.com\") } }">>,
+    WrongDomain = <<"{ interface { protectedDomainName(domain: \"domain.com\") } }">>,
+    WrongDomain1 = <<"{ obj { domainName(domain: \"domain.com\") } }">>,
+    ProtectedNotEnough = <<"{ obj { protectedDomainName(domain: \"domain.com\") } }">>,
+    ?assertPermissionsSuccess(Config, Domain, OkDomain),
+    ?assertPermissionsSuccess(Config, Domain, OkDomain1),
+    ?assertPermissionsSuccess(Config, Domain, OkDomain2),
+    % Field is protected in interface and object, so it cannot be accessed with the wrong domain.
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domain">>], WrongDomain),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domain">>], WrongDomain1),
+    % Field is protected only in an interface, so it can be accessed from implementing objects
+    % with the wrong domain.
+    ?assertPermissionsSuccess(Config, Domain, ProtectedNotEnough).
+
+check_field_input_arg_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    DomainInput = #{<<"domain">> => Domain, <<"notDomain">> => <<"random text here">>},
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Domain,
+                                        <<"domainInput">> => DomainInput}} | Config],
+    Doc = <<"query Q1($domain: String, $domainInput: DomainInput!) "
+            "{ domainInputProtectedField(argA: $domain, argB: $domainInput)"
+            "  domainProtectedField(argA: $domain, argB: \"domain.com\") }">>,
+
+    FDoc = <<"{ domainInputProtectedField(argA: \"do.com\", argB: { domain: \"do.com\" }) }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>, <<"argB.domain">>], FDoc).
+
+
+check_field_list_arg_domain_permissions(Config) ->
+    [{Subdomain, Domain} | _] = ?config(domains, Config),
+    Domains = [#{<<"domain">> => Domain, <<"notDomain">> => <<"random text here">>},
+               #{<<"domain">> => Subdomain}],
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domains">> => Domains}} | Config],
+    Doc = <<"query Q1($domains: [DomainInput!]) "
+            "{ domainListInputProtectedField(domains: $domains) }">>,
+
+    FDoc = <<"{ domainListInputProtectedField(domains: [{ domain: \"do.com\" }]) }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"domains.domain">>], FDoc).
+
+check_field_null_arg_domain_permissions(Config) ->
+    [{_, Domain} | _] = ?config(domains, Config),
+    Doc = <<"{ domainProtectedField domainInputProtectedField }">>,
+    ?assertPermissionsSuccess(Config, Domain, Doc).
+
+check_field_jid_arg_domain_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Config2 = [{op, <<"Q1">>},
+               {args, #{<<"jid">> => <<"bob@", Domain/binary>>}} | Config],
+    Doc = <<"query Q1($jid: JID) { domainJIDProtectedField(argA: $jid, argB: \"bob@bob\") }">>,
+    FDoc = <<"{ domainJIDProtectedField(argA: \"bob@do.com\", argB: \"bob@do.com\") }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
+
+check_field_subdomain_permissions(Config) ->
+    [{Subdomain, Domain}, {FSubdomain, _Domain2}] = ?config(domains, Config),
+    Config2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => Subdomain}} | Config],
+    FConfig2 = [{op, <<"Q1">>}, {args, #{<<"domain">> => FSubdomain}} | Config],
+    Doc = <<"query Q1($domain: String) "
+             "{ protectedField domainProtectedField(argA: $domain, argB: \"do.com\") }">>,
+    ?assertPermissionsSuccess(Config2, Domain, Doc),
+    ?assertDomainPermissionsFailed(FConfig2, Domain, [<<"argA">>], Doc).
+
+check_field_global_permissions(Config) ->
+    Domain = <<"my-domain.com">>,
+    Doc = <<"{ protectedField onlyForGlobalAdmin }">>,
+    ?assertMatch(ok, check_permissions(Config, true, Doc)),
+    ?assertThrow({error, #{error_term := {no_permissions, _, #{type := global}}}},
+                 check_domain_permissions(Config, Domain, Doc)).
 
 %% Error formatting
 
@@ -593,6 +695,12 @@ auth_domain_admin_cannot_access_other_domain(Config) ->
     {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
     assert_no_permissions(no_permissions, Status, Data).
 
+auth_domain_admin_cannot_access_global(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ fieldGlobal(argA: \"localhost\") }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
+    assert_no_permissions(no_permissions, Status, Data).
+
 malformed_auth_header_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     % The encoded credentials value is malformed and cannot be decoded.
@@ -702,13 +810,13 @@ make_error(Phase, Term) ->
 make_error(Path, Phase, Term) ->
     #{path => Path, phase => Phase, error_term => Term}.
 
-check_permissions(Config, Doc) ->
+check_permissions(Config, Auth, Doc) ->
     Ep = ?config(endpoint, Config),
     Op = proplists:get_value(op, Config, undefined),
     {ok, Ast} = graphql:parse(Doc),
     {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
     ok = graphql:validate(Ast2),
-    Ctx = #{operation_name => Op, authorized => false, params => #{}},
+    Ctx = #{operation_name => Op, authorized => Auth, params => #{}},
     ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
 
 check_domain_permissions(Config, Domain, Doc) ->
@@ -770,6 +878,7 @@ example_permissions_schema_data(Config) ->
                 'UserMutation' => mongoose_graphql_default_resolver,
                 default => mongoose_graphql_default_resolver},
           enums => #{default => mongoose_graphql_default_resolver},
+          scalars => #{default => mongoose_graphql_scalar},
           interfaces => #{default => mongoose_graphql_default_resolver},
           unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.

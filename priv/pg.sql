@@ -480,7 +480,7 @@ CREATE INDEX i_offline_markers ON offline_markers(jid);
 
 CREATE TABLE domain_admins(
      domain VARCHAR(250) NOT NULL,
-     password VARCHAR(250) NOT NULL,
+     pass_details TEXT NOT NULL,
      PRIMARY KEY(domain)
 );
 

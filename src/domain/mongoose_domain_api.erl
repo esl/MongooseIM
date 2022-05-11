@@ -191,18 +191,28 @@ check_domain(Domain, HostType) ->
 -spec check_domain_password(domain(), password()) -> ok | {error, wrong_password | not_found}.
 check_domain_password(Domain, Password) ->
     case mongoose_domain_sql:select_domain_admin(Domain) of
-        {ok, {Domain, Password}} ->
-            ok;
-        {ok, _} ->
-            {error, wrong_password};
+        {ok, {Domain, PassDetails}} ->
+            case do_check_domain_password(Password, PassDetails) of
+                true ->
+                    ok;
+                false ->
+                    {error, wrong_password}
+            end;
         {error, not_found} ->
             {error, not_found}
     end.
 
+do_check_domain_password(Password, PassDetails) ->
+    case mongoose_scram:deserialize(PassDetails) of
+        {ok, Scram} ->
+            mongoose_scram:check_password(Password, Scram);
+        {error, _Reason} ->
+            false
+    end.
+
 -spec set_domain_password(domain(), password()) -> ok | {error, not_found}.
 set_domain_password(Domain, Password) ->
-    HostType = get_host_type(Domain),
-    case HostType of
+    case get_host_type(Domain) of
         {ok, _} ->
             mongoose_domain_sql:set_domain_admin(Domain, Password);
         {error, not_found} ->

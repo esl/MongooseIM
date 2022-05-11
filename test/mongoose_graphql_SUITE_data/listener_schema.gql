@@ -8,6 +8,7 @@ directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
 
 enum ProtectionType{
   DOMAIN
+  GLOBAL
   DEFAULT
 }
 
@@ -16,7 +17,10 @@ Contains all available queries.
 """
 type Query @protected{
   field: String
-  fieldDP(argA: String): String @protected(type: DOMAIN, args: ["argA"])
+  fieldDP(argA: String): String
+    @protected(type: DOMAIN, args: ["argA"])
+  fieldGlobal(argA: String): String
+    @protected(type: GLOBAL)
 }
 
 """

@@ -41,7 +41,7 @@
                       atom() => any()}.
 -type no_access_info() :: #{path := [binary()],
                             type := atom(),
-                            invalid := [binary()]}.
+                            invalid_args => [binary()]}.
 -type field_check_result() :: ok | no_access_info().
 -type document() :: #document{}.
 -type definitions() :: [any()].
@@ -101,9 +101,9 @@ check_domain_authorized_request_permissions(OpName, Domain, Params, Definitions)
             case check_fields(#{domain => Domain}, Params, Set) of
                 ok ->
                     ok;
-                #{invalid := Args, path := Path, type := Type} ->
+                #{path := Path} = NoAccessInfo ->
                     OpName2 = op_name(OpName),
-                    Error = {no_permissions, OpName2, Type, Args},
+                    Error = {no_permissions, OpName2, NoAccessInfo},
                     Path2 = lists:reverse([OpName2 | Path]),
                     graphql_err:abort(Path2, authorize, Error)
             end;
@@ -141,9 +141,14 @@ check_field_args(Ctx, Args, Directives) ->
 
 -spec check_field_args(binary(), map(), [binary()], map()) -> field_check_result().
 check_field_args(<<"DOMAIN">>, #{domain := Domain}, ProtectedArgs, Args) ->
-    InvalidArgs =
-        lists:filter(fun(N) -> not arg_eq(maps:get(N, Args), Domain) end, ProtectedArgs),
-    make_result(InvalidArgs, domain);
+    case lists:filter(fun(N) -> not arg_eq(get_arg(N, Args), Domain) end, ProtectedArgs) of
+        [] ->
+            ok;
+        InvalidArgs ->
+            #{type => domain, path => [], invalid_args => InvalidArgs}
+    end;
+check_field_args(<<"GLOBAL">>, #{domain := _}, _, _Args) ->
+    #{type => global, path => []};
 check_field_args(<<"DEFAULT">>, _Ctx, _ProtectedArgs, _Args) ->
     ok.
 
@@ -158,14 +163,36 @@ prepare_arg(ArgName, #{value := #var{id = Name}}, Vars) ->
 prepare_arg(ArgName, #{value := Val}, _) ->
     {ArgName, Val}.
 
-arg_eq(Domain, Domain) -> true;
-arg_eq(#jid{lserver = Domain}, Domain) ->  true;
-arg_eq(_, _) ->  false.
+get_arg(Name, Args) when is_binary(Name)->
+    Path = binary:split(Name, <<".">>, [global]),
+    get_arg(Path, Args);
+get_arg([], Value) -> Value;
+get_arg(_, undefined) -> undefined;
+get_arg(Path, List) when is_list(List) ->
+    [get_arg(Path, ArgsMap) || ArgsMap <- List];
+get_arg([Name | Path], ArgsMap) ->
+    get_arg(Path, maps:get(Name, ArgsMap, undefined)).
 
-make_result([], _) ->
-    ok;
-make_result(InvalidArgs, Type) when is_atom(Type) ->
-    #{type => Type, path => [], invalid => InvalidArgs}.
+arg_eq(Args, Domain) when is_list(Args) ->
+    lists:all(fun(Arg) -> arg_eq(Arg, Domain) end, Args);
+arg_eq(Domain, Domain) ->
+    true;
+arg_eq(Subdomain, Domain) when is_binary(Subdomain), is_binary(Domain) ->
+    check_subdomain(Subdomain, Domain);
+arg_eq(#jid{lserver = Domain1}, Domain2) ->
+    arg_eq(Domain1, Domain2);
+arg_eq(undefined, _) ->
+    % The arg is optional, and the value is not present, so we assume that
+    % the domain admin has access.
+    true;
+arg_eq(_, _) ->
+    false.
+
+check_subdomain(Subdomain, Domain) ->
+    case mongoose_domain_api:get_subdomain_info(Subdomain) of
+        {ok, #{parent_domain := ParentDomain}} -> ParentDomain =:= Domain;
+        {error, not_found} -> false
+    end.
 
 add_path(ok, _) -> ok;
 add_path(#{path := Path} = Acc, FieldName) ->

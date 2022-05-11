@@ -8,14 +8,24 @@ directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
 
 enum ProtectionType{
   DOMAIN
+  GLOBAL
   DEFAULT
 }
+
+scalar JID
 
 type UserQuery{
   field: String
   protectedField: String @protected
   domainProtectedField(argA: String, argB: String):
     String @protected(type: DOMAIN, args: ["argA"])
+  domainInputProtectedField(argA: String, argB: DomainInput):
+    String @protected(type: DOMAIN, args: ["argA", "argB.domain"])
+  domainListInputProtectedField(domains: [DomainInput!]):
+    String @protected(type: DOMAIN, args: ["domains.domain"])
+  domainJIDProtectedField(argA: JID, argB: JID):
+    String @protected(type: DOMAIN, args: ["argA"])
+  onlyForGlobalAdmin: String @protected(type: GLOBAL)
   interface: Interface
   union: UnionT
   obj: Object
@@ -32,6 +42,9 @@ interface Interface{
   name: String
   otherName: String
   protectedName: String @protected
+  protectedDomainName(domain: String):
+    String @protected(type: DOMAIN, args: ["domain"])
+  domainName(domain: String): String
 }
 
 interface ProtectedInterface @protected{
@@ -42,6 +55,9 @@ type Object implements Interface{
   name: String
   otherName: String @protected
   protectedName: String
+  protectedDomainName(domain: String): String
+  domainName(domain: String):
+    String @protected(type: DOMAIN, args: ["domain"])
   protectedField: String @protected
   domainProtectedField(argA: String, argB: String):
     String @protected(type: DOMAIN, args: ["argA"])
@@ -52,6 +68,8 @@ type ProtectedObject implements Interface @protected{
   name: String
   otherName: String
   protectedName: String
+  domainName(domain: String): String
+  protectedDomainName(domain: String): String
   type: String
 }
 
@@ -70,3 +88,8 @@ type O2 @protected{
 }
 
 union UnionT = O1 | O2
+
+input DomainInput{
+  domain: String!
+  notDomain: String
+}
