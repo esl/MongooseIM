@@ -112,7 +112,7 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
 %%%===================================================================
 
 do_init(Opts) ->
-    Host = proplists:get_value(host, Opts),
+    Host = proplists:get_value(host_type, Opts),
     PoolTag = proplists:get_value(pool_tag, Opts),
     AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
     {Connection, Channel} =
