@@ -8,14 +8,18 @@
 
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
+-spec init() -> ok.
 init() ->
     ok.
 
+-spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),
+            mongoose_wpool:pool_opts(), mongoose_wpool:conn_opts()) -> {ok, pid()} | {error, any()}.
 start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
     ProcName = mongoose_wpool:make_pool_name(riak, HostType, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
     mongoose_wpool:start_sup_pool(riak, ProcName, WpoolOpts).
 
+-spec stop(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> ok.
 stop(_, _) ->
     ok.
 
@@ -33,12 +37,11 @@ wpool_spec(WpoolOptsIn, ConnOpts = #{address := RiakAddr, port := RiakPort}) ->
     [{worker, Worker} | WpoolOptsIn].
 
 prepare_sec_opts(ConnOpts) ->
-    SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
-    SecurityOpts = maps:with(SecurityOptsKeys, ConnOpts),
-    ListOpts = maps:to_list(SecurityOpts),
-    lists:map(fun prepare_credentials/1, ListOpts).
+    lists:flatmap(fun(Opt) -> sec_opts(Opt, ConnOpts) end, [credentials, tls]).
 
-prepare_credentials({credentials, {User, Password}}) ->
-    {credentials, User, Password};
-prepare_credentials(Opt) ->
-    Opt.
+sec_opts(credentials, #{credentials := #{user := User, password := Password}}) ->
+    [{credentials, User, Password}];
+sec_opts(tls, #{tls := TLSOpts}) ->
+    TLSOpts;
+sec_opts(_Opt, #{}) ->
+    [].
