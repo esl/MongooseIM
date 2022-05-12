@@ -42,7 +42,7 @@
          default_search_fields/0,
          default_search_reported/0]).
 
--include("eldap.hrl").
+-include_lib("eldap/include/eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").
 

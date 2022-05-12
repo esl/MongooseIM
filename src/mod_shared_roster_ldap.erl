@@ -46,12 +46,10 @@
 -ignore_xref([config_change/4, get_jid_info/4, get_subscription_lists/2, get_user_roster/2,
               in_subscription/5, out_subscription/4, process_item/2, start_link/2]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
 -include("mongoose_config_spec.hrl").
-
--include("eldap.hrl").
+-include_lib("eldap/include/eldap.hrl").
 
 -define(CACHE_SIZE, 1000).
 

@@ -11,7 +11,6 @@
          code_change/3]).
 
 -include("mongoose.hrl").
--include("eldap.hrl").
 
 -type state() :: #{handle := none | eldap:handle(),
                    servers := [string()],
