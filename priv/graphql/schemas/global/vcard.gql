@@ -6,7 +6,7 @@ type Vcard{
     "User's nickname"
     nickname: [String]
     "User's photo"
-    photo: [String]
+    photo: [Image]
     "Birthday date"
     birthday: [String]
     address: [Address]
@@ -20,7 +20,7 @@ type Vcard{
     geo: [GeographicalPosition]
     title: [String]
     role: [String]
-    logo: [String]
+    logo: [Image]
     agent: [String]
     "Organization"
     org: [Organization]
@@ -33,7 +33,7 @@ type Vcard{
     "Sort string property"
     sortString: [String]
     "Formatted name pronunciation property"
-    sound: [String]
+    sound: [Sound]
     "Unique identifier property"
     uid: [String]
     "Directory URL property"
@@ -92,6 +92,27 @@ type Email{
     userId: String
 }
 
+type ImageData{
+    type: String
+    binValue: String
+}
+
+type External{
+    extValue: String
+}
+
+type Phonetic {
+    phonetic: String
+}
+
+type BinValue{
+    binValue: String
+}
+
+union Image = ImageData | External
+
+union Sound = Phonetic | BinValue | External
+
 type GeographicalPosition{
     "Geographical latitude"
     lat: String
@@ -111,6 +132,7 @@ type Privacy{
 }
 
 type Key{
+    type: String
     credential: String
 }
 
@@ -122,7 +144,7 @@ input VcardInput{
     "User's nickname"
     nickname: [String]
     "User's photo"
-    photo: [String!]
+    photo: [ImageInput!]
     "Birthday date"
     birthday: [String!]
     address: [AddressInput!]
@@ -136,7 +158,7 @@ input VcardInput{
     geo: [GeographicalPositionInput!]
     title: [String!]
     role: [String!]
-    logo: [String!]
+    logo: [ImageInput!]
     agent: [String!]
     "Organization"
     org: [OrganizationInput!]
@@ -149,7 +171,7 @@ input VcardInput{
     "Sort string property"
     sortString: [String!]
     "Formatted name pronunciation property"
-    sound: [String!]
+    sound: [SoundInput!]
     "Unique identifier property"
     uid: [String!]
     "Directory URL property"
@@ -226,7 +248,20 @@ input PrivacyInput{
     tags: [PrivacyClassificationTags!]
 }
 
+input ImageInput{
+    type: String
+    binValue: String
+    extValue: String
+}
+
+input SoundInput{
+    phonetic: String
+    binValue: String
+    extValue: String
+}
+
 input KeyInput{
+    type: String
     credential: String!
 }
 

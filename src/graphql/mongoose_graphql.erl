@@ -150,7 +150,8 @@ admin_mapping_rules() ->
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
       scalars => #{default => mongoose_graphql_scalar},
-      enums => #{default => mongoose_graphql_enum}}.
+      enums => #{default => mongoose_graphql_enum},
+      unions => #{default => mongoose_graphql_union}}.
 
 user_mapping_rules() ->
     #{objects => #{
@@ -173,7 +174,8 @@ user_mapping_rules() ->
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
       scalars => #{default => mongoose_graphql_scalar},
-      enums => #{default => mongoose_graphql_enum}}.
+      enums => #{default => mongoose_graphql_enum},
+      unions => #{default => mongoose_graphql_union}}.
 
 load_multiple_file_schema(Patterns) ->
     Paths = lists:flatmap(fun(P) -> filelib:wildcard(P) end, Patterns),

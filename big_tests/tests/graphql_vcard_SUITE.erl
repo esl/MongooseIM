@@ -281,7 +281,11 @@ complete_vcard_input() ->
          <<"suffix">> => <<"sufix">>
      },
      <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
-     <<"photo">> => [<<"photoTest">>, <<"SecondPhoto">>],
+     <<"photo">> => [
+        #{<<"type">> => <<"image/jpeg">>,
+          <<"binValue">> => <<"TestBinaries">>},
+        #{<<"extValue">> => <<"External Value">>}
+    ],
      <<"birthday">> => [<<"birthdayTest">>, <<"SecondBirthday">>],
      <<"address">> => [
          #{
@@ -326,7 +330,11 @@ complete_vcard_input() ->
      ],
      <<"title">> => [<<"TitleTest">>, <<"SEcondTest">>],
      <<"role">> => [<<"roleTest">>, <<"SecondRole">>],
-     <<"logo">> => [<<"LogoTest">>, <<"SecondLogo">>],
+     <<"logo">> => [
+        #{<<"type">> => <<"image/jpeg">>,
+          <<"binValue">> => <<"TestBinariesLogo">>},
+        #{<<"extValue">> => <<"External Value Logo">>}
+     ],
      <<"agent">> => [<<"AgentTest">>, <<"SecondAgent">>],
      <<"org">> =>[
          #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>, <<"TEST2">>]},
@@ -340,7 +348,11 @@ complete_vcard_input() ->
      <<"prodId">> => [<<"ProdIdTest">>, <<"PRodTEST2">>],
      <<"rev">> => [<<"revTest">>, <<"RevTest2">>],
      <<"sortString">> => [<<"sortStringTest">>, <<"String2">>],
-     <<"sound">> => [<<"SoundTest">>, <<"Sound2">>],
+     <<"sound">> => [
+         #{<<"binValue">> => <<"TestBinValue">>},
+         #{<<"phonetic">> => <<"PhoneticTest">>},
+         #{<<"extValue">> => <<"ExtValueTest">>}
+     ],
      <<"uid">> => [<<"UidTest">>, <<"UID2">>],
      <<"url">> => [<<"UrlTest">>, <<"URL2">>],
      <<"desc">> => [<<"DescTest">>, <<"DESC2">>],
@@ -349,8 +361,8 @@ complete_vcard_input() ->
          #{<<"tags">> => [<<"CONFIDENTIAL">>]}
      ],
      <<"key">> => [
-         #{<<"credential">> => <<"TESTCREDENTIAL1">>},
-         #{<<"credential">> => <<"TESTCREDENTIAL2">>}
+         #{<<"type">> => <<"TYPETEST1">>, <<"credential">> => <<"TESTCREDENTIAL1">>},
+         #{<<"type">> => <<"TYPETEST2">>, <<"credential">> => <<"TESTCREDENTIAL2">>}
      ]
     }.
 
@@ -420,6 +432,12 @@ get_full_vcard_as_result() ->
            { family givenName middleName prefix suffix }
            nickname
            photo
+           {
+               ... on ImageData
+               { type binValue }
+               ... on External
+               { extValue }
+           }
            birthday
            address
            { tags pobox extadd street locality region pcode country }
@@ -437,6 +455,12 @@ get_full_vcard_as_result() ->
            title
            role
            logo
+           {
+               ... on ImageData
+               { type binValue }
+               ... on External
+               { extValue }
+           }
            agent
            org
            { orgname orgunit }
@@ -447,11 +471,19 @@ get_full_vcard_as_result() ->
            rev
            sortString
            sound
+           {
+               ... on External
+               { extValue }
+               ... on BinValue
+               { binValue }
+               ... on Phonetic
+               { phonetic }
+           }
            uid
            url
            desc
            class
            { tags }
            key
-           { credential }
+           { type credential }
        }">>.

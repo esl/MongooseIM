@@ -104,6 +104,8 @@ from_map_to_xml(<<"givenName">>) -> <<"GIVEN">>;
 from_map_to_xml(<<"middleName">>) -> <<"MIDDLE">>;
 from_map_to_xml(<<"credential">>) -> <<"CRED">>;
 from_map_to_xml(<<"country">>) -> <<"CTRY">>;
+from_map_to_xml(<<"binValue">>) -> <<"BINVAL">>;
+from_map_to_xml(<<"extValue">>) -> <<"EXTVAL">>;
 from_map_to_xml(Name) -> list_to_binary(string:to_upper(binary_to_list(Name))).
 
 to_map_format(Vcard) ->
@@ -118,7 +120,7 @@ transform_from_xml(<<"N">>, Value, _) ->
 transform_from_xml(<<"NICKNAME">>, Value, Acc) ->
     simple_process(<<"nickname">>, Value, Acc);
 transform_from_xml(<<"PHOTO">>, Value, Acc) ->
-    simple_process(<<"photo">>, Value, Acc);
+    complex_process(<<"photo">>, Value, Acc, fun image_components_process/2);
 transform_from_xml(<<"BDAY">>, Value, Acc) ->
     simple_process(<<"birthday">>, Value, Acc);
 transform_from_xml(<<"ADR">>, Value, Acc) ->
@@ -142,7 +144,7 @@ transform_from_xml(<<"TITLE">>, Value, Acc) ->
 transform_from_xml(<<"ROLE">>, Value, Acc) ->
     simple_process(<<"role">>, Value, Acc);
 transform_from_xml(<<"LOGO">>, Value, Acc) ->
-    simple_process(<<"logo">>, Value, Acc);
+    complex_process(<<"logo">>, Value, Acc, fun image_components_process/2);
 transform_from_xml(<<"AGENT">>, Value, Acc) ->
     simple_process(<<"agent">>, Value, Acc);
 transform_from_xml(<<"ORG">>, Value, Acc) ->
@@ -158,7 +160,7 @@ transform_from_xml(<<"REV">>, Value, Acc) ->
 transform_from_xml(<<"SOR">>, Value, Acc) ->
     simple_process(<<"sortString">>, Value, Acc);
 transform_from_xml(<<"SOUND">>, Value, Acc) ->
-    simple_process(<<"sound">>, Value, Acc);
+    complex_process(<<"sound">>, Value, Acc, fun sound_components_process/2);
 transform_from_xml(<<"UID">>, Value, Acc) ->
     simple_process(<<"uid">>, Value, Acc);
 transform_from_xml(<<"URL">>, Value, Acc) ->
@@ -251,8 +253,24 @@ categories_components_process(#xmlel{name = <<"KEYWORD">>, children = Value}, Ac
     maps:merge(Acc, #{<<"keyword">> => List ++ [{ok, process_value(Value)}]}).
 
 key_components_process(#xmlel{name = <<"CRED">>, children = Value}, Acc) ->
-    maps:put(<<"credential">>, process_value(Value), Acc).
+    maps:put(<<"credential">>, process_value(Value), Acc);
+key_components_process(#xmlel{name = <<"TYPE">>, children = Value}, Acc) ->
+    maps:put(<<"type">>, process_value(Value), Acc).
 
 class_components_process(#xmlel{name = Name, children = []}, Acc) ->
     List = maps:get(<<"tags">>, Acc, []),
     maps:merge(Acc, #{<<"tags">> => List ++ [{ok, Name}]}).
+
+image_components_process(#xmlel{name = <<"TYPE">>, children = Value}, Acc) ->
+    maps:put(<<"type">>, process_value(Value), Acc);
+image_components_process(#xmlel{name = <<"BINVAL">>, children = Value}, Acc) ->
+    maps:put(<<"binValue">>, process_value(Value), Acc);
+image_components_process(#xmlel{name = <<"EXTVAL">>, children = Value}, Acc) ->
+    maps:put(<<"extValue">>, process_value(Value), Acc).
+
+sound_components_process(#xmlel{name = <<"PHONETIC">>, children = Value}, Acc) ->
+    maps:put(<<"phonetic">>, process_value(Value), Acc);
+sound_components_process(#xmlel{name = <<"BINVAL">>, children = Value}, Acc) ->
+    maps:put(<<"binValue">>, process_value(Value), Acc);
+sound_components_process(#xmlel{name = <<"EXTVAL">>, children = Value}, Acc) ->
+    maps:put(<<"extValue">>, process_value(Value), Acc).
