@@ -16,12 +16,13 @@
 
 -define(MAIN_MODULE, mongoose_rdbms).
 
+-type options() :: mongoose_rdbms:options().
 
 -callback escape_binary(binary()) -> mongoose_rdbms:sql_query_part().
 -callback escape_string(binary()|list()) -> mongoose_rdbms:sql_query_part().
 
 -callback unescape_binary(binary()) -> binary().
--callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+-callback connect(options(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
 -callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
@@ -51,10 +52,10 @@ unescape_binary(Binary) ->
     Args = [Binary],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec connect(Settings :: tuple(), QueryTimeout :: non_neg_integer()) ->
+-spec connect(options(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings, QueryTimeout) ->
-    Args = [Settings, QueryTimeout],
+connect(Options, QueryTimeout) ->
+    Args = [Options, QueryTimeout],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec disconnect(Connection :: term()) -> any().

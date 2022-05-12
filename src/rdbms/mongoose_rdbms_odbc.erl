@@ -25,6 +25,8 @@
 
 -type tabcol() :: {binary(), binary()}.
 
+-type options() :: #{settings := string(), atom() => any()}.
+
 %% API
 
 -spec escape_binary(binary()) -> iodata().
@@ -39,9 +41,9 @@ escape_string(Iolist) ->
 unescape_binary(Bin) when is_binary(Bin) ->
     base16:decode(Bin).
 
--spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+-spec connect(options(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings, _QueryTimeout) when is_list(Settings) ->
+connect(#{settings := Settings}, _QueryTimeout) when is_list(Settings) ->
     %% We need binary_strings=off to distinguish between:
     %% - UTF-16 encoded NVARCHARs - encoded as binaries.
     %% - Binaries/regular strings - encoded as list of small integers.

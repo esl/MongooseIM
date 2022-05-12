@@ -56,6 +56,8 @@
               sql_query/0,
               sql_query_part/0]).
 
+-export([process_options/1]).
+
 %% External exports
 -export([prepare/4,
          prepared/1,
@@ -166,9 +168,28 @@
 -export_type([query_result/0,
               server/0]).
 
+-type options() :: #{driver := pgsql | mysql | odbc,
+                     max_start_interval := pos_integer(),
+                     atom() => any()}.
+
+-export_type([options/0]).
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
+
+-spec process_options(map()) -> options().
+process_options(Opts = #{driver := odbc, settings := _}) ->
+    Opts;
+process_options(Opts = #{host := _Host, database := _DB, username := _User,
+                         password := _Pass, driver := _Driver}) ->
+    ensure_db_port(Opts);
+process_options(Opts) ->
+    error(#{what => invalid_rdbms_connection_options, options => Opts}).
+
+ensure_db_port(Opts = #{port := _}) -> Opts;
+ensure_db_port(Opts = #{driver := pgsql}) -> Opts#{port => 5432};
+ensure_db_port(Opts = #{driver := mysql}) -> Opts#{port => 3306}.
 
 -spec prepare(Name, Table :: binary() | atom(), Fields :: [binary() | atom()],
               Statement :: iodata()) ->
@@ -565,15 +586,13 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%----------------------------------------------------------------------
--spec init(term()) -> {ok, state()}.
-init(Opts) ->
+-spec init(options()) -> {ok, state()}.
+init(Opts = #{max_start_interval := MaxStartInterval}) ->
     process_flag(trap_exit, true),
-    {server, Settings} = lists:keyfind(server, 1, Opts),
-    KeepaliveInterval = proplists:get_value(keepalive_interval, Opts),
-    % retries are delayed exponentially, this param limits the delay
-    % so if we start with 2 and try 6 times, we have 2, 4, 8, 16, 30
-    MaxStartInterval = proplists:get_value(start_interval, Opts, 30),
-    case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
+    KeepaliveInterval = maps:get(keepalive_interval, Opts, undefined),
+    % retries are delayed exponentially, max_start_interval limits the delay
+    % e.g. if the limit is 30, the delays are: 2, 4, 8, 16, 30, 30, ...
+    case connect(Opts, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
             schedule_keepalive(KeepaliveInterval),
             {ok, #state{db_ref = DbRef, keepalive_interval = KeepaliveInterval}};
@@ -809,10 +828,10 @@ db_type() ->
         _ -> generic
     end.
 
--spec connect(Settings :: tuple(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
+-spec connect(options(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
-connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
-    case mongoose_rdbms_backend:connect(Settings, ?QUERY_TIMEOUT) of
+connect(Options, Retry, RetryAfter, MaxRetryDelay) ->
+    case mongoose_rdbms_backend:connect(Options, ?QUERY_TIMEOUT) of
         {ok, _} = Ok ->
             Ok;
         Error when Retry =:= 0 ->
@@ -824,7 +843,7 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
                 error => Error, sleep_for => SleepFor}),
             timer:sleep(timer:seconds(SleepFor)),
             NextRetryDelay = RetryAfter * RetryAfter,
-            connect(Settings, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
+            connect(Options, Retry - 1, min(MaxRetryDelay, NextRetryDelay), MaxRetryDelay)
     end.
 
 

@@ -20,7 +20,12 @@
 
 -include_lib("epgsql/include/epgsql.hrl").
 
--define(PGSQL_PORT, 5432).
+-type options() :: #{host := string(),
+                     port := inet:port(),
+                     database := string(),
+                     username := string(),
+                     password := string(),
+                     atom() => any()}.
 
 -export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
          query/3, prepare/5, execute/4]).
@@ -37,10 +42,10 @@ unescape_binary(<<"\\x", Bin/binary>>) ->
 unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
--spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+-spec connect(options(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings, QueryTimeout) ->
-    case epgsql:connect(db_opts(Settings)) of
+connect(Options, QueryTimeout) ->
+    case epgsql:connect(db_opts(Options)) of
         {ok, Pid} ->
             epgsql:squery(Pid, [<<"SET statement_timeout=">>, integer_to_binary(QueryTimeout)]),
             epgsql:squery(Pid, <<"SET standard_conforming_strings=off">>),
@@ -76,32 +81,23 @@ execute(Connection, StatementRef, Params, _Timeout) ->
 
 %% Helpers
 
--spec db_opts(Settings :: term()) -> [term()].
-db_opts({pgsql, Server, DB, User, Pass}) ->
-    db_opts({pgsql, Server, ?PGSQL_PORT, DB, User, Pass});
-db_opts({pgsql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
-    get_db_basic_opts({Server, Port, DB, User, Pass});
-db_opts({pgsql, Server, DB, User, Pass, SSLConnOpts}) ->
-    db_opts({pgsql, Server, ?PGSQL_PORT, DB, User, Pass, SSLConnOpts});
-db_opts({pgsql, Server, Port, DB, User, Pass, SSLConnOpts}) when is_integer(Port) ->
-    DBBasicOpts = get_db_basic_opts({Server, Port, DB, User, Pass}),
-    extend_db_opts_with_ssl(DBBasicOpts, SSLConnOpts).
+-spec db_opts(options()) -> epgsql:connect_opts().
+db_opts(Options) ->
+    BasicOpts = maps:with([host, port, database, username, password], Options),
+    TLSOpts = tls_opts(Options),
+    maps:merge(BasicOpts#{codecs => [{mongoose_rdbms_pgsql_codec_boolean, []}]}, TLSOpts).
 
--spec get_db_basic_opts(Settings :: term()) -> [term()].
-get_db_basic_opts({Server, Port, DB, User, Pass}) ->
-    [
-     {host, Server},
-     {port, Port},
-     {database, DB},
-     {username, User},
-     {password, Pass},
-     %% Encode 0 and 1 as booleans, as well as true and false
-     {codecs, [{mongoose_rdbms_pgsql_codec_boolean, []}]}
-    ].
+tls_opts(#{tls := KVs}) ->
+    {[ModeOpts], Opts} = proplists:split(KVs, [required]),
+    (ssl_opts(Opts))#{ssl => ssl_mode(ModeOpts)};
+tls_opts(#{}) ->
+    #{}.
 
--spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
-extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
-    Opts ++ SSLConnOpts.
+ssl_mode([{required, true}]) -> required;
+ssl_mode(_) -> true.
+
+ssl_opts([]) -> #{};
+ssl_opts(Opts) -> #{ssl_opts => Opts}.
 
 -spec pgsql_to_rdbms(epgsql:reply(term())) -> mongoose_rdbms:query_result().
 pgsql_to_rdbms(Items) when is_list(Items) ->
