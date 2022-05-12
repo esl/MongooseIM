@@ -17,7 +17,8 @@
 
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
+-import(config_parser_helper, [config/2]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 all() ->
@@ -54,33 +55,18 @@ end_per_suite(_Config) ->
     exit(whereis(ejabberd_sup), shutdown),
     whereis(test_helper) ! stop.
 
-init_per_testcase(request_timeout_test, Config) ->
-    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
-                                             opts => #{},
-                                             conn_opts => #{server => "http://localhost:8080",
-                                                            request_timeout => 10,
-                                                            path_prefix => "/"}}],
-                                          [<<"a.com">>]),
-    Config;
-init_per_testcase(pool_timeout_test, Config) ->
-    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
-                                             opts => #{workers => 1,
-                                                       max_overflow => 0,
-                                                       strategy => available_worker,
-                                                       call_timeout => 10},
-                                             conn_opts => #{server => "http://localhost:8080",
-                                                            request_timeout => 5000,
-                                                            path_prefix => "/"}}],
-                                          [<<"a.com">>]),
-    Config;
-init_per_testcase(_TC, Config) ->
-    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
-                                             opts => #{},
-                                             conn_opts => #{server => "http://localhost:8080",
-                                                            request_timeout => 1000,
-                                                            path_prefix => "/"}}],
-                                          [<<"a.com">>]),
+init_per_testcase(TC, Config) ->
+    Pool = config([outgoing_pools, http, pool()], pool_opts(TC)),
+    mongoose_wpool:start_configured_pools([Pool], [<<"a.com">>]),
     Config.
+
+pool_opts(request_timeout_test) ->
+    #{conn_opts => #{host => "http://localhost:8080", request_timeout => 10}};
+pool_opts(pool_timeout_test) ->
+    #{opts => #{workers => 1, max_overflow => 0, strategy => available_worker, call_timeout => 10},
+      conn_opts => #{host => "http://localhost:8080", request_timeout => 5000}};
+pool_opts(_TC) ->
+    #{conn_opts => #{host => "http://localhost:8080", request_timeout => 1000}}.
 
 end_per_testcase(_TC, _Config) ->
     mongoose_wpool:stop(http, global, pool()).

@@ -181,6 +181,7 @@ minimal_config_opts() ->
      {listen, []},
      {loglevel, warning},
      {mongooseimctl_access_commands, []},
+     {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},

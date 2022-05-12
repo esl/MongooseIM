@@ -18,12 +18,12 @@
 -compile([export_all, nowarn_export_all]).
 -author('piotr.nosek@erlang-solutions.com').
 
--include_lib("common_test/include/ct.hrl").
-
 -define(DOMAIN, <<"localhost">>).
 -define(HOST_TYPE, <<"test host type">>).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
+
+-import(config_parser_helper, [config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -75,16 +75,18 @@ init_per_suite(Config) ->
               mim_ct_sup:start_link(ejabberd_sup),
               mongoose_wpool:ensure_started(),
               % This would be started via outgoing_pools in normal case
-              Pool = #{type => http, scope => host, tag => auth,
-                       opts => #{strategy => random_worker, call_timeout => 5000, workers => 20},
-                       conn_opts => #{path_prefix => "/auth/", http_opts => [],
-                                      server => ?AUTH_HOST, request_timeout => 2000}},
+              Pool = config([outgoing_pools, http, auth], pool_opts()),
               HostTypes = [?HOST_TYPE, <<"another host type">>],
               mongoose_wpool:start_configured_pools([Pool], HostTypes),
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)
       end),
     Config.
+
+pool_opts() ->
+   #{scope => host,
+     opts => #{strategy => random_worker, call_timeout => 5000, workers => 20},
+     conn_opts => #{host => ?AUTH_HOST, path_prefix => <<"/auth/">>}}.
 
 end_per_suite(Config) ->
     ejabberd_auth_http:stop(?HOST_TYPE),
