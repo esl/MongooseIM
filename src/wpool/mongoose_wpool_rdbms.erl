@@ -7,6 +7,7 @@
 
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
+-spec init() -> ok.
 init() ->
     case ets:info(prepared_statements) of
         undefined ->
@@ -21,34 +22,28 @@ init() ->
             ok
     end.
 
+-spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),
+            mongoose_wpool:pool_opts(), mongoose_wpool:conn_opts()) -> {ok, pid()} | {error, any()}.
 start(HostType, Tag, WpoolOpts, RdbmsOpts) ->
     try do_start(HostType, Tag, WpoolOpts, RdbmsOpts)
     catch
         Err -> {error, Err}
     end.
 
+-spec stop(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> ok.
 stop(_, _) ->
     ok.
 
 %% --------------------------------------------------------------
 %% Helper functions
 do_start(HostType, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_map(RdbmsOpts) ->
-    BackendName = backend_name(RdbmsOpts),
-    KVRdbmsOpts = maps:to_list(RdbmsOpts),
+    #{driver := BackendName} = RdbmsOpts,
     mongoose_backend:init(global, mongoose_rdbms, [query, execute], #{backend => BackendName}),
-
     mongoose_metrics:ensure_db_pool_metric({rdbms, HostType, Tag}),
-    WpoolOpts = make_wpool_opts(WpoolOpts0, KVRdbmsOpts),
+    WpoolOpts = make_wpool_opts(WpoolOpts0, RdbmsOpts),
     ProcName = mongoose_wpool:make_pool_name(rdbms, HostType, Tag),
     mongoose_wpool:start_sup_pool(rdbms, ProcName, WpoolOpts).
 
 make_wpool_opts(WpoolOpts0, RdbmsOpts) ->
     Worker = {mongoose_rdbms, RdbmsOpts},
     [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0].
-
--spec backend_name(map()) -> odbc | pgsql | mysql.
-backend_name(RdbmsOpts) ->
-    case maps:get(server, RdbmsOpts) of
-        ConnStr when is_list(ConnStr) -> odbc;
-        Tuple when is_tuple(Tuple) -> element(1, Tuple)
-    end.
