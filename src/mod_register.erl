@@ -271,13 +271,13 @@ process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Sou
     true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
         case From of
-            JID = #jid{user = User} ->
+            JID = #jid{luser = LUser} ->
                 case ejabberd_auth:does_user_exist(JID) of
                     true ->
-                        {true, [#xmlcdata{content = User}],
+                        {true, [#xmlcdata{content = LUser}],
                          [#xmlel{name = <<"registered">>}]};
                     false ->
-                        {false, [#xmlcdata{content = User}], []}
+                        {false, [#xmlcdata{content = LUser}], []}
                 end;
             _ ->
                 {false, [], []}
@@ -294,13 +294,13 @@ process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Sou
                                        #xmlel{name = <<"password">>}
                                        | QuerySubels]}]}.
 
-try_register_or_set_password(HostType, User, Server, Password, #jid{user = User, lserver = Server} = UserJID,
+try_register_or_set_password(HostType, LUser, Server, Password, #jid{luser = LUser, lserver = Server} = UserJID,
                              IQ, SubEl, _Source, Lang) ->
     try_set_password(HostType, UserJID, Password, IQ, SubEl, Lang);
-try_register_or_set_password(HostType, User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
+try_register_or_set_password(HostType, LUser, Server, Password, _From, IQ, SubEl, Source, Lang) ->
     case check_timeout(Source) of
         true ->
-            case try_register(HostType, User, Server, Password, Source, Lang) of
+            case try_register(HostType, LUser, Server, Password, Source, Lang) of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, Error} ->

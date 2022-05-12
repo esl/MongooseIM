@@ -199,7 +199,7 @@ handle_remote_call(init, _JID, _Server, HostType, HandlerState) ->
     start_ping_timer(HandlerState, HostType);
 handle_remote_call(send_ping, JID, Server, HostType, HandlerState) ->
     route_ping_iq(JID, Server, HostType),
-    start_ping_timer(HandlerState, Server);
+    start_ping_timer(HandlerState, HostType);
 handle_remote_call(timeout, JID, _Server, HostType, HandlerState) ->
     mongoose_hooks:user_ping_timeout(HostType, JID),
     case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action) of
@@ -211,7 +211,7 @@ handle_remote_call(remove_timer, _JID, _Server, _HostType, HandlerState) ->
     cancel_timer(HandlerState),
     empty_state.
 
--spec start_ping_timer(term(), jid:server()) -> reference().
+-spec start_ping_timer(term(), mongooseim:host_type()) -> reference().
 start_ping_timer(HandlerState, HostType) ->
     cancel_timer(HandlerState),
     PingInterval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),

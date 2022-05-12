@@ -16,7 +16,7 @@ start(HostType) ->
 %%             are not valid.
 -spec get_valid_sequence_number(mongooseim:host_type(), jid:jid()) -> integer().
 get_valid_sequence_number(HostType, JID) ->
-    BBareJID = jid:to_binary(jid:to_bare(JID)),
+    BBareJID = jid:to_bare_binary(JID),
     {atomic, Selected} =
         mongoose_rdbms:sql_transaction(
           HostType, fun() -> get_sequence_number_t(HostType, BBareJID) end),
@@ -24,7 +24,7 @@ get_valid_sequence_number(HostType, JID) ->
 
 -spec revoke(mongooseim:host_type(), jid:jid()) -> ok | not_found.
 revoke(HostType, JID) ->
-    BBareJID = jid:to_binary(jid:to_bare(JID)),
+    BBareJID = jid:to_bare_binary(JID),
     QueryResult = execute_revoke_token(HostType, BBareJID),
     ?LOG_DEBUG(#{what => auth_token_revoke, owner => BBareJID, sql_result => QueryResult}),
     case QueryResult of
@@ -34,7 +34,7 @@ revoke(HostType, JID) ->
 
 -spec clean_tokens(mongooseim:host_type(), jid:jid()) -> ok.
 clean_tokens(HostType, Owner) ->
-    BBareJID = jid:to_binary(jid:to_bare(Owner)),
+    BBareJID = jid:to_bare_binary(Owner),
     execute_delete_token(HostType, BBareJID),
     ok.
 

@@ -176,7 +176,7 @@ get_personal_data(Acc, HostType, ArcJID) ->
 delete_archive(Server, User)
   when is_binary(Server), is_binary(User) ->
     ?LOG_DEBUG(#{what => mam_delete_archive, user => User, server => Server}),
-    ArcJID = jid:make(User, Server, <<>>),
+    ArcJID = jid:make_bare(User, Server),
     HostType = jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     remove_archive_hook(HostType, ArcID, ArcJID),
@@ -185,21 +185,21 @@ delete_archive(Server, User)
 -spec archive_size(jid:server(), jid:user()) -> integer().
 archive_size(Server, User)
   when is_binary(Server), is_binary(User) ->
-    ArcJID = jid:make(User, Server, <<>>),
+    ArcJID = jid:make_bare(User, Server),
     HostType = jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     archive_size(HostType, ArcID, ArcJID).
 
 -spec archive_size_with_host_type(host_type(), jid:server(), jid:user()) -> integer().
 archive_size_with_host_type(HostType, Server, User) ->
-    ArcJID = jid:make(User, Server, <<>>),
+    ArcJID = jid:make_bare(User, Server),
     ArcID = archive_id_int(HostType, ArcJID),
     archive_size(HostType, ArcID, ArcJID).
 
 -spec archive_id(jid:server(), jid:user()) -> integer() | undefined.
 archive_id(Server, User)
   when is_binary(Server), is_binary(User) ->
-    ArcJID = jid:make(User, Server, <<>>),
+    ArcJID = jid:make_bare(User, Server),
     HostType = jid_to_host_type(ArcJID),
     archive_id_int(HostType, ArcJID).
 

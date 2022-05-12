@@ -316,12 +316,11 @@ sm_error(_From, _To) ->
     mongoose_xmpp_errors:not_allowed().
 
 -spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
-get_user_resources(JID) ->
-    #jid{user = User, server = Server} = JID,
+get_user_resources(JID = #jid{luser = LUser}) ->
     Rs = ejabberd_sm:get_user_resources(JID),
     lists:map(fun(R) ->
-                      BJID = jid:to_binary({User, Server, R}),
-                      #{jid => BJID, name => User}
+                      BJID = jid:to_binary(jid:replace_resource_noprep(JID, R)),
+                      #{jid => BJID, name => LUser}
               end, lists:sort(Rs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

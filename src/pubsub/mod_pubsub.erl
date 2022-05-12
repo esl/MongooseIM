@@ -3242,14 +3242,11 @@ subscription_to_string(subscribed) -> <<"subscribed">>;
 subscription_to_string(pending) -> <<"pending">>;
 subscription_to_string(_) -> <<"none">>.
 
--spec service_jid(
-        Host :: mod_pubsub:host())
-        ->jid:jid().
+-spec service_jid(mod_pubsub:host()) -> jid:jid().
+service_jid({U, S, _}) ->
+    jid:make_bare(U, S);
 service_jid(Host) ->
-    case Host of
-        {U, S, _} -> {jid, U, S, <<>>, U, S, <<>>};
-        _ -> {jid, <<>>, Host, <<>>, <<>>, Host, <<>>}
-    end.
+    jid:make_bare(<<>>, Host).
 
 %% @doc <p>Check if a notification must be delivered or not based on
 %% node and subscription options.</p>
@@ -3608,7 +3605,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             ejabberd_c2s:run_remote_hook(C2SPid,
                                          pep_message,
                                          {<<((Node))/binary, "+notify">>,
-                                           jid:make(LUser, LServer, <<"">>),
+                                           jid:make_bare(LUser, LServer),
                                            add_extended_headers(Stanza, ReplyTo)});
         _ ->
 
@@ -3688,7 +3685,7 @@ process_jid_to_deliver(JIDs, SubID, NodeName, JIDToDeliver, {JIDsAcc, Recipients
     end.
 
 user_resources(User, Server) ->
-    JID = jid:make(User, Server, <<>>),
+    JID = jid:make_bare(User, Server),
     ejabberd_sm:get_user_resources(JID).
 
 user_resource(User, Server, <<>>) ->

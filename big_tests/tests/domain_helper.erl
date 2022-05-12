@@ -48,7 +48,7 @@ secondary_host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, secondary_host_type}).
 
 make_metrics_prefix(HostType) ->
-    rpc(mim(), mongoose_metrics, make_host_type_name, [HostType]).
+    metrics_helper:make_host_type_name(HostType).
 
 insert_configured_domains() ->
     for_each_configured_domain(fun insert_persistent_domain/3).

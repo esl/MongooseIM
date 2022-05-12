@@ -81,7 +81,6 @@
         timestamp := integer(), %microsecond
         origin_pid := pid(),
         origin_location := location(),
-        origin_stanza := binary() | undefined,
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
         host_type := binary() | undefined,
@@ -124,11 +123,10 @@
 
 -spec new(Params :: new_acc_params()) -> t().
 new(#{ location := Location, lserver := LServer } = Params) ->
-    {ElementBin, Stanza} =
-    case maps:get(element, Params, undefined) of
-        undefined -> {undefined, undefined};
-        Element -> {exml:to_binary(Element), stanza_from_params(Params)}
-    end,
+    Stanza = case maps:get(element, Params, undefined) of
+                 undefined -> undefined;
+                 _Element -> stanza_from_params(Params)
+             end,
     HostType = get_host_type(Params),
     #{
       mongoose_acc => true,
@@ -136,7 +134,6 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       timestamp => os:system_time(microsecond),
       origin_pid => self(),
       origin_location => Location,
-      origin_stanza => ElementBin,
       stanza => Stanza,
       lserver => LServer,
       host_type => HostType,
@@ -326,11 +323,12 @@ stanza_from_params(#{ element := El } = Params) ->
 -spec jid_from_params(MapKey :: to_jid | from_jid,
                       StanzaAttrName :: binary(),
                       Params :: stanza_params()) -> jid:jid().
-jid_from_params(MapKey, StanzaAttrName, #{ element := El } = Params) ->
-    case maps:find(MapKey, Params) of
-        {ok, JID0} -> JID0;
-        error -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName))
-    end.
+jid_from_params(to_jid, _, #{to_jid := Jid}) ->
+    Jid;
+jid_from_params(from_jid, _, #{from_jid := Jid}) ->
+    Jid;
+jid_from_params(_, StanzaAttrName, #{element := El}) ->
+    #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName)).
 
 -spec default_non_strippable() -> [atom()].
 default_non_strippable() ->
@@ -340,7 +338,6 @@ default_non_strippable() ->
      timestamp,
      origin_pid,
      origin_location,
-     origin_stanza,
      stanza,
      lserver,
      host_type,

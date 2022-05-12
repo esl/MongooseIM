@@ -15,10 +15,11 @@
 %%==============================================================================
 -module(mongoose_api).
 
+-behaviour(mongoose_http_handler).
 -behaviour(cowboy_rest).
 
-%% ejabberd_cowboy callbacks
--export([cowboy_router_paths/2]).
+%% mongoose_http_handler callbacks
+-export([config_spec/0, routes/1]).
 
 %% cowboy_rest callbacks
 -export([init/2,
@@ -54,29 +55,38 @@
 -callback handle_put(term(), bindings(), options()) -> response().
 -callback handle_delete(bindings(), options()) -> response().
 
-%%--------------------------------------------------------------------
-%% ejabberd_cowboy callbacks
-%%--------------------------------------------------------------------
-cowboy_router_paths(Base, Opts) ->
-    Handlers = proplists:get_value(handlers, Opts, []),
-    lists:flatmap(pa:bind(fun register_handler/2, Base), Handlers).
+-include("mongoose_config_spec.hrl").
 
-register_handler(Base, Handler) ->
-    [{[Base, Handler:prefix(), Path], ?MODULE, [{handler, Handler}|Opts]}
-     || {Path, Opts} <- Handler:routes()].
+-type handler_options() :: #{path := string(), handlers := [module()], atom() => any()}.
+
+%%--------------------------------------------------------------------
+%% mongoose_http_handler callbacks
+%%--------------------------------------------------------------------
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    HandlerModules = [mongoose_api_metrics, mongoose_api_users],
+    #section{items = #{<<"handlers">> => #list{items = #option{type = atom,
+                                                               validate = {enum, HandlerModules}},
+                                               validate = unique_non_empty}
+                      },
+             defaults = #{<<"handlers">> => HandlerModules},
+             format_items = map}.
+
+-spec routes(handler_options()) -> mongoose_http_handler:routes().
+routes(#{path := BasePath, handlers := HandlerModules}) ->
+    lists:flatmap(fun(Module) -> cowboy_routes(BasePath, Module) end, HandlerModules).
+
+cowboy_routes(BasePath, Module) ->
+    [{[BasePath, Module:prefix(), Path], ?MODULE, #{module => Module, opts => Opts}}
+     || {Path, Opts} <- Module:routes()].
 
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
-init(Req, Opts) ->
-    case lists:keytake(handler, 1, Opts) of
-        {value, {handler, Handler}, Opts1} ->
-            Bindings = maps:to_list(cowboy_req:bindings(Req)),
-            State = #state{handler=Handler, opts=Opts1, bindings=Bindings},
-            {cowboy_rest, Req, State}; % upgrade protocol
-        false ->
-            erlang:throw(no_handler_defined)
-    end.
+init(Req, #{module := Module, opts := Opts}) ->
+    Bindings = maps:to_list(cowboy_req:bindings(Req)),
+    State = #state{handler = Module, opts = Opts, bindings = Bindings},
+    {cowboy_rest, Req, State}. % upgrade protocol
 
 terminate(_Reason, _Req, _State) ->
     ok.

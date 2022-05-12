@@ -519,7 +519,7 @@ offline_msg_to_gdpr_format(#offline_msg{timestamp = TimeStamp, from = From,
     SystemTime = erlang:convert_time_unit(TimeStamp, microsecond, second),
     UTCTime = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
     UTC = list_to_binary(UTCTime),
-    {UTC, jid:to_binary(From), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
+    {UTC, jid:to_binary(From), jid:to_bare_binary(To), exml:to_binary(Packet)}.
 
 skip_expired_messages(TimeStamp, Rs) ->
     [R || R <- Rs, not is_expired_message(TimeStamp, R)].

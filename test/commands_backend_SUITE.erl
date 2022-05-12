@@ -109,7 +109,7 @@ setup(Module) ->
              port => ?PORT,
              ip_tuple => ?IP,
              proto => tcp,
-             handlers => [{"localhost", "/api", Module, []}]},
+             handlers => [#{host => "localhost", path => "/api", module => Module}]},
     ejabberd_cowboy:start_listener(Opts).
 
 teardown() ->

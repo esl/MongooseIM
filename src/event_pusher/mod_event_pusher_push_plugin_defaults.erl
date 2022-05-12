@@ -100,7 +100,7 @@ get_unread_count(Acc, To) ->
 sender_id(From, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> ->
-            jid:to_binary(jid:to_bare(jid:to_lower(From)));
+            jid:to_bare_binary(jid:to_lower(From));
         <<"groupchat">> ->
             jid:to_binary(jid:to_lower(From))
     end.

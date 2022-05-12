@@ -70,7 +70,7 @@ remove_user(HostType, Jid) ->
     ok.
 
 encode_jid(undefined) -> <<>>;
-encode_jid(JID) -> jid:to_binary(jid:to_lus(JID)).
+encode_jid(JID) -> jid:to_bare_binary(JID).
 
 encode_thread(undefined) -> <<>>;
 encode_thread(Thread) -> Thread.

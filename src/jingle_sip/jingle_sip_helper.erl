@@ -50,7 +50,7 @@ maybe_rewrite_to_phone(Acc) ->
     ToRewrite = gen_mod:get_module_opt(HostType, mod_jingle_sip, username_to_phone),
     case lists:keyfind(ToUser, 1, ToRewrite) of
         {ToUser, PhoneNumber} ->
-            JID#jid{user = PhoneNumber, luser = PhoneNumber};
+            JID#jid{luser = PhoneNumber};
         _ ->
             JID
     end.

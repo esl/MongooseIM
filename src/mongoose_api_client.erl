@@ -16,8 +16,12 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
-%% ejabberd_cowboy exports
--export([cowboy_router_paths/2, to_json/2, from_json/2]).
+-behaviour(mongoose_http_handler).
+
+%% mongoose_http_handler callbacks
+-export([routes/1]).
+
+-export([to_json/2, from_json/2]).
 
 %% API
 -export([is_authorized/2,
@@ -39,19 +43,16 @@
                               parse_request_body/1]).
 
 %%--------------------------------------------------------------------
-%% ejabberd_cowboy callbacks
+%% mongoose_http_handler callbacks
 %%--------------------------------------------------------------------
 
-%% @doc This is implementation of ejabberd_cowboy callback.
-%% Returns list of all available http paths.
--spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
-    ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, _Opts) ->
+-spec routes(mongoose_http_handler:options()) -> mongoose_http_handler:routes().
+routes(#{path := BasePath}) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_common, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_common, reload_dispatches, 50),
     try
         Commands = mongoose_commands:list(user),
-        [handler_path(Base, Command) || Command <- Commands]
+        [handler_path(BasePath, Command) || Command <- Commands]
     catch
         Class:Err:Stacktrace ->
             ?LOG_ERROR(#{what => rest_getting_command_list_failed,
@@ -59,23 +60,16 @@ cowboy_router_paths(Base, _Opts) ->
             []
     end.
 
-
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
 
 
-init(Req, Opts) ->
+init(Req, #{command_category := CommandCategory}) ->
     Bindings = maps:to_list(cowboy_req:bindings(Req)),
-    CommandCategory =
-        case lists:keytake(command_category, 1, Opts) of
-            {value, {command_category, Name},  _Opts1} ->
-                Name;
-            false ->
-                undefined
-        end,
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(user),
-        bindings = Bindings, command_category = CommandCategory},
+                            bindings = Bindings,
+                            command_category = CommandCategory},
     {cowboy_rest, Req, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
@@ -171,5 +165,5 @@ make_unauthorized_response(Req, State) ->
 -spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:route().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_user_url_path(Command)],
-        ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.
+     ?MODULE, #{command_category => mongoose_commands:category(Command)}}.
 

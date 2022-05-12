@@ -56,7 +56,7 @@ terminate(_Reason, _Req, #{creds := Creds} = State) ->
         undefined ->
             ok;
         SID ->
-            JID = #jid{server = S} = maps:get(jid, State),
+            JID = #jid{lserver = S} = maps:get(jid, State),
             Acc = mongoose_acc:new(
                     #{location => ?LOCATION,
                       lserver => S,
