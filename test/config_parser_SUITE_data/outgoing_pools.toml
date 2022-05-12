@@ -55,8 +55,8 @@
 
   [outgoing_pools.cassandra.default.connection]
     servers = [
-      {ip_address = "cassandra_server1.example.com", port = 9042},
-      {ip_address = "cassandra_server2.example.com", port = 9042}
+      {host = "cassandra_server1.example.com", port = 9042},
+      {host = "cassandra_server2.example.com", port = 9042}
     ]
     keyspace = "big_mongooseim"
 
@@ -69,10 +69,10 @@
   workers = 20
 
   [outgoing_pools.rabbit.event_pusher.connection]
-    amqp_host = "localhost"
-    amqp_port = 5672
-    amqp_username = "guest"
-    amqp_password = "guest"
+    host = "localhost"
+    port = 5672
+    username = "guest"
+    password = "guest"
     confirms_enabled = true
     max_worker_queue_len = 100
 
@@ -82,5 +82,5 @@
 
   [outgoing_pools.ldap.default.connection]
     servers = ["ldap-server.example.com"]
-    rootdn = "cn=admin,dc=example,dc=com"
+    root_dn = "cn=admin,dc=example,dc=com"
     password = "ldap-admin-password"
