@@ -1,15 +1,12 @@
 -module(push_pubsub_SUITE).
 -compile([export_all, nowarn_export_all]).
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("push_helper.hrl").
 
 -import(distributed_helper, [subhost_pattern/1]).
-
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -78,15 +75,13 @@ init_per_testcase(CaseName, Config) ->
     MongoosePushMockPort = setup_mock_rest(),
 
     %% Start HTTP pool
-    HTTPOpts = #{server => "http://localhost:" ++ integer_to_list(MongoosePushMockPort),
-                 path_prefix => "/",
-                 request_timeout => 2000},
     PoolOpts = #{strategy => available_worker, workers => 20},
-    rpc(mongoose_wpool, start_configured_pools,
-        [[#{type => http, scope => global, tag => mongoose_push_http,
-            opts => PoolOpts, conn_opts => HTTPOpts}]]),
+    ConnOpts = #{host => "http://localhost:" ++ integer_to_list(MongoosePushMockPort),
+                 request_timeout => 2000},
+    Pool = config([outgoing_pools, http, mongoose_push_http],
+                  #{opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(mongoose_wpool, start_configured_pools, [[Pool]]),
     escalus:init_per_testcase(CaseName, Config).
-
 
 end_per_testcase(CaseName, Config) ->
     rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),

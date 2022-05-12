@@ -10,8 +10,6 @@
 
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(ETS_TABLE, mod_event_pusher_http).
@@ -24,7 +22,7 @@
 
 -import(domain_helper, [host_type/0]).
 
--import(config_parser_helper, [mod_config/2, mod_event_pusher_http_handler/0]).
+-import(config_parser_helper, [config/2, mod_config/2, mod_event_pusher_http_handler/0]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -170,14 +168,13 @@ get_prefix(Config) ->
     get_prefix(GroupName).
 
 start_pool() ->
-    HTTPOpts = #{server => http_notifications_host(), path_prefix => "/", request_timeout => 2000},
     PoolOpts = #{strategy => available_worker, workers => 5},
-    ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                 [[#{type => http, scope => global, tag => http_pool,
-                                     opts => PoolOpts, conn_opts => HTTPOpts}]]).
+    ConnOpts = #{host => http_notifications_host(), request_timeout => 2000},
+    Pool = config([outgoing_pools, http, http_pool], #{opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]).
 
 stop_pool() ->
-    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]).
+    rpc(mim(), mongoose_wpool, stop, [http, global, http_pool]).
 
 set_modules(Config0, ExtraHandlerOpts) ->
     Config = dynamic_modules:save_modules(host_type(), Config0),
