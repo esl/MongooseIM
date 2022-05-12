@@ -145,7 +145,7 @@ init_per_group(user_listener, Config) ->
     meck:new(mongoose_api_common, [no_link]),
     meck:expect(mongoose_api_common, check_password,
                 fun
-                    (#jid{user = <<"alice">>}, <<"makota">>) -> {true, {}};
+                    (#jid{luser = <<"alice">>}, <<"makota">>) -> {true, {}};
                     (_, _) -> false
                 end),
     ListenerOpts = [{schema_endpoint, <<"user">>}],

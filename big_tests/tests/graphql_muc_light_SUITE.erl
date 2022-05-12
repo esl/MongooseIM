@@ -130,7 +130,7 @@ user_create_room_story(Config, Alice) ->
     Res = execute(Ep, user_create_room_body(MucServer, Name, Subject, null), Creds),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
-    ?assertMatch(#jid{server = MucServer}, jid:from_binary(JID)),
+    ?assertMatch(#jid{lserver = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
     % Try with a non-existent domain
     Res2 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, Name, Subject, null), Creds),
@@ -149,7 +149,7 @@ user_create_identified_room_story(Config, Alice) ->
     Res = execute(Ep, user_create_room_body(MucServer, Name, Subject, Id), Creds),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
         get_ok_value(?CREATE_ROOM_PATH, Res),
-    ?assertMatch(#jid{user = Id, server = MucServer}, jid:from_binary(JID)),
+    ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
     Res2 = execute(Ep, user_create_room_body(MucServer, <<"snd room">>, Subject, Id), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
@@ -568,7 +568,7 @@ admin_create_room_story(Config, Alice) ->
     Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, null), Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
-    ?assertMatch(#jid{server = MucServer}, jid:from_binary(JID)),
+    ?assertMatch(#jid{lserver = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
     % Try with a non-existent domain
     Res2 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null),
@@ -587,7 +587,7 @@ admin_create_identified_room_story(Config, Alice) ->
     Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, Id), Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
         get_ok_value(?CREATE_ROOM_PATH, Res),
-    ?assertMatch(#jid{user = Id, server = MucServer}, jid:from_binary(JID)),
+    ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
     Res2 = execute_auth(admin_create_room_body(MucServer, <<"snd room">>, AliceBin, Subject, Id),
                         Config),
