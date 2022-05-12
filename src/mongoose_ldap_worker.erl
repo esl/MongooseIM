@@ -15,7 +15,6 @@
 
 -type state() :: #{handle := none | eldap:handle(),
                    servers := [string()],
-                   encrypt := none | tls,
                    tls_options := list(),
                    port := pos_integer(),
                    root_dn := binary(),
@@ -58,23 +57,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% internal functions
 
-initial_state(Opts = #{servers := Servers, encrypt := Encrypt, rootdn := RootDN, password := Password,
-                       connect_interval := ConnectInterval}) ->
-    TLSOptions = maps:get(tls_options, Opts, []),
-    DefaultPort = case Encrypt of
-                      tls -> ?LDAPS_PORT;
-                      starttls -> ?LDAP_PORT;
-                      _ -> ?LDAP_PORT
-                  end,
-    Port = maps:get(port, Opts, DefaultPort),
-    #{handle => none,
-      servers => Servers,
-      encrypt => Encrypt,
-      tls_options => TLSOptions,
-      port => Port,
-      root_dn => RootDN,
-      password => Password,
-      connect_interval => ConnectInterval}.
+initial_state(Opts) ->
+    Opts#{handle => none}.
 
 call_eldap(Request, State) ->
     case do_call_eldap(Request, State) of
@@ -91,16 +75,14 @@ call_eldap(Request, State) ->
 
 connect(State = #{handle := none,
                   servers := Servers,
-                  encrypt := Encrypt,
-                  tls_options := TLSOptions,
                   port := Port,
                   root_dn := RootDN,
                   password := Password,
                   connect_interval := ConnectInterval}) ->
     AnonAuth = RootDN =:= <<>> andalso Password =:= <<>>,
-    SSLConfig = case Encrypt of
-                    tls -> [{ssl, true}, {sslopts, TLSOptions}];
-                    none -> [{ssl, false}]
+    SSLConfig = case State of
+                    #{tls := TLSOptions} -> [{ssl, true}, {sslopts, TLSOptions}];
+                    #{} -> [{ssl, false}]
                 end,
     case eldap:open(Servers, [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig) of
         {ok, Handle} ->
