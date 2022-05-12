@@ -41,7 +41,7 @@
 
 -define(PATHPREFIX, <<"/api">>).
 
--type role() :: admin | client.
+-type role() :: admin | client | {graphql, binary()}.
 -type credentials() :: {Username :: binary(), Password :: binary()}.
 -type request_params() :: #{
         role := role(),
@@ -294,18 +294,17 @@ inject_creds_to_opts(Handler = #{module := mongoose_api_admin}, Creds) ->
 inject_creds_to_opts(Handler, _Creds) ->
     Handler.
 
-% @doc Checks whether a config for a port is an admin or client one.
+% @doc Checks whether a config for a port is an admin, client or GraphQL one.
 % This is determined based on handler modules used.
+is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, SchemaEndpoint}) ->
+    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := Ep}) ->
+                      SchemaEndpoint =:= Ep;
+                 (_) ->
+                      false
+              end, Handlers);
 is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
     RoleModule = role_to_module(Role),
     lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);
-is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, {graphql, SchemaEndpoint}) ->
-    lists:any(fun({_, _Path,  Mod, Args}) ->
-                      Mod == mongoose_graphql_cowboy_handler andalso
-                      SchemaEndpoint == proplists:get_value(schema_endpoint, Args);
-                 (_) ->
-                      false
-              end, Modules);
 is_roles_config(_, _) -> false.
 
 role_to_module(admin) -> mongoose_api_admin;

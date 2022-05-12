@@ -7,6 +7,9 @@
 -include_lib("graphql/src/graphql_schema.hrl").
 -include_lib("jid/include/jid.hrl").
 
+-type listener_opts() :: #{endpoint_schema := binary(),
+                           atom() => any()}.
+
 -define(assertPermissionsFailed(Config, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
                      check_permissions(Config, false, Doc))).
@@ -148,12 +151,12 @@ init_per_group(user_listener, Config) ->
                     (#jid{luser = <<"alice">>}, <<"makota">>) -> {true, {}};
                     (_, _) -> false
                 end),
-    ListenerOpts = [{schema_endpoint, <<"user">>}],
+    ListenerOpts = #{schema_endpoint => <<"user">>},
     init_ep_listener(5557, user_schema_ep, ListenerOpts, Config);
 init_per_group(admin_listener, Config) ->
-    ListenerOpts = [{username, <<"admin">>},
-                    {password, <<"secret">>},
-                    {schema_endpoint, <<"admin">>}],
+    ListenerOpts = #{username => <<"admin">>,
+                     password => <<"secret">>,
+                     schema_endpoint => <<"admin">>},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
 init_per_group(domain_admin_listener, Config) ->
     meck:new(mongoose_domain_api, [no_link]),
@@ -165,7 +168,7 @@ init_per_group(domain_admin_listener, Config) ->
                 end),
     meck:expect(mongoose_domain_api, get_subdomain_info,
                 fun (_) -> {error, not_found} end),
-    ListenerOpts = [{schema_endpoint, <<"domain_admin">>}],
+    ListenerOpts = #{schema_endpoint => <<"domain_admin">>},
     init_ep_listener(5560, domain_admin_schema_ep, ListenerOpts, Config);
 init_per_group(domain_permissions, Config) ->
     meck:new(mongoose_domain_api, [no_link]),
@@ -654,7 +657,7 @@ auth_user_can_access_protected_types(Config) ->
 no_creds_defined_admin_can_access_protected(_Config) ->
     Port = 5559,
     Ep = "http://localhost:" ++ integer_to_list(Port),
-    start_listener(no_creds_admin_listener, Port, [{schema_endpoint, <<"admin">>}]),
+    start_listener(no_creds_admin_listener, Port, #{schema_endpoint => <<"admin">>}),
     Body = #{<<"query">> => <<"{ field }">>},
     {Status, Data} = execute(Ep, Body, undefined),
     assert_access_granted(Status, Data).
@@ -893,7 +896,7 @@ example_listener_schema_data(Config) ->
           enums => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
 
--spec init_ep_listener(integer(), atom(), [{atom(), term()}], [{atom(), term()}]) ->
+-spec init_ep_listener(integer(), atom(), listener_opts(), [{atom(), term()}]) ->
     [{atom(), term()}].
 init_ep_listener(Port, EpName, ListenerOpts, Config) ->
     Pid = spawn(fun() ->
@@ -908,7 +911,7 @@ init_ep_listener(Port, EpName, ListenerOpts, Config) ->
                 end),
     [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
 
--spec start_listener(atom(), integer(), [{atom(), term()}]) -> ok.
+-spec start_listener(atom(), integer(), listener_opts()) -> ok.
 start_listener(Ref, Port, Opts) ->
     Dispatch = cowboy_router:compile([
         {'_', [{"/graphql", mongoose_graphql_cowboy_handler, Opts}]}

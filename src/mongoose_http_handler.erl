@@ -85,4 +85,5 @@ configurable_handler_modules() ->
      mongoose_client_api,
      mongoose_api,
      mongoose_api_admin,
-     mongoose_domain_handler].
+     mongoose_domain_handler,
+     mongoose_graphql_cowboy_handler].

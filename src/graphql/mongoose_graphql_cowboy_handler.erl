@@ -6,38 +6,61 @@
 %% @end
 -module(mongoose_graphql_cowboy_handler).
 
+-behaviour(mongoose_http_handler).
 -behavior(cowboy_rest).
+
+%% mongoose_http_handler callbacks
+-export([config_spec/0]).
+
+%% config processing callbacks
+-export([process_config/1]).
 
 %% Cowboy Handler Interface
 -export([init/2]).
 
 %% REST callbacks
--export([
-    allowed_methods/2,
-    resource_exists/2,
-    content_types_provided/2,
-    content_types_accepted/2,
-    charsets_provided/2,
-    is_authorized/2
-]).
+-export([allowed_methods/2,
+         resource_exists/2,
+         content_types_provided/2,
+         content_types_accepted/2,
+         charsets_provided/2,
+         is_authorized/2]).
 
 %% Data input/output callbacks
--export([
-    from_json/2,
-    to_json/2,
-    to_html/2
-]).
+-export([from_json/2,
+         to_json/2,
+         to_html/2]).
 
--ignore_xref([cowboy_router_paths/2, from_json/2, to_html/2, to_json/2]).
+-ignore_xref([from_json/2, to_html/2, to_json/2]).
 
-%% API
+-include("mongoose_config_spec.hrl").
+
+%% mongoose_http_handler callbacks
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"username">> => #option{type = binary},
+                       <<"password">> => #option{type = binary},
+                       <<"schema_endpoint">> => #option{type = binary}},
+             format_items = map,
+             required = [<<"schema_endpoint">>],
+             process = fun ?MODULE:process_config/1}.
+
+process_config(Opts) ->
+    case maps:is_key(username, Opts) =:= maps:is_key(password, Opts) of
+        true ->
+            Opts;
+        false ->
+            error(#{what => both_username_and_password_required, opts => Opts})
+    end.
+
+%% cowboy_rest callbacks
 
 init(Req, Opts) ->
     IndexLocation = {priv_file, mongooseim, "graphql/wsite/index.html"},
-    OptsMap = maps:from_list(Opts),
     {cowboy_rest,
      Req,
-     OptsMap#{index_location => IndexLocation}
+     Opts#{index_location => IndexLocation}
     }.
 
 allowed_methods(Req, State) ->
