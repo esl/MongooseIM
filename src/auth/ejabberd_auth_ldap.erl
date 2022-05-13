@@ -56,7 +56,7 @@
 -ignore_xref([start_link/1]).
 
 -include("mongoose_config_spec.hrl").
--include("eldap.hrl").
+-include_lib("eldap/include/eldap.hrl").
 
 -record(state,
        {host_type              :: mongooseim:host_type(),

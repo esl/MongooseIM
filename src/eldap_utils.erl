@@ -45,9 +45,6 @@
 
 -ignore_xref([decode_octet_string/3, generate_subfilter/1, make_filter/2, uids_domain_subst/2]).
 
--include("mongoose.hrl").
--include("eldap.hrl").
-
 -type dn() :: binary().
 -type deref() :: neverDerefAliases | derefInSearching
                  | derefFindingBaseObj | derefAlways.
