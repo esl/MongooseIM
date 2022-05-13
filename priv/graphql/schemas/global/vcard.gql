@@ -21,7 +21,7 @@ type Vcard{
     title: [String]
     role: [String]
     logo: [Image]
-    agent: [String]
+    agent: [Agent]
     "Organization"
     org: [Organization]
     categories: [Keyword]
@@ -109,9 +109,15 @@ type BinValue{
     binValue: String
 }
 
+type AgentVcard{
+    vcard: Vcard
+}
+
 union Image = ImageData | External
 
 union Sound = Phonetic | BinValue | External
+
+union Agent = AgentVcard | External
 
 type GeographicalPosition{
     "Geographical latitude"
@@ -159,7 +165,7 @@ input VcardInput{
     title: [String!]
     role: [String!]
     logo: [ImageInput!]
-    agent: [String!]
+    agent: [AgentInput!]
     "Organization"
     org: [OrganizationInput!]
     categories: [KeywordInput!]
@@ -258,6 +264,11 @@ input SoundInput{
     phonetic: String
     binValue: String
     extValue: String
+}
+
+input AgentInput{
+    extValue: String
+    vcard: VcardInput
 }
 
 input KeyInput{

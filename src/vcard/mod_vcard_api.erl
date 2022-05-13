@@ -77,6 +77,8 @@ transform_field_and_value(Name, Value) ->
 
 transform_subfield_and_value(_Name, null) ->
     [];
+transform_subfield_and_value(<<"vcard">>, Value) ->
+    [transform_from_map(Value)];
 transform_subfield_and_value(<<"tags">>, TagsList) ->
     lists:foldl(fun(Tag, Acc) ->
                     Acc ++ construct_xmlel(Tag, [])
@@ -146,7 +148,7 @@ transform_from_xml(<<"ROLE">>, Value, Acc) ->
 transform_from_xml(<<"LOGO">>, Value, Acc) ->
     complex_process(<<"logo">>, Value, Acc, fun image_components_process/2);
 transform_from_xml(<<"AGENT">>, Value, Acc) ->
-    simple_process(<<"agent">>, Value, Acc);
+    complex_process(<<"agent">>, Value, Acc, fun agent_components_process/2);
 transform_from_xml(<<"ORG">>, Value, Acc) ->
     complex_process(<<"org">>, Value, Acc, fun org_components_process/2);
 transform_from_xml(<<"CATEGORIES">>, Value, Acc) ->
@@ -170,7 +172,9 @@ transform_from_xml(<<"DESC">>, Value, Acc) ->
 transform_from_xml(<<"CLASS">>, Value, Acc) ->
     complex_process(<<"class">>, Value, Acc, fun class_components_process/2);
 transform_from_xml(<<"KEY">>, Value, Acc) ->
-    complex_process(<<"key">>, Value, Acc, fun key_components_process/2).
+    complex_process(<<"key">>, Value, Acc, fun key_components_process/2);
+transform_from_xml(_, _, _) ->
+    #{}.
 
 process_value([{_, Value}]) ->
     Value;
@@ -273,4 +277,9 @@ sound_components_process(#xmlel{name = <<"PHONETIC">>, children = Value}, Acc) -
 sound_components_process(#xmlel{name = <<"BINVAL">>, children = Value}, Acc) ->
     maps:put(<<"binValue">>, process_value(Value), Acc);
 sound_components_process(#xmlel{name = <<"EXTVAL">>, children = Value}, Acc) ->
+    maps:put(<<"extValue">>, process_value(Value), Acc).
+
+agent_components_process(#xmlel{name = <<"vCard">>, children = Value}, Acc) ->
+    maps:put(<<"vcard">>, to_map_format(Value), Acc);
+agent_components_process(#xmlel{name = <<"EXTVAL">>, children = Value}, Acc) ->
     maps:put(<<"extValue">>, process_value(Value), Acc).

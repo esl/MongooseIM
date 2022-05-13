@@ -39,7 +39,7 @@ end_per_suite(Config) ->
 
 admin_vcard_handler() ->
     [admin_set_vcard,
-    admin_set_vcard_incomplete_fields,
+     admin_set_vcard_incomplete_fields,
      admin_set_vcard_no_user,
      admin_get_vcard,
      admin_get_vcard_no_vcard,
@@ -126,7 +126,7 @@ user_get_others_vcard(Config, Alice, Bob) ->
     ExpectedResult = #{<<"formattedName">> => <<"TESTNAME">>,
         <<"email">> => [#{<<"userId">> => <<"TESTEMAIL">>, <<"tags">> => [<<"HOME">>, <<"WORK">>]},
                         #{<<"userId">> => <<"TESTEMAIL2">>, <<"tags">> => [<<"HOME">>]}]},
-    escalus_client:send_and_wait(Bob, escalus_stanza:vcard_update(Client1Fields)),
+    escalus_client:send_and_wait(Bob, escalus_stanza:vcard_update([{<<"VERSION">>, <<"TESTVERSION">>} | Client1Fields])),
     Body = #{query => user_get_query(), operationName => <<"Q1">>,
              variables => #{user => user_to_bin(Bob)}},
     GraphQlRequest = execute_user(Body, Alice, Config),
@@ -335,8 +335,12 @@ complete_vcard_input() ->
           <<"binValue">> => <<"TestBinariesLogo">>},
         #{<<"extValue">> => <<"External Value Logo">>}
      ],
-     <<"agent">> => [<<"AgentTest">>, <<"SecondAgent">>],
-     <<"org">> =>[
+     <<"agent">> => [
+         #{<<"vcard">> => agent_vcard_input()},
+         #{<<"extValue">> => <<"TESTVALUE">>},
+         #{<<"vcard">> => agent_vcard_input()}
+     ],
+     <<"org">> => [
          #{<<"orgname">> => <<"TESTNAME">>, <<"orgunit">> => [<<"test1">>, <<"TEST2">>]},
          #{<<"orgname">> => <<"TESTNAME123">>, <<"orgunit">> => [<<"test1">>]}
      ],
@@ -365,6 +369,22 @@ complete_vcard_input() ->
          #{<<"type">> => <<"TYPETEST2">>, <<"credential">> => <<"TESTCREDENTIAL2">>}
      ]
     }.
+
+agent_vcard_input() ->
+   #{<<"formattedName">> => <<"TestName">>,
+     <<"nameComponents">> => #{
+         <<"family">> => <<"familyName">>,
+         <<"givenName">> => <<"givenName">>,
+         <<"middleName">> => <<"middleName">>,
+         <<"prefix">> => <<"prefix">>,
+         <<"suffix">> => <<"sufix">>
+     },
+     <<"nickname">> => [<<"NicknameTest">>, <<"SecondNickname">>],
+     <<"photo">> => [
+        #{<<"type">> => <<"image/jpeg">>,
+          <<"binValue">> => <<"TestBinaries">>},
+        #{<<"extValue">> => <<"External Value">>}
+    ]}.
 
 admin_get_address_query() ->
     <<"query Q1($user: JID!)
@@ -462,6 +482,27 @@ get_full_vcard_as_result() ->
                { extValue }
            }
            agent
+           {
+               ... on External
+               { extValue }
+               ... on AgentVcard
+               {
+                   vcard
+                   {
+                       formattedName
+                       nameComponents
+                       { family givenName middleName prefix suffix }
+                       nickname
+                       photo
+                       {
+                           ... on ImageData
+                           { type binValue }
+                           ... on External
+                           { extValue }
+                       }
+                   }
+               }
+           }
            org
            { orgname orgunit }
            categories
