@@ -49,7 +49,7 @@ privacy_check_packet(Acc0, JID, PrivacyList, To, Dir) ->
                            From :: jid:jid(),
                            To :: jid:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), decision()}.
-privacy_check_packet(Acc0, #jid{luser = User, server = Server} = JID,
+privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
                      PrivacyList, From, To, Dir) ->
     % see if we have just Acc or also stanza to check - may have different name/type
     {Acc, Name, Type} = case Acc0 of
@@ -60,7 +60,7 @@ privacy_check_packet(Acc0, #jid{luser = User, server = Server} = JID,
                            {Acc0, mongoose_acc:stanza_name(Acc0), mongoose_acc:stanza_type(Acc0)}
                    end,
     % check if it is there, if not then set default and run a hook
-    Key = {cached_check, Server, User, From, To, Name, Type, Dir},
+    Key = {cached_check, LServer, LUser, From, To, Name, Type, Dir},
     case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
             Acc1 = mongoose_hooks:privacy_check_packet(Acc, JID, PrivacyList,

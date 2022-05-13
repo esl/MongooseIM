@@ -16,7 +16,6 @@
   [[listen.http.handlers.mongoose_api]]
     host = "localhost"
     path = "/api"
-    handlers = ["mongoose_api_metrics", "mongoose_api_users"]
 
 [[listen.c2s]]
   port = 5222

@@ -146,7 +146,7 @@ remove_to_for_user(HostType, #jid{luser = LU, lserver = LS}, To) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
-encode_jid(JID) -> jid:to_binary(jid:to_lus(JID)).
+encode_jid(JID) -> jid:to_bare_binary(JID).
 
 encode_thread(undefined) -> <<>>;
 encode_thread(Thread)    -> Thread.

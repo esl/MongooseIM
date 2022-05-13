@@ -156,7 +156,7 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
 
 -spec set_presence(jid:jid(), Type :: binary(), Show :: binary(),
                    Status :: binary(), Prio :: binary()) -> set_presence_result().
-set_presence(#jid{resource = <<>>}, _Type, _Show, _Status, _Priority) ->
+set_presence(#jid{lresource = <<>>}, _Type, _Show, _Status, _Priority) ->
     {empty_resource, <<"The resource is empty. You need to provide a full JID">>};
 set_presence(JID, Type, Show, Status, Priority) ->
     Pid = ejabberd_sm:get_session_pid(JID),

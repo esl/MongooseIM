@@ -92,8 +92,9 @@ process_local_iq(Acc, _From, _To, #iq{type = 'set', sub_el = SubEl} = IQ, _Extra
 
 -spec process_sm_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
         -> {mongoose_acc:t(), jlib:iq()}.
-process_sm_iq(Acc, #jid{user = User, server = Server} = JID,
-              #jid{user = User, server = Server},
+process_sm_iq(Acc,
+              #jid{luser = LUser, lserver = LServer} = JID,
+              #jid{luser = LUser, lserver = LServer},
               #iq{type = 'get', sub_el = _SubEl} = IQ, _Extra) ->
     {Acc, get_ip(JID, IQ)};
 process_sm_iq(Acc, _From, _To, #iq{type = 'get', sub_el = SubEl} = IQ, _Extra) ->

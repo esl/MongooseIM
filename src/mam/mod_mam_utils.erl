@@ -106,12 +106,8 @@
 
 -ifdef(MAM_INLINE_UTILS).
 -compile({inline, [
-                   rsm_ns_binary/0,
-                   mam_ns_binary/0,
-                   is_archived_elem_for/2,
                    is_valid_message/4,
                    is_valid_message_type/3,
-                   is_valid_message_children/3,
                    encode_compact_uuid/2,
                    get_one_of_path/3,
                    delay/2,
@@ -135,10 +131,6 @@
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
 -export_type([direction/0, retraction_id/0, retraction_info/0]).
-
-%% Constants
-rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
-
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -247,7 +239,7 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
                             AddStanzaid :: boolean()) ->
           AlteredPacket :: exml:element().
 maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
-    BareTo = jid:to_binary(jid:to_bare(To)),
+    BareTo = jid:to_bare_binary(To),
     case AddStanzaid of
         true ->
             replace_arcid_elem(<<"stanza-id">>, BareTo, MessID, Packet);
@@ -437,7 +429,7 @@ retracted_element(#{retract_on := stanza_id,
            children = [#xmlel{name = <<"stanza-id">>,
                               attrs = [{<<"xmlns">>, ?NS_STANZAID},
                                        {<<"id">>, StanzaID},
-                                       {<<"by">>, jid:to_binary(jid:to_bare(LocJid))}]} |
+                                       {<<"by">>, jid:to_bare_binary(LocJid)}]} |
                        MaybeOriginId
                       ]}.
 
@@ -520,7 +512,7 @@ result_set(FirstId, LastId, undefined, undefined)
               || LastId =/= undefined],
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, rsm_ns_binary()}],
+       attrs = [{<<"xmlns">>, ?NS_RSM}],
        children = FirstEl ++ LastEl};
 result_set(FirstId, LastId, FirstIndexI, CountI)
   when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
@@ -538,7 +530,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
                  children = [#xmlcdata{content = integer_to_binary(CountI)}]},
     #xmlel{
        name = <<"set">>,
-       attrs = [{<<"xmlns">>, rsm_ns_binary()}],
+       attrs = [{<<"xmlns">>, ?NS_RSM}],
        children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
@@ -963,7 +955,7 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 -spec bare_jid(undefined | jid:jid()) -> undefined | binary().
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
-    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
+    jid:to_bare_binary(jid:to_lower(JID)).
 
 -spec full_jid(jid:jid()) -> binary().
 full_jid(JID) ->
@@ -1121,14 +1113,13 @@ maybe_set_client_xmlns(true, Packet) ->
 maybe_set_client_xmlns(false, Packet) ->
     Packet.
 
-
 -spec action_to_shaper_name(mam_iq:action()) -> atom().
 action_to_shaper_name(Action) ->
     list_to_atom(atom_to_list(Action) ++ "_shaper").
 
 -spec action_to_global_shaper_name(mam_iq:action()) -> atom().
-action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
-
+action_to_global_shaper_name(Action) ->
+    list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 -spec wait_shaper(mongooseim:host_type(), jid:server(), mam_iq:action(), jid:jid()) ->
     'ok' | {'error', 'max_delay_reached'}.

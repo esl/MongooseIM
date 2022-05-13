@@ -67,6 +67,7 @@ rdbms_queries_cases() ->
      insert_batch_with_null_case,
      test_cast_insert,
      test_request_insert,
+     test_request_transaction,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -374,6 +375,18 @@ test_request_insert(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_request_transaction(Config) ->
+    erase_table(Config),
+    Queries = [<<"INSERT INTO test_types(unicode) VALUES ('check1')">>,
+               <<"INSERT INTO test_types(unicode) VALUES ('check2')">>],
+    sql_transaction_request(Config, Queries),
+    mongoose_helper:wait_until(
+      fun() ->
+              SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+              ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},
+                           selected_to_sorted(SelectResult))
+      end, ok, #{name => request_queries}).
+
 test_incremental_upsert(Config) ->
     case is_odbc() of
         true ->
@@ -437,6 +450,9 @@ sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
 
 sql_query_request(_Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), Query]).
+
+sql_transaction_request(_Config, Query) ->
+    slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), Query]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).

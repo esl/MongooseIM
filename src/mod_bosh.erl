@@ -9,6 +9,7 @@
 -behaviour(mongoose_module_metrics).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
+
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11"}]).
 
@@ -130,8 +131,7 @@ node_cleanup(Acc, Node) ->
 %% cowboy_loop_handler callbacks
 %%--------------------------------------------------------------------
 
--type option() :: {atom(), any()}.
--spec init(req(), _Opts :: [option()]) -> {cowboy_loop, req(), rstate()}.
+-spec init(req(), mongoose_http_handler:options()) -> {cowboy_loop, req(), rstate()}.
 init(Req, _Opts) ->
     ?LOG_DEBUG(#{what => bosh_init, req => Req}),
     Msg = init_msg(Req),

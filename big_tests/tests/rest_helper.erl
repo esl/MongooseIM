@@ -41,7 +41,7 @@
 
 -define(PATHPREFIX, <<"/api">>).
 
--type role() :: admin | client.
+-type role() :: admin | client | {graphql, binary()}.
 -type credentials() :: {Username :: binary(), Password :: binary()}.
 -type request_params() :: #{
         role := role(),
@@ -280,42 +280,35 @@ start_admin_listener(Creds) ->
     NewOpts = insert_creds(Opts, Creds),
     rpc(mim(), mongoose_listener, start_listener, [NewOpts]).
 
-insert_creds(Opts = #{handlers := Modules}, Creds) ->
-    {Host, Path, mongoose_api_admin, PathOpts} = lists:keyfind(mongoose_api_admin, 3, Modules),
-    NewPathOpts = inject_creds_to_opts(PathOpts, Creds),
-    NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules,
-                                  {Host, Path, mongoose_api_admin,  NewPathOpts}),
-    Opts#{handlers := NewModules}.
+insert_creds(Opts = #{handlers := Handlers}, Creds) ->
+    NewHandlers = [inject_creds_to_opts(Handler, Creds) || Handler <- Handlers],
+    Opts#{handlers := NewHandlers}.
 
-inject_creds_to_opts(PathOpts, any) ->
-    lists:keydelete(auth, 1, PathOpts);
-inject_creds_to_opts(PathOpts, Creds) ->
-    case lists:keymember(auth, 1, PathOpts) of
-        true ->
-            lists:keyreplace(auth, 1, PathOpts, {auth, Creds});
-        false ->
-            lists:append(PathOpts, [{auth, Creds}])
-    end.
+inject_creds_to_opts(Handler = #{module := mongoose_api_admin}, Creds) ->
+    case Creds of
+        {UserName, Password} ->
+            Handler#{username => UserName, password => Password};
+        any ->
+            maps:without([username, password], Handler)
+    end;
+inject_creds_to_opts(Handler, _Creds) ->
+    Handler.
 
-% @doc Checks whether a config for a port is an admin or client one.
-% This is determined based on modules used. If there is any mongoose_api_admin module used,
-% it is admin config. If not and there is at least one mongoose_api_client* module used,
-% it's clients.
-is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, admin) ->
-    lists:any(fun({_, _Path,  Mod, _Args}) -> Mod == mongoose_api_admin; (_) -> false  end, Modules);
-is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, client) ->
-    ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_");
-                                 (_) -> []
-                              end, Modules),
-    lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
-is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, {graphql, SchemaEndpoint}) ->
-    lists:any(fun({_, _Path,  Mod, Args}) ->
-                      Mod == mongoose_graphql_cowboy_handler andalso
-                      SchemaEndpoint == proplists:get_value(schema_endpoint, Args);
+% @doc Checks whether a config for a port is an admin, client or GraphQL one.
+% This is determined based on handler modules used.
+is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, SchemaEndpoint}) ->
+    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := Ep}) ->
+                      SchemaEndpoint =:= Ep;
                  (_) ->
                       false
-              end, Modules);
+              end, Handlers);
+is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
+    RoleModule = role_to_module(Role),
+    lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);
 is_roles_config(_, _) -> false.
+
+role_to_module(admin) -> mongoose_api_admin;
+role_to_module(client) -> mongoose_client_api.
 
 mapfromlist(L) ->
     Nl = lists:map(fun({K, {V}}) when is_list(V) ->

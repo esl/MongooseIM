@@ -5,8 +5,12 @@
 %%%===================================================================
 -module(mod_websockets).
 
+-behaviour(mongoose_http_handler).
 -behaviour(cowboy_websocket).
 -behaviour(mongoose_transport).
+
+%% mongoose_http_handler callbacks
+-export([config_spec/0]).
 
 %% cowboy_http_websocket_handler callbacks
 -export([init/2,
@@ -33,6 +37,7 @@
               get_peer_certificate/1, get_sockmod/1, send/2, set_ping/2]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
@@ -49,7 +54,7 @@
           fsm_pid :: pid() | undefined,
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
-          opts :: proplists:proplist() | undefined,
+          opts :: map(),
           ping_rate :: integer() | none,
           max_stanza_size :: integer() | infinity,
           peercert :: undefined | passed | binary()
@@ -58,19 +63,33 @@
 
 -type socket() :: #websocket{}.
 
+%% mongoose_http_handler callbacks
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{items = #{<<"timeout">> => #option{type = int_or_infinity,
+                                                validate = non_negative},
+                       <<"ping_rate">> => #option{type = integer,
+                                                  validate = positive},
+                       <<"max_stanza_size">> => #option{type = int_or_infinity,
+                                                        validate = positive},
+                       <<"service">> => mongoose_config_spec:xmpp_listener_extra(service)},
+             defaults = #{<<"timeout">> => 60000,
+                          <<"max_stanza_size">> => infinity},
+             format_items = map
+            }.
+
 %%--------------------------------------------------------------------
 %% Common callbacks for all cowboy behaviours
 %%--------------------------------------------------------------------
 
-init(Req, Opts) ->
+init(Req, Opts = #{timeout := Timeout}) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
     Req1 = add_sec_websocket_protocol_header(Req),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets request">>,
                  req => Req, opts => Opts}),
-    Timeout = proplists:get_value(timeout, Opts, 60000),
-
-    AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
+    AllModOpts = Opts#{peer => Peer, peer_cert => PeerCert},
     %% upgrade protocol
     {cowboy_websocket, Req1, AllModOpts, #{idle_timeout => Timeout}}.
 
@@ -82,11 +101,8 @@ terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 
 % Called for every new websocket connection.
-websocket_init(Opts) ->
-    PingRate = proplists:get_value(ping_rate, Opts, none),
-    MaxStanzaSize = proplists:get_value(max_stanza_size, Opts, infinity),
-    Peer = proplists:get_value(peer, Opts),
-    PeerCert = proplists:get_value(peercert, Opts),
+websocket_init(Opts = #{peer := Peer, peer_cert := PeerCert, max_stanza_size := MaxStanzaSize}) ->
+    PingRate = maps:get(ping_rate, Opts, none),
     maybe_send_ping_request(PingRate),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets connection">>,
                  peer => Peer, opts => Opts}),
@@ -194,9 +210,9 @@ send_to_fsm(FSM, StreamElement) ->
 
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                  | _],
-                #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
-    case {lists:keyfind(<<"xmlns">>, 1, Attrs), proplists:get_value(service, Opts)} of
-        {{<<"xmlns">>, ?NS_COMPONENT}, #{} = ServiceOpts} ->
+                #ws_state{fsm_pid = undefined, opts = Opts} = State) ->
+    case {lists:keyfind(<<"xmlns">>, 1, Attrs), Opts} of
+        {{<<"xmlns">>, ?NS_COMPONENT}, #{service := ServiceOpts}} ->
             do_start_fsm(ejabberd_service, ServiceOpts, State);
         _ ->
             {stop, State}

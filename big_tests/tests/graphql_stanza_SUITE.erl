@@ -271,6 +271,7 @@ admin_send_stanza_from_unknown_user_story(Config, Bob) ->
     Body = <<"Hi!">>,
     Server = escalus_client:server(Bob),
     From = <<"YeeeAH@", Server/binary>>,
+    LFrom = jid:str_tolower(From),
     Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
     Vars = #{stanza => exml:to_binary(Stanza)},
     Res = execute_send_stanza(Vars, Config),
@@ -278,7 +279,7 @@ admin_send_stanza_from_unknown_user_story(Config, Bob) ->
          #{<<"data">> := #{<<"stanza">> := #{<<"sendStanza">> := null}},
            <<"errors">> := Errors}} = Res,
     [#{<<"extensions">> := #{<<"code">> := <<"unknown_user">>,
-                             <<"jid">> := From},
+                             <<"jid">> := LFrom},
        <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
     ?assertEqual(<<"Given user does not exist">>, ErrMsg),
     ?assertEqual([<<"stanza">>, <<"sendStanza">>], ErrPath).

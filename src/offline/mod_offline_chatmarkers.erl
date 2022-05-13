@@ -169,7 +169,7 @@ build_one2one_chatmarker_msg(Acc, CM) ->
 build_room_chatmarker_msg(Acc, To, CM) ->
     #{from := FromUser, to := Room, thread := Thread,
       type := Type, id := Id, timestamp := TS} = CM,
-    FromUserBin = jid:to_binary(jid:to_lus(FromUser)),
+    FromUserBin = jid:to_bare_binary(FromUser),
     From = jid:make(Room#jid.luser, Room#jid.lserver, FromUserBin),
     FromBin = jid:to_binary(From),
     Children = thread(Thread) ++ marker(Type, Id),

@@ -109,7 +109,7 @@ order_by_remote_jid_in_delete(HostType) ->
 get_behaviour(DefaultBehaviour, HostType, UserID, _LocJID, RemJID)
         when is_integer(UserID) ->
     RemLJID      = jid:to_lower(RemJID),
-    BRemLBareJID = jid:to_binary(jid:to_bare(RemLJID)),
+    BRemLBareJID = jid:to_bare_binary(RemLJID),
     BRemLJID     = jid:to_binary(RemLJID),
     case query_behaviour(HostType, UserID, BRemLJID, BRemLBareJID) of
         {selected, []} ->

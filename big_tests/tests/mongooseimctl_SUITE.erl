@@ -1263,7 +1263,7 @@ remove_old_messages_test(Config) ->
         OldTimestamp = fallback_timestamp(10, os:system_time(microsecond)),
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
         OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:system_time(microsecond)),
-        {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
+        {LUser, LServer} = jid:to_lus(JidRecordBob),
         HostType = host_type(),
         rpc_call(mod_offline_backend, write_messages, [host_type(), LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
@@ -1300,7 +1300,7 @@ remove_expired_messages_test(Config) ->
                                                           JidRecordKate, Msg4,
                                                           OldTimestamp,
                                                           ExpirationTimeFuture),
-        {jid, _, _, _, LUser, LServer, _} = JidRecordKate,
+        {LUser, LServer} = jid:to_lus(JidRecordKate),
         Args = [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2],
         HostType = host_type(),
         rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, Args]),
@@ -1321,12 +1321,12 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
     escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
 
 generate_offline_message(From, To, Msg, TimeStamp) ->
-    {jid, _, _, _, LUser, LServer, _} = To,
+    {LUser, LServer} = jid:to_lus(To),
     #offline_msg{us = {LUser, LServer}, timestamp = TimeStamp, expire = never,
                  from = From, to = To, packet = Msg}.
 
 generate_offline_expired_message(From, To, Msg, TimeStamp, ExpirationTime) ->
-    {jid, _, _, _, LUser, LServer, _} = To,
+    {LUser, LServer} = jid:to_lus(To),
     #offline_msg{us = {LUser, LServer}, timestamp = TimeStamp,
                  expire = ExpirationTime, from = From, to = To, packet = Msg}.
 
@@ -1367,7 +1367,6 @@ delete_users(_Config) ->
 
 match_user_status(Users, StatusTxt) ->
     Statuses = string:tokens(StatusTxt, "\n"),
-
     true = (length(Users) == length(Statuses)),
     match_user_status2(Users, Statuses).
 

@@ -120,8 +120,8 @@ send_packet_all_resources(FromJID, ToJIDString, Packet) when is_binary(ToJIDStri
             {ok, ""}
     end;
 send_packet_all_resources(#jid{} = FromJID, #jid{} = ToJID, Packet) ->
-    case ToJID#jid.resource of
-        <<"">> ->
+    case ToJID#jid.lresource of
+        <<>> ->
             send_packet_all_resources_2(FromJID, ToJID, Packet),
             {ok, ""};
         _Res ->

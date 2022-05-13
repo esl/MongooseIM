@@ -26,10 +26,8 @@ execute(EpName, Body, Creds) ->
 
 execute_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Opts = get_listener_opts(Ep),
-    User = proplists:get_value(username, Opts),
-    Password = proplists:get_value(password, Opts),
-    execute(Ep, Body, {User, Password}).
+    #{username := Username, password := Password} = get_listener_opts(Ep),
+    execute(Ep, Body, {Username, Password}).
 
 execute_domain_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -56,7 +54,7 @@ get_listener_config(EpName) ->
 init_admin_handler(Config) ->
     Endpoint = admin,
     Opts = get_listener_opts(Endpoint),
-    case proplists:is_defined(username, Opts) of
+    case maps:is_key(username, Opts) of
         true ->
             [{schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
         false ->
@@ -76,15 +74,8 @@ end_domain_admin_handler(Config) ->
     domain_helper:delete_domain_password(mim(), Domain).
 
 get_listener_opts(EpName) ->
-    #{handlers := Handlers} = get_listener_config(EpName),
-    [Opts2] = lists:filtermap(
-        fun
-            ({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                {true, Args};
-            (_) ->
-                false
-        end, Handlers),
-    Opts2.
+    #{handlers := [Opts]} = get_listener_config(EpName),
+    Opts.
 
 -spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(Resp) ->
@@ -128,9 +119,9 @@ get_value([Field | Fields], Data) ->
     Data2 = maps:get(BinField, Data),
     get_value(Fields, Data2).
 
-is_graphql_config(#{handlers := Handlers}, EpName) ->
-    lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                      atom_to_binary(EpName) == proplists:get_value(schema_endpoint, Args);
+is_graphql_config(#{module := ejabberd_cowboy, handlers := Handlers}, EpName) ->
+    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := EpBin}) ->
+                      atom_to_binary(EpName) =:= EpBin;
                  (_) -> false
               end, Handlers);
 is_graphql_config(_, _EpName) ->

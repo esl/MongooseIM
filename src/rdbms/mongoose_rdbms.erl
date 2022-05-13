@@ -68,6 +68,7 @@
          sql_query_request/2,
          sql_query_t/1,
          sql_transaction/2,
+         sql_transaction_request/2,
          transaction_with_delayed_retry/3,
          sql_dirty/2,
          to_bool/1,
@@ -117,7 +118,9 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([sql_query_cast/2, sql_query_request/2, execute_cast/3, execute_request/3,
+-ignore_xref([sql_query_cast/2, sql_query_request/2,
+              execute_cast/3, execute_request/3,
+              sql_transaction_request/2,
               sql_query_t/1, use_escaped/1,
               escape_like/1, escape_like_prefix/1, use_escaped_like/1,
               escape_binary/2, use_escaped_binary/1,
@@ -254,6 +257,15 @@ sql_transaction(HostType, Queries) when is_list(Queries) ->
 %% SQL transaction, based on a erlang anonymous function (F = fun)
 sql_transaction(HostType, F) when is_function(F) ->
     sql_call(HostType, {sql_transaction, F}).
+
+%% @doc SQL transaction based on a list of queries
+-spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> transaction_result().
+sql_transaction_request(HostType, Queries) when is_list(Queries) ->
+    F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
+    sql_transaction_request(HostType, F);
+%% SQL transaction, based on a erlang anonymous function (F = fun)
+sql_transaction_request(HostType, F) when is_function(F) ->
+    sql_request(HostType, {sql_transaction, F}).
 
 %% This function allows to specify delay between retries.
 -spec transaction_with_delayed_retry(server(), fun() | maybe_improper_list(), map()) -> transaction_result().

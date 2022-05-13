@@ -145,7 +145,7 @@ generate_rpc_jid({_,User}) ->
     {server, Server} = lists:keyfind(server, 1, User),
     LUsername = escalus_utils:jid_to_lower(Username),
     LServer = escalus_utils:jid_to_lower(Server),
-    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
+    jid:make_noprep(LUsername, LServer, <<"rpc">>).
 
 create_instant_room(Room, From, Nick, Opts) ->
     ServerHost = ct:get_config({hosts, mim, domain}),
@@ -170,7 +170,7 @@ destroy_room(Config) ->
     destroy_room(muc_host(), ?config(room, Config)).
 
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
-    Room1 = rpc(mim(), jid, nodeprep, [Room]),
+    Room1 = jid:nodeprep(Room),
     case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
         [{_,_,Pid}|_] ->
             %% @TODO related to gen_fsm_compat: after migration to gen_statem

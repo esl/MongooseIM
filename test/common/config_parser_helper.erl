@@ -65,12 +65,14 @@ options("miscellaneous") ->
      {listen,
       [config([listen, http],
               #{port => 5280,
-                handlers => [{"_", "/ws-xmpp", mod_websockets,
-                              [{service, maps:merge(extra_service_listener_config(),
+                handlers =>
+                    [config([listen, http, handlers, mod_websockets],
+                            #{host => '_', path => "/ws-xmpp",
+                              service => maps:merge(extra_service_listener_config(),
                                                     #{password => "secret",
                                                       shaper_rule => fast,
-                                                      max_fsm_queue => 1000})}]
-                             }],
+                                                      max_fsm_queue => 1000})}
+                           )],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                })]},
      {loglevel, warning},
@@ -145,23 +147,31 @@ options("mongooseim-pgsql") ->
                }),
        config([listen, http],
               #{port => 5280,
-                handlers => [{"_", "/http-bind", mod_bosh, []},
-                             {"_", "/ws-xmpp", mod_websockets,
-                              [{service, maps:merge(extra_service_listener_config(),
-                                                    #{password => "secret", shaper_rule => fast})}]
-                             }],
+                handlers =>
+                    [config([listen, http, handlers, mod_bosh],
+                            #{host => '_', path => "/http-bind"}),
+                     config([listen, http, handlers, mod_websockets],
+                            #{host => '_', path => "/ws-xmpp",
+                              service => maps:merge(extra_service_listener_config(),
+                                                    #{password => "secret", shaper_rule => fast})
+                             })
+                    ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                }),
        config([listen, http],
               #{port => 5285,
-                handlers => [{"_", "/http-bind", mod_bosh, []},
-                             {"_", "/ws-xmpp", mod_websockets,
-                              [{max_stanza_size, 100},
-                               {ping_rate, 120000},
-                               {timeout, infinity}]},
-                             {"localhost", "/api", mongoose_api_admin,
-                              [{auth, {<<"ala">>, <<"makotaipsa">>}}]},
-                             {"localhost", "/api/contacts/{:jid}", mongoose_api_client, []}],
+                handlers =>
+                    [config([listen, http, handlers, mod_bosh],
+                            #{host => '_', path => "/http-bind"}),
+                     config([listen, http, handlers, mod_websockets],
+                            #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
+                              ping_rate => 120000, timeout => infinity}),
+                     config([listen, http, handlers, mongoose_api_admin],
+                            #{host => "localhost", path => "/api",
+                              username => <<"ala">>, password => <<"makotaipsa">>}),
+                     config([listen, http, handlers, mongoose_api_client],
+                            #{host => "localhost", path => "/api/contacts/{:jid}"})
+                    ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
                }),
@@ -170,25 +180,15 @@ options("mongooseim-pgsql") ->
                 ip_tuple => {127, 0, 0, 1},
                 port => 8088,
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                handlers => [{"localhost", "/api", mongoose_api_admin, []}]
+                handlers =>
+                    [config([listen, http, handlers, mongoose_api_admin],
+                            #{host => "localhost", path => "/api"})]
                }),
        config([listen, http],
               #{port => 8089,
-                handlers => [{"_", "/api-docs/[...]", cowboy_static,
-                              {priv_dir, cowboy_swagger, "swagger",
-                               [{mimetypes, cow_mimetypes, all}]}},
-                             {"_", "/api-docs/swagger.json", cowboy_swagger_json_handler, #{}},
-                             {"_", "/api-docs", cowboy_swagger_redirect_handler, #{}},
-                             {"_", "/api/sse", lasse_handler, [mongoose_client_api_sse]},
-                             {"_", "/api/contacts/[:jid]", mongoose_client_api_contacts, []},
-                             {"_", "/api/messages/[:with]", mongoose_client_api_messages, []},
-                             {"_", "/api/rooms/[:id]", mongoose_client_api_rooms, []},
-                             {"_", "/api/rooms/[:id]/config",
-                              mongoose_client_api_rooms_config, []},
-                             {"_", "/api/rooms/[:id]/messages",
-                              mongoose_client_api_rooms_messages, []},
-                             {"_", "/api/rooms/:id/users/[:user]",
-                              mongoose_client_api_rooms_users, []}],
+                handlers =>
+                    [config([listen, http, handlers, mongoose_client_api],
+                            #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
@@ -199,8 +199,8 @@ options("mongooseim-pgsql") ->
                 port => 5288,
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 handlers =>
-                    [{"localhost", "/api", mongoose_api,
-                      [{handlers, [mongoose_api_metrics, mongoose_api_users]}]}]
+                    [config([listen, http, handlers, mongoose_api],
+                            #{host => "localhost", path => "/api"})]
                }),
        config([listen, s2s],
               #{port => 5269,
@@ -1078,6 +1078,22 @@ default_config([listen, http]) ->
                                 transport => default_config([listen, http, transport]),
                                 protocol => default_config([listen, http, protocol]),
                                 handlers => []};
+default_config([listen, http, handlers, mod_websockets]) ->
+    #{timeout => 60000,
+      max_stanza_size => infinity,
+      module => mod_websockets};
+default_config([listen, http, handlers, mongoose_client_api]) ->
+    #{handlers => [lasse_handler, mongoose_client_api_messages,
+                   mongoose_client_api_contacts, mongoose_client_api_rooms,
+                   mongoose_client_api_rooms_config, mongoose_client_api_rooms_users,
+                   mongoose_client_api_rooms_messages],
+      docs => true,
+      module => mongoose_client_api};
+default_config([listen, http, handlers, mongoose_api]) ->
+    #{handlers => [mongoose_api_metrics, mongoose_api_users],
+      module => mongoose_api};
+default_config([listen, http, handlers, Module]) ->
+    #{module => Module};
 default_config([listen, http, transport]) ->
     #{num_acceptors => 100,
       max_connections => 1024};

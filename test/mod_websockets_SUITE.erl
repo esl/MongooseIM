@@ -12,7 +12,7 @@
 %The 300ms is just an additional overhead
 -define(IDLE_TIMEOUT, ?NEW_TIMEOUT * 2 + 300).
 
--import(config_parser_helper, [default_config/1]).
+-import(config_parser_helper, [config/2, default_config/1]).
 
 all() ->
     ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
@@ -63,10 +63,11 @@ setup() ->
                 end),
     %% Start websocket cowboy listening
 
-    Handlers = [{"_", "/http-bind", mod_bosh},
-                {"_", "/ws-xmpp", mod_websockets,
-                 [{timeout, ?IDLE_TIMEOUT},
-                  {ping_rate, ?FAST_PING_RATE}]}],
+    Handlers = [config([listen, http, handlers, mod_bosh],
+                       #{host => '_', path => "/http-bind"}),
+                config([listen, http, handlers, mod_websockets],
+                       #{host => '_', path => "/ws-xmpp",
+                         timeout => ?IDLE_TIMEOUT, ping_rate => ?FAST_PING_RATE})],
     ejabberd_cowboy:start_listener(#{port => ?PORT,
                                      ip_tuple => ?IP,
                                      ip_address => "127.0.0.1",

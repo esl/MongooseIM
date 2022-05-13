@@ -5,6 +5,9 @@
 
 -export([parse_file/1]).
 
+%% Utilities for section manipulation
+-export([process/3]).
+
 -ifdef(TEST).
 -export([process/1,
          extract_errors/1]).

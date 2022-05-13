@@ -289,13 +289,13 @@ get_user_roster_db_versioning(HostType, RequestedVersion, From, To)
         error ->
             RosterVersion = write_roster_version(HostType, LUser, LServer),
             {lists:map(fun item_to_xml/1,
-                       get_roster_old(HostType, To#jid.server, From)),
+                       get_roster_old(HostType, To#jid.lserver, From)),
              RosterVersion};
         RequestedVersion ->
             {false, false};
         NewVersion ->
             {lists:map(fun item_to_xml/1,
-                       get_roster_old(HostType, To#jid.server, From)),
+                       get_roster_old(HostType, To#jid.lserver, From)),
              NewVersion}
     end.
 
@@ -895,12 +895,9 @@ process_item_set_t(HostType, LUser, LServer,
     case JID1 of
         error -> ok;
         _ ->
-            JID = {JID1#jid.user, JID1#jid.server,
-                   JID1#jid.resource},
-            LJID = {JID1#jid.luser, JID1#jid.lserver,
-                    JID1#jid.lresource},
+            LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             Item = #roster{usj = {LUser, LServer, LJID},
-                           us = {LUser, LServer}, jid = JID},
+                           us = {LUser, LServer}, jid = LJID},
             Item1 = process_item_attrs_ws(Item, Attrs),
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of

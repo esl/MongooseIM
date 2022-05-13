@@ -124,7 +124,7 @@ get_personal_data(Acc, HostType, ArcJID) ->
 -spec delete_archive(jid:server(), jid:user()) -> ok.
 delete_archive(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
     ?LOG_DEBUG(#{what => mam_delete_room, room => RoomName, sub_host => MucHost}),
-    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    ArcJID = jid:make_bare(RoomName, MucHost),
     HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     remove_archive(HostType, ArcID, ArcJID),
@@ -132,14 +132,14 @@ delete_archive(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) -
 
 -spec archive_size(jid:server(), jid:user()) -> integer().
 archive_size(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
-    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    ArcJID = jid:make_bare(RoomName, MucHost),
     HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     archive_size(HostType, ArcID, ArcJID).
 
 -spec archive_id(jid:server(), jid:user()) -> integer().
 archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
-    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    ArcJID = jid:make_bare(RoomName, MucHost),
     HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
     archive_id_int(HostType, ArcJID).
 
