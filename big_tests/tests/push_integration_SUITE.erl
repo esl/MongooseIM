@@ -126,16 +126,12 @@ init_per_suite(Config) ->
     catch mongoose_push_mock:stop(),
     mongoose_push_mock:start(Config),
     Port = mongoose_push_mock:port(),
-
     PoolOpts = #{strategy => available_worker, workers => 20},
-    HTTPOpts = #{server => "https://localhost:" ++ integer_to_list(Port), path_prefix => "/",
-                 request_timeout => 2000},
-    rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
-        [[#{type => http, scope => global, tag => mongoose_push_http, opts => PoolOpts,
-           conn_opts => HTTPOpts}]]),
+    ConnOpts = #{host => "https://localhost:" ++ integer_to_list(Port), request_timeout => 2000},
+    Pool = config([outgoing_pools, http, mongoose_push_http], #{opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools, [[Pool]]),
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     escalus:init_per_suite(ConfigWithModules).
-
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),

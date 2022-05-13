@@ -44,15 +44,8 @@
 -define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
 -define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
--define(WPOOL_CFG, #{type => rabbit, scope => host, tag => event_pusher,
-                     opts => #{workers => 20, strategy => best_worker, call_timeout => 5000},
-                     conn_opts => #{confirms_enabled => false,
-                                    amqp_host => "localhost",
-                                    amqp_port => 5672,
-                                    amqp_username => "guest",
-                                    amqp_password => "guest",
-                                    max_worker_queue_len => 1000}
-}).
+-define(WPOOL_CFG, #{scope => host,
+                     opts => #{workers => 20, strategy => best_worker, call_timeout => 5000}}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
@@ -113,10 +106,10 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    start_rabbit_wpool(domain()),
-    {ok, _} = application:ensure_all_started(amqp_client),
     case is_rabbitmq_available() of
         true ->
+            start_rabbit_wpool(domain()),
+            {ok, _} = application:ensure_all_started(amqp_client),
             muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         false ->
@@ -621,7 +614,8 @@ start_rabbit_wpool(Host) ->
 
 start_rabbit_wpool(Host, WpoolConfig) ->
     rpc(mim(), mongoose_wpool, ensure_started, []),
-    rpc(mim(), mongoose_wpool, start_configured_pools, [[WpoolConfig], [Host]]).
+    Pool = config([outgoing_pools, rabbit, event_pusher], WpoolConfig),
+    [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool], [Host]]).
 
 stop_rabbit_wpool({Pool, Host, Tag}) ->
     rpc(mim(), mongoose_wpool, stop, [Pool, Host, Tag]);

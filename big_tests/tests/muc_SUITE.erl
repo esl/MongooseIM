@@ -17,7 +17,6 @@
 -module(muc_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -55,7 +54,7 @@
 
 -import(domain_helper, [host_type/0, domain/0]).
 -import(mongoose_helper, [backup_and_set_config_option/3, restore_config_option/2]).
--import(config_parser_helper, [default_mod_config/1]).
+-import(config_parser_helper, [config/2, default_mod_config/1]).
 
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
@@ -373,10 +372,11 @@ init_per_group(disco_rsm_with_offline, Config) ->
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
     PoolOpts = #{strategy => available_worker, workers => 5},
-    HTTPOpts = #{server => "http://localhost:8080", path_prefix => "/muc/auth/", request_timeout => 2000},
-    [{ok, _}] = ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                             [[#{type => http, scope => global, tag => muc_http_auth_test,
-                                                 opts => PoolOpts, conn_opts => HTTPOpts}]]),
+    ConnOpts = #{host => "http://localhost:8080", path_prefix => <<"/muc/auth/">>,
+                 request_timeout => 2000},
+    Pool = config([outgoing_pools, http, muc_http_auth_test],
+                  #{opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]),
     case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok

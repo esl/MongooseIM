@@ -23,7 +23,7 @@
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 
--export([network_params/0, network_params/1, exchange_declare/2,
+-export([network_params/1, exchange_declare/2,
          exchange_declare_ok/0, exchange_delete/1, basic_publish/2,
          confirm_select/0, confirm_select_ok/0, message/1]).
 
@@ -53,13 +53,9 @@
 %%% API
 %%%===================================================================
 
--spec network_params() -> network_params().
-network_params() ->
-    network_params([]).
-
--spec network_params(proplists:proplist()) -> #amqp_params_network{}.
-network_params(Opts) ->
-    network_params(Opts, #amqp_params_network{}).
+-spec network_params(map()) -> #amqp_params_network{}.
+network_params(#{host := Host, port := Port, username := UserName, password := Password}) ->
+    #amqp_params_network{host = Host, port = Port, username = UserName, password = Password}.
 
 -spec exchange_declare(Exchange :: binary(), Type :: binary()) -> method().
 exchange_declare(Exchange, Type) ->
@@ -88,15 +84,3 @@ confirm_select_ok() ->
 -spec message(Payload :: binary()) -> message().
 message(Payload) ->
     #amqp_msg{payload = Payload}.
-
-%%%===================================================================
-%%% Helpers
-%%%===================================================================
-
-network_params(Opts, #amqp_params_network{host = Host, username = UserName,
-                                          password = Password}) ->
-    #amqp_params_network{
-       host = proplists:get_value(host, Opts, Host),
-       port = proplists:get_value(port, Opts, ?DEFAULT_PORT),
-       username = proplists:get_value(username, Opts, UserName),
-       password = proplists:get_value(password, Opts, Password)}.

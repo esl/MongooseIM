@@ -166,7 +166,7 @@ extract_tls_options(#{tls := Opts}) ->
 extract_tls_options(_) -> [].
 
 get_outgoing_pools() ->
-    OutgoingPools = mongoose_config:get_opt(outgoing_pools, []),
+    OutgoingPools = mongoose_config:get_opt(outgoing_pools),
     [#{report_name => outgoing_pools,
        key => type,
        value => Type} || #{type := Type} <- OutgoingPools].

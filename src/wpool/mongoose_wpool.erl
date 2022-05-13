@@ -90,10 +90,10 @@
 -type callback_fun() :: init | start | is_supported_strategy | stop.
 
 -callback init() -> ok | {error, term()}.
--callback start(scope(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
+-callback start(host_type_or_global(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} | {error, Reason :: term()}.
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
--callback stop(scope(), tag()) -> ok.
+-callback stop(host_type_or_global(), tag()) -> ok.
 
 -optional_callbacks([is_supported_strategy/1]).
 
@@ -118,7 +118,7 @@ ensure_started() ->
     end.
 
 start_configured_pools() ->
-    Pools = mongoose_config:get_opt(outgoing_pools, []),
+    Pools = mongoose_config:get_opt(outgoing_pools),
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
@@ -227,7 +227,7 @@ stop(PoolType, HostType, Tag) ->
 
 -spec is_configured(pool_type()) -> boolean().
 is_configured(PoolType) ->
-    Pools = mongoose_config:get_opt(outgoing_pools, []),
+    Pools = mongoose_config:get_opt(outgoing_pools),
     lists:any(fun(#{type := Type}) -> Type =:= PoolType end, Pools).
 
 -spec get_worker(pool_type()) -> worker_result().

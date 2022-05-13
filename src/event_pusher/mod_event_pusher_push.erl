@@ -108,11 +108,8 @@ config_spec() ->
     }.
 
 wpool_spec() ->
-    WpoolDefaults = mongoose_config_spec:wpool_defaults(),
-    #section{items = mongoose_config_spec:wpool_items(),
-             defaults = WpoolDefaults#{<<"strategy">> := available_worker},
-             format_items = map,
-             include = always}.
+    Wpool = mongoose_config_spec:wpool(#{<<"strategy">> => available_worker}),
+    Wpool#section{include = always}.
 
 %%--------------------------------------------------------------------
 %% mod_event_pusher callbacks

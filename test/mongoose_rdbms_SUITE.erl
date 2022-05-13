@@ -59,13 +59,15 @@ init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_db(DbType),
     meck_connection_error(DbType),
     meck_rand(),
-    [{db_opts, [{server, server(DbType)}, {keepalive_interval, 2}, {start_interval, 10}]} | Config];
+    ServerOpts = server_opts(DbType),
+    [{db_opts, ServerOpts#{keepalive_interval => 2, max_start_interval => 10}} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
     set_opts(),
     meck_db(DbType),
-    [{db_opts, [{server, server(DbType)}, {keepalive_interval, ?KEEPALIVE_INTERVAL},
-                {start_interval, ?MAX_INTERVAL}]} | Config].
+    ServerOpts = server_opts(DbType),
+    [{db_opts, ServerOpts#{keepalive_interval => ?KEEPALIVE_INTERVAL,
+                           max_start_interval => ?MAX_INTERVAL}} | Config].
 
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_unload_rand(),
@@ -211,9 +213,11 @@ a(mysql) ->
 a(pgsql) ->
     ['_', [?KEEPALIVE_QUERY]].
 
-server(odbc) ->
-    "fake-connection-string";
-server(mysql) ->
-    {mysql, "fake-host", "fake-db", "fake-user", "fake-pass"};
-server(pgsql) ->
-    {pgsql, "fake-host", "fake-db", "fake-user", "fake-pass"}.
+server_opts(odbc) ->
+    #{driver => odbc, settings => "fake-connection-string"};
+server_opts(mysql) ->
+    #{driver => mysql, host => "fake-host", port => 3306,
+      database => "fake-db", username => "fake-user", password => "fake-pass"};
+server_opts(pgsql) ->
+    #{driver => pgsql, host => "fake-host", port => 5432,
+      database => "fake-db", username => "fake-user", password => "fake-pass"}.
