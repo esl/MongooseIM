@@ -16,7 +16,7 @@
 execute(EpName, Body, Creds) ->
     Request =
       #{port => get_listener_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
+        role => {graphql, EpName},
         method => <<"POST">>,
         return_maps => true,
         creds => Creds,
@@ -119,9 +119,9 @@ get_value([Field | Fields], Data) ->
     Data2 = maps:get(BinField, Data),
     get_value(Fields, Data2).
 
-is_graphql_config(#{module := ejabberd_cowboy, handlers := Handlers}, EpName) ->
-    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := EpBin}) ->
-                      atom_to_binary(EpName) =:= EpBin;
+is_graphql_config(#{module := ejabberd_cowboy, handlers := Handlers}, ExpEpName) ->
+    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := EpName}) ->
+                      ExpEpName =:= EpName;
                  (_) -> false
               end, Handlers);
 is_graphql_config(_, _EpName) ->

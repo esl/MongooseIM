@@ -39,12 +39,15 @@
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{<<"username">> => #option{type = binary},
-                       <<"password">> => #option{type = binary},
-                       <<"schema_endpoint">> => #option{type = binary}},
-             format_items = map,
-             required = [<<"schema_endpoint">>],
-             process = fun ?MODULE:process_config/1}.
+    #section{
+       items = #{<<"username">> => #option{type = binary},
+                 <<"password">> => #option{type = binary},
+                 <<"schema_endpoint">> => #option{type = atom,
+                                                  validate = {enum, [admin, domain_admin, user]}}
+                },
+        format_items = map,
+        required = [<<"schema_endpoint">>],
+        process = fun ?MODULE:process_config/1}.
 
 process_config(Opts) ->
     case maps:is_key(username, Opts) =:= maps:is_key(password, Opts) of
@@ -118,11 +121,11 @@ to_json(Req, State) -> json_request(Req, State).
 
 %% Internal
 
-check_auth(Auth, #{schema_endpoint := <<"domain_admin">>} = State) ->
+check_auth(Auth, #{schema_endpoint := domain_admin} = State) ->
     auth_domain_admin(Auth, State);
-check_auth(Auth, #{schema_endpoint := <<"admin">>} = State) ->
+check_auth(Auth, #{schema_endpoint := admin} = State) ->
     auth_admin(Auth, State);
-check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
+check_auth(Auth, #{schema_endpoint := user} = State) ->
     auth_user(Auth, State).
 
 auth_user({basic, User, Password}, State) ->
@@ -170,7 +173,7 @@ run_request(#{document := undefined}, Req, State) ->
     reply_error(make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
-    Ep = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
+    Ep = mongoose_graphql:get_endpoint(EpName),
     Ctx = maps:get(schema_ctx, State, #{}),
     ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx},
     case mongoose_graphql:execute(Ep, ReqCtx2) of
