@@ -15,8 +15,7 @@ get_counter_value(CounterName) ->
     get_counter_value(domain_helper:host_type(mim), CounterName).
 
 get_counter_value(HostType, Metric) ->
-    HostTypeName = make_host_type_name(HostType),
-    case rpc(mim(), mongoose_metrics, get_metric_value, [HostTypeName, Metric]) of
+    case rpc(mim(), mongoose_metrics, get_metric_value, [HostType, Metric]) of
         {ok, [{count, Total}, {one, _}]} ->
             {value, Total};
         {ok, [{value, Value} | _]} when is_integer(Value) ->
@@ -34,8 +33,7 @@ assert_counter(Value, CounterName) ->
     assert_counter(domain_helper:host_type(mim), Value, CounterName).
 
 assert_counter(HostType, Value, CounterName) ->
-    HostTypeName = make_host_type_name(HostType),
-    {value, Value} = get_counter_value(HostTypeName, CounterName).
+    {value, Value} = get_counter_value(HostType, CounterName).
 
 -spec prepare_by_all_metrics_are_global(Config :: list(), UseAllMetricsAreGlobal :: boolean()) ->
     list().
