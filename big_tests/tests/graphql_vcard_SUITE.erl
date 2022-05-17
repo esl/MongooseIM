@@ -67,6 +67,7 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 % User test cases
+
 user_set_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun user_set_vcard/2).
