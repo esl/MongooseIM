@@ -196,9 +196,13 @@ remove_all_metrics() ->
 %% ---------------------------------------------------------------------
 
 prepare_prefixes() ->
-    PrefixesList = [ {HT, make_host_type_prefix(HT)} || HT <- ?ALL_HOST_TYPES ],
-    PrefixesMap = maps:from_list(PrefixesList),
-    persistent_term:put(?PREFIXES, PrefixesMap).
+    Prebuilt = maps:from_list([begin
+                                   Prefix = make_host_type_prefix(HT),
+                                   {Prefix, Prefix}
+                               end || HT <- ?ALL_HOST_TYPES ]),
+    Prefixes = maps:from_list([ {HT, make_host_type_prefix(HT)}
+                                || HT <- ?ALL_HOST_TYPES ]),
+    persistent_term:put(?PREFIXES, maps:merge(Prebuilt, Prefixes)).
 
 -spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->
