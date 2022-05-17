@@ -2,10 +2,8 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_user/3, execute_auth/2, get_listener_port/1,
-                         get_listener_config/1, get_ok_value/2, get_err_msg/1,
-                         get_err_msg/2, make_creds/1, user_to_jid/1, user_to_bin/1]).
+-import(distributed_helper, [require_rpc_nodes/1]).
+-import(graphql_helper, [execute_user/3, execute_auth/2, user_to_bin/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -17,12 +15,27 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_vcard},
-     {group, admin_vcard}].
+    [{group, user_vcard}, {group, admin_vcard}].
 
 groups() ->
     [{user_vcard, [], user_vcard_handler()},
      {admin_vcard, [], admin_vcard_handler()}].
+
+user_vcard_handler() ->
+    [user_set_vcard,
+     user_get_their_vcard,
+     user_get_their_vcard_no_vcard,
+     user_get_others_vcard,
+     user_get_others_vcard_no_user,
+     user_get_others_vcard_no_vcard].
+
+admin_vcard_handler() ->
+    [admin_set_vcard,
+     admin_set_vcard_incomplete_fields,
+     admin_set_vcard_no_user,
+     admin_get_vcard,
+     admin_get_vcard_no_vcard,
+     admin_get_vcard_no_user].
 
 init_per_suite(Config) ->
     case vcard_helper:is_vcard_ldap() of
@@ -36,22 +49,6 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
-
-admin_vcard_handler() ->
-    [admin_set_vcard,
-     admin_set_vcard_incomplete_fields,
-     admin_set_vcard_no_user,
-     admin_get_vcard,
-     admin_get_vcard_no_vcard,
-     admin_get_vcard_no_user].
-
-user_vcard_handler() ->
-    [user_set_vcard,
-     user_get_their_own_vcard,
-     user_get_their_own_vcard_no_vcard,
-     user_get_others_vcard,
-     user_get_others_vcard_no_user,
-     user_get_others_vcard_no_vcard].
 
 init_per_group(admin_vcard, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -69,16 +66,14 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-%user test cases
+% User test cases
 user_set_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun user_set_vcard/2).
 
 user_set_vcard(Config, Alice) ->
-    QuerySet = user_get_full_vcard_as_result_mutation(),
     Vcard = complete_vcard_input(),
-    Vars = #{vcard => Vcard},
-    BodySet = #{query => QuerySet, operationName => <<"M1">>, variables => Vars},
+    BodySet = set_vcard_body_user(Vcard),
     GraphQlRequestSet = execute_user(BodySet, Alice, Config),
     ParsedResultSet = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequestSet),
     ?assertEqual(Vcard, ParsedResultSet),
@@ -88,11 +83,11 @@ user_set_vcard(Config, Alice) ->
     ParsedResultGet = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequestGet),
     ?assertEqual(Vcard, ParsedResultGet).
 
-user_get_their_own_vcard(Config) ->
+user_get_their_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_their_own_vcard/2).
+                                    fun user_get_their_vcard/2).
 
-user_get_their_own_vcard(Config, Alice) ->
+user_get_their_vcard(Config, Alice) ->
     Client1Fields = [{<<"FN">>, <<"TESTNAME">>}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL">>},
     {<<"HOME">>, []}, {"WORK", []}]}, {<<"EMAIL">>, [{<<"USERID">>, <<"TESTEMAIL2">>},
     {<<"HOME">>, []}]}],
@@ -105,11 +100,11 @@ user_get_their_own_vcard(Config, Alice) ->
     ParsedResult = ok_result(<<"vcard">>, <<"getVcard">>, GraphQlRequest),
     ?assertEqual(ExpectedResult, ParsedResult).
 
-user_get_their_own_vcard_no_vcard(Config) ->
+user_get_their_vcard_no_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_their_own_vcard_no_vcard/2).
+                                    fun user_get_their_vcard_no_vcard/2).
 
-user_get_their_own_vcard_no_vcard(Config, Alice) ->
+user_get_their_vcard_no_vcard(Config, Alice) ->
     Body = #{query => user_get_query(), operationName => <<"Q1">>, variables => #{}},
     GraphQlRequest = execute_user(Body, Alice, Config),
     ParsedResult = error_result(<<"message">>, GraphQlRequest),
@@ -156,15 +151,14 @@ user_get_others_vcard_no_user(Config, Alice) ->
     ?assertEqual(<<"User does not exist">>, ParsedResult).
 
 %% Admin test cases
+
 admin_set_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_set_vcard/3).
 
 admin_set_vcard(Config, Alice, _Bob) ->
-    QuerySet = admin_get_full_vcard_as_result_mutation(),
     Vcard = complete_vcard_input(),
-    VarsSet = #{user => user_to_bin(Alice), vcard => Vcard},
-    BodySet = #{query => QuerySet, operationName => <<"M1">>, variables => VarsSet},
+    BodySet = set_vcard_body_admin(Vcard, user_to_bin(Alice)),
     GraphQlRequestSet = execute_auth(BodySet, Config),
     ParsedResultSet = ok_result(<<"vcard">>, <<"setVcard">>, GraphQlRequestSet),
     ?assertEqual(Vcard, ParsedResultSet),
@@ -250,11 +244,20 @@ admin_get_vcard_no_user(Config) ->
     ?assertEqual(<<"User does not exist">>, ParsedResult).
 
 %% Helpers
+
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
     maps:get(What2, maps:get(What1, Data)).
 
 error_result(What, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
     maps:get(What, Data).
+
+set_vcard_body_user(Body) ->
+    QuerySet = user_get_full_vcard_as_result_mutation(),
+    #{query => QuerySet, operationName => <<"M1">>, variables => #{vcard => Body}}.
+
+set_vcard_body_admin(Body, User) ->
+    QuerySet = admin_get_full_vcard_as_result_mutation(),
+    #{query => QuerySet, operationName => <<"M1">>, variables => #{vcard => Body, user => User}}.
 
 address_vcard_input() ->
    #{<<"formattedName">> => <<"TestName">>,

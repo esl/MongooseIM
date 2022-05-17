@@ -3,7 +3,7 @@
 
 -export([execute/4]).
 
--import(mongoose_graphql_helper, [make_error/2, format_result/2, null_to_default/2]).
+-import(mongoose_graphql_helper, [make_error/2]).
 
 -ignore_xref([execute/4]).
 

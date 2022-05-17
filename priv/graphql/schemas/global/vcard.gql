@@ -255,19 +255,27 @@ input PrivacyInput{
 }
 
 input ImageInput{
+    "Format type parameter"
     type: String
+    "Base64 encoded binary image"
     binValue: String
+    "Link to external image"
     extValue: String
 }
 
 input SoundInput{
+    "Textual phonetic pronunciation"
     phonetic: String
+    "Base64 encoded sound binary value"
     binValue: String
+    "Link to external audio file"
     extValue: String
 }
 
 input AgentInput{
+    "Link to external vcard"
     extValue: String
+    "Individual vcard container"
     vcard: VcardInput
 }
 
