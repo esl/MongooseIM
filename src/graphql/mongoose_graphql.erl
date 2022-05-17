@@ -136,6 +136,8 @@ admin_mapping_rules() ->
         'SessionAdminQuery' => mongoose_graphql_session_admin_query,
         'StanzaAdminMutation' => mongoose_graphql_stanza_admin_mutation,
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
+        'LastAdminMutation' => mongoose_graphql_last_admin_mutation,
+        'LastAdminQuery' => mongoose_graphql_last_admin_query,
         'AccountAdminQuery' => mongoose_graphql_account_admin_query,
         'AccountAdminMutation' => mongoose_graphql_account_admin_mutation,
         'MUCAdminMutation' => mongoose_graphql_muc_admin_mutation,
