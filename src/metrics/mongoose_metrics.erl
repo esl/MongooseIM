@@ -48,6 +48,7 @@
               remove_host_type_metrics/1, get_report_interval/0,
               sample_metric/1]).
 
+-define(PREFIXES, {?MODULE, prefixes}).
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
 -type use_or_skip() :: use | skip.
@@ -62,6 +63,7 @@
 
 -spec init() -> ok.
 init() ->
+    prepare_prefixes(),
     create_global_metrics(),
     lists:foreach(
         fun(HostType) ->
@@ -138,7 +140,7 @@ sample_metric(Metric) ->
     exometer:sample(Metric).
 
 get_host_type_metric_names(HostType) ->
-    HostTypeName = make_host_type_name(HostType),
+    HostTypeName = get_host_type_prefix(HostType),
     [MetricName || {[_HostTypeName | MetricName], _, _} <- exometer:find_entries([HostTypeName])].
 
 get_global_metric_names() ->
@@ -182,24 +184,43 @@ get_mnesia_running_db_nodes_count() ->
     {value, length(mnesia:system_info(running_db_nodes))}.
 
 remove_host_type_metrics(HostType) ->
-    HostTypeName = make_host_type_name(HostType),
+    HostTypeName = get_host_type_prefix(HostType),
     lists:foreach(fun remove_metric/1, exometer:find_entries([HostTypeName])).
 
 remove_all_metrics() ->
+    persistent_term:erase(?PREFIXES),
     lists:foreach(fun remove_metric/1, exometer:find_entries([])).
 
 %% ---------------------------------------------------------------------
 %% Internal functions
 %% ---------------------------------------------------------------------
 
+prepare_prefixes() ->
+    PrefixesList = [ {HT, make_host_type_prefix(HT)} || HT <- ?ALL_HOST_TYPES ],
+    PrefixesMap = maps:from_list(PrefixesList),
+    persistent_term:put(?PREFIXES, PrefixesMap).
+
 -spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->
     mongoose_config:get_opt(all_metrics_are_global).
 
+get_host_type_prefix(HostType) when is_atom(HostType) ->
+    HostType;
+get_host_type_prefix(HostType) when is_binary(HostType) ->
+    case persistent_term:get(?PREFIXES, #{}) of
+        #{HostType := HostTypePrefix} -> HostTypePrefix;
+        #{} -> make_host_type_prefix(HostType)
+    end.
+
+make_host_type_prefix(HT) when is_atom(HT) ->
+    HT;
+make_host_type_prefix(HT) when is_binary(HT) ->
+    binary:replace(HT, <<" ">>, <<"_">>, [global]).
+
 pick_prefix_by_all_metrics_are_global(HostType) ->
     case all_metrics_are_global() of
         true -> global;
-        false -> make_host_type_name(HostType)
+        false -> get_host_type_prefix(HostType)
     end.
 
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
@@ -469,11 +490,6 @@ subscribe_to_all(Reporter, Interval) ->
     HostTypePrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
     lists:foreach(
       fun(Prefix) ->
-              UnspacedPrefix = make_host_type_name(Prefix),
+              UnspacedPrefix = get_host_type_prefix(Prefix),
               start_metrics_subscriptions(Reporter, [UnspacedPrefix], Interval)
       end, [global | HostTypePrefixes]).
-
-make_host_type_name(HT) when is_atom(HT) ->
-    HT;
-make_host_type_name(HT) when is_binary(HT) ->
-    binary:replace(HT, <<" ">>, <<"_">>, [global]).
