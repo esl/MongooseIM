@@ -26,7 +26,9 @@ groups() ->
      {admin_last, [parallel], admin_last_handler()}].
 
 user_last_handler() ->
-    [mock].
+    [user_set_last,
+     user_get_last,
+     user_get_other_user_last].
 
 admin_last_handler() ->
     [admin_set_last,
@@ -145,6 +147,45 @@ admin_try_count_nonexistent_domain_active_users(Config) ->
 
 %% User test cases
 
+user_set_last(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_set_last/2).
+
+user_set_last(Config, Alice) ->
+    Status = <<"My first status">>,
+    JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
+    Res = execute_user(user_set_last_body(Status, ?DEFAULT_DT), Alice, Config),
+    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
+        get_ok_value(p(setLast), Res),
+    Status2 = <<"Quack Quack">>,
+    Res2 = execute_user(user_set_last_body(Status2, null), Alice, Config),
+    #{<<"user">> := JID, <<"status">> := Status2, <<"timestamp">> := DateTime2} =
+        get_ok_value(p(setLast), Res2),
+    ?assert(os:system_time(second) - dt_to_unit(DateTime2, second) < 2).
+
+user_get_last(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_last/2).
+user_get_last(Config, Alice) ->
+    Status = <<"I love ducks">>,
+    JID = escalus_utils:jid_to_lower(user_to_bin(Alice)),
+    execute_user(user_set_last_body(Status, ?DEFAULT_DT), Alice, Config),
+    Res = execute_user(user_get_last_body(null), Alice, Config),
+    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
+        get_ok_value(p(getLast), Res).
+
+user_get_other_user_last(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_other_user_last/3).
+
+user_get_other_user_last(Config, Alice, Bob) ->
+    Status = <<"In good mood">>,
+    JID = escalus_utils:jid_to_lower(user_to_bin(Bob)),
+    execute_user(user_set_last_body(Status, ?DEFAULT_DT), Bob, Config),
+    Res = execute_user(admin_get_last_body(Bob), Alice, Config),
+    #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
+        get_ok_value(p(getLast), Res).
+
 %% Helpers
 
 assert_err_msg(Contains, Res) ->
@@ -190,7 +231,7 @@ admin_count_active_users_body(Domain, Timestamp) ->
     Vars = #{domain => Domain, timestamp => Timestamp},
     #{query => Query, operationName => OpName, variables => Vars}.
 
-user_set_last_body(DateTime, Status) ->
+user_set_last_body(Status, DateTime) ->
     Query = <<"mutation M1($timestamp: DateTime, $status: String!)
               { last { setLast (timestamp: $timestamp, status: $status)
               { user timestamp status } } }">>,
