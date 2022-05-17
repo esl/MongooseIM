@@ -224,7 +224,7 @@ make_response(HostType, IQ, SubEl, JID, allow) ->
     end.
 
 -spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver())
-        -> 'not_found' | {'ok', integer(), binary()}.
+        -> 'not_found' | {'ok', timestamp(), status()}.
 get_last_info(HostType, LUser, LServer) ->
     case get_last(HostType, LUser, LServer) of
         {error, _Reason} -> not_found;
@@ -240,7 +240,8 @@ remove_user(Acc, User, Server) ->
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) -> mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     mod_last_backend:remove_domain(HostType, Domain),
     Acc.
@@ -263,7 +264,8 @@ store_last_info(Acc, LUser, LServer, Status) ->
     store_last_info(HostType, LUser, LServer, TimeStamp, Status),
     Acc.
 
--spec store_last_info(mongooseim:host_type(), jid:luser(), jid:lserver(), timestamp(), status()) -> ok.
+-spec store_last_info(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                      timestamp(), status()) -> ok.
 store_last_info(HostType, LUser, LServer, TimeStamp, Status) ->
     case mod_last_backend:set_last_info(HostType, LUser, LServer, TimeStamp, Status) of
         {error, Reason} ->
