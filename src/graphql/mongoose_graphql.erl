@@ -173,6 +173,8 @@ user_mapping_rules() ->
         'RosterUserMutation' => mongoose_graphql_roster_user_mutation,
         'VcardUserMutation' => mongoose_graphql_vcard_user_mutation,
         'VcardUserQuery' => mongoose_graphql_vcard_user_query,
+        'LastUserMutation' => mongoose_graphql_last_user_mutation,
+        'LastUserQuery' => mongoose_graphql_last_user_query,
         'SessionUserQuery' => mongoose_graphql_session_user_query,
         'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
         'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
