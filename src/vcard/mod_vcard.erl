@@ -76,6 +76,7 @@
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
 -export([get_default_reported_fields/1]).
+-export([unsafe_set_vcard/3]).
 
 %% GDPR related
 -export([get_personal_data/3]).

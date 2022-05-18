@@ -33,6 +33,7 @@
 {suites, "tests", graphql_roster_SUITE}.
 {suites, "tests", graphql_session_SUITE}.
 {suites, "tests", graphql_stanza_SUITE}.
+{suites, "tests", graphql_vcard_SUITE}.
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", inbox_extensions_SUITE}.
 {suites, "tests", jingle_SUITE}.

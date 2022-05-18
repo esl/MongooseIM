@@ -1,0 +1,325 @@
+type Vcard{
+    "Formatted name from Vcard"
+    formattedName: String
+    "Person's name details"
+    nameComponents: NameComponents
+    "User's nickname"
+    nickname: [String]
+    "User's photo"
+    photo: [Image]
+    "Birthday date"
+    birthday: [String]
+    address: [Address]
+    label: [Label]
+    telephone: [Telephone]
+    email: [Email]
+    jabberId: [String]
+    mailer: [String]
+    timeZone: [String]
+    "Geographical position"
+    geo: [GeographicalPosition]
+    title: [String]
+    role: [String]
+    logo: [Image]
+    agent: [Agent]
+    "Organization"
+    org: [Organization]
+    categories: [Keyword]
+    note: [String]
+    "Identifier of product that generated the vCard property"
+    prodId: [String]
+    "Last revised property. The value must be an ISO 8601 formatted UTC date/time"
+    rev: [String]
+    "Sort string property"
+    sortString: [String]
+    "Formatted name pronunciation property"
+    sound: [Sound]
+    "Unique identifier property"
+    uid: [String]
+    "Directory URL property"
+    url: [String]
+    "Free-form descriptive text"
+    desc: [String]
+    "Privacy classification property"
+    class: [Privacy]
+    "Authentication credential or encryption  key property"
+    key: [Key]
+}
+
+type Keyword{
+    keyword: [String]
+}
+
+type NameComponents{
+    family: String
+    givenName: String
+    middleName: String
+    prefix: String
+    suffix: String
+}
+
+type Address{
+    "Address tags"
+    tags: [AddressTags]
+    "Post office box"
+    pobox: String
+    "Extra address data"
+    extadd: String
+    street: String
+    locality: String
+    region: String
+    "Postal code"
+    pcode: String
+    country: String
+}
+
+type Label{
+    "Label tags"
+    tags: [AddressTags]
+    line: [String]
+}
+
+type Telephone{
+    "Telephone tags"
+    tags: [TelephoneTags]
+    number: String
+}
+
+type Email{
+    "Email tags"
+    tags: [EmailTags]
+    "Email address"
+    userId: String
+}
+
+type ImageData{
+    type: String
+    binValue: String
+}
+
+type External{
+    extValue: String
+}
+
+type Phonetic {
+    phonetic: String
+}
+
+type BinValue{
+    binValue: String
+}
+
+type AgentVcard{
+    vcard: Vcard
+}
+
+union Image = ImageData | External
+
+union Sound = Phonetic | BinValue | External
+
+union Agent = AgentVcard | External
+
+type GeographicalPosition{
+    "Geographical latitude"
+    lat: String
+    "Geographical longtitude"
+    lon: String
+}
+
+type Organization{
+    "Organization name"
+    orgname: String
+    "Organization unit"
+    orgunit: [String]
+}
+
+type Privacy{
+    tags: [PrivacyClassificationTags]
+}
+
+type Key{
+    type: String
+    credential: String
+}
+
+input VcardInput{
+    "Formatted name from Vcard"
+    formattedName: String!
+    "Person's name details"
+    nameComponents: NameComponentsInput!
+    "User's nickname"
+    nickname: [String]
+    "User's photo"
+    photo: [ImageInput!]
+    "Birthday date"
+    birthday: [String!]
+    address: [AddressInput!]
+    label: [LabelInput!]
+    telephone: [TelephoneInput!]
+    email: [EmailInput!]
+    jabberId: [String!]
+    mailer: [String!]
+    timeZone: [String!]
+    "Geographical position"
+    geo: [GeographicalPositionInput!]
+    title: [String!]
+    role: [String!]
+    logo: [ImageInput!]
+    agent: [AgentInput!]
+    "Organization"
+    org: [OrganizationInput!]
+    categories: [KeywordInput!]
+    note: [String!]
+    "Identifier of product that generated the vCard property"
+    prodId: [String!]
+    "Last revised property. The value must be an ISO 8601 formatted UTC date/time"
+    rev: [String!]
+    "Sort string property"
+    sortString: [String!]
+    "Formatted name pronunciation property"
+    sound: [SoundInput!]
+    "Unique identifier property"
+    uid: [String!]
+    "Directory URL property"
+    url: [String!]
+    "Free-form descriptive text"
+    desc: [String!]
+    "Privacy classification property"
+    class: [PrivacyInput!]
+    "Authentication credential or encryption key property"
+    key: [KeyInput!]
+}
+
+input KeywordInput{
+    keyword: [String!]
+}
+
+input NameComponentsInput{
+    family: String
+    givenName: String
+    middleName: String
+    prefix: String
+    suffix: String
+}
+
+input AddressInput{
+    "Address tags"
+    tags: [AddressTags!]
+    "Post office box"
+    pobox: String
+    "Extra address data"
+    extadd: String
+    street: String
+    locality: String
+    region: String
+    "Postal code"
+    pcode: String
+    country: String
+}
+
+input LabelInput{
+    "Label tags"
+    tags: [AddressTags!]
+    line: [String!]!
+}
+
+input TelephoneInput{
+    "Telephone tags"
+    tags: [TelephoneTags!]
+    number: String!
+}
+
+input EmailInput{
+    "Email tags"
+    tags: [EmailTags!]
+    "Email address"
+    userId: String!
+}
+
+input GeographicalPositionInput{
+    "Geographical latitude"
+    lat: String!
+    "Geographical longtitude"
+    lon: String!
+}
+
+input OrganizationInput{
+    "Organization name"
+    orgname: String!
+    "Organization unit"
+    orgunit: [String!]
+}
+
+input PrivacyInput{
+    tags: [PrivacyClassificationTags!]
+}
+
+input ImageInput{
+    "Format type parameter"
+    type: String
+    "Base64 encoded binary image"
+    binValue: String
+    "Link to external image"
+    extValue: String
+}
+
+input SoundInput{
+    "Textual phonetic pronunciation"
+    phonetic: String
+    "Base64 encoded sound binary value"
+    binValue: String
+    "Link to external audio file"
+    extValue: String
+}
+
+input AgentInput{
+    "Link to external vcard"
+    extValue: String
+    "Individual vcard container"
+    vcard: VcardInput
+}
+
+input KeyInput{
+    type: String
+    credential: String!
+}
+
+enum PrivacyClassificationTags{
+    PUBLIC
+    PRIVATE
+    CONFIDENTIAL
+}
+
+enum AddressTags{
+    HOME
+    WORK
+    POSTAL
+    PARCEL
+    DOM
+    PREF
+    INTL
+}
+
+enum TelephoneTags{
+    HOME
+    WORK
+    VOICE
+    FAX
+    PAGER
+    MSG
+    CELL
+    VIDEO
+    BBS
+    MODEM
+    ISDN
+    PCS
+    PREF
+}
+
+enum EmailTags{
+    HOME
+    WORK
+    INTERNET
+    PREF
+    X400
+}

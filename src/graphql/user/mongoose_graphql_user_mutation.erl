@@ -14,4 +14,6 @@ execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, stanza};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
-    {ok, roster}.
+    {ok, roster};
+execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
+    {ok, vcard}.

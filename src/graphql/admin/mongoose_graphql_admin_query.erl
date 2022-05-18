@@ -22,4 +22,6 @@ execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
     {ok, roster};
 execute(_Ctx, _Obj, <<"checkAuth">>, _Args) ->
-    {ok, admin}.
+    {ok, admin};
+execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
+    {ok, vcard}.
