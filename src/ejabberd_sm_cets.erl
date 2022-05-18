@@ -30,6 +30,11 @@ get_sessions() ->
 
 -spec get_sessions(jid:lserver()) -> [ejabberd_sm:session()].
 get_sessions(Server) ->
+    %% This is not a full table scan. From the ETS docs:
+    %% For ordered_set a partially bound key will limit the traversal to only
+    %% scan a subset of the table based on term order.
+    %% A partially bound key is either a list or a tuple with
+    %% a prefix that is fully bound.
     R = {{Server, '_', '_', '_'}, '_', '_'},
     Xs = ets:select(?TABLE, [{R, [], ['$_']}]),
     tuples_to_sessions(Xs).
@@ -98,6 +103,7 @@ cleanup(Node) ->
     Guard = {'==', {node, '$1'}, Node},
     R = {KeyPattern, '_', '_'},
     cets:sync(?TABLE),
+    %% This is a full table scan, but cleanup is rare.
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
     Keys = lists:map(fun({Key, _, _} = Tuple) ->
                           Session = tuple_to_session(Tuple),
