@@ -29,7 +29,6 @@ user_account_handler() ->
 admin_account_handler() ->
     [admin_list_users,
      admin_count_users,
-     admin_get_active_users_number,
      admin_check_password,
      admin_check_password_hash,
      admin_check_plain_password_hash,
@@ -39,11 +38,7 @@ admin_account_handler() ->
      admin_remove_non_existing_user,
      admin_remove_existing_user,
      admin_ban_user,
-     admin_change_user_password,
-     admin_list_old_users_domain,
-     admin_list_old_users_all,
-     admin_remove_old_users_domain,
-     admin_remove_old_users_all].
+     admin_change_user_password].
 
 init_per_suite(Config) ->
     Config1 = [{ctl_auth_mods, mongoose_helper:auth_modules()} | Config],
@@ -55,9 +50,6 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(admin_account_handler, Config) ->
-    Mods = [{mod_last, config_parser_helper:default_mod_config(mod_last)}],
-    dynamic_modules:ensure_modules(domain_helper:host_type(), Mods),
-    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(), Mods),
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
     graphql_helper:init_admin_handler(Config1);
 init_per_group(user_account_handler, Config) ->
@@ -67,24 +59,12 @@ init_per_group(_, Config) ->
 
 end_per_group(admin_account_handler, Config) ->
     escalus_fresh:clean(),
-    escalus:delete_users(Config, escalus:get_users([alice])),
-    dynamic_modules:restore_modules(Config);
+    escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(user_account_handler, _Config) ->
     escalus_fresh:clean();
 end_per_group(_, _Config) ->
     ok.
 
-init_per_testcase(C, Config) when C =:= admin_list_old_users_all;
-                                  C =:= admin_list_old_users_domain;
-                                  C =:= admin_remove_old_users_all;
-                                  C =:= admin_remove_old_users_domain ->
-    {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
-    case lists:member(ejabberd_auth_ldap, AuthMods) of
-        true -> {skip, not_fully_supported_with_ldap};
-        false ->
-            Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, alice_bis])),
-            escalus:init_per_testcase(C, Config1)
-    end;
 init_per_testcase(admin_register_user = C, Config) ->
     Config1 = [{user, {<<"gql_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
@@ -103,11 +83,6 @@ init_per_testcase(admin_check_plain_password_hash = C, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(C, Config) when C =:= admin_list_old_users_all;
-                                 C =:= admin_list_old_users_domain;
-                                 C =:= admin_remove_old_users_all;
-                                 C =:= admin_remove_old_users_domain ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob, alice_bis]));
 end_per_testcase(admin_register_user = C, Config) ->
     {Username, Domain} = proplists:get_value(user, Config),
     rpc(mim(), mongoose_account_api, unregister_user, [Username, Domain]),
@@ -171,14 +146,6 @@ admin_count_users(Config) ->
     Domain = domain_helper:domain(),
     Resp2 = execute_auth(count_users_body(Domain), Config),
     ?assert(0 < get_ok_value([data, account, countUsers], Resp2)).
-
-admin_get_active_users_number(Config) ->
-    % Check non-existing domain
-    Resp = execute_auth(get_active_users_number_body(<<"unknown-domain">>, 5), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"Cannot count">>)),
-    % Check an existing domain without active users
-    Resp2 = execute_auth(get_active_users_number_body(domain_helper:domain(), 5), Config),
-    ?assertEqual(0, get_ok_value([data, account, countActiveUsers], Resp2)).
 
 admin_check_password(Config) ->
     Password = lists:last(escalus_users:get_usp(Config, alice)),
@@ -297,89 +264,11 @@ admin_change_user_password(Config) ->
         ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp3), <<"Password changed">>))
     end).
 
-admin_remove_old_users_domain(Config) ->
-    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
-    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
-    [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
-
-    Now = erlang:system_time(seconds),
-    set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, Now - 86400 * 30),
-
-    Path = [data, account, removeOldUsers, users],
-    Resp = execute_auth(remove_old_users_body(Domain, 10), Config),
-    ?assertEqual(1, length(get_ok_value(Path, Resp))),
-    ?assertMatch({user_does_not_exist, _}, check_account(BobName, Domain)),
-    ?assertMatch({ok, _}, check_account(AliceName, Domain)),
-    ?assertMatch({ok, _}, check_account(AliceBisName, BisDomain)).
-
-admin_remove_old_users_all(Config) ->
-    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
-    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
-    [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
-
-    Now = erlang:system_time(seconds),
-    OldTime = Now - 86400 * 30,
-    set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, OldTime),
-    set_last(AliceBisName, BisDomain, OldTime),
-
-    Path = [data, account, removeOldUsers, users],
-    Resp = execute_auth(remove_old_users_body(null, 10), Config),
-    ?assertEqual(2, length(get_ok_value(Path, Resp))),
-    ?assertMatch({user_does_not_exist, _}, check_account(BobName, Domain)),
-    ?assertMatch({ok, _}, check_account(AliceName, Domain)),
-    ?assertMatch({user_does_not_exist, _}, check_account(AliceBisName, BisDomain)).
-
-admin_list_old_users_domain(Config) ->
-    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
-    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
-
-    Now = erlang:system_time(seconds),
-    set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, Now - 86400 * 30),
-
-    LBob = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, bob)),
-
-    Path = [data, account, listOldUsers],
-    Resp = execute_auth(list_old_users_body(Domain, 10), Config),
-    Users = get_ok_value(Path, Resp),
-    ?assertEqual(1, length(Users)),
-    ?assert(lists:member(LBob, Users)).
-
-admin_list_old_users_all(Config) ->
-    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
-    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
-    [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
-
-    Now = erlang:system_time(seconds),
-    OldTime = Now - 86400 * 30,
-    set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, OldTime),
-    set_last(AliceBisName, BisDomain, OldTime),
-
-    LBob = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, bob)),
-    LAliceBis = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice_bis)),
-
-    Path = [data, account, listOldUsers],
-    Resp = execute_auth(list_old_users_body(null, 10), Config),
-    Users = get_ok_value(Path, Resp),
-    ?assertEqual(2, length(Users)),
-    ?assert(lists:member(LBob, Users)),
-    ?assert(lists:member(LAliceBis, Users)).
-
 %% Helpers
 
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
-
-set_last(User, Domain, TStamp) ->
-    rpc(mim(), mod_last, store_last_info,
-        [domain_helper:host_type(), escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
-
-check_account(Username, Domain) ->
-    rpc(mim(), mongoose_account_api, check_account, [Username, Domain]).
 
 %% Request bodies
 
@@ -393,13 +282,6 @@ count_users_body(Domain) ->
     Query = <<"query Q1($domain: String!) { account { countUsers(domain: $domain) } }">>,
     OpName = <<"Q1">>,
     Vars = #{<<"domain">> => Domain},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-get_active_users_number_body(Domain, Days) ->
-    Query = <<"query Q1($domain: String!, $days: Int!)
-              { account { countActiveUsers(domain: $domain, days: $days) } }">>,
-    OpName = <<"Q1">>,
-    Vars = #{<<"domain">> => Domain, <<"days">> => Days},
     #{query => Query, operationName => OpName, variables => Vars}.
 
 check_password_body(User, Password) ->
@@ -437,20 +319,6 @@ remove_user_body(User) ->
               { account { removeUser(user: $user) { jid message } } }">>,
     OpName = <<"M1">>,
     Vars = #{<<"user">> => User},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-remove_old_users_body(Domain, Days) ->
-    Query = <<"mutation M1($domain: String, $days: Int!) 
-              { account { removeOldUsers(domain: $domain, days: $days) { message users } } }">>,
-    OpName = <<"M1">>,
-    Vars = #{<<"domain">> => Domain, <<"days">> => Days},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-list_old_users_body(Domain, Days) ->
-    Query = <<"query Q1($domain: String, $days: Int!)
-              { account { listOldUsers(domain: $domain, days: $days) } }">>,
-    OpName = <<"Q1">>,
-    Vars = #{<<"domain">> => Domain, <<"days">> => Days},
     #{query => Query, operationName => OpName, variables => Vars}.
 
 ban_user_body(JID, Reason) ->
