@@ -8,6 +8,12 @@ type LastAdminQuery @protected{
   "Get the number of users active from the given timestamp"
   countActiveUsers(domain: String!, timestamp: DateTime): Int
     @protected(type: DOMAIN, args: ["domain"])
+  """
+  List users that didn't log in the last days or have never logged in.
+  Globally or for a specified domain
+  """
+  listOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
+    @protected(type: DOMAIN, args: ["domain"])
 }
 
 """
@@ -17,4 +23,21 @@ type LastAdminMutation @protected{
   "Set user's last activity information"
   setLast(user: JID!, timestamp: DateTime, status: String!): LastActivity
     @protected(type: DOMAIN, args: ["user"])
+  """
+  Delete users that didn't log in the last days or have never logged in.
+  Globally or for a specified domain. Please use listOldUsers to check which users will be deleted
+  """
+  removeOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
+    @protected(type: DOMAIN, args: ["domain"])
+}
+
+"""
+The user is considered old when never registered activity in `mod_last`, or the latest registered
+activity is older than the given timestamp.
+"""
+type OldUser{
+  "The user's JID"
+  jid: JID!
+  "The latest recorded user activity DateTime"
+  timestamp: DateTime
 }

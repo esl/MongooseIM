@@ -5,14 +5,8 @@ type AccountAdminQuery @protected{
   "List users per domain"
   listUsers(domain: String!): [String!]!
     @protected(type: DOMAIN, args: ["domain"])
-  "List users that didn't log in the last days or have never logged in. Globally or for a specified domain"
-  listOldUsers(domain: String, days: Int!): [String!]!
-    @protected(type: DOMAIN, args: ["domain"])
   "Get number of users per domain"
   countUsers(domain: String!): Int!
-    @protected(type: DOMAIN, args: ["domain"])
-  "Get number of users active in last days"
-  countActiveUsers(domain: String!, days: Int!): Int
     @protected(type: DOMAIN, args: ["domain"])
   "Check if a password is correct"
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
@@ -35,26 +29,12 @@ type AccountAdminMutation @protected{
   "Remove a user"
   removeUser(user: JID!): UserPayload
     @protected(type: DOMAIN, args: ["user"])
-  """
-  Delete users that didn't log in the last days or have never logged in. Globally or for a specified domain.
-  Please use listOldUsers to check which users will be deleted
-  """
-  removeOldUsers(domain: String, days: Int!): OldUsersPayload
-    @protected(type: DOMAIN, args: ["domain"])
   "Ban an account: kick sessions and set a random password"
   banUser(user: JID!, reason: String!): UserPayload 
     @protected(type: DOMAIN, args: ["user"])
   "Change the password of a user"
   changeUserPassword(user: JID!, newPassword: String!): UserPayload 
     @protected(type: DOMAIN, args: ["user"])
-}
-
-"Remove old users payload"
-type OldUsersPayload{
-  "Removed users"
-  users: [JID!]!
-  "Result message"
-  message: String!
 }
 
 "Modify user payload"
