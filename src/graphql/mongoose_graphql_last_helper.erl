@@ -2,7 +2,7 @@
 
 -export([get_last/1, set_last/3]).
 
--export([microseconds_to_seconds/1, seconds_to_microseconds/1]).
+-export([microseconds_to_seconds/1, seconds_to_microseconds/1, format_old_users/1]).
 
 -ignore_xref([microseconds_to_seconds/1, seconds_to_microseconds/1]).
 
@@ -10,11 +10,12 @@
 
 -import(mongoose_graphql_helper, [make_error/2, null_to_default/2]).
 
+-type old_users() :: [{ok, map()}].
 -type last_info() :: map().
 -type timestamp() :: mod_last:timestamp() | null.
 -type status() :: mod_last:status().
 
--export_type([last_info/0]).
+-export_type([last_info/0, old_users/0]).
 
 -spec get_last(jid:jid()) -> {ok, last_info()} | {error, resolver_error()}.
 get_last(JID) ->
@@ -37,8 +38,18 @@ set_last(JID, Timestamp, Status) ->
             make_error(Error, #{user => jid:to_binary(JID)})
     end.
 
+format_old_users(OldUsers) ->
+    [{ok, make_old_user(JID, Timestamp)} || {JID, Timestamp} <- OldUsers].
+
 microseconds_to_seconds(Timestamp) ->
     Timestamp div 1000000.
 
 seconds_to_microseconds(Timestamp) ->
     Timestamp * 1000000.
+
+%% Internal
+
+make_old_user(JID, null) ->
+    #{<<"jid">> => JID, <<"timestamp">> => null};
+make_old_user(JID, Timestamp) ->
+    #{<<"jid">> => JID, <<"timestamp">> => seconds_to_microseconds(Timestamp)}.

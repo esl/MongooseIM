@@ -13,8 +13,6 @@ execute(_Ctx, _Obj, <<"registerUser">>, Args) ->
     register_user(Args);
 execute(_Ctx, _Obj, <<"removeUser">>, Args) ->
     remove_user(Args);
-execute(_Ctx, _Obj, <<"removeOldUsers">>, Args) ->
-    remove_old_users(Args);
 execute(_Ctx, _Obj, <<"banUser">>, Args) ->
     ban_user(Args);
 execute(_Ctx, _Obj, <<"changeUserPassword">>, Args) ->
@@ -41,14 +39,6 @@ remove_user(#{<<"user">> := JID}) ->
     Result = mongoose_account_api:unregister_user(JID),
     format_user_payload(Result, JID).
 
--spec remove_old_users(map()) -> {ok, map()} | {error, resolver_error()}.
-remove_old_users(#{<<"domain">> := null, <<"days">> := Days}) ->
-    {{ok, Msg}, JIDs} = mongoose_account_api:delete_old_users(Days),
-    {ok, make_old_users_payload(Msg, JIDs)};
-remove_old_users(#{<<"domain">> := Domain, <<"days">> := Days}) ->
-    {{ok, Msg}, JIDs} = mongoose_account_api:delete_old_users_for_domain(Domain, Days),
-    {ok, make_old_users_payload(Msg, JIDs)}.
-
 -spec ban_user(map()) -> {ok, map()} | {error, resolver_error()}.
 ban_user(#{<<"user">> := JID, <<"reason">> := Reason}) ->
     Result = mongoose_account_api:ban_account(JID, Reason),
@@ -71,8 +61,3 @@ format_user_payload(InResult, JID) ->
 -spec make_user_payload(string(), jid:literal_jid()) -> map().
 make_user_payload(Msg, JID) ->
     #{<<"message">> => iolist_to_binary(Msg), <<"jid">> => JID}.
-
--spec make_old_users_payload(string(), [jid:literal_jid()]) -> map().
-make_old_users_payload(Msg, JIDs) ->
-    Users = lists:map(fun(U) -> {ok, U} end, JIDs),
-    #{<<"message">> => iolist_to_binary(Msg), <<"users">> => Users}.
