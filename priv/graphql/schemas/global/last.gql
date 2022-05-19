@@ -1,0 +1,5 @@
+type LastActivity{
+  user: JID!
+  timestamp: DateTime!
+  status: String!
+}
