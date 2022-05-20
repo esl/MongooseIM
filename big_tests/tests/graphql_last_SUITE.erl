@@ -55,13 +55,12 @@ init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
     SecHostType = domain_helper:secondary_host_type(),
     Config1 = escalus:init_per_suite(Config),
-    Config2 = dynamic_modules:save_modules(HostType, Config1),
-    Config3 = dynamic_modules:save_modules(SecHostType, Config2),
+    Config2 = dynamic_modules:save_modules([HostType, SecHostType], Config1),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
     SecBackend = mongoose_helper:get_backend_mnesia_rdbms_riak(SecHostType),
     dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
     dynamic_modules:ensure_modules(SecHostType, required_modules(SecBackend)),
-    escalus:init_per_suite(Config3).
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),

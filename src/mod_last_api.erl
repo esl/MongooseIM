@@ -13,10 +13,11 @@
 -type info() :: #{timestamp := mod_last:timestamp(), status := mod_last:status()}.
 -type timestamp() :: mod_last:timestamp().
 -type status() :: mod_last:status().
+-type host_type() :: mongooseim:host_type().
 
 -define(USER_NOT_FOUND_RESULT(User, Server),
         {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Server])}).
--define(DOMAIN_NOT_FOUND_RESULT, {domain_not_found, "Domain not found"}).
+-define(DOMAIN_NOT_FOUND_RESULT, {domain_not_found, <<"Domain not found">>}).
 
 -spec set_last(jid:jid(), timestamp(), status()) -> {ok, info()} | {user_does_not_exist, iolist()}.
 set_last(#jid{luser = User, lserver = Server} = JID, Timestamp, Status) ->
@@ -30,7 +31,7 @@ set_last(#jid{luser = User, lserver = Server} = JID, Timestamp, Status) ->
     end.
 
 -spec get_last(jid:jid()) ->
-    {ok, info()} | {last_not_found | user_does_not_exist, iolist()}.
+    {ok, info()} | {last_not_found | user_does_not_exist, iodata()}.
 get_last(#jid{luser = User, lserver = Server} = JID) ->
     case ejabberd_auth:does_user_exist(JID) of
         true ->
@@ -39,14 +40,14 @@ get_last(#jid{luser = User, lserver = Server} = JID) ->
                 {ok, Timestamp, Status} ->
                     {ok, #{timestamp => Timestamp, status => Status}};
                 not_found ->
-                    {last_not_found, "Given user's last info not found"}
+                    {last_not_found, <<"Given user's last info not found">>}
             end;
         false ->
             ?USER_NOT_FOUND_RESULT(User, Server)
     end.
 
 -spec count_active_users(jid:server(), timestamp()) ->
-    {ok, non_neg_integer()} |{domain_not_found, iolist()}.
+    {ok, non_neg_integer()} | {domain_not_found, binary()}.
 count_active_users(Domain, Timestamp) ->
     LDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_host_type(LDomain) of
@@ -63,7 +64,7 @@ list_old_users(Timestamp) ->
                   Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]).
 
 -spec list_old_users(jid:server(), timestamp()) ->
-    {ok, [old_user()]} | {domain_not_found, iolist()}.
+    {ok, [old_user()]} | {domain_not_found, binary()}.
 list_old_users(Domain, Timestamp) ->
     LDomain = jid:nameprep(Domain),
     case mongoose_domain_api:get_host_type(LDomain) of
@@ -80,7 +81,7 @@ remove_old_users(Timestamp) ->
     OldUsers.
 
 -spec remove_old_users(jid:server(), timestamp()) ->
-    {ok, [old_user()]} | {domain_not_found, iolist()}.
+    {ok, [old_user()]} | {domain_not_found, binary()}.
 remove_old_users(Domain, Timestamp) ->
     case list_old_users(Domain, Timestamp) of
         {ok, OldUsers} ->
@@ -92,12 +93,12 @@ remove_old_users(Domain, Timestamp) ->
 
 %% Internal
 
--spec list_old_users(_, jid:lserver(), timestamp()) -> [old_user()].
+-spec list_old_users(host_type(), jid:lserver(), timestamp()) -> [old_user()].
 list_old_users(HostType, Domain, Timestamp) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
     lists:filtermap(fun(U) -> prepare_old_user(HostType, U, Timestamp) end, Users).
 
--spec prepare_old_user(mongooseim:host_type(), jid:simple_bare_jid(), timestamp()) ->
+-spec prepare_old_user(host_type(), jid:simple_bare_jid(), timestamp()) ->
     false | {true, old_user()}.
 prepare_old_user(HostType, {LU, LS}, Timestamp) ->
     JID = jid:make_bare(LU, LS),

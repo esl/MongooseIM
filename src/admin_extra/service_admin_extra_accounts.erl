@@ -157,5 +157,5 @@ days_to_timestamp(Days) ->
     erlang:system_time(second) - Days * 86400.
 
 format_deleted_users(Users) ->
-    Users2 = [jid:to_binary(JID) || {JID, _} <- Users],
-    io_lib:format("Deleted ~p users: ~p", [length(Users), Users2]).
+    Users2 = lists:join(", ", [jid:to_binary(JID) || {JID, _} <- Users]),
+    io_lib:format("Deleted ~p users: ~s", [length(Users), Users2]).
