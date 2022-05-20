@@ -48,7 +48,7 @@
               remove_host_type_metrics/1, get_report_interval/0,
               sample_metric/1]).
 
--define(PREFIXES, {?MODULE, prefixes}).
+-define(PREFIXES, mongoose_metrics_prefixes).
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
 -type use_or_skip() :: use | skip.
@@ -216,8 +216,6 @@ get_host_type_prefix(HostType) when is_binary(HostType) ->
         #{} -> make_host_type_prefix(HostType)
     end.
 
-make_host_type_prefix(global) ->
-    global;
 make_host_type_prefix(HT) when is_binary(HT) ->
     binary:replace(HT, <<" ">>, <<"_">>, [global]).
 
