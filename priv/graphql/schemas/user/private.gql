@@ -1,0 +1,13 @@
+"""
+Allow user to set own private
+"""
+type PrivateUserMutation @protected {
+    setPrivate(privateString: String!): String
+}
+
+"""
+Allow user to get own private
+"""
+type PrivateUserQuery @protected {
+    getPrivate(element: String!, subElement: String!): String
+}

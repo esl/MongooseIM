@@ -13,6 +13,8 @@ execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, stanza};
+execute(_Ctx, _Obj, <<"private">>, _Args) ->
+    {ok, private};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
     {ok, roster};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
