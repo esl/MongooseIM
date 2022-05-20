@@ -108,7 +108,7 @@ ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
                   {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
                    [workers | ?INET_STATS]}).
 
--spec update(HostType :: mongooseim:host_type() | global, Name :: term() | list(),
+-spec update(HostType :: mongooseim:host_type_or_global(), Name :: term() | list(),
              Change :: term()) -> any().
 update(HostType, Name, Change) when is_list(Name) ->
     exometer:update(name_by_all_metrics_are_global(HostType, Name), Change);
@@ -208,16 +208,16 @@ prepare_prefixes() ->
 all_metrics_are_global() ->
     mongoose_config:get_opt(all_metrics_are_global).
 
-get_host_type_prefix(HostType) when is_atom(HostType) ->
-    HostType;
+get_host_type_prefix(global) ->
+    global;
 get_host_type_prefix(HostType) when is_binary(HostType) ->
     case persistent_term:get(?PREFIXES, #{}) of
         #{HostType := HostTypePrefix} -> HostTypePrefix;
         #{} -> make_host_type_prefix(HostType)
     end.
 
-make_host_type_prefix(HT) when is_atom(HT) ->
-    HT;
+make_host_type_prefix(global) ->
+    global;
 make_host_type_prefix(HT) when is_binary(HT) ->
     binary:replace(HT, <<" ">>, <<"_">>, [global]).
 
