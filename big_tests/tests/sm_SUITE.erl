@@ -1,7 +1,7 @@
 %% Stream Management tests
 -module(sm_SUITE).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -12,6 +12,10 @@
          rpc_stop_hook_handler/2,
          hook_handler_fn/3,
          regression_handler/5]).
+
+-export([rpc_start_filter_hook_handler/3,
+         rpc_stop_filter_hook_handler/2,
+         filter_hook_handler_fn/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -115,7 +119,8 @@ manual_ack_freq_long_session_timeout_cases() ->
 parallel_unacknowledged_message_hook_cases() ->
     [unacknowledged_message_hook_bounce,
      unacknowledged_message_hook_offline,
-     unacknowledged_message_hook_resume].
+     unacknowledged_message_hook_resume,
+     unacknowledged_message_hook_filter].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -717,6 +722,52 @@ wait_for_resumption(Config) ->
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts),
     mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session).
 
+unacknowledged_message_hook_filter(Config) ->
+    FilterText = <<"filter">>,
+    Bob = connect_fresh(Config, bob, presence),
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Resource = proplists:get_value(username, AliceSpec),
+    HookHandlerExtra = start_filter_hook_listener(FilterText, Resource),
+    Alice = connect_spec([{resource, Resource} | AliceSpec], sr_presence, manual),
+    %% Ack the presence stanza
+    get_ack(Alice),
+    ack_initial_presence(Alice),
+    Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>, <<"msg-4">>],
+    All = [<<"msg-1">>, FilterText, <<"msg-2">>, FilterText, <<"msg-3">>, <<"msg-4">>],
+    [ escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, Body)) || Body <- All ],
+    %% kill alice connection
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    escalus_connection:kill(Alice),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    sm_helper:assert_alive_resources(Alice, 1),
+    %% ensure second C2S is registered so all the messages are bounced properly
+    NewAlice = connect_spec([{resource, <<"2">>}| AliceSpec], sr_presence, manual),
+    send_initial_presence(NewAlice),
+    sm_helper:wait_for_resource_count(NewAlice, 2),
+    ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
+    %% verify that the filtered message is never received
+    verify_no_receive_filtertext(NewAlice, FilterText, Messages),
+    stop_hook_listener(HookHandlerExtra),
+    escalus_connection:stop(Bob).
+
+verify_no_receive_filtertext(_, _, []) ->
+    ok;
+verify_no_receive_filtertext(Client, FilterText, Messages) ->
+    case escalus:wait_for_stanzas(Client, 1, 500) of
+        [] -> ct:fail("Messages pending: ~p~n", [Messages]);
+        [St] ->
+            case exml_query:path(St, [{element, <<"body">>}, cdata]) of
+                undefined ->
+                    verify_no_receive_filtertext(Client, FilterText, Messages);
+                FilterText ->
+                    ct:fail("Composing forwarded from a different c2s process");
+                Message ->
+                    Pred = fun(Msg) -> Msg =/= Message end,
+                    {Pending, _} = lists:partition(Pred, Messages),
+                    verify_no_receive_filtertext(Client, FilterText, Pending)
+            end
+    end.
+
 unacknowledged_message_hook_resume(Config) ->
     unacknowledged_message_hook_common(fun unacknowledged_message_hook_resume/4, Config).
 
@@ -1155,6 +1206,46 @@ wait_for_unacked_msg_hook(Counter, Res, Timeout) ->
             Stanza
     after Timeout ->
         timeout
+    end.
+
+start_filter_hook_listener(FilterText, Resource) ->
+    rpc(mim(), ?MODULE, rpc_start_filter_hook_handler, [FilterText, Resource, host_type()]).
+
+stop_filter_hook_listener(HookExtra) ->
+    rpc(mim(), ?MODULE, rpc_stop_filter_hook_handler, [HookExtra, host_type()]).
+
+rpc_start_filter_hook_handler(FilterText, User, HostType) ->
+    LUser = jid:nodeprep(User),
+    Extra = #{luser => LUser, filter_text => FilterText},
+    gen_hook:add_handler(filter_unacknowledged_messages, HostType,
+                         fun ?MODULE:filter_hook_handler_fn/3,
+                         Extra, 50),
+    Extra.
+
+rpc_stop_filter_hook_handler(HookExtra, HostType) ->
+    gen_hook:delete_handler(filter_unacknowledged_messages, HostType,
+                            fun ?MODULE:filter_hook_handler_fn/3,
+                            HookExtra, 50).
+
+filter_hook_handler_fn(Buffer,
+                       #{jid := Jid} = _Params,
+                       #{luser := LUser, filter_text := FilterText} = _Extra) ->
+    {U, _} = jid:to_lus(Jid),
+    case U of
+        LUser ->
+            F = fun(Acc) -> filter_text(Acc, FilterText) end,
+            NewBuffer = lists:filter(F, Buffer),
+            {ok, NewBuffer};
+        _ -> {ok, Buffer}
+    end.
+
+filter_text(Acc, FilterText) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
+            El = mongoose_acc:element(Acc),
+            FilterText =/= exml_query:path(El, [{element, <<"body">>}, cdata]);
+        _ ->
+            true
     end.
 
 is_chat(Content) ->

@@ -33,6 +33,7 @@
          session_cleanup/5,
          set_vcard/3,
          unacknowledged_message/2,
+         filter_unacknowledged_messages/3,
          unregister_command/1,
          unregister_subhost/1,
          user_available_hook/2,
@@ -423,6 +424,14 @@ unacknowledged_message(Acc, JID) ->
     Args = [JID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(unacknowledged_message, HostType, Acc, ParamsWithLegacyArgs).
+
+-spec filter_unacknowledged_messages(HostType, Jid, Buffer) -> Result when
+    HostType :: mongooseim:host_type(),
+    Jid :: jid:jid(),
+    Buffer :: [mongoose_acc:t()],
+    Result :: [mongoose_acc:t()].
+filter_unacknowledged_messages(HostType, Jid, Buffer) ->
+    run_fold(filter_unacknowledged_messages, HostType, Buffer, #{jid => Jid}).
 
 %%% @doc The `unregister_command' hook is called when a command
 %%% is unregistered from `mongoose_commands'.

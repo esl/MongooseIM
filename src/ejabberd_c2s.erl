@@ -2969,8 +2969,10 @@ flush_stream_mgmt_buffer(#state{stream_mgmt = StreamMgmt})
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer} = State) ->
     re_route_packets(Buffer, State).
 
-re_route_packets(Buffer, StateData) ->
-    [reroute(Acc, StateData) || Acc <- lists:reverse(Buffer)],
+re_route_packets(Buffer, #state{jid = Jid, host_type = HostType} = StateData) ->
+    OrderedBuffer = lists:reverse(Buffer),
+    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    [reroute(Acc, StateData) || Acc <- FilteredBuffer],
     ok.
 
 reroute(Acc, StateData) ->
