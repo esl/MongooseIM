@@ -10,9 +10,8 @@
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 
 execute(_Ctx, _Obj, <<"setPrivate">>, #{<<"user">> := CallerJID,
-        <<"privateString">> := Element}) ->
+        <<"elementString">> := Element}) ->
     case mod_private_api:private_set(CallerJID, Element) of
         {ok, _} = Result -> Result;
-        Error ->
-            make_error(Error, #{user => CallerJID, element => Element})
+        Error -> make_error(Error, #{user => CallerJID, element => Element})
     end.

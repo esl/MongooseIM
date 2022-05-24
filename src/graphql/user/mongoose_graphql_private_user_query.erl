@@ -10,7 +10,7 @@
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 
 execute(#{user := CallerJID}, _Obj, <<"getPrivate">>,
-        #{<<"element">> := Element, <<"subElement">> := SubElement}) ->
+        #{<<"element">> := Element, <<"nameSpace">> := SubElement}) ->
     case mod_private_api:private_get(CallerJID, Element, SubElement) of
         {ok, _} = Result -> Result;
         Error ->

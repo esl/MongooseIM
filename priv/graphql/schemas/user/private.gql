@@ -2,12 +2,12 @@
 Allow user to set own private
 """
 type PrivateUserMutation @protected {
-    setPrivate(privateString: String!): String
+    setPrivate(elementString: String!): String
 }
 
 """
 Allow user to get own private
 """
 type PrivateUserQuery @protected {
-    getPrivate(element: String!, subElement: String!): String
+    getPrivate(element: String!, nameSpace: String!): String
 }

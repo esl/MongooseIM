@@ -9,7 +9,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
--include_lib("../../include/mod_roster.hrl").
+-include("../../include/mod_roster.hrl").
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -70,18 +70,17 @@ end_per_testcase(CaseName, Config) ->
 % User tests
 
 user_set_private(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_set_private/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_set_private/2).
 
 user_set_private(Config, Alice) ->
     QuerySet = user_private_mutation(),
     Expected = exml:to_binary(private_input()),
     BodySet = #{query => QuerySet, operationName => <<"M1">>,
-             variables => #{privateString => Expected}},
+                variables => #{elementString => Expected}},
     GraphQlRequestSet = execute_user(BodySet, Alice, Config),
     ParsedResultSet = ok_result(<<"private">>, <<"setPrivate">>, GraphQlRequestSet),
     ?assertEqual(<<"[]">>, ParsedResultSet),
-    Vars = #{element => <<"my_element">>, subElement => <<"alice:private:ns">>},
+    Vars = #{element => <<"my_element">>, nameSpace => <<"alice:private:ns">>},
     QueryGet = user_private_query(),
     BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => Vars},
     GraphQlRequestGet = execute_user(BodyGet, Alice, Config),
@@ -89,15 +88,14 @@ user_set_private(Config, Alice) ->
     ?assertEqual(Expected, ParsedResultGet).
 
 user_get_private(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_get_private/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_get_private/2).
 
 user_get_private(Config, Alice) ->
     Expected = exml:to_binary(private_input()),
     IQ = escalus_stanza:to(escalus_stanza:private_set(private_input()),
                            escalus_users:get_jid(Config, alice)),
     escalus_client:send_and_wait(Alice, IQ),
-    Vars = #{element => <<"my_element">>, subElement => <<"alice:private:ns">>},
+    Vars = #{element => <<"my_element">>, nameSpace => <<"alice:private:ns">>},
     QueryGet = user_private_query(),
     BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => Vars},
     GraphQlRequestGet = execute_user(BodyGet, Alice, Config),
@@ -105,14 +103,13 @@ user_get_private(Config, Alice) ->
     ?assertEqual(Expected, ParsedResultGet).
 
 parse_xml_error(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun parse_xml_error/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun parse_xml_error/2).
 
 parse_xml_error(Config, Alice) ->
     QuerySet = user_private_mutation(),
     Input = <<"AAAABBBB">>,
     BodySet = #{query => QuerySet, operationName => <<"M1">>,
-             variables => #{privateString => Input}},
+                variables => #{elementString => Input}},
     GraphQlRequestSet = execute_user(BodySet, Alice, Config),
     ParsedResultSet = error_result2(<<"extensions">>, <<"code">>, GraphQlRequestSet),
     ?assertEqual(<<"parse_error">>, ParsedResultSet).
@@ -120,18 +117,17 @@ parse_xml_error(Config, Alice) ->
 % Admin tests
 
 admin_set_private(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_set_private/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_private/2).
 
 admin_set_private(Config, Alice) ->
     QuerySet = admin_private_mutation(),
     Expected = exml:to_binary(private_input()),
     BodySet = #{query => QuerySet, operationName => <<"M1">>,
-             variables => #{privateString => Expected, user => user_to_bin(Alice)}},
+                variables => #{elementString => Expected, user => user_to_bin(Alice)}},
     GraphQlRequestSet = execute_auth(BodySet, Config),
     ParsedResultSet = ok_result(<<"private">>, <<"setPrivate">>, GraphQlRequestSet),
     ?assertEqual(<<"[]">>, ParsedResultSet),
-    Vars = #{element => <<"my_element">>, subElement => <<"alice:private:ns">>,
+    Vars = #{element => <<"my_element">>, nameSpace => <<"alice:private:ns">>,
              user => user_to_bin(Alice)},
     QueryGet = admin_private_query(),
     BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => Vars},
@@ -140,15 +136,14 @@ admin_set_private(Config, Alice) ->
     ?assertEqual(Expected, ParsedResultGet).
 
 admin_get_private(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_get_private/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_private/2).
 
 admin_get_private(Config, Alice) ->
     Expected = exml:to_binary(private_input()),
     IQ = escalus_stanza:to(escalus_stanza:private_set(private_input()),
                            escalus_users:get_jid(Config, alice)),
     escalus_client:send_and_wait(Alice, IQ),
-    Vars = #{element => <<"my_element">>, subElement => <<"alice:private:ns">>,
+    Vars = #{element => <<"my_element">>, nameSpace => <<"alice:private:ns">>,
              user => user_to_bin(Alice)},
     QueryGet = admin_private_query(),
     BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => Vars},
@@ -157,7 +152,7 @@ admin_get_private(Config, Alice) ->
     ?assertEqual(Expected, ParsedResultGet).
 
 no_user_error_get(Config) ->
-    Vars = #{element => <<"my_element">>, subElement => <<"alice:private:ns">>,
+    Vars = #{element => <<"my_element">>, nameSpace => <<"alice:private:ns">>,
              user => <<"AAAAA">>},
     QueryGet = admin_private_query(),
     BodyGet = #{query => QueryGet, operationName => <<"Q1">>, variables => Vars},
@@ -169,16 +164,15 @@ no_user_error_set(Config) ->
     QuerySet = admin_private_mutation(),
     Expected = exml:to_binary(private_input()),
     BodySet = #{query => QuerySet, operationName => <<"M1">>,
-             variables => #{privateString => Expected, user => <<"AAAAA">>}},
+             variables => #{elementString => Expected, user => <<"AAAAA">>}},
     GraphQlRequestSet = execute_auth(BodySet, Config),
     ParsedResultSet = error_result2(<<"extensions">>, <<"code">>, GraphQlRequestSet),
     ?assertEqual(<<"not_found">>, ParsedResultSet).
 
 private_input() ->
-    #xmlel{
-        name = <<"my_element">>,
-        attrs = [{<<"xmlns">>, "alice:private:ns"}],
-        children = [{xmlcdata, <<"DATA">>}]}.
+    #xmlel{name = <<"my_element">>,
+           attrs = [{<<"xmlns">>, "alice:private:ns"}],
+           children = [{xmlcdata, <<"DATA">>}]}.
 
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
     maps:get(What2, maps:get(What1, Data)).
@@ -190,37 +184,37 @@ error_result2(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) 
     maps:get(What2, maps:get(What1, Data)).
 
 user_private_mutation() ->
-    <<"mutation M1($privateString: String!)
+    <<"mutation M1($elementString: String!)
        {
         private
            {
-               setPrivate(privateString: $privateString)
+               setPrivate(elementString: $elementString)
            }
        }">>.
 
 user_private_query() ->
-    <<"query Q1($element: String! $subElement: String!)
+    <<"query Q1($element: String! $nameSpace: String!)
        {
         private
            {
-               getPrivate(element: $element, subElement: $subElement)
+               getPrivate(element: $element, nameSpace: $nameSpace)
            }
        }">>.
 
 admin_private_mutation() ->
-    <<"mutation M1($privateString: String!, $user: JID!)
+    <<"mutation M1($elementString: String!, $user: JID!)
        {
         private
            {
-               setPrivate(user: $user, privateString: $privateString)
+               setPrivate(user: $user, elementString: $elementString)
            }
        }">>.
 
 admin_private_query() ->
-    <<"query Q1($user: JID!, $element: String! $subElement: String!)
+    <<"query Q1($user: JID!, $element: String! $nameSpace: String!)
        {
         private
            {
-               getPrivate(user: $user, element: $element, subElement: $subElement)
+               getPrivate(user: $user, element: $element, nameSpace: $nameSpace)
            }
        }">>.
