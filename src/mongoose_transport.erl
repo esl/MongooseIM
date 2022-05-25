@@ -27,9 +27,9 @@
 %% Callback declarations
 %%----------------------------------------------------------------------
 
--callback starttls(Transport :: t(), TLSOpts :: list()) -> t().
+-callback starttls(Transport :: t(), mongoose_tls:options()) -> t().
 
--callback starttls(Transport :: t(), TLSOpts :: list(), Data :: binary()) -> t().
+-callback starttls(Transport :: t(), mongoose_tls:options(), Data :: binary()) -> t().
 
 -callback monitor(Transport :: t()) -> MonitorRef :: reference().
 
@@ -46,10 +46,10 @@
 
 -ignore_xref([behaviour_info/1]).
 
--spec starttls(TransportMod :: module(), Transport :: t(), TLSOpts :: list()) -> t().
+-spec starttls(TransportMod :: module(), Transport :: t(), mongoose_tls:options()) -> t().
 starttls(TransportMod, Transport, TLSOpts) -> TransportMod:starttls(Transport, TLSOpts).
 
--spec starttls(TransportMod :: module(), Transport :: t(), TLSOpts :: list(), binary()) -> t().
+-spec starttls(TransportMod :: module(), Transport :: t(), mongoose_tls:options(), binary()) -> t().
 starttls(TransportMod, Transport, TLSOpts, Data) -> TransportMod:starttls(Transport, TLSOpts, Data).
 
 -spec monitor(TransportMod :: module(), Transport :: t()) -> reference().
