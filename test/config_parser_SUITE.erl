@@ -99,7 +99,8 @@ groups() ->
                            listen_http_handlers_api,
                            listen_http_handlers_api_admin,
                            listen_http_handlers_api_client,
-                           listen_http_handlers_domain]},
+                           listen_http_handlers_domain,
+                           listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
                          auth_password,
                          auth_sasl_external,
@@ -680,6 +681,13 @@ listen_http_handlers_domain(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_domain_handler),
     test_listen_http_handler_creds(P, T).
 
+listen_http_handlers_graphql(_Config) ->
+    T = fun graphql_handler_raw/1,
+    {P, _} = test_listen_http_handler(mongoose_graphql_cowboy_handler, T),
+    test_listen_http_handler_creds(P, T),
+    ?err(T(#{<<"schema_endpoint">> => <<"wrong_endpoint">>})),
+    ?err(http_handler_raw(mongoose_graphql_cowboy_handler, #{})).
+
 test_listen_http_handler_creds(P, T) ->
     CredsRaw = #{<<"username">> => <<"user">>, <<"password">> => <<"pass">>},
     ?cfg(P ++ [username], <<"user">>, T(CredsRaw)),
@@ -691,6 +699,9 @@ test_listen_http_handler_creds(P, T) ->
 
 test_listen_http_handler(Module) ->
     T = fun(Opts) -> http_handler_raw(Module, Opts) end,
+    test_listen_http_handler(Module, T).
+
+test_listen_http_handler(Module, T) ->
     P = [listen, 1, handlers, 1],
     ?cfg(P, config([listen, http, handlers, Module], #{host => "localhost", path => "/api"}),
          T(#{})),
@@ -3050,6 +3061,10 @@ check_module_defaults(Mod) ->
 
 listener(Type, Opts) ->
     config([listen, Type], Opts).
+
+graphql_handler_raw(Opts) ->
+    http_handler_raw(mongoose_graphql_cowboy_handler,
+                     maps:merge(#{<<"schema_endpoint">> => <<"admin">>}, Opts)).
 
 http_handler_raw(Type, Opts) ->
     MergedOpts = maps:merge(#{<<"host">> => <<"localhost">>, <<"path">> => <<"/api">>}, Opts),

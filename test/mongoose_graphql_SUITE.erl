@@ -151,12 +151,12 @@ init_per_group(user_listener, Config) ->
                     (#jid{luser = <<"alice">>}, <<"makota">>) -> {true, {}};
                     (_, _) -> false
                 end),
-    ListenerOpts = #{schema_endpoint => <<"user">>},
+    ListenerOpts = #{schema_endpoint => user},
     init_ep_listener(5557, user_schema_ep, ListenerOpts, Config);
 init_per_group(admin_listener, Config) ->
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
-                     schema_endpoint => <<"admin">>},
+                     schema_endpoint => admin},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
 init_per_group(domain_admin_listener, Config) ->
     meck:new(mongoose_domain_api, [no_link]),
@@ -168,7 +168,7 @@ init_per_group(domain_admin_listener, Config) ->
                 end),
     meck:expect(mongoose_domain_api, get_subdomain_info,
                 fun (_) -> {error, not_found} end),
-    ListenerOpts = #{schema_endpoint => <<"domain_admin">>},
+    ListenerOpts = #{schema_endpoint => domain_admin},
     init_ep_listener(5560, domain_admin_schema_ep, ListenerOpts, Config);
 init_per_group(domain_permissions, Config) ->
     meck:new(mongoose_domain_api, [no_link]),
@@ -657,7 +657,7 @@ auth_user_can_access_protected_types(Config) ->
 no_creds_defined_admin_can_access_protected(_Config) ->
     Port = 5559,
     Ep = "http://localhost:" ++ integer_to_list(Port),
-    start_listener(no_creds_admin_listener, Port, #{schema_endpoint => <<"admin">>}),
+    start_listener(no_creds_admin_listener, Port, #{schema_endpoint => admin}),
     Body = #{<<"query">> => <<"{ field }">>},
     {Status, Data} = execute(Ep, Body, undefined),
     assert_access_granted(Status, Data).
