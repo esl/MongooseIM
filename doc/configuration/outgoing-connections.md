@@ -121,6 +121,15 @@ When MongooseIM fails to connect to the DB, it retries with an exponential backo
 * **Default:** no default; required for `pgsql` and `mysql`
 * **Example:** `password = "mim-password"`
 
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. There is one additonal option for PostgreSQL:
+
+#### `outgoing_pools.rdbms.*.connection.tls.required`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.required = true`
+
+This option can be used to enforce a TLS connection.
+
 ### ODBC options
 
 #### `outgoing_pools.rdbms.*.connection.settings`
@@ -130,14 +139,14 @@ When MongooseIM fails to connect to the DB, it retries with an exponential backo
 
 ODBC - specific string defining connection parameters.
 
-##### ODBC SSL connection setup
+#### ODBC SSL connection setup
 
 If you've configured MongooseIM to use an ODBC driver, then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
 
 To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
 Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
 
-###### Example ~/.odbc.ini configuration
+##### Example ~/.odbc.ini configuration
 
 ```ini
 [mydb]
@@ -170,7 +179,7 @@ Initial part of path which will be common to all calls. Prefix will be automatic
 
 Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
-HTTP also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Redis-specific options
 
@@ -226,9 +235,7 @@ Currently, only one Riak connection pool can exist for each supported XMPP host 
 * **Default:** none
 * **Example:** `credentials = {user = "myuser", password = "tisismepasswd"}`
 
-This is optional - setting this option forces connection over TLS
-
-Riak also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. The `cacertfile` option is then mandatory and `verify_mode` cannot be set to `none`.
 
 ## Cassandra options
 
@@ -256,7 +263,7 @@ To use plain text authentication (using cqerl_auth_plain_handler module):
 
 Support for other authentication modules may be added in the future.
 
-Cassandra also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Elasticsearch options
 
@@ -373,48 +380,34 @@ Leaving out this option makes it an anonymous connection, which most likely is w
 
 Reconnect interval after a failed connection.
 
-LDAP also supports all TLS-specific options described in the TLS section.
-To enable TLS, you need to include the `tls` subsection (it can be empty).
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## TLS options
 
 TLS options for a given pool type/tag pair are defined in a subsection starting with `[outgoing_pools.[pool_type].[pool_tag].connection.tls]`.
 
-### `outgoing_pools.*.*.connection.tls.required`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `tls.required = true`
+### `outgoing_pools.*.*.connection.tls.verify_mode`
+* **Syntax:** string, one of: `"peer"`, `"selfsigned_peer"`, `"none"`
+* **Default:** `"peer"`
+* **Example:** `tls.verify_mode = "none"`
 
-This option is Postgresql-specific, doesn't apply in other cases.
-
-### `outgoing_pools.*.*.connection.tls.verify_peer`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `tls.verify_peer = true`
-
-Enforces verification of a client certificate. Requires a valid `cacertfile`.
+The default value, `"peer"`, enforces verification of the server certificate, and requires a valid `cacertfile` to do so.
+You can set it to `"selfsigned_peer"` to accept self-signed certificates or to `"none"` to skip certificate verification altogether.
 
 ### `outgoing_pools.*.*.connection.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.certfile = "server.pem"`
 
-Path to the X509 PEM file with a certificate and a private key (not protected by a password). 
-If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
+Path to the X509 PEM file with a certificate.
+If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.
 
 ### `outgoing_pools.*.*.connection.tls.cacertfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.cacertfile = "ca.pem"`
 
-Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
-
-### `outgoing_pools.*.*.connection.tls.dhfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.dhfile = "dh.pem"`
-
-Path to the Diffie-Hellman parameter file.
+Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_mode` is set to `"none"`.
 
 ### `outgoing_pools.*.*.connection.tls.keyfile`
 * **Syntax:** string, path in the file system
@@ -442,25 +435,25 @@ Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.ope
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
-Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+TLS protocol versions to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication`
+### `outgoing_pools.*.*.connection.tls.server_name_indication.enabled`
 * **Syntax:** boolean
-* **Default:** `false`, but enabled if the `verify_peer` option is set to `true`
-* **Example:** `tls.server_name_indication = false`
+* **Default:** `"true"`, but effective only if `verify_mode` is not `"none"`.
+* **Example:** `tls.server_name_indication.enabled = false`
 
-Enables SNI extension to TLS protocol. If set to `true`, the `server_name_indication_host` option should be provided.
+Enables SNI extension to TLS protocol. You can set it to `false` to disable the extension.
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication_host`
+### `outgoing_pools.*.*.connection.tls.server_name_indication.host`
 * **Syntax:** string
 * **Default:** not set
-* **Example:** `tls.server_name_indication_host = "domain.com"`
+* **Example:** `tls.server_name_indication.host = "domain.com"`
 
-Domain against which the certificates will be checked, using SNI. It can be specified only when `server_name_indication` is set to `true`.
+Domain against which the certificates will be checked, using SNI.
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication_protocol`
-* **Syntax:** string, one of "default" or "https"
+### `outgoing_pools.*.*.connection.tls.server_name_indication.protocol`
+* **Syntax:** string, one of `"default"` or `"https"`
 * **Default:** "default"
 * **Example:** `tls.server_name_indication_protocol = "https"`
 
-See [https://www.erlang.org/doc/man/public_key.html#pkix_verify_hostname_match_fun-1] for an explanation. You'd usually want to set it to https for reasons described in [https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl.html].
+See the [OTP documentation](https://www.erlang.org/doc/man/public_key.html#pkix_verify_hostname_match_fun-1) for an explanation. You'd usually want to set it to `"https"` for reasons described in the [security recommendations](https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl.html).
