@@ -31,14 +31,15 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec wrap(gen_tcp:socket(), ConnOpts :: map()) -> {ok, t()} | {error, any()}.
+-spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}) -> {ok, t()} | {error, any()}.
 wrap(Socket, ConnOpts) ->
-    wrap(Socket, ConnOpts, []).
+    wrap(Socket, ConnOpts, #{}).
 
--spec wrap(gen_tcp:socket(), ConnOpts :: map(), ExtraOpts :: proplists:proplist()) ->
+-spec wrap(gen_tcp:socket(), #{tls := mongoose_tls:options()}, ExtraOpts :: map()) ->
           {ok, t()} | {error, any()}.
 wrap(Socket, #{tls := Opts}, ExtraOpts) ->
-    case fast_tls:tcp_to_tls(Socket, ExtraOpts ++ maps:to_list(Opts)) of
+    PreparedOpts = mongoose_tls:prepare_options(fast_tls, maps:merge(Opts, ExtraOpts)),
+    case fast_tls:tcp_to_tls(Socket, PreparedOpts) of
         {ok, TLSSocket} -> {ok, #?MODULE{transport = fast_tls, socket = TLSSocket}};
         Error -> Error
     end;
