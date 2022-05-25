@@ -85,7 +85,6 @@ config_spec() ->
                                           validate = {module, mod_privacy}},
                  <<"riak">> => riak_config_spec()},
        defaults = #{<<"backend">> => mnesia},
-       format_items = map,
        process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
@@ -101,7 +100,6 @@ riak_config_spec() ->
        defaults = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
                     <<"names_bucket_type">> => <<"privacy_lists_names">>,
                     <<"bucket_type">> => <<"privacy_lists">>},
-       format_items = map,
        include = always
       }.
 

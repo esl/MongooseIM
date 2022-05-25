@@ -36,8 +36,7 @@ config_spec() ->
                  <<"os_info">> => #option{type = boolean}
                 },
        defaults = #{<<"iqdisc">> => no_queue,
-                    <<"os_info">> => false},
-       format_items = map
+                    <<"os_info">> => false}
       }.
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), any()) ->

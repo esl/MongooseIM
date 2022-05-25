@@ -55,8 +55,7 @@ config_spec() ->
     #section{
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
-       defaults = #{<<"bucket_type">> => <<"users">>},
-       format_items = map
+       defaults = #{<<"bucket_type">> => <<"users">>}
       }.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().

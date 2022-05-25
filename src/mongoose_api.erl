@@ -69,8 +69,7 @@ config_spec() ->
                                                                validate = {enum, HandlerModules}},
                                                validate = unique_non_empty}
                       },
-             defaults = #{<<"handlers">> => HandlerModules},
-             format_items = map}.
+             defaults = #{<<"handlers">> => HandlerModules}}.
 
 -spec routes(handler_options()) -> mongoose_http_handler:routes().
 routes(#{path := BasePath, handlers := HandlerModules}) ->

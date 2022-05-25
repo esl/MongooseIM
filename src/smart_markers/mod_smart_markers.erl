@@ -120,15 +120,13 @@ config_spec() ->
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()},
        defaults = #{<<"keep_private">> => false,
                     <<"backend">> => rdbms,
-                    <<"iqdisc">> => no_queue},
-       format_items = map
+                    <<"iqdisc">> => no_queue}
     }.
 
 async_config_spec() ->
     #section{
        items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
        defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
-       format_items = map,
        include = always
       }.
 

@@ -103,8 +103,7 @@ config_spec() ->
         defaults = #{<<"iqdisc">> => one_queue,
                      <<"backend">> => mnesia,
                      <<"plugin_module">> => mod_event_pusher_push_plugin:default_plugin_module(),
-                     <<"virtual_pubsub_hosts">> => []},
-        format_items = map
+                     <<"virtual_pubsub_hosts">> => []}
     }.
 
 wpool_spec() ->

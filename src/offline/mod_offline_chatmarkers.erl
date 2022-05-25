@@ -101,8 +101,7 @@ config_spec() ->
                  },
         defaults = #{<<"store_groupchat_messages">> => false,
                      <<"backend">> => rdbms
-                    },
-        format_items = map
+                    }
         }.
 
 remove_user(Acc, User, Server) ->

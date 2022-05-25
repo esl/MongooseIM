@@ -66,8 +66,7 @@ stop(_HostType) ->
 config_spec() ->
     #section{items = #{<<"presence_exchange">> => exchange_spec(<<"presence">>),
                        <<"chat_msg_exchange">> => msg_exchange_spec(<<"chat_msg">>),
-                       <<"groupchat_msg_exchange">> => msg_exchange_spec(<<"groupchat_msg">>)},
-             format_items = map}.
+                       <<"groupchat_msg_exchange">> => msg_exchange_spec(<<"groupchat_msg">>)}}.
 
 msg_exchange_spec(Name) ->
     Spec = #section{items = Items, defaults = Defaults} = exchange_spec(Name),
@@ -77,7 +76,6 @@ msg_exchange_spec(Name) ->
                                                             validate = non_empty}},
                  defaults = Defaults#{<<"sent_topic">> => <<Name/binary, "_sent">>,
                                       <<"recv_topic">> => <<Name/binary, "_recv">>},
-                 format_items = map,
                  include = always
                 }.
 
@@ -88,7 +86,6 @@ exchange_spec(Name) ->
                                              validate = non_empty}},
              defaults = #{<<"name">> => Name,
                           <<"type">> => <<"topic">>},
-             format_items = map,
              include = always}.
 
 push_event(Acc, #user_status_event{jid = UserJID, status = Status}) ->

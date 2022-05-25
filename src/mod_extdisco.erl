@@ -46,8 +46,7 @@ config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                        <<"service">> => #list{items = service_config_spec()}},
              defaults = #{<<"iqdisc">> => no_queue,
-                          <<"service">> => []},
-             format_items = map}.
+                          <<"service">> => []}}.
 
 service_config_spec() ->
     #section{items = #{<<"type">> => #option{type = atom,
@@ -63,8 +62,7 @@ service_config_spec() ->
                        <<"password">> => #option{type = binary,
                                                  validate = non_empty}
                       },
-             required = [<<"type">>, <<"host">>],
-             format_items = map}.
+             required = [<<"type">>, <<"host">>]}.
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.

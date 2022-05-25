@@ -23,8 +23,7 @@ spec() ->
                   <<"filter">> => #option{type = binary}},
         defaults = #{<<"pool_tag">> => default,
                      <<"deref">> => never,
-                     <<"filter">> => <<>>},
-        format_items = map
+                     <<"filter">> => <<>>}
     }.
 
 uids() ->
@@ -32,8 +31,7 @@ uids() ->
        items = #{<<"attr">> => #option{type = binary},
                  <<"format">> => #option{type = binary}},
        process = fun ?MODULE:process_uids/1,
-       required = [<<"attr">>],
-       format_items = map
+       required = [<<"attr">>]
       }.
 
 dn_filter() ->
@@ -44,8 +42,7 @@ dn_filter() ->
                 },
        required = [<<"filter">>],
        defaults = #{<<"attributes">> => []},
-       process = fun ?MODULE:process_dn_filter/1,
-       format_items = map
+       process = fun ?MODULE:process_dn_filter/1
       }.
 
 local_filter() ->
@@ -58,8 +55,7 @@ local_filter() ->
                                        validate = non_empty}
                 },
        required = all,
-       process = fun ?MODULE:process_local_filter/1,
-       format_items = map
+       process = fun ?MODULE:process_local_filter/1
       }.
 
 process_uids(#{attr := Attr, format := Format}) -> {Attr, Format};

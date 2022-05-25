@@ -155,7 +155,6 @@ config_spec() ->
                                           validate = {module, mod_roster}},
                  <<"riak">> => riak_config_spec()
                 },
-       format_items = map,
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"versioning">> => false,
                     <<"store_current_id">> => false,
@@ -169,7 +168,6 @@ riak_config_spec() ->
                        <<"version_bucket_type">> => #option{type = binary,
                                                             validate = non_empty}},
              include = always,
-             format_items = map,
              defaults = #{<<"bucket_type">> => <<"rosters">>,
                           <<"version_bucket_type">> => <<"roster_versions">>}
     }.

@@ -41,8 +41,7 @@ supported_features() ->
 config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
-       defaults = #{<<"iqdisc">> => one_queue},
-       format_items = map
+       defaults = #{<<"iqdisc">> => one_queue}
     }.
 
 process_local_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->

@@ -80,8 +80,7 @@ config_spec() ->
                                           validate = non_empty}
                 },
        required = [<<"program">>],
-       defaults = #{<<"instances">> => 1},
-       format_items = map
+       defaults = #{<<"instances">> => 1}
       }.
 
 -spec check_cache_last_options(mongooseim:host_type()) -> 'cache' | 'no_cache'.

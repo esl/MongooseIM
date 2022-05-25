@@ -230,7 +230,6 @@ config_spec() ->
                     <<"backend">> => mnesia,
                     <<"matches">> => 30
        },
-       format_items = map,
        process = fun remove_unused_backend_opts/1
       }.
 
@@ -298,24 +297,17 @@ riak_config_spec() ->
                                                 validate = non_empty}
                 },
         include = always,
-        format_items = map,
         defaults = #{<<"bucket_type">> => <<"vcard">>,
                      <<"search_index">> => <<"vcard">>}
     }.
 
-process_map_spec(KVs) ->
-    {[[{vcard_field, VF}], [{ldap_pattern, LP}], [{ldap_field, LF}]], []} =
-        proplists:split(KVs, [vcard_field, ldap_pattern, ldap_field]),
+process_map_spec(#{vcard_field := VF, ldap_pattern := LP, ldap_field := LF}) ->
     {VF, LP, [LF]}.
 
-process_search_spec(KVs) ->
-    {[[{search_field, SF}], [{ldap_field, LF}]], []} =
-        proplists:split(KVs, [search_field, ldap_field]),
+process_search_spec(#{search_field := SF, ldap_field := LF}) ->
     {SF, LF}.
 
-process_search_reported_spec(KVs) ->
-    {[[{search_field, SF}], [{vcard_field, VF}]], []} =
-        proplists:split(KVs, [search_field, vcard_field]),
+process_search_reported_spec(#{search_field := SF, vcard_field := VF}) ->
     {SF, VF}.
 
 remove_unused_backend_opts(Opts = #{backend := riak}) -> maps:remove(ldap, Opts);

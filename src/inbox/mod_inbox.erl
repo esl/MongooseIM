@@ -142,15 +142,13 @@ config_spec() ->
                      <<"reset_markers">> => [<<"displayed">>],
                      <<"iqdisc">> => no_queue
                     },
-        process = fun ?MODULE:process_inbox_boxes/1,
-        format_items = map
+        process = fun ?MODULE:process_inbox_boxes/1
     }.
 
 async_config_spec() ->
     #section{
        items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
        defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
-       format_items = map,
        include = always
       }.
 

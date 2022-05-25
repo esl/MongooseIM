@@ -301,8 +301,7 @@ config_spec() ->
                     <<"pep_mapping">> => #{},
                     <<"default_node_config">> => [],
                     <<"item_publisher">> => false,
-                    <<"sync_broadcast">> => false},
-       format_items = map
+                    <<"sync_broadcast">> => false}
       }.
 
 pep_mapping_config_spec() ->
@@ -312,7 +311,6 @@ pep_mapping_config_spec() ->
                  <<"node">> => #option{type = binary,
                                        validate = non_empty}},
        required = all,
-       format_items = map,
        process = fun ?MODULE:process_pep_mapping/1
       }.
 
@@ -343,7 +341,8 @@ default_node_config_spec() ->
                  <<"send_last_published_item">> => #option{type = atom,
                                                            validate = non_empty},
                  <<"subscribe">> => #option{type = boolean}
-                }
+                },
+       format_items = none
       }.
 
 process_pep_mapping(#{namespace := NameSpace, node := Node}) ->
