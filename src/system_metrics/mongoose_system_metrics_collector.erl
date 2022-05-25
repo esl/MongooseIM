@@ -154,15 +154,8 @@ get_tls_options() ->
     [#{report_name => tls_option, key => TLSMode, value => TLSModule} ||
         {TLSMode, TLSModule} <- lists:usort(TLSOptions)].
 
-extract_tls_options(#{tls := Opts}) ->
-    Modes = [starttls, starttls_required, tls],
-    case [Opt || Opt <- Opts, lists:member(Opt, Modes)] of
-        [TLSMode] ->
-            TLSModule = proplists:get_value(tls_module, Opts, fast_tls),
-            [{TLSMode, TLSModule}];
-        _ ->
-            []
-    end;
+extract_tls_options(#{tls := #{mode := TLSMode, module := TLSModule}}) ->
+    [{TLSMode, TLSModule}];
 extract_tls_options(_) -> [].
 
 get_outgoing_pools() ->
