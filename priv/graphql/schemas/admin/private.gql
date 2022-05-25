@@ -2,6 +2,7 @@
 Allow admin to set user's private
 """
 type PrivateAdminMutation @protected {
+    "Set user's private"
     setPrivate(user: JID!, elementString: String!): String
 }
 
@@ -9,5 +10,6 @@ type PrivateAdminMutation @protected {
 Allow admin to get user's private
 """
 type PrivateAdminQuery @protected {
+    "Get user's private"
     getPrivate(user: JID!, element: String!, nameSpace: String!): String
 }

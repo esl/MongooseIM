@@ -2,6 +2,7 @@
 Allow user to set own private
 """
 type PrivateUserMutation @protected {
+    "Set user's own private"
     setPrivate(elementString: String!): String
 }
 
@@ -9,5 +10,6 @@ type PrivateUserMutation @protected {
 Allow user to get own private
 """
 type PrivateUserQuery @protected {
+    "Get user's own private"
     getPrivate(element: String!, nameSpace: String!): String
 }
