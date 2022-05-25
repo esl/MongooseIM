@@ -69,6 +69,11 @@ get_params(HostType, Tag) ->
 %% Internal functions
 
 wpool_spec(WpoolOptsIn, #{host := Host} = ConnOpts) ->
-    HTTPOpts = maps:get(tls, ConnOpts, []),
+    HTTPOpts = http_opts(ConnOpts),
     Worker = {fusco, {Host, [{connect_options, HTTPOpts}]}},
     [{worker, Worker} | WpoolOptsIn].
+
+http_opts(#{tls := TLSOpts}) ->
+    just_tls:make_ssl_opts(TLSOpts);
+http_opts(#{}) ->
+    [].

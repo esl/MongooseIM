@@ -54,7 +54,7 @@ cqerl_opts(auth, #{auth := #{plain := #{username := UserName, password := Passwo
 cqerl_opts(tcp, #{}) ->
     [{tcp_opts, [{keepalive, true}]}]; % always set
 cqerl_opts(tls, #{tls := TLSOpts}) ->
-    [{ssl, TLSOpts}];
+    [{ssl, just_tls:make_ssl_opts(TLSOpts)}];
 cqerl_opts(_Opt, #{}) ->
     [].
 
