@@ -11,12 +11,8 @@
 
 execute(_Ctx, _Obj, <<"listUsers">>, Args) ->
     list_users(Args);
-execute(_Ctx, _Obj, <<"listOldUsers">>, Args) ->
-    list_old_users(Args);
 execute(_Ctx, _Obj, <<"countUsers">>, Args) ->
     count_users(Args);
-execute(_Ctx, _Obj, <<"countActiveUsers">>, Args) ->
-    get_active_users_number(Args);
 execute(_Ctx, _Obj, <<"checkPassword">>, Args) ->
     check_password(Args);
 execute(_Ctx, _Obj, <<"checkPasswordHash">>, Args) ->
@@ -32,24 +28,9 @@ list_users(#{<<"domain">> := Domain}) ->
     Users2 = lists:map(fun(U) -> {ok, U} end, Users),
     {ok, Users2}.
 
--spec list_old_users(map()) -> {ok, [{ok, binary()}]}.
-list_old_users(#{<<"domain">> := null, <<"days">> := Days}) ->
-    {ok, Users} = mongoose_account_api:list_old_users(Days),
-    Users2 = lists:map(fun(U) -> {ok, U} end, Users),
-    {ok, Users2};
-list_old_users(#{<<"domain">> := Domain, <<"days">> := Days}) ->
-    {ok, Users} = mongoose_account_api:list_old_users_for_domain(Domain, Days),
-    Users2 = lists:map(fun(U) -> {ok, U} end, Users),
-    {ok, Users2}.
-
 -spec count_users(map()) -> {ok, non_neg_integer()}.
 count_users(#{<<"domain">> := Domain}) ->
     {ok, mongoose_account_api:count_users(Domain)}.
-
--spec get_active_users_number(map()) -> {ok, non_neg_integer()} | {error, resolver_error()}.
-get_active_users_number(#{<<"domain">> := Domain, <<"days">> := Days}) ->
-    Result = mongoose_account_api:num_active_users(Domain, Days),
-    format_result(Result, #{domain => Domain}).
 
 -spec check_password(map()) -> {ok, map()} | {error, resolver_error()}.
 check_password(#{<<"user">> := JID, <<"password">> := Password}) ->

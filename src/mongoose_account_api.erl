@@ -3,14 +3,10 @@
 
 -export([list_users/1,
          count_users/1,
-         list_old_users/1,
-         list_old_users_for_domain/2,
          register_user/3,
          register_generated_user/2,
          unregister_user/1,
          unregister_user/2,
-         delete_old_users/1,
-         delete_old_users_for_domain/2,
          ban_account/2,
          ban_account/3,
          change_password/2,
@@ -20,10 +16,7 @@
          check_password/2,
          check_password/3,
          check_password_hash/3,
-         check_password_hash/4,
-         num_active_users/2]).
-
--include("mongoose.hrl").
+         check_password_hash/4]).
 
 -type register_result() :: {ok | exists | invalid_jid | cannot_register, iolist()}.
 
@@ -37,18 +30,12 @@
 
 -type check_account_result() :: {ok | user_does_not_exist, string()}.
 
--type num_active_users_result() :: {ok, non_neg_integer()} | {cannot_count, string()}.
-
--type delete_old_users_result() :: {ok, iolist()}.
-
 -export_type([register_result/0,
               unregister_result/0,
               change_password_result/0,
               check_password_result/0,
               check_password_hash_result/0,
-              check_account_result/0,
-              num_active_users_result/0,
-              delete_old_users_result/0]).
+              check_account_result/0]).
 
 %% API
 
@@ -179,20 +166,6 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {incorrect, "Password hash is incorrect"}
     end.
 
--spec num_active_users(jid:lserver(), integer()) -> num_active_users_result().
-num_active_users(Domain, Days) ->
-    TimeStamp = erlang:system_time(second),
-    TS = TimeStamp - Days * 86400,
-    try
-        {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
-        Num = mod_last:count_active_users(HostType, Domain, TS),
-        {ok, Num}
-    catch
-        _:_ ->
-            Message = io_lib:format("Cannot count active users for domain ~s", [Domain]),
-            {cannot_count, Message}
-    end.
-
 -spec ban_account(jid:user(), jid:server(), binary()) -> change_password_result().
 ban_account(User, Host, ReasonText) ->
     JID = jid:make(User, Host, <<>>),
@@ -210,86 +183,7 @@ ban_account(JID, ReasonText) ->
             format_change_password(ErrResult)
     end.
 
--spec delete_old_users(non_neg_integer()) -> {delete_old_users_result(), [jid:literal_jid()]}.
-delete_old_users(Days) ->
-    Users = list_old_users_raw(Days),
-    DeletedUsers = delete_users(Users),
-    {{ok, format_deleted_users(DeletedUsers)}, DeletedUsers}.
-
--spec delete_old_users_for_domain(binary(), non_neg_integer()) ->
-    {delete_old_users_result(), [jid:literal_jid()]}.
-delete_old_users_for_domain(Domain, Days) ->
-    Users = list_old_users_raw(Domain, Days),
-    DeletedUsers = delete_users(Users),
-    {{ok, format_deleted_users(DeletedUsers)}, DeletedUsers}.
-
--spec list_old_users(non_neg_integer()) -> {ok, [jid:literal_jid()]}.
-list_old_users(Days) ->
-    Users = list_old_users_raw(Days),
-    {ok, lists:map(fun jid:to_binary/1, Users)}.
-
--spec list_old_users_for_domain(binary(), non_neg_integer()) -> {ok, [jid:literal_jid()]}.
-list_old_users_for_domain(Domain, Days) ->
-    Users = list_old_users_raw(Domain, Days),
-    {ok, lists:map(fun jid:to_binary/1, Users)}.
-
 %% Internal
-
--spec delete_users([jid:simple_bare_jid()]) -> [jid:literal_jid()].
-delete_users(Users) ->
-    lists:map(fun({LUser, LServer}) ->
-                      JID = jid:make(LUser, LServer, <<>>),
-                      ok = ejabberd_auth:remove_user(JID),
-                      jid:to_binary(JID)
-              end, Users).
-
--spec list_old_users_raw(non_neg_integer()) -> [jid:simple_bare_jid()].
-list_old_users_raw(Days) ->
-    lists:append([list_old_users_raw(Domain, Days) ||
-                     HostType <- ?ALL_HOST_TYPES,
-                     Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]).
-
--spec list_old_users_raw(jid:lserver(), non_neg_integer()) -> [jid:simple_bare_jid()].
-list_old_users_raw(Domain, Days) ->
-    Users = ejabberd_auth:get_vh_registered_users(Domain),
-    % Convert older time
-    SecOlder = Days * 24 * 60 * 60,
-    % Get current time
-    TimeStampNow = erlang:system_time(second),
-    % Filter old users
-    lists:filter(fun(User) -> is_old_user(User, TimeStampNow, SecOlder) end, Users).
-
--spec is_old_user(jid:simple_bare_jid(), non_neg_integer(), non_neg_integer()) -> boolean().
-is_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
-    JID = jid:make(LUser, LServer, <<>>),
-    % Check if the user is logged
-    case ejabberd_sm:get_user_resources(JID) of
-        [] -> is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder);
-        _ -> false
-    end.
-
--spec is_user_nonactive_long_enough(jid:jid(), non_neg_integer(), non_neg_integer()) -> boolean().
-is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    case mod_last:get_last_info(HostType, LUser, LServer) of
-        {ok, TimeStamp, _Status} ->
-            % Get user age
-            Sec = TimeStampNow - TimeStamp,
-            case Sec < SecOlder of
-                % Younger than SecOlder
-                true ->
-                    false;
-                %% Older
-                false ->
-                    true
-            end;
-        not_found ->
-            true
-    end.
-
-format_deleted_users(Users) ->
-    io_lib:format("Deleted ~p users: ~p", [length(Users), Users]).
 
 format_change_password(ok) ->
     {ok, "Password changed"};

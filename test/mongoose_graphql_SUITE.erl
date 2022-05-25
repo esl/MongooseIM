@@ -542,8 +542,8 @@ check_field_list_arg_domain_permissions(Config) ->
 
 check_field_null_arg_domain_permissions(Config) ->
     [{_, Domain} | _] = ?config(domains, Config),
-    Doc = <<"{ domainProtectedField domainInputProtectedField }">>,
-    ?assertPermissionsSuccess(Config, Domain, Doc).
+    FDoc = <<"{ domainProtectedField domainInputProtectedField }">>,
+    ?assertDomainPermissionsFailed(Config, Domain, [<<"argA">>], FDoc).
 
 check_field_jid_arg_domain_permissions(Config) ->
     Domain = <<"my-domain.com">>,

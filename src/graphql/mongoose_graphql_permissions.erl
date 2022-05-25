@@ -181,10 +181,6 @@ arg_eq(Subdomain, Domain) when is_binary(Subdomain), is_binary(Domain) ->
     check_subdomain(Subdomain, Domain);
 arg_eq(#jid{lserver = Domain1}, Domain2) ->
     arg_eq(Domain1, Domain2);
-arg_eq(undefined, _) ->
-    % The arg is optional, and the value is not present, so we assume that
-    % the domain admin has access.
-    true;
 arg_eq(_, _) ->
     false.
 

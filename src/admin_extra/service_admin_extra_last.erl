@@ -63,14 +63,11 @@ commands() ->
 -spec set_last(jid:user(), jid:server(), _, _) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 set_last(User, Server, Timestamp, Status) ->
-    JID = jid:make(User, Server, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
-        true ->
-            {ok, HostType} = mongoose_domain_api:get_host_type(JID#jid.lserver),
-            mod_last:store_last_info(HostType, JID#jid.luser, JID#jid.lserver, Timestamp, Status),
+    JID = jid:make_bare(User, Server),
+    case mod_last_api:set_last(JID, Timestamp, Status) of
+        {ok, #{timestamp := Timestamp, status := Status}} ->
             {ok, io_lib:format("Last activity for user ~s is set as ~B with status ~s",
                                [jid:to_binary(JID), Timestamp, Status])};
-        false ->
-            String = io_lib:format("User ~s@~s does not exist", [User, Server]),
-            {user_does_not_exist, String}
+        Error ->
+            Error
     end.

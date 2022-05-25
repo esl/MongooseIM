@@ -10,18 +10,20 @@ Only an authenticated admin can execute these queries.
 type AdminQuery{
   "Check authorization status"
   checkAuth: AdminAuthInfo
-  "Domain management"
-  domains: DomainAdminQuery
   "Account management"
   account: AccountAdminQuery
-  "Session management"
-  session: SessionAdminQuery
-  "Stanza management"
-  stanza: StanzaAdminQuery
+  "Domain management"
+  domains: DomainAdminQuery
+  "Last activity management"
+  last: LastAdminQuery
   "MUC room management"
   muc: MUCAdminQuery
   "MUC Light room management"
   muc_light: MUCLightAdminQuery
+  "Session management"
+  session: SessionAdminQuery
+  "Stanza management"
+  stanza: StanzaAdminQuery
   "Roster/Contacts management"
   roster: RosterAdminQuery
   "Vcard management"
@@ -39,14 +41,16 @@ type AdminMutation @protected{
   account: AccountAdminMutation
   "Domain management"
   domains: DomainAdminMutation
-  "Session management"
-  session: SessionAdminMutation
-  "Stanza management"
-  stanza: StanzaAdminMutation
+  "Last activity management"
+  last: LastAdminMutation
   "MUC room management"
   muc: MUCAdminMutation
   "MUC Light room management"
   muc_light: MUCLightAdminMutation
+  "Session management"
+  session: SessionAdminMutation
+  "Stanza management"
+  stanza: StanzaAdminMutation
   "Roster/Contacts management"
   roster: RosterAdminMutation
   "Vcard management"

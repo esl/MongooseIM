@@ -1,0 +1,8 @@
+type LastActivity{
+  "The user's JID"
+  user: JID!
+  "The activity DateTime"
+  timestamp: DateTime!
+  "The status text"
+  status: String!
+}

@@ -122,25 +122,40 @@ check_account(User, Host) ->
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
     mongoose_account_api:check_password_hash(User, Host, PasswordHash, HashMethod).
 
--spec num_active_users(jid:lserver(), integer()) -> {ok | cannot_count, string()}.
+-spec num_active_users(jid:lserver(), integer()) -> {ok | domain_not_found, iolist()}.
 num_active_users(Domain, Days) ->
-    case mongoose_account_api:num_active_users(Domain, Days) of
+    Timestamp2 = days_to_timestamp(Days),
+    case mod_last_api:count_active_users(Domain, Timestamp2) of
         {ok, Num} -> {ok, integer_to_list(Num)};
         Res -> Res
     end.
 
--spec delete_old_users(integer()) -> mongoose_account_api:delete_old_users_result().
+-spec delete_old_users(integer()) -> {ok, iolist()}.
 delete_old_users(Days) ->
-    {Res, _} = mongoose_account_api:delete_old_users(Days),
-    Res.
+    Timestamp = days_to_timestamp(Days),
+    OldUsers = mod_last_api:remove_old_users(Timestamp),
+    {ok, format_deleted_users(OldUsers)}.
 
--spec delete_old_users_for_domain(jid:server(), integer()) ->
-    mongoose_account_api:delete_old_users().
+-spec delete_old_users_for_domain(jid:server(), integer()) -> {ok | domain_not_found, iolist()}.
 delete_old_users_for_domain(Domain, Days) ->
-    {Res, _} = mongoose_account_api:delete_old_users_for_domain(Domain, Days),
-    Res.
+    Timestamp = days_to_timestamp(Days),
+    case mod_last_api:remove_old_users(Domain, Timestamp) of
+        {ok, OldUsers} ->
+            {ok, format_deleted_users(OldUsers)};
+        Error ->
+            Error
+    end.
 
 -spec ban_account(jid:user(), jid:server(), binary() | string()) ->
     mongoose_account_api:change_password_result().
 ban_account(User, Host, ReasonText) ->
     mongoose_account_api:ban_account(User, Host, ReasonText).
+
+%% Internal
+
+days_to_timestamp(Days) ->
+    erlang:system_time(second) - Days * 86400.
+
+format_deleted_users(Users) ->
+    Users2 = lists:join(", ", [jid:to_binary(JID) || {JID, _} <- Users]),
+    io_lib:format("Deleted ~p users: ~s", [length(Users), Users2]).

@@ -5,7 +5,7 @@
 -export([execute/3, execute_auth/2, execute_domain_auth/2, execute_user/3]).
 -export([init_admin_handler/1, init_domain_admin_handler/1, end_domain_admin_handler/1]).
 -export([get_listener_port/1, get_listener_config/1]).
--export([get_ok_value/2, get_err_msg/1, get_err_msg/2, make_creds/1,
+-export([get_ok_value/2, get_err_msg/1, get_err_msg/2, get_err_code/1, make_creds/1,
          user_to_bin/1, user_to_full_bin/1, user_to_jid/1, user_to_lower_jid/1]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -77,6 +77,9 @@ get_listener_opts(EpName) ->
     #{handlers := [Opts]} = get_listener_config(EpName),
     Opts.
 
+get_err_code(Resp) ->
+    get_ok_value([errors, 1, extensions, code], Resp).
+
 -spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(Resp) ->
     get_ok_value([errors, 1, message], Resp).
@@ -100,7 +103,8 @@ user_to_full_bin(#client{} = Client) -> escalus_client:full_jid(Client);
 user_to_full_bin(Bin) when is_binary(Bin) -> Bin.
 
 user_to_bin(#client{} = Client) -> escalus_client:short_jid(Client);
-user_to_bin(Bin) when is_binary(Bin) -> Bin.
+user_to_bin(Bin) when is_binary(Bin) -> Bin;
+user_to_bin(null) -> null.
 
 user_to_jid(#client{jid = JID}) -> jid:to_bare(jid:from_binary(JID));
 user_to_jid(Bin) when is_binary(Bin) -> jid:to_bare(jid:from_binary(Bin)).
