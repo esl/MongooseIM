@@ -8,7 +8,7 @@
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
--behavior(ejabberd_tls).
+-behavior(mongoose_tls).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -16,7 +16,7 @@
                      ssl_socket
 }).
 
-%ejabberd_tls behavior
+% mongoose_tls behavior
 -export([tcp_to_tls/2,
          send/2,
          recv_data/2,
@@ -27,20 +27,25 @@
          get_peer_certificate/1,
          close/1]).
 
--export([verify_fun/1]).
+% API
+-export([make_ssl_opts/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% -callback tcp_to_tls(inet:socket(), Opts :: list()) -> {ok, tls_socket()} | {error, any()}.
+-spec tcp_to_tls(inet:socket(), mongoose_tls:options()) ->
+          {ok, mongoose_tls:tls_socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
-    Opts = format_opts(Options),
-    {Ref, NewOpts} = set_verify_fun(Opts),
-    Ret = case lists:member(connect, Opts) of
-              false -> ssl:handshake(TCPSocket, NewOpts);
-              true -> ssl:connect(TCPSocket, NewOpts)
+    {Ref, SSLOpts} = format_opts_with_ref(Options),
+    Ret = case Options of
+              #{connect := true} ->
+                  % Currently unused as ejabberd_s2s_out uses fast_tls,
+                  % and outgoing pools use Erlang SSL directly
+                  ssl:connect(TCPSocket, SSLOpts);
+              #{} ->
+                  ssl:handshake(TCPSocket, SSLOpts)
           end,
     VerifyResults = receive_verify_results(Ref),
     case Ret of
@@ -49,10 +54,8 @@ tcp_to_tls(TCPSocket, Options) ->
         _ -> Ret
     end.
 
-
 %% -callback send(tls_socket(), binary()) -> ok | {error, any()}.
 send(#tls_socket{ssl_socket = SSLSocket}, Packet) -> ssl:send(SSLSocket, Packet).
-
 
 %% -callback recv_data(tls_socket(), binary()) -> {ok, binary()} | {error, any()}.
 recv_data(_, <<"">>) ->
@@ -64,7 +67,6 @@ recv_data(#tls_socket{ssl_socket = SSLSocket}, Data1) ->
         {ok, Data2} -> {ok, <<Data1/binary, Data2/binary>>};
         _ -> {ok, Data1}
     end.
-
 
 %% -callback controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
 controlling_process(#tls_socket{ssl_socket = SSLSocket}, Pid) ->
@@ -98,70 +100,70 @@ get_peer_certificate(#tls_socket{verify_results = [], ssl_socket = SSLSocket}) -
 get_peer_certificate(#tls_socket{verify_results = [Err | _]}) ->
     {bad_cert, error_to_list(Err)}.
 
-
 %% -callback close(tls_socket()) -> ok.
 close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
+
+%% @doc Prepare SSL options for direct use of ssl:connect/2 or ssl:handshake/2
+%% The `disconnect_on_failure' option is not supported
+-spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
+make_ssl_opts(Opts) ->
+    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts),
+    SSLOpts.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-format_opts(Opts) ->
-    NewOpts = remove_duplicates(format_opts([], Opts)),
-    case proplists:is_defined(verify, NewOpts) of
-        true -> NewOpts;
-        false -> [{verify, verify_peer} | NewOpts]
-    end.
+format_opts_with_ref(Opts) ->
+    Verify = verify_opt(Opts),
+    {Ref, VerifyFun} = verify_fun_opt(Opts),
+    SNIOpts = sni_opts(Opts),
+    SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
+    {Ref, [{verify, Verify}, {verify_fun, VerifyFun}] ++ SNIOpts ++ SSLOpts}.
 
-format_opts(NewOpts, [])      -> NewOpts;
-format_opts(NewOpts, [verify_none | T]) ->
-    format_opts([{verify, verify_none} | NewOpts], T);
-format_opts(NewOpts, [{certfile, File} | T]) ->
-    format_opts([{certfile, File} | NewOpts], T);
-format_opts(NewOpts, [{cafile, File} | T]) ->
-    format_opts([{cacertfile, File} | NewOpts], T);
-format_opts(NewOpts, [{dhfile, File} | T]) ->
-    format_opts([{dhfile, File} | NewOpts], T);
-format_opts(NewOpts, [{ssl_options, SSLOpts} | T]) ->
-    format_opts(NewOpts ++ SSLOpts, T);
-format_opts(NewOpts, [_ | T]) -> format_opts(NewOpts, T). %ignore unknown options
+ssl_option_keys() ->
+    [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
 
-remove_duplicates(PropList) ->
-    F = fun
-            (T, NewPropList) when is_tuple(T) ->
-                lists:keystore(element(1, T), 1, NewPropList, T);
-            (_, NewPropList) -> NewPropList
-        end,
-    lists:foldl(F, [], PropList).
+sni_opts(#{server_name_indication := SNIOpts}) ->
+    process_sni_opts(SNIOpts);
+sni_opts(#{}) ->
+    [].
+
+process_sni_opts(#{enabled := false}) ->
+    [{server_name_indication, disable}];
+process_sni_opts(#{enabled := true, host := SNIHost, protocol := https}) ->
+    [{server_name_indication, SNIHost},
+     {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}];
+process_sni_opts(#{enabled := true, host := SNIHost, protocol := default}) ->
+    [{server_name_indication, SNIHost}];
+process_sni_opts(#{enabled := true}) ->
+    [].
 
 error_to_list(_Error) ->
     %TODO: implement later if needed
     "verify_fun failed".
-%% doc
-%% this function translates the `verify_fun` tuple from `ssl_options` to the real fun
+
+verify_opt(#{verify_mode := none}) -> verify_none;
+verify_opt(#{}) -> verify_peer.
+
+%% This function translates TLS options to the function
 %% which will later be used when TCP socket is upgraded to TLS
-%% accepted format is:
-%% {verify_fun, {PredefinedValidationFun,DisconnectOnFailure}
-%%  PredefinedValidationFun is one of the following:
+%%  `verify_mode` is one of the following:
 %%     none - no validation of the clients certificate - any cert is accepted.
 %%     peer - standard verification of the certificate.
-%%     selfsigned_peer -  the same as peer but also accepts self-signed certificates
-%%  DisconnectOnFailure is boolean parameter:
+%%     selfsigned_peer - the same as peer but also accepts self-signed certificates
+%%  `disconnect_on_failure` is a boolean parameter:
 %%     true - drop connection if certificate verification failed
 %%     false - connect anyway, but later return {bad_cert,Error}
 %%             on certificate verification (the same as fast_tls do).
-set_verify_fun(Opts) ->
-    case proplists:get_value(verify_fun, Opts) of
-        undefined -> {dummy_ref, Opts};
-        {VerifyFun, true} ->
-            {dummy_ref, lists:keyreplace(verify_fun, 1, Opts, {verify_fun, verify_fun(VerifyFun)})};
-        {VerifyFun, false} ->
-            Ref = erlang:make_ref(),
-            {Ref, lists:keyreplace(verify_fun, 1, Opts, {verify_fun, verify_fun(Ref, VerifyFun)})}
-    end.
+verify_fun_opt(#{verify_mode := Mode, disconnect_on_failure := false}) ->
+    Ref = erlang:make_ref(),
+    {Ref, verify_fun(Ref, Mode)};
+verify_fun_opt(#{verify_mode := Mode}) ->
+    {dummy_ref, verify_fun(Mode)}.
 
-verify_fun(Ref, VerifyFun) when is_reference(Ref) ->
-    {Fun, State} = verify_fun(VerifyFun),
+verify_fun(Ref, Mode) when is_reference(Ref) ->
+    {Fun, State} = verify_fun(Mode),
     {verify_fun_wrapper(Ref, Fun), State}.
 
 verify_fun_wrapper(Ref, Fun) when is_reference(Ref), is_function(Fun, 3) ->
