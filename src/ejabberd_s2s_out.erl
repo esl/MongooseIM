@@ -69,7 +69,7 @@
                 tls = false             :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_enabled = false     :: boolean(),
-                tls_options = [connect] :: list(),
+                tls_options             :: mongoose_tls:options(),
                 authenticated = false   :: boolean(),
                 db_enabled = true       :: boolean(),
                 try_auth = true         :: boolean(),
@@ -1190,12 +1190,12 @@ get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
 tls_options(HostType) ->
-    CipherOpt = {ciphers, mongoose_config:get_opt([{s2s, HostType}, ciphers])},
-    CertFileOpts = case ejabberd_s2s:lookup_certfile(HostType) of
-                       {ok, CertFile} -> [{certfile, CertFile}];
-                       {error, not_found} -> []
-                   end,
-    [connect, CipherOpt | CertFileOpts].
+    Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
+    Options = #{connect => true, verify_mode => peer, ciphers => Ciphers},
+    case ejabberd_s2s:lookup_certfile(HostType) of
+        {ok, CertFile} -> Options#{certfile => CertFile};
+        {error, not_found} -> Options
+    end.
 
 calc_addr_index({Priority, Weight, Port, Host}) ->
     N = case Weight of
