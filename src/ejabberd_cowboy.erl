@@ -166,9 +166,9 @@ do_start_cowboy(Ref, Opts) ->
             Result
     end.
 
-start_http_or_https(#{tls := SSLOpts}, Ref, TransportOpts, ProtocolOpts) ->
-    SSLOptsWithVerifyFun = maybe_set_verify_fun(SSLOpts),
-    SocketOptsWithSSL = maps:get(socket_opts, TransportOpts) ++ SSLOptsWithVerifyFun,
+start_http_or_https(#{tls := TLSOpts}, Ref, TransportOpts, ProtocolOpts) ->
+    SSLOpts = just_tls:make_ssl_opts(TLSOpts),
+    SocketOptsWithSSL = maps:get(socket_opts, TransportOpts) ++ SSLOpts,
     cowboy_start_https(Ref, TransportOpts#{socket_opts := SocketOptsWithSSL}, ProtocolOpts);
 start_http_or_https(#{}, Ref, TransportOpts, ProtocolOpts) ->
     cowboy_start_http(Ref, TransportOpts, ProtocolOpts).
@@ -196,20 +196,10 @@ reload_dispatch(Ref, #{handlers := Handlers}) ->
 stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 
-
 ref(Listener) ->
     Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
     list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
-
-maybe_set_verify_fun(SSLOptions) ->
-    case lists:keytake(verify_mode, 1, SSLOptions) of
-        false ->
-            SSLOptions;
-        {value, {_, Mode}, SSLOptions1} ->
-            Fun = just_tls:verify_fun(Mode),
-            [{verify_fun, Fun} | SSLOptions1]
-    end.
 
 %% -------------------------------------------------------------------
 %% @private
