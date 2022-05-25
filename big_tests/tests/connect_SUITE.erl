@@ -34,8 +34,8 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
-
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [default_c2s_tls/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -148,17 +148,17 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(c2s_noproc, Config) ->
-    configure_c2s_listener(Config, #{tls => [starttls | common_tls_opts(Config)]}),
+    configure_c2s_listener(Config, #{tls => tls_opts(starttls, Config)}),
     Config;
 init_per_group(session_replacement, Config) ->
-    configure_c2s_listener(Config, #{tls => [starttls | common_tls_opts(Config)]}),
+    configure_c2s_listener(Config, #{tls => tls_opts(starttls, Config)}),
     logger_ct_backend:start(),
     Config;
 init_per_group(starttls, Config) ->
-    configure_c2s_listener(Config, #{tls => [starttls_required | common_tls_opts(Config)]}),
+    configure_c2s_listener(Config, #{tls => tls_opts(starttls_required, Config)}),
     Config;
 init_per_group(tls, Config) ->
-    configure_c2s_listener(Config, #{tls => [tls | common_tls_opts(Config)]}),
+    configure_c2s_listener(Config, #{tls => tls_opts(tls, Config)}),
     Users = proplists:get_value(escalus_users, Config, []),
     JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
@@ -167,7 +167,7 @@ init_per_group(tls, Config) ->
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
     configure_c2s_listener(Config, #{zlib => 10000,
-                                     tls => [starttls_required | common_tls_opts(Config)]}),
+                                     tls => tls_opts(starttls_required, Config)}),
     Config;
 init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
@@ -764,14 +764,10 @@ configure_c2s_listener(Config, ExtraC2SOpts) ->
     NewC2SListener = maps:merge(C2SListener, ExtraC2SOpts),
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
-common_tls_opts(Config) ->
-    tls_module_opts(Config) ++ [{certfile, ?CERT_FILE}, {dhfile, ?DH_FILE}].
-
-tls_module_opts(Config) ->
-    case ?config(tls_module, Config) of
-        undefined -> [];
-        Module -> [{tls_module, Module}]
-    end.
+tls_opts(Mode, Config) ->
+    ExtraOpts = #{mode => Mode, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
+    Module = proplists:get_value(module, Config, fast_tls),
+    maps:merge(default_c2s_tls(Module), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].

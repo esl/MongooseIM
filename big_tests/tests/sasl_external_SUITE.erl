@@ -155,14 +155,11 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "tls.module = \"" ++ TLSModule ++ "\"\n"
                                     "  tls.certfile = \"priv/ssl/fake_server.pem\"\n"
-                                    "  tls.mode = \"starttls\"\n"
-                                    "  tls.verify_peer = true\n"
                                     "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                     ++ SSLOpts},
 		       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
                                       "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
                                       "  tls.password = \"\"\n"
-                                      "  tls.verify_peer = true\n"
                                       "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                       ++ VerifyMode},
                        {cyrsasl_external, CyrsaslExternalConfig},
