@@ -23,9 +23,8 @@
     password = "mongooseim_secret"
     keepalive_interval = 30
     tls.required = true
-    tls.verify_peer = true
     tls.cacertfile = "priv/ca.pem"
-    tls.server_name_indication = false
+    tls.server_name_indication.enabled = false
 
 [outgoing_pools.http.mongoose_push_http]
   scope = "global"
@@ -45,10 +44,10 @@
     address = "127.0.0.1"
     port = 8087
     credentials = {user = "username", password = "pass"}
-    tls.certfile = "path/to/cert.pem"
-    tls.keyfile = "path/to/key.pem"
-    tls.cacertfile = "path/to/cacert.pem"
-    tls.verify_peer = true
+    tls.certfile = "priv/cert.pem"
+    tls.keyfile = "priv/dc1.pem"
+    tls.cacertfile = "priv/ca.pem"
+    tls.verify_mode = "peer"
 
 [outgoing_pools.cassandra.default]
   scope = "global"
