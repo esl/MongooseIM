@@ -24,6 +24,8 @@ type UserQuery{
   roster: RosterUserQuery
   "Vcard management"
   vcard: VcardUserQuery
+  "User's private storage management"
+  private: PrivateUserQuery
 }
 
 """
@@ -43,4 +45,6 @@ type UserMutation @protected{
   roster: RosterUserMutation
   "Vcard management"
   vcard: VcardUserMutation
+  "User's private storage management"
+  private: PrivateUserMutation
 }

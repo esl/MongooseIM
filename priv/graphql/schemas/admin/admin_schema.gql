@@ -26,6 +26,8 @@ type AdminQuery{
   roster: RosterAdminQuery
   "Vcard management"
   vcard: VcardAdminQuery
+  "Private storage management"
+  private: PrivateAdminQuery
 }
 
 """
@@ -49,4 +51,6 @@ type AdminMutation @protected{
   roster: RosterAdminMutation
   "Vcard management"
   vcard: VcardAdminMutation
+  "Private storage management"
+  private: PrivateAdminMutation
 }
