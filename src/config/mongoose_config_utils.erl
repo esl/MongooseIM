@@ -2,7 +2,7 @@
 %% This stuff can be pure, but most likely not.
 %% It's for generic functions.
 -module(mongoose_config_utils).
--export([exit_or_halt/1, section_to_defaults/1, merge_sections/2]).
+-export([exit_or_halt/1, section_to_defaults/1, merge_sections/2, section_with_keys/2]).
 
 -ignore_xref([section_to_defaults/1]).
 
@@ -40,3 +40,10 @@ merge_process_functions(Process1, Process2) ->
             V1 = mongoose_config_parser_toml:process(Path, V, Process1),
             mongoose_config_parser_toml:process(Path, V1, Process2)
     end.
+
+section_with_keys(Keys, Section) ->
+    BinKeys = [atom_to_binary(Key) || Key <- Keys],
+    #section{items = Items,defaults = Defaults, required = Required} = Section,
+    Section#section{items = maps:with(BinKeys, Items),
+                    defaults = maps:with(BinKeys, Defaults),
+                    required = Required -- (Required -- BinKeys)}.
