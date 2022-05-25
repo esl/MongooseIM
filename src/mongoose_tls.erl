@@ -4,15 +4,16 @@
 %%% @doc this module provides general TLS interface for MongooseIM.
 %%%
 %%% by default tls_module is set to fast_tls, alternatively it can be any
-%%% module that implements ejabberd_tls behaviour
+%%% module that implements mongoose_tls behaviour
 %%% @end
 %%%=============================================================================
--module(ejabberd_tls).
+-module(mongoose_tls).
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
 %% tls interfaces required by ejabberd_socket & ejabberd_receiver modules.
--export([tcp_to_tls/2,
+-export([prepare_options/2,
+         tcp_to_tls/2,
          default_ciphers/0,
          send/2,
          recv_data/2,
@@ -32,10 +33,37 @@
 -type tls_socket() :: any().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 
+%% Options used for client- and server-side TLS connections.
+%% All modules implementing this behaviour have to support the mandatory 'verify_mode' option.
+%% Other options should be supported if the implementing module supports it.
+-type options() :: #{module => module(), % fast_tls by default
+                     connect => boolean(), % set to 'true' for a client-side call to tcp_to_tls/2
+                     verify_mode := peer | selfsigned_peer | none,
+                     certfile => string(),
+                     cacertfile => string(),
+                     ciphers => string(),
+                     dhfile => string(), % server-only
+
+                     %% only for just_tls
+                     disconnect_on_failure => boolean(),
+                     keyfile => string(),
+                     password => string(),
+                     versions => [atom()],
+                     server_name_indication => sni_options(), % client-only
+
+                     % only for fast_tls
+                     protocol_options => [string()]}.
+
+-type sni_options() :: #{enabled := boolean,
+                         protocol := default | https,
+                         host => string()}.
+
+-export_type([tls_socket/0]).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% behaviour definition
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--callback tcp_to_tls(inet:socket(), Opts::list()) -> {ok, tls_socket()} | {error, any()}.
+-callback tcp_to_tls(inet:socket(), options()) -> {ok, tls_socket()} | {error, any()}.
 
 -callback send(tls_socket(), binary()) -> ok | {error , any()}.
 
@@ -59,92 +87,103 @@
 %% socket type definition
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--record(ejabberd_tls_socket, {tls_module :: module(),
+-record(mongoose_tls_socket, {tls_module :: module(),
                               tcp_socket :: inet:socket(),
                               tls_socket :: tls_socket(),
-                              tls_opts :: list(),
+                              tls_opts :: options(),
                               has_cert :: boolean()
 }).
 
--type socket() :: #ejabberd_tls_socket{}.
+-type socket() :: #mongoose_tls_socket{}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec tcp_to_tls(inet:socket(), Opts::list()) -> {ok, socket()} | {error, any()}.
+-spec tcp_to_tls(inet:socket(), options()) -> {ok, socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Opts) ->
-    Module = proplists:get_value(tls_module, Opts, fast_tls),
-    NewOpts1 = proplists:delete(tls_module, Opts),
-    NewOpts2 = case proplists:get_value(ciphers, NewOpts1) of
-                   undefined -> [{ciphers, default_ciphers()} | NewOpts1];
-                   _ -> NewOpts1
-               end,
-    case Module:tcp_to_tls(TCPSocket, NewOpts2) of
+    Module = maps:get(module, Opts, fast_tls),
+    PreparedOpts = prepare_options(Module, maps:remove(module, Opts)),
+    case Module:tcp_to_tls(TCPSocket, PreparedOpts) of
         {ok, TLSSocket} ->
-            HasCert = has_peer_cert(NewOpts2),
-            {ok, #ejabberd_tls_socket{tls_module = Module,
+            HasCert = has_peer_cert(Opts),
+            {ok, #mongoose_tls_socket{tls_module = Module,
                                       tcp_socket = TCPSocket,
                                       tls_socket = TLSSocket,
-                                      tls_opts   = NewOpts2,
+                                      tls_opts   = Opts,
                                       has_cert   = HasCert}};
         Error -> Error
     end.
+
+-spec prepare_options(module(), options()) -> any().
+prepare_options(fast_tls, Opts) ->
+    %% fast_tls is an external library and its API cannot use Opts directly
+    lists:flatmap(fun({K, V}) -> fast_tls_opt(K, V) end, maps:to_list(Opts));
+prepare_options(_Module, Opts) ->
+    Opts.
+
+fast_tls_opt(connect, true) -> [connect];
+fast_tls_opt(verify_mode, peer) -> [];
+fast_tls_opt(verify_mode, none) -> [verify_none];
+fast_tls_opt(cacertfile, File) -> [{cafile, File}];
+fast_tls_opt(dhfile, File) -> [{dhfile, File}];
+fast_tls_opt(certfile, File) -> [{certfile, File}];
+fast_tls_opt(ciphers, Ciphers) -> [{ciphers, Ciphers}];
+fast_tls_opt(protocol_options, ProtoOpts) -> [{protocol_options, string:join(ProtoOpts, "|")}].
 
 default_ciphers() ->
     "TLSv1.2:TLSv1.3".
 
 -spec send(socket(), binary()) -> ok | {error, any()}.
-send(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, B) -> M:send(S, B).
+send(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:send(S, B).
 
 
 -spec recv_data(socket(), binary()) -> {ok, binary()} | {error, any()}.
-recv_data(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, B) -> M:recv_data(S, B).
+recv_data(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:recv_data(S, B).
 
 
 -spec controlling_process(socket(), pid()) -> ok | {error, any()}.
-controlling_process(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, Pid) ->
+controlling_process(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Pid) ->
     M:controlling_process(S, Pid).
 
 
 -spec sockname(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
-sockname(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
+sockname(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
 
 
 -spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
-peername(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
+peername(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 
 
 -spec setopts(socket(), Opts::list()) -> ok | {error, any()}.
-setopts(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, Opts) -> M:setopts(S, Opts).
+setopts(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Opts) -> M:setopts(S, Opts).
 
 
 -spec get_peer_certificate(socket()) -> cert().
-get_peer_certificate(#ejabberd_tls_socket{has_cert = false}) ->
+get_peer_certificate(#mongoose_tls_socket{has_cert = false}) ->
     no_peer_cert;
-get_peer_certificate(#ejabberd_tls_socket{tls_module = just_tls, tls_socket = S}) ->
+get_peer_certificate(#mongoose_tls_socket{tls_module = just_tls, tls_socket = S}) ->
     just_tls:get_peer_certificate(S);
-get_peer_certificate(#ejabberd_tls_socket{tls_module = fast_tls, tls_socket = S,
+get_peer_certificate(#mongoose_tls_socket{tls_module = fast_tls, tls_socket = S,
                                           tls_opts = TLSOpts}) ->
     case {fast_tls:get_verify_result(S), fast_tls:get_peer_certificate(S)} of
         {0, {ok, Cert}} -> {ok, Cert};
         {Error, {ok, Cert}} ->
-            SSLOpts = proplists:get_value(ssl_options, TLSOpts, []),
-            maybe_allow_selfsigned(Error, Cert, SSLOpts);
+            maybe_allow_selfsigned(Error, Cert, TLSOpts);
         {_, error} -> no_peer_cert
     end.
 
 -spec close(socket()) -> ok.
-close(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
+close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 
 -spec get_sockmod(socket()) -> module().
-get_sockmod(#ejabberd_tls_socket{tls_module = Module}) -> Module.
+get_sockmod(#mongoose_tls_socket{tls_module = Module}) -> Module.
 
 -spec get_tls_last_message(ejabberd_socket:socket()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(#ejabberd_tls_socket{} = Socket) ->
+get_tls_last_message(#mongoose_tls_socket{} = Socket) ->
     case get_sockmod(Socket) of
         fast_tls ->
-            fast_tls:get_tls_last_message(peer, Socket#ejabberd_tls_socket.tls_socket);
+            fast_tls:get_tls_last_message(peer, Socket#mongoose_tls_socket.tls_socket);
         _ ->
             {error, undefined}
     end;
@@ -154,23 +193,15 @@ get_tls_last_message(_) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-has_peer_cert(Opts) ->
-    %% server always provides cert, client - only per request
-    case {lists:member(connect, Opts), lists:member(verify_none, Opts)} of
-        {false, true} -> %% we are tls server, and we haven't requested client's certificate
-            false;
-        _ ->
-            true
-    end.
+-spec has_peer_cert(options()) -> boolean().
+has_peer_cert(#{connect := true}) ->
+    true; % server always provides cert
+has_peer_cert(#{verify_mode := VerifyMode}) ->
+    VerifyMode =/= none. % client provides cert only when requested
 
 %% 18 is OpenSSL's and fast_tls's error code for self-signed certs
-maybe_allow_selfsigned(18 = Error, Cert, SSLOpts) ->
-    case lists:keyfind(verify_fun, 1, SSLOpts) of
-        {verify_fun, {selfsigned_peer, _}} ->
-            {ok, Cert};
-        _ ->
-            cert_verification_error(Error, Cert)
-    end;
+maybe_allow_selfsigned(18, Cert, #{verify_mode := selfsigned_peer}) ->
+    {ok, Cert};
 maybe_allow_selfsigned(Error, Cert, _SSLOpts) ->
     cert_verification_error(Error, Cert).
 
