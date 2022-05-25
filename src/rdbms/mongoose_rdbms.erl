@@ -181,11 +181,18 @@
 -spec process_options(map()) -> options().
 process_options(Opts = #{driver := odbc, settings := _}) ->
     Opts;
-process_options(Opts = #{host := _Host, database := _DB, username := _User,
-                         password := _Pass, driver := _Driver}) ->
-    ensure_db_port(Opts);
+process_options(Opts = #{host := _Host, database := _DB, username := _User, password := _Pass}) ->
+    ensure_db_port(process_tls_options(Opts));
 process_options(Opts) ->
     error(#{what => invalid_rdbms_connection_options, options => Opts}).
+
+process_tls_options(Opts = #{driver := mysql, tls := #{required := _}}) ->
+    error(#{what => invalid_rdbms_tls_options, options => Opts,
+            text => <<"The 'required' option is not supported for MySQL">>});
+process_tls_options(Opts = #{driver := pgsql, tls := TLSOpts}) ->
+    Opts#{tls := maps:merge(#{required => false}, TLSOpts)};
+process_tls_options(Opts) ->
+    Opts.
 
 ensure_db_port(Opts = #{port := _}) -> Opts;
 ensure_db_port(Opts = #{driver := pgsql}) -> Opts#{port => 5432};

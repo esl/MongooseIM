@@ -78,7 +78,7 @@ db_opts(Options) ->
     FilteredOpts = maps:with([host, port, database, username, password, tls], Options),
     [{found_rows, true} | lists:map(fun process_opt/1, maps:to_list(FilteredOpts))].
 
-process_opt({tls, TLSOpts}) -> {ssl, TLSOpts};
+process_opt({tls, TLSOpts}) -> {ssl, just_tls:make_ssl_opts(TLSOpts)};
 process_opt({username, UserName}) -> {user, UserName};
 process_opt(Opt) -> Opt.
 

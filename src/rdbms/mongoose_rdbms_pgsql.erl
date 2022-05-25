@@ -87,17 +87,14 @@ db_opts(Options) ->
     TLSOpts = tls_opts(Options),
     maps:merge(BasicOpts#{codecs => [{mongoose_rdbms_pgsql_codec_boolean, []}]}, TLSOpts).
 
-tls_opts(#{tls := KVs}) ->
-    {[ModeOpts], Opts} = proplists:split(KVs, [required]),
-    (ssl_opts(Opts))#{ssl => ssl_mode(ModeOpts)};
+tls_opts(#{tls := TLSOpts}) ->
+    #{ssl => ssl_mode(TLSOpts),
+      ssl_opts => just_tls:make_ssl_opts(maps:remove(required, TLSOpts))};
 tls_opts(#{}) ->
     #{}.
 
-ssl_mode([{required, true}]) -> required;
-ssl_mode(_) -> true.
-
-ssl_opts([]) -> #{};
-ssl_opts(Opts) -> #{ssl_opts => Opts}.
+ssl_mode(#{required := true}) -> required;
+ssl_mode(#{required := false}) -> true.
 
 -spec pgsql_to_rdbms(epgsql:reply(term())) -> mongoose_rdbms:query_result().
 pgsql_to_rdbms(Items) when is_list(Items) ->
