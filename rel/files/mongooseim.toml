@@ -147,11 +147,6 @@
 {{{outgoing_pools}}}
 {{/outgoing_pools}}
 {{^outgoing_pools}}
-#[outgoing_pools.redis.global_distrib]
-#  scope = "single_host"
-#  host = "localhost"
-#  workers = 10
-#
 #[outgoing_pools.rdbms.default]
 #  scope = "global"
 #  workers = 5
@@ -159,13 +154,12 @@
 #  [outgoing_pools.rdbms.default.connection]
 #    driver = "pgsql"
 #    host = "localhost"
-#    database = "ejabberd"
-#    username = "ejabberd"
+#    database = "mongooseim"
+#    username = "mongooseim"
 #    password = "mongooseim_secret"
 #    tls.required = true
-#    tls.verify_peer = true
 #    tls.cacertfile = "priv/ssl/cacert.pem"
-#    tls.server_name_indication = false
+#    tls.server_name_indication.enabled = false
 {{/outgoing_pools}}
 
 [services.service_admin_extra]
