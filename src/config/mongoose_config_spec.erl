@@ -65,7 +65,7 @@
 
 %% This option allows to put list/section items in a map
 -type format_items() ::
-        none         % keep the processed items unchanged
+        list         % keep the processed items in a list
       | map.         % convert the processed items (which have to be a KV list) to a map
 
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0,
@@ -113,7 +113,7 @@ root() ->
        required = [<<"general">>],
        process = fun ?MODULE:process_root/1,
        wrap = none,
-       format_items = none
+       format_items = list
       }.
 
 %% path: host_config[]
@@ -148,7 +148,7 @@ host_config() ->
                  <<"s2s">> => s2s()
                 },
        wrap = none,
-       format_items = none
+       format_items = list
       }.
 
 %% path: general
@@ -194,7 +194,7 @@ general() ->
                                                    wrap = host_config},
                  <<"mongooseimctl_access_commands">> => #section{
                                                            items = #{default => ctl_access_rule()},
-                                                           format_items = none,
+                                                           format_items = list,
                                                            wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
@@ -209,7 +209,7 @@ general() ->
                                                 wrap = global_config}
                 },
        wrap = none,
-       format_items = none
+       format_items = list
       }.
 
 general_defaults() ->
@@ -231,7 +231,7 @@ ctl_access_rule() ->
        items = #{<<"commands">> => #list{items = #option{type = string}},
                  <<"argument_restrictions">> => #section{
                                                    items = #{default => #option{type = string}},
-                                                   format_items = none
+                                                   format_items = list
                                                   }
                 },
        defaults = #{<<"commands">> => all,
@@ -259,7 +259,7 @@ listen() ->
                                || Key <- Keys]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config,
-       format_items = none
+       format_items = list
       }.
 
 %% path: listen.*[]
@@ -439,9 +439,9 @@ outgoing_pools() ->
     Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
                              validate_keys = non_empty,
                              wrap = none,
-                             format_items = none}} || Type <- PoolTypes],
+                             format_items = list}} || Type <- PoolTypes],
     #section{items = maps:from_list(Items),
-             format_items = none,
+             format_items = list,
              wrap = global_config,
              include = always}.
 

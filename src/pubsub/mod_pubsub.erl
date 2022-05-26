@@ -342,7 +342,7 @@ default_node_config_spec() ->
                                                            validate = non_empty},
                  <<"subscribe">> => #option{type = boolean}
                 },
-       format_items = none
+       format_items = list
       }.
 
 process_pep_mapping(#{namespace := NameSpace, node := Node}) ->

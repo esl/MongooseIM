@@ -31,7 +31,7 @@ config_spec() ->
                             || Module <- configurable_handler_modules()]),
     #section{items = Items#{default => #list{items = common_handler_config_spec(),
                                              wrap = none}},
-             format_items = none,
+             format_items = list,
              validate_keys = module,
              include = always}.
 

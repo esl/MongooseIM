@@ -128,6 +128,8 @@ parse_list(Path, L, #list{items = ItemSpec}) ->
                   end, L).
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
+handle(Path, Value, Spec = #option{}) ->
+    handle(Path, Value, Spec, [parse, validate, process, wrap]);
 handle(Path, Value, Spec) ->
     handle(Path, Value, Spec, [parse, validate, format_items, process, wrap]).
 
@@ -184,15 +186,14 @@ validate_keys(#section{validate_keys = Validator}, Section) ->
 
 -spec format_items_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:format_items().
 format_items_spec(#section{format_items = FormatItems}) -> FormatItems;
-format_items_spec(#list{format_items = FormatItems}) -> FormatItems;
-format_items_spec(#option{}) -> none.
+format_items_spec(#list{format_items = FormatItems}) -> FormatItems.
 
 -spec format_items(config_part(), mongoose_config_spec:format_items()) -> config_part().
 format_items(KVs, map) ->
     Keys = lists:map(fun({K, _}) -> K end, KVs),
     mongoose_config_validator:validate_list(Keys, unique),
     maps:from_list(KVs);
-format_items(Value, none) ->
+format_items(Value, list) when is_list(Value) ->
     Value.
 
 -spec validate(config_part(), mongoose_config_spec:config_node()) -> any().

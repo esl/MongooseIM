@@ -15,7 +15,7 @@
 
 -record(list, {items :: mongoose_config_spec:config_node(),
                validate = any :: mongoose_config_validator:list_validator(),
-               format_items = none :: mongoose_config_spec:format_items(),
+               format_items = list :: mongoose_config_spec:format_items(),
                process :: undefined | mongoose_config_parser_toml:list_processor(),
                wrap = default :: mongoose_config_spec:wrapper()}).
 
