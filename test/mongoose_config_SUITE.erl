@@ -180,7 +180,7 @@ minimal_config_opts() ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
