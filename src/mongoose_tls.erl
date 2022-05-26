@@ -33,7 +33,7 @@
 -type tls_socket() :: any().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 
-%% Options used for client- and server-side TLS connections.
+%% Options used for client-side and server-side TLS connections.
 %% All modules implementing this behaviour have to support the mandatory 'verify_mode' option.
 %% Other options should be supported if the implementing module supports it.
 -type options() :: #{module => module(), % fast_tls by default

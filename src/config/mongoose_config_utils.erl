@@ -43,7 +43,7 @@ merge_process_functions(Process1, Process2) ->
 
 section_with_keys(Keys, Section) ->
     BinKeys = [atom_to_binary(Key) || Key <- Keys],
-    #section{items = Items,defaults = Defaults, required = Required} = Section,
+    #section{items = Items, defaults = Defaults, required = Required} = Section,
     Section#section{items = maps:with(BinKeys, Items),
                     defaults = maps:with(BinKeys, Defaults),
                     required = Required -- (Required -- BinKeys)}.
