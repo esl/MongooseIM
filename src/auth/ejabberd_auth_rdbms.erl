@@ -88,8 +88,7 @@ stop(_HostType) ->
 config_spec() ->
     #section{
        items = #{<<"users_number_estimate">> => #option{type = boolean}},
-       defaults = #{<<"users_number_estimate">> => false},
-       format_items = map
+       defaults = #{<<"users_number_estimate">> => false}
       }.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().

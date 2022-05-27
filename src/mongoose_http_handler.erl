@@ -31,6 +31,7 @@ config_spec() ->
                             || Module <- configurable_handler_modules()]),
     #section{items = Items#{default => #list{items = common_handler_config_spec(),
                                              wrap = none}},
+             format_items = list,
              validate_keys = module,
              include = always}.
 
@@ -46,7 +47,6 @@ common_handler_config_spec() ->
                        <<"path">> => #option{type = string}
                       },
              required = [<<"host">>, <<"path">>],
-             format_items = map,
              process = fun ?MODULE:process_config/2}.
 
 process_config([item, HandlerType | _], Opts) ->

@@ -70,8 +70,7 @@ config_spec() ->
                  <<"username_key">> => #option{type = atom,
                                                validate = non_empty}
                 },
-       required = all,
-       format_items = map
+       required = all
       }.
 
 jwt_secret_config_spec() ->
@@ -81,6 +80,7 @@ jwt_secret_config_spec() ->
                  <<"env">> => #option{type = string,
                                       validate = non_empty},
                  <<"value">> => #option{type = string}},
+       format_items = list,
        process = fun ?MODULE:process_jwt_secret/1
       }.
 

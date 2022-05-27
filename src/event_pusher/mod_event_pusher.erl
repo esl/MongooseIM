@@ -70,8 +70,7 @@ stop(HostType) ->
 config_spec() ->
     BackendItems = [{atom_to_binary(B, utf8),
                      (backend_module(B)):config_spec()} || B <- all_backends()],
-    #section{items = maps:from_list(BackendItems),
-             format_items = map}.
+    #section{items = maps:from_list(BackendItems)}.
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->

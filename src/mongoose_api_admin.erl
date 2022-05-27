@@ -58,7 +58,6 @@
 config_spec() ->
     #section{items = #{<<"username">> => #option{type = binary},
                        <<"password">> => #option{type = binary}},
-             format_items = map,
              process = fun ?MODULE:process_config/1}.
 
 -spec process_config(handler_options()) -> handler_options().

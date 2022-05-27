@@ -72,8 +72,7 @@ config_spec() ->
                 },
        defaults = #{<<"pool_name">> => undefined,
                     <<"api_version">> => <<"v3">>,
-                    <<"max_http_connections">> => 100},
-       format_items = map
+                    <<"max_http_connections">> => 100}
       }.
 
 %%--------------------------------------------------------------------

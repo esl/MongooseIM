@@ -65,7 +65,7 @@
 
 %% This option allows to put list/section items in a map
 -type format_items() ::
-        none         % keep the processed items unchanged
+        list         % keep the processed items in a list
       | map.         % convert the processed items (which have to be a KV list) to a map
 
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0,
@@ -112,7 +112,8 @@ root() ->
                 },
        required = [<<"general">>],
        process = fun ?MODULE:process_root/1,
-       wrap = none
+       wrap = none,
+       format_items = list
       }.
 
 %% path: host_config[]
@@ -146,7 +147,8 @@ host_config() ->
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
                 },
-       wrap = none
+       wrap = none,
+       format_items = list
       }.
 
 %% path: general
@@ -192,6 +194,7 @@ general() ->
                                                    wrap = host_config},
                  <<"mongooseimctl_access_commands">> => #section{
                                                            items = #{default => ctl_access_rule()},
+                                                           format_items = list,
                                                            wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
@@ -205,7 +208,8 @@ general() ->
                                                 format_items = map,
                                                 wrap = global_config}
                 },
-       wrap = none
+       wrap = none,
+       format_items = list
       }.
 
 general_defaults() ->
@@ -226,9 +230,12 @@ ctl_access_rule() ->
     #section{
        items = #{<<"commands">> => #list{items = #option{type = string}},
                  <<"argument_restrictions">> => #section{
-                                                   items = #{default => #option{type = string}}
+                                                   items = #{default => #option{type = string}},
+                                                   format_items = list
                                                   }
                 },
+       defaults = #{<<"commands">> => all,
+                    <<"argument_restrictions">> => []},
        process = fun ?MODULE:process_ctl_access_rule/1,
        wrap = prepend_key
       }.
@@ -241,7 +248,6 @@ domain_cert() ->
                  <<"certfile">> => #option{type = string,
                                            validate = filename}},
        required = all,
-       format_items = map,
        process = fun ?MODULE:process_domain_cert/1
       }.
 
@@ -252,7 +258,8 @@ listen() ->
        items = maps:from_list([{atom_to_binary(Key), #list{items = listener(Key), wrap = none}}
                                || Key <- Keys]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
-       wrap = global_config
+       wrap = global_config,
+       format_items = list
       }.
 
 %% path: listen.*[]
@@ -269,7 +276,6 @@ listener_common() ->
                        <<"ip_version">> => #option{type = integer,
                                                    validate = {enum, [4, 6]}}
                       },
-             format_items = map,
              required = [<<"port">>],
              defaults = #{<<"proto">> => tcp},
              process = fun ?MODULE:process_listener/2
@@ -301,8 +307,7 @@ xmpp_listener_common() ->
                           <<"proxy_protocol">> => false,
                           <<"hibernate_after">> => 0,
                           <<"max_stanza_size">> => infinity,
-                          <<"num_acceptors">> => 100},
-             format_items = map
+                          <<"num_acceptors">> => 100}
             }.
 
 xmpp_listener_extra(c2s) ->
@@ -320,8 +325,7 @@ xmpp_listener_extra(c2s) ->
                                  validate = unique},
                        <<"tls">> => c2s_tls()},
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none},
-             format_items = map
+                          <<"shaper">> => none}
             };
 xmpp_listener_extra(s2s) ->
     TLSSection = tls([server], [fast_tls]),
@@ -329,8 +333,7 @@ xmpp_listener_extra(s2s) ->
                                                validate = non_empty},
                        <<"tls">> => TLSSection#section{include = always,
                                                        process = fun ?MODULE:process_fast_tls/1}},
-             defaults = #{<<"shaper">> => none},
-             format_items = map
+             defaults = #{<<"shaper">> => none}
             };
 xmpp_listener_extra(service) ->
     #section{items = #{<<"access">> => #option{type = atom,
@@ -351,8 +354,7 @@ xmpp_listener_extra(service) ->
                           <<"shaper_rule">> => none,
                           <<"check_from">> => true,
                           <<"hidden_components">> => false,
-                          <<"conflict_behaviour">> => disconnect},
-             format_items = map
+                          <<"conflict_behaviour">> => disconnect}
             }.
 
 %% path: listen.c2s[].tls
@@ -367,7 +369,6 @@ c2s_tls_extra() ->
                       },
              defaults = #{<<"module">> => fast_tls,
                           <<"mode">> => starttls},
-             format_items = map,
              process = fun ?MODULE:process_c2s_tls/1}.
 
 %% path: listen.http[].transport
@@ -378,7 +379,6 @@ http_transport() ->
                  <<"max_connections">> => #option{type = int_or_infinity,
                                                   validate = non_negative}
                 },
-       format_items = map,
        defaults = #{<<"num_acceptors">> => 100,
                     <<"max_connections">> => 1024},
        include = always
@@ -388,7 +388,6 @@ http_transport() ->
 http_protocol() ->
     #section{
        items = #{<<"compress">> => #option{type = boolean}},
-       format_items = map,
        defaults = #{<<"compress">> => false},
        include = always
       }.
@@ -409,7 +408,6 @@ auth() ->
                                                 validate = {module, cyrsasl},
                                                 process = fun ?MODULE:process_sasl_mechanism/1}}
                      },
-       format_items = map,
        defaults = #{<<"sasl_external">> => [standard],
                     <<"sasl_mechanisms">> => cyrsasl:default_modules()},
        process = fun ?MODULE:process_auth/1,
@@ -429,7 +427,6 @@ auth_password() ->
                  <<"scram_iterations">> => #option{type = integer,
                                                    validate = positive}
                 },
-       format_items = map,
        defaults = #{<<"format">> => scram,
                     <<"scram_iterations">> => mongoose_scram:iterations()},
        include = always
@@ -441,8 +438,10 @@ outgoing_pools() ->
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>, <<"riak">>],
     Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
                              validate_keys = non_empty,
-                             wrap = none}} || Type <- PoolTypes],
+                             wrap = none,
+                             format_items = list}} || Type <- PoolTypes],
     #section{items = maps:from_list(Items),
+             format_items = list,
              wrap = global_config,
              include = always}.
 
@@ -469,8 +468,7 @@ wpool(ExtraDefaults) ->
                       },
              defaults = maps:merge(#{<<"workers">> => 10,
                                      <<"strategy">> => best_worker,
-                                     <<"call_timeout">> => 5000}, ExtraDefaults),
-             format_items = map}.
+                                     <<"call_timeout">> => 5000}, ExtraDefaults)}.
 
 outgoing_pool_extra(Type) ->
     #section{items = #{<<"scope">> => #option{type = atom,
@@ -480,7 +478,6 @@ outgoing_pool_extra(Type) ->
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
              process = fun ?MODULE:process_pool/2,
-             format_items = map,
              defaults = #{<<"scope">> => global}
             }.
 
@@ -492,11 +489,9 @@ outgoing_pool_connection(<<"cassandra">>) ->
                  <<"keyspace">> => #option{type = atom,
                                            validate = non_empty},
                  <<"auth">> => #section{items = #{<<"plain">> => cassandra_auth_plain()},
-                                        required = all,
-                                        format_items = map},
+                                        required = all},
                  <<"tls">> => tls([client], [just_tls])
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"servers">> => [#{host => "localhost", port => 9042}],
                     <<"keyspace">> => mongooseim}
@@ -508,7 +503,6 @@ outgoing_pool_connection(<<"elastic">>) ->
                  <<"port">> => #option{type = integer,
                                        validate = port}
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"host">> => <<"localhost">>,
                     <<"port">> => 9200}
@@ -523,7 +517,6 @@ outgoing_pool_connection(<<"http">>) ->
                                                   validate = non_negative},
                  <<"tls">> => tls([client], [just_tls])
                 },
-       format_items = map,
        include = always,
        required = [<<"host">>],
        defaults = #{<<"path_prefix">> => <<"/">>,
@@ -541,7 +534,6 @@ outgoing_pool_connection(<<"ldap">>) ->
                                                    validate = positive},
                  <<"tls">> => tls([client], [just_tls])
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"servers">> => ["localhost"],
                     <<"root_dn">> => <<>>,
@@ -563,7 +555,6 @@ outgoing_pool_connection(<<"rabbit">>) ->
                  <<"max_worker_queue_len">> => #option{type = int_or_infinity,
                                                        validate = non_negative}
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"host">> => "localhost",
                     <<"port">> => 5672,
@@ -599,8 +590,7 @@ outgoing_pool_connection(<<"rdbms">>) ->
                 },
        required = [<<"driver">>],
        defaults = #{<<"max_start_interval">> => 30},
-       process = fun mongoose_rdbms:process_options/1,
-       format_items = map
+       process = fun mongoose_rdbms:process_options/1
       };
 outgoing_pool_connection(<<"redis">>) ->
     #section{
@@ -612,7 +602,6 @@ outgoing_pool_connection(<<"redis">>) ->
                                            validate = non_negative},
                  <<"password">> => #option{type = string}
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"host">> => "127.0.0.1",
                     <<"port">> => 6379,
@@ -630,8 +619,7 @@ outgoing_pool_connection(<<"riak">>) ->
                                        validate = port},
                  <<"credentials">> => riak_credentials(),
                  <<"tls">> => TLSSection},
-       required = [<<"address">>, <<"port">>],
-       format_items = map
+       required = [<<"address">>, <<"port">>]
       }.
 
 cassandra_server() ->
@@ -641,8 +629,7 @@ cassandra_server() ->
                  <<"port">> => #option{type = integer,
                                        validate = port}},
        required = [<<"host">>],
-       defaults = #{<<"port">> => 9042},
-       format_items = map
+       defaults = #{<<"port">> => 9042}
       }.
 
 %% path: outgoing_pools.cassandra.*.connection.auth.plain
@@ -650,8 +637,7 @@ cassandra_auth_plain() ->
     #section{
        items = #{<<"username">> => #option{type = binary},
                  <<"password">> => #option{type = binary}},
-       required = all,
-       format_items = map
+       required = all
       }.
 
 %% path: outgoing_pools.riak.*.connection.credentials
@@ -661,8 +647,7 @@ riak_credentials() ->
                                        validate = non_empty},
                  <<"password">> => #option{type = string,
                                            validate = non_empty}},
-       required = all,
-       format_items = map
+       required = all
     }.
 
 %% path: outgoing_pools.rdbms.*.connection.tls
@@ -670,8 +655,7 @@ sql_tls() ->
     mongoose_config_utils:merge_sections(tls([client], [just_tls]), sql_tls_extra()).
 
 sql_tls_extra() ->
-    #section{items = #{<<"required">> => #option{type = boolean}},
-             format_items = map}.
+    #section{items = #{<<"required">> => #option{type = boolean}}}.
 
 %% TLS options
 
@@ -688,36 +672,30 @@ tls(common, common) ->
                                                    validate = filename},
                        <<"ciphers">> => #option{type = string}
                       },
-             defaults = #{<<"verify_mode">> => peer},
-             format_items = map};
+             defaults = #{<<"verify_mode">> => peer}};
 tls(common, fast_tls) ->
     #section{items = #{<<"protocol_options">> => #list{items = #option{type = string,
-                                                                       validate = non_empty}}},
-             format_items = map};
+                                                                       validate = non_empty}}}};
 tls(common, just_tls) ->
     #section{items = #{<<"keyfile">> => #option{type = string,
                                                 validate = filename},
                        <<"password">> => #option{type = string},
-                       <<"versions">> => #list{items = #option{type = atom}}},
-             format_items = map};
+                       <<"versions">> => #list{items = #option{type = atom}}}};
 tls(server, common) ->
     #section{items = #{<<"dhfile">> => #option{type = string,
-                                               validate = filename}},
-             format_items = map};
+                                               validate = filename}}};
 tls(server, fast_tls) ->
-    #section{format_items = map};
+    #section{};
 tls(server, just_tls) ->
     #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
                        <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}},
-             format_items = map};
+                                                                validate = filename}}}};
 tls(client, common) ->
-    #section{format_items = map};
+    #section{};
 tls(client, fast_tls) ->
-    #section{format_items = map};
+    #section{};
 tls(client, just_tls) ->
-    #section{items = #{<<"server_name_indication">> => server_name_indication()},
-             format_items = map}.
+    #section{items = #{<<"server_name_indication">> => server_name_indication()}}.
 
 server_name_indication() ->
     #section{items = #{<<"enabled">> => #option{type = boolean},
@@ -728,7 +706,6 @@ server_name_indication() ->
                       },
              defaults = #{<<"enabled">> => true,
                           <<"protocol">> => default},
-             format_items = map,
              include = always}.
 
 %% path: (host_config[].)services
@@ -737,7 +714,6 @@ services() ->
                 || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
-       format_items = map,
        wrap = global_config,
        include = always
       }.
@@ -753,9 +729,8 @@ modules() ->
                || Module <- configurable_modules()],
     Items = maps:from_list(Modules),
     #section{
-       items = Items#{default => #section{items = #{}, format_items = map}},
+       items = Items#{default => #section{}},
        validate_keys = module,
-       format_items = map,
        wrap = host_config
       }.
 
@@ -810,12 +785,8 @@ iqdisc() ->
        process = fun ?MODULE:process_iqdisc/1
       }.
 
-process_iqdisc(KVs) ->
-    {[[{type, Type}]], WorkersOpts} = proplists:split(KVs, [type]),
-    iqdisc(Type, WorkersOpts).
-
-iqdisc(queues, [{workers, N}]) -> {queues, N};
-iqdisc(Type, []) -> Type.
+process_iqdisc(#{type := Type, workers := N}) -> {queues = Type, N};
+process_iqdisc(#{type := Type}) -> Type.
 
 %% path: shaper
 shaper() ->
@@ -824,12 +795,10 @@ shaper() ->
                      #section{
                         items = #{<<"max_rate">> => #option{type = integer,
                                                             validate = positive}},
-                        required = all,
-                        format_items = map
+                        required = all
                        }
                 },
        validate_keys = non_empty,
-       format_items = map,
        wrap = global_config
       }.
 
@@ -837,7 +806,6 @@ shaper() ->
 acl() ->
     #section{
        items = #{default => #list{items = acl_item()}},
-       format_items = map,
        wrap = host_config
       }.
 
@@ -859,15 +827,13 @@ acl_item() ->
                  <<"server_glob">> => Cond,
                  <<"resource_glob">> => Cond
                 },
-       defaults = #{<<"match">> => current_domain},
-       format_items = map
+       defaults = #{<<"match">> => current_domain}
       }.
 
 %% path: (host_config[].)access
 access() ->
     #section{
        items = #{default => #list{items = access_rule_item()}},
-       format_items = map,
        wrap = host_config
       }.
 
@@ -878,8 +844,7 @@ access_rule_item() ->
                                       validate = non_empty},
                  <<"value">> => #option{type = int_or_atom}
                 },
-       required = all,
-       format_items = map
+       required = all
       }.
 
 %% path: (host_config[].)s2s
@@ -907,7 +872,6 @@ s2s() ->
                     <<"use_starttls">> => false,
                     <<"ciphers">> => mongoose_tls:default_ciphers(),
                     <<"max_retry_delay">> => 300},
-       format_items = map,
        wrap = host_config
       }.
 
@@ -918,7 +882,6 @@ s2s_dns() ->
                                           validate = positive},
                  <<"retries">> => #option{type = integer,
                                           validate = positive}},
-       format_items = map,
        include = always,
        defaults = #{<<"timeout">> => 10,
                     <<"retries">> => 2}
@@ -936,7 +899,6 @@ s2s_outgoing() ->
                  <<"connection_timeout">> => #option{type = int_or_infinity,
                                                      validate = positive}
                 },
-       format_items = map,
        include = always,
        defaults = #{<<"port">> => 5269,
                     <<"ip_versions">> => [4, 6],
@@ -952,7 +914,6 @@ s2s_host_policy() ->
                                          validate = {enum, [allow, deny]}}
                 },
        required = all,
-       format_items = map,
        process = fun ?MODULE:process_s2s_host_policy/1
       }.
 
@@ -967,7 +928,6 @@ s2s_address() ->
                                        validate = port}
                 },
        required = [<<"host">>, <<"ip_address">>],
-       format_items = map,
        process = fun ?MODULE:process_s2s_address/1
       }.
 
@@ -1015,9 +975,7 @@ is_host_type_item({{_, HostType}, _}, HostTypes) ->
 is_host_type_item(_, _) ->
     false.
 
-process_ctl_access_rule(KVs) ->
-    Commands = proplists:get_value(commands, KVs, all),
-    ArgRestrictions = proplists:get_value(argument_restrictions, KVs, []),
+process_ctl_access_rule(#{commands := Commands, argument_restrictions := ArgRestrictions}) ->
     {Commands, ArgRestrictions}.
 
 process_host(Host) ->

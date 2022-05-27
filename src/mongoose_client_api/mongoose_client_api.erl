@@ -36,8 +36,7 @@ config_spec() ->
                                                validate = unique},
                        <<"docs">> => #option{type = boolean}},
              defaults = #{<<"handlers">> => HandlerModules,
-                          <<"docs">> => true},
-             format_items = map}.
+                          <<"docs">> => true}}.
 
 -spec routes(handler_options()) -> mongoose_http_handler:routes().
 routes(Opts = #{path := BasePath}) ->

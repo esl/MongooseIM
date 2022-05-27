@@ -198,7 +198,6 @@ assert_server_running(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       format_items = map,
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
                  <<"host">> => #option{type = string,
@@ -281,7 +280,6 @@ keys_as_atoms(Map) ->
 
 default_room_config_spec() ->
     #section{
-       format_items = map,
        items = #{<<"title">> => #option{type = binary},
                  <<"description">> => #option{type = binary},
                  <<"allow_change_subj">> => #option{type = boolean},
@@ -352,9 +350,7 @@ default_room_affiliations_spec() ->
        process = fun ?MODULE:process_room_affiliation/1
       }.
 
-process_room_affiliation(KVs) ->
-    {[[{user, User}], [{server, Server}], [{resource, Res}], [{affiliation, Aff}]], []} =
-        proplists:split(KVs, [user, server, resource, affiliation]),
+process_room_affiliation(#{user := User, server := Server, resource := Res, affiliation := Aff}) ->
     {{User, Server, Res}, Aff}.
 
 stop_gen_server(HostType) ->

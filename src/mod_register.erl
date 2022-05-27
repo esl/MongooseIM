@@ -95,7 +95,6 @@ config_spec() ->
                                                     validate = non_negative},
                  <<"ip_access">> => #list{items = ip_access_spec()}
                 },
-       format_items = map,
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"access">> => all,
                     <<"registration_watchers">> => [],
@@ -109,7 +108,6 @@ welcome_message_spec() ->
                   <<"subject">> => #option{type = string}},
         defaults = #{<<"body">> => "",
                      <<"subject">> => ""},
-        format_items = map,
         process = fun ?MODULE:process_welcome_message/1
     }.
 
@@ -121,7 +119,6 @@ ip_access_spec() ->
                                           validate = {enum, [allow, deny]}}
                 },
         required = all,
-        format_items = map,
         process = fun ?MODULE:process_ip_access/1
     }.
 

@@ -93,8 +93,7 @@ config_spec() ->
        items = #{<<"report_commands_node">> => #option{type = boolean},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()},
        defaults = #{<<"report_commands_node">> => false,
-                    <<"iqdisc">> => one_queue},
-       format_items = map
+                    <<"iqdisc">> => one_queue}
       }.
 
 -spec supported_features() -> [atom()].

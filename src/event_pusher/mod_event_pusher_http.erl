@@ -65,8 +65,7 @@ stop(_HostType) ->
 config_spec() ->
     #section{items = #{<<"handlers">> => #list{items = handler_config_spec(),
                                               validate = unique}},
-             defaults = #{<<"handlers">> => []},
-             format_items = map}.
+             defaults = #{<<"handlers">> => []}}.
 
 handler_config_spec() ->
     #section{items = #{<<"pool_name">> => #option{type = atom,
@@ -78,8 +77,7 @@ handler_config_spec() ->
                 },
              defaults = #{<<"pool_name">> => http_pool,
                           <<"path">> => <<>>,
-                          <<"callback_module">> => mod_event_pusher_http_defaults},
-             format_items = map
+                          <<"callback_module">> => mod_event_pusher_http_defaults}
             }.
 
 push_event(Acc, #chat_event{direction = Dir, from = From, to = To, packet = Packet}) ->

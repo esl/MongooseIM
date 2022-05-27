@@ -92,7 +92,6 @@ config_spec() ->
         required = [<<"global_host">>, <<"local_host">>],
         defaults = #{<<"message_ttl">> => 4,
                      <<"hosts_refresh_interval">> => 3000},
-        format_items = map,
         process = fun ?MODULE:process_opts/1
     }.
 
@@ -114,7 +113,6 @@ connections_spec() ->
                      <<"endpoint_refresh_interval">> => 60,
                      <<"endpoint_refresh_interval_when_empty">> => 3,
                      <<"disabled_gc_interval">> => 60},
-        format_items = map,
         include = always
     }.
 
@@ -126,7 +124,6 @@ endpoint_spec() ->
                                         validate = port}
         },
         required = all,
-        format_items = map,
         process = fun ?MODULE:process_endpoint/1
     }.
 
@@ -146,7 +143,6 @@ redis_spec() ->
         defaults = #{<<"pool">> => global_distrib,
                      <<"expire_after">> => 120,
                      <<"refresh_after">> => 60},
-        format_items = map,
         include = always
     }.
 
@@ -165,7 +161,6 @@ cache_spec() ->
                      <<"jid_lifetime_seconds">> => 5,
                      <<"max_jids">> => 10000
                     },
-        format_items = map,
         include = always
     }.
 
@@ -180,7 +175,6 @@ bounce_spec() ->
         defaults = #{<<"enabled">> => true,
                      <<"resend_after_ms">> => 200,
                      <<"max_retries">> => 4},
-        format_items = map,
         include = always
     }.
 

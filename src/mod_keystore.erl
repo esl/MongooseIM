@@ -80,8 +80,7 @@ config_spec() ->
                                       format_items = map}
         },
         defaults = #{<<"ram_key_size">> => ?DEFAULT_RAM_KEY_SIZE,
-                     <<"keys">> => #{}},
-        format_items = map
+                     <<"keys">> => #{}}
     }.
 
 keys_spec() ->
@@ -94,7 +93,6 @@ keys_spec() ->
                                         validate = filename}
         },
         required = [<<"name">>, <<"type">>],
-        format_items = map,
         process = fun ?MODULE:process_key/1
     }.
 

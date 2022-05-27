@@ -65,8 +65,7 @@ config_spec() ->
                       },
              defaults = #{<<"event_cleaning_interval">> => 1800, % 30 minutes
                           <<"event_max_age">> => 7200, % 2 hours
-                          <<"db_pool">> => global},
-             format_items = map}.
+                          <<"db_pool">> => global}}.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).

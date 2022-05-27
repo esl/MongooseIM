@@ -60,7 +60,6 @@ config_spec() ->
                     <<"cache_users">> => true,
                     <<"default_result_limit">> => 50,
                     <<"max_result_limit">> => 50},
-       format_items = map,
        process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
@@ -69,13 +68,11 @@ remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 pm_config_spec() ->
     #section{items = maps:merge(common_config_items(), pm_config_items()),
-             format_items = map,
              defaults = #{<<"archive_groupchats">> => false,
                           <<"same_mam_id_for_peers">> => false}}.
 
 muc_config_spec() ->
     #section{items = maps:merge(common_config_items(), muc_config_items()),
-             format_items = map,
              defaults = #{<<"host">> => mod_muc:default_host()}}.
 
 root_config_items() ->
@@ -139,8 +136,7 @@ async_config_spec() ->
        defaults = #{<<"enabled">> => true,
                     <<"flush_interval">> => 2000,
                     <<"batch_size">> => 30,
-                    <<"pool_size">> => 4 * erlang:system_info(schedulers_online)},
-       format_items = map
+                    <<"pool_size">> => 4 * erlang:system_info(schedulers_online)}
       }.
 
 riak_config_spec() ->
@@ -151,7 +147,6 @@ riak_config_spec() ->
                                               validate = non_empty}},
        defaults = #{<<"search_index">> => <<"mam">>,
                     <<"bucket_type">> => <<"mam_yz">>},
-       format_items = map,
        include = always
       }.
 

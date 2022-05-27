@@ -129,7 +129,6 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       format_items = map,
        items = #{<<"outdir">> => #option{type = string,
                                          validate = dirname},
                  <<"access_log">> => #option{type = atom,
@@ -171,8 +170,7 @@ top_link_config_spec() ->
        process = fun ?MODULE:process_top_link/1
       }.
 
-process_top_link(KVs) ->
-    {[[{target, Target}], [{text, Text}]], []} = proplists:split(KVs, [target, text]),
+process_top_link(#{target := Target, text := Text}) ->
     {Target, Text}.
 
 -spec add_to_log(mongooseim:host_type(), Type :: any(), Data :: any(), mod_muc:room(),

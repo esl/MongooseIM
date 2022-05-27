@@ -93,8 +93,7 @@ config_spec() ->
                                            validate = {enum, [sasl_anon, login_anon, both]}}
                 },
        defaults = #{<<"allow_multiple_connections">> => false,
-                    <<"protocol">> => sasl_anon},
-       format_items = map
+                    <<"protocol">> => sasl_anon}
       }.
 
 %% @doc Return true if multiple connections have been allowed in the config file

@@ -75,8 +75,7 @@ config_spec() ->
                                                         validate = positive},
                        <<"service">> => mongoose_config_spec:xmpp_listener_extra(service)},
              defaults = #{<<"timeout">> => 60000,
-                          <<"max_stanza_size">> => infinity},
-             format_items = map
+                          <<"max_stanza_size">> => infinity}
             }.
 
 %%--------------------------------------------------------------------

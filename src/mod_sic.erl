@@ -72,8 +72,7 @@ iq_handlers() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
-             defaults = #{<<"iqdisc">> => one_queue},
-             format_items = map}.
+             defaults = #{<<"iqdisc">> => one_queue}}.
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

@@ -112,8 +112,8 @@ config_spec() ->
                           <<"inactivity">> => 30, % seconds
                           <<"max_wait">> => infinity, % seconds
                           <<"server_acks">> => false,
-                          <<"max_pause">> => 120}, % seconds
-             format_items = map}.
+                          <<"max_pause">> => 120} % seconds
+            }.
 
 -spec supported_features() -> [atom()].
 supported_features() ->

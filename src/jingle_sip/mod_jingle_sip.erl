@@ -100,7 +100,6 @@ config_spec() ->
                                              validate = {enum, ["udp", "tcp"]}},
                   <<"username_to_phone">> => #list{items = username_to_phone_spec()}
         },
-        format_items = map,
         defaults = #{<<"proxy_host">> => "localhost",
                      <<"proxy_port">> => 5060,
                      <<"listen_port">> => 5600,
@@ -115,7 +114,6 @@ username_to_phone_spec() ->
         items = #{<<"username">> => #option{type = binary},
                   <<"phone">> => #option{type = binary}},
         required = all,
-        format_items = map,
         process = fun process_u2p/1
     }.
 
