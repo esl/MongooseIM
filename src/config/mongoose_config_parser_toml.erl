@@ -253,9 +253,6 @@ wrap(_Path, V, item) ->
     [V];
 wrap(_Path, _V, remove) ->
     [];
-wrap([Key|_], V, prepend_key) ->
-    L = [b2a(Key) | tuple_to_list(V)],
-    [list_to_tuple(L)];
 wrap(_Path, V, none) when is_list(V) ->
     V.
 

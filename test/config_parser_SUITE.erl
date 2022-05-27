@@ -408,26 +408,17 @@ route_subdomains(_Config) ->
     ?errh(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}}).
 
 mongooseimctl_access_commands(_Config) ->
-    ?cfg(mongooseimctl_access_commands, [], #{}), % default
-    AccessRule = #{<<"commands">> => [<<"join_cluster">>],
-                   <<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}},
-    ?cfg(mongooseimctl_access_commands, [{local, ["join_cluster"], [{node, "mim1@host1"}]}],
-         #{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                  #{<<"local">> => AccessRule}}}),
-    ?cfg(mongooseimctl_access_commands, [{local, all, [{node, "mim1@host1"}]}],
-         #{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                  #{<<"local">> => maps:remove(<<"commands">>, AccessRule)}}}),
-    ?cfg(mongooseimctl_access_commands, [{local, ["join_cluster"], []}],
-         #{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                  #{<<"local">> => maps:remove(<<"argument_restrictions">>,
-                                                               AccessRule)}}}),
-    ?cfg(mongooseimctl_access_commands, [{local, all, []}],
-         #{<<"general">> => #{<<"mongooseimctl_access_commands">> => #{<<"local">> => #{}}}}),
-    ?err(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                  #{<<"local">> => #{<<"commands">> => <<"all">>}}}}),
-    ?err(#{<<"general">> => #{<<"mongooseimctl_access_commands">> =>
-                                  #{<<"local">> => #{<<"argument_restrictions">> =>
-                                                         [<<"none">>]}}}}).
+    ?cfg(mongooseimctl_access_commands, #{}, #{}), % default
+    P = [mongooseimctl_access_commands, local],
+    T = fun(Opts) ->
+                #{<<"general">> => #{<<"mongooseimctl_access_commands">> => #{<<"local">> => Opts}}}
+        end,
+    ?cfg(P, default_config([general, mongooseimctl_access_commands, local]), T(#{})),
+    ?cfg(P ++ [commands], [join_cluster], T(#{<<"commands">> => [<<"join_cluster">>]})),
+    ?cfg(P ++ [argument_restrictions], #{node => "mim1@host1"},
+         T(#{<<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}})),
+    ?err(T(#{<<"commands">> => [<<>>]})),
+    ?err(T(#{<<"argument_restrictions">> => #{<<"node">> => 1}})).
 
 routing_modules(_Config) ->
     ?cfg(routing_modules, mongoose_router:default_routing_modules(), #{}), % default

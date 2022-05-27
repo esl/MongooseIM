@@ -17,7 +17,7 @@ options("host_types") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -78,7 +78,8 @@ options("miscellaneous") ->
                })]},
      {loglevel, warning},
      {mongooseimctl_access_commands,
-      [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]},
+      #{local => #{commands => [join_cluster],
+                   argument_restrictions => #{node => "mongooseim@prime"}}}},
      {outgoing_pools, []},
      {rdbms_server_type, mssql},
      {registration_timeout, 600},
@@ -109,7 +110,7 @@ options("modules") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -240,7 +241,7 @@ options("mongooseim-pgsql") ->
       ]},
      {loglevel, warning},
      {max_fsm_queue, 1000},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
       lists:map(
         fun pool_config/1,
@@ -318,7 +319,7 @@ options("outgoing_pools") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
       lists:map(
         fun pool_config/1,
@@ -389,7 +390,7 @@ options("s2s_only") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -1072,6 +1073,8 @@ extra_service_listener_config() ->
       hidden_components => false,
       conflict_behaviour => disconnect}.
 
+default_config([general, mongooseimctl_access_commands, _Key]) ->
+    #{commands => all, argument_restrictions => #{}};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),

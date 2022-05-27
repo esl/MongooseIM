@@ -231,19 +231,21 @@
 
 -type cmd_error() :: command_unknown | account_unprivileged
                    | invalid_account_data | no_auth_provided.
--type access_cmd() :: {Access :: atom(),
-                       CommandNames :: [atom()],
-                       Arguments :: [term()]
-                      }.
+-type access_commands() :: #{acl:rule_name() => command_rules()}.
+-type command_rules() :: #{commands := all | [atom()],
+                           argument_restrictions := argument_restrictions()}.
+
+%% Currently only string arguments can have restrictions
+-type argument_restrictions() :: #{ArgName :: atom() => Value :: string()}.
+
 -type list_cmd() :: {Name::atom(), Args::[aterm()], Desc::string()}.
 
 -export_type([rterm/0,
               aterm/0,
               cmd/0,
               auth/0,
-              access_cmd/0,
+              access_commands/0,
               list_cmd/0]).
-
 
 init() ->
     case ets:info(ejabberd_commands) of
@@ -253,7 +255,6 @@ init() ->
         _ ->
             ok
     end.
-
 
 %% @doc Register ejabberd commands. If a command is already registered, a
 %% warning is printed and the old command is preserved.
@@ -269,7 +270,6 @@ register_commands(Commands) ->
       end,
       Commands).
 
-
 %% @doc Unregister ejabberd commands.
 -spec unregister_commands([cmd()]) -> ok.
 unregister_commands(Commands) ->
@@ -278,7 +278,6 @@ unregister_commands(Commands) ->
               ets:delete_object(ejabberd_commands, Command)
       end,
       Commands).
-
 
 %% @doc Get a list of all the available commands, arguments and description.
 -spec list_commands() -> [list_cmd()].
@@ -289,7 +288,6 @@ list_commands() ->
                                             desc = '$3',
                                             _ = '_'}),
     [{A, B, C} || [A, B, C] <- Commands].
-
 
 %% @doc Get the format of arguments and result of a command.
 -spec get_command_format(Name::atom()) -> {Args::[aterm()], Result::rterm()}
@@ -307,7 +305,6 @@ get_command_format(Name) ->
             {Args, Result}
     end.
 
-
 %% @doc Get the definition record of a command.
 -spec get_command_definition(Name::atom()) -> cmd() | 'command_not_found'.
 get_command_definition(Name) ->
@@ -316,16 +313,14 @@ get_command_definition(Name) ->
         [] -> command_not_found
     end.
 
-
 %% @doc Execute a command.
 -spec execute_command(Name :: atom(),
                       Arguments :: list()
                      ) -> Result :: term() | {error, command_unknown}.
 execute_command(Name, Arguments) ->
-    execute_command([], noauth, Name, Arguments).
+    execute_command(#{}, noauth, Name, Arguments).
 
-
--spec execute_command(AccessCommands :: [access_cmd()],
+-spec execute_command(AccessCommands :: access_commands(),
                       Auth :: auth(),
                       Name :: atom(),
                       Arguments :: [term()]
@@ -341,7 +336,6 @@ execute_command(AccessCommands, Auth, Name, Arguments) ->
         [] -> {error, command_unknown}
     end.
 
-
 %% @private
 execute_command2(Command, Arguments) ->
     Module = Command#ejabberd_commands.module,
@@ -351,7 +345,6 @@ execute_command2(Command, Arguments) ->
                  command_function => Function,
                  command_args => Arguments}),
     apply(Module, Function, Arguments).
-
 
 %% @doc Get all the tags and associated commands.
 -spec get_tags_commands() -> [{Tag::string(), [CommandName::string()]}].
@@ -381,41 +374,37 @@ get_tags_commands() ->
              CommandTags),
     orddict:to_list(Dict).
 
-
 %% -----------------------------
 %% Access verification
 %% -----------------------------
 
-
 %% @doc Check access is allowed to that command.
 %% At least one AccessCommand must be satisfied.
 %% May throw {error, account_unprivileged | invalid_account_data}
--spec check_access_commands(AccessCommands :: [ access_cmd() ],
+-spec check_access_commands(AccessCommands :: access_commands(),
                             Auth :: auth(),
                             Method :: atom(),
                             Command :: tuple(),
                             Arguments :: [any()]
                             ) -> ok | none().
-check_access_commands([], _Auth, _Method, _Command, _Arguments) ->
-    ok;
+check_access_commands(AccessCommands, _Auth, _Method, _Command, _Arguments)
+  when AccessCommands =:= #{} -> ok;
 check_access_commands(AccessCommands, Auth, Method, Command, Arguments) ->
     AccessCommandsAllowed =
-        lists:filter(
-          fun({Access, Commands, ArgumentRestrictions}) ->
+        maps:filter(
+          fun(Access, CommandSpec) ->
                   case check_access(Access, Auth) of
                       true ->
-                          check_access_command(Commands, Command, ArgumentRestrictions,
-                                               Method, Arguments);
+                          check_access_command(Command, CommandSpec, Method, Arguments);
                       false ->
                           false
                   end
           end,
           AccessCommands),
-    case AccessCommandsAllowed of
-        [] -> throw({error, account_unprivileged});
-        L when is_list(L) -> ok
+    case AccessCommandsAllowed =:= #{} of
+        true -> throw({error, account_unprivileged});
+        false -> ok
     end.
-
 
 %% @private
 %% May throw {error, invalid_account_data}
@@ -431,12 +420,10 @@ check_auth({User, Server, Password}) ->
         _ -> throw({error, invalid_account_data})
     end.
 
-
 -spec get_md5(iodata()) -> string().
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
-
 
 -spec check_access(Access :: acl:rule_name(), Auth :: auth()) -> boolean().
 check_access(all, _) ->
@@ -453,14 +440,13 @@ check_access(Access, Auth) ->
         deny -> false
     end.
 
-
--spec check_access_command(_, tuple(), _, _, _) -> boolean().
-check_access_command(Commands, Command, ArgumentRestrictions, Method, Arguments) ->
-    case Commands==all orelse lists:member(Method, Commands) of
+-spec check_access_command(cmd(), command_rules(), atom(), [any()]) -> boolean().
+check_access_command(Command, CommandRules, Method, Arguments) ->
+    #{commands := Commands, argument_restrictions := ArgumentRestrictions} = CommandRules,
+    case Commands == all orelse lists:member(Method, Commands) of
         true -> check_access_arguments(Command, ArgumentRestrictions, Arguments);
         false -> false
     end.
-
 
 -spec check_access_arguments(Command :: cmd(),
                              Restrictions :: [any()],
@@ -468,14 +454,13 @@ check_access_command(Commands, Command, ArgumentRestrictions, Method, Arguments)
 check_access_arguments(Command, ArgumentRestrictions, Arguments) ->
     ArgumentsTagged = tag_arguments(Command#ejabberd_commands.args, Arguments),
     lists:all(
-      fun({ArgName, ArgAllowedValue}) ->
-              %% If the call uses the argument, check the value is acceptable
-              case lists:keysearch(ArgName, 1, ArgumentsTagged) of
-                  {value, {ArgName, ArgValue}} -> ArgValue == ArgAllowedValue;
-                  false -> true
+      fun({ArgName, ArgValue}) ->
+              case ArgumentRestrictions of
+              %% If there is a restriction, check the value is acceptable
+                  #{ArgName := ArgAllowedValue} -> ArgValue =:= ArgAllowedValue;
+                  #{} -> true
               end
-      end, ArgumentRestrictions).
-
+      end, ArgumentsTagged).
 
 -spec tag_arguments(ArgsDefs :: [{atom(), integer() | string() | {_, _}}],
                     Args :: [any()] ) -> [{_, _}].

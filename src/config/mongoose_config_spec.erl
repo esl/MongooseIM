@@ -13,7 +13,6 @@
 -export([process_root/1,
          process_host/1,
          process_general/1,
-         process_ctl_access_rule/1,
          process_listener/2,
          process_c2s_tls/1,
          process_fast_tls/1,
@@ -60,8 +59,7 @@
       | item         % [Value]
       | remove       % [] - the item is ignored
       | none         % just Value - injects elements of Value into the parent section/list
-      | {kv, NewKey :: term()} % [{NewKey, Value}] - replaces the key with NewKey
-      | prepend_key. % [{Key, V1, ..., Vn}] when Value = {V1, ..., Vn}
+      | {kv, NewKey :: term()}. % [{NewKey, Value}] - replaces the key with NewKey
 
 %% This option allows to put list/section items in a map
 -type format_items() ::
@@ -194,7 +192,6 @@ general() ->
                                                    wrap = host_config},
                  <<"mongooseimctl_access_commands">> => #section{
                                                            items = #{default => ctl_access_rule()},
-                                                           format_items = list,
                                                            wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
@@ -221,23 +218,20 @@ general_defaults() ->
       <<"all_metrics_are_global">> => false,
       <<"sm_backend">> => mnesia,
       <<"rdbms_server_type">> => generic,
-      <<"mongooseimctl_access_commands">> => [],
+      <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
 
 ctl_access_rule() ->
     #section{
-       items = #{<<"commands">> => #list{items = #option{type = string}},
-                 <<"argument_restrictions">> => #section{
-                                                   items = #{default => #option{type = string}},
-                                                   format_items = list
-                                                  }
+       items = #{<<"commands">> => #list{items = #option{type = atom,
+                                                         validate = non_empty}},
+                 <<"argument_restrictions">> =>
+                     #section{items = #{default => #option{type = string}}}
                 },
        defaults = #{<<"commands">> => all,
-                    <<"argument_restrictions">> => []},
-       process = fun ?MODULE:process_ctl_access_rule/1,
-       wrap = prepend_key
+                    <<"argument_restrictions">> => #{}}
       }.
 
 %% path: general.domain_certfile
@@ -974,9 +968,6 @@ is_host_type_item({{_, HostType}, _}, HostTypes) ->
     HostType =:= global orelse lists:member(HostType, HostTypes);
 is_host_type_item(_, _) ->
     false.
-
-process_ctl_access_rule(#{commands := Commands, argument_restrictions := ArgRestrictions}) ->
-    {Commands, ArgRestrictions}.
 
 process_host(Host) ->
     Node = jid:nodeprep(Host),
