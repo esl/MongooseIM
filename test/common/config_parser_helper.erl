@@ -139,7 +139,7 @@ options("mongooseim-pgsql") ->
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
                 zlib => 10000,
-                tls => [{certfile, "priv/dc1.pem"}, {dhfile, "priv/dh.pem"}, starttls]
+                tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem"}
                }),
        config([listen, c2s],
               #{port => 5223,
@@ -176,7 +176,7 @@ options("mongooseim-pgsql") ->
                             #{host => "localhost", path => "/api/contacts/{:jid}"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
                }),
        config([listen, http],
               #{ip_address => "127.0.0.1",
@@ -194,7 +194,7 @@ options("mongooseim-pgsql") ->
                             #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
                }),
        config([listen, http],
               #{ip_address => "127.0.0.1",
@@ -209,7 +209,7 @@ options("mongooseim-pgsql") ->
               #{port => 5269,
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
-                tls => [{dhfile, "priv/dh.pem"}]
+                tls => #{dhfile => "priv/dh.pem"}
                }),
        config([listen, service],
               #{ip_address => "127.0.0.1",
@@ -248,10 +248,9 @@ options("mongooseim-pgsql") ->
            opts => #{workers => 5},
            conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
                           username => "ejabberd", password => "mongooseim_secret",
-                          tls => [{required, true},
-                                  {cacertfile, "priv/ca.pem"},
-                                  {server_name_indication, disable},
-                                  {verify, verify_peer}]
+                          tls => #{required => true,
+                                   cacertfile => "priv/ca.pem",
+                                   server_name_indication => #{enabled => false}}
                          }
           },
          #{type => redis, scope => <<"localhost">>, tag => global_distrib,
@@ -346,10 +345,9 @@ options("outgoing_pools") ->
            conn_opts => #{keepalive_interval => 30,
                           driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
                           username => "ejabberd", password => "mongooseim_secret",
-                          tls => [{required, true},
-                                  {cacertfile, "priv/ca.pem"},
-                                  {server_name_indication, disable},
-                                  {verify, verify_peer}]
+                          tls => #{required => true,
+                                   cacertfile => "priv/ca.pem",
+                                   server_name_indication => #{enabled => false}}
                          }
           },
          #{type => redis, scope => <<"localhost">>, tag => global_distrib,
@@ -359,11 +357,9 @@ options("outgoing_pools") ->
            conn_opts => #{address => "127.0.0.1",
                           credentials => #{user => "username", password => "pass"},
                           port => 8087,
-                          tls => [{cacertfile, "path/to/cacert.pem"},
-                                  {ssl_opts, [{certfile, "path/to/cert.pem"},
-                                              {keyfile, "path/to/key.pem"},
-                                              {verify, verify_peer}]
-                                  }]
+                          tls => #{cacertfile => "priv/ca.pem",
+                                   certfile => "priv/cert.pem",
+                                   keyfile => "priv/dc1.pem"}
                          }
           }
         ])},
@@ -461,7 +457,7 @@ all_modules() ->
                                     resolved_endpoints => [{{172, 16, 0, 2}, 5555}],
                                     connections_per_endpoint => 30,
                                     tls => config([modules, mod_global_distrib, connections, tls],
-                                                  #{cafile => "priv/ca.pem",
+                                                  #{cacertfile => "priv/ca.pem",
                                                     certfile => "priv/dc1.pem"})
                                    })
                       }),
@@ -746,7 +742,7 @@ custom_s2s() ->
           #{<<"fed1">> => #{ip_address => "127.0.0.1"},
             <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
       certfile => "priv/server.pem",
-      ciphers => ejabberd_tls:default_ciphers(),
+      ciphers => mongoose_tls:default_ciphers(),
       default_policy => allow,
       dns => #{retries => 1, timeout => 30},
       host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
@@ -756,7 +752,7 @@ custom_s2s() ->
       use_starttls => optional}.
 
 default_s2s() ->
-    #{ciphers => ejabberd_tls:default_ciphers(),
+    #{ciphers => mongoose_tls:default_ciphers(),
       default_policy => allow,
       dns => #{retries => 2, timeout => 10},
       max_retry_delay => 300,
@@ -1102,13 +1098,20 @@ default_config([listen, http, transport]) ->
       max_connections => 1024};
 default_config([listen, http, protocol]) ->
     #{compress => false};
+default_config([listen, http, tls]) ->
+    #{verify_mode => peer};
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => ejabberd_c2s,
                                      access => all,
                                      shaper => none};
-default_config([listen, s2s]) ->
+default_config([listen, c2s, tls]) ->
+    default_c2s_tls(fast_tls);
+default_config([listen, s2s] = P) ->
     (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
-                                     shaper => none};
+                                     shaper => none,
+                                     tls => default_config(P ++ [tls])};
+default_config([listen, s2s, tls]) ->
+    default_tls(fast_tls);
 default_config([listen, service]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
     Extra#{module => ejabberd_service};
@@ -1147,7 +1150,7 @@ default_config([modules, mod_global_distrib, connections]) ->
       endpoint_refresh_interval_when_empty => 3,
       disabled_gc_interval => 60};
 default_config([modules, mod_global_distrib, connections, tls]) ->
-    #{ciphers => "TLSv1.2:TLSv1.3"};
+    default_tls(fast_tls);
 default_config([modules, mod_global_distrib, redis]) ->
     #{pool => global_distrib,
       expire_after => 120,
@@ -1247,6 +1250,11 @@ default_config([outgoing_pools, Type, _Tag, opts]) ->
     default_pool_wpool_opts(Type);
 default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
     default_pool_conn_opts(Type);
+default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
+    #{verify_mode => peer,
+      server_name_indication => default_config(P ++ [server_name_indication])};
+default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
+    #{enabled => true, protocol => default};
 default_config([services, service_admin_extra]) ->
     #{submods => [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats, gdpr, upload, domain]};
@@ -1259,6 +1267,18 @@ default_config([services, service_mongoose_system_metrics]) ->
       periodic_report => timer:hours(3)};
 default_config(Path) when is_list(Path) ->
     #{}.
+
+default_c2s_tls(Module) ->
+    (default_tls(Module))#{mode => starttls, module => Module}.
+
+default_tls(just_tls) ->
+    #{verify_mode => peer,
+      disconnect_on_failure => true,
+      crl_files => []};
+default_tls(fast_tls) ->
+    #{verify_mode => peer,
+      ciphers => "TLSv1.2:TLSv1.3",
+      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,

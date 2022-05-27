@@ -39,11 +39,9 @@ s2s_config(plain, S2S = #{opts := Opts}, _) ->
     S2S#{opts := maps:remove(certfile, Opts#{use_starttls := false})};
 s2s_config(required_trusted_with_cachain, S2S = #{opts := Opts, listener := Listener}, Config) ->
     #{tls := TLSOpts} = Listener,
-    CACertFile = filename:join([path_helper:repo_dir(Config),
-                                "tools", "ssl", "ca", "cacert.pem"]),
-    NewTLSOpts = lists:keystore(cafile, 1, TLSOpts, {cafile, CACertFile}),
-    S2S#{opts := Opts#{use_starttls := required_trusted},
-         listener := Listener#{tls := NewTLSOpts}};
+    CACertFile = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "ca", "cacert.pem"]),
+    NewTLSOpts = TLSOpts#{cacertfile => CACertFile},
+    S2S#{opts := Opts#{use_starttls := required_trusted}, listener := Listener#{tls := NewTLSOpts}};
 s2s_config(StartTLS, S2S = #{opts := Opts}, _) ->
     S2S#{opts := Opts#{use_starttls := StartTLS}}.
 

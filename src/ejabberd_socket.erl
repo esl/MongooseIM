@@ -183,15 +183,9 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
--spec tcp_to_tls(socket_state(), list()) -> ejabberd_tls:tls_socket().
+-spec tcp_to_tls(socket_state(), mongoose_tls:options()) -> mongoose_tls:tls_socket().
 tcp_to_tls(#socket_state{receiver = Receiver}, TLSOpts) ->
-    SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
-        false -> [{protocol_options, "no_sslv2|no_sslv3|no_tlsv1|no_tlsv1_1"} | TLSOpts];
-        {_, ProtoOpts} ->
-            NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
-            lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
-    end,
-    ejabberd_receiver:starttls(Receiver, SanitizedTLSOpts).
+    ejabberd_receiver:starttls(Receiver, TLSOpts).
 
 get_tls_socket(#socket_state{receiver = Receiver}) ->
     case ejabberd_receiver:get_socket(Receiver) of
@@ -200,23 +194,23 @@ get_tls_socket(#socket_state{receiver = Receiver}) ->
     end.
 
 
--spec starttls(socket_state(), list()) -> socket_state().
+-spec starttls(socket_state(), mongoose_tls:options()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     tcp_to_tls(SocketData, TLSOpts),
     case get_tls_socket(SocketData) of
         invalid_socket ->
             exit(invalid_socket_after_upgrade_to_tls);
         NewSocket ->
-            SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}
+            SocketData#socket_state{socket = NewSocket, sockmod = mongoose_tls}
     end.
 
 
--spec starttls(socket_state(), _, _) -> socket_state().
+-spec starttls(socket_state(), mongoose_tls:options(), _) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
     tcp_to_tls(SocketData, TLSOpts),
     send(SocketData, Data), %% send last negotiation chunk via tcp
     NewSocket = get_tls_socket(SocketData),
-    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
+    SocketData#socket_state{socket = NewSocket, sockmod = mongoose_tls}.
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
@@ -277,8 +271,8 @@ get_sockmod(SocketData) ->
 
 
 -spec get_peer_certificate(socket_state()) -> mongoose_transport:peercert_return().
-get_peer_certificate(#socket_state{sockmod = ejabberd_tls, socket = Socket}) ->
-    ejabberd_tls:get_peer_certificate(Socket);
+get_peer_certificate(#socket_state{sockmod = mongoose_tls, socket = Socket}) ->
+    mongoose_tls:get_peer_certificate(Socket);
 get_peer_certificate(_SocketData) ->
     no_peer_cert.
 

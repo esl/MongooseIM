@@ -62,7 +62,7 @@
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_cert_verify = false :: boolean(),
-                tls_options = []        :: [{_, _}],
+                tls_options             :: mongoose_tls:options(),
                 server                  :: jid:server() | undefined,
                 host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
@@ -104,7 +104,7 @@
        ).
 
 -type socket_data() :: {ejabberd:sockmod(), term()}.
--type options() :: #{shaper := atom(), atom() => any()}.
+-type options() :: #{shaper := atom(), tls := mongoose_tls:options(), atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -138,11 +138,10 @@ socket_type() ->
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
 -spec init([socket_data() | options(), ...]) -> {ok, wait_for_stream, state()}.
-init([{SockMod, Socket}, Opts = #{shaper := Shaper}]) ->
+init([{SockMod, Socket}, #{shaper := Shaper, tls := TLSOpts}]) ->
     ?LOG_DEBUG(#{what => s2n_in_started,
                  text => <<"New incoming S2S connection">>,
                  sockmod => SockMod, socket => Socket}),
-    TLSOpts = maps:get(tls, Opts, []),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
@@ -257,15 +256,15 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_TLS, <<"starttls">>} when TLS == true,
-                                   TLSEnabled == false,
-                                   SockMod == gen_tcp ->
+                                       TLSEnabled == false,
+                                       SockMod == gen_tcp ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
-            TLSOpts = tls_options(StateData),
-            TLSSocket = (StateData#state.sockmod):starttls(
-                          StateData#state.socket, TLSOpts,
-                          exml:to_binary(
-                            #xmlel{name = <<"proceed">>,
-                                   attrs = [{<<"xmlns">>, ?NS_TLS}]})),
+            TLSOpts = tls_options_with_certfile(StateData),
+            TLSSocket = mongoose_transport:starttls(StateData#state.sockmod,
+                                                    StateData#state.socket, TLSOpts,
+                                                    exml:to_binary(
+                                                      #xmlel{name = <<"proceed">>,
+                                                             attrs = [{<<"xmlns">>, ?NS_TLS}]})),
             {next_state, wait_for_stream,
              StateData#state{socket = TLSSocket,
                              streamid = new_id(),
@@ -301,12 +300,10 @@ wait_for_feature_request({xmlstreamerror, _}, StateData) ->
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
-tls_options(#state{host_type = HostType, tls_options = TLSOptions}) ->
+tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}) ->
     case ejabberd_s2s:lookup_certfile(HostType) of
-        {ok, CertFile} ->
-            [{certfile, CertFile} | TLSOptions];
-        {error, not_found} ->
-            TLSOptions
+        {ok, CertFile} -> TLSOptions#{certfile => CertFile};
+        {error, not_found} -> TLSOptions
     end.
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().

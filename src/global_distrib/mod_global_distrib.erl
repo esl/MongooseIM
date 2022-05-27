@@ -131,20 +131,8 @@ endpoint_spec() ->
     }.
 
 tls_spec() ->
-    #section{
-        items = #{<<"certfile">> => #option{type = string,
-                                            validate = filename},
-                  <<"cacertfile">> => #option{type = string,
-                                              validate = filename,
-                                              wrap = {kv, cafile}},
-                  <<"ciphers">> => #option{type = string},
-                  <<"dhfile">> => #option{type = string,
-                                          validate = filename}
-        },
-        required = [<<"certfile">>, <<"cacertfile">>],
-        defaults = #{<<"ciphers">> => "TLSv1.2:TLSv1.3"},
-        format_items = map
-    }.
+    TLSSection = mongoose_config_spec:tls([client, server], [fast_tls]),
+    TLSSection#section{process = fun mongoose_config_spec:process_fast_tls/1}.
 
 redis_spec() ->
     #section{

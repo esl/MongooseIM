@@ -80,8 +80,8 @@ connect(State = #{handle := none,
                   connect_interval := ConnectInterval}) ->
     AnonAuth = RootDN =:= <<>> andalso Password =:= <<>>,
     SSLConfig = case State of
-                    #{tls := TLSOptions} -> [{ssl, true}, {sslopts, TLSOptions}];
-                    #{} -> [{ssl, false}]
+                    #{tls := TLSOptions} -> [{sslopts, just_tls:make_ssl_opts(TLSOptions)}];
+                    #{} -> []
                 end,
     case eldap:open(Servers, [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig) of
         {ok, Handle} ->

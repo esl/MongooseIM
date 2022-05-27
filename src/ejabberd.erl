@@ -41,7 +41,7 @@
                  | ejabberd_socket
                  | mod_bosh_socket
                  | mod_websockets
-                 | ejabberd_tls
+                 | mongoose_tls
                  | ejabberd_zlib.
 
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules

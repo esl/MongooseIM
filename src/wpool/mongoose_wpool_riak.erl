@@ -41,7 +41,8 @@ prepare_sec_opts(ConnOpts) ->
 
 sec_opts(credentials, #{credentials := #{user := User, password := Password}}) ->
     [{credentials, User, Password}];
-sec_opts(tls, #{tls := TLSOpts}) ->
-    TLSOpts;
+sec_opts(tls, #{tls := TLSOpts = #{cacertfile := CaCertFile}}) ->
+    % riakc_pb_socket requires cacertfile in a separate option
+    [{cacertfile, CaCertFile}, {ssl_opts, just_tls:make_ssl_opts(TLSOpts)}];
 sec_opts(_Opt, #{}) ->
     [].

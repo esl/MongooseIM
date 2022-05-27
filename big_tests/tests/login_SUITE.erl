@@ -190,15 +190,13 @@ init_per_testcase(CaseName, Config) when
             escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(message_zlib_limit, Config) ->
-    Listeners = [Listener
-                 || {Listener, _, _} <- rpc(mim(), mongoose_config, get_opt, [listen])],
     [{_U, Props}] = escalus_users:get_users([hacker]),
     Port = proplists:get_value(port, Props),
-    case lists:keymember(Port, 1, Listeners) of
-        true ->
+    case mongoose_helper:get_listeners(mim(), #{port => Port}) of
+        [_Listener] ->
             escalus:create_users(Config, escalus:get_users([hacker])),
             escalus:init_per_testcase(message_zlib_limit, Config);
-        false ->
+        [] ->
             {skip, port_not_configured_on_server}
     end;
 init_per_testcase(CaseName, Config) ->
@@ -397,7 +395,7 @@ configure_c2s_listener(Config) ->
     [C2SListener = #{tls := TLSOpts}] =
         mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
     %% replace starttls with tls
-    NewTLSOpts = [tls | TLSOpts -- [starttls]],
+    NewTLSOpts = TLSOpts#{mode := tls},
     mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
     [{c2s_listener, C2SListener} | Config].
 

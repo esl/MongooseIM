@@ -98,7 +98,11 @@
 
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
+    [ssl_crl_cache:insert({file, CRL}) || CRL <- crl_files(Opts)],
     mongoose_tcp_listener:start_listener(Opts).
+
+crl_files(#{tls := #{crl_files := Files}}) -> Files;
+crl_files(#{}) -> [].
 
 -spec start(socket_data(), options()) -> start_result().
 start(SockData, Opts) ->
@@ -197,30 +201,16 @@ init({{SockMod, Socket}, Opts}) ->
     #{access := Access, shaper := Shaper, hibernate_after := HibernateAfter} = Opts,
     XMLSocket = maps:get(xml_socket, Opts, false),
     Zlib = zlib(Opts),
-    TLSConfig = maps:get(tls, Opts, []),
-    Verify = case lists:member(verify_peer, TLSConfig) of
-                 true -> verify_peer;
-                 false -> verify_none
-             end,
-    StartTLS = lists:member(starttls, TLSConfig) orelse Verify =:= verify_peer,
-    StartTLSRequired = lists:member(starttls_required, TLSConfig),
-    TLSEnabled = lists:member(tls, TLSConfig),
-    TLS = StartTLS orelse StartTLSRequired orelse TLSEnabled,
-    TLSOpts = verify_opts(Verify) ++ TLSConfig,
-    [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, TLSConfig, [])],
+    TLSOptions = tls_options(Opts),
+    TLSMode = tls_mode(Opts),
     IP = peerip(SockMod, Socket),
-    %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
         true ->
             ?LOG_INFO(#{what => c2s_blacklisted_ip, ip => IP,
                         text => <<"Connection attempt from blacklisted IP">>}),
             {stop, normal};
         false ->
-            Socket1 =
-            case TLSEnabled of
-                true -> mongoose_transport:starttls(SockMod, Socket, TLSOpts);
-                false -> Socket
-            end,
+            Socket1 = maybe_start_tls(SockMod, Socket, TLSMode, TLSOptions),
             SocketMonitor = mongoose_transport:monitor(SockMod, Socket1),
             CredOpts = mongoose_credentials:make_opts(Opts),
             {ok, wait_for_stream, #state{server         = ?MYNAME,
@@ -229,11 +219,9 @@ init({{SockMod, Socket}, Opts}) ->
                                          socket_monitor = SocketMonitor,
                                          xml_socket     = XMLSocket,
                                          zlib           = Zlib,
-                                         tls            = TLS,
-                                         tls_required   = StartTLSRequired,
-                                         tls_enabled    = TLSEnabled,
-                                         tls_options    = TLSOpts,
-                                         tls_verify     = Verify,
+                                         tls_enabled    = TLSMode =:= tls,
+                                         tls_options    = TLSOptions,
+                                         tls_mode       = TLSMode,
                                          streamid       = new_id(),
                                          access         = Access,
                                          shaper         = Shaper,
@@ -247,6 +235,17 @@ init({{SockMod, Socket}, Opts}) ->
 
 zlib(#{zlib := Limit}) -> {true, Limit};
 zlib(#{}) -> {false, 0}.
+
+tls_mode(#{tls := #{mode := Mode}}) -> Mode;
+tls_mode(#{}) -> no_tls.
+
+tls_options(#{tls := TLS}) -> maps:without([mode, crl_files], TLS);
+tls_options(#{}) -> undefined.
+
+maybe_start_tls(SockMod, Socket, tls, TLSOpts) ->
+    mongoose_transport:starttls(SockMod, Socket, TLSOpts);
+maybe_start_tls(_SockMod, Socket, _Mode, _TLSOpts) ->
+    Socket.
 
 %% @doc Return list of all available resources of contacts,
 get_subscribed(FsmRef) ->
@@ -372,16 +371,15 @@ stream_features(FeatureElements) ->
 %% receiving entity will likely depend on whether TLS has been negotiated).
 %%
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
-determine_features(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
-                                   tls_required = TLSRequired} = S) ->
-    OtherFeatures = maybe_compress_feature(SockMod, S)
-                 ++ maybe_sasl_mechanisms(S)
-                 ++ hook_enabled_features(S),
-    case can_use_tls(SockMod, TLS, TLSEnabled) of
+determine_features(SockMod, StateData) ->
+    OtherFeatures = maybe_compress_feature(SockMod, StateData)
+                 ++ maybe_sasl_mechanisms(StateData)
+                 ++ hook_enabled_features(StateData),
+    case can_use_tls(SockMod, StateData) of
         true ->
-            case TLSRequired of
-                true -> [starttls_stanza(required)];
-                _    -> [starttls_stanza(optional)] ++ OtherFeatures
+            case StateData#state.tls_mode of
+                starttls_required -> [starttls_stanza(required)];
+                _ -> [starttls_stanza(optional)] ++ OtherFeatures
             end;
         false ->
             OtherFeatures
@@ -412,12 +410,12 @@ starttls_stanza(TLSRequired)
            attrs = [{<<"xmlns">>, ?NS_TLS}],
            children = [ #xmlel{name = <<"required">>} || TLSRequired =:= required ]}.
 
-can_use_tls(SockMod, TLS, TLSEnabled) ->
-    TLS == true andalso (TLSEnabled == false) andalso SockMod == gen_tcp.
+can_use_tls(gen_tcp, #state{tls_mode = TLSMode, tls_enabled = false}) -> TLSMode =/= no_tls;
+can_use_tls(_SockMod, _TLSOptions) ->  false.
 
 can_use_zlib_compression(Zlib, SockMod) ->
     Zlib andalso ( (SockMod == gen_tcp) orelse
-                   (SockMod == ejabberd_tls) ).
+                   (SockMod == mongoose_tls) ).
 
 compression_zlib() ->
     #xmlel{name = <<"compression">>,
@@ -445,8 +443,8 @@ is_channel_binding_supported(State) ->
     SockMod = (State#state.sockmod):get_sockmod(Socket),
     is_fast_tls_configured(SockMod, Socket).
 
-is_fast_tls_configured(ejabberd_tls, Socket) ->
-    fast_tls == ejabberd_tls:get_sockmod(ejabberd_socket:get_socket(Socket));
+is_fast_tls_configured(mongoose_tls, Socket) ->
+    fast_tls == mongoose_tls:get_sockmod(ejabberd_socket:get_socket(Socket));
 is_fast_tls_configured(_, _) ->
     false.
 
@@ -464,9 +462,6 @@ get_xml_lang(Attrs) ->
             %% avoid possible DoS/flood attacks
            <<>>
     end.
-
-verify_opts(verify_none) -> [verify_none];
-verify_opts(verify_peer) -> [].
 
 -spec get_peer_cert(state()) -> any() | error.
 get_peer_cert(#state{socket      = Socket,
@@ -490,12 +485,12 @@ wait_for_feature_before_auth({xmlstreamelement,
 wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     {Zlib, _} = StateData#state.zlib,
-    TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
-    TLSRequired = StateData#state.tls_required,
+    TLSMode = StateData#state.tls_mode,
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
+    CanUseTLS = can_use_tls(SockMod, StateData),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
-        {?NS_SASL, <<"auth">>} when TLSEnabled or not TLSRequired ->
+        {?NS_SASL, <<"auth">>} when TLSEnabled orelse TLSMode =/= starttls_required ->
             Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
             SaslState = StateData#state.sasl_state,
@@ -505,15 +500,8 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
             StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
-        {?NS_TLS, <<"starttls">>} when TLS == true,
-                                       TLSEnabled == false,
-                                       SockMod == gen_tcp ->
-            TLSOpts = case mongoose_config:lookup_opt([domain_certfile, StateData#state.host_type]) of
-                          {error, not_found} ->
-                              StateData#state.tls_options;
-                          {ok, CertFile} ->
-                              lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
-                      end,
+        {?NS_TLS, <<"starttls">>} when CanUseTLS ->
+            TLSOpts = tls_options_with_certfile(StateData),
             TLSSocket = mongoose_transport:starttls(StateData#state.sockmod,
                                                     StateData#state.socket,
                                                     TLSOpts, exml:to_binary(tls_proceed())),
@@ -524,11 +512,10 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                           });
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == mongoose_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
-          terminate_when_tls_required_but_not_enabled(TLSRequired, TLSEnabled,
-                                                      StateData, El)
+          terminate_when_tls_required_but_not_enabled(StateData, El)
     end;
 wait_for_feature_before_auth(timeout, StateData) ->
     {stop, normal, StateData};
@@ -541,6 +528,12 @@ wait_for_feature_before_auth(closed, StateData) ->
     {stop, normal, StateData};
 wait_for_feature_before_auth(_, StateData) ->
     c2s_stream_error(mongoose_xmpp_errors:policy_violation(), StateData).
+
+tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}) ->
+    case mongoose_config:lookup_opt([domain_certfile, HostType]) of
+        {ok, CertFile} -> TLSOptions#{certfile => CertFile};
+        {error, not_found} -> TLSOptions
+    end.
 
 compressed() ->
     #xmlel{name = <<"compressed">>,
@@ -693,7 +686,7 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_COMPRESS, <<"compress">>} when Zlib == true,
                                             ((SockMod == gen_tcp) or
-                                             (SockMod == ejabberd_tls)) ->
+                                             (SockMod == mongoose_tls)) ->
             check_compression_auth(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
@@ -1758,11 +1751,11 @@ new_id() ->
 get_conn_type(StateData) ->
     case (StateData#state.sockmod):get_sockmod(StateData#state.socket) of
         gen_tcp -> c2s;
-        ejabberd_tls -> c2s_tls;
+        mongoose_tls -> c2s_tls;
         ejabberd_zlib ->
             case ejabberd_zlib:get_sockmod(ejabberd_socket:get_socket(StateData#state.socket)) of
                 gen_tcp -> c2s_compressed;
-                ejabberd_tls -> c2s_compressed_tls
+                mongoose_tls -> c2s_compressed_tls
             end;
         _ -> unknown
     end.
@@ -3294,11 +3287,12 @@ user_allowed(JID, #state{host_type = HostType, server = Server, access = Access}
 open_session_allowed_hook(HostType, JID) ->
     allow == mongoose_hooks:session_opening_allowed_for_user(HostType, JID).
 
-terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
+terminate_when_tls_required_but_not_enabled(#state{tls_mode = starttls_required,
+                                                   tls_enabled = false} = StateData, _El) ->
     Lang = StateData#state.lang,
     c2s_stream_error(mongoose_xmpp_errors:policy_violation(Lang, <<"Use of STARTTLS required">>),
                      StateData);
-terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
+terminate_when_tls_required_but_not_enabled(StateData, El) ->
     process_unauthenticated_stanza(StateData, El),
     fsm_next_state(wait_for_feature_before_auth, StateData).
 

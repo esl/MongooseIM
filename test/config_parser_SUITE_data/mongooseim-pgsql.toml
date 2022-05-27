@@ -162,9 +162,8 @@
     username = "ejabberd"
     password = "mongooseim_secret"
     tls.required = true
-    tls.verify_peer = true
     tls.cacertfile = "priv/ca.pem"
-    tls.server_name_indication = false
+    tls.server_name_indication.enabled = false
 
 [services.service_admin_extra]
   submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",

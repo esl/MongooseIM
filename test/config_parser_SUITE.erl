@@ -37,6 +37,7 @@
 -import(config_parser_helper, [default_s2s/0,
                                extra_service_listener_config/0,
                                mod_event_pusher_http_handler/0,
+                               default_c2s_tls/1,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -126,6 +127,8 @@ groups() ->
                          pool_rdbms_connection_odbc,
                          pool_rdbms_connection_pgsql,
                          pool_rdbms_connection_mysql,
+                         pool_rdbms_connection_tls_pgsql,
+                         pool_rdbms_connection_tls_mysql,
                          pool_http,
                          pool_http_connection,
                          pool_http_connection_tls,
@@ -139,6 +142,7 @@ groups() ->
                          pool_cassandra_connection,
                          pool_cassandra_connection_auth_plain,
                          pool_cassandra_connection_servers,
+                         pool_cassandra_connection_tls,
                          pool_elastic,
                          pool_elastic_connection,
                          pool_rabbit,
@@ -495,53 +499,26 @@ listen_c2s_fast_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
                                        <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, [], T(#{<<"module">> => <<"fast_tls">>})),
-    ?cfg(P, [starttls], T(#{<<"mode">> => <<"starttls">>})),
-    ?cfg(P, [verify_peer], T(#{<<"verify_peer">> => true})),
-    ?cfg(P, [verify_none], T(#{<<"verify_peer">> => false})),
-    ?cfg(P, [{certfile, "priv/cert.pem"}], T(#{<<"certfile">> => <<"priv/cert.pem">>})),
-    ?cfg(P, [{cafile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
-    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfg(P, [{protocol_options, ["nosslv2"]}], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
+    ?cfg(P, default_c2s_tls(fast_tls), T(#{})),
+    test_fast_tls_server(P, T),
+    ?cfg(P ++ [mode], tls, T(#{<<"mode">> => <<"tls">>})),
     ?err(T(#{<<"mode">> => <<"stopttls">>})),
-    ?err(T(#{<<"module">> => <<"slow_tls">>})),
-    ?err(T(#{<<"verify_peer">> => <<"maybe">>})),
-    ?err(T(#{<<"crl_files">> => [<<"file1">>, <<"file2">>]})), % only for just_tls
-    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})),
-    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
-    ?err(T(#{<<"protocol_options">> => [<<>>]})).
+    ?err(T(#{<<"module">> => <<"slow_tls">>})).
 
 listen_c2s_just_tls(_Config) ->
     T = fun(Opts) -> listen_raw(c2s, #{<<"port">> => 5222,
                                        <<"tls">> => Opts#{<<"module">> => <<"just_tls">>}}) end,
     P = [listen, 1, tls],
-    BaseOpts = [{tls_module, just_tls}],
-    ?cfg(P, BaseOpts, T(#{})),
-    ?cfg(P, BaseOpts ++ [{ssl_options, [{verify_fun, {selfsigned_peer, false}}]}],
-         T(#{<<"verify_mode">> => <<"selfsigned_peer">>, <<"disconnect_on_failure">> => false})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{verify_fun, {peer, true}}]}],
-         T(#{<<"verify_mode">> => <<"peer">>})),
-    ?cfg(P,  BaseOpts ++ [{crlfiles, ["file1", "file2"]}],
-         T(#{<<"crl_files">> => [<<"file1">>, <<"file2">>]})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{certfile, "priv/cert.pem"}]}],
-         T(#{<<"certfile">> => <<"priv/cert.pem">>})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{cacertfile, "priv/ca.pem"}]}],
-         T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{dhfile, "priv/dh.pem"}]}],
-         T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}],
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfg(P,  BaseOpts ++ [{ssl_options, [{versions, ['tlsv1.2', 'tlsv1.3']}]}],
-         T(#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
-    ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
-    ?err(T(#{<<"verify_mode">> => <<"peer">>, <<"disconnect_on_failure">> => <<"sometimes">>})),
-    ?err(T(#{<<"crl_files">> => [<<>>]})),
-    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})),
-    ?err(T(#{<<"protocol_options">> => [<<"nosslv2">>]})). % only for fast_tls
+    ?cfg(P, default_c2s_tls(just_tls), T(#{})),
+    test_just_tls_server(P, T),
+    ?cfg(P ++ [mode], tls, T(#{<<"mode">> => <<"tls">>})),
+    ?cfg(P ++ [disconnect_on_failure], false, T(#{<<"disconnect_on_failure">> => false})),
+    ?cfg(P ++ [crl_files], ["priv/cert.pem"], % note: this is not a real CRL file
+         T(#{<<"crl_files">> => [<<"priv/cert.pem">>]})),
+    ?err(T(#{<<"mode">> => <<"stopttls">>})),
+    ?err(T(#{<<"disconnect_on_failure">> => <<"sometimes">>})),
+    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"crl_files">> => [<<"no_such_file.crl">>]})).
 
 listen_s2s(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, maps:merge(#{<<"port">> => 5269}, Opts)) end,
@@ -555,15 +532,8 @@ listen_s2s(_Config) ->
 listen_s2s_tls(_Config) ->
     T = fun(Opts) -> listen_raw(s2s, #{<<"port">> => 5269, <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, [{cafile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
-    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfg(P, [{protocol_options, ["nosslv2"]}], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
-    ?err(T(#{<<"cacertfile">> => <<>>})),
-    ?err(T(#{<<"dhfile">> => 12})),
-    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
-    ?err(T(#{<<"protocol_options">> => [<<>>]})).
+    ?cfg(P, default_config([listen, s2s, tls]), T(#{})),
+    test_fast_tls_server(P, T).
 
 listen_service(_Config) ->
     T = fun(Opts) -> listen_raw(service, maps:merge(#{<<"port">> => 8888,
@@ -597,19 +567,8 @@ listen_http(_Config) ->
 listen_http_tls(_Config) ->
     T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"tls">> => Opts}) end,
     P = [listen, 1, tls],
-    ?cfg(P, [{verify, verify_peer}], T(#{<<"verify_peer">> => true})),
-    ?cfg(P, [{verify_mode, peer}], T(#{<<"verify_mode">> => <<"peer">>})),
-    ?cfg(P, [{certfile, "priv/cert.pem"}], T(#{<<"certfile">> => <<"priv/cert.pem">>})),
-    ?cfg(P, [{cacertfile, "priv/ca.pem"}], T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
-    ?cfg(P, [{dhfile, "priv/dh.pem"}], T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
-    ?cfg(P, [{ciphers, "TLS_AES_256_GCM_SHA384"}],
-         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?err(T(#{<<"verify_peer">> => 0})),
-    ?err(T(#{<<"verify_mode">> => <<"pear">>})),
-    ?err(T(#{<<"certfile">> => <<>>})),
-    ?err(T(#{<<"cacertfile">> => <<>>})),
-    ?err(T(#{<<"dhfile">> => 12})),
-    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})).
+    test_just_tls_server(P, T),
+    ?cfg(P, default_config([listen, http, tls]), T(#{})).
 
 listen_http_transport(_Config) ->
     T = fun(Opts) -> listen_raw(http, #{<<"port">> => 5280, <<"transport">> => Opts}) end,
@@ -952,21 +911,30 @@ pool_rdbms_connection_pgsql(_Config) ->
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Opts) end,
     Required = raw_sql_opts(pgsql),
     test_pool_rdbms_connection_common_opts(P, T, Required),
-    test_pool_rdbms_connection_sql_opts(P, T, Required, sql_opts(pgsql, 5432)),
-    ?cfg(P ++ [tls], [{required, true}], T(Required#{<<"tls">> => #{<<"required">> => true}})),
-    ?cfg(P ++ [tls], [], T(Required#{<<"tls">> => #{}})),
-    %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(P ++ [tls], [{certfile, "cert.pem"}],
-         T(Required#{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?err(T(Required#{<<"tls">> => #{<<"required">> => <<"maybe">>}})).
+    test_pool_rdbms_connection_sql_opts(P, T, Required, sql_opts(pgsql, 5432)).
+
+pool_rdbms_connection_tls_pgsql(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    Required = raw_sql_opts(pgsql),
+    T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
+    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts, tls], #{required => false}), T(#{})),
+    ?cfg(P ++ [required], true, T(#{<<"required">> => true})),
+    ?err(T(#{<<"required">> => <<"maybe">>})),
+    test_just_tls_client(P, T).
 
 pool_rdbms_connection_mysql(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Opts) end,
     Required = raw_sql_opts(mysql),
     test_pool_rdbms_connection_common_opts(P, T, Required),
-    test_pool_rdbms_connection_sql_opts(P, T, Required, sql_opts(mysql, 3306)),
-    ?cfg(P ++ [tls], [], T(Required#{<<"tls">> => #{}})).
+    test_pool_rdbms_connection_sql_opts(P, T, Required, sql_opts(mysql, 3306)).
+
+pool_rdbms_connection_tls_mysql(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    Required = raw_sql_opts(mysql),
+    T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
+    ?err(T(#{<<"required">> => true})), % only for pgsql
+    test_just_tls_client(P, T).
 
 test_pool_rdbms_connection_sql_opts(P, T, Required, Expected) ->
     ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts], Expected), T(Required)),
@@ -1018,53 +986,9 @@ pool_http_connection(_Config) ->
 pool_http_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
     T = fun(Opts) -> pool_conn_raw(<<"http">>, #{<<"host">> => <<"http://localhost">>,
-                                                 <<"tls">> => Opts})
-        end,
-    ?cfg(P, [{certfile, "cert.pem"}], T(#{<<"certfile">> => <<"cert.pem">>})),
-    ?cfg(P, [{certfile, "cert.pem"},
-             {verify, verify_peer},
-             {cacertfile, "priv/ca.pem"},
-             {server_name_indication, disable}],
-         T(#{<<"certfile">> => <<"cert.pem">>,
-             <<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>,
-             <<"server_name_indication">> => false})),
-    ?cfg(P, [{certfile, "cert.pem"},
-             {verify, verify_peer},
-             {cacertfile, "priv/ca.pem"},
-             {server_name_indication, "domain.com"}],
-         T(#{<<"certfile">> => <<"cert.pem">>,
-             <<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>,
-             <<"server_name_indication">> => true,
-             <<"server_name_indication_host">> => <<"domain.com">>})),
-    ?cfg(P, [{certfile, "cert.pem"},
-             {verify, verify_peer},
-             {cacertfile, "priv/ca.pem"},
-             {server_name_indication, "domain.com"},
-             {customize_hostname_check,
-              [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}],
-         T(#{<<"certfile">> => <<"cert.pem">>,
-             <<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>,
-             <<"server_name_indication">> => true,
-             <<"server_name_indication_host">> => <<"domain.com">>,
-             <<"server_name_indication_protocol">> => <<"https">>})),
-    ?cfg(P, [{verify, verify_peer},
-             {cacertfile, "priv/ca.pem"}],
-         T(#{<<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>})),
-    ?err(T(#{<<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>,
-             <<"server_name_indication">> => <<"domain.com">>,
-             <<"server_name_indication_host">> => <<"domain.com">>})),
-    ?err(T(#{<<"verify_peer">> => true,
-             <<"cacertfile">> => <<"priv/ca.pem">>,
-             <<"server_name_indication">> => <<"true">>,
-             <<"server_name_indication_host">> => <<"domain.com">>,
-             <<"server_name_indication_protocol">> => <<"non_value">>})),
-    ?err(T(#{<<"certfile">> => true})),
-    ?err(T(<<"secure">>)).
+                                                 <<"tls">> => Opts}) end,
+    ?cfg(P, default_config([outgoing_pools, http, default, conn_opts, tls]), T(#{})),
+    test_just_tls_client(P, T).
 
 pool_redis(_Config) ->
     test_pool_opts(redis, #{}).
@@ -1107,20 +1031,14 @@ pool_riak_connection_credentials(_Config) ->
 
 pool_riak_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
-    T = fun(Opts) -> pool_conn_raw(<<"riak">>,
-                                   (required_riak_connection_opts())#{<<"tls">> => Opts})
-        end,
-    %% make sure 'certfile' is extracted out of 'ssl_opts'
-    %% all the TLS options are checked by 'listen_tls_*' tests
-    ?cfg(P, [{cacertfile, "cacert.pem"}], T(#{<<"cacertfile">> => <<"cacert.pem">>})),
-    ?cfg(P, [{ssl_opts, [{certfile, "path/to/cert.pem"},
-                         {dhfile, "cert.pem"},
-                         {keyfile, "path/to/key.pem"}]}],
-         T(#{<<"certfile">> => <<"path/to/cert.pem">>,
-             <<"dhfile">> => <<"cert.pem">>,
-             <<"keyfile">> => <<"path/to/key.pem">>})),
-    ?err(T(#{<<"cacertfile">> => <<>>})),
-    ?err(T(#{<<"certfile">> => <<>>})).
+    T0 = fun(Opts) -> pool_conn_raw(<<"riak">>,
+                                    (required_riak_connection_opts())#{<<"tls">> => Opts}) end,
+    T = fun(Opts) -> T0(maps:merge(#{<<"cacertfile">> => <<"priv/ca.pem">>}, Opts)) end,
+    ?cfg(P, config([outgoing_pools, riak, default, conn_opts, tls], #{cacertfile => "priv/ca.pem"}),
+         T(#{})),
+    test_just_tls_client(P, T),
+    ?err(T0(#{})), % missing required 'cacertfile'
+    ?err(T(#{<<"verify_mode">> => <<"none">>})). % verification is mandatory for Riak
 
 required_riak_connection_opts() ->
     #{<<"address">> => <<"127.0.0.1">>, <<"port">> => 8087}.
@@ -1133,10 +1051,7 @@ pool_cassandra_connection(_Config) ->
     T = fun(Opts) -> pool_conn_raw(<<"cassandra">>, Opts) end,
     ?cfg(P, default_config([outgoing_pools, cassandra, default, conn_opts]), T(#{})),
     ?cfg(P ++ [keyspace], big_mongooseim, T(#{<<"keyspace">> => <<"big_mongooseim">>})),
-    %% only one tls option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(P ++ [tls], [{verify, verify_none}], T(#{<<"tls">> => #{<<"verify_peer">> => false}})),
-    ?err(T(#{<<"keyspace">> => <<>>})),
-    ?err(T(#{<<"tls">> => #{<<"verify_peer">> => <<"verify_pear">>}})).
+    ?err(T(#{<<"keyspace">> => <<>>})).
 
 pool_cassandra_connection_auth_plain(_Config) ->
     P = [outgoing_pools, 1, conn_opts, auth, plain],
@@ -1156,6 +1071,12 @@ pool_cassandra_connection_servers(_Config) ->
     ?err(T([Required, Required#{<<"port">> => 9042}])), % same port for both servers
     ?err(T([#{}])), % missing host
     ?err(T([])). % no servers
+
+pool_cassandra_connection_tls(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    T = fun(Opts) -> pool_conn_raw(<<"cassandra">>, #{<<"tls">> => Opts}) end,
+    ?cfg(P, default_config([outgoing_pools, cassandra, default, conn_opts, tls]), T(#{})),
+    test_just_tls_client(P, T).
 
 pool_elastic(_Config) ->
     test_pool_opts(elastic, #{<<"connection">> => #{}}).
@@ -1202,17 +1123,19 @@ pool_ldap_connection(_Config) ->
     ?cfg(P ++ [root_dn], <<"my_rootdn">>, T(#{<<"root_dn">> => <<"my_rootdn">>})),
     ?cfg(P ++ [password], <<"pass">>, T(#{<<"password">> => <<"pass">>})),
     ?cfg(P ++ [connect_interval], 5000, T(#{<<"connect_interval">> => 5000})),
-    ?cfg(P ++ [tls], [], T(#{<<"tls">> => #{}})),
     ?cfg(P ++ [port], 636, T(#{<<"tls">> => #{}})), % default TLS port is different
-    %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(P ++ [tls], [{verify, verify_peer}], T(#{<<"tls">> => #{<<"verify_peer">> => true}})),
     ?err(T(#{<<"servers">> => [<<"server1.example.com">>, <<"server1.example.com">>]})),
     ?err(T(#{<<"servers">> => []})),
     ?err(T(#{<<"port">> => 123456})),
     ?err(T(#{<<"root_dn">> => 1})),
     ?err(T(#{<<"password">> => true})),
-    ?err(T(#{<<"connect_interval">> => <<"infinity">>})),
-    ?err(T(#{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+    ?err(T(#{<<"connect_interval">> => <<"infinity">>})).
+
+pool_ldap_connection_tls(_Config) ->
+    P = [outgoing_pools, 1, conn_opts, tls],
+    T = fun(Opts) -> pool_conn_raw(<<"ldap">>, #{<<"tls">> => Opts}) end,
+    ?cfg(P, default_config([outgoing_pools, ldap, default, conn_opts, tls]), T(#{})),
+    test_just_tls_client(P, T).
 
 test_pool_opts(Type, Required) ->
     P = [outgoing_pools, 1, opts],
@@ -1224,6 +1147,64 @@ test_pool_opts(Type, Required) ->
     ?err(T(Required#{<<"workers">> => 0})),
     ?err(T(Required#{<<"strategy">> => <<"worst_worker">>})),
     ?err(T(Required#{<<"call_timeout">> => 0})).
+
+test_just_tls_client(P, T) ->
+    test_just_tls_common(P, T),
+    test_just_tls_client_sni(P, T),
+    ?err(T(#{<<"dhfile">> => <<"priv/dh.pem">>})). % server-only
+
+test_just_tls_server(P, T) ->
+    test_just_tls_common(P, T),
+    ?cfg(P ++ [dhfile], "priv/dh.pem", T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})).
+
+test_just_tls_common(P, T) ->
+    ?cfg(P ++ [verify_mode], selfsigned_peer, T(#{<<"verify_mode">> => <<"selfsigned_peer">>})),
+    ?cfg(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P ++ [keyfile], "priv/dc1.pem", T(#{<<"keyfile">> => <<"priv/dc1.pem">>})),
+    ?cfg(P ++ [password], "secret", T(#{<<"password">> => <<"secret">>})),
+    ?cfg(P ++ [versions], ['tlsv1.2', 'tlsv1.3'],
+         T(#{<<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]})),
+    ?err(T(#{<<"verify_mode">> => <<"whatever">>})),
+    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(#{<<"keyfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"password">> => false})),
+    ?err(T(#{<<"versions">> => <<"tlsv1.2">>})),
+    ?err(T(#{<<"protocol_options">> => [<<"nosslv2">>]})). % only for fast_tls
+
+test_just_tls_client_sni(ParentP, ParentT) ->
+    P = ParentP ++ [server_name_indication],
+    T = fun(Opts) -> ParentT(#{<<"server_name_indication">> => Opts}) end,
+    ?cfg(P ++ [enabled], false, T(#{<<"enabled">> => false})),
+    ?cfg(P ++ [host], "host.example.com", T(#{<<"host">> => <<"host.example.com">>})),
+    ?cfg(P ++ [protocol], https, T(#{<<"protocol">> => <<"https">>})),
+    ?err(T(#{<<"enabled">> => <<"maybe">>})),
+    ?err(T(#{<<"host">> => <<>>})),
+    ?err(T(#{<<"protocol">> => <<"http">>})).
+
+test_fast_tls_server(P, T) ->
+    ?cfg(P ++ [verify_mode], none, T(#{<<"verify_mode">> => <<"none">>})),
+    ?cfg(P ++ [certfile], "priv/cert.pem", T(#{<<"certfile">> => <<"priv/cert.pem">>})),
+    ?cfg(P ++ [cacertfile], "priv/ca.pem", T(#{<<"cacertfile">> => <<"priv/ca.pem">>})),
+    ?cfg(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
+         T(#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
+    ?cfg(P ++ [dhfile], "priv/dh.pem", T(#{<<"dhfile">> => <<"priv/dh.pem">>})),
+    ?cfg(P ++ [protocol_options], ["nosslv2"], T(#{<<"protocol_options">> => [<<"nosslv2">>]})),
+    ?err(T(#{<<"verify_mode">> => <<"selfsigned_peer">>})), % value only for just_tls
+    ?err(T(#{<<"crl_files">> => [<<"priv/cert.pem">>]})), % option only for just_tls
+    ?err(T(#{<<"certfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"cacertfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]})),
+    ?err(T(#{<<"dhfile">> => <<"no_such_file.pem">>})),
+    ?err(T(#{<<"keyfile">> => <<"priv/dc1.pem">>})), % option only for just_tls
+    ?err(T(#{<<"password">> => <<"secret">>})), % option only for just_tls
+    ?err(T(#{<<"versions">> => [<<"tlsv1.2">>]})), % option only for just_tls
+    ?err(T(#{<<"protocol_options">> => [<<>>]})).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
@@ -1397,7 +1378,7 @@ s2s_address(_Config) ->
     ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
 
 s2s_ciphers(_Config) ->
-    ?cfgh([s2s, ciphers], ejabberd_tls:default_ciphers(), #{}), % default
+    ?cfgh([s2s, ciphers], mongoose_tls:default_ciphers(), #{}), % default
     ?cfgh([s2s, ciphers], "TLSv1.2",
           #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2">>}}),
     ?errh(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
@@ -1673,24 +1654,14 @@ check_mod_global_distrib_endpoint_opts(OptKey) ->
 
 mod_global_distrib_connections_tls(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
-    P = [modules, mod_global_distrib, connections, tls],
+    P = host_key([modules, mod_global_distrib, connections, tls]),
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"connections">> => #{<<"tls">> => Opts}}}}
         end,
-    RequiredOpts = #{<<"certfile">> => <<"priv/cert.pem">>,
-                     <<"cacertfile">> => <<"priv/ca.pem">>},
-    ExpectedCfg = config(P, #{certfile => "priv/cert.pem", cafile => "priv/ca.pem"}),
-    ?cfgh(P, ExpectedCfg, T(RequiredOpts)),
-    ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
-          T(RequiredOpts#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfgh(P ++ [dhfile], "priv/cert.pem",
-          T(RequiredOpts#{<<"dhfile">> => <<"priv/cert.pem">>})),
-    [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
-    ?errh(T(RequiredOpts#{<<"certfile">> => <<"/this/does/not/exist">>})),
-    ?errh(T(RequiredOpts#{<<"cacertfile">> => <<"/this/does/not/exist">>})),
-    ?errh(T(RequiredOpts#{<<"dhfile">> => <<"/this/does/not/exist">>})),
-    ?errh(T(RequiredOpts#{<<"ciphers">> => 42})).
+    % Does not test host_config, but other tests do that,
+    % and this module should be enabled globally anyway
+    test_fast_tls_server(P, T).
 
 mod_global_distrib_redis(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
@@ -3139,15 +3110,10 @@ handle_config_option(Opt1, Opt2) ->
           any().
 compare_nodes([listen] = P, V1, V2) ->
     compare_ordered_lists_of_nodes(P, V1, V2);
-compare_nodes([listen, I, tls], V1, V2) when is_integer(I) ->
-    compare_unordered_lists(V1, V2);
 compare_nodes([listen, I, handlers] = P, V1, V2) when is_integer(I) ->
     compare_ordered_lists_of_nodes(P, V1, V2);
 compare_nodes([outgoing_pools] = P, V1, V2) ->
     compare_ordered_lists_of_nodes(P, V1, V2);
-compare_nodes([outgoing_pools, I, conn_opts, K], V1, V2)
-  when is_integer(I), K =:= http_opts orelse K =:= tls ->
-    compare_unordered_lists(V1, V2);
 compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
     compare_maps(V1, V2, fun({K1, MV1}, {K2, MV2}) ->
                                  ?eq(K1, K2),

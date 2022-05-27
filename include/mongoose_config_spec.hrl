@@ -1,8 +1,8 @@
 -ifndef(MONGOOSEIM_CONFIG_SPEC_HRL).
 -define(MONGOOSEIM_CONFIG_SPEC_HRL, true).
 
--record(section, {items :: #{mongoose_config_parser_toml:toml_key() | default =>
-                                 mongoose_config_spec:config_node()},
+-record(section, {items = #{} :: #{mongoose_config_parser_toml:toml_key() | default =>
+                                       mongoose_config_spec:config_node()},
                   validate_keys = any :: mongoose_config_validator:validator(),
                   required = [] :: [mongoose_config_parser_toml:toml_key()] | all,
                   validate = any :: mongoose_config_validator:section_validator(),
