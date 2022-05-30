@@ -42,6 +42,7 @@
          user_receive_packet/6,
          user_sent_keep_alive/2,
          user_send_packet/4,
+         user_send_packet/5,
          vcard_set/4,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
@@ -512,6 +513,16 @@ user_send_packet(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
 
+-spec user_send_packet(HostType, Acc, From, To, Packet) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Packet :: exml:element(),
+    Result :: mongoose_acc:t().
+user_send_packet(HostType, Acc, From, To, Packet) ->
+    run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
+
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
 -spec vcard_set(HostType, Server, LUser, VCard) -> Result when
@@ -570,7 +581,7 @@ c2s_filter_packet(State, Feature, To, Packet) ->
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    State :: ejabberd_c2s:state(),
+    State :: tuple(),
     Result :: mongoose_acc:t().
 c2s_preprocessing_hook(HostType, Acc, State) ->
     run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
