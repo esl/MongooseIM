@@ -87,7 +87,7 @@ handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_st
 handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData = #state{lserver = LServer}) ->
     case mongoose_config:get_opt(hide_service_name, false) of
         true ->
-            {stop, normal, StateData};
+            {stop, {shutdown, stream_error}};
         false ->
             send_header(StateData, LServer, <<"1.0">>, <<>>),
             c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed())
@@ -97,7 +97,7 @@ handle_event(internal, #xmlstreamstart{}, _, StateData) ->
 
 handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
-    {stop, normal, StateData};
+    {stop, {shutdown, stream_end}};
 handle_event(internal, {xmlstreamerror, _}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, _, _}, StateData) ->
@@ -148,23 +148,29 @@ handle_event({timeout, replaced_wait_timeout}, ReplacedPids, FsmState, StateData
       end || Pid <- ReplacedPids ],
     keep_state_and_data;
 
-handle_event(info, {tcp_closed, Socket}, _, _StateData = #state{socket = Socket}) ->
-    {stop, tcp_closed};
-handle_event(info, {tcp_error, Socket}, _, _StateData = #state{socket = Socket}) ->
-    {stop, tcp_error};
+handle_event(info, {Closed, Socket}, _, _StateData = #state{socket = Socket})
+  when Closed =:= tcp_closed; Closed =:= ssl_closed ->
+    {stop, {shutdown, socket_closed}};
+handle_event(info, {Error, Socket}, _, _StateData = #state{socket = Socket})
+  when Error =:= tcp_error; Error =:= ssl_error ->
+    {stop, {shutdown, socket_error}};
+
+handle_event(info, replaced, _FsmState, StateData) ->
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, replaced}};
 
 handle_event(EventType, EventContent, FsmState, StateData) ->
     ?LOG_DEBUG(#{what => unknown_info_event, stuff => [EventType, EventContent, FsmState, StateData]}),
     keep_state_and_data.
 
-terminate(Reason, FsmState, StateData = #state{socket = Socket, transport = Transport})
-  when Socket =/= undefined, Transport =/= undefined ->
-    catch Transport:close(Socket),
-    terminate(Reason, FsmState, StateData#state{socket = undefined, transport = undefined});
-terminate(Reason, FsmState, StateData = #state{parser = Parser}) ->
+terminate(Reason, FsmState, StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, stuff => [Reason, FsmState, StateData]}),
-    free_parser(Parser),
-	ok.
+    close_session(StateData, FsmState, Reason),
+    close_parser(StateData),
+    close_socket(StateData),
+    ok.
 
 %%%----------------------------------------------------------------------
 %%% helpers
@@ -241,7 +247,7 @@ handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
     mongoose_hooks:auth_failed(HostType, Server, Username),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
     maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries);
-handle_sasl_step(#state{host_type = HostType, lserver = Server, socket = _Sock} = StateData,
+handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
                  {error, Error}, SaslState, Retries) ->
     mongoose_hooks:auth_failed(HostType, Server, unknown),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
@@ -301,7 +307,7 @@ handle_bind_resource(StateData, IQ, Res, _, _) ->
   % backward compatibility an implementation MAY still offer that
   % feature.  This enables older software to connect while letting
   % newer software save a round trip.
--spec do_bind_resource(state(), jlib:iq(), jid:lresource() | error) -> fsm_res().
+-spec do_bind_resource(state(), jlib:iq(), jid:lresource()) -> fsm_res().
 do_bind_resource(StateData, IQ, Res) ->
     Jid = jid:replace_resource(StateData#state.jid, Res),
     {NewStateData, FsmActions} = open_session(StateData, Jid),
@@ -446,7 +452,7 @@ c2s_stream_error(StateData, Error) ->
     ?LOG_DEBUG(#{what => c2s_stream_error, xml_error => Error, c2s_state => StateData}),
     send_element_from_server_jid(StateData, Error),
     send_text(StateData, ?STREAM_TRAILER),
-    {stop, normal, StateData}.
+    {stop, {shutdown, stream_error}, StateData}.
 
 -spec send_element_from_server_jid(state(), exml:element()) -> any().
 send_element_from_server_jid(StateData, El) ->
@@ -466,9 +472,49 @@ parse_input(Packet, #state{parser = Parser}) ->
         {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
     end.
 
--spec free_parser(undefined | exml_stream:parser()) -> ok.
-free_parser(undefined) -> ok;
-free_parser(Parser) -> exml_stream:free_parser(Parser).
+-spec close_parser(state()) -> ok.
+close_parser(#state{parser = undefined}) -> ok;
+close_parser(#state{parser = Parser}) -> exml_stream:free_parser(Parser).
+
+-spec close_socket(state()) -> term().
+close_socket(#state{socket = Socket, transport = Transport})
+  when Socket =/= undefined, Transport =/= undefined ->
+    catch Transport:close(Socket);
+close_socket(_) ->
+    ok.
+
+-spec close_session(state(), fsm_state(), term()) -> any().
+close_session(StateData, session_established, Reason) ->
+    Status = close_session_status(Reason),
+    PresenceUnavailable = mongoose_c2s_stanzas:presence_unavailable(Status),
+    Acc = mongoose_acc:new(#{host_type => StateData#state.host_type,
+                             lserver => StateData#state.lserver,
+                             location => ?LOCATION,
+                             from_jid => StateData#state.jid,
+                             to_jid => jid:to_bare(StateData#state.jid),
+                             element => PresenceUnavailable}),
+    ejabberd_sm:close_session_unset_presence(
+      Acc, StateData#state.sid, StateData#state.jid, Status, sm_unset_reason(Reason));
+close_session(_, _, _) ->
+    ok.
+
+close_session_status({shutdown, retries}) ->
+    <<"Too many attempts">>;
+close_session_status({shutdown, replaced}) ->
+    <<"Replaced by new connection">>;
+close_session_status(normal) ->
+    <<>>;
+close_session_status(_) ->
+    <<"Unknown condition">>.
+
+sm_unset_reason({shutdown, retries}) ->
+    retries;
+sm_unset_reason({shutdown, replaced}) ->
+    replaced;
+sm_unset_reason(normal) ->
+    normal;
+sm_unset_reason(_) ->
+    error.
 
 %% @doc This is the termination point - from here stanza is sent to the user
 -spec send_element(state(), exml:element(), mongoose_acc:t()) -> maybe_ok().

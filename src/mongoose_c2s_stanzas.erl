@@ -118,3 +118,14 @@ successful_resource_binding(IQ, Jid) ->
                                  attrs = [{<<"xmlns">>, ?NS_BIND}],
                                  children = [JIDEl]}]},
     jlib:iq_to_xml(Res).
+
+-spec presence_unavailable(binary()) -> exml:element().
+presence_unavailable(<<>>) ->
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, <<"unavailable">>}]};
+presence_unavailable(Status) ->
+    StatusEl = #xmlel{name = <<"status">>,
+                      children = [#xmlcdata{content = Status}]},
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, <<"unavailable">>}],
+           children = [StatusEl]}.
