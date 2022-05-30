@@ -64,7 +64,7 @@ handle_event(cast, connect, connecting,
     {ok, Socket} = ranch:handshake(Ref),
     Transport:setopts(Socket, [{active, once}]),
     {ok, NewParser} = exml_stream:new_parser([{max_child_size, 65536}]),
-    NewState = StateData#state{socket = Socket, parser = NewParser},
+    NewState = StateData#state{lserver = ?MYNAME, socket = Socket, parser = NewParser},
     {next_state, {wait_for_stream, stream_start}, NewState};
 
 %% TODO in any state? probably only during session_established
@@ -84,7 +84,14 @@ handle_event(info, {TcpOrSSl, Socket, Input}, _FsmState,
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
     handle_stream_start(StateData, StreamStart, StreamState);
-
+handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData = #state{lserver = LServer}) ->
+    case mongoose_config:get_opt(hide_service_name, false) of
+        true ->
+            {stop, normal, StateData};
+        false ->
+            send_header(StateData, LServer, <<"1.0">>, <<>>),
+            c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed())
+    end;
 handle_event(internal, #xmlstreamstart{}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation());
 
