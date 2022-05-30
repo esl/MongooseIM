@@ -24,7 +24,8 @@
           ranch_ref :: ranch:ref(),
           transport :: module(),
           socket :: ranch_transport:socket(),
-          parser :: undefined | exml_stream:parser()
+          parser :: undefined | exml_stream:parser(),
+          listener_opts :: mongoose_listener:options()
          }).
 -type state() :: #state{}.
 -type maybe_ok() :: ok | {error, atom()}.
@@ -51,13 +52,15 @@ callback_mode() ->
 
 -spec init({ranch:ref(), module(), mongoose_listener:options()}) ->
     gen_statem:init_result(fsm_state(), state()).
-init({Ref, Transport, _Opts}) ->
-    StateData = #state{ranch_ref = Ref, transport = Transport},
+init({Ref, Transport, Opts}) ->
+    StateData = #state{ranch_ref = Ref, transport = Transport, listener_opts = Opts},
     gen_statem:cast(self(), connect),
     {ok, connecting, StateData}.
 
 -spec handle_event(gen_statem:event_type(), term(), fsm_state(), state()) -> fsm_res().
-handle_event(cast, connect, connecting, StateData = #state{ranch_ref = Ref, transport = Transport}) ->
+handle_event(cast, connect, connecting,
+             StateData = #state{listener_opts = Opts, ranch_ref = Ref, transport = Transport}) ->
+    maps:get(proxy_protocol, Opts) andalso ranch:recv_proxy_header(Ref, 1000),
     {ok, Socket} = ranch:handshake(Ref),
     Transport:setopts(Socket, [{active, once}]),
     {ok, NewParser} = exml_stream:new_parser([{max_child_size, 65536}]),
