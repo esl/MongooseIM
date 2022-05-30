@@ -20,7 +20,6 @@
           lserver = <<>> :: jid:lserver(),
           jid :: undefined | jid:jid(),
           sid = ejabberd_sm:make_new_sid() :: ejabberd_sm:sid(),
-          sasl_state :: cyrsasl:sasl_state(),
           streamid = new_stream_id() :: binary(),
           ranch_ref :: ranch:ref(),
           transport :: module(),
@@ -33,11 +32,11 @@
 
 -type retries() :: 0..64.
 -type stream_state() :: stream_start | authenticated.
--type feature_state() :: before_auth | after_auth.
 -type fsm_state() :: connecting
                    | {wait_for_stream, stream_state()}
-                   | {wait_for_feature, feature_state(), retries()}
-                   | {wait_for_sasl_response, retries()}
+                   | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
+                   | {wait_for_feature_after_auth, retries()}
+                   | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
                    | session_established
                    | resume_session.
 
@@ -87,35 +86,35 @@ handle_event(internal, #xmlstreamend{}, _, StateData) ->
     {stop, normal, StateData};
 handle_event(internal, {xmlstreamerror, _}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
-handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature, before_auth, _}, StateData) ->
+handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, _, _}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
             handle_starttls(StateData);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature, before_auth, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_auth, SaslState, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
-            handle_auth_start(StateData, El, Retries);
+            handle_auth_start(StateData, El, SaslState, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, SaslState, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
-            handle_auth_continue(StateData, El, Retries);
+            handle_auth_continue(StateData, El, SaslState, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature, after_auth, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_auth, Retries}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND} = IQ ->
             handle_bind_resource(StateData, IQ, El, Retries);
         _ ->
             Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
             send_element_from_server_jid(StateData, Err),
-            maybe_retry_state(StateData, {wait_for_feature, after_auth, Retries - 1}, Retries)
+            maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries - 1}, Retries)
     end;
 handle_event(internal, #xmlel{} = El, session_established, StateData) ->
     case verify_from(El, StateData#state.jid) of
@@ -197,42 +196,42 @@ handle_starttls(StateData = #state{transport = Transport, socket = TcpSocket, pa
                                    streamid = new_stream_id()},
     {next_state, {wait_for_stream, stream_start}, NewStateData}.
 
--spec handle_auth_start(state(), exml:element(), retries()) -> fsm_res().
-handle_auth_start(StateData, El, Retries) ->
+-spec handle_auth_start(state(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+handle_auth_start(StateData, El, SaslState, Retries) ->
     Mech = exml_query:attr(El, <<"mechanism">>),
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
     HostType = StateData#state.host_type,
     AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(M)],
     SocketData = #{socket => StateData#state.socket, auth_mech => AuthMech},
-    StepResult = cyrsasl:server_start(StateData#state.sasl_state, Mech, ClientIn, SocketData),
-    handle_sasl_step(StateData, StepResult, Retries).
+    StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
+    handle_sasl_step(StateData, StepResult, SaslState, Retries).
 
--spec handle_auth_continue(state(), exml:element(), retries()) -> fsm_res().
-handle_auth_continue(StateData, El, Retries) ->
+-spec handle_auth_continue(state(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+handle_auth_continue(StateData, El, SaslState, Retries) ->
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
-    StepResult = cyrsasl:server_step(StateData#state.sasl_state, ClientIn),
-    handle_sasl_step(StateData, StepResult, Retries).
+    StepResult = cyrsasl:server_step(SaslState, ClientIn),
+    handle_sasl_step(StateData, StepResult, SaslState, Retries).
 
--spec handle_sasl_step(state(), term(), retries()) -> fsm_res().
-handle_sasl_step(StateData, {ok, Creds}, _) ->
+-spec handle_sasl_step(state(), term(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+handle_sasl_step(StateData, {ok, Creds}, _, _) ->
     handle_sasl_success(StateData, Creds);
-handle_sasl_step(StateData, {continue, ServerOut, NewSASLState}, Retries) ->
+handle_sasl_step(StateData, {continue, ServerOut, NewSaslState}, _, Retries) ->
     Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_challenge_stanza(Challenge)),
-    {next_state, {wait_for_sasl_response, Retries}, StateData#state{sasl_state = NewSASLState}};
+    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData};
 handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
-                 {error, Error, Username}, Retries) ->
+                 {error, Error, Username}, SaslState, Retries) ->
     ?LOG_INFO(#{what => auth_failed,
                 text => <<"Failed SASL authentication">>,
                 user => Username, lserver => Server, c2s_state => StateData}),
     mongoose_hooks:auth_failed(HostType, Server, Username),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature, before_auth, Retries - 1}, Retries);
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries);
 handle_sasl_step(#state{host_type = HostType, lserver = Server, socket = _Sock} = StateData,
-                 {error, Error}, Retries) ->
+                 {error, Error}, SaslState, Retries) ->
     mongoose_hooks:auth_failed(HostType, Server, unknown),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature, before_auth, Retries - 1}, Retries).
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries).
 
 -spec handle_sasl_success(state(), term()) -> fsm_res().
 handle_sasl_success(State, Creds) ->
@@ -252,15 +251,14 @@ stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer),
     send_element_from_server_jid(S, StreamFeatures),
-    StateData = S#state{sasl_state = SASLState},
-    {next_state, {wait_for_feature, before_auth, ?AUTH_RETRIES}, StateData, ?C2S_OPEN_TIMEOUT}.
+    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, ?C2S_OPEN_TIMEOUT}.
 
 -spec stream_start_features_after_auth(state()) -> fsm_res().
 stream_start_features_after_auth(#state{host_type = HostType, lserver = LServer} = S) ->
     send_header(S, LServer, <<"1.0">>, ?MYLANG),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer),
     send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature, after_auth, ?BIND_RETRIES}, S}.
+    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S}.
 
 -spec handle_bind_resource(state(), jlib:iq(), exml:element(), retries()) -> fsm_res().
 handle_bind_resource(StateData, #iq{sub_el = SubEl} = IQ, El, Retries) ->
@@ -273,7 +271,7 @@ handle_bind_resource(StateData, #iq{sub_el = SubEl} = IQ, El, Retries) ->
 handle_bind_resource(StateData, _, error, El, Retries) ->
     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
     send_element_from_server_jid(StateData, Err),
-    maybe_retry_state(StateData, {wait_for_feature, after_auth, Retries - 1}, Retries);
+    maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries - 1}, Retries);
 handle_bind_resource(StateData, IQ, <<>>, _, _) ->
     do_bind_resource(StateData, IQ, generate_random_resource());
 handle_bind_resource(StateData, IQ, Res, _, _) ->
