@@ -1,5 +1,9 @@
 -module(mongoose_c2s_listener).
 
+-include("jlib.hrl").
+-include("mongoose.hrl").
+-include("mongoose_ns.hrl").
+
 -behaviour(mongoose_listener).
 -export([socket_type/0, start_listener/1]).
 
@@ -9,6 +13,9 @@
 -behaviour(supervisor).
 -export([start_link/1, init/1]).
 -ignore_xref([start_link/1]).
+
+%% backwards compatibility, process iq-session
+-export([process_iq/5]).
 
 -type options() :: #{atom() => any()}.
 
@@ -24,6 +31,9 @@ start_listener(Opts) ->
     mongoose_listener_sup:start_child(ChildSpec),
     ok.
 
+process_iq(Acc, _From, _To, #iq{type = set, sub_el = #xmlel{name = <<"session">>}} = IQ, _) ->
+    {Acc, IQ#iq{type = result}}.
+
 %% ranch_protocol
 start_link(Ref, Transport, Opts) ->
 	gen_statem:start_link(mongoose_c2s, {Ref, Transport, Opts}, []).
@@ -35,6 +45,9 @@ start_link(Opts) ->
 
 -spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(#{module := Module} = Opts) ->
+    [ gen_iq_handler:add_iq_handler_for_domain(
+        HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
+      || HostType <- ?ALL_HOST_TYPES],
     Child = ranch:child_spec(
               ?MODULE, ranch_tcp, #{socket_opts => [{port, 6222}]}, Module, Opts),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
