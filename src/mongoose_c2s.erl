@@ -84,6 +84,10 @@ handle_event(info, {TcpOrSSl, Socket, Input}, _FsmState,
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
     handle_stream_start(StateData, StreamStart, StreamState);
+
+handle_event(internal, #xmlstreamstart{}, _, StateData) ->
+    c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation());
+
 handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
