@@ -393,7 +393,7 @@ max_fsm_queue(_Config) ->
     ?err(#{<<"general">> => #{<<"max_fsm_queue">> => -10}}).
 
 http_server_name(_Config) ->
-    ?cfg(cowboy_server_name, "my server",
+    ?cfg(http_server_name, "my server",
          #{<<"general">> => #{<<"http_server_name">> => <<"my server">>}}),
     ?err(#{<<"general">> => #{<<"http_server_name">> => #{}}}).
 

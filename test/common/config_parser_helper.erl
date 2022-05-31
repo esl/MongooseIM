@@ -55,7 +55,7 @@ options("host_types") ->
      {{replaced_wait_timeout, <<"yet another host type">>}, 2000}];
 options("miscellaneous") ->
     [{all_metrics_are_global, false},
-     {cowboy_server_name, "Apache"},
+     {http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
      {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
                          <<"example.org">> => "priv/cert.pem"}},

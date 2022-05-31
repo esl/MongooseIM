@@ -183,7 +183,7 @@ general() ->
                                                 validate = positive,
                                                 wrap = global_config},
                  <<"http_server_name">> => #option{type = string,
-                                                   wrap = {global_config, cowboy_server_name}},
+                                                   wrap = global_config},
                  <<"rdbms_server_type">> => #option{type = atom,
                                                     validate = {enum, [mssql, pgsql]},
                                                     wrap = global_config},
