@@ -119,7 +119,7 @@ handler({Port, IP, tcp}) ->
 -spec execute(cowboy_req:req(), cowboy_middleware:env()) ->
     {ok, cowboy_req:req(), cowboy_middleware:env()}.
 execute(Req, Env) ->
-    case mongoose_config:lookup_opt(cowboy_server_name) of
+    case mongoose_config:lookup_opt(http_server_name) of
         {error, not_found} ->
             {ok, Req, Env};
         {ok, ServerName} ->

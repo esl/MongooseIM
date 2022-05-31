@@ -393,7 +393,7 @@ max_fsm_queue(_Config) ->
     ?err(#{<<"general">> => #{<<"max_fsm_queue">> => -10}}).
 
 http_server_name(_Config) ->
-    ?cfg(cowboy_server_name, "my server",
+    ?cfg(http_server_name, "my server",
          #{<<"general">> => #{<<"http_server_name">> => <<"my server">>}}),
     ?err(#{<<"general">> => #{<<"http_server_name">> => #{}}}).
 
@@ -2435,7 +2435,7 @@ mod_pubsub(_Config) ->
           T(#{<<"host">> => <<"pubsub.test">>})),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [access], all,
+    ?cfgh(P ++ [access_createnode], all,
           T(#{<<"access_createnode">> => <<"all">>})),
     ?cfgh(P ++ [max_items_node], 20,
           T(#{<<"max_items_node">> => 20})),

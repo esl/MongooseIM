@@ -42,24 +42,16 @@
 
 %% Wrap the value in a top-level config option
 -type top_level_config_wrapper() ::
-      % Config option, see the type below for details
-        config_option_wrapper()
-
-      % Config option, the key is replaced with NewKey
-      | {config_option_wrapper(), NewKey :: atom()}.
-
--type config_option_wrapper() ::
         global_config % [{Key, Value}]
       | host_config. % Inside host_config: [{{Key, Host}, Value}]
                      % Otherwise: one such option for each configured host
 
-%% Wrap the value in config part - key-value pair or just a value
+%% Wrap the value in a nested config part - key-value pair or just a value
 -type config_part_wrapper() ::
         default      % [{Key, Value}] for section items, [Value] for list items
       | item         % [Value]
       | remove       % [] - the item is ignored
-      | none         % just Value - injects elements of Value into the parent section/list
-      | {kv, NewKey :: term()}. % [{NewKey, Value}] - replaces the key with NewKey
+      | none.        % just Value - injects elements of Value into the parent section/list
 
 %% This option allows to put list/section items in a map
 -type format_items() ::
@@ -183,7 +175,7 @@ general() ->
                                                 validate = positive,
                                                 wrap = global_config},
                  <<"http_server_name">> => #option{type = string,
-                                                   wrap = {global_config, cowboy_server_name}},
+                                                   wrap = global_config},
                  <<"rdbms_server_type">> => #option{type = atom,
                                                     validate = {enum, [mssql, pgsql]},
                                                     wrap = global_config},
