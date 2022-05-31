@@ -235,20 +235,14 @@ wrap_spec(#option{wrap = Wrap}) -> Wrap.
 
 -spec wrap(path(), config_part(), mongoose_config_spec:wrapper()) -> [config_part()].
 wrap([Key|_] = Path, V, host_config) ->
-    wrap(Path, V, {host_config, b2a(Key)});
+    [{{b2a(Key), get_host(Path)}, V}];
 wrap([Key|_] = Path, V, global_config) ->
-    wrap(Path, V, {global_config, b2a(Key)});
-wrap(Path, V, {host_config, Key}) ->
-    [{{Key, get_host(Path)}, V}];
-wrap(Path, V, {global_config, Key}) ->
     global = get_host(Path),
-    [{Key, V}];
-wrap([item|_] = Path, V, default) ->
-    wrap(Path, V, item);
-wrap([Key|_] = Path, V, default) ->
-    wrap(Path, V, {kv, b2a(Key)});
-wrap(_Path, V, {kv, Key}) ->
-    [{Key, V}];
+    [{b2a(Key), V}];
+wrap([item|_], V, default) ->
+    [V];
+wrap([Key|_], V, default) ->
+    [{b2a(Key), V}];
 wrap(_Path, V, item) ->
     [V];
 wrap(_Path, _V, remove) ->
