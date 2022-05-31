@@ -32,7 +32,8 @@ input(<<"MUCAffiliation">>, <<"OUTCAST">>) -> {ok, outcast};
 input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
 input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
-input(<<"TelephoneTags">>, Name) -> {ok, Name}.
+input(<<"TelephoneTags">>, Name) -> {ok, Name};
+input(<<"MetricType">>, Name) -> {ok, Name}.
 
 output(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Show)))};
@@ -67,4 +68,5 @@ output(<<"MUCAffiliation">>, Aff) ->
 output(<<"AddressTags">>, Name) -> {ok, Name};
 output(<<"EmailTags">>, Name) -> {ok, Name};
 output(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
-output(<<"TelephoneTags">>, Name) -> {ok, Name}.
+output(<<"TelephoneTags">>, Name) -> {ok, Name};
+output(<<"MetricType">>, Type) -> {ok, Type}.

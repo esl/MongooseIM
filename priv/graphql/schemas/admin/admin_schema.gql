@@ -30,6 +30,8 @@ type AdminQuery{
   vcard: VcardAdminQuery
   "Private storage management"
   private: PrivateAdminQuery
+  "Metrics management"
+  metric: MetricAdminQuery
 }
 
 """
