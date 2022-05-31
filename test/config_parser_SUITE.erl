@@ -2435,7 +2435,7 @@ mod_pubsub(_Config) ->
           T(#{<<"host">> => <<"pubsub.test">>})),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [access], all,
+    ?cfgh(P ++ [access_createnode], all,
           T(#{<<"access_createnode">> => <<"all">>})),
     ?cfgh(P ++ [max_items_node], 20,
           T(#{<<"max_items_node">> => 20})),

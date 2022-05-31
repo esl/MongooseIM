@@ -269,8 +269,7 @@ config_spec() ->
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_pubsub_db}},
                  <<"access_createnode">> => #option{type = atom,
-                                                    validate = access_rule,
-                                                    wrap = {kv, access}},
+                                                    validate = access_rule},
                  <<"max_items_node">> => #option{type = integer,
                                                  validate = non_negative},
                  <<"max_subscriptions_node">> => #option{type = integer,
@@ -456,8 +455,10 @@ delete_pep_iq_handlers(ServerHost) ->
 init_send_loop(ServerHost) ->
     Plugins = gen_mod:get_module_opt(ServerHost, ?MODULE, plugins),
     init_send_loop(ServerHost, gen_mod:get_module_opts(ServerHost, ?MODULE), Plugins).
+
 init_send_loop(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
-                             pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline, access := Access},
+                             pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline,
+                             access_createnode := Access},
                Plugins) ->
     HostType = host_to_host_type(ServerHost),
     NodeTree = tree(HostType),

@@ -463,7 +463,7 @@ all_modules() ->
                                    })
                       }),
       mod_pubsub =>
-          mod_config(mod_pubsub, #{access => pubsub_createnode,
+          mod_config(mod_pubsub, #{access_createnode => pubsub_createnode,
                                    backend => rdbms,
                                    ignore_pep_from_offline => false,
                                    last_item_cache => mnesia,
@@ -983,7 +983,7 @@ default_mod_config(mod_privacy) ->
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->
-    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access => all,
+    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
       last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
       default_node_config => [], item_publisher => false, sync_broadcast => false};
