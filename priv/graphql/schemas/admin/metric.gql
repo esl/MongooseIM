@@ -163,6 +163,11 @@ type MetricDictResult {
   dict: [MetricDictEntry]
 }
 
+type MetricNodeResult {
+  node: String
+  result: [MetricDictResult]
+}
+
 """
 Allow admin to get the metric values
 """
@@ -176,7 +181,13 @@ type MetricAdminQuery @protected{
     """
     Get metrics without using graphql unions.
     Optionally returns only specified keys
-    (i.e. filterKeys: ["one"] only returns key "one", but not key "count")
+    (i.e. keys: ["one"] only returns key "one", but not key "count")
     """
-    getMetricsAsDicts(name: [String], filterKeys: [String]): [MetricDictResult]
+    getMetricsAsDicts(name: [String], keys: [String]): [MetricDictResult]
+
+    """
+    Gather metrics from multiple nodes.
+    Optionally returns only from specified nodes.
+    """
+    getClusterMetricsAsDicts(name: [String], keys: [String], nodes: [String]): [MetricNodeResult]
 }

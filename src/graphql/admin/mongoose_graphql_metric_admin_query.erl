@@ -6,6 +6,7 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
+-include("mongoose_logger.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 
@@ -14,7 +15,9 @@
 execute(_Ctx, _Obj, <<"getMetrics">>, Args) ->
     get_metrics(Args);
 execute(_Ctx, _Obj, <<"getMetricsAsDicts">>, Args) ->
-    get_metrics_as_dicts(Args).
+    get_metrics_as_dicts(Args);
+execute(_Ctx, _Obj, <<"getClusterMetricsAsDicts">>, Args) ->
+    get_cluster_metrics_as_dicts(Args).
 
 -spec get_metrics(mongoose_graphql:args()) ->
     {ok, [metric_result()]} | {error, resolver_error()}.
@@ -25,9 +28,29 @@ get_metrics(Args) ->
 
 get_metrics_as_dicts(Args) ->
     Name = maps:get(<<"name">>, Args, []),
-    FilterKeys = prepare_keys(maps:get(<<"filterKeys">>, Args, null)),
+    Keys = prepare_keys(maps:get(<<"keys">>, Args, null)),
     Values = exometer:get_values(prepare_name(Name)),
-    {ok, [make_metric_dict_result(V, FilterKeys) || V <- Values]}.
+    {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
+
+get_cluster_metrics_as_dicts(Args) ->
+    Name = maps:get(<<"name">>, Args, []),
+    PrepName = prepare_name(Name),
+    Keys = prepare_keys(maps:get(<<"keys">>, Args, null)),
+    Nodes = prepare_nodes(maps:get(<<"nodes">>, Args, null)),
+    AllNodes = [node()|nodes()],
+    F = fun(Node) -> rpc:call(Node, exometer, get_values, [PrepName]) end,
+    FilteredNodes = filter_nodes(AllNodes, Nodes),
+    Results = mongoose_lib:pmap(F, FilteredNodes),
+    Zip = lists:zip(FilteredNodes, Results),
+    {ok, [make_node_result(Node, Result, Keys) || {Node, Result} <- Zip]}.
+
+make_node_result(Node, {ok, Values}, Keys) ->
+    {ok, #{<<"node">> => Node,
+           <<"result">> => [make_metric_dict_result(V, Keys) || V <- Values]}};
+make_node_result(Node, Other, _Keys) ->
+    ?LOG_ERROR(#{what => metric_get_failed,
+                 remote_node => Node, reason => Other}),
+    {error, <<"Failed to get metrics">>}.
 
 prepare_keys([]) ->
     null;
@@ -35,6 +58,18 @@ prepare_keys(null) ->
     null;
 prepare_keys(Keys) ->
     lists:map(fun prepare_key/1, Keys).
+
+prepare_nodes([]) ->
+    null;
+prepare_nodes(null) ->
+    null;
+prepare_nodes(Nodes) ->
+    lists:map(fun binary_to_atom/1, Nodes).
+
+filter_nodes(AllNodes, null) ->
+    AllNodes;
+filter_nodes(AllNodes, AllowedNodes) ->
+    [Node || Node <- AllNodes, lists:member(Node, AllowedNodes)].
 
 prepare_key(X) when is_binary(X) ->
     binary_to_atom(X);
@@ -58,18 +93,18 @@ make_metric_result({Name, Dict}) ->
     Map = format_dict(Dict),
     {ok, Map#{<<"name">> => PreparedName}}.
 
-make_metric_dict_result({Name, Dict}, FilterKeys) ->
+make_metric_dict_result({Name, Dict}, Keys) ->
     PreparedName = format_name(Name),
-    {ok, #{<<"name">> => PreparedName, <<"dict">> => format_dict_entries(Dict, FilterKeys)}}.
+    {ok, #{<<"name">> => PreparedName, <<"dict">> => format_dict_entries(Dict, Keys)}}.
 
-format_dict_entries(Dict, FilterKeys) ->
+format_dict_entries(Dict, Keys) ->
     [{ok, #{<<"key">> => Key, <<"value">> => Value}}
-     || {Key, Value} <- filter_keys(Dict, FilterKeys)].
+     || {Key, Value} <- filter_keys(Dict, Keys)].
 
 filter_keys(Dict, null) ->
     Dict;
-filter_keys(Dict, FilterKeys) ->
-    [KV || KV = {Key, _} <- Dict, lists:member(Key, FilterKeys)].
+filter_keys(Dict, Keys) ->
+    [KV || KV = {Key, _} <- Dict, lists:member(Key, Keys)].
 
 format_name(Name) ->
     lists:map(fun format_name_segment/1, Name).
