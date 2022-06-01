@@ -26,7 +26,7 @@
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
--export([start_link/4]).
+-export([start_link/3]).
 -export([start/2, stop/1, deps/2]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 
@@ -48,10 +48,10 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(Ref :: reference(), Socket :: gen_tcp:socket(), Transport :: ranch_tcp,
+-spec start_link(Ref :: reference(), Transport :: ranch_tcp,
                  Opts :: [term()]) -> {ok, pid()}.
-start_link(Ref, Socket, ranch_tcp, Opts) ->
-    Pid = proc_lib:spawn_link(?MODULE, init, [{Ref, Socket, Opts}]),
+start_link(Ref, ranch_tcp, Opts) ->
+    Pid = proc_lib:spawn_link(?MODULE, init, [{Ref, ranch_tcp, Opts}]),
     {ok, Pid}.
 
 %%--------------------------------------------------------------------
@@ -82,9 +82,9 @@ deps(_HostType, Opts) ->
 %% ranch_protocol API
 %%--------------------------------------------------------------------
 
-init({Ref, RawSocket, _Opts}) ->
+init({Ref, ranch_tcp, _Opts}) ->
     process_flag(trap_exit, true),
-    ok = ranch:accept_ack(Ref),
+    {ok, RawSocket} = ranch:handshake(Ref),
     ConnOpts = opt(connections),
     {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts),
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
@@ -204,7 +204,7 @@ start_listeners() ->
                      RetriesLeft :: non_neg_integer()) -> any().
 start_listener({Addr, Port} = Ref, RetriesLeft) ->
     ?LOG_INFO(#{what => gd_start_listener, address => Addr, port => Port}),
-    case ranch:start_listener(Ref, 10, ranch_tcp, [{ip, Addr}, {port, Port}], ?MODULE, []) of
+    case ranch:start_listener(Ref, ranch_tcp, #{num_acceptors => 10, ip => Addr, port => Port}, ?MODULE, []) of
         {ok, _} -> ok;
         {error, eaddrinuse} when RetriesLeft > 0 ->
             ?LOG_ERROR(#{what => gd_start_listener_failed, address => Addr, port => Port,
