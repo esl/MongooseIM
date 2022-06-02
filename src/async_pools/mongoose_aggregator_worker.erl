@@ -37,7 +37,7 @@
          code_change/3,
          format_status/2]).
 
--type request() :: no_request_pending | {reference(), mongoose_async_pools:task()}.
+-type request() :: no_request_pending | {gen_server:request_id(), mongoose_async_pools:task()}.
 -record(state, {
           host_type :: mongooseim:host_type(),
           pool_id :: mongoose_async_pools:pool_id(),

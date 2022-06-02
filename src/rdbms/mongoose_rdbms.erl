@@ -229,7 +229,7 @@ execute_cast(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters)
     sql_cast(HostType, {sql_execute, Name, Parameters}).
 
 -spec execute_request(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
-                     reference().
+                     gen_server:request_id().
 execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_request(HostType, {sql_execute, Name, Parameters}).
 
@@ -269,7 +269,7 @@ query_name_to_string(Name) ->
 sql_query(HostType, Query) ->
     sql_call(HostType, {sql_query, Query}).
 
--spec sql_query_request(HostType :: server(), Query :: any()) -> reference().
+-spec sql_query_request(HostType :: server(), Query :: any()) -> gen_server:request_id().
 sql_query_request(HostType, Query) ->
     sql_request(HostType, {sql_query, Query}).
 

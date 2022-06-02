@@ -220,6 +220,7 @@ store_nick_transaction(HostType, MucHost, Jid, Nick, true) ->
         Error -> Error
     end.
 
+-spec store_room_transaction(mongooseim:host_type(), muc_host(), jid:luser(), binary(), term()) -> ok.
 store_room_transaction(HostType, MucHost, RoomName, ExtOpts, Affs) ->
     execute_insert_room(HostType, MucHost, RoomName, ExtOpts),
     Result = execute_select_room_id(HostType, MucHost, RoomName),
@@ -249,18 +250,19 @@ forget_room_transaction(HostType, MucHost, RoomName) ->
 
 %% Execute call functions
 
--spec execute_insert_room(mongooseim:host_type(), muc_host(), jid:luser(), room_opts()) ->
-    updated_result().
+-spec execute_insert_room(mongooseim:host_type(), muc_host(), jid:luser(), binary()) -> ok.
 execute_insert_room(HostType, MucHost, RoomName, ExtOpts) ->
     Args = [MucHost, RoomName, ExtOpts],
-    execute_successfully(HostType, muc_insert_room, Args).
+    execute_successfully(HostType, muc_insert_room, Args),
+    ok.
 
 -spec execute_insert_aff(mongooseim:host_type(), RoomID :: room_id(),
                          UserU :: jid:luser(), UserS :: jid:lserver(),
-                         Res ::iolist(), ExtAff :: pos_integer()) -> updated_result().
+                         Res ::binary(), ExtAff :: pos_integer()) -> ok.
 execute_insert_aff(HostType, RoomID, UserU, UserS, Res, ExtAff) ->
     Args = [RoomID, UserU, UserS, Res, ExtAff],
-    execute_successfully(HostType, muc_insert_aff, Args).
+    execute_successfully(HostType, muc_insert_aff, Args),
+    ok.
 
 -spec execute_select_aff(mongooseim:host_type(), room_id()) -> term().
 execute_select_aff(HostType, RoomID) ->

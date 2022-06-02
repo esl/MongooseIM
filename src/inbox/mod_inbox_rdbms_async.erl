@@ -63,7 +63,7 @@ start_pool(HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, inbox, Opts).
 
 %% Worker callbacks
--spec request(task(), mongoose_async_pools:pool_extra()) -> reference().
+-spec request(task(), mongoose_async_pools:pool_extra()) -> gen_server:request_id().
 request(Task, _Extra = #{host_type := HostType}) ->
     request_one(HostType, Task).
 
