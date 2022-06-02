@@ -25,6 +25,7 @@
           transport :: module(),
           socket :: ranch_transport:socket(),
           parser :: undefined | exml_stream:parser(),
+          shaper :: undefined | shaper:shaper(),
           listener_opts :: mongoose_listener:options()
          }).
 -type state() :: #state{}.
@@ -59,28 +60,28 @@ init({Ref, Transport, Opts}) ->
 
 -spec handle_event(gen_statem:event_type(), term(), fsm_state(), state()) -> fsm_res().
 handle_event(cast, connect, connecting,
-             StateData = #state{listener_opts = Opts, ranch_ref = Ref, transport = Transport}) ->
-    maps:get(proxy_protocol, Opts) andalso ranch:recv_proxy_header(Ref, 1000),
+             StateData = #state{ranch_ref = Ref,
+                                listener_opts = #{shaper := ShaperName,
+                                                  proxy_protocol := Proxy,
+                                                  max_stanza_size := MaxStanzaSize}}) ->
+    Proxy andalso ranch:recv_proxy_header(Ref, 1000),
     {ok, Socket} = ranch:handshake(Ref),
-    Transport:setopts(Socket, [{active, once}]),
-    {ok, NewParser} = exml_stream:new_parser([{max_child_size, 65536}]),
-    NewState = StateData#state{lserver = ?MYNAME, socket = Socket, parser = NewParser},
-    {next_state, {wait_for_stream, stream_start}, NewState};
+    {ok, NewParser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
+    ShaperState = shaper:new(ShaperName),
+    NewStateData = StateData#state{lserver = ?MYNAME, socket = Socket,
+                                   parser = NewParser, shaper = ShaperState},
+    activate_socket(NewStateData),
+    {next_state, {wait_for_stream, stream_start}, NewStateData};
 
 %% TODO in any state? probably only during session_established
 handle_event(info, {route, From, To, Acc}, _, StateData) ->
     handle_incoming_stanza(StateData, Acc, From, To),
     keep_state_and_data;
 
-handle_event(info, {TcpOrSSl, Socket, Input}, _FsmState,
-             StateData = #state{socket = Socket, transport = Transport})
+handle_event(info, {TcpOrSSl, Socket, Input}, _FsmState, StateData = #state{socket = Socket})
   when TcpOrSSl =:= tcp orelse TcpOrSSl =:= ssl ->
     ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Input, c2s_pid => self()}),
-    Transport:setopts(Socket, [{active, once}]),
-    {StreamEvents, NewParser} = parse_input(Input, StateData),
-    NextEvents = [ {next_event, internal, Event} || Event <- StreamEvents ],
-    {keep_state, StateData#state{parser = NewParser}, NextEvents};
-
+    handle_socket_data(StateData, Input);
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
     handle_stream_start(StateData, StreamStart, StreamState);
@@ -98,8 +99,10 @@ handle_event(internal, #xmlstreamstart{}, _, StateData) ->
 handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
     {stop, {shutdown, stream_end}};
-handle_event(internal, {xmlstreamerror, _}, _, StateData) ->
-    c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
+handle_event(internal, {xmlstreamerror, <<"child element too big">> = Err}, _, StateData) ->
+    c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(?MYLANG, Err));
+handle_event(internal, {xmlstreamerror, Err}, _, StateData) ->
+    c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(?MYLANG, Err));
 handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslState, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
@@ -138,6 +141,9 @@ handle_event(internal, #xmlel{} = El, session_established, StateData) ->
             handle_c2s_packet(StateData, El)
     end;
 
+handle_event({timeout, activate_socket}, activate_socket, _, StateData) ->
+    activate_socket(StateData),
+    keep_state_and_data;
 handle_event({timeout, replaced_wait_timeout}, ReplacedPids, FsmState, StateData) ->
     [ case erlang:is_process_alive(Pid) of
           false -> ok;
@@ -211,12 +217,12 @@ handle_starttls(StateData = #state{transport = ranch_tcp,
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
     case ranch_ssl:handshake(TcpSocket, TlsOpts, 5000) of
         {ok, TlsSocket} ->
-            ranch_ssl:setopts(TlsSocket, [{active, once}]),
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewStateData = StateData#state{transport = ranch_ssl,
                                            socket = TlsSocket,
                                            parser = NewParser,
                                            streamid = new_stream_id()},
+            activate_socket(NewStateData),
             {next_state, {wait_for_stream, stream_start}, NewStateData};
         {error, closed} ->
             {stop, {shutdown, tls_closed}};
@@ -485,12 +491,34 @@ send_element_from_server_jid(StateData, El) ->
               element => El}),
     send_element(StateData, El, Acc).
 
--spec parse_input(iodata(), state()) -> {[exml_stream:element()], exml_stream:parser()}.
-parse_input(Packet, #state{parser = Parser}) ->
+-spec handle_socket_data(state(), iodata()) -> fsm_res().
+handle_socket_data(StateData = #state{parser = Parser, shaper = Shaper}, Packet) ->
     case exml_stream:parse(Parser, Packet) of
-        {ok, NewParser, Elems} -> {Elems, NewParser};
-        {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
+        {error, Reason} ->
+            NextEvent = {next_event, internal, {xmlstreamerror, iolist_to_binary(Reason)}},
+            {keep_state, StateData, NextEvent};
+        {ok, NewParser, XmlElements} ->
+            Size = byte_size(Packet),
+            {NewShaper, Pause} = shaper:update(Shaper, Size),
+            mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
+            NewStateData = StateData#state{parser = NewParser, shaper = NewShaper},
+            MaybePauseTimeout = maybe_pause(NewStateData, Pause),
+            StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- XmlElements ],
+            {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}
     end.
+
+-spec activate_socket(state()) -> any().
+activate_socket(#state{socket = Socket, transport = ranch_tcp}) ->
+    ranch_tcp:setopts(Socket, [{active, once}]);
+activate_socket(#state{socket = Socket, transport = ranch_ssl}) ->
+    ranch_ssl:setopts(Socket, [{active, once}]).
+
+-spec maybe_pause(state(), integer()) -> any().
+maybe_pause(_StateData, Pause) when Pause > 0 ->
+    [{{timeout, activate_socket}, Pause, activate_socket}];
+maybe_pause(StateData, _) ->
+    activate_socket(StateData),
+    [].
 
 -spec close_parser(state()) -> ok.
 close_parser(#state{parser = undefined}) -> ok;
