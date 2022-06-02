@@ -48,8 +48,8 @@ init(#{module := Module} = Opts) ->
     [ gen_iq_handler:add_iq_handler_for_domain(
         HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
       || HostType <- ?ALL_HOST_TYPES],
-    Child = ranch:child_spec(
-              ?MODULE, ranch_tcp, #{socket_opts => [{port, 6222}]}, Module, Opts),
+    {Transport, TransportOpts} = transport(Opts),
+    Child = ranch:child_spec(?MODULE, Transport, TransportOpts, Module, Opts),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
 
 listener_child_spec(ListenerId, Opts) ->
@@ -59,3 +59,8 @@ listener_child_spec(ListenerId, Opts) ->
       shutdown => infinity,
       type => supervisor,
       modules => [?MODULE]}.
+
+transport(#{tls := #{mode := tls, opts := SOpts}}) ->
+    {ranch_ssl, #{socket_opts => [{port, 6222} | SOpts]}};
+transport(_) ->
+    {ranch_tcp, #{socket_opts => [{port, 6222}]}}.

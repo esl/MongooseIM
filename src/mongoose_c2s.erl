@@ -100,10 +100,10 @@ handle_event(internal, #xmlstreamend{}, _, StateData) ->
     {stop, {shutdown, stream_end}};
 handle_event(internal, {xmlstreamerror, _}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
-handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, _, _}, StateData) ->
+handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslState, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
-            handle_starttls(StateData);
+            handle_starttls(StateData, El, SaslState, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
@@ -177,47 +177,66 @@ terminate(Reason, FsmState, StateData) ->
 %%%----------------------------------------------------------------------
 -spec handle_stream_start(state(), exml:element(), stream_state()) -> fsm_res().
 handle_stream_start(S0, StreamStart, StreamState) ->
-    Server = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
-    S1 = S0#state{lserver = Server},
+    LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
     case {StreamState,
           exml_query:attr(StreamStart, <<"xmlns:stream">>, <<>>),
           exml_query:attr(StreamStart, <<"version">>, <<>>),
-          mongoose_domain_api:get_domain_host_type(Server)} of
+          mongoose_domain_api:get_domain_host_type(LServer)} of
         {stream_start, ?NS_STREAM, <<"1.0">>, {ok, HostType}} ->
-            S = S1#state{host_type = HostType},
+            S = S0#state{host_type = HostType, lserver = LServer},
             stream_start_features_before_auth(S);
         {authenticated, ?NS_STREAM, <<"1.0">>, {ok, HostType}} ->
-            S = S1#state{host_type = HostType},
+            S = S0#state{host_type = HostType, lserver = LServer},
             stream_start_features_after_auth(S);
         {_, ?NS_STREAM, _Pre1_0, {ok, HostType}} ->
             %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
-            S = S1#state{host_type = HostType},
+            S = S0#state{host_type = HostType, lserver = LServer},
             stream_start_error(S, mongoose_xmpp_errors:unsupported_version());
         {_, ?NS_STREAM, _, {error, not_found}} ->
-            stream_start_error(S1, mongoose_xmpp_errors:host_unknown());
+            stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
         {_, _, _, _} ->
-            stream_start_error(S1, mongoose_xmpp_errors:invalid_namespace())
+            stream_start_error(S0, mongoose_xmpp_errors:invalid_namespace())
     end.
 
--spec handle_starttls(state()) -> fsm_res().
-handle_starttls(StateData = #state{transport = Transport, socket = TcpSocket, parser = Parser}) ->
-    Transport:setopts(TcpSocket, [{active, false}]),
+-spec handle_starttls(state(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+handle_starttls(StateData = #state{transport = ranch_ssl}, El, SaslState, Retries) ->
+    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
+    send_element_from_server_jid(StateData, Err),
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries);
+handle_starttls(StateData = #state{transport = ranch_tcp,
+                                   socket = TcpSocket,
+                                   listener_opts = #{tls := #{opts := TlsOpts}},
+                                   parser = Parser}, _, _, _) ->
+    ranch_tcp:setopts(TcpSocket, [{active, false}]),
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    TlsOpts = [{dhfile, "priv/ssl/fake_dh_server.pem"},
-               {certfile, "priv/ssl/fake_server.pem"},
-               {protocol_options, ["no_sslv2","no_sslv3","no_tlsv1","no_tlsv1_1"]},
-               {verify, verify_none}],
-    {ok, TlsSocket} = ranch_ssl:handshake(TcpSocket, TlsOpts, 5000),
-    ranch_ssl:setopts(TlsSocket, [{active, once}]),
-    {ok, NewParser} = exml_stream:reset_parser(Parser),
-    NewStateData = StateData#state{transport = ranch_ssl,
-                                   socket = TlsSocket,
-                                   parser = NewParser,
-                                   streamid = new_stream_id()},
-    {next_state, {wait_for_stream, stream_start}, NewStateData}.
+    case ranch_ssl:handshake(TcpSocket, TlsOpts, 5000) of
+        {ok, TlsSocket} ->
+            ranch_ssl:setopts(TlsSocket, [{active, once}]),
+            {ok, NewParser} = exml_stream:reset_parser(Parser),
+            NewStateData = StateData#state{transport = ranch_ssl,
+                                           socket = TlsSocket,
+                                           parser = NewParser,
+                                           streamid = new_stream_id()},
+            {next_state, {wait_for_stream, stream_start}, NewStateData};
+        {error, closed} ->
+            {stop, {shutdown, tls_closed}};
+        {error, timeout} ->
+            {stop, {shutdown, tls_timeout}};
+        {error, {tls_alert, TlsAlert}} ->
+            {stop, TlsAlert}
+    end.
 
 -spec handle_auth_start(state(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_auth_start(StateData, El, SaslState, Retries) ->
+    case {StateData#state.transport, StateData#state.listener_opts} of
+        {ranch_tcp, #{tls := #{mode := starttls_required}}} ->
+            c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(?MYLANG, <<"Use of STARTTLS required">>));
+        _ ->
+            do_handle_auth_start(StateData, El, SaslState, Retries)
+    end.
+
+-spec do_handle_auth_start(state(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+do_handle_auth_start(StateData, El, SaslState, Retries) ->
     Mech = exml_query:attr(El, <<"mechanism">>),
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
     HostType = StateData#state.host_type,
@@ -265,11 +284,12 @@ handle_sasl_success(State, Creds) ->
     {next_state, {wait_for_stream, authenticated}, NewState}.
 
 -spec stream_start_features_before_auth(state()) -> fsm_res().
-stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer} = S) ->
+stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer,
+                                         listener_opts = LOpts} = S) ->
     send_header(S, LServer, <<"1.0">>, ?MYLANG),
     Creds = mongoose_credentials:new(LServer, HostType, #{}),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts),
     send_element_from_server_jid(S, StreamFeatures),
     {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, ?C2S_OPEN_TIMEOUT}.
 

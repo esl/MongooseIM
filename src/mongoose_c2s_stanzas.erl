@@ -26,9 +26,10 @@ stream_header(Server, Version, Lang, StreamId) ->
 stream_features(Features) ->
     #xmlel{name = <<"stream:features">>, children = Features}.
 
--spec stream_features_before_auth(mongooseim:host_type(), jid:lserver()) -> exml:element().
-stream_features_before_auth(HostType, LServer) ->
-    Features = determine_features(HostType, LServer),
+-spec stream_features_before_auth(mongooseim:host_type(), jid:lserver(), mongoose_listener:options()) ->
+    exml:element().
+stream_features_before_auth(HostType, LServer, LOpts) ->
+    Features = determine_features(HostType, LServer, LOpts),
     stream_features(Features).
 
 %% From RFC 6120, section 5.3.1:
@@ -41,7 +42,11 @@ stream_features_before_auth(HostType, LServer) ->
 %% receiving entity will likely depend on whether TLS has been negotiated).
 %%
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
-determine_features(HostType, LServer) ->
+determine_features(_, _, #{tls := #{mode := starttls_required}}) ->
+    [starttls_stanza(required)];
+determine_features(HostType, LServer, #{tls := #{mode := tls}}) ->
+    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType);
+determine_features(HostType, LServer, _) ->
     [starttls_stanza(optional)
      | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType)].
 
