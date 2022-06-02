@@ -23,6 +23,7 @@ groups() ->
 
 metrics_handler() ->
     [get_all_metrics,
+     get_all_metrics_check_by_type,
      get_by_name_global_erlang_metrics,
      get_process_queue_length,
      get_inet_stats,
@@ -60,6 +61,37 @@ get_all_metrics(Config) ->
     %% HistogramMetric type
     #{<<"type">> := <<"histogram">>} = Reads.
 
+get_all_metrics_check_by_type(Config) ->
+    %% Get all metrics
+    Result = execute_auth(#{query => get_all_metrics_call(),
+                            variables => #{}, operationName => <<"Q1">>}, Config),
+    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    lists:foreach(fun check_metric_by_type/1, ParsedResult).
+
+check_metric_by_type(#{<<"type">> := Type} = Map) ->
+    values_are_integers(Map, type_to_keys(Type)).
+
+type_to_keys(<<"histogram">>) ->
+    [<<"n">>, <<"mean">>,  <<"min">>,  <<"max">>,  <<"median">>,
+     <<"p50">>, <<"p75">>, <<"p90">>, <<"p95">>,  <<"p99">>, <<"p999">>];
+type_to_keys(<<"counter">>) ->
+    [<<"value">>, <<"ms_since_reset">>];
+type_to_keys(<<"spiral">>) ->
+    [<<"one">>, <<"count">>];
+type_to_keys(<<"gauge">>) ->
+    [<<"value">>];
+type_to_keys(<<"merged_inet_stats">>) ->
+    [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
+     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
+type_to_keys(<<"vm_stats_memory">>) ->
+    [<<"atom_used">>, <<"binary">>, <<"ets">>,
+     <<"processes_used">>, <<"system">>, <<"total">>];
+type_to_keys(<<"vm_system_info">>) ->
+    [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
+     <<"process_count">>, <<"process_limit">>];
+type_to_keys(<<"probe_queues">>) ->
+    [<<"fsm">>, <<"regular">>, <<"total">>].
+
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
     Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\", \"erlang\"])">>),
@@ -69,9 +101,7 @@ get_by_name_global_erlang_metrics(Config) ->
     Info = maps:get([<<"global">>,<<"erlang">>, <<"system_info">>], Map),
     %% VMSystemInfoMetric type
     #{<<"type">> := <<"vm_system_info">>} = Info,
-    Keys = [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
-            <<"process_count">>, <<"process_limit">>],
-    [true = is_integer(maps:get(Key, Info)) || Key <- Keys],
+    check_metric_by_type(Info),
     ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
     %% Other metrics are filtered out
     undef = maps:get(ReadsKey, Map, undef).
@@ -85,8 +115,7 @@ get_process_queue_length(Config) ->
     Lens = maps:get([<<"global">>, <<"processQueueLengths">>], Map),
     %% ProbeQueuesMetric type
     #{<<"type">> := <<"probe_queues">>} = Lens,
-    Keys = [<<"fsm">>, <<"regular">>, <<"total">>],
-    [true = is_integer(maps:get(Key, Lens)) || Key <- Keys].
+    check_metric_by_type(Lens).
 
 get_inet_stats(Config) ->
     Result = execute_auth(#{query => get_metrics_call_with_args(
@@ -97,9 +126,7 @@ get_inet_stats(Config) ->
     Stats = maps:get([<<"global">>, <<"data">>, <<"dist">>], Map),
     %% MergedInetStatsMetric type
     #{<<"type">> := <<"merged_inet_stats">>} = Stats,
-    Keys = [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
-            <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>],
-    [true = is_integer(maps:get(Key, Stats)) || Key <- Keys].
+    check_metric_by_type(Stats).
 
 get_vm_stats_memory(Config) ->
     Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\"])">>),
@@ -109,9 +136,7 @@ get_vm_stats_memory(Config) ->
     Mem = maps:get([<<"global">>, <<"erlang">>, <<"memory">>], Map),
     %% VMStatsMemoryMetric type
     #{<<"type">> := <<"vm_stats_memory">>} = Mem,
-    Keys = [<<"atom_used">>, <<"binary">>, <<"ets">>,
-            <<"processes_used">>, <<"system">>, <<"total">>],
-    [true = is_integer(maps:get(Key, Mem)) || Key <- Keys].
+    check_metric_by_type(Mem).
 
 get_metrics_as_dicts(Config) ->
     Result = execute_auth(#{query => get_all_metrics_as_dicts_call(), variables => #{},
@@ -193,12 +218,11 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
 check_histogram(Map) ->
     Keys = [<<"n">>, <<"mean">>,  <<"min">>,  <<"max">>,  <<"median">>,
             <<"50">>, <<"75">>, <<"90">>, <<"95">>,  <<"99">>, <<"999">>],
-    [true = is_integer(maps:get(Key, Map)) || Key <- Keys].
+    values_are_integers(Map, Keys).
 
 check_histogram_p(Map) ->
-    Keys = [<<"n">>, <<"mean">>,  <<"min">>,  <<"max">>,  <<"median">>,
-            <<"p50">>, <<"p75">>, <<"p90">>, <<"p95">>,  <<"p99">>, <<"p999">>],
-    [true = is_integer(maps:get(Key, Map)) || Key <- Keys].
+    Keys = type_to_keys(<<"histogram">>),
+    values_are_integers(Map, Keys).
 
 dict_objects_to_map(List) ->
     KV = [{Name, Dict} || #{<<"name">> := Name, <<"dict">> := Dict} <- List],
@@ -235,7 +259,7 @@ get_metrics_call_with_args(Args) ->
                      ... on VMSystemInfoMetric
                      { name type port_count port_limit process_count process_limit ets_limit }
                      ... on ProbeQueuesMetric
-                     { name type type fsm regular total }
+                     { name type fsm regular total }
                  }
                }
            }">>.
@@ -277,3 +301,6 @@ check_spiral_dict(Dict) ->
      #{<<"key">> := <<"one">>, <<"value">> := One}] = Dict,
     true = is_integer(Count),
     true = is_integer(One).
+
+values_are_integers(Map, Keys) ->
+    lists:foreach(fun(Key) -> true = is_integer(maps:get(Key, Map)) end, Keys).
