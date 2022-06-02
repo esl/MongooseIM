@@ -8,13 +8,14 @@ enum MetricType {
   spiral
   gauge
   merged_inet_stats
+  rdbms_stats
   vm_stats_memory
   vm_system_info
   probe_queues
 }
 
 union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
-                   | GaugeMetric | MergedInetStatsMetric
+                   | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
                    | VMStatsMemoryMetric | VMSystemInfoMetric
                    | ProbeQueuesMetric
 
@@ -84,6 +85,29 @@ type MergedInetStatsMetric {
   type: MetricType
   "Number of connections"
   connections: Int
+  "Number of packets received by the socket"
+  recv_cnt: Int
+  "Size of the largest packet, in bytes, received by the socket"
+  recv_max: Int
+  "Number of bytes received by the socket"
+  recv_oct: Int
+  "Number of packets sent from the socket"
+  send_cnt: Int
+  "Size of the largest packet, in bytes, sent from the socket"
+  send_max: Int
+  "Number of bytes sent from the socket"
+  send_oct: Int
+  "Number of bytes waiting to be sent by the socket"
+  send_pend: Int
+}
+
+type RDBMSStatsMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of workers"
+  workers: Int
   "Number of packets received by the socket"
   recv_cnt: Int
   "Size of the largest packet, in bytes, received by the socket"

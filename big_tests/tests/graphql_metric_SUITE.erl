@@ -83,6 +83,9 @@ type_to_keys(<<"gauge">>) ->
 type_to_keys(<<"merged_inet_stats">>) ->
     [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
      <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
+type_to_keys(<<"rdbms_stats">>) ->
+    [<<"workers">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
+     <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>];
 type_to_keys(<<"vm_stats_memory">>) ->
     [<<"atom_used">>, <<"binary">>, <<"ets">>,
      <<"processes_used">>, <<"system">>, <<"total">>];
@@ -253,6 +256,9 @@ get_metrics_call_with_args(Args) ->
                      { name type value }
                      ... on MergedInetStatsMetric
                      { name type connections recv_cnt recv_max recv_oct
+                       send_cnt send_max send_oct send_pend }
+                     ... on RDBMSStatsMetric
+                     { name type workers recv_cnt recv_max recv_oct
                        send_cnt send_max send_oct send_pend }
                      ... on VMStatsMemoryMetric
                      { name type total processes_used atom_used binary ets system }

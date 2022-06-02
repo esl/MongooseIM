@@ -28,6 +28,8 @@ execute(#{<<"type">> := <<"vm_system_info">>, <<"port_count">> := _}) ->
     {ok, <<"VMSystemInfoMetric">>};
 execute(#{<<"type">> := <<"probe_queues">>, <<"fsm">> := _}) ->
     {ok, <<"ProbeQueuesMetric">>};
+execute(#{<<"type">> := <<"rdbms_stats">>, <<"workers">> := _}) ->
+    {ok, <<"RDBMSStatsMetric">>};
 execute(Value) ->
     ?LOG_ERROR(#{what => graphql_unknown_type, value => Value}),
     {error, unknown_type}.

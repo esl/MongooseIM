@@ -132,7 +132,9 @@ format_dict2(#{processes_used := _} = Dict) ->
 format_dict2(#{port_count := _} = Dict) ->
     format_vm_system_info(Dict);
 format_dict2(#{fsm := _, regular := _} = Dict) ->
-    format_probe_queues(Dict).
+    format_probe_queues(Dict);
+format_dict2(#{recv_cnt := _, workers := _} = Dict) ->
+    format_rdbms_stats(Dict).
 
 format_spiral(#{one := One, count := Count}) ->
     #{<<"type">> => <<"spiral">>, <<"one">> => One, <<"count">> => Count}.
@@ -157,6 +159,14 @@ format_merged_inet_stats(#{connections := Cons,
                            send_pend := SPend}) ->
     %% Metrics from a pool of connections
     #{<<"type">> => <<"merged_inet_stats">>, <<"connections">> => Cons,
+      <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,
+      <<"send_cnt">> => SCnt, <<"send_max">> => SMax, <<"send_oct">> => SOct,
+      <<"send_pend">> => SPend}.
+
+format_rdbms_stats(#{recv_cnt := RCnt, recv_max := RMax, recv_oct := ROct,
+                     send_cnt := SCnt,send_max := SMax, send_oct := SOct,
+                     send_pend := SPend, workers := Workers}) ->
+    #{<<"type">> => <<"rdbms_stats">>, <<"workers">> => Workers,
       <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,
       <<"send_cnt">> => SCnt, <<"send_max">> => SMax, <<"send_oct">> => SOct,
       <<"send_pend">> => SPend}.
