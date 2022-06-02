@@ -157,8 +157,8 @@ format_merged_inet_stats(#{connections := Cons,
                            send_pend := SPend}) ->
     %% Metrics from a pool of connections
     #{<<"type">> => <<"merged_inet_stats">>, <<"connections">> => Cons,
-      <<"recv_cnt">> => RCnt, recv_max => RMax, recv_oct => ROct,
-      <<"send_cnt">> => SCnt, send_max => SMax, send_oct => SOct,
+      <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,
+      <<"send_cnt">> => SCnt, <<"send_max">> => SMax, <<"send_oct">> => SOct,
       <<"send_pend">> => SPend}.
 
 format_vm_stats_memory(#{total := Total, processes_used := P,

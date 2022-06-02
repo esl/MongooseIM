@@ -22,12 +22,16 @@ groups() ->
      [{metrics, [], metrics_handler()}].
 
 metrics_handler() ->
-    [get_metrics,
-     get_global_erlang_metrics,
+    [get_all_metrics,
+     get_by_name_global_erlang_metrics,
+     get_process_queue_length,
+     get_inet_stats,
      get_vm_stats_memory,
      get_metrics_as_dicts,
+     get_by_name_metrics_as_dicts,
      get_metrics_as_dicts_with_key_one,
      get_cluster_metrics,
+     get_by_name_cluster_metrics_as_dicts,
      get_mim2_cluster_metrics].
 
 init_per_suite(Config) ->
@@ -43,7 +47,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
      escalus:end_per_testcase(CaseName, Config).
 
-get_metrics(Config) ->
+get_all_metrics(Config) ->
     %% Get all metrics
     Result = execute_auth(#{query => get_all_metrics_call(),
                             variables => #{}, operationName => <<"Q1">>}, Config),
@@ -53,15 +57,17 @@ get_metrics(Config) ->
     Reads = maps:get(ReadsKey, Map),
     %% Histogram integer keys have p prefix
     check_histogram_p(Reads),
+    %% HistogramMetric type
     #{<<"type">> := <<"histogram">>} = Reads.
 
-get_global_erlang_metrics(Config) ->
+get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
     Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\", \"erlang\"])">>),
                             variables => #{}, operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Info = maps:get([<<"global">>,<<"erlang">>, <<"system_info">>], Map),
+    %% VMSystemInfoMetric type
     #{<<"type">> := <<"vm_system_info">>} = Info,
     Keys = [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
             <<"process_count">>, <<"process_limit">>],
@@ -70,12 +76,38 @@ get_global_erlang_metrics(Config) ->
     %% Other metrics are filtered out
     undef = maps:get(ReadsKey, Map, undef).
 
+get_process_queue_length(Config) ->
+    Result = execute_auth(#{query => get_metrics_call_with_args(
+                                       <<"(name: [\"global\", \"processQueueLengths\"])">>),
+                            variables => #{}, operationName => <<"Q1">>}, Config),
+    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
+    Lens = maps:get([<<"global">>, <<"processQueueLengths">>], Map),
+    %% ProbeQueuesMetric type
+    #{<<"type">> := <<"probe_queues">>} = Lens,
+    Keys = [<<"fsm">>, <<"regular">>, <<"total">>],
+    [true = is_integer(maps:get(Key, Lens)) || Key <- Keys].
+
+get_inet_stats(Config) ->
+    Result = execute_auth(#{query => get_metrics_call_with_args(
+                                       <<"(name: [\"global\", \"data\", \"dist\"])">>),
+                            variables => #{}, operationName => <<"Q1">>}, Config),
+    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
+    Stats = maps:get([<<"global">>, <<"data">>, <<"dist">>], Map),
+    %% MergedInetStatsMetric type
+    #{<<"type">> := <<"merged_inet_stats">>} = Stats,
+    Keys = [<<"connections">>, <<"recv_cnt">>, <<"recv_max">>, <<"recv_oct">>,
+            <<"send_cnt">>, <<"send_max">>, <<"send_oct">>, <<"send_pend">>],
+    [true = is_integer(maps:get(Key, Stats)) || Key <- Keys].
+
 get_vm_stats_memory(Config) ->
     Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\"])">>),
                             variables => #{}, operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Mem = maps:get([<<"global">>, <<"erlang">>, <<"memory">>], Map),
+    %% VMStatsMemoryMetric type
     #{<<"type">> := <<"vm_stats_memory">>} = Mem,
     Keys = [<<"atom_used">>, <<"binary">>, <<"ets">>,
             <<"processes_used">>, <<"system">>, <<"total">>],
@@ -86,6 +118,16 @@ get_metrics_as_dicts(Config) ->
                             operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
     check_node_result_is_valid(ParsedResult, false).
+
+get_by_name_metrics_as_dicts(Config) ->
+    Args = <<"(name: [\"_\", \"xmppStanzaSent\"])">>,
+    Result = execute_auth(#{query => get_by_args_metrics_as_dicts_call(Args),
+                            variables => #{}, operationName => <<"Q1">>}, Config),
+    ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
+    %% Only xmppStanzaSent type
+    lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+                          check_spiral_dict(Dict)
+            end, ParsedResult).
 
 get_metrics_as_dicts_with_key_one(Config) ->
     Result = execute_auth(#{query => get_all_metrics_as_dicts_with_key_one_call(),
@@ -109,6 +151,21 @@ get_cluster_metrics(Config) ->
     check_node_result_is_valid(Res1, false),
     check_node_result_is_valid(Res2, true).
 
+get_by_name_cluster_metrics_as_dicts(Config) ->
+    Args = <<"(name: [\"_\", \"xmppStanzaSent\"])">>,
+    Result = execute_auth(#{query => get_by_args_cluster_metrics_as_dicts_call(Args),
+                            variables => #{}, operationName => <<"Q1">>}, Config),
+    NodeResult = ok_result(<<"metric">>, <<"getClusterMetricsAsDicts">>, Result),
+    Map = node_objects_to_map(NodeResult),
+    %% Contains data for at least two nodes
+    true = maps:size(Map) > 1,
+    %% Only xmppStanzaSent type
+    maps:map(fun(_Node, NodeRes) ->
+        lists:foreach(fun(#{<<"dict">> := Dict,
+                            <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
+                              check_spiral_dict(Dict)
+                end, NodeRes) end, Map).
+
 get_mim2_cluster_metrics(Config) ->
     Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
     Result = execute_auth(#{query => get_node_cluster_metrics_as_dicts_call(Node),
@@ -125,11 +182,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
             true -> [<<"global">>, <<"xmppStanzaSent">>];
             false -> [domain_helper:host_type(), <<"xmppStanzaSent">>]
         end,
-    [#{<<"key">> := <<"count">>, <<"value">> := Count},
-     #{<<"key">> := <<"one">>, <<"value">> := One}] =
-        maps:get(SentName, Map),
-    true = is_integer(Count),
-    true = is_integer(One),
+    check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V}] =
         maps:get([<<"global">>,<<"uniqueSessionCount">>], Map),
     true = is_integer(V),
@@ -188,9 +241,12 @@ get_metrics_call_with_args(Args) ->
            }">>.
 
 get_all_metrics_as_dicts_call() ->
+    get_by_args_metrics_as_dicts_call(<<>>).
+
+get_by_args_metrics_as_dicts_call(Args) ->
     <<"query Q1
            {metric
-               {getMetricsAsDicts { name dict { key value }}}}">>.
+               {getMetricsAsDicts", Args/binary, " { name dict { key value }}}}">>.
 
 get_all_metrics_as_dicts_with_key_one_call() ->
     <<"query Q1
@@ -198,15 +254,16 @@ get_all_metrics_as_dicts_with_key_one_call() ->
                {getMetricsAsDicts(keys: [\"one\"]) { name dict { key value }}}}">>.
 
 get_all_cluster_metrics_as_dicts_call() ->
+    get_by_args_cluster_metrics_as_dicts_call(<<>>).
+
+get_by_args_cluster_metrics_as_dicts_call(Args) ->
     <<"query Q1
            {metric
-               {getClusterMetricsAsDicts {node result { name dict { key value }}}}}">>.
+               {getClusterMetricsAsDicts", Args/binary,
+               " {node result { name dict { key value }}}}}">>.
 
 get_node_cluster_metrics_as_dicts_call(NodeBin) ->
-    <<"query Q1
-           {metric
-               {getClusterMetricsAsDicts(nodes: [\"", NodeBin/binary, "\"]) "
-               "{node result { name dict { key value }}}}}">>.
+    get_by_args_cluster_metrics_as_dicts_call(<<"(nodes: [\"", NodeBin/binary, "\"])">>).
 
 %% Helpers
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
@@ -214,3 +271,9 @@ ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
 
 error_result(ErrorNumber, {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
     lists:nth(ErrorNumber, Errors).
+
+check_spiral_dict(Dict) ->
+    [#{<<"key">> := <<"count">>, <<"value">> := Count},
+     #{<<"key">> := <<"one">>, <<"value">> := One}] = Dict,
+    true = is_integer(Count),
+    true = is_integer(One).
