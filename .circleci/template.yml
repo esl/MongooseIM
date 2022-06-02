@@ -1,7 +1,7 @@
 version: 2.1
 
 references:
-  - &OTP24 cimg/elixir:1.12.3  # Contains Erlang 24.0.5
+  - &OTP24 chrzaszcz/cimg-erlang:24.3.4
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days

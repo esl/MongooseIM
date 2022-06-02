@@ -172,7 +172,7 @@ get_rdbms_data_stats(Pools) ->
     get_rdbms_stats(RDBMSWorkers).
 
 get_dist_data_stats() ->
-    DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],
+    DistStats = [dist_inet_stats(PortOrPid) || {_, PortOrPid} <- erlang:system_info(dist_ctrl)],
     [{connections, length(DistStats)} | merge_stats(DistStats)].
 
 -spec get_up_time() -> {value, integer()}.
@@ -333,38 +333,26 @@ merge_stats_fun(send_max, V1, V2) ->
 merge_stats_fun(_, V1, V2) ->
     V1 + V2.
 
-inet_stats(Port) when is_port(Port) ->
-    {ok, Stats} = inet:getstat(Port, ?INET_STATS),
-    Stats;
-%% TLS dist is operated by PID, not PORT directly, so we need to find the relevant port
-inet_stats(Pid) when is_pid(Pid) ->
-    {links, Links} = erlang:process_info(Pid, links),
-    %% In case of TLS, controlling process of a TCP port is one of the linked proceses
-    %% so we should check all links of all processes linked to givan one
-    RelatedPidsAndPorts =
-        lists:map(fun(LinkedPid) ->
-            {links, SubLinks} = erlang:process_info(LinkedPid, links),
-            SubLinks
-        end, [Pid | Links]),
-
-    PortsTCP = lists:filter(
-        fun(Link) ->
-            case Link of
-                Port when is_port(Port) ->
-                    {name, "tcp_inet"} == erlang:port_info(Port, name);
-                _ ->
-                    false
-            end
-        end, lists:flatten(RelatedPidsAndPorts)),
-
-    case PortsTCP of
-        [Port | _] ->
-            inet_stats(Port);
-        _ ->
+dist_inet_stats(Pid) when is_pid(Pid) ->
+    try
+        {ok, {sslsocket, FD, _Pids}} = tls_sender:dist_tls_socket(Pid),
+        gen_tcp = element(1, FD),
+        inet_stats(element(2, FD))
+    catch C:R:S ->
+            ?LOG_INFO(#{what => dist_inet_stats_failed, class => C, reason => R, stacktrace => S}),
             ?EMPTY_INET_STATS
     end;
-inet_stats(_) ->
-    ?EMPTY_INET_STATS.
+dist_inet_stats(Port) ->
+    inet_stats(Port).
+
+inet_stats(Port) ->
+    try
+        {ok, Stats} = inet:getstat(Port, ?INET_STATS),
+        Stats
+    catch C:R:S ->
+            ?LOG_INFO(#{what => inet_stats_failed, class => C, reason => R, stacktrace => S}),
+            ?EMPTY_INET_STATS
+    end.
 
 remove_metric({Name, _, _}) ->
     exometer_admin:delete_entry(Name).
