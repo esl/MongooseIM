@@ -185,7 +185,8 @@ with_s3_opts(Opts) ->
         #{s3 => config([modules, mod_http_upload, s3], maps:merge(required_opts(), Opts))}).
 
 parse_url(URL) ->
-    {ok, {Scheme, _, HostList, Port, PathList, QuerySList}} = http_uri:parse(binary_to_list(URL)),
+    #{host := HostList, path := PathList, port := Port, query := QuerySList,
+      scheme := Scheme} = uri_string:parse(binary_to_list(URL)),
     Host = list_to_binary(HostList),
     Path = list_to_binary(PathList),
     Queries =

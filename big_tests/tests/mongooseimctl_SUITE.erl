@@ -398,6 +398,8 @@ check_bucket_url_and_filename(Type, Url) ->
                    get -> ?S3_BASE_URL_REGEX"$";
                    put -> ?S3_BASE_URL_REGEX"\?.*"
                end,
+    ct:log("check_bucket_url_and_filename type=~p url=~p regex=~p",
+           [Type, Url, UrlRegex]),
     ?assertMatch({match, [{0, _}]}, re:run(Url, UrlRegex)).
 
 check_substring(SubString, String) ->
