@@ -61,11 +61,11 @@ init({Ref, Transport, Opts}) ->
 -spec handle_event(gen_statem:event_type(), term(), fsm_state(), state()) -> fsm_res().
 handle_event(cast, connect, connecting,
              StateData = #state{ranch_ref = Ref,
+                                transport = Transport,
                                 listener_opts = #{shaper := ShaperName,
                                                   proxy_protocol := Proxy,
                                                   max_stanza_size := MaxStanzaSize}}) ->
-    Proxy andalso ranch:recv_proxy_header(Ref, 1000),
-    {ok, Socket} = ranch:handshake(Ref),
+    Socket = get_socket_maybe_after_proxy_and_ip_blacklist(Ref, Transport, Proxy),
     {ok, NewParser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
     ShaperState = shaper:new(ShaperName),
     NewStateData = StateData#state{lserver = ?MYNAME, socket = Socket,
@@ -181,6 +181,30 @@ terminate(Reason, FsmState, StateData) ->
 %%%----------------------------------------------------------------------
 %%% helpers
 %%%----------------------------------------------------------------------
+-spec get_socket_maybe_after_proxy_and_ip_blacklist(ranch:ref(), module(), boolean()) ->
+    ranch_transport:socket().
+get_socket_maybe_after_proxy_and_ip_blacklist(Ref, _, true) ->
+    {ok, #{src_address := PeerIp}} = ranch:recv_proxy_header(Ref, 1000),
+    verify_ip_is_not_blacklisted(PeerIp),
+    {ok, Socket} = ranch:handshake(Ref),
+    Socket;
+get_socket_maybe_after_proxy_and_ip_blacklist(Ref, Transport, false) ->
+    {ok, Socket} = ranch:handshake(Ref),
+    {ok, {PeerIp, _}} = Transport:peername(Socket),
+    verify_ip_is_not_blacklisted(PeerIp),
+    Socket.
+
+-spec verify_ip_is_not_blacklisted(inet:ip_address()) -> ok | no_return().
+verify_ip_is_not_blacklisted(PeerIp) ->
+    case mongoose_hooks:check_bl_c2s(PeerIp) of
+        true ->
+            ?LOG_INFO(#{what => c2s_blacklisted_ip, ip => PeerIp,
+                        text => <<"Connection attempt from blacklisted IP">>}),
+            throw({stop, {shutdown, ip_blacklisted}});
+        false ->
+            ok
+    end.
+
 -spec handle_stream_start(state(), exml:element(), stream_state()) -> fsm_res().
 handle_stream_start(S0, StreamStart, StreamState) ->
     LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
@@ -293,7 +317,8 @@ handle_sasl_success(State, Creds) ->
 stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer,
                                          listener_opts = LOpts} = S) ->
     send_header(S, LServer, <<"1.0">>, ?MYLANG),
-    Creds = mongoose_credentials:new(LServer, HostType, #{}),
+    CredOpts = mongoose_credentials:make_opts(LOpts),
+    Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts),
     send_element_from_server_jid(S, StreamFeatures),
