@@ -35,8 +35,8 @@ process_iq(Acc, _From, _To, #iq{type = set, sub_el = #xmlel{name = <<"session">>
     {Acc, IQ#iq{type = result}}.
 
 %% ranch_protocol
-start_link(Ref, Transport, Opts) ->
-	gen_statem:start_link(mongoose_c2s, {Ref, Transport, Opts}, []).
+start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
+	gen_statem:start_link(mongoose_c2s, {Ref, Transport, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
 
 %% supervisor
 -spec start_link(options()) -> any().
@@ -60,7 +60,8 @@ listener_child_spec(ListenerId, Opts) ->
       type => supervisor,
       modules => [?MODULE]}.
 
-transport(#{tls := #{mode := tls, opts := SOpts}}) ->
-    {ranch_ssl, #{socket_opts => [{port, 6222} | SOpts]}};
-transport(_) ->
-    {ranch_tcp, #{socket_opts => [{port, 6222}]}}.
+transport(#{port := Port, tls := #{mode := tls, opts := SOpts},
+            hibernate_after := HibernateAfterTimeout}) ->
+    {ranch_ssl, #{socket_opts => [{port, Port}, {hibernate_after, HibernateAfterTimeout} | SOpts]}};
+transport(#{port := Port}) ->
+    {ranch_tcp, #{socket_opts => [{port, Port}]}}.

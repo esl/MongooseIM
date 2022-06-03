@@ -282,7 +282,7 @@ xmpp_listener_common() ->
     #section{items = #{<<"backlog">> => #option{type = integer,
                                                 validate = non_negative},
                        <<"proxy_protocol">> => #option{type = boolean},
-                       <<"hibernate_after">> => #option{type = integer,
+                       <<"hibernate_after">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},

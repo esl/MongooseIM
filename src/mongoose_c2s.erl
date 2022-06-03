@@ -215,7 +215,7 @@ handle_starttls(StateData = #state{transport = ranch_tcp,
                                    parser = Parser}, _, _, _) ->
     ranch_tcp:setopts(TcpSocket, [{active, false}]),
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    case ranch_ssl:handshake(TcpSocket, TlsOpts, 5000) of
+    case ranch_ssl:handshake(TcpSocket, TlsOpts, 1000) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewStateData = StateData#state{transport = ranch_ssl,
