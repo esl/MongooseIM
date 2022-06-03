@@ -87,7 +87,7 @@ make_test_spec_sub_atoms(Dir, SubAtoms) ->
                 [] ->
                     {cases, Dir, Module, [Last]};
                 [_|_] ->
-                    {groups, Dir, Module, Groups, {cases, [Last]}}
+                    {groups, Dir, Module, [Groups], {cases, [Last]}}
             end;
         false ->
             Groups = tl(SubAtoms),
