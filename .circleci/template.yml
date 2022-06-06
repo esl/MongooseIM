@@ -223,9 +223,9 @@ executors:
       - image: *OTP25
       - *redis_container
       - *mssql_container
-  otp_25_riak_redis:
+  otp_24_riak_redis:
     docker:
-      - image: *OTP25
+      - image: *OTP24
       - *redis_container
       - *riak_container
   otp_25_elasticsearch_cassandra_mnesia:
@@ -814,13 +814,13 @@ workflows:
             - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: riak_mnesia_25
-          executor: otp_25_riak_redis
+          name: riak_mnesia_24
+          executor: otp_24_riak_redis
           context: mongooseim-org
           preset: riak_mnesia
           db: "riak redis"
           requires:
-            - otp_25_docker
+            - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
           name: ldap_mnesia_24
@@ -866,7 +866,7 @@ workflows:
             - mysql_redis_25
             - mssql_mnesia_25
             - ldap_mnesia_25
-            - riak_mnesia_25
+            - riak_mnesia_24
             - elasticsearch_and_cassandra_25
             - dynamic_domains_pgsql_mnesia_25
             - dynamic_domains_mysql_redis_25
