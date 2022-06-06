@@ -5,7 +5,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--define(C2S_OPEN_TIMEOUT, 60000).
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
@@ -71,7 +70,7 @@ handle_event(cast, connect, connecting,
     NewStateData = StateData#state{lserver = ?MYNAME, socket = Socket,
                                    parser = NewParser, shaper = ShaperState},
     activate_socket(NewStateData),
-    {next_state, {wait_for_stream, stream_start}, NewStateData};
+    {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout()};
 
 %% TODO in any state? probably only during session_established
 handle_event(info, {route, From, To, Acc}, _, StateData) ->
@@ -161,6 +160,12 @@ handle_event(info, {Error, Socket}, _, _StateData = #state{socket = Socket})
   when Error =:= tcp_error; Error =:= ssl_error ->
     {stop, {shutdown, socket_error}};
 
+handle_event(state_timeout, state_timeout_termination, _FsmState, StateData) ->
+    StreamConflict = mongoose_xmpp_errors:connection_timeout(),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, state_timeout}};
+
 handle_event(info, replaced, _FsmState, StateData) ->
     StreamConflict = mongoose_xmpp_errors:stream_conflict(),
     send_element_from_server_jid(StateData, StreamConflict),
@@ -247,7 +252,7 @@ handle_starttls(StateData = #state{transport = ranch_tcp,
                                            parser = NewParser,
                                            streamid = new_stream_id()},
             activate_socket(NewStateData),
-            {next_state, {wait_for_stream, stream_start}, NewStateData};
+            {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout()};
         {error, closed} ->
             {stop, {shutdown, tls_closed}};
         {error, timeout} ->
@@ -287,7 +292,7 @@ handle_sasl_step(StateData, {ok, Creds}, _, _) ->
 handle_sasl_step(StateData, {continue, ServerOut, NewSaslState}, _, Retries) ->
     Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_challenge_stanza(Challenge)),
-    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData};
+    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData, state_timeout()};
 handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
                  {error, Error, Username}, SaslState, Retries) ->
     ?LOG_INFO(#{what => auth_failed,
@@ -311,7 +316,7 @@ handle_sasl_success(State, Creds) ->
                            jid = jid:make_bare(User, State#state.lserver)},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
                 c2s_state => NewState}),
-    {next_state, {wait_for_stream, authenticated}, NewState}.
+    {next_state, {wait_for_stream, authenticated}, NewState, state_timeout()}.
 
 -spec stream_start_features_before_auth(state()) -> fsm_res().
 stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer,
@@ -322,14 +327,14 @@ stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts),
     send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, ?C2S_OPEN_TIMEOUT}.
+    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout()}.
 
 -spec stream_start_features_after_auth(state()) -> fsm_res().
 stream_start_features_after_auth(#state{host_type = HostType, lserver = LServer} = S) ->
     send_header(S, LServer, <<"1.0">>, ?MYLANG),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer),
     send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S}.
+    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout()}.
 
 -spec handle_bind_resource(state(), jlib:iq(), exml:element(), retries()) -> fsm_res().
 handle_bind_resource(StateData, #iq{sub_el = SubEl} = IQ, El, Retries) ->
@@ -384,7 +389,7 @@ open_session(#state{host_type = HostType, sid = SID} = StateData, Jid) ->
 maybe_retry_state(StateData, _, 0) ->
     {stop, {shutdown, retries}, StateData};
 maybe_retry_state(StateData, NextFsmState, _) ->
-    {next_state, NextFsmState, StateData}.
+    {next_state, NextFsmState, StateData, state_timeout()}.
 
 %% @doc Check 'from' attribute in stanza RFC 6120 Section 8.1.2.1
 -spec verify_from(exml:element(), jid:jid()) -> boolean().
@@ -606,6 +611,10 @@ send_text(StateData = #state{socket = Socket, transport = Transport}, Text) ->
     ?LOG_DEBUG(#{what => c2s_send_text, text => <<"Send XML to the socket">>,
                  send_text => Text, c2s_state => StateData}),
     Transport:send(Socket, Text).
+
+state_timeout() ->
+    Timeout = mongoose_config:get_opt(c2s_state_timeout),
+    {state_timeout, Timeout, state_timeout_termination}.
 
 filter_mechanism(<<"EXTERNAL">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-1-PLUS">>) -> false;

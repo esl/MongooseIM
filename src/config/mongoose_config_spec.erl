@@ -193,6 +193,9 @@ general() ->
                                                         wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
                                                     wrap = global_config},
+                 <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                                                    validate = non_negative,
+                                                    wrap = global_config},
                  <<"domain_certfile">> => #list{items = domain_cert(),
                                                 format_items = map,
                                                 wrap = global_config}
@@ -213,7 +216,8 @@ general_defaults() ->
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
-      <<"hide_service_name">> => false}.
+      <<"hide_service_name">> => false,
+      <<"c2s_state_timeout">> => 5000}.
 
 ctl_access_rule() ->
     #section{
