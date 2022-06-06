@@ -103,19 +103,28 @@ maybe_add_acl(true, Headers) ->
                                  Port :: inet:port_number(), Path :: unicode:unicode_binary()}.
 extract_uri_params(BucketURL, Token, Filename) ->
     #{host := Host, scheme := Scheme, path := Path0} = Parsed =
-    uri_string:parse(binary_to_list(BucketURL)),
-    SchemeAtom = list_to_existing_atom(Scheme),
+    uri_string_parse(BucketURL),
+    SchemeAtom = binary_to_existing_atom(Scheme, latin1),
     Port = case maps:get(port, Parsed, undefined) of
                undefined ->
                     scheme_to_port(SchemeAtom, 80);
                P ->
                    P
            end,
-    KeylessPath = trim_slash(list_to_binary(Path0)),
+    KeylessPath = trim_slash(Path0),
     EscapedFilename = aws_signature_v4:uri_encode(Filename),
     Path = <<KeylessPath/binary, "/", Token/binary, "/", EscapedFilename/binary>>,
-    {SchemeAtom, list_to_binary(Host), Port, Path}.
+    {SchemeAtom, Host, Port, Path}.
 
+%% Uri is utf-8 encoded binary
+uri_string_parse(Uri) when is_binary(Uri) ->
+    case uri_string:parse(Uri) of
+        Map when is_map(Map) ->
+            Map;
+        Other ->
+            error(#{what => failed_to_parse_uri, uri_string => Uri,
+                    reason => Other})
+    end.
 
 -spec compose_url(Scheme :: http | https | atom(), Host :: unicode:unicode_binary(),
                   Port :: inet:port_number(), Path :: unicode:unicode_binary(),
