@@ -165,11 +165,9 @@ with_port_component(Scheme, Host, Port) ->
         _ -> <<Host/binary, ":", (integer_to_binary(Port))/binary>>
     end.
 
-scheme_to_port(Scheme, Default) ->
-    case lists:keyfind(Scheme, 1, [{http, 80}, {https, 443}]) of
-        {Scheme, Port} -> Port;
-        _ -> Default
-    end.
+scheme_to_port(http, _Default) -> 80;
+scheme_to_port(https, _Default) -> 443;
+scheme_to_port(_Scheme, Default) -> Default.
 
 -spec trim_slash(binary()) -> binary().
 trim_slash(<<>>) ->

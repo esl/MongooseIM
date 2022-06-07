@@ -258,7 +258,7 @@ execute_insert_room(HostType, MucHost, RoomName, ExtOpts) ->
 
 -spec execute_insert_aff(mongooseim:host_type(), RoomID :: room_id(),
                          UserU :: jid:luser(), UserS :: jid:lserver(),
-                         Res ::binary(), ExtAff :: pos_integer()) -> ok.
+                         Res :: binary(), ExtAff :: pos_integer()) -> ok.
 execute_insert_aff(HostType, RoomID, UserU, UserS, Res, ExtAff) ->
     Args = [RoomID, UserU, UserS, Res, ExtAff],
     execute_successfully(HostType, muc_insert_aff, Args),

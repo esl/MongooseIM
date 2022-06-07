@@ -228,7 +228,7 @@ executors:
       - image: *OTP24
       - *redis_container
       - *riak_container
-  otp_25_elasticsearch_cassandra_mnesia:
+  otp_25_elasticsearch_cassandra:
     docker:
       - image: *OTP25
       - *redis_container
@@ -842,7 +842,7 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: elasticsearch_and_cassandra_25
-          executor: otp_25_elasticsearch_cassandra_mnesia
+          executor: otp_25_elasticsearch_cassandra
           context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
@@ -858,6 +858,7 @@ workflows:
             - small_tests_24
             - ldap_mnesia_24
             - pgsql_mnesia_24
+            - riak_mnesia_24
             - dynamic_domains_pgsql_mnesia_24
 
             - small_tests_25
@@ -866,7 +867,6 @@ workflows:
             - mysql_redis_25
             - mssql_mnesia_25
             - ldap_mnesia_25
-            - riak_mnesia_24
             - elasticsearch_and_cassandra_25
             - dynamic_domains_pgsql_mnesia_25
             - dynamic_domains_mysql_redis_25
