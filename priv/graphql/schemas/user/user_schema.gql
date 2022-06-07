@@ -51,4 +51,6 @@ type UserMutation @protected{
   vcard: VcardUserMutation
   "User's private storage management"
   private: PrivateUserMutation
+  "Http upload"
+  httpUpload: HttpUploadUserMutation
 }

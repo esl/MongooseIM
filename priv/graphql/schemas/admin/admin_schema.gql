@@ -57,4 +57,6 @@ type AdminMutation @protected{
   vcard: VcardAdminMutation
   "Private storage management"
   private: PrivateAdminMutation
+  "Http upload"
+  httpUpload: HttpUploadAdminMutation
 }
