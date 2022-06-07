@@ -93,7 +93,7 @@ aggregate(_, NewTask, _Extra) ->
     {ok, NewTask}.
 
 -spec request(mod_smart_markers:chat_marker(),
-              mongoose_async_pools:pool_extra()) -> reference().
+              mongoose_async_pools:pool_extra()) -> gen_server:request_id().
 request(#{from := #jid{luser = LU, lserver = LS}, to := To, thread := Thread,
           type := Type, timestamp := TS, id := Id}, #{host_type := HostType}) ->
     ToEncoded = mod_smart_markers_rdbms:encode_jid(To),

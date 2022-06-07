@@ -421,7 +421,6 @@ generate_user_tcp(C, User) ->
 generate_user(C, User, Transport) ->
     Certs = ?config(certs, C),
     UserCert = maps:get(User, Certs),
-
     Common = [{username, list_to_binary(User)},
               {server, domain()},
               {host, <<"localhost">>},
@@ -429,7 +428,8 @@ generate_user(C, User, Transport) ->
               {resource, <<>>}, %% Allow the server to generate the resource
               {auth, {escalus_auth, auth_sasl_external}},
               {transport, Transport},
-              {ssl_opts, [{certfile, maps:get(cert, UserCert)},
+              {ssl_opts, [{versions, ['tlsv1.2']},
+                          {certfile, maps:get(cert, UserCert)},
                           {keyfile, maps:get(key, UserCert)}]}],
     Common ++ transport_specific_options(Transport)
     ++ [{port, ct:get_config({hosts, mim, c2s_port})}].

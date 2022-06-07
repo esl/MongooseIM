@@ -324,7 +324,7 @@ connection_args(FromServer, RequestedName, Config) ->
      {requested_name, RequestedName},
      {starttls, required},
      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
-     {ssl_opts, [{certfile, CertFile}, {keyfile, KeyFile}]}].
+     {ssl_opts, [{versions, ['tlsv1.2']}, {certfile, CertFile}, {keyfile, KeyFile}]}].
 
 s2s_start_stream_with_wrong_namespace(Conn = #client{props = Props}, Features) ->
     Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"xmlns">> => <<"42">>} end),

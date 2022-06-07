@@ -102,12 +102,29 @@ maybe_add_acl(true, Headers) ->
                                 {Scheme :: http | https | atom(), Host :: unicode:unicode_binary(),
                                  Port :: inet:port_number(), Path :: unicode:unicode_binary()}.
 extract_uri_params(BucketURL, Token, Filename) ->
-    {ok, {Scheme, [], Host, Port, Path0, []}} = http_uri:parse(binary_to_list(BucketURL)),
-    KeylessPath = trim_slash(list_to_binary(Path0)),
+    #{host := Host, scheme := Scheme, path := Path0} = Parsed =
+    uri_string_parse(BucketURL),
+    SchemeAtom = binary_to_existing_atom(Scheme, latin1),
+    Port = case maps:get(port, Parsed, undefined) of
+               undefined ->
+                    scheme_to_port(SchemeAtom, 80);
+               P ->
+                   P
+           end,
+    KeylessPath = trim_slash(Path0),
     EscapedFilename = aws_signature_v4:uri_encode(Filename),
     Path = <<KeylessPath/binary, "/", Token/binary, "/", EscapedFilename/binary>>,
-    {Scheme, list_to_binary(Host), Port, Path}.
+    {SchemeAtom, Host, Port, Path}.
 
+%% Uri is utf-8 encoded binary
+uri_string_parse(Uri) when is_binary(Uri) ->
+    case uri_string:parse(Uri) of
+        Map when is_map(Map) ->
+            Map;
+        Other ->
+            error(#{what => failed_to_parse_uri, uri_string => Uri,
+                    reason => Other})
+    end.
 
 -spec compose_url(Scheme :: http | https | atom(), Host :: unicode:unicode_binary(),
                   Port :: inet:port_number(), Path :: unicode:unicode_binary(),
@@ -143,14 +160,18 @@ query_encode({Key, Value}) ->
                           Host :: unicode:unicode_binary(),
                           Port :: inet:port_number()) -> binary().
 with_port_component(Scheme, Host, Port) ->
-    case lists:keyfind(Scheme, 1, http_uri:scheme_defaults()) of
-        {Scheme, Port} -> Host;
+    case scheme_to_port(Scheme, undefined) of
+        Port -> Host;
         _ -> <<Host/binary, ":", (integer_to_binary(Port))/binary>>
     end.
 
+scheme_to_port(http, _Default) -> 80;
+scheme_to_port(https, _Default) -> 443;
+scheme_to_port(_Scheme, Default) -> Default.
 
-%% Path has always at least one byte ("/")
 -spec trim_slash(binary()) -> binary().
+trim_slash(<<>>) ->
+    <<>>;
 trim_slash(Data) ->
     case binary:last(Data) of
         $/ -> erlang:binary_part(Data, 0, byte_size(Data) - 1);
