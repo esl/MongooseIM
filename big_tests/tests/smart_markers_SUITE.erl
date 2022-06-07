@@ -40,7 +40,8 @@ groups() ->
        marker_for_thread_can_be_fetched,
        marker_after_timestamp_can_be_fetched,
        marker_after_timestamp_for_threadid_can_be_fetched,
-       remove_markers_when_removed_user
+       remove_markers_when_removed_user,
+       repeated_markers_produce_no_warnings
       ]},
      {muclight, [parallel],
       [
@@ -106,8 +107,15 @@ end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config),
     Config.
 
+init_per_testcase(repeated_markers_produce_no_warnings = TC, Config) ->
+    logger_ct_backend:start(),
+    escalus:init_per_testcase(TC, Config);
 init_per_testcase(Name, Config) ->
     escalus:init_per_testcase(Name, Config).
+
+end_per_testcase(repeated_markers_produce_no_warnings = TC, Config) ->
+    logger_ct_backend:stop(),
+    escalus:end_per_testcase(TC, Config);
 end_per_testcase(Name, Config) ->
     escalus:end_per_testcase(Name, Config).
 
@@ -236,6 +244,23 @@ remove_markers_when_removed_user(Config) ->
         mongoose_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) > 0 end, true),
         unregister_user(Bob),
         mongoose_helper:wait_until(fun() -> length(fetch_markers_for_users(BobJid, AliceJid)) end, 0)
+    end).
+
+repeated_markers_produce_no_warnings(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        MsgId = escalus_stanza:id(),
+        Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Bob, <<"Hello!">>), MsgId),
+        escalus:send(Alice, Msg),
+        escalus:wait_for_stanza(Bob),
+        ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
+        [MarkerEl] = ChatMarker#xmlel.children,
+        RepeatedChatMarker = ChatMarker#xmlel{children =  [MarkerEl, MarkerEl]},
+        logger_ct_backend:capture(warning),
+        escalus:send(Bob, RepeatedChatMarker),
+        escalus:wait_for_stanza(Alice),
+        logger_ct_backend:stop_capture(),
+        FilterFun = fun(_, WMsg) -> re:run(WMsg, "{bad_result,{updated,0}}") /= nomatch end,
+        [] = logger_ct_backend:recv(FilterFun)
     end).
 
 marker_is_stored_for_room(Config) ->
