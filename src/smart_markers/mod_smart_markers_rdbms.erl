@@ -9,11 +9,12 @@
 -behavior(mod_smart_markers_backend).
 
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 
 -export([init/2, update_chat_marker/2, get_chat_markers/4]).
 -export([get_conv_chat_marker/6]).
 -export([remove_domain/2, remove_user/2, remove_to/2, remove_to_for_user/3]).
--export([encode_jid/1, encode_thread/1, encode_type/1, check_upsert_result/1]).
+-export([encode_jid/1, encode_thread/1, encode_type/1, verify/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -54,7 +55,7 @@ init(HostType, _) ->
                          mod_smart_markers:chat_marker()) -> ok.
 update_chat_marker(HostType, #{from := #jid{luser = LU, lserver = LS},
                                to := To, thread := Thread,
-                               type := Type, timestamp := TS, id := Id}) ->
+                               type := Type, timestamp := TS, id := Id} = Marker) ->
     ToEncoded = encode_jid(To),
     ThreadEncoded = encode_thread(Thread),
     TypeEncoded = encode_type(Type),
@@ -63,7 +64,7 @@ update_chat_marker(HostType, #{from := #jid{luser = LU, lserver = LS},
     InsertValues = KeyValues ++ UpdateValues,
     Res = rdbms_queries:execute_upsert(HostType, smart_markers_upsert,
                                        InsertValues, UpdateValues, KeyValues),
-    ok = check_upsert_result(Res).
+    verify(Res, Marker).
 
 -spec get_conv_chat_marker(HostType :: mongooseim:host_type(),
                            From :: jid:jid(),
@@ -143,6 +144,15 @@ remove_to(HostType, To) ->
 remove_to_for_user(HostType, #jid{luser = LU, lserver = LS}, To) ->
     mongoose_rdbms:execute_successfully(HostType, markers_remove_to_for_user, [LS, LU, encode_jid(To)]).
 
+-spec verify(term(), mod_smart_markers:chat_marker()) -> ok.
+verify(Answer, Marker) ->
+    case check_upsert_result(Answer) of
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => smart_marker_insert_failed, reason => Reason,
+                           marker => Marker});
+        _ -> ok
+    end.
+
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
@@ -157,6 +167,7 @@ encode_type(acknowledged) -> <<"A">>.
 
 %% MySQL returns 1 when an upsert is an insert
 %% and 2, when an upsert acts as update
+check_upsert_result({updated, 0}) -> ok;
 check_upsert_result({updated, 1}) -> ok;
 check_upsert_result({updated, 2}) -> ok;
 check_upsert_result(Result) ->
