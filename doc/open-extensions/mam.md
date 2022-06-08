@@ -1,7 +1,6 @@
+# Message Archive Management extensions
 
-
-
-# New MAM filtering fields
+## New MAM filtering fields
 
 The new fields allow to improve the performance of the counting queries for very big archives
 by changing how count and index functions work.
@@ -10,9 +9,9 @@ by changing how count and index functions work.
 - `to_id` - totally ignores messages with `id > from_id` (`to_id` is included into the set)
 - `after_id` - totally ignores messages with `id <= after_id` (`after_id` is not included into the set)
 - `before_id` - totally ignores messages with `id >= before_id` (`before_id` is not included into the set)
-- `simple`
+- `simple` - do not return count and offset fields in the result.
 
-# Get new messages, oldest first
+## Get new messages, oldest first
 
 Example from `pagination_first_page_after_id4` testcase:
 
@@ -26,7 +25,7 @@ In this mode, the client would get the oldest messages first.
 
 Testcase: the client has messages 1-15 in his archive.
 
-```
+```xml
 <!-- Client sends -->
 <iq type='set' id='req1'>
     <query xmlns='urn:xmpp:mam:1' queryid='first_page_after_id4'>
@@ -97,7 +96,7 @@ more messages.
 ```
 
 
-# Get new messages, newest first
+## Get new messages, newest first
 
 Sometimes we want to render the newest messages as fast as possible.
 
@@ -106,8 +105,7 @@ are still need to be requested, when using this method.
 
 Example `pagination_last_page_after_id4`.
 
-
-```
+```xml
 <!-- Client sends -->
 <iq type='set' id='req3'>
     <query xmlns='urn:xmpp:mam:1' queryid='last_page_after_id4'>
@@ -162,6 +160,40 @@ Because index is not zero, the client would have to send more queries to get
 all missing messages.
 
 
+## Disable message counting
 
+Sometimes, we don't want to count messages at all.
+It would improve performance.
 
+For example, if we want to request another page of the result set,
+we already would know the total number of messages from the first query.
 
+Sometimes, total and offset values are not visible in the UI.
+
+```xml
+<!-- Client sends -->
+<iq type='set' id='req5'>
+    <query xmlns='urn:xmpp:mam:1' queryid='before10'>
+        <x xmlns='jabber:x:data'>
+            <field var='simple'>
+                <value>true</value>
+            </field>
+        </x>
+        <set>
+            <max>5</max>
+            <before>BO7DD6KDP0O1</before>
+        </set>
+    </query>
+</iq>
+
+...skip messages...
+<!-- Server returns messages and the final IQ -->
+<iq from='alice@localhost' to='alice@localhost/res1' id='req5' type='result'>
+    <fin xmlns='urn:xmpp:mam:1'>
+        <set xmlns='http://jabber.org/protocol/rsm'>
+            <first>BO7DD6K1E8G1</first>
+            <last>BO7DD6KBAAG1</last>
+        </set>
+    </fin>
+</iq>
+```
