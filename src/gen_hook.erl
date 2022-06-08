@@ -42,15 +42,17 @@
 -type key() :: {HookName :: atom(),
                 Tag :: any()}.
 
--type hook_tuple() :: {HookName :: hook_name(),
-                       Tag :: hook_tag(),
-                       Function :: hook_fn(),
-                       Extra :: hook_extra(),
-                       Priority :: pos_integer()}.
+-type hook_tuple() :: hook_tuple(hook_fn()).
+-type hook_tuple(HookFn) :: {HookName :: hook_name(),
+                             Tag :: hook_tag(),
+                             Function :: HookFn,
+                             Extra :: hook_extra(),
+                             Priority :: pos_integer()}.
 
--type hook_list() :: [hook_tuple()].
+-type hook_list() :: hook_list(hook_fn()).
+-type hook_list(HookFn) :: [hook_tuple(HookFn)].
 
--export_type([hook_fn/0, hook_list/0]).
+-export_type([hook_fn/0, hook_list/0, hook_list/1]).
 
 -record(hook_handler, {prio :: pos_integer(),
                        hook_fn :: hook_fn(),

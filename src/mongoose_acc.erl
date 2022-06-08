@@ -131,7 +131,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
     #{
       mongoose_acc => true,
       ref => make_ref(),
-      timestamp => os:system_time(microsecond),
+      timestamp => erlang:system_time(microsecond),
       origin_pid => self(),
       origin_location => Location,
       stanza => Stanza,

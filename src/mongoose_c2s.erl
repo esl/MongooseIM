@@ -12,7 +12,7 @@
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
--export([filter_mechanism/1]).
+-export([get_sid/1, get_jid/1, filter_mechanism/1]).
 
 -record(state, {
           host_type = <<>> :: mongooseim:host_type(),
@@ -30,6 +30,8 @@
 -type state() :: #state{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(fsm_state(), state()).
+-type handler_params() :: #{c2s := mongoose_c2s:state()}.
+-type handler_fn() :: fun( (mongoose_acc:t(), handler_params(), map() ) -> mongoose_acc:t()).
 
 -type retries() :: 0..64.
 -type stream_state() :: stream_start | authenticated.
@@ -41,7 +43,7 @@
                    | session_established
                    | resume_session.
 
--export_type([state/0]).
+-export_type([state/0, handler_params/0, handler_fn/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -400,43 +402,34 @@ verify_from(El, StateJid) ->
             jid:are_equal(jid:from_binary(SJid), StateJid)
     end.
 
-handle_c2s_packet(StateData, El) ->
+handle_c2s_packet(StateData = #state{host_type = HostType}, El) ->
     Acc0 = element_to_origin_accum(StateData, El),
-    Acc1 = mongoose_hooks:c2s_preprocessing_hook(StateData#state.host_type, Acc0, StateData),
+    Acc1 = mongoose_hooks:c2s_preprocessing_hook(HostType, Acc0, StateData),
     case mongoose_acc:get(hook, result, undefined, Acc1) of
         drop -> {next_state, session_established, StateData};
         _ ->
-            NewStateData = process_outgoing_stanza(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
-            {keep_state, NewStateData}
+            Acc2 = mongoose_hooks:user_send_packet(HostType, Acc1, #{c2s => StateData}),
+            process_outgoing_stanza(StateData, Acc2, mongoose_acc:stanza_name(Acc2)),
+            {keep_state, StateData}
     end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP connection)
--spec process_outgoing_stanza(state(), mongoose_acc:t(), binary()) -> state().
+-spec process_outgoing_stanza(state(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"message">>) ->
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
-    Acc1 = mongoose_hooks:user_send_packet(HostType, Acc, FromJid, ToJid, El),
-    _Acc2 = route(Acc1),
-    StateData;
-process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"presence">>) ->
-    Acc1 = mongoose_hooks:c2s_update_presence(HostType, Acc),
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc1),
-    Acc2 = mongoose_hooks:user_send_packet(HostType, Acc1, FromJid, ToJid, El),
-    case jid:are_bare_equal(FromJid, ToJid) of
-        true ->
-            presence_update(StateData, Acc2, FromJid, ToJid, El);
-        _ ->
-            StateData
-    end,
-    StateData;
+    TS0 = mongoose_acc:timestamp(Acc),
+    Acc1 = mongoose_hooks:user_send_message(HostType, Acc, #{c2s => StateData}),
+    Acc2 = route(Acc1),
+    TS1 = erlang:system_time(microsecond),
+    mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
+    Acc2;
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"iq">>) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
-    El = mongoose_acc:element(Acc1),
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc1),
-    Acc2 = mongoose_hooks:user_send_packet(HostType, Acc1, FromJid, ToJid, El),
-    _Acc3 = route(Acc2),
-    StateData;
-process_outgoing_stanza(StateData, _Acc, _Name) ->
-    StateData.
+    Acc2 = mongoose_hooks:user_send_iq(HostType, Acc1, #{c2s => StateData}),
+    route(Acc2);
+process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"presence">>) ->
+    mongoose_hooks:user_send_presence(HostType, Acc, #{c2s => StateData});
+process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, _) ->
+    mongoose_hooks:user_send_non_stanza(HostType, Acc, #{c2s => StateData}).
 
 handle_incoming_stanza(StateData, Acc, _From, _To) ->
     El = mongoose_acc:element(Acc),
@@ -446,31 +439,6 @@ handle_incoming_stanza(StateData, Acc, _From, _To) ->
 route(Acc) ->
     {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
     ejabberd_router:route(FromJid, ToJid, Acc, El).
-
-%% @doc User updates his presence (non-directed presence packet)
--spec presence_update(state(), mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> state().
-presence_update(StateData, Acc, FromJid, ToJid, El) ->
-    case mongoose_acc:stanza_type(Acc) of
-        undefined ->
-            presence_update_to_available(StateData, Acc, FromJid, ToJid, El);
-        <<"unavailable">> ->
-            Status = exml_query:path(El, [{element, <<"status">>}, cdata], <<>>),
-            ejabberd_sm:unset_presence(Acc, StateData#state.sid, StateData#state.jid, Status, #{}),
-            StateData#state{};
-        <<"error">> -> StateData;
-        <<"probe">> -> StateData;
-        <<"subscribe">> -> StateData;
-        <<"subscribed">> -> StateData;
-        <<"unsubscribe">> -> StateData;
-        <<"unsubscribed">> -> StateData
-    end.
-
-presence_update_to_available(StateData, Acc, FromJid, ToJid, Packet) ->
-    Acc1 = mongoose_hooks:user_available_hook(Acc, FromJid),
-    presence_broadcast_first(StateData, Acc1, FromJid, ToJid, Packet).
-
-presence_broadcast_first(_StateData, Acc, FromJid, ToJid, Packet) ->
-    ejabberd_router:route(FromJid, ToJid, Acc, Packet).
 
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(state(), exml:element()) -> mongoose_acc:t().
@@ -620,6 +588,14 @@ filter_mechanism(<<"EXTERNAL">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-1-PLUS">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) -> false;
 filter_mechanism(_) -> true.
+
+-spec get_sid(state()) -> ejabberd_sm:sid().
+get_sid(#state{sid = Sid}) ->
+    Sid.
+
+-spec get_jid(state()) -> jid:jid().
+get_jid(#state{jid = Jid}) ->
+    Jid.
 
 new_stream_id() ->
     mongoose_bin:gen_from_crypto().
