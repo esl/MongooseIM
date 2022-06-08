@@ -5,11 +5,14 @@
 The new fields allow to improve the performance of the counting queries for very big archives
 by changing how count and index functions work.
 
-- `from_id` - totally ignores messages with `id < from_id` (`from_id` is included into the set)
-- `to_id` - totally ignores messages with `id > from_id` (`to_id` is included into the set)
-- `after_id` - totally ignores messages with `id <= after_id` (`after_id` is not included into the set)
-- `before_id` - totally ignores messages with `id >= before_id` (`before_id` is not included into the set)
+- `from_id` - returns and counts messages with ids `id >= from_id` only (`from_id` is included into the set).
+- `to_id` - returns and counts messages with ids `id <= to_id` only (`to_id` is included into the set).
+- `after_id` - returns and counts messages with ids `id > after_id` only (`after_id` is not included into the set).
+- `before_id` - returns and counts messages with ids `id < before_id` only (`before_id` is not included into the set).
 - `simple` - do not return count and offset fields in the result.
+
+The fields could be combined together. If two filters are provided, both would
+be applied to the result.
 
 ## Get new messages, oldest first
 
@@ -78,7 +81,7 @@ Messages 1-4 are completely ignored in the count and in the index fields.
 If the client asked for 5 messages, but count is 11, he should ask for
 more messages.
 
-```
+```xml
 <!-- Client sends -->
 <iq type='set' id='req2'>
     <query xmlns='urn:xmpp:mam:1' queryid='first_page_after_id9'>
