@@ -2,6 +2,7 @@
 -define(MONGOOSE_RSM_HRL, true).
 
 -record(rsm_in, {max         :: non_neg_integer() | undefined | error,
+                 %% Default is aft
                  direction   :: before | aft | undefined,
                 %% id is empty, if cdata does not exist
                  id          :: binary() | integer() | undefined,
