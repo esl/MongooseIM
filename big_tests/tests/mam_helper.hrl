@@ -46,8 +46,7 @@
         before_id   :: binary() | undefined,
         from_id     :: binary() | undefined,
         to_id       :: binary() | undefined,
-        simple = false :: boolean(),
-        opt_count = false :: boolean()
+        simple = false :: boolean()
         }).
 
 -record(forwarded_message, {

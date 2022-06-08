@@ -11,7 +11,6 @@ by changing how count and index functions work.
 - `after_id` - totally ignores messages with `id <= after_id` (`after_id` is not included into the set)
 - `before_id` - totally ignores messages with `id >= before_id` (`before_id` is not included into the set)
 - `simple`
-- `opt_count`
 
 # Get new messages, oldest first
 

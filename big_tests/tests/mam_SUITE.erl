@@ -75,12 +75,6 @@
          pagination_empty_rset/1,
          pagination_first_page_after_id4/1,
          pagination_last_page_after_id4/1,
-         pagination_first5_opt_count/1,
-         pagination_first25_opt_count_all/1,
-         pagination_last5_opt_count/1,
-         pagination_last25_opt_count_all/1,
-         pagination_offset5_opt_count/1,
-         pagination_offset5_opt_count_all/1,
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_invalid_id/1,
@@ -495,14 +489,6 @@ rsm_cases() ->
        pagination_last_page_after_id4,
        %% Simple cases
        pagination_simple_before10,
-       %% opt_count cases
-       pagination_first5_opt_count,
-       pagination_last5_opt_count,
-       pagination_offset5_opt_count,
-       %% opt_count cases with all messages on the page
-       pagination_first25_opt_count_all,
-       pagination_last25_opt_count_all,
-       pagination_offset5_opt_count_all,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
        server_returns_item_not_found_for_after_filter_with_nonexistent_id,
@@ -2390,30 +2376,6 @@ pagination_first0(Config) ->
         end,
     parallel_story(Config, [{alice, 1}], F).
 
-pagination_first5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the first page of size 5.
-        RSM = #rsm_in{max=5},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"first5_opt">>, RSM)),
-        wait_message_range(Alice, 1, 5),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_first25_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the first page of size 25.
-        RSM = #rsm_in{max=25},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"first25_opt_all">>, RSM)),
-        wait_message_range(Alice, 1, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
 pagination_last5(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -2461,55 +2423,6 @@ pagination_offset5_max0(Config) ->
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
-
-pagination_last5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction=before, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(Alice, 11, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_last25_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 25.
-        RSM = #rsm_in{max=25, direction=before, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last25_opt_all">>, RSM)),
-        wait_message_range(Alice, 1, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_offset5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Skip 5 messages, get 5 messages.
-        RSM = #rsm_in{max=5, index=5, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(Alice, 6, 10),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_offset5_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Skip 5 messages, get 25 messages (only 10 are available).
-        RSM = #rsm_in{max=25, index=5, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt_all">>, RSM)),
-        wait_message_range(Alice, 6, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
 
 pagination_before10(Config) ->
     P = ?config(props, Config),
