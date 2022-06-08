@@ -34,11 +34,11 @@
          muc_only_stanzaid/1,
          mam_service_discovery/1,
          muc_service_discovery/1,
-         simple_archive_request/1,
-         simple_archive_request_for_the_receiver/1,
+         easy_archive_request/1,
+         easy_archive_request_for_the_receiver/1,
          text_search_query_fails_if_disabled/1,
          text_search_is_not_available/1,
-         simple_text_search_request/1,
+         easy_text_search_request/1,
          long_text_search_request/1,
          text_search_is_available/1,
          muc_message_with_stanzaid/1,
@@ -101,7 +101,7 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
-         muc_light_simple/1,
+         muc_light_easy/1,
          muc_light_shouldnt_modify_pm_archive/1,
          muc_light_stored_in_pm_if_allowed_to/1,
          muc_light_chat_markers_are_archived_if_enabled/1,
@@ -248,7 +248,7 @@ configurations_for_running_ct() ->
 
 rdbms_configs(true) ->
     [rdbms,
-     rdbms_simple,
+     rdbms_easy,
      rdbms_async_pool,
      rdbms_mnesia,
      rdbms_async_cache,
@@ -369,8 +369,8 @@ mam_metrics_cases() ->
 
 mam_cases() ->
     [mam_service_discovery,
-     simple_archive_request,
-     simple_archive_request_for_the_receiver,
+     easy_archive_request,
+     easy_archive_request_for_the_receiver,
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
@@ -380,7 +380,7 @@ mam_cases() ->
 
 text_search_cases() ->
     [
-     simple_text_search_request,
+     easy_text_search_request,
      long_text_search_request,
      text_search_is_available,
      save_unicode_messages
@@ -459,7 +459,7 @@ configurable_archiveid_cases() ->
 
 muc_light_cases() ->
     [
-     muc_light_simple,
+     muc_light_easy,
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
      muc_light_chat_markers_are_archived_if_enabled,
@@ -676,7 +676,7 @@ mam_opts_for_conf(elasticsearch) ->
 mam_opts_for_conf(cassandra) ->
     #{backend => cassandra,
       user_prefs_store => cassandra};
-mam_opts_for_conf(rdbms_simple) ->
+mam_opts_for_conf(rdbms_easy) ->
     SimpleOpts = #{db_jid_format => mam_jid_rfc,
                    db_message_format => mam_message_xml},
     maps:merge(SimpleOpts, mam_opts_for_conf(rdbms));
@@ -854,7 +854,7 @@ init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
     skip_if_riak(C, Config);
-init_per_testcase(C=simple_text_search_request, Config) ->
+init_per_testcase(C=easy_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
@@ -872,7 +872,7 @@ init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     clean_archives(Config),
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_light_simple;
+init_per_testcase(C, Config) when C =:= muc_light_easy;
                                   C =:= muc_light_shouldnt_modify_pm_archive;
                                   C =:= muc_light_chat_markers_are_archived_if_enabled;
                                   C =:= muc_light_chat_markers_are_not_archived_if_disabled->
@@ -1162,7 +1162,7 @@ same_stanza_id(Config) ->
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Querying the archive for messages
-simple_archive_request(Config) ->
+easy_archive_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends "OH, HAI!" to Bob
@@ -1182,7 +1182,7 @@ simple_archive_request(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
-simple_archive_request_for_the_receiver(Config) ->
+easy_archive_request_for_the_receiver(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -1239,7 +1239,7 @@ text_search_is_available(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
-simple_text_search_request(Config) ->
+easy_text_search_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi there! My cat's name is John">>)),
@@ -1504,7 +1504,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
-muc_light_simple(Config) ->
+muc_light_easy(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Room = <<"testroom">>,
             given_muc_light_room(Room, Alice, []),
