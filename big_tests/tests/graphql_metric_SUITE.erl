@@ -163,7 +163,7 @@ get_metrics_as_dicts_with_key_one(Config) ->
                             operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [domain_helper:host_type(), <<"xmppStanzaSent">>],
+    SentName = [domain_helper:metric_host_type(), <<"xmppStanzaSent">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     true = is_integer(One).
 
@@ -208,7 +208,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     Map = dict_objects_to_map(ResList),
     SentName = case MetricsAreGlobal of
             true -> [<<"global">>, <<"xmppStanzaSent">>];
-            false -> [domain_helper:host_type(), <<"xmppStanzaSent">>]
+            false -> [domain_helper:metric_host_type(), <<"xmppStanzaSent">>]
         end,
     check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V}] =
