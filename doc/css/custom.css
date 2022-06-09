@@ -3,7 +3,7 @@ img#mim-readme-logo {
     margin-bottom: 1em;
 }
 
-:root {
+[data-md-color-scheme] {
   --md-primary-fg-color: #459bb6;
   --md-accent-fg-color: #0554b8;
 }
