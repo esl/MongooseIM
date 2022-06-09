@@ -6,6 +6,10 @@ references:
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true
 
+filters: &all_tags
+  tags:
+    only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
+
 # the continuation orb is required in order to use dynamic configuration
 orbs:
   continuation: circleci/continuation@0.2.0
@@ -56,4 +60,5 @@ commands:
 workflows:
   setup:
     jobs:
-      - setup
+      - setup:
+        filters: *all_tags
