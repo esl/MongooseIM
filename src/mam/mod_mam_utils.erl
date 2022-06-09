@@ -665,7 +665,7 @@ form_field_mess_id(QueryEl, Name) ->
 
 -spec decode_optimizations(exml:element()) -> boolean().
 decode_optimizations(QueryEl) ->
-    exml_query:subelement(QueryEl, <<"simple">>) =:= <<"true">>.
+    exml_query:path(QueryEl, [{element, <<"simple">>}, cdata]) =:= <<"true">>.
 
 -spec form_decode_optimizations(exml:element()) -> boolean().
 form_decode_optimizations(QueryEl) ->
