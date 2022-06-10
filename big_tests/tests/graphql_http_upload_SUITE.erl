@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [require_rpc_nodes/1]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_user/3, execute_auth/2, user_to_bin/1]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -145,7 +145,7 @@ user_not_configured_http_upload(Config, Alice) ->
 % Admin test cases
 
 admin_get_url_test(Config) ->
-    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    Vars = #{<<"domain">> => domain(), <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
     GraphQlRequest = admin_send_request(Config, Vars),
     ParsedResult = ok_result(<<"httpUpload">>, <<"getUrl">>, GraphQlRequest),
     ?assertMatch({_, _}, binary:match(ParsedResult, [<<"PutURL">>])),
@@ -153,19 +153,19 @@ admin_get_url_test(Config) ->
     ?assertMatch({_, _}, binary:match(ParsedResult, [?S3_HOSTNAME])).
 
 admin_get_url_zero_size(Config) ->
-    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 0, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    Vars = #{<<"domain">> => domain(), <<"filename">> => <<"test">>, <<"size">> => 0, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
     GraphQlRequest = admin_send_request(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"size_error">>, ParsedResult).
 
 admin_get_url_too_large_size(Config) ->
-    Vars = #{<<"domain">>=> <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 1000000, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    Vars = #{<<"domain">>=> domain(), <<"filename">> => <<"test">>, <<"size">> => 1000000, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
     GraphQlRequest = admin_send_request(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"file_too_large_error">>, ParsedResult).
 
 admin_get_url_zero_timeout(Config) ->
-    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 0},
+    Vars = #{<<"domain">> => domain(), <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 0},
     GraphQlRequest = admin_send_request(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"timeout_error">>, ParsedResult).
@@ -177,7 +177,7 @@ admin_get_url_no_domain(Config) ->
     ?assertEqual(<<"domain_not_found">>, ParsedResult).
 
 admin_not_configured_http_upload(Config) ->
-    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    Vars = #{<<"domain">> => domain(), <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
     GraphQlRequest = admin_send_request(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).

@@ -193,7 +193,8 @@ disco_local_items(Acc) ->
 
 -spec get_urls(HostType :: mongooseim:host_type(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
-                  {PutURL :: binary(), GetURL :: binary(), Headers :: #{binary() => binary()}}.
+                  file_too_large_error | {PutURL :: binary(), GetURL :: binary(),
+                                          Headers :: #{binary() => binary()}}.
 get_urls(HostType, Filename, Size, ContentType, Timeout) ->
     Opts = module_opts(HostType),
     get_urls_helper(HostType, Filename, Size, ContentType, Opts#{expiration_time := Timeout}).
