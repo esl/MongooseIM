@@ -27,31 +27,37 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, client_ping},
+    [
+     {group, client_ping},
      {group, server_ping},
-     {group, server_ping_kill}].
+     {group, server_ping_kill}
+    ].
 
 groups() ->
     % Don't make these parallel! Metrics tests will most probably fail
     % and injected hook will most probably won't work as expected.
-    G = [{client_ping, [], [disco, ping]},
-         {server_ping, [], all_tests()},
-         {server_ping_kill, [], all_tests()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {client_ping, [], [disco, ping]},
+     {server_ping, [], all_tests()},
+     {server_ping_kill, [], all_tests()}
+    ].
 
 client_ping_test_cases() ->
-    [ping,
-     wrong_ping].
+    [
+     ping,
+     wrong_ping
+    ].
 
 all_tests() ->
-    [disco,
+    [
+     disco,
      ping,
      wrong_ping,
      active,
      active_keep_alive,
      server_ping_pong,
-     server_ping_pang].
+     server_ping_pang
+    ].
 
 suite() ->
     escalus:suite().
