@@ -213,11 +213,10 @@ set(NS, K, V, #{ mongoose_acc := true } = Acc) ->
     Acc#{ {NS, K} => V }.
 
 -spec set(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
-set(_, [], Acc) ->
-    Acc;
-set(NS, [{K, V} | T], Acc) ->
-    NewAcc = set(NS, K, V, Acc),
-    set(NS, T, NewAcc).
+set(NS, KVs, #{ mongoose_acc := true } = Acc) ->
+    NSKVs = [ {{NS, K}, V} || {K, V} <- KVs ],
+    Input = maps:from_list(NSKVs),
+    maps:merge(Acc, Input).
 
 %% .. while these are not.
 -spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
