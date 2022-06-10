@@ -1,6 +1,5 @@
 The `listen` section specifies how MongooseIM handles incoming connections.
 
-* **Scope:** local
 * **Syntax:** Each listener is specified in a subsection starting with `[[listen.type]]` where `type` is one of the allowed listener types, handling different types of incoming connections:
 
     * `c2s` - client-to-server XMPP connections,

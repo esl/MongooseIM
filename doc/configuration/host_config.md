@@ -1,7 +1,6 @@
 The `host_config` section is used to configure options for specific XMPP domains or for host types, which are used to group multiple domains.
 For each domain or host type requiring such options, a `host_config` section needs to be created with the following format:
 
-* **Scope:** for each option the scope is the same as for the corresponding top-level option.
 * **Syntax:** domain subsection starts with `[[host_config]]` and contains the options listed below.
 * **Default:** none - all domain-level options need to be specified explicitly.
 * **Example:** see the examples for each section below.

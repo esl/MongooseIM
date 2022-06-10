@@ -16,7 +16,6 @@ All options are described below.
 These are the basic settings that you should configure before running your MongooseIM server.
 
 ### `general.loglevel`
-* **Scope:** local
 * **Syntax:** string, one of `"none"`, `"emergency"`, `"alert"`, `"critical"`, `"error"`, `"warning"`, `"notice"`, `"info"`, `"debug"`, `"all"`.
 * **Default:** `"warning"`
 * **Example:** `loglevel = "error"`
@@ -24,7 +23,6 @@ These are the basic settings that you should configure before running your Mongo
 Verbosity level of the logger. Values recommended for production systems are `"error"` and `"warning"`. The `"debug"` level is good for development.
 
 ### `general.hosts`
-* **Scope:** global
 * **Syntax:** array of strings representing the domain names.
 * **Default:** none. If omitted, at least one host type has to be defined in `general.host_types`.
 * **Example:** `hosts = ["localhost", "domain2"]`
@@ -40,7 +38,6 @@ In order to configure these hosts independently, use the [`host_config` section]
     When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.host_types`
-* **Scope:** global
 * **Syntax:** array of strings the names for host types.
 * **Default:** none. If omitted, at least one hast has to be defined in `general.hosts`.
 * **Example:** `host_types = ["first type", "second type"]`
@@ -63,7 +60,6 @@ Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured i
     When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.default_server_domain`
-* **Scope:** global
 * **Syntax:** a string
 * **Default:** none, this option is mandatory.
 * **Example:** `default_server_domain = "my-xmpp-domain.com"`
@@ -71,7 +67,6 @@ Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured i
 This domain is used as a default when one cannot be determined, for example when sending XMPP stream errors to unauthenticated clients.
 
 ### `general.language`
-* **Scope:** global
 * **Syntax:** string representing the two-letter language code.
 * **Default:** `"en"`
 * **Example:** `language = "pl"`
@@ -84,7 +79,6 @@ RDBMS connection pools are set using [outgoing connections configuration](./outg
 There are some additional options that influence all database connections in the server:
 
 ### `general.rdbms_server_type`
-* **Scope:** local
 * **Syntax:** string, `"mssql"` or `"pgsql"`
 * **Default:** not set
 * **Example:** `rdbms_server_type = "mssql"`
@@ -96,7 +90,6 @@ When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optim
 User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
 
 ### `general.mongooseimctl_access_commands`
-* **Scope:** local
 * **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
     * `commands`: optional, a list of strings representing the allowed commands. When not specified, all commands are allowed.
     * `argument_restrictions`: optional, a table whose keys are the argument names, and the values are strings representing the allowed values. When not specified, there are no restrictions.
@@ -127,7 +120,6 @@ The `local` rule needs to be defined in the `access` section.
 Here you can find some additional options related to system security.
 
 ### `general.registration_timeout`
-* **Scope:** local
 * **Syntax:** the string `"infinity"` or a number of seconds (positive integer)
 * **Default:** `600`
 * **Example:** `registration_timeout = "infinity"`
@@ -135,7 +127,6 @@ Here you can find some additional options related to system security.
 Limits the registration frequency from a single IP address. The special value `infinity` means no limit.
 
 ### `general.hide_service_name`
-* **Scope:** local
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `hide_service_name = true`
@@ -147,7 +138,6 @@ According to RFC 6210, even when a client sends invalid data after opening a con
 These options can be used to configure the way MongooseIM manages user sessions.
 
 ### `general.sm_backend`
-* **Scope:** global
 * **Syntax:** string, `"mnesia"` or `"redis"`
 * **Default:** `"mnesia"`
 * **Example:** `sm_backend = "redis"`
@@ -157,7 +147,6 @@ Mnesia is sufficient in most cases, use Redis only in large deployments when you
 See the section about [redis connection setup](./outgoing-connections.md#redis-specific-options) for more information.
 
 ### `general.replaced_wait_timeout`
-* **Scope:** local
 * **Syntax:** positive integer, representing time in milliseconds
 * **Default:** `2000`
 * **Example:** `replaced_wait_timeout = 5000`
@@ -169,7 +158,6 @@ When a user's session is replaced (due to a full JID conflict) by a new one, thi
 The following options influence the way MongooseIM routes incoming messages to their recipients.
 
 ### `general.route_subdomains`
-* **Scope:** local
 * **Syntax:** string, the only accepted value is `"s2s"`
 * **Default:** not set
 * **Example:** `route_subdomains = "s2s"`
@@ -177,7 +165,6 @@ The following options influence the way MongooseIM routes incoming messages to t
 If a stanza is addressed to a subdomain of the served domain and this option is set to `s2s`, such a stanza will be transmitted over a server-to-server connection. Without it, MongooseIM will try to route the stanza to one of its internal services.
 
 ### `general.routing_modules`
-* **Scope:** local
 * **Syntax:** a list of strings representing the routing module names.
 * **Default:** `["mongoose_router_global", "mongoose_router_localdomain", "mongoose_router_external_localnode", "mongoose_router_external", "ejabberd_s2s"]`
 * **Example:** `routing_modules = ["mongoose_router_global", "mongoose_router_localdomain"]`
@@ -197,7 +184,6 @@ Allowed module names:
 The options listed below are used to configure more specific settings, that do not need to be changed in usual use cases.
 
 ### `general.all_metrics_are_global`
-* **Scope:** local
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `all_metrics_are_global = true`
@@ -205,7 +191,6 @@ The options listed below are used to configure more specific settings, that do n
 When enabled, all per-host metrics are merged into global equivalents. It means it is no longer possible to view individual host1, host2, host3, ... metrics, only sums are available. This option significantly reduces CPU and (especially) memory footprint in setups with exceptionally many domains (thousands, tens of thousands).
 
 ### `general.http_server_name`
-* **Scope:** local
 * **Syntax:** string
 * **Default:** `"Cowboy"`
 * **Example:** `http_server_name = "Apache"`
@@ -213,7 +198,6 @@ When enabled, all per-host metrics are merged into global equivalents. It means 
 Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** configured HTTP listeners.
 
 ### `general.max_fsm_queue`
-* **Scope:** local
 * **Syntax:** positive integer
 * **Default:** not set
 * **Example:** `max_fsm_queue = 5000`
@@ -222,7 +206,6 @@ When specified, will terminate certain processes (e.g. client handlers) that hav
 This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `s2s` or `service` listeners in their configurations. **Use with caution!**
 
 ### `general.domain_certfile`
-* **Scope:** local
 * **Syntax:** array of TOML tables with the following mandatory content:
     * `domain` - string, XMPP domain name. In case of dynamic domains it should be a host type instead.
     * `certfile` - string, path in the file system

@@ -7,7 +7,6 @@ This authentication method stores user accounts in a relational database, e.g. M
 The `rdbms` method uses an outgoing connection pool of type `rdbms` with the `default` tag - it has to be defined in the `outgoing_pools` section.
 
 ### `auth.rdbms.users_number_estimate`
-* **Scope:** local
 * **Syntax:** boolean
 * **Default:** false
 * **Example:** `users_number_estimate = true`
