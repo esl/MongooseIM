@@ -10,7 +10,7 @@
 
 -behavior(gen_mod).
 -xep([{xep, 199}, {version, "2.0"}]).
--include("mongoose.hrl").
+
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
@@ -25,62 +25,30 @@
          supported_features/0]).
 
 %% Hook callbacks
--export([iq_ping/5,
-         user_online/5,
-         user_offline/5,
-         user_send/4,
-         user_ping_response/5,
-         user_keep_alive/2]).
+-export([user_send_packet/3, user_send_iq/3]).
+-export([iq_ping/5, user_ping_response/5]).
 
-%% Remote hook callback
--export([handle_remote_hook/4]).
+-ignore_xref([user_ping_response/5]).
 
--ignore_xref([handle_remote_hook/4, user_keep_alive/2, user_offline/5, user_online/5,
-              user_ping_response/5, user_ping_response/5, user_send/4]).
+%% Record that will be stored in the c2s state when the server pings the client,
+%% in order to indentify the possible client's answer.
+-record(ping_handler, {id :: binary(), time :: integer()}).
 
 %%====================================================================
 %% Info Handler
 %%====================================================================
 
-route_ping_iq(JID, Server, HostType) ->
-    PingReqTimeout = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
-    IQ = #iq{type = get,
-             sub_el = [#xmlel{name = <<"ping">>,
-                              attrs = [{<<"xmlns">>, ?NS_PING}]}]},
-    Pid = self(),
-    T0 = erlang:monotonic_time(millisecond),
-    F = fun(_From, _To, Acc, timeout) ->
-               ejabberd_c2s:run_remote_hook(Pid, mod_ping, timeout),
-               NewAcc = mongoose_hooks:user_ping_response(HostType,
-                                                          Acc, JID, timeout, 0),
-               NewAcc;
-           (_From, _To, Acc, Response) ->
-               % received a pong from client
-               TDelta = erlang:monotonic_time(millisecond) - T0,
-               NewAcc = mongoose_hooks:user_ping_response(HostType,
-                                                          Acc, JID, Response, TDelta),
-               NewAcc
-        end,
-    From = jid:make_noprep(<<"">>, Server, <<"">>),
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => Server,
-                              host_type => HostType,
-                              from_jid => From,
-                              to_jid => JID,
-                              element => jlib:iq_to_xml(IQ) }),
-    ejabberd_local:route_iq(From, JID, Acc, IQ, F, PingReqTimeout).
-
-%%====================================================================
-%% utility
-%%====================================================================
-
 hooks(HostType) ->
-    [{sm_register_connection_hook, HostType, ?MODULE, user_online, 100},
-     {sm_remove_connection_hook, HostType, ?MODULE, user_offline, 100},
-     {user_send_packet, HostType, ?MODULE, user_send, 100},
-     {user_sent_keep_alive, HostType, ?MODULE, user_keep_alive, 100},
-     {user_ping_response, HostType, ?MODULE, user_ping_response, 100},
-     {c2s_remote_hook, HostType, ?MODULE, handle_remote_hook, 100}].
+    [
+     {user_ping_response, HostType, ?MODULE, user_ping_response, 100}
+    ].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+c2s_hooks(HostType) ->
+    [
+     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 100},
+     {user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 100}
+    ].
 
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response], spiral),
@@ -94,15 +62,16 @@ ensure_metrics(HostType) ->
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{send_pings := SendPings, iqdisc := IQDisc}) ->
     ensure_metrics(HostType),
-    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm,
-                                             fun ?MODULE:iq_ping/5, #{}, IQDisc),
-    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local,
-                                             fun ?MODULE:iq_ping/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(
+      HostType, ?NS_PING, ejabberd_sm, fun ?MODULE:iq_ping/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(
+      HostType, ?NS_PING, ejabberd_local, fun ?MODULE:iq_ping/5, #{}, IQDisc),
     maybe_add_hooks_handlers(HostType, SendPings).
 
 -spec maybe_add_hooks_handlers(mongooseim:host_type(), boolean()) -> ok.
-maybe_add_hooks_handlers(Host, true) ->
-    ejabberd_hooks:add(hooks(Host));
+maybe_add_hooks_handlers(HostType, true) ->
+    gen_hook:add_handlers(c2s_hooks(HostType)),
+    ejabberd_hooks:add(hooks(HostType));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
@@ -111,6 +80,7 @@ stop(HostType) ->
 %%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
 %%    won't stop currently running timers. They'll run one more time, and then stop.
     ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(c2s_hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm),
     ok.
@@ -152,30 +122,60 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 %% Hook callbacks
 %%====================================================================
 
-handle_remote_hook(HandlerState, mod_ping, Args, C2SState) ->
-    handle_remote_call(Args,
-                       ejabberd_c2s_state:jid(C2SState),
-                       ejabberd_c2s_state:server(C2SState),
-                       ejabberd_c2s_state:host_type(C2SState),
-                       HandlerState);
-handle_remote_hook(HandlerState, _, _, _) ->
-    HandlerState.
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
+    case {mongoose_acc:stanza_type(Acc),
+          mongoose_c2s:get_mod_state(StateData, ?MODULE)} of
+        {<<"result">>, #ping_handler{id = PingId, time = T0}} ->
+            IqResponse = mongoose_acc:element(Acc),
+            IqId = exml_query:attr(IqResponse, <<"id">>),
+            case {IqId, PingId} of
+                {Id, Id} ->
+                    Jid = mongoose_c2s:get_jid(StateData),
+                    TDelta = erlang:monotonic_time(millisecond) - T0,
+                    mongoose_hooks:user_ping_response(HostType, #{}, Jid, IqResponse, TDelta),
+                    Action = {{timeout, ping_timeout}, cancel},
+                    {stop, mongoose_c2s_acc:to_acc(Acc, actions, Action)};
+                _ ->
+                    {ok, Acc}
+            end;
+        {_, {error, not_found}} ->
+            {ok, Acc};
+        {_, _} ->
+            {ok, Acc}
+    end.
 
-user_online(Acc, _HostType, {_, Pid} = _SID, _Jid, _Info) ->
-    ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
-    Acc.
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    {ok, mongoose_acc:t()}.
+user_send_packet(Acc, _Params, #{host_type := HostType}) ->
+    Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),
+    Action = {{timeout, ping}, Interval, fun ping_c2s_handler/2},
+    {ok, mongoose_c2s_acc:to_acc(Acc, actions, Action)}.
 
-user_offline(Acc, {_, Pid} = _SID, _JID, _Info, _Reason) ->
-    ejabberd_c2s:run_remote_hook(Pid, mod_ping, remove_timer),
-    Acc.
-
-user_send(Acc, _JID, _From, _Packet) ->
-    ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
-    Acc.
-
-user_keep_alive(Acc, _JID) ->
-    ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
-    Acc.
+-spec ping_c2s_handler(atom(), mongoose_c2s:state()) -> mongoose_c2s_acc:t().
+ping_c2s_handler(ping, StateData) ->
+    HostType = mongoose_c2s:get_host_type(StateData),
+    Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
+    Actions = [{{timeout, send_ping}, Interval, fun ping_c2s_handler/2}],
+    mongoose_c2s_acc:new(#{actions => Actions});
+ping_c2s_handler(send_ping, StateData) ->
+    PingId = mongoose_bin:gen_from_crypto(),
+    IQ = ping_get(PingId),
+    HostType = mongoose_c2s:get_host_type(StateData),
+    Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
+    Actions = [{{timeout, ping_timeout}, Interval, fun ping_c2s_handler/2}],
+    T0 = erlang:monotonic_time(millisecond),
+    mongoose_c2s_acc:new(#{state_mod => #{?MODULE => #ping_handler{id = PingId, time = T0}},
+                           actions => Actions, socket_send => [IQ]});
+ping_c2s_handler(ping_timeout, StateData) ->
+    Jid = mongoose_c2s:get_jid(StateData),
+    HostType = mongoose_c2s:get_host_type(StateData),
+    mongoose_hooks:user_ping_response(HostType, #{}, Jid, timeout, 0),
+    case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action) of
+        kill -> mongoose_c2s_acc:new(#{stop => {shutdown, ping_timeout}});
+        _ -> mongoose_c2s_acc:new()
+    end.
 
 -spec user_ping_response(Acc :: mongoose_acc:t(),
                          HostType :: mongooseim:host_type(),
@@ -191,33 +191,11 @@ user_ping_response(Acc, HostType, _JID, _Response, TDelta) ->
     Acc.
 
 %%====================================================================
-%% Implementation
+%% Stanzas
 %%====================================================================
 
-handle_remote_call(init, _JID, _Server, HostType, HandlerState) ->
-    start_ping_timer(HandlerState, HostType);
-handle_remote_call(send_ping, JID, Server, HostType, HandlerState) ->
-    route_ping_iq(JID, Server, HostType),
-    start_ping_timer(HandlerState, HostType);
-handle_remote_call(timeout, JID, _Server, HostType, HandlerState) ->
-    mongoose_hooks:user_ping_timeout(HostType, JID),
-    case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action) of
-        kill -> ejabberd_c2s:stop(self());
-        _ -> ok
-    end,
-    HandlerState;
-handle_remote_call(remove_timer, _JID, _Server, _HostType, HandlerState) ->
-    cancel_timer(HandlerState),
-    empty_state.
-
--spec start_ping_timer(term(), mongooseim:host_type()) -> reference().
-start_ping_timer(HandlerState, HostType) ->
-    cancel_timer(HandlerState),
-    PingInterval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),
-    ejabberd_c2s:run_remote_hook_after(PingInterval, self(), mod_ping, send_ping).
-
-cancel_timer(empty_state) ->
-    do_nothing;
-cancel_timer(TRef) ->
-    erlang:cancel_timer(TRef).
-
+-spec ping_get(binary()) -> exml:element().
+ping_get(Id) ->
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"type">>, <<"get">>}, {<<"id">>, Id}],
+           children = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]}]}.
