@@ -1,6 +1,5 @@
 The `acl` section is used to define **access classes** to which the connecting users are assigned. These classes are used in [access rules](access.md).
 
-* **Scope:** global
 * **Syntax:** each access class is a key-value pair, where:
     * Key is the name of the access class,
     * Value is a TOML array of patterns - TOML tables, whose format is described below.

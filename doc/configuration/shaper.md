@@ -1,6 +1,5 @@
 The `shaper` section specifies **traffic shapers** used to limit the incoming XMPP traffic, providing a safety valve to protect the server. It can be used to prevent DoS attacks or to calm down too noisy clients.
 
-* **Scope:** global
 * **Syntax:** each shaper is specified in a subsection starting with `[shaper.name]` where `name` is used to uniquely identify the shaper.
 * **Default:** no default - each shaper needs to be specified explicitly.
 * **Example:** the `normal` shaper is used for the C2S connections.

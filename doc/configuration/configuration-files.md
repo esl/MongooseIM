@@ -26,14 +26,11 @@ The file is divided into the following sections:
 
 The section names above are links to the detailed documentation of each section.
 
-### Option scope
+!!! Warning
+    It is recommended to use the same configuration file for all nodes in the cluster, but there is no protection against using different option values for each node, because it can happen in two cases:
 
-Each configuration option has its **scope**, which is one of the following:
-
-* **local** - configured separately for each node in the cluster - each node can have a different value,
-* **global** - configured for the entire cluster - all nodes share the same value.
-
-The scope of each option is defined in the documentation above - either at the top of the section page or for each option individually.
+    * During a [rolling upgrade](../../operation-and-maintenance/Rolling-upgrade) procedure, when nodes are restarted one by one with new configuration.
+    * When you need different network-specific parameters (e.g. listening IP addresses) for each node.
 
 ## vm.args
 

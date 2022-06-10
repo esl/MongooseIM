@@ -5,7 +5,6 @@ only once with global configuration.
 Currently, three modules are categorised as "service providers".
 Eventually the modules which are not specific for a host type will be refactored to be services.
 
-* **Scope:** global
 * **Syntax:** Each service is specified in its own `services.*` section. 
 * **Default:** None - each service needs to be enabled explicitly.
 Typical services are already specified in the example configuration file.
