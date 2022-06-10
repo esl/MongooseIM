@@ -54,7 +54,7 @@
 % Strip with or without stanza replacement
 -export([strip/1, strip/2]).
 
--ignore_xref([delete/2, ref/1, set/3]).
+-ignore_xref([delete/2, ref/1]).
 
 %% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
 %% truly unknown: before a client is authorized.
