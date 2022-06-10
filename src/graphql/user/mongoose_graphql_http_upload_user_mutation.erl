@@ -14,10 +14,8 @@
 execute(#{user := #jid{lserver = Domain}}, httpUpload, <<"getUrl">>,
         #{<<"size">> := FileSize, <<"contentType">> := ContentType,
           <<"timeout">> := Timeout, <<"filename">> := FileName} = Data) ->
-    io:format("~p", [Data]),
     case mod_http_upload_api:get_urls(Domain, FileName, FileSize, ContentType, Timeout) of
         {ok, _} = Result ->
-            io:format("~p", [Result]),
             Result;
         Error ->
             make_error(Error, Data)

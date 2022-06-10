@@ -11,7 +11,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(_Ctx, httpUpload, <<"getUrl">>, #{<<"user">> := #jid{lserver = Domain},
+execute(_Ctx, httpUpload, <<"getUrl">>, #{<<"domain">> := Domain,
                                           <<"size">> := FileSize,
                                           <<"contentType">> := ContentType,
                                           <<"timeout">> := Timeout,

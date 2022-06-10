@@ -19,17 +19,21 @@ suite() ->
 
 all() ->
     [{group, user_http_upload},
-     {group, admin_not_configured_http_upload},
-     {group, admin_http_upload}].
+     {group, user_not_configured_http_upload},
+     {group, admin_http_upload},
+     {group, admin_not_configured_http_upload}].
 
 groups() ->
     [{user_http_upload, [], user_http_upload_handler()},
-     {admin_not_configured_http_upload, [], admin_not_configured_http_upload_handler()},
      {user_not_configured_http_upload, [], user_not_configured_http_upload_handler()},
-     {admin_http_upload, [], admin_http_upload_handler()}].
+     {admin_http_upload, [], admin_http_upload_handler()},
+     {admin_not_configured_http_upload, [], admin_not_configured_http_upload_handler()}].
 
 user_http_upload_handler() ->
-    [user_get_url_test].
+    [user_get_url_test,
+     user_get_url_zero_size,
+     user_get_url_too_large_size,
+     user_get_url_zero_timeout].
 
 admin_not_configured_http_upload_handler() ->
     [admin_not_configured_http_upload].
@@ -38,7 +42,11 @@ user_not_configured_http_upload_handler() ->
     [user_not_configured_http_upload].
 
 admin_http_upload_handler() ->
-    [admin_get_url_test].
+    [admin_get_url_test,
+     admin_get_url_zero_size,
+     admin_get_url_too_large_size,
+     admin_get_url_zero_timeout,
+     admin_get_url_no_domain].
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
@@ -46,14 +54,16 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(user_http_upload, Config) ->
+    dynamic_modules:start(host_type(), mod_http_upload, create_opts(?S3_HOSTNAME, true)),
+    [{schema_endpoint, user} | Config];
+init_per_group(user_not_configured_http_upload, Config) ->
+    [{schema_endpoint, user} | Config];
 init_per_group(admin_http_upload, Config) ->
     dynamic_modules:start(host_type(), mod_http_upload, create_opts(?S3_HOSTNAME, true)),
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_not_configured_http_upload, Config) ->
-    graphql_helper:init_admin_handler(Config);
-init_per_group(user_http_upload, Config) ->
-    dynamic_modules:start(host_type(), mod_http_upload, create_opts(?S3_HOSTNAME, true)),
-    [{schema_endpoint, user} | Config].
+    graphql_helper:init_admin_handler(Config).
 
 end_per_group(_, _Config) ->
     dynamic_modules:stop(host_type(), mod_http_upload),
@@ -86,26 +96,41 @@ user_get_url_test(Config) ->
 
 user_get_url_test(Config, Alice) ->
     Vars = #{<<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
-    Body = #{query => user_get_url(), operationName => <<"M1">>, variables => Vars},
-    execute_user(Body, Alice, Config).
+    GraphQlRequest = user_send_request(Config, Vars, Alice),
+    ParsedResult = ok_result(<<"httpUpload">>, <<"getUrl">>, GraphQlRequest),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [<<"PutURL">>])),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [<<"GetURL">>])),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [?S3_HOSTNAME])).
 
-admin_get_url_test(Config) ->
+user_get_url_zero_size(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_get_url_test/2).
+                                    fun user_get_url_zero_size/2).
 
-admin_get_url_test(Config, Alice) ->
-    Vars = #{<<"user">> => user_to_bin(Alice), <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
-    Body = #{query => admin_get_url(), operationName => <<"M1">>, variables => Vars},
-    execute_auth(Body, Config).
+user_get_url_zero_size(Config, Alice) ->
+    Vars = #{<<"filename">> => <<"test">>, <<"size">> => 0, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = user_send_request(Config, Vars, Alice),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"size_error">>, ParsedResult).
 
-admin_not_configured_http_upload(Config) ->
+user_get_url_too_large_size(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun admin_not_configured_http_upload/2).
+                                    fun user_get_url_too_large_size/2).
 
-admin_not_configured_http_upload(Config, Alice) ->
-    Vars = #{<<"user">> => user_to_bin(Alice), <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
-    Body = #{query => admin_get_url(), operationName => <<"M1">>, variables => Vars},
-    execute_auth(Body, Config).
+user_get_url_too_large_size(Config, Alice) ->
+    Vars = #{<<"filename">> => <<"test">>, <<"size">> => 100000, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = user_send_request(Config, Vars, Alice),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"file_too_large_error">>, ParsedResult).
+
+user_get_url_zero_timeout(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_url_zero_timeout/2).
+
+user_get_url_zero_timeout(Config, Alice) ->
+    Vars = #{<<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 0},
+    GraphQlRequest = user_send_request(Config, Vars, Alice),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"timeout_error">>, ParsedResult).
 
 user_not_configured_http_upload(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -113,13 +138,77 @@ user_not_configured_http_upload(Config) ->
 
 user_not_configured_http_upload(Config, Alice) ->
     Vars = #{<<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
-    Body = #{query => user_get_url(), operationName => <<"M1">>, variables => Vars},
-    execute_user(Body, Alice, Config).
+    GraphQlRequest = user_send_request(Config, Vars, Alice),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
+
+% Admin test cases
+
+admin_get_url_test(Config) ->
+    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = ok_result(<<"httpUpload">>, <<"getUrl">>, GraphQlRequest),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [<<"PutURL">>])),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [<<"GetURL">>])),
+    ?assertMatch({_, _}, binary:match(ParsedResult, [?S3_HOSTNAME])).
+
+admin_get_url_zero_size(Config) ->
+    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 0, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"size_error">>, ParsedResult).
+
+admin_get_url_too_large_size(Config) ->
+    Vars = #{<<"domain">>=> <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 1000000, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"file_too_large_error">>, ParsedResult).
+
+admin_get_url_zero_timeout(Config) ->
+    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 0},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"timeout_error">>, ParsedResult).
+
+admin_get_url_no_domain(Config) ->
+    Vars = #{<<"domain">> => <<"AAAAA">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"domain_not_found">>, ParsedResult).
+
+admin_not_configured_http_upload(Config) ->
+    Vars = #{<<"domain">> => <<"localhost">>, <<"filename">> => <<"test">>, <<"size">> => 123, <<"contentType">> => <<"Test">>, <<"timeout">> => 123},
+    GraphQlRequest = admin_send_request(Config, Vars),
+    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
+    ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
+
+% Helpers
 
 user_get_url() ->
     <<"mutation M1($filename: String!, $size: Int!, $contentType: String!, $timeout: Int!)",
       "{httpUpload{getUrl(filename: $filename, size: $size, contentType: $contentType, timeout: $timeout)}}">>.
 
 admin_get_url() ->
-    <<"mutation M1($user: JID!, $filename: String!, $size: Int!, $contentType: String!, $timeout: Int!)",
-      "{httpUpload{getUrl(user: $user, filename: $filename, size: $size, contentType: $contentType, timeout: $timeout)}}">>.
+    <<"mutation M1($domain: String!, $filename: String!, $size: Int!, $contentType: String!, $timeout: Int!)",
+      "{httpUpload{getUrl(domain: $domain, filename: $filename, size: $size, contentType: $contentType, timeout: $timeout)}}">>.
+
+user_send_request(Config, Vars, User) ->
+    Body = #{query => user_get_url(), operationName => <<"M1">>, variables => Vars},
+    execute_user(Body, User, Config).
+
+admin_send_request(Config, Vars) ->
+    Body = #{query => admin_get_url(), operationName => <<"M1">>, variables => Vars},
+    execute_auth(Body, Config).
+
+error_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
+    maps:get(What2, maps:get(What1, Data)).
+
+ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
+    maps:get(What2, maps:get(What1, Data)).
+
+url_contains(UrlType, Filename, Result) ->
+    Url = extract_url(Result, UrlType),
+    binary:match(Url, Filename) =/= nomatch.
+
+extract_url(Result, UrlType) ->
+    exml_query:path(Result, [{element, <<"slot">>}, {element, UrlType}, {attr, <<"url">>}]).
