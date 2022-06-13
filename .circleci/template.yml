@@ -2,7 +2,7 @@ version: 2.1
 
 references:
   - &OTP24 chrzaszcz/cimg-erlang:24.3.4
-  - &OTP25 chrzaszcz/cimg-erlang:25.0
+  - &OTP25 chrzaszcz/cimg-erlang:25.0.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -673,14 +673,14 @@ workflows:
           executor: otp_25
           platform: centos_7
           context: mongooseim-org
-          otp_package: "25.0-1"
+          otp_package: "25.0.1-1"
           filters: *all_tags
       - package:
           name: debian_stretch
           executor: otp_25
           platform: debian_stretch
           context: mongooseim-org
-          otp_package: "25.0-1"
+          otp_package: "25.0.1-1"
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
@@ -695,7 +695,14 @@ workflows:
           build_prod: false
       # ============= DIALYZER =============
       - dialyzer:
-          name: dialyzer
+          name: dialyzer_24
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - dialyzer:
+          name: dialyzer_25
           executor: otp_25
           context: mongooseim-org
           requires:
@@ -860,6 +867,7 @@ workflows:
             - pgsql_mnesia_24
             - riak_mnesia_24
             - dynamic_domains_pgsql_mnesia_24
+            - dialyzer_24
 
             - small_tests_25
             - internal_mnesia_25
@@ -871,8 +879,8 @@ workflows:
             - dynamic_domains_pgsql_mnesia_25
             - dynamic_domains_mysql_redis_25
             - dynamic_domains_mssql_mnesia_25
+            - dialyzer_25
 
-            - dialyzer
             - xref
             - edoc
           filters: *all_tags

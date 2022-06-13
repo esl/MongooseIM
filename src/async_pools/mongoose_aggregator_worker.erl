@@ -21,7 +21,7 @@
                     mongoose_async_pools:pool_extra()) ->
     {ok, mongoose_async_pools:task()} | {error, term()}.
 -callback request(mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
-    reference().
+    gen_server:request_id().
 -callback verify(term(), mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
     term().
 -optional_callbacks([verify/3]).
