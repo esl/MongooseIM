@@ -5,9 +5,7 @@
 -export([encode_packet/2]).
 -export([extend_lookup_params/2]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
 -include("mongoose_mam.hrl").
 
 -type value_type() :: int | maybe_string | direction | bare_jid | jid | jid_resource | xml | search.
