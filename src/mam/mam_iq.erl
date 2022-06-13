@@ -64,7 +64,7 @@
         limit_passed => boolean(),
         %% Optimizations flags
         %% see form_to_lookup_params for more info
-        is_simple => true | false | opt_count,
+        is_simple => true | false,
         %% Can have more fields, added in maybe_add_extra_lookup_params function
         %% in runtime
         atom() => _
@@ -194,17 +194,10 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                %% the server MAY simply return its limited results.
                %% So, disable 'policy-violation'.
                limit_passed => true,
-               %% `is_simple' can contain three values:
+               %% `is_simple' can contain:
                %% - true - do not count records (useful during pagination, when we already
                %%          know how many messages we have from a previous query);
                %% - false - count messages (slow, according XEP-0313);
-               %% - opt_count - count messages (same as false, fast for small result sets)
-               %%
-               %% The difference between false and opt_count is that with IsSimple=false we count
-               %% messages first and then extract a messages on a page (if count is not zero).
-               %% If IsSimple=opt_count we extract a page and then calculate messages (if required).
-               %% `opt_count' can be passed inside an IQ.
-               %% Same for mod_mam_muc.
                is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
 

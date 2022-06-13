@@ -95,3 +95,4 @@
 |[MUC Light](../open-extensions/muc_light.md)|[`mod_muc_light`](../modules/mod_muc_light.md)|
 |[Inbox](../open-extensions/inbox.md)|[`mod_inbox`](../modules/mod_inbox.md)|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|[`mod_auth_token`](../modules/mod_auth_token.md), [`mod_keystore`](../modules/mod_keystore.md)|
+|[MAM extensions](../open-extensions/mam.md)|[`mam`](../modules/mod_mam.md)|

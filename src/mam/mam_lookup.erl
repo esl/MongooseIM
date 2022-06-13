@@ -55,8 +55,6 @@ choose_lookup_messages_strategy(Env, Filter,
         #{is_simple := true} ->
             %% Simple query without calculating offset and total count
             simple_lookup_messages(Env, RSM, PageSize, Filter);
-        %% NOTICE: We always prefer opt_count optimization, if possible.
-        %% Clients don't event know what opt_count is.
         #{opt_count_type := last_page} when PageSize > 0 ->
             %% Extract messages before calculating offset and total count
             %% Useful for small result sets
