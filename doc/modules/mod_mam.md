@@ -354,7 +354,7 @@ This sets the maximum page size of returned results.
 
 #### `modules.mod_mam_meta.db_jid_format`
 
-* **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
+* **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_rfc_trust"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
 * **Default:** `"mam_jid_rfc"` for MUC archive, `"mam_jid_mini"` for PM archive
 * **Example:** `modules.mod_mam_meta.db_jid_format = "mam_jid_mini"`
 
