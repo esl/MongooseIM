@@ -695,7 +695,14 @@ workflows:
           build_prod: false
       # ============= DIALYZER =============
       - dialyzer:
-          name: dialyzer
+          name: dialyzer_24
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - dialyzer:
+          name: dialyzer_25
           executor: otp_25
           context: mongooseim-org
           requires:
@@ -860,6 +867,7 @@ workflows:
             - pgsql_mnesia_24
             - riak_mnesia_24
             - dynamic_domains_pgsql_mnesia_24
+            - dialyzer_24
 
             - small_tests_25
             - internal_mnesia_25
@@ -871,8 +879,8 @@ workflows:
             - dynamic_domains_pgsql_mnesia_25
             - dynamic_domains_mysql_redis_25
             - dynamic_domains_mssql_mnesia_25
+            - dialyzer_25
 
-            - dialyzer
             - xref
             - edoc
           filters: *all_tags
