@@ -101,7 +101,7 @@ get_by_name_global_erlang_metrics(Config) ->
                             variables => #{}, operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    Info = maps:get([<<"global">>,<<"erlang">>, <<"system_info">>], Map),
+    Info = maps:get([<<"global">>, <<"erlang">>, <<"system_info">>], Map),
     %% VMSystemInfoMetric type
     #{<<"type">> := <<"vm_system_info">>} = Info,
     check_metric_by_type(Info),
@@ -152,6 +152,7 @@ get_by_name_metrics_as_dicts(Config) ->
     Result = execute_auth(#{query => get_by_args_metrics_as_dicts_call(Args),
                             variables => #{}, operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
+    [_|_] = ParsedResult,
     %% Only xmppStanzaSent type
     lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
                           check_spiral_dict(Dict)
@@ -163,7 +164,7 @@ get_metrics_as_dicts_with_key_one(Config) ->
                             operationName => <<"Q1">>}, Config),
     ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [domain_helper:metric_host_type(), <<"xmppStanzaSent">>],
+    SentName = [metric_host_type(), <<"xmppStanzaSent">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
     true = is_integer(One).
 
@@ -188,7 +189,7 @@ get_by_name_cluster_metrics_as_dicts(Config) ->
     %% Contains data for at least two nodes
     true = maps:size(Map) > 1,
     %% Only xmppStanzaSent type
-    maps:map(fun(_Node, NodeRes) ->
+    maps:map(fun(_Node, [_|_] = NodeRes) ->
         lists:foreach(fun(#{<<"dict">> := Dict,
                             <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
                               check_spiral_dict(Dict)
@@ -208,7 +209,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     Map = dict_objects_to_map(ResList),
     SentName = case MetricsAreGlobal of
             true -> [<<"global">>, <<"xmppStanzaSent">>];
-            false -> [domain_helper:metric_host_type(), <<"xmppStanzaSent">>]
+            false -> [metric_host_type(), <<"xmppStanzaSent">>]
         end,
     check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V}] =
@@ -310,3 +311,6 @@ check_spiral_dict(Dict) ->
 
 values_are_integers(Map, Keys) ->
     lists:foreach(fun(Key) -> true = is_integer(maps:get(Key, Map)) end, Keys).
+
+metric_host_type() ->
+    binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).

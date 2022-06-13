@@ -32,6 +32,7 @@ type HistogramMetric {
   min: Int
   "Max value"
   max: Int
+  "Median value"
   median: Int
   "50th percentile"
   p50: Int

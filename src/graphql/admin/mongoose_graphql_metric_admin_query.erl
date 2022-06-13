@@ -78,14 +78,7 @@ prepare_key(X) when is_integer(X) -> %% For percentiles
 
 prepare_name(null) ->
     [];
-prepare_name([<<"global">> | T]) ->
-    [global | prepare_name2(T)];
-prepare_name([H | T]) ->
-    [binary_to_atom(H) | prepare_name2(T)];
-prepare_name([]) ->
-    [].
-
-prepare_name2(Segments) ->
+prepare_name(Segments) ->
     lists:map(fun binary_to_atom/1, Segments).
 
 make_metric_result({Name, Dict}) ->
@@ -164,7 +157,7 @@ format_merged_inet_stats(#{connections := Cons,
       <<"send_pend">> => SPend}.
 
 format_rdbms_stats(#{recv_cnt := RCnt, recv_max := RMax, recv_oct := ROct,
-                     send_cnt := SCnt,send_max := SMax, send_oct := SOct,
+                     send_cnt := SCnt, send_max := SMax, send_oct := SOct,
                      send_pend := SPend, workers := Workers}) ->
     #{<<"type">> => <<"rdbms_stats">>, <<"workers">> => Workers,
       <<"recv_cnt">> => RCnt, <<"recv_max">> => RMax, <<"recv_oct">> => ROct,

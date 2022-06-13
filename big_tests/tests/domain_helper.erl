@@ -11,7 +11,6 @@
          host_types/1,
          host_type/0,
          host_type/1,
-         metric_host_type/0,
          domain_to_host_type/2,
          domain/0,
          domain/1,
@@ -34,9 +33,6 @@ domain() ->
 
 host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, host_type}).
-
-metric_host_type() ->
-    get_or_fail({hosts, mim, metric_host_type}).
 
 domain_to_host_type(Node, Domain) ->
     {ok, HostType} = rpc(Node, mongoose_domain_core, get_host_type, [Domain]),

@@ -20,8 +20,6 @@ execute(#{<<"type">> := <<"gauge">>, <<"name">> := _, <<"value">> := _}) ->
     {ok, <<"GaugeMetric">>};
 execute(#{<<"type">> := <<"merged_inet_stats">>, <<"connections">> := _}) ->
     {ok, <<"MergedInetStatsMetric">>};
-execute(#{<<"type">> := <<"merged_inet_stats">>, <<"connections">> := _}) ->
-    {ok, <<"MergedInetStatsMetric">>};
 execute(#{<<"type">> := <<"vm_stats_memory">>, <<"processes_used">> := _}) ->
     {ok, <<"VMStatsMemoryMetric">>};
 execute(#{<<"type">> := <<"vm_system_info">>, <<"port_count">> := _}) ->
@@ -29,7 +27,4 @@ execute(#{<<"type">> := <<"vm_system_info">>, <<"port_count">> := _}) ->
 execute(#{<<"type">> := <<"probe_queues">>, <<"fsm">> := _}) ->
     {ok, <<"ProbeQueuesMetric">>};
 execute(#{<<"type">> := <<"rdbms_stats">>, <<"workers">> := _}) ->
-    {ok, <<"RDBMSStatsMetric">>};
-execute(Value) ->
-    ?LOG_ERROR(#{what => graphql_unknown_type, value => Value}),
-    {error, unknown_type}.
+    {ok, <<"RDBMSStatsMetric">>}.
