@@ -677,9 +677,9 @@ mam_opts_for_conf(cassandra) ->
     #{backend => cassandra,
       user_prefs_store => cassandra};
 mam_opts_for_conf(rdbms_easy) ->
-    SimpleOpts = #{db_jid_format => mam_jid_rfc,
-                   db_message_format => mam_message_xml},
-    maps:merge(SimpleOpts, mam_opts_for_conf(rdbms));
+    EasyOpts = #{db_jid_format => mam_jid_rfc,
+                 db_message_format => mam_message_xml},
+    maps:merge(EasyOpts, mam_opts_for_conf(rdbms));
 mam_opts_for_conf(rdbms) ->
     #{user_prefs_store => rdbms,
       async_writer => #{enabled => false},
@@ -2496,11 +2496,11 @@ pagination_first_page_after_id4(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
         % Default direction is after
-        RSM = #rsm_in{max=5, after_id=message_id(4, Config)},
+        RSM = #rsm_in{max = 5, after_id = message_id(4, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"first_page_after_id4">>, RSM)),
         %% Gets 5, 6, 7, 8, 9
-        %% Total Count is 11: i.e. 5, 6, 7, 9, 10, 11, 12, 13, 14, 15
+        %% Total Count is 11: i.e. 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
         %% Messages 1, 2, 3, 4 are ignored in the result
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,          11,      0,     5,  9),
@@ -2511,11 +2511,11 @@ pagination_first_page_after_id4(Config) ->
 pagination_last_page_after_id4(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        RSM = #rsm_in{max=5, after_id=message_id(4, Config), direction=before},
+        RSM = #rsm_in{max = 5, after_id = message_id(4, Config), direction=before},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last_page_after_id4">>, RSM)),
         %% Gets 11, 12, 13, 14, 15
-        %% Total Count is 11: i.e. 5, 6, 7, 9, 10, 11, 12, 13, 14, 15
+        %% Total Count is 11: i.e. 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
         %% Messages 1, 2, 3, 4 are ignored in the result
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,          11,      6,     11,  15),

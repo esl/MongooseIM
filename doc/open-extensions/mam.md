@@ -25,7 +25,6 @@ using a page size 5.
 
 In this mode, the client would get the oldest messages first.
 
-
 Testcase: the client has messages 1-15 in his archive.
 
 ```xml
@@ -161,7 +160,6 @@ Example `pagination_last_page_after_id4`.
 
 Because index is not zero, the client would have to send more queries to get
 all missing messages.
-
 
 ## Disable message counting
 

@@ -338,7 +338,7 @@ form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
 
 form_extra_fields(undefined) ->
     [];
-form_extra_fields(#rsm_in{simple=Simple}) ->
+form_extra_fields(#rsm_in{simple = Simple}) ->
     [form_bool_field(<<"simple">>, Simple)].
 
 form_border_fields(undefined) ->
