@@ -40,8 +40,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
--include("mongoose_rsm.hrl").
 -include("mongoose_mam.hrl").
 
 %% ----------------------------------------------------------------------
