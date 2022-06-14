@@ -20,6 +20,7 @@ execute(_Ctx, _Obj, <<"getClusterMetricsAsDicts">>, Args) ->
     Nodes = get_nodes(Args),
     mongoose_metrics_api:get_cluster_metrics_as_dicts(Name, Keys, Nodes).
 
+%% get_keys is a BIF, so we have a name conflict
 get_keys2(Args) ->
     Keys = get_list(<<"keys">>, Args),
     lists:map(fun prepare_key/1, Keys).

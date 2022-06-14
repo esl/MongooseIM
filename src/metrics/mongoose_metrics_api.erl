@@ -7,19 +7,29 @@
 
 -type name() :: [atom() | integer()].
 -type key() :: atom().
+-type metric_result() ::
+    {ok, #{binary() => binary() | non_neg_integer()}}.
+-type dict_result() :: #{binary() => binary() | non_neg_integer()}.
+-type metric_dict_result() ::
+    {ok, #{binary() => binary() | [dict_result()]}}.
+-type metric_node_dict_result() ::
+    {ok, #{binary() => binary() | [metric_dict_result()]}}
+    | {error, binary()}.
 
--spec get_metrics(Name :: name()) -> {ok, list()}.
+-spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
     Values = exometer:get_values(Name),
     {ok, lists:map(fun make_metric_result/1, Values)}.
 
--spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) -> {ok, list()}.
+-spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) ->
+    {ok, [metric_dict_result()]}.
 get_metrics_as_dicts(Name, Keys) ->
     Values = exometer:get_values(Name),
     {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
 
 -spec get_cluster_metrics_as_dicts(Name :: name(), Keys :: [key()],
-                                   Nodes :: [node()]) -> {ok, list()}.
+                                   Nodes :: [node()]) ->
+    {ok, [metric_node_dict_result()]}.
 get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
     Nodes2 = existing_nodes(Nodes),
     F = fun(Node) -> rpc:call(Node, exometer, get_values, [Name]) end,
