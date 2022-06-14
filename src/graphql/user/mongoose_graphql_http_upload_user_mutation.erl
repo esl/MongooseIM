@@ -12,8 +12,8 @@
 -include("jlib.hrl").
 
 execute(#{user := #jid{lserver = Domain}}, httpUpload, <<"getUrl">>,
-        #{<<"size">> := FileSize, <<"contentType">> := ContentType,
-          <<"timeout">> := Timeout, <<"filename">> := FileName} = Data) ->
+        #{<<"filename">> := FileName, <<"size">> := FileSize,
+          <<"contentType">> := ContentType, <<"timeout">> := Timeout} = Data) ->
     case mod_http_upload_api:get_urls(Domain, FileName, FileSize, ContentType, Timeout) of
         {ok, _} = Result ->
             Result;

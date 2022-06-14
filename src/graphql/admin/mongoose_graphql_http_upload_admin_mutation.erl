@@ -12,10 +12,10 @@
 -include("jlib.hrl").
 
 execute(_Ctx, httpUpload, <<"getUrl">>, #{<<"domain">> := Domain,
+                                          <<"filename">> := FileName,
                                           <<"size">> := FileSize,
                                           <<"contentType">> := ContentType,
-                                          <<"timeout">> := Timeout,
-                                          <<"filename">> := FileName} = Data) ->
+                                          <<"timeout">> := Timeout} = Data) ->
     case mod_http_upload_api:get_urls(Domain, FileName, FileSize, ContentType, Timeout) of
         {ok, _} = Result -> Result;
         Error ->
