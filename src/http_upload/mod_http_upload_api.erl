@@ -19,21 +19,21 @@ get_urls_mongooseimctl(Domain, Filename, Size, ContentType, Timeout) ->
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
         {ok | size_error | timeout_error | module_not_loaded_error | domain_not_found |
          file_too_large_error, string()} | {ok, #{binary() => binary() | string()}}.
-get_urls(_Domain, _Filename, Size, _ContentType, _Timeout) when Size =< 0->
+get_urls(_Domain, _Filename, Size, _ContentType, _Timeout) when Size =< 0 ->
     {size_error, "size must be positive integer"};
-get_urls(_Domain, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0->
+get_urls(_Domain, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0 ->
     {timeout_error, "timeout must be positive integer"};
-get_urls(Domain, Filename, Size, <<"">>, Timeout) ->
+get_urls(Domain, Filename, Size, <<>>, Timeout) ->
     get_urls(Domain, Filename, Size, undefined, Timeout);
 get_urls(Domain, Filename, Size, ContentType, Timeout) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
-            check_if_module_is_loaded(HostType, Filename, Size, ContentType, Timeout);
+            check_module_and_get_urls(HostType, Filename, Size, ContentType, Timeout);
         _ ->
             {domain_not_found, "domain does not exist"}
     end.
 
-check_if_module_is_loaded(HostType, Filename, Size, ContentType, Timeout) ->
+check_module_and_get_urls(HostType, Filename, Size, ContentType, Timeout) ->
     case gen_mod:is_loaded(HostType, mod_http_upload) of
         true ->
             case mod_http_upload:get_urls(HostType, Filename, Size, ContentType, Timeout) of

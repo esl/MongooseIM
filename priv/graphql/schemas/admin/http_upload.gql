@@ -1,8 +1,8 @@
 """
-Allow admin to generate upload/download URL for the file on user's behalf".
+Allow admin to generate upload/download URL for a file on user's behalf".
 """
 type HttpUploadAdminMutation @protected{
-    "Allow admin to generate upload/download URLs for the file on user's behalf"
+    "Allow admin to generate upload/download URLs for a file on user's behalf"
     getUrl(domain: String!, filename: String!, size: Int!, contentType: String!, timeout: Int!): FileUrls
     @protected(type: DOMAIN, args: ["domain"])
 }
