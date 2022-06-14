@@ -184,13 +184,13 @@ parse_opts(Type, Opts, Deps) ->
     parse_backend_opts(Backend, Type, BackendOpts, WithPrefs).
 
 -spec mam_type_to_core_mod(mam_type()) -> module().
-mam_type_to_core_mod(pm) -> mod_mam;
+mam_type_to_core_mod(pm) -> mod_mam_pm;
 mam_type_to_core_mod(muc) -> mod_mam_muc.
 
 %% Get a list of options to pass into the two modules.
 %% They don't have to be defined in pm or muc sections, the root section is enough.
 -spec valid_core_mod_opts(module()) -> [atom()].
-valid_core_mod_opts(mod_mam) ->
+valid_core_mod_opts(mod_mam_pm) ->
     [archive_groupchats, same_mam_id_for_peers] ++ common_opts();
 valid_core_mod_opts(mod_mam_muc) ->
     [host] ++ common_opts().

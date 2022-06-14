@@ -40,12 +40,12 @@ sets_rdbms_as_default_backend(_Config) ->
 
 handles_only_pm(_Config) ->
     Deps = deps(#{pm => default_config([modules, mod_mam_meta, pm])}),
-    ?assert(lists:keymember(mod_mam, 1, Deps)),
+    ?assert(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assertNot(lists:keymember(mod_mam_muc, 1, Deps)).
 
 handles_only_muc(_Config) ->
     Deps = deps(#{muc => default_config([modules, mod_mam_meta, muc])}),
-    ?assertNot(lists:keymember(mod_mam, 1, Deps)),
+    ?assertNot(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)).
 
 disables_sync_writer_on_async_writer(_Config) ->
@@ -70,7 +70,7 @@ produces_valid_configurations(_Config) ->
     Deps = deps(#{pm => PM, muc => MUC}),
     Cache = default_config([modules, mod_mam_meta, cache]),
 
-    check_equal_opts(mod_mam, mod_config(mod_mam, PMCoreOpts), Deps),
+    check_equal_opts(mod_mam_pm, mod_config(mod_mam_pm, PMCoreOpts), Deps),
     check_equal_opts(mod_mam_muc, mod_config(mod_mam_muc, MUCCoreOpts), Deps),
     check_equal_opts(mod_mam_rdbms_arch, default_mod_config(mod_mam_rdbms_arch), Deps),
     check_equal_opts(mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch,
@@ -88,7 +88,7 @@ handles_riak_config(_Config) ->
                   db_message_format => some_format,
                   pm => config([modules, mod_mam_meta, pm], PM),
                   muc => config([modules, mod_mam_meta, muc], MUC)}),
-    ?assert(lists:keymember(mod_mam, 1, Deps)),
+    ?assert(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)),
     check_equal_opts(mod_mam_riak_timed_arch_yz,
                      #{pm => true, muc => true, db_message_format => some_format}, Deps),
@@ -134,7 +134,7 @@ example_pm_only_good_performance(_Config) ->
        {mod_mam_mnesia_prefs, #{pm => true}},
        {mod_mam_rdbms_arch, mod_config(mod_mam_rdbms_arch, #{no_writer => true})},
        {mod_mam_rdbms_arch_async, AsyncOpts},
-       {mod_mam, default_mod_config(mod_mam)}
+       {mod_mam_pm, default_mod_config(mod_mam_pm)}
       ], Deps).
 
 %% Helpers

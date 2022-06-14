@@ -463,7 +463,7 @@ change_user_password(Host, User, Password) ->
             {error, bad_request, "invalid jid"}
     end.
 
--spec row_to_map(mod_mam:message_row()) -> map().
+-spec row_to_map(mod_mam_pm:message_row()) -> map().
 row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     Jbin = jid:to_binary(From),
     {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
@@ -495,7 +495,7 @@ lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     #jid{luser = LUser, lserver = LServer} = ArcJID,
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Params = #{archive_id => mod_mam:archive_id(LServer, LUser),
+    Params = #{archive_id => mod_mam_pm:archive_id(LServer, LUser),
                owner_jid => ArcJID,
                borders => undefined,
                rsm => #rsm_in{direction = before, id = undefined}, % last msgs
@@ -508,7 +508,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                limit_passed => false,
                max_result_limit => 1,
                is_simple => true},
-    R = mod_mam:lookup_messages(HostType, Params),
+    R = mod_mam_pm:lookup_messages(HostType, Params),
     {ok, {_, _, L}} = R,
     L.
 

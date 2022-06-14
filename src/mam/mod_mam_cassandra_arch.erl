@@ -86,7 +86,7 @@ stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Add hooks for mod_mam_pm
 
 -spec hooks(host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
@@ -210,7 +210,7 @@ remove_archive(HostType, UserJID) ->
 %% SELECT MESSAGES
 
 -spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
-  {ok, mod_mam:lookup_result()}.
+  {ok, mod_mam_pm:lookup_result()}.
 lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
     Result;
 lookup_messages(_Result, _HostType, #{search_text := <<_/binary>>}) ->

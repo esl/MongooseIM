@@ -866,7 +866,7 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
             [mam_helper:wait_for_archive_size(User, 2) || User <- [Alice, Bob]],
 
             false = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
-                                                   [host_type(), mod_mam, archive_groupchats, undefined]),
+                                                   [host_type(), mod_mam_pm, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),
@@ -914,7 +914,7 @@ retrieve_mam_pm_and_muc_light_interfere(Config) ->
             mam_helper:wait_for_archive_size(Kate, 3),
 
             true = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
-                                                   [host_type(), mod_mam, archive_groupchats, undefined]),
+                                                   [host_type(), mod_mam_pm, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),

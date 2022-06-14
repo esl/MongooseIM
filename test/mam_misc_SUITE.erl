@@ -112,7 +112,7 @@ must_be_accepted(_) ->
 
 %% Generators
 gen_modules() ->
-    oneof([mod_mam, mod_inbox]).
+    oneof([mod_mam_pm, mod_inbox]).
 
 gen_directions() ->
     oneof([outgoing, incoming]).

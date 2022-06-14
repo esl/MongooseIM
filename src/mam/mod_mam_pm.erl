@@ -27,7 +27,7 @@
 %%% </ul>
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam).
+-module(mod_mam_pm).
 -behavior(gen_mod).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 313}, {version, "0.4.1"}]).
@@ -137,8 +137,8 @@
                        AlwaysJIDs  :: [jid:literal_jid()],
                        NeverJIDs   :: [jid:literal_jid()]}.
 
--type archive_message_params() :: #{message_id := mod_mam:message_id(),
-                                    archive_id := mod_mam:archive_id(),
+-type archive_message_params() :: #{message_id := message_id(),
+                                    archive_id := archive_id(),
                                     local_jid := jid:jid(),
                                     remote_jid := jid:jid(),
                                     source_jid := jid:jid(),
@@ -146,7 +146,7 @@
                                     direction := atom(),
                                     packet := exml:element(),
                                     %% Only in mod_mam_muc_rdbms_arch:retract_message/2
-                                    sender_id => mod_mam:archive_id()}.
+                                    sender_id => archive_id()}.
 
 -export_type([rewriter_fun/0,
               borders/0,
@@ -616,7 +616,7 @@ remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     ok.
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
-    {ok, mod_mam:lookup_result()}
+    {ok, lookup_result()}
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.
 lookup_messages(HostType, Params) ->
@@ -644,7 +644,7 @@ archive_message_from_ct(Params = #{local_jid := JID}) ->
     HostType = jid_to_host_type(JID),
     archive_message(HostType, Params).
 
--spec archive_message(host_type(), mod_mam:archive_message_params()) ->
+-spec archive_message(host_type(), archive_message_params()) ->
     ok | {error, timeout}.
 archive_message(HostType, Params) ->
     StartT = erlang:monotonic_time(microsecond),

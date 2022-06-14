@@ -14,7 +14,7 @@
 
 -export([make_pool_opts/2, prepare_insert_queries/2]).
 
--spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) -> ok.
+-spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam_pm:archive_message_params()) -> ok.
 archive_pm_message(_Result, HostType, Params = #{archive_id := ArcID}) ->
     mongoose_async_pools:put_task(HostType, pm_mam, ArcID, Params).
 

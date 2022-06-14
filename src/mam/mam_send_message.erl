@@ -6,14 +6,14 @@
 -ignore_xref([behaviour_info/1]).
 
 -callback send_message(
-            Row :: mod_mam:message_row(),
+            Row :: mod_mam_pm:message_row(),
             ArcJID :: jid:jid(),
             From :: jid:jid(),
             Packet :: exml:element()) -> Acc :: mongoose_acc:t().
 
 -spec call_send_message(
             SendModule :: module(),
-            Row :: mod_mam:message_row(),
+            Row :: mod_mam_pm:message_row(),
             ArcJID :: jid:jid(),
             From :: jid:jid(),
             Packet :: exml:element()) -> Acc :: mongoose_acc:t().

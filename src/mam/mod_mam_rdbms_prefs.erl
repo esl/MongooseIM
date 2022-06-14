@@ -103,8 +103,8 @@ order_by_remote_jid_in_delete(HostType) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-        HostType :: mongooseim:host_type(), ArchiveID :: mod_mam:archive_id(),
+-spec get_behaviour(Default :: mod_mam_pm:archive_behaviour(),
+        HostType :: mongooseim:host_type(), ArchiveID :: mod_mam_pm:archive_id(),
         LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(DefaultBehaviour, HostType, UserID, _LocJID, RemJID)
         when is_integer(UserID) ->
@@ -136,8 +136,8 @@ choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
     end.
 
 -spec set_prefs(Result :: any(), HostType :: mongooseim:host_type(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
-        DefaultMode :: mod_mam:archive_behaviour(),
+        ArchiveID :: mod_mam_pm:archive_id(), ArchiveJID :: jid:jid(),
+        DefaultMode :: mod_mam_pm:archive_behaviour(),
         AlwaysJIDs :: [jid:literal_jid()],
         NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(_Result, HostType, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -159,15 +159,15 @@ set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         end, #{user_id => UserID, retries => 5, delay => 100}),
     ok.
 
--spec get_prefs(mod_mam:preference(), HostType :: mongooseim:host_type(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
-            -> mod_mam:preference().
+-spec get_prefs(mod_mam_pm:preference(), HostType :: mongooseim:host_type(),
+        ArchiveID :: mod_mam_pm:archive_id(), ArchiveJID :: jid:jid())
+            -> mod_mam_pm:preference().
 get_prefs({GlobalDefaultMode, _, _}, HostType, UserID, _ArcJID) ->
     {selected, Rows} = mongoose_rdbms:execute(HostType, mam_prefs_select, [UserID]),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 -spec remove_archive(mongoose_acc:t(), mongooseim:host_type(),
-                     mod_mam:archive_id(), jid:jid()) ->
+                     mod_mam_pm:archive_id(), jid:jid()) ->
     mongoose_acc:t().
 remove_archive(Acc, HostType, UserID, _ArcJID) ->
     remove_archive(HostType, UserID),
@@ -210,10 +210,10 @@ prefs_to_rows(UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     [DefaultRow|lists:sort(AlwaysRows ++ NeverRows)].
 
 -spec decode_prefs_rows([{binary() | jid:jid(), binary()}],
-        DefaultMode :: mod_mam:archive_behaviour(),
+        DefaultMode :: mod_mam_pm:archive_behaviour(),
         AlwaysJIDs :: [jid:literal_jid()],
         NeverJIDs :: [jid:literal_jid()]) ->
-    {mod_mam:archive_behaviour(), [jid:literal_jid()], [jid:literal_jid()]}.
+    {mod_mam_pm:archive_behaviour(), [jid:literal_jid()], [jid:literal_jid()]}.
 decode_prefs_rows([{<<>>, Behaviour}|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, decode_behaviour(Behaviour), AlwaysJIDs, NeverJIDs);
 decode_prefs_rows([{JID, <<"A">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->

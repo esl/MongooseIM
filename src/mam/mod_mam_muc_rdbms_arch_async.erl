@@ -12,7 +12,7 @@
 -export([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
 -ignore_xref([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
 
--spec archive_muc_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) -> ok.
+-spec archive_muc_message(_Result, mongooseim:host_type(), mod_mam_pm:archive_message_params()) -> ok.
 archive_muc_message(_Result, HostType, Params0 = #{archive_id := RoomID}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
     mongoose_async_pools:put_task(HostType, muc_mam, RoomID, Params).

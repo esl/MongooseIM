@@ -80,7 +80,7 @@ hooks(_HostType, _Opt, _Opts) ->
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: behaviour(), Host :: jid:server(),
-    ArcID :: mod_mam:archive_id(), LocJID :: jid:jid(),
+    ArcID :: mod_mam_pm:archive_id(), LocJID :: jid:jid(),
     RemJID :: jid:jid()) -> any().
 get_behaviour(DefaultBehaviour, _Host,
               _ArcID,
@@ -122,8 +122,8 @@ get_behaviour(#mam_prefs{default_mode = roster,
 
 
 -spec set_prefs(Result :: any(), Host :: jid:server(),
-                ArcID :: mod_mam:archive_id(), ArcJID :: jid:jid(),
-                DefaultMode :: mod_mam:archive_behaviour(),
+                ArcID :: mod_mam_pm:archive_id(), ArcJID :: jid:jid(),
+                DefaultMode :: mod_mam_pm:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(_Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -149,9 +149,9 @@ set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ok.
 
 
--spec get_prefs(mod_mam:preference(), _Host :: jid:server(),
-                _ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()
-                ) -> mod_mam:preference().
+-spec get_prefs(mod_mam_pm:preference(), _Host :: jid:server(),
+                _ArcId :: mod_mam_pm:archive_id(), ArcJID :: jid:jid()
+                ) -> mod_mam_pm:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
     SU = su_key(ArcJID),
     case mnesia:dirty_read(mam_prefs, SU) of

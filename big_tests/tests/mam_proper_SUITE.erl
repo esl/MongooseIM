@@ -117,7 +117,7 @@ body() ->
 packet(To, Body) ->
     escalus_stanza:chat_to(jid:to_binary(To), Body).
 
-%% Generates mod_mam:archive_message_params()
+%% Generates mod_mam_pm:archive_message_params()
 params() ->
     ?LET({MessId, ArcId, LocalJid, RemoteJid,
           OriginId, Dir, Body, SenderId},

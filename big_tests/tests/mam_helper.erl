@@ -801,16 +801,16 @@ wait_for_room_archive_size(Server, Username, ExpectedSize) ->
 
 
 archive_size(Server, Username) ->
-    rpc_apply(mod_mam, archive_size, [Server, Username]).
+    rpc_apply(mod_mam_pm, archive_size, [Server, Username]).
 
 archive_size_with_host_type(HostType, Server, Username) ->
-    rpc_apply(mod_mam, archive_size_with_host_type, [HostType, Server, Username]).
+    rpc_apply(mod_mam_pm, archive_size_with_host_type, [HostType, Server, Username]).
 
 room_archive_size(Server, Username) ->
     rpc_apply(mod_mam_muc, archive_size, [Server, Username]).
 
 delete_archive(Server, Username) ->
-    rpc_apply(mod_mam, delete_archive, [Server, Username]).
+    rpc_apply(mod_mam_pm, delete_archive, [Server, Username]).
 
 delete_room_archive(Server, Username) ->
     rpc_apply(mod_mam_muc, delete_archive, [Server, Username]).
@@ -967,7 +967,7 @@ put_msg({{MsgIdOwner, MsgIdRemote},
     archive_message(Map2).
 
 archive_message(#{} = Map) ->
-    ok = rpc_apply(mod_mam, archive_message_from_ct, [Map]).
+    ok = rpc_apply(mod_mam_pm, archive_message_from_ct, [Map]).
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
@@ -1017,7 +1017,7 @@ archive_muc_msg({{MsgID, _},
                                                      packet => Packet}]).
 
 get_archive_id(Server, User) ->
-    rpc_apply(mod_mam, archive_id, [Server, User]).
+    rpc_apply(mod_mam_pm, archive_id, [Server, User]).
 
 get_muc_archive_id(MucHost, Room) ->
     rpc_apply(mod_mam_muc, archive_id, [MucHost, Room]).

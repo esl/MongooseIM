@@ -961,7 +961,7 @@ room_new_affiliations(Acc, Room, NewAffs, Version) ->
 -spec mam_archive_id(HostType, OwnerJID) -> Result when
       HostType :: mongooseim:host_type(),
       OwnerJID :: jid:jid(),
-      Result :: undefined | mod_mam:archive_id().
+      Result :: undefined | mod_mam_pm:archive_id().
 mam_archive_id(HostType, OwnerJID) ->
     run_hook_for_host_type(mam_archive_id, HostType, undefined, [HostType, OwnerJID]).
 
@@ -969,7 +969,7 @@ mam_archive_id(HostType, OwnerJID) ->
 %%% of the archive for a given JID
 -spec mam_archive_size(HostType, ArchiveID, OwnerJID) -> Result when
       HostType :: mongooseim:host_type(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       OwnerJID :: jid:jid(),
       Result :: integer().
 mam_archive_size(HostType, ArchiveID, OwnerJID) ->
@@ -981,10 +981,10 @@ mam_archive_size(HostType, ArchiveID, OwnerJID) ->
 -spec mam_get_behaviour(HookServer, ArchiveID,
                         OwnerJID, RemoteJID) -> Result when
       HookServer :: jid:lserver(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       OwnerJID :: jid:jid(),
       RemoteJID :: jid:jid(),
-      Result :: mod_mam:archive_behaviour().
+      Result :: mod_mam_pm:archive_behaviour().
 mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
     run_hook_for_host_type(mam_get_behaviour, HookServer, always,
                            [HookServer, ArchiveID, OwnerJID, RemoteJID]).
@@ -995,9 +995,9 @@ mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
 -spec mam_set_prefs(HookServer, ArchiveId, OwnerJID,
                     DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
       HookServer :: jid:lserver(),
-      ArchiveId :: undefined | mod_mam:archive_id(),
+      ArchiveId :: undefined | mod_mam_pm:archive_id(),
       OwnerJID :: jid:jid(),
-      DefaultMode :: mod_mam:archive_behaviour(),
+      DefaultMode :: mod_mam_pm:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
     NeverJIDs :: [jid:literel_jid()],
     Result :: any().
@@ -1010,12 +1010,12 @@ mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJI
 %%% the archive settings for a given user.
 -spec mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) -> Result when
       HookServer :: jid:lserver(),
-      DefaultMode :: mod_mam:archive_behaviour(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      DefaultMode :: mod_mam_pm:archive_behaviour(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       OwnerJID :: jid:jid(),
-      Result :: mod_mam:preference() | {error, Reason :: term()}.
+      Result :: mod_mam_pm:preference() | {error, Reason :: term()}.
 mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
-    InitialAccValue = {DefaultMode, [], []}, %% mod_mam:preference() type
+    InitialAccValue = {DefaultMode, [], []}, %% mod_mam_pm:preference() type
     run_hook_for_host_type(mam_get_prefs, HookServer, InitialAccValue,
                            [HookServer, ArchiveID, OwnerJID]).
 
@@ -1023,7 +1023,7 @@ mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
 %%% remove the entire archive for a particular user.
 -spec mam_remove_archive(HookServer, ArchiveID, OwnerJID) -> any() when
       HookServer :: jid:lserver(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       OwnerJID :: jid:jid().
 mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
     run_hook_for_host_type(mam_remove_archive, HookServer, ok,
@@ -1034,9 +1034,9 @@ mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
 -spec mam_lookup_messages(HookServer, Params) -> Result when
       HookServer :: jid:lserver(),
       Params :: map(),
-      Result :: {ok, mod_mam:lookup_result()}.
+      Result :: {ok, mod_mam_pm:lookup_result()}.
 mam_lookup_messages(HookServer, Params) ->
-    InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
+    InitialLookupValue = {0, 0, []}, %% mod_mam_pm:lookup_result() type
     run_hook_for_host_type(mam_lookup_messages, HookServer, {ok, InitialLookupValue},
                            [HookServer, Params]).
 
@@ -1045,7 +1045,7 @@ mam_lookup_messages(HookServer, Params) ->
 -spec mam_archive_message(HookServer, Params) ->
     Result when
     HookServer :: jid:lserver(),
-    Params :: mod_mam:archive_message_params(),
+    Params :: mod_mam_pm:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_archive_message(HookServer, Params) ->
     run_hook_for_host_type(mam_archive_message, HookServer, ok, [HookServer, Params]).
@@ -1066,7 +1066,7 @@ mam_archive_sync(HostType) ->
 %% @doc Notifies of a message retraction
 -spec mam_retraction(mongooseim:host_type(),
                      mod_mam_utils:retraction_info(),
-                     mod_mam:archive_message_params()) ->
+                     mod_mam_pm:archive_message_params()) ->
     mod_mam_utils:retraction_info().
 mam_retraction(HostType, RetractionInfo, Env) ->
     run_fold(mam_retraction, HostType, RetractionInfo, Env).
@@ -1087,7 +1087,7 @@ mam_retraction(HostType, RetractionInfo, Env) ->
 -spec mam_muc_archive_id(HookServer, OwnerJID) -> Result when
       HookServer :: jid:lserver(),
       OwnerJID :: jid:jid(),
-      Result :: undefined | mod_mam:archive_id().
+      Result :: undefined | mod_mam_pm:archive_id().
 mam_muc_archive_id(HookServer, OwnerJID) ->
     run_hook_for_host_type(mam_muc_archive_id, HookServer, undefined,
                            [HookServer, OwnerJID]).
@@ -1096,7 +1096,7 @@ mam_muc_archive_id(HookServer, OwnerJID) ->
 %%% the archive size for a given room.
 -spec mam_muc_archive_size(HostType, ArchiveID, RoomJID) -> Result when
       HostType :: mongooseim:host_type(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       RoomJID :: jid:jid(),
       Result :: integer().
 mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
@@ -1108,12 +1108,12 @@ mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
 -spec mam_muc_get_behaviour(HostType, ArchiveID,
                             RoomJID, RemoteJID) -> Result when
       HostType :: mongooseim:host_type(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       RoomJID :: jid:jid(),
       RemoteJID :: jid:jid(),
-      Result :: mod_mam:archive_behaviour().
+      Result :: mod_mam_pm:archive_behaviour().
 mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
-    DefaultBehaviour = always, %% mod_mam:archive_behaviour() type
+    DefaultBehaviour = always, %% mod_mam_pm:archive_behaviour() type
     run_hook_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
                            [HostType, ArchiveID, RoomJID, RemoteJID]).
 
@@ -1123,9 +1123,9 @@ mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
 -spec mam_muc_set_prefs(HostType, ArchiveId, RoomJID,
                         DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
       HostType :: mongooseim:host_type(),
-      ArchiveId :: undefined | mod_mam:archive_id(),
+      ArchiveId :: undefined | mod_mam_pm:archive_id(),
       RoomJID :: jid:jid(),
-      DefaultMode :: mod_mam:archive_behaviour(),
+      DefaultMode :: mod_mam_pm:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
       NeverJIDs :: [jid:literel_jid()],
       Result :: any().
@@ -1139,12 +1139,12 @@ mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJI
 %%% the archive settings for a given room.
 -spec mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) -> Result when
       HostType :: mongooseim:host_type(),
-      DefaultMode :: mod_mam:archive_behaviour(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      DefaultMode :: mod_mam_pm:archive_behaviour(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       RoomJID :: jid:jid(),
-      Result :: mod_mam:preference() | {error, Reason :: term()}.
+      Result :: mod_mam_pm:preference() | {error, Reason :: term()}.
 mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
-    InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
+    InitialAcc = {DefaultMode, [], []}, %% mod_mam_pm:preference() type
     run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
                            [HostType, ArchiveID, RoomJID]).
 
@@ -1152,7 +1152,7 @@ mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
 %%% archive for a particular user.
 -spec mam_muc_remove_archive(HostType, ArchiveID, RoomJID) -> any() when
       HostType :: mongooseim:host_type(),
-      ArchiveID :: undefined | mod_mam:archive_id(),
+      ArchiveID :: undefined | mod_mam_pm:archive_id(),
       RoomJID :: jid:jid().
 mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
     run_hook_for_host_type(mam_muc_remove_archive, HostType, ok,
@@ -1163,9 +1163,9 @@ mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
 -spec mam_muc_lookup_messages(HostType, Params) -> Result when
       HostType :: mongooseim:host_type(),
       Params :: map(),
-      Result :: {ok, mod_mam:lookup_result()}.
+      Result :: {ok, mod_mam_pm:lookup_result()}.
 mam_muc_lookup_messages(HostType, Params) ->
-    InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
+    InitialLookupValue = {0, 0, []}, %% mod_mam_pm:lookup_result() type
     run_hook_for_host_type(mam_muc_lookup_messages, HostType, {ok, InitialLookupValue},
                            [HostType, Params]).
 
@@ -1173,7 +1173,7 @@ mam_muc_lookup_messages(HostType, Params) ->
 %%% to store the MUC message in the archive.
 -spec mam_muc_archive_message(HostType, Params) -> Result when
     HostType :: mongooseim:host_type(),
-    Params :: mod_mam:archive_message_params(),
+    Params :: mod_mam_pm:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_muc_archive_message(HostType, Params) ->
     run_hook_for_host_type(mam_muc_archive_message, HostType, ok, [HostType, Params]).
@@ -1194,7 +1194,7 @@ mam_muc_archive_sync(HostType) ->
 %% @doc Notifies of a muc message retraction
 -spec mam_muc_retraction(mongooseim:host_type(),
                          mod_mam_utils:retraction_info(),
-                         mod_mam:archive_message_params()) ->
+                         mod_mam_pm:archive_message_params()) ->
     mod_mam_utils:retraction_info().
 mam_muc_retraction(HostType, RetractionInfo, Env) ->
     run_fold(mam_muc_retraction, HostType, RetractionInfo, Env).

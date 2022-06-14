@@ -85,7 +85,7 @@ supported_features() ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, HostType,
                      #jid{luser = LUser, lserver = LServer} = ArcJID) ->
-    case mod_mam:archive_id(LServer, LUser) of
+    case mod_mam_pm:archive_id(LServer, LUser) of
         undefined ->
             Acc;
         ArcID ->
@@ -94,12 +94,12 @@ get_mam_pm_gdpr_data(Acc, HostType,
             [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
     end.
 
--spec uniform_to_gdpr(mod_mam:message_row()) -> tuple().
+-spec uniform_to_gdpr(mod_mam_pm:message_row()) -> tuple().
 uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
     {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Add hooks for mod_mam_pm
 
 -spec start_hooks(host_type()) -> ok.
 start_hooks(HostType) ->
@@ -195,8 +195,8 @@ env_vars(HostType, ArcJID) ->
       column_to_id_fn => fun column_to_id/1,
       lookup_fn => fun lookup_query/5,
       decode_row_fn => fun row_to_uniform_format/2,
-      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, HostType),
-      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, HostType),
+      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam_pm, HostType),
+      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam_pm, HostType),
       db_jid_codec => db_jid_codec(HostType, ?MODULE),
       db_message_codec => db_message_codec(HostType, ?MODULE)}.
 
@@ -242,14 +242,14 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 %% Internal functions and callbacks
 
 -spec archive_size(Size :: integer(), HostType :: host_type(),
-                   ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
+                   ArcId :: mod_mam_pm:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, HostType, ArcID, ArcJID) when is_integer(Size) ->
     Filter = [{equal, user_id, ArcID}],
     Env = env_vars(HostType, ArcJID),
     Result = lookup_query(count, Env, Filter, unordered, all),
     mongoose_rdbms:selected_to_integer(Result).
 
--spec archive_message(_Result, host_type(), mod_mam:archive_message_params()) -> ok.
+-spec archive_message(_Result, host_type(), mod_mam_pm:archive_message_params()) -> ok.
 archive_message(_Result, HostType, Params = #{local_jid := ArcJID}) ->
     try
         assert_archive_id_provided(Params),
@@ -270,12 +270,12 @@ do_archive_message(HostType, Params, Env) ->
 
 %% Retraction logic
 %% Called after inserting a new message
--spec retract_message(host_type(), mod_mam:archive_message_params()) -> ok.
+-spec retract_message(host_type(), mod_mam_pm:archive_message_params()) -> ok.
 retract_message(HostType, #{local_jid := ArcJID} = Params)  ->
     Env = env_vars(HostType, ArcJID),
     retract_message(HostType, Params, Env).
 
--spec retract_message(host_type(), mod_mam:archive_message_params(), env_vars()) -> ok.
+-spec retract_message(host_type(), mod_mam_pm:archive_message_params(), env_vars()) -> ok.
 retract_message(HostType, #{archive_id := ArcID, remote_jid := RemJID,
                             direction := Dir, packet := Packet} = Params, Env) ->
     case get_retract_id(Packet, Env) of
@@ -320,7 +320,7 @@ execute_make_tombstone(HostType, TombstoneData, ArcID, MessID) ->
                                         [TombstoneData, ArcID, MessID]).
 
 %% Insert logic
--spec prepare_message(host_type(), mod_mam:archive_message_params()) -> list().
+-spec prepare_message(host_type(), mod_mam_pm:archive_message_params()) -> list().
 prepare_message(HostType, Params = #{local_jid := ArcJID}) ->
     Env = env_vars(HostType, ArcJID),
     mam_encoder:encode_message(Params, Env, db_mappings()).
@@ -335,7 +335,7 @@ prepare_insert(Name, NumRows) ->
 
 %% Removal logic
 -spec remove_archive(Acc :: mongoose_acc:t(), HostType :: host_type(),
-                     ArcID :: mod_mam:archive_id(),
+                     ArcID :: mod_mam_pm:archive_id(),
                      RoomJID :: jid:jid()) -> mongoose_acc:t().
 remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
@@ -358,7 +358,7 @@ extract_gdpr_messages(Env, ArcID) ->
 
 %% Lookup logic
 -spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
-                             {ok, mod_mam:lookup_result()}.
+                             {ok, mod_mam_pm:lookup_result()}.
 lookup_messages({error, _Reason}=Result, _HostType, _Params) ->
     Result;
 lookup_messages(_Result, HostType, Params = #{owner_jid := ArcJID}) ->

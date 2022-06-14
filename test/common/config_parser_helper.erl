@@ -476,8 +476,8 @@ all_modules() ->
                                                refresh => #{unit => days, value => 13}},
                           iqdisc => one_queue},
       mod_carboncopy => #{iqdisc => no_queue},
-      mod_mam =>
-          mod_config(mod_mam,
+      mod_mam_pm =>
+          mod_config(mod_mam_pm,
                      #{archive_chat_markers => true,
                        archive_groupchats => false,
                        async_writer => default_config([modules, mod_mam_meta, async_writer]),
@@ -901,7 +901,7 @@ default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
-default_mod_config(mod_mam) ->
+default_mod_config(mod_mam_pm) ->
     maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
 default_mod_config(mod_mam_meta) ->
     (common_mam_config())#{backend => rdbms, cache_users => true,

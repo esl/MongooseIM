@@ -11,14 +11,14 @@
 -type db_muc_gdpr_row() :: {ext_mess_id(), ExtData :: binary()}.
 -type decoded_muc_gdpr_row() :: {ext_mess_id(), exml:element()}.
 
--spec decode_row(db_row(), env_vars()) -> mod_mam:message_row().
+-spec decode_row(db_row(), env_vars()) -> mod_mam_pm:message_row().
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
     SrcJID = decode_jid(ExtSrcJID, Env),
     Packet = decode_packet(ExtData, Env),
     #{id => MessID, jid => SrcJID, packet => Packet}.
 
--spec decode_muc_row(db_muc_row(), env_vars()) -> mod_mam:message_row().
+-spec decode_muc_row(db_muc_row(), env_vars()) -> mod_mam_pm:message_row().
 decode_muc_row({ExtMessID, Nick, ExtData}, Env = #{archive_jid := RoomJID}) ->
     MessID = mongoose_rdbms:result_to_integer(ExtMessID),
     SrcJID = jid:replace_resource(RoomJID, Nick),
@@ -31,7 +31,7 @@ decode_muc_gdpr_row({ExtMessID, ExtData}, Env) ->
     {ExtMessID, Packet}.
 
 -spec decode_retraction_info(env_vars(),
-                             [{binary(), mod_mam:message_id(), binary()}],
+                             [{binary(), mod_mam_pm:message_id(), binary()}],
                              mod_mam_utils:retraction_id()) ->
     skip | mod_mam_utils:retraction_info().
 decode_retraction_info(_Env, [], _) -> skip;

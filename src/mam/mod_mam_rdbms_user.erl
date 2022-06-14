@@ -69,16 +69,16 @@ prepare_queries() ->
 %%====================================================================
 %% API
 %%====================================================================
--spec archive_id(ArcID :: undefined | mod_mam:archive_id(),
+-spec archive_id(ArcID :: undefined | mod_mam_pm:archive_id(),
                  HostType :: mongooseim:host_type(),
-                 ArchiveJID :: jid:jid()) -> mod_mam:archive_id().
+                 ArchiveJID :: jid:jid()) -> mod_mam_pm:archive_id().
 archive_id(undefined, HostType, _ArcJID=#jid{lserver = LServer, luser = LUser}) ->
     query_archive_id(HostType, LServer, LUser);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
 -spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
-                     ArchiveID :: mod_mam:archive_id(),
+                     ArchiveID :: mod_mam_pm:archive_id(),
                      ArchiveJID :: jid:jid()) -> map().
 remove_archive(Acc, HostType, _ArcID, _ArcJID = #jid{lserver = LServer, luser = LUser}) ->
     execute_user_remove(HostType, LServer, LUser),

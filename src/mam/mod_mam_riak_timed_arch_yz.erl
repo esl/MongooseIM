@@ -221,7 +221,7 @@ archive_message(Host, MessID, LocJID, RemJID, SrcJID, OwnerJID, Packet, Type) ->
 create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type) ->
     ModMAM =
         case Type of
-            pm -> mod_mam;
+            pm -> mod_mam_pm;
             muc -> mod_mam_muc
         end,
     BodyChars = mod_mam_utils:packet_to_search_body(ModMAM, Host, Packet),

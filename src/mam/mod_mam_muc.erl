@@ -105,7 +105,7 @@
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
--type row() :: mod_mam:message_row().
+-type row() :: mod_mam_pm:message_row().
 -type host_type() :: mongooseim:host_type().
 -type muc_action() :: atom().
 
@@ -398,7 +398,7 @@ handle_set_message_form(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
 
 -spec do_handle_set_message_form(HostType :: mongooseim:host_type(),
                                  From :: jid:jid(),
-                                 ArcId :: mod_mam:archive_id(),
+                                 ArcId :: mod_mam_pm:archive_id(),
                                  ArcJID :: jid:jid(),
                                  IQ :: jlib:iq(),
                                  Params :: mam_iq:lookup_params()) ->
@@ -408,7 +408,7 @@ do_handle_set_message_form(HostType, From, ArcID, ArcJID, IQ, Params0) ->
     Result = lookup_messages(HostType, Params),
     handle_lookup_result(Result, HostType, From, IQ, Params).
 
--spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()},
+-spec handle_lookup_result({ok, mod_mam_pm:lookup_result()} | {error, term()},
                            host_type(), jid:jid(), jlib:iq(), map()) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_lookup_result(Result, HostType, From, IQ, #{owner_jid := ArcJID} = Params) ->
@@ -469,18 +469,18 @@ handle_get_message_form(HostType,
 archive_id_int(HostType, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_archive_id(HostType, ArcJID).
 
--spec archive_size(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
+-spec archive_size(HostType :: host_type(), ArcID :: mod_mam_pm:archive_id(),
                    ArcJID ::jid:jid()) -> non_neg_integer().
 archive_size(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_archive_size(HostType, ArcID, ArcJID).
 
--spec get_behaviour(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
+-spec get_behaviour(HostType :: host_type(), ArcID :: mod_mam_pm:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(HostType, ArcID, LocJID = #jid{}, RemJID = #jid{}) ->
     mongoose_hooks:mam_muc_get_behaviour(HostType, ArcID, LocJID, RemJID).
 
--spec set_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
-                ArcJID :: jid:jid(), DefaultMode :: mod_mam:archive_behaviour(),
+-spec set_prefs(HostType :: host_type(), ArcID :: mod_mam_pm:archive_id(),
+                ArcJID :: jid:jid(), DefaultMode :: mod_mam_pm:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -488,21 +488,21 @@ set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                                      AlwaysJIDs, NeverJIDs).
 
 %% @doc Load settings from the database.
--spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
-                ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
-               -> mod_mam:preference() | {error, Reason :: term()}.
+-spec get_prefs(HostType :: host_type(), ArcID :: mod_mam_pm:archive_id(),
+                ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam_pm:archive_behaviour())
+               -> mod_mam_pm:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
     mongoose_hooks:mam_muc_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID).
 
--spec remove_archive(host_type(), mod_mam:archive_id() | undefined,
+-spec remove_archive(host_type(), mod_mam_pm:archive_id() | undefined,
                      jid:jid()) -> ok.
 remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
     ok.
 
-%% See description in mod_mam.
+%% See description in mod_mam_pm.
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
-    {ok, mod_mam:lookup_result()}
+    {ok, mod_mam_pm:lookup_result()}
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.
 lookup_messages(HostType, Params) ->
@@ -530,7 +530,7 @@ archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
     HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJid),
     archive_message(HostType, Params).
 
--spec archive_message(host_type(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
+-spec archive_message(host_type(), mod_mam_pm:archive_message_params()) -> ok | {error, timeout}.
 archive_message(HostType, Params) ->
     mongoose_hooks:mam_muc_archive_message(HostType, Params).
 
