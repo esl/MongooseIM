@@ -655,9 +655,9 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Alice, 3),
 
         %% Alice sends messages to Bob.
-        lists:foreach(fun(N) ->
+        lists:foreach(fun(NN) ->
                               escalus:send(Alice, escalus_stanza:groupchat_to(
-                                                    RoomAddr, generate_message_text(N)))
+                                                    RoomAddr, generate_message_text(NN)))
                       end, lists:seq(1, N)),
         assert_list_size(N, escalus:wait_for_stanzas(Bob, N)),
         assert_list_size(N, escalus:wait_for_stanzas(Alice, N)),

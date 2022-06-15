@@ -28,4 +28,6 @@ execute(_Ctx, _Obj, <<"session">>, _Args) ->
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, #{}};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
-    {ok, vcard}.
+    {ok, vcard};
+execute(_Ctx, _Obj, <<"metric">>, _Args) ->
+    {ok, metric}.
