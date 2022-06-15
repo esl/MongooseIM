@@ -140,7 +140,7 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
 
 -spec remove_archive(Acc :: mongoose_acc:t(),
                      Host :: jid:server(),
-                     ArchiveId :: mod_mam_pm:archive_id(),
+                     ArchiveId :: mod_mam:archive_id(),
                      OwnerJid :: jid:jid()) -> Acc when Acc :: map().
 remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
     remove_archive(Host, OwnerJid),
@@ -169,11 +169,11 @@ hooks(Host) ->
      {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
      {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
--spec make_document_id(binary(), mod_mam_pm:message_id()) -> binary().
+-spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Owner, MessageId) ->
     <<Owner/binary, $$, (integer_to_binary(MessageId))/binary>>.
 
--spec make_document(mod_mam_pm:message_id(), binary(), binary(), binary(), exml:element()) ->
+-spec make_document(mod_mam:message_id(), binary(), binary(), binary(), exml:element()) ->
     map().
 make_document(MessageId, Owner, Remote, SourceBinJid, Packet) ->
     #{mam_id     => MessageId,
@@ -225,13 +225,13 @@ range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}
 range_filter(_) ->
     [].
 
--spec maybe_add_end_filter(undefined | mod_mam_pm:message_id(), map()) -> map().
+-spec maybe_add_end_filter(undefined | mod_mam:message_id(), map()) -> map().
 maybe_add_end_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_end_filter(Value, RangeMap) ->
     RangeMap#{le => Value}.
 
--spec maybe_add_start_filter(undefined | mod_mam_pm:message_id(), map()) -> map().
+-spec maybe_add_start_filter(undefined | mod_mam:message_id(), map()) -> map().
 maybe_add_start_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_start_filter(Value, RangeMap) ->
@@ -258,7 +258,7 @@ maybe_add_from_constraint(Query, #{rsm := #rsm_in{index = Offset}}) when is_inte
 maybe_add_from_constraint(Query, _) ->
     Query.
 
--spec search_result_to_mam_lookup_result(map(), map()) -> mod_mam_pm:lookup_result().
+-spec search_result_to_mam_lookup_result(map(), map()) -> mod_mam:lookup_result().
 search_result_to_mam_lookup_result(Result, Params) ->
     #{<<"hits">> :=
       #{<<"hits">> := Hits,
@@ -277,7 +277,7 @@ search_result_to_mam_lookup_result(Result, Params) ->
             {CorrectedTotalCount, Offset, Messages}
     end.
 
--spec hit_to_mam_message(map()) -> mod_mam_pm:message_row().
+-spec hit_to_mam_message(map()) -> mod_mam:message_row().
 hit_to_mam_message(#{<<"_source">> := JSON}) ->
     MessageId = maps:get(<<"mam_id">>, JSON),
     Packet = maps:get(<<"message">>, JSON),

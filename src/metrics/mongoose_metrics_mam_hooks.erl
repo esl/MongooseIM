@@ -66,14 +66,14 @@ get_mam_muc_hooks(Host) ->
 
 -spec mam_get_prefs(Result :: any(),
                     Host :: jid:server(),
-                    _ArcID :: mod_mam_pm:archive_id(),
+                    _ArcID :: mod_mam:archive_id(),
                     _ArcJID :: jid:jid()) -> any().
 mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
     mongoose_metrics:update(Host, modMamPrefsGets, 1),
     Result.
 
 -spec mam_set_prefs(Result :: any(), Host :: jid:server(),
-    _ArcID :: mod_mam_pm:archive_id(), _ArcJID :: jid:jid(),
+    _ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
     _DefaultMode :: any(), _AlwaysJIDs :: [jid:literal_jid()],
     _NeverJIDs :: [jid:literal_jid()]) -> any().
 mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
@@ -82,7 +82,7 @@ mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJI
 
 -spec mam_remove_archive(Acc :: map(),
                          Host :: jid:server(),
-                         _ArcID :: mod_mam_pm:archive_id(),
+                         _ArcID :: mod_mam:archive_id(),
                          _ArcJID :: jid:jid()) -> metrics_notify_return().
 mam_remove_archive(Acc, Host, _ArcID, _ArcJID) ->
     mongoose_metrics:update(Host, modMamArchiveRemoved, 1),
@@ -103,7 +103,7 @@ mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
     Result.
 
 -spec mam_archive_message(Result :: any(), Host :: jid:server(),
-                          _Params :: mod_mam_pm:archive_message_params()) -> any().
+                          _Params :: mod_mam:archive_message_params()) -> any().
 mam_archive_message(Result, Host, _Params) ->
     mongoose_metrics:update(Host, modMamArchived, 1),
     Result.
@@ -137,7 +137,7 @@ mam_muc_lookup_messages(Result = {error, _},
     Result.
 
 -spec mam_muc_archive_message(Result :: any(), Host :: jid:server(),
-                              _Params :: mod_mam_pm:archive_message_params()) -> any().
+                              _Params :: mod_mam:archive_message_params()) -> any().
 mam_muc_archive_message(Result, Host, _Params) ->
     mongoose_metrics:update(Host, modMucMamArchived, 1),
     Result.

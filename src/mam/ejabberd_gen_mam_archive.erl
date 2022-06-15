@@ -3,15 +3,15 @@
 -ignore_xref([behaviour_info/1]).
 
 -callback archive_size(Size :: integer(), Host :: jid:server(),
-                       ArchiveID :: mod_mam_pm:archive_id(), ArchiveJID :: jid:jid())
+                       ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
                       -> integer().
 
 -callback archive_message(Result :: any(), Host :: jid:server(),
-                          Params :: mod_mam_pm:archive_message_params()) -> ok | {error, timeout}.
+                          Params :: mod_mam:archive_message_params()) -> ok | {error, timeout}.
 
 -callback lookup_messages(Result :: any(), Host :: jid:server(),
                           Params :: map()) -> Result when
-      Result :: {ok, mod_mam_pm:lookup_result()} | {error, 'policy-violation'}.
+      Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
 -callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), mongooseim:host_type(), jid:jid()) -> mam_pm_gdpr_data().
 

@@ -37,7 +37,7 @@
                  | 'mam_get_message_form'.
 
 -type lookup_params() :: #{
-        archive_id => mod_mam_pm:archive_id(),
+        archive_id => mod_mam:archive_id(),
         owner_jid => jid:jid(),
         caller_jid => jid:jid(),
         rsm => jlib:rsm_in() | undefined,
@@ -47,16 +47,16 @@
         page_size => non_neg_integer(),
         ordering_direction => backward | forward,
         %% unix_timestamp() is in microseconds
-        now => mod_mam_pm:unix_timestamp(),
+        now => mod_mam:unix_timestamp(),
         %% Filtering by date
-        start_ts => mod_mam_pm:unix_timestamp() | undefined,
-        end_ts => mod_mam_pm:unix_timestamp() | undefined,
+        start_ts => mod_mam:unix_timestamp() | undefined,
+        end_ts => mod_mam:unix_timestamp() | undefined,
         %% Filtering by contact
         with_jid => jid:jid() | undefined,
         %% Filtering by body text
         search_text => binary() | undefined,
         %% Filtering Result Set based on message ids
-        borders =>  mod_mam_pm:borders() | undefined,
+        borders =>  mod_mam:borders() | undefined,
         %% Affects 'policy-violation' for a case when:
         %% - user does not use forms to query archive
         %% - user does not provide "set" element

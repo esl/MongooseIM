@@ -82,8 +82,8 @@ prepared_queries() ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec get_behaviour(Default :: mod_mam_pm:archive_behaviour(),
-                    HostType :: host_type(), ArchiveID :: mod_mam_pm:archive_id(),
+-spec get_behaviour(Default :: mod_mam:archive_behaviour(),
+                    HostType :: host_type(), ArchiveID :: mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
@@ -105,8 +105,8 @@ get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
 
 
 -spec set_prefs(Result :: any(), HostType :: host_type(),
-                ArchiveID :: mod_mam_pm:archive_id(), ArchiveJID :: jid:jid(),
-                DefaultMode :: mod_mam_pm:archive_behaviour(),
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
+                DefaultMode :: mod_mam:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(_Result, HostType, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -144,9 +144,9 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
       behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
--spec get_prefs(mod_mam_pm:preference(), _HostType :: host_type(),
-                ArchiveID :: mod_mam_pm:archive_id(), ArchiveJID :: jid:jid())
-               -> mod_mam_pm:preference().
+-spec get_prefs(mod_mam:preference(), _HostType :: host_type(),
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
+               -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
@@ -155,7 +155,7 @@ get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(mongoose_acc:t(), host_type(), mod_mam_pm:archive_id(), jid:jid()) ->
+-spec remove_archive(mongoose_acc:t(), host_type(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().
 remove_archive(Acc, HostType, _UserID, UserJID) ->
     remove_archive(HostType, UserJID),
@@ -197,7 +197,7 @@ decode_behaviour(<<"N">>) -> never.
 
 -spec decode_prefs_rows([[term()]], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} when
-        DefaultMode :: mod_mam_pm:archive_behaviour(),
+        DefaultMode :: mod_mam:archive_behaviour(),
         AlwaysJIDs :: [jid:literal_jid()],
         NeverJIDs :: [jid:literal_jid()].
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->

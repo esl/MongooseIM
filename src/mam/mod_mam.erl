@@ -18,14 +18,70 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+-include("mod_mam.hrl").
+-include("mongoose_config_spec.hrl").
+
 -type module_opts() :: gen_mod:module_opts().
 -type module_map() :: gen_mod_deps:module_map().
+
+%% ----------------------------------------------------------------------
+%% Datetime types
+%% Microseconds from 01.01.1970
+-type unix_timestamp() :: non_neg_integer().
+
+%% ----------------------------------------------------------------------
+%% Other types
+-type archive_behaviour()   :: roster | always | never.
+-type message_id()          :: non_neg_integer().
+
+-type archive_id()          :: non_neg_integer().
+
+-type borders()             :: #mam_borders{}.
+
+-type message_row() :: #{id := message_id(), jid := jid:jid(), packet := exml:element()}.
+-type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
+                          Offset :: non_neg_integer() | undefined,
+                          MessageRows :: [message_row()]}.
+
+%% Internal types
+-type iterator_fun() :: fun(() -> {'ok', {_, _}}).
+-type rewriter_fun() :: fun((JID :: jid:literal_jid())
+                            -> jid:literal_jid()).
+-type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
+                        | new_message_ids.
+
+-type preference() :: {DefaultMode :: archive_behaviour(),
+                       AlwaysJIDs  :: [jid:literal_jid()],
+                       NeverJIDs   :: [jid:literal_jid()]}.
+
+-type archive_message_params() :: #{message_id := message_id(),
+                                    archive_id := archive_id(),
+                                    local_jid := jid:jid(),
+                                    remote_jid := jid:jid(),
+                                    source_jid := jid:jid(),
+                                    origin_id := binary() | none,
+                                    direction := atom(),
+                                    packet := exml:element(),
+                                    %% Only in mod_mam_muc_rdbms_arch:retract_message/2
+                                    sender_id => archive_id()}.
+
+-export_type([rewriter_fun/0,
+              borders/0,
+              preference/0,
+              archive_behaviour/0,
+              iterator_fun/0,
+              unix_timestamp/0,
+              archive_id/0,
+              lookup_result/0,
+              message_row/0,
+              message_id/0,
+              restore_option/0,
+              archive_message_params/0
+             ]).
 
 -export([start/2, stop/1, config_spec/0, supported_features/0, deps/2, config_metrics/1]).
 
 -export([remove_unused_backend_opts/1]).
-
--include("mongoose_config_spec.hrl").
 
 %%--------------------------------------------------------------------
 %% API

@@ -68,6 +68,8 @@
               get_personal_data/3, remove_user/3, sm_filter_offline_message/4,
               user_send_packet/4]).
 
+-type host_type() :: mongooseim:host_type().
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -104,63 +106,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
--include("mod_mam.hrl").
-
-%% ----------------------------------------------------------------------
-%% Datetime types
-%% Microseconds from 01.01.1970
--type unix_timestamp() :: non_neg_integer().
--type host_type() :: mongooseim:host_type().
-
-%% ----------------------------------------------------------------------
-%% Other types
--type archive_behaviour()   :: roster | always | never.
--type message_id()          :: non_neg_integer().
-
--type archive_id()          :: non_neg_integer().
-
--type borders()             :: #mam_borders{}.
-
--type message_row() :: #{id := message_id(), jid := jid:jid(), packet := exml:element()}.
--type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
-                          Offset :: non_neg_integer() | undefined,
-                          MessageRows :: [message_row()]}.
-
-%% Internal types
--type iterator_fun() :: fun(() -> {'ok', {_, _}}).
--type rewriter_fun() :: fun((JID :: jid:literal_jid())
-                            -> jid:literal_jid()).
--type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
-                        | new_message_ids.
-
--type preference() :: {DefaultMode :: archive_behaviour(),
-                       AlwaysJIDs  :: [jid:literal_jid()],
-                       NeverJIDs   :: [jid:literal_jid()]}.
-
--type archive_message_params() :: #{message_id := message_id(),
-                                    archive_id := archive_id(),
-                                    local_jid := jid:jid(),
-                                    remote_jid := jid:jid(),
-                                    source_jid := jid:jid(),
-                                    origin_id := binary() | none,
-                                    direction := atom(),
-                                    packet := exml:element(),
-                                    %% Only in mod_mam_muc_rdbms_arch:retract_message/2
-                                    sender_id => archive_id()}.
-
--export_type([rewriter_fun/0,
-              borders/0,
-              preference/0,
-              archive_behaviour/0,
-              iterator_fun/0,
-              unix_timestamp/0,
-              archive_id/0,
-              lookup_result/0,
-              message_row/0,
-              message_id/0,
-              restore_option/0,
-              archive_message_params/0
-             ]).
 
 %% ----------------------------------------------------------------------
 %% API
@@ -443,7 +388,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID, #iq{} = IQ, Acc) ->
 
 -spec do_handle_set_message_form(Params :: mam_iq:lookup_params(),
                                  From :: jid:jid(),
-                                 ArcId :: archive_id(),
+                                 ArcId :: mod_mam:archive_id(),
                                  ArcJID :: jid:jid(),
                                  IQ :: jlib:iq(),
                                  HostType :: mongooseim:host_type()) ->
@@ -587,16 +532,16 @@ is_interesting(HostType, LocJID, RemJID, ArcID) ->
 archive_id_int(HostType, ArcJID=#jid{}) ->
     mongoose_hooks:mam_archive_id(HostType, ArcJID).
 
--spec archive_size(host_type(), archive_id(), jid:jid()) -> integer().
+-spec archive_size(host_type(), mod_mam:archive_id(), jid:jid()) -> integer().
 archive_size(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_archive_size(HostType, ArcID, ArcJID).
 
--spec get_behaviour(host_type(), archive_id(), LocJID :: jid:jid(),
+-spec get_behaviour(host_type(), mod_mam:archive_id(), LocJID :: jid:jid(),
                     RemJID :: jid:jid()) -> atom().
 get_behaviour(HostType, ArcID,  LocJID=#jid{}, RemJID=#jid{}) ->
   mongoose_hooks:mam_get_behaviour(HostType, ArcID, LocJID, RemJID).
 
--spec set_prefs(host_type(), archive_id(), ArcJID :: jid:jid(),
+-spec set_prefs(host_type(), mod_mam:archive_id(), ArcJID :: jid:jid(),
                 DefaultMode :: atom(), AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -604,19 +549,19 @@ set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                                  AlwaysJIDs, NeverJIDs).
 
 %% @doc Load settings from the database.
--spec get_prefs(HostType :: host_type(), ArcID :: archive_id(),
-                ArcJID :: jid:jid(), GlobalDefaultMode :: archive_behaviour()
-               ) -> preference() | {error, Reason :: term()}.
+-spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
+                ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour()
+               ) -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
     mongoose_hooks:mam_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID).
 
--spec remove_archive_hook(host_type(), archive_id(), jid:jid()) -> 'ok'.
+-spec remove_archive_hook(host_type(), mod_mam:archive_id(), jid:jid()) -> 'ok'.
 remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_remove_archive(HostType, ArcID, ArcJID),
     ok.
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
-    {ok, lookup_result()}
+    {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.
 lookup_messages(HostType, Params) ->
@@ -644,7 +589,7 @@ archive_message_from_ct(Params = #{local_jid := JID}) ->
     HostType = jid_to_host_type(JID),
     archive_message(HostType, Params).
 
--spec archive_message(host_type(), archive_message_params()) ->
+-spec archive_message(host_type(), mod_mam:archive_message_params()) ->
     ok | {error, timeout}.
 archive_message(HostType, Params) ->
     StartT = erlang:monotonic_time(microsecond),
@@ -656,7 +601,7 @@ archive_message(HostType, Params) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(binary(), message_row(), QueryId :: binary(), boolean()) ->
+-spec message_row_to_xml(binary(), mod_mam:message_row(), QueryId :: binary(), boolean()) ->
     exml:element().
 message_row_to_xml(MamNs, #{id := MessID, jid := SrcJID, packet := Packet},
                    QueryID, SetClientNs)  ->
@@ -666,7 +611,7 @@ message_row_to_xml(MamNs, #{id := MessID, jid := SrcJID, packet := Packet},
     Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
     wrap_message(MamNs, Packet1, QueryID, BExtMessID, TS, SrcJID).
 
--spec message_row_to_ext_id(message_row()) -> binary().
+-spec message_row_to_ext_id(mod_mam:message_row()) -> binary().
 message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 

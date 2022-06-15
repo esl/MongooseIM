@@ -29,7 +29,7 @@
 
 -type deprecation_tag() :: any().              % Specifies the deprecation
 -type log_level() :: warning | error.
--type unix_timestamp() :: mod_mam_pm:unix_timestamp().
+-type unix_timestamp() :: mod_mam:unix_timestamp().
 -type log_map() :: map().
 
 

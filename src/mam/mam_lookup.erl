@@ -9,7 +9,7 @@
 -type filter() :: mam_filter:filter().
 -type env_vars() :: mod_mam_rdbms_arch:env_vars().
 -type params() :: map().
--type message_id() :: mod_mam_pm:message_id().
+-type message_id() :: mod_mam:message_id().
 -type maybe_rsm() :: #rsm_in{} | undefined.
 -type opt_count_type() :: last_page | by_offset | none.
 
@@ -18,7 +18,7 @@
 %% - lookup_fn
 %% - decode_row_fn
 -spec lookup(env_vars(), filter(), params()) ->
-    {ok, mod_mam_pm:lookup_result()} | {error, item_not_found}.
+    {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 lookup(Env = #{}, Filter, Params = #{rsm := RSM}) when is_list(Filter) ->
     OptParams = Params#{opt_count_type => opt_count_type(RSM)},
     choose_lookup_messages_strategy(Env, Filter, OptParams).
@@ -155,12 +155,12 @@ rsm_to_regular_lookup_vars(RSM, Filter, Offset, PageSize) ->
 decode_rows(MessageRows, Env) ->
     [decode_row(Row, Env) || Row <- MessageRows].
 
--spec decoded_row_to_message_id(mod_mam_pm:message_row()) -> mod_mam_pm:message_id().
+-spec decoded_row_to_message_id(mod_mam:message_row()) -> mod_mam:message_id().
 decoded_row_to_message_id(#{id := MessId}) -> MessId.
 
 -spec extract_messages(Env :: env_vars(),
                        Filter :: filter(), Offset :: non_neg_integer(), Max :: pos_integer(),
-                       Order :: asc | desc) -> [mod_mam_pm:message_row()].
+                       Order :: asc | desc) -> [mod_mam:message_row()].
 extract_messages(_Env, _Filter, _Offset, 0 = _Max, _Order) ->
     [];
 extract_messages(Env, Filter, Offset, Max, Order) ->

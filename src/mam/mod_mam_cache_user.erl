@@ -75,7 +75,7 @@ muc_hooks(HostType) ->
 %% API
 %%====================================================================
 -spec cached_archive_id(undefined, mongooseim:host_type(), jid:jid()) ->
-    mod_mam_pm:archive_id().
+    mod_mam:archive_id().
 cached_archive_id(undefined, HostType, ArcJid) ->
     case mongoose_user_cache:get_entry(HostType, ?MODULE, ArcJid) of
         #{id := ArchId} -> ArchId;
@@ -84,8 +84,8 @@ cached_archive_id(undefined, HostType, ArcJid) ->
             undefined
     end.
 
--spec store_archive_id(mod_mam_pm:archive_id(), mongooseim:host_type(), jid:jid())
-        -> mod_mam_pm:archive_id().
+-spec store_archive_id(mod_mam:archive_id(), mongooseim:host_type(), jid:jid())
+        -> mod_mam:archive_id().
 store_archive_id(ArchId, HostType, ArcJid) ->
     case erase(mam_not_cached_flag) of
         undefined ->
@@ -96,7 +96,7 @@ store_archive_id(ArchId, HostType, ArcJid) ->
     end.
 
 -spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
-                     ArchId :: mod_mam_pm:archive_id(), ArcJid :: jid:jid()) -> map().
+                     ArchId :: mod_mam:archive_id(), ArcJid :: jid:jid()) -> map().
 remove_archive(Acc, HostType, _UserID, ArcJid) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
     Acc.

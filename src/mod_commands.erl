@@ -463,7 +463,7 @@ change_user_password(Host, User, Password) ->
             {error, bad_request, "invalid jid"}
     end.
 
--spec row_to_map(mod_mam_pm:message_row()) -> map().
+-spec row_to_map(mod_mam:message_row()) -> map().
 row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     Jbin = jid:to_binary(From),
     {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),

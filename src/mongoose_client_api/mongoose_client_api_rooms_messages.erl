@@ -164,7 +164,7 @@ encode(Packet, Timestamp) ->
     Msg = make_json_item(Packet, FromJID, Timestamp),
     Msg#{room => FromJID#jid.luser}.
 
--spec make_json_item(mod_mam_pm:message_row()) -> term().
+-spec make_json_item(mod_mam:message_row()) -> term().
 make_json_item(#{id := MAMID, jid := JID, packet := Msg}) ->
     {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMID),
     make_json_item(Msg, JID, Microsec div 1000).

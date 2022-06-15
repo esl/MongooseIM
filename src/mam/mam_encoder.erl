@@ -22,7 +22,7 @@ extend_lookup_params(#{start_ts := Start, end_ts := End, with_jid := WithJID,
             remote_bare_jid => maybe_encode_bare_jid(WithJID, Env),
             remote_resource => jid_to_non_empty_resource(WithJID)}.
 
--spec encode_message(mod_mam_pm:archive_message_params(), env_vars(), list(db_mapping())) ->
+-spec encode_message(mod_mam:archive_message_params(), env_vars(), list(db_mapping())) ->
     [encoded_field_value()].
 encode_message(Params, Env, Mappings) ->
     [encode_value_using_mapping(Params, Env, Mapping) || Mapping <- Mappings].

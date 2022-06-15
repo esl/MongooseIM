@@ -136,16 +136,16 @@
 -type ne_binary() :: <<_:8, _:_*8>>.
 -type iso8601_datetime_binary() :: ne_binary().
 %% Microseconds from 01.01.1970
--type unix_timestamp() :: mod_mam_pm:unix_timestamp().
+-type unix_timestamp() :: mod_mam:unix_timestamp().
 
--type archive_behaviour() :: mod_mam_pm:archive_behaviour().
+-type archive_behaviour() :: mod_mam:archive_behaviour().
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
 -type direction() :: incoming | outgoing.
 -type retraction_id() :: {origin_id | stanza_id, binary()}.
 -type retraction_info() :: #{retract_on := origin_id | stanza_id,
                              packet := exml:element(),
-                             message_id := mod_mam_pm:message_id(),
+                             message_id := mod_mam:message_id(),
                              origin_id := null | binary()}.
 
 %% -----------------------------------------------------------------------
@@ -577,7 +577,7 @@ maybe_transform_fin_elem(undefined, _HostType, _Params, FinEl) ->
 maybe_transform_fin_elem(Module, HostType, Params, FinEl) ->
     Module:extra_fin_element(HostType, Params, FinEl).
 
--spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam_pm:preference().
+-spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().
 parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->
     Default = exml_query:attr(El, <<"default">>),
     AlwaysJIDs = parse_jid_list(El, <<"always">>),
@@ -620,7 +620,7 @@ binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
 skip_bad_jids(MaybeJids) ->
     [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
--spec borders_decode(exml:element()) -> 'undefined' | mod_mam_pm:borders().
+-spec borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 borders_decode(QueryEl) ->
     AfterID  = tag_id(QueryEl, <<"after_id">>),
     BeforeID = tag_id(QueryEl, <<"before_id">>),
@@ -628,7 +628,7 @@ borders_decode(QueryEl) ->
     ToID     = tag_id(QueryEl, <<"to_id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
--spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam_pm:borders().
+-spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(QueryEl) ->
     AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
     BeforeID = form_field_mess_id(QueryEl, <<"before_id">>),
@@ -641,7 +641,7 @@ form_borders_decode(QueryEl) ->
               BeforeID :: 'undefined' | non_neg_integer(),
               FromID :: 'undefined' | non_neg_integer(),
               ToID :: 'undefined' | non_neg_integer()
-            ) -> 'undefined' | mod_mam_pm:borders().
+            ) -> 'undefined' | mod_mam:borders().
 borders(undefined, undefined, undefined, undefined) ->
     undefined;
 borders(AfterID, BeforeID, FromID, ToID) ->
@@ -945,7 +945,7 @@ maybe_integer(<<>>, Def) -> Def;
 maybe_integer(Bin, _Def) when is_binary(Bin) ->
     binary_to_integer(Bin).
 
--spec apply_start_border('undefined' | mod_mam_pm:borders(), undefined | integer()) ->
+-spec apply_start_border('undefined' | mod_mam:borders(), undefined | integer()) ->
                                 undefined | integer().
 apply_start_border(undefined, StartID) ->
     StartID;
@@ -953,16 +953,16 @@ apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, StartID) ->
     maybe_max(maybe_next_id(AfterID), maybe_max(FromID, StartID)).
 
 
--spec apply_end_border('undefined' | mod_mam_pm:borders(), undefined | integer()) ->
+-spec apply_end_border('undefined' | mod_mam:borders(), undefined | integer()) ->
                               undefined | integer().
 apply_end_border(undefined, EndID) ->
     EndID;
 apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, EndID) ->
     maybe_min(maybe_previous_id(BeforeID), maybe_min(ToID, EndID)).
 
--spec calculate_msg_id_borders(mod_mam_pm:borders() | undefined,
-                               mod_mam_pm:unix_timestamp() | undefined,
-                               mod_mam_pm:unix_timestamp() | undefined) -> R when
+-spec calculate_msg_id_borders(mod_mam:borders() | undefined,
+                               mod_mam:unix_timestamp() | undefined,
+                               mod_mam:unix_timestamp() | undefined) -> R when
       R :: {integer() | undefined, integer() | undefined}.
 calculate_msg_id_borders(Borders, Start, End) ->
     StartID = maybe_encode_compact_uuid(Start, 0),
@@ -972,9 +972,9 @@ calculate_msg_id_borders(Borders, Start, End) ->
 
 -spec calculate_msg_id_borders(RSM, Borders, Start, End) -> R when
       RSM :: jlib:rsm_in() | undefined,
-      Borders :: mod_mam_pm:borders() | undefined,
-      Start :: mod_mam_pm:unix_timestamp() | undefined,
-      End :: mod_mam_pm:unix_timestamp() | undefined,
+      Borders :: mod_mam:borders() | undefined,
+      Start :: mod_mam:unix_timestamp() | undefined,
+      End :: mod_mam:unix_timestamp() | undefined,
       R :: {integer() | undefined, integer() | undefined}.
 calculate_msg_id_borders(undefined, Borders, Start, End) ->
     calculate_msg_id_borders(Borders, Start, End);
@@ -989,7 +989,7 @@ calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, E
     {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
     {StartId, mod_mam_utils:maybe_min(EndId, Id)}.
 
--spec maybe_encode_compact_uuid(mod_mam_pm:unix_timestamp() | undefined, integer()) ->
+-spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, integer()) ->
     undefined | integer().
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
@@ -1113,7 +1113,7 @@ wait_shaper(HostType, Host, Action, From) ->
 %% -----------------------------------------------------------------------
 %% Ejabberd
 
--spec send_message(mod_mam_pm:message_row(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+-spec send_message(mod_mam:message_row(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 send_message(_Row, From, To, Mess) ->
     ejabberd_sm:route(From, To, Mess).
 
@@ -1131,7 +1131,7 @@ wrapper_id() ->
 
 -spec check_result_for_policy_violation(Params, Result) -> Result when
         Params :: mam_iq:lookup_params(),
-        Result :: {ok, mod_mam_pm:lookup_result()}
+        Result :: {ok, mod_mam:lookup_result()}
                 | {error, 'policy-violation'}
                 | {error, Reason :: term()}.
 check_result_for_policy_violation(
@@ -1162,8 +1162,8 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
 -spec check_for_item_not_found(RSM, PageSize, LookupResult) -> R when
       RSM :: jlib:rsm_in() | undefined,
       PageSize :: non_neg_integer(),
-      LookupResult :: mod_mam_pm:lookup_result(),
-      R :: {ok, mod_mam_pm:lookup_result()} | {error, item_not_found}.
+      LookupResult :: mod_mam:lookup_result(),
+      R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
                          PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
