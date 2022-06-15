@@ -15,6 +15,8 @@ execute(_Ctx, _Obj, <<"last">>, _Args) ->
     {ok, last};
 execute(_Ctx, _Obj, <<"muc">>, _Args) ->
     {ok, muc};
+execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
+    {ok, httpUpload};
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
 execute(_Ctx, _Obj, <<"private">>, _Args) ->
