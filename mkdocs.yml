@@ -186,6 +186,7 @@ nav:
       - '4.1.0 to 4.2.0': 'migrations/4.1.0_4.2.0.md'
       - '4.2.0 to 5.0.0': 'migrations/4.2.0_5.0.0.md'
       - '5.0.0 to 5.1.0': 'migrations/5.0.0_5.1.0.md'
+      - '5.1.0 to 6.0.0': 'migrations/5.1.0_6.0.0.md'
       - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - 'Contributions to the Ecosystem': 'Contributions.md'
   - 'MongooseIM History': 'History.md'
