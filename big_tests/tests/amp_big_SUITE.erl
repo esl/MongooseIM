@@ -988,10 +988,9 @@ required_modules(_) ->
     [].
 
 mam_modules(on) ->
-    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{},
-                                             async_writer => #{enabled => false}})}];
+    [{mod_mam, mam_helper:config_opts(#{pm => #{}, async_writer => #{enabled => false}})}];
 mam_modules(off) ->
-    [{mod_mam_meta, stopped}].
+    [{mod_mam, stopped}].
 
 offline_modules(on) ->
     [{mod_offline, config_parser_helper:mod_config(mod_offline,

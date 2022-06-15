@@ -1,4 +1,4 @@
--module(mod_mam_meta_SUITE).
+-module(mod_mam_SUITE).
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -27,48 +27,48 @@ end_per_testcase(_CaseName, Config) -> Config.
 
 overrides_general_options(_Config) ->
     Deps = deps(#{backend => rdbms,
-                  pm => config([modules, mod_mam_meta, pm], #{backend => cassandra}),
-                  muc => default_config([modules, mod_mam_meta, muc])
+                  pm => config([modules, mod_mam, pm], #{backend => cassandra}),
+                  muc => default_config([modules, mod_mam, muc])
                  }),
     ?assert(lists:keymember(mod_mam_cassandra_arch, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc_rdbms_arch, 1, Deps)),
     ?assertNot(lists:keymember(mod_mam_rdbms_arch, 1, Deps)).
 
 sets_rdbms_as_default_backend(_Config) ->
-    Deps = deps(#{pm => default_config([modules, mod_mam_meta, pm])}),
+    Deps = deps(#{pm => default_config([modules, mod_mam, pm])}),
     ?assert(lists:keymember(mod_mam_rdbms_arch, 1, Deps)).
 
 handles_only_pm(_Config) ->
-    Deps = deps(#{pm => default_config([modules, mod_mam_meta, pm])}),
+    Deps = deps(#{pm => default_config([modules, mod_mam, pm])}),
     ?assert(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assertNot(lists:keymember(mod_mam_muc, 1, Deps)).
 
 handles_only_muc(_Config) ->
-    Deps = deps(#{muc => default_config([modules, mod_mam_meta, muc])}),
+    Deps = deps(#{muc => default_config([modules, mod_mam, muc])}),
     ?assertNot(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)).
 
 disables_sync_writer_on_async_writer(_Config) ->
-    PM = default_config([modules, mod_mam_meta, pm]),
+    PM = default_config([modules, mod_mam, pm]),
     Deps = deps(#{pm => PM}),
     check_equal_opts(mod_mam_rdbms_arch, mod_config(mod_mam_rdbms_arch, #{no_writer => true}), Deps).
 
 disables_sync_muc_writer_on_async_writer(_Config) ->
-    MUC = default_config([modules, mod_mam_meta, muc]),
+    MUC = default_config([modules, mod_mam, muc]),
     Deps = deps(#{muc => MUC}),
     check_equal_opts(mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch, #{no_writer => true}), Deps).
 
 produces_valid_configurations(_Config) ->
-    AsyncOpts = default_config([modules, mod_mam_meta, async_writer]),
+    AsyncOpts = default_config([modules, mod_mam, async_writer]),
     PMCoreOpts = #{archive_groupchats => true,
                    async_writer => AsyncOpts#{enabled => false}},
-    PM = config([modules, mod_mam_meta, pm], PMCoreOpts#{user_prefs_store => rdbms}),
+    PM = config([modules, mod_mam, pm], PMCoreOpts#{user_prefs_store => rdbms}),
     MUCCoreOpts = #{host => <<"host">>},
     MUCArchOpts = #{db_message_format => mam_message_xml},
-    MUC = config([modules, mod_mam_meta, muc],
+    MUC = config([modules, mod_mam, muc],
                  maps:merge(MUCCoreOpts, MUCArchOpts#{user_prefs_store => mnesia})),
     Deps = deps(#{pm => PM, muc => MUC}),
-    Cache = default_config([modules, mod_mam_meta, cache]),
+    Cache = default_config([modules, mod_mam, cache]),
 
     check_equal_opts(mod_mam_pm, mod_config(mod_mam_pm, PMCoreOpts), Deps),
     check_equal_opts(mod_mam_muc, mod_config(mod_mam_muc, MUCCoreOpts), Deps),
@@ -82,12 +82,12 @@ produces_valid_configurations(_Config) ->
     check_equal_opts(mod_mam_muc_rdbms_arch_async, AsyncOpts, Deps).
 
 handles_riak_config(_Config) ->
-    PM = config([modules, mod_mam_meta, pm], #{user_prefs_store => mnesia}),
-    MUC = default_config([modules, mod_mam_meta, muc]),
+    PM = config([modules, mod_mam, pm], #{user_prefs_store => mnesia}),
+    MUC = default_config([modules, mod_mam, muc]),
     Deps = deps(#{backend => riak,
                   db_message_format => some_format,
-                  pm => config([modules, mod_mam_meta, pm], PM),
-                  muc => config([modules, mod_mam_meta, muc], MUC)}),
+                  pm => config([modules, mod_mam, pm], PM),
+                  muc => config([modules, mod_mam, muc], MUC)}),
     ?assert(lists:keymember(mod_mam_pm, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)),
     check_equal_opts(mod_mam_riak_timed_arch_yz,
@@ -95,12 +95,12 @@ handles_riak_config(_Config) ->
     check_equal_opts(mod_mam_mnesia_prefs, #{pm => true}, Deps).
 
 handles_cassandra_config(_Config) ->
-    PM = config([modules, mod_mam_meta, pm], #{user_prefs_store => cassandra,
+    PM = config([modules, mod_mam, pm], #{user_prefs_store => cassandra,
                                               db_message_format => some_format}),
-    MUC = config([modules, mod_mam_meta, muc], #{user_prefs_store => mnesia}),
+    MUC = config([modules, mod_mam, muc], #{user_prefs_store => mnesia}),
     Deps = deps(#{backend => cassandra,
-                  pm => config([modules, mod_mam_meta, pm], PM),
-                  muc => config([modules, mod_mam_meta, muc], MUC)}),
+                  pm => config([modules, mod_mam, pm], PM),
+                  muc => config([modules, mod_mam, muc], MUC)}),
 
     check_equal_opts(mod_mam_mnesia_prefs, #{muc => true}, Deps),
     check_equal_opts(mod_mam_cassandra_prefs, #{pm => true}, Deps),
@@ -109,10 +109,10 @@ handles_cassandra_config(_Config) ->
 
 example_muc_only_no_pref_good_performance(_Config) ->
     MUCOpts = #{host => {prefix, "muc."}},
-    MUC = config([modules, mod_mam_meta, muc], MUCOpts),
+    MUC = config([modules, mod_mam, muc], MUCOpts),
     Deps = deps(#{muc => MUC}),
-    AsyncOpts = default_config([modules, mod_mam_meta, async_writer]),
-    Cache = default_config([modules, mod_mam_meta, cache]),
+    AsyncOpts = default_config([modules, mod_mam, async_writer]),
+    Cache = default_config([modules, mod_mam, cache]),
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{muc => true, pm => true}},
@@ -123,10 +123,10 @@ example_muc_only_no_pref_good_performance(_Config) ->
       ], Deps).
 
 example_pm_only_good_performance(_Config) ->
-    PM = default_config([modules, mod_mam_meta, pm]),
+    PM = default_config([modules, mod_mam, pm]),
     Deps = deps(#{pm => PM, user_prefs_store => mnesia}),
-    AsyncOpts = default_config([modules, mod_mam_meta, async_writer]),
-    Cache = default_config([modules, mod_mam_meta, cache]),
+    AsyncOpts = default_config([modules, mod_mam, async_writer]),
+    Cache = default_config([modules, mod_mam, cache]),
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{pm => true}},
@@ -147,4 +147,4 @@ check_equal_opts(Mod, Opts, Deps) ->
     ?assertEqual(Opts, ActualOpts).
 
 deps(Opts) ->
-    mod_mam_meta:deps(<<"host">>, mod_config(mod_mam_meta, Opts)).
+    mod_mam:deps(<<"host">>, mod_config(mod_mam, Opts)).

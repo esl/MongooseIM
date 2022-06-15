@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(mod_mam_meta).
+-module(mod_mam).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 

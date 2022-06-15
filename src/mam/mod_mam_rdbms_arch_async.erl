@@ -45,7 +45,7 @@ supported_features() ->
     [dynamic_domains].
 
 %%% internal callbacks
--spec make_pool_opts(mod_mam_meta:mam_type(), gen_mod:module_opts()) ->
+-spec make_pool_opts(mod_mam:mam_type(), gen_mod:module_opts()) ->
           {mongoose_async_pools:pool_opts(), mongoose_async_pools:pool_extra()}.
 make_pool_opts(Type, Opts) ->
     Extra = add_batch_name(Type, Opts),

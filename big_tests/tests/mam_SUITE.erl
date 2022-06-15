@@ -647,19 +647,19 @@ required_modules_for_group(C, muc_light, Config) ->
     Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
     {[{mod_muc_light, default_mod_config(mod_muc_light)},
-      {mod_mam_meta, Opts}], Config1};
+      {mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->
     Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
     MUCHost = subhost_pattern(muc_domain(Config)),
     Opts = config_opts(Extra#{muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_mam_meta, Opts}], Config1};
+    {[{mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) ->
     Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
     Opts = config_opts(Extra#{pm => #{}}),
     Config1 = maybe_set_wait(C, [pm], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_mam_meta, Opts}], Config1}.
+    {[{mod_mam, Opts}], Config1}.
 
 maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
                                       C =:= rdbms_async_cache ->
@@ -980,31 +980,31 @@ end_per_testcase(CaseName, Config) ->
 required_modules(muc_light_stored_in_pm_if_allowed_to, Config) ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
-    [{mod_mam_meta, NewOpts}];
+    [{mod_mam, NewOpts}];
 required_modules(muc_light_chat_markers_are_archived_if_enabled, Config) ->
     Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{muc := MUC#{archive_chat_markers => true}},
-    [{mod_mam_meta, NewOpts}];
+    [{mod_mam, NewOpts}];
 required_modules(muc_no_elements, Config) ->
     Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{muc := MUC#{no_stanzaid_element => true}},
-    [{mod_mam_meta, NewOpts}];
+    [{mod_mam, NewOpts}];
 required_modules(muc_only_stanzaid, Config) ->
     Opts = ?config(mam_meta_opts, Config),
-    [{mod_mam_meta, Opts}];
+    [{mod_mam, Opts}];
 % configurable_archiveid basic group
 required_modules(no_elements, Config) ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{no_stanzaid_element => true}},
-    [{mod_mam_meta, NewOpts}];
+    [{mod_mam, NewOpts}];
 required_modules(CaseName, Config) when CaseName =:= same_stanza_id;
                                         CaseName =:= retract_message_on_stanza_id ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{same_mam_id_for_peers => true}},
-    [{mod_mam_meta, NewOpts}];
+    [{mod_mam, NewOpts}];
 required_modules(_, Config) ->
     Opts = ?config(mam_meta_opts, Config),
-    [{mod_mam_meta, Opts}].
+    [{mod_mam, Opts}].
 
 %%--------------------------------------------------------------------
 %% Group name helpers

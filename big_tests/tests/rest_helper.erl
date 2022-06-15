@@ -329,11 +329,11 @@ maybe_enable_mam(_, _, C) ->
 
 required_mam_modules(Backend) ->
     MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             pm => #{},
-                                             muc => #{host => MucPattern},
-                                             async_writer => #{enabled => false},
-                                             archive_chat_markers => true})}].
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        pm => #{},
+                                        muc => #{host => MucPattern},
+                                        async_writer => #{enabled => false},
+                                        archive_chat_markers => true})}].
 
 maybe_skip_mam_test_cases(CaseName, CasesRequireingMAM, Config) ->
     case lists:member(CaseName, CasesRequireingMAM) of

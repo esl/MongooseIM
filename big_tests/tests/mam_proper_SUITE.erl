@@ -34,7 +34,7 @@ init_per_group(G, _C) ->
     end.
 
 required_modules(_G) ->
-    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}].
+    [{mod_mam, mam_helper:config_opts(#{pm => #{}})}].
 
 end_per_group(_G, C) ->
     C.
@@ -117,7 +117,7 @@ body() ->
 packet(To, Body) ->
     escalus_stanza:chat_to(jid:to_binary(To), Body).
 
-%% Generates mod_mam_pm:archive_message_params()
+%% Generates mod_mam:archive_message_params()
 params() ->
     ?LET({MessId, ArcId, LocalJid, RemoteJid,
           OriginId, Dir, Body, SenderId},

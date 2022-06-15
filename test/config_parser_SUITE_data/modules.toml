@@ -153,7 +153,7 @@
   backend = "mnesia"
   iqdisc = {"type" = "queues", "workers" = 10}
 
-[modules.mod_mam_meta]
+[modules.mod_mam]
   backend = "rdbms"
   no_stanzaid_element = true
   is_archivable_message = "mod_mam_utils"

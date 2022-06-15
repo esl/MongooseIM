@@ -125,15 +125,15 @@ config_opts(ExtraOpts) ->
     lists:foldl(fun set_opts/2, ExtraOpts, [defaults, backend, pm, muc, async_writer]).
 
 set_opts(defaults, Opts) ->
-    mod_config(mod_mam_meta, Opts);
+    mod_config(mod_mam, Opts);
 set_opts(backend, #{backend := riak} = Opts) ->
-    Opts#{riak => config([modules, mod_mam_meta, riak], maps:get(riak, Opts, #{}))};
+    Opts#{riak => config([modules, mod_mam, riak], maps:get(riak, Opts, #{}))};
 set_opts(pm, #{pm := PMExtra} = Opts) ->
-    Opts#{pm := config([modules, mod_mam_meta, pm], PMExtra)};
+    Opts#{pm := config([modules, mod_mam, pm], PMExtra)};
 set_opts(muc, #{muc := MUCExtra} = Opts) ->
-    Opts#{muc := config([modules, mod_mam_meta, muc], MUCExtra)};
+    Opts#{muc := config([modules, mod_mam, muc], MUCExtra)};
 set_opts(async_writer, #{async_writer := AsyncExtra} = Opts) ->
-    Opts#{async_writer := config([modules, mod_mam_meta, async_writer], AsyncExtra)};
+    Opts#{async_writer := config([modules, mod_mam, async_writer], AsyncExtra)};
 set_opts(_, Opts) ->
     Opts.
 
