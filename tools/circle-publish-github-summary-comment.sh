@@ -28,7 +28,7 @@ function post_new_comment
         -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
         -H "Content-Type: application/json" \
         -X POST -d "$POST_BODY" \
-        https://api.github.com/repos/$REPO_SLUG/issues/3360/comments
+        https://api.github.com/repos/$REPO_SLUG/issues/3685/comments
 }
 
 BODY=$(make_body)
