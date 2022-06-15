@@ -46,7 +46,7 @@ The problems should now be resolved, and MSSQL is verified to work on Ubuntu 20.
 ## GDPR retrieval for MAM MUC limitation
 
 When the personal data retrieval is executed for a user in a specific domain, Message Archive Management for groupchats must be running for this particular domain.
-This is the case for most configurations, but the problem manifests when a MongooseIM operator configures `mod_mam_muc`/`mod_mam_meta` to start only for a subset of domains supported by the cluster (`host_config` option).
+This is the case for most configurations, but the problem manifests when a MongooseIM operator configures `mod_mam_muc`/`mod_mam` to start only for a subset of domains supported by the cluster (`host_config` option).
 
 In such case, personal data stored by MAM MUC will not be retrieved for this user.
 

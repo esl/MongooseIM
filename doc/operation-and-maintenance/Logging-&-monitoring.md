@@ -125,8 +125,8 @@ Authorization time:              <prefix>.<domain>.backends.auth.authorize.<valu
 RDBMS "simple" query time:       <prefix>.<domain>.backends.mongoose_rdbms.query.<value-type>
 RDBMS prepared query time:       <prefix>.<domain>.backends.mongoose_rdbms.execute.<value-type>
 MAM lookups:                     <prefix>.<domain>.mam_lookup_messages.one
-MAM archivization time:          <prefix>.<domain>.backends.mod_mam.archive.<value-type>
-MAM lookup time:                 <prefix>.<domain>.backends.mod_mam.lookup.<value-type>
+MAM archivization time:          <prefix>.<domain>.backends.mod_mam_pm.archive.<value-type>
+MAM lookup time:                 <prefix>.<domain>.backends.mod_mam_pm.lookup.<value-type>
 MAM private messages flush time: <prefix>.<domain>.mod_mam_rdbms_async_pool_writer.flush_time.<value-type>
 MAM MUC messages flush time:     <prefix>.<domain>.mod_mam_muc_rdbms_async_pool_writer.flush_time.<value-type>
 ```
