@@ -218,6 +218,12 @@ set(NS, KVs, #{ mongoose_acc := true } = Acc) ->
     Input = maps:from_list(NSKVs),
     maps:merge(Acc, Input).
 
+-spec set([ns_key_value()], Acc :: t()) -> t().
+set(NSKVs, #{ mongoose_acc := true } = Acc) ->
+    PropList = [ {{NS, K}, V} || {NS, K, V} <- NSKVs ],
+    Input = maps:from_list(PropList),
+    maps:merge(Acc, Input).
+
 %% .. while these are not.
 -spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
 set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
@@ -226,18 +232,14 @@ set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable
     Acc#{ Key => V, non_strippable => NewNonStrippable }.
 
 -spec set_permanent(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
-set_permanent(_, [], #{mongoose_acc := true} = Acc) ->
-    Acc;
-set_permanent(NS, [{K, V} | T], Acc) ->
-    NewAcc = set_permanent(NS, K, V, Acc),
-    set_permanent(NS, T, NewAcc).
+set_permanent(NS, KVs, #{mongoose_acc := true, non_strippable := NonStrippable} = Acc) ->
+    NewKeys = [{NS, K} || {K, _V} <- KVs, not lists:member({NS, K}, NonStrippable)],
+    set(NS, KVs, Acc#{non_strippable := NewKeys ++ NonStrippable }).
 
 -spec set_permanent([ns_key_value()], Acc :: t()) -> t().
-set_permanent([], #{mongoose_acc := true} = Acc) ->
-    Acc;
-set_permanent([{NS, K, V} | T], Acc) ->
-    NewAcc = set_permanent(NS, K, V, Acc),
-    set_permanent(T, NewAcc).
+set_permanent(NSKVs, #{mongoose_acc := true, non_strippable := NonStrippable} = Acc) ->
+    NewKeys = [{NS, K} || {NS, K, _V} <- NSKVs, not lists:member({NS, K}, NonStrippable)],
+    set(NSKVs, Acc#{non_strippable := NewKeys ++ NonStrippable }).
 
 -spec append(NS :: any(), Key :: any(), Val :: any() | [any()], Acc :: t()) -> t().
 append(NS, Key, Val, Acc) ->
