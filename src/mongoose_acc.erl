@@ -279,11 +279,10 @@ delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0)
     Acc1#{ non_strippable => lists:delete(Key, NonStrippable) }.
 
 -spec delete_many(Namespace :: any(), [K :: any()], Acc :: t()) -> t().
-delete_many(_, [], Acc) ->
-    Acc;
-delete_many(NS, [K | T], Acc) ->
-    NewAcc = delete(NS, K, Acc),
-    delete_many(NS, T, NewAcc).
+delete_many(NS, Keys, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
+    KVs = [{NS, K} || K <- Keys],
+    Acc1 = maps:without(KVs, Acc0),
+    Acc1#{ non_strippable := lists:subtract(NonStrippable, KVs) }.
 
 -spec delete(Namespace :: any(), Acc :: t()) -> t().
 delete(NS, Acc) ->
