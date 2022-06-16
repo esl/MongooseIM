@@ -85,7 +85,7 @@ stream_features_after_auth(HostType, LServer) ->
 hook_enabled_features(HostType, LServer) ->
     mongoose_hooks:c2s_stream_features(HostType, LServer).
 
--spec sasl_success_stanza(any()) -> exml:element().
+-spec sasl_success_stanza(binary()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
