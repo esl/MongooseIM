@@ -229,7 +229,7 @@ set(NSKVs, #{ mongoose_acc := true } = Acc) ->
 set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     Key = {NS, K},
     NewNonStrippable = [Key | lists:delete(Key, NonStrippable)],
-    Acc#{ Key => V, non_strippable => NewNonStrippable }.
+    Acc#{ Key => V, non_strippable := NewNonStrippable }.
 
 -spec set_permanent(Namespace :: any(), [{K :: any(), V :: any()}], Acc :: t()) -> t().
 set_permanent(NS, KVs, #{mongoose_acc := true, non_strippable := NonStrippable} = Acc) ->
@@ -276,7 +276,7 @@ get(NS, K, Default, #{ mongoose_acc := true } = Acc) ->
 delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
     Key = {NS, K},
     Acc1 = maps:remove(Key, Acc0),
-    Acc1#{ non_strippable => lists:delete(Key, NonStrippable) }.
+    Acc1#{ non_strippable := lists:delete(Key, NonStrippable) }.
 
 -spec delete_many(Namespace :: any(), [K :: any()], Acc :: t()) -> t().
 delete_many(NS, Keys, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
