@@ -47,7 +47,7 @@
 
 -type retries() :: 0..64.
 -type stream_state() :: stream_start | authenticated.
--type fsm_state() :: connecting
+-type fsm_state() :: connect
                    | {wait_for_stream, stream_state()}
                    | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
                    | {wait_for_feature_after_auth, retries()}
@@ -68,11 +68,11 @@ callback_mode() ->
     gen_statem:init_result(fsm_state(), state()).
 init({Ref, Transport, Opts}) ->
     StateData = #state{ranch_ref = Ref, transport = Transport, listener_opts = Opts},
-    gen_statem:cast(self(), connect),
-    {ok, connecting, StateData}.
+    ConnectEvent = {next_event, internal, connect},
+    {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), fsm_state(), state()) -> fsm_res().
-handle_event(cast, connect, connecting,
+handle_event(internal, connect, connect,
              StateData = #state{ranch_ref = Ref,
                                 transport = Transport,
                                 listener_opts = #{shaper := ShaperName,
