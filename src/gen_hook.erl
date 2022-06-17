@@ -26,18 +26,23 @@
 -include("mongoose.hrl").
 
 -type hook_name() :: atom().
--type hook_tag() :: mongoose:host_type() | global.
+-type hook_tag() :: mongooseim:host_type() | global.
 
 %% while Accumulator is not limited to any type, it's recommended to use maps.
 -type hook_acc() :: any().
 -type hook_params() :: map().
 -type hook_extra() :: map().
+-type extra() :: #{hook_name := hook_name(),
+                   hook_tag := hook_tag(),
+                   host_type => mongooseim:host_type(),
+                   _ => _}.
 
--type hook_fn_ret_value() :: {ok | stop, NewAccumulator :: hook_acc()}.
+-type hook_fn_ret() :: hook_fn_ret(hook_acc()).
+-type hook_fn_ret(Acc) :: {ok | stop, Acc}.
 -type hook_fn() :: %% see run_fold/4 documentation
     fun((Accumulator :: hook_acc(),
          ExecutionParameters :: hook_params(),
-         ExtraParameters :: hook_extra()) -> hook_fn_ret_value()).
+         ExtraParameters :: extra()) -> hook_fn_ret()).
 
 -type key() :: {HookName :: atom(),
                 Tag :: any()}.
@@ -52,11 +57,11 @@
 -type hook_list() :: hook_list(hook_fn()).
 -type hook_list(HookFn) :: [hook_tuple(HookFn)].
 
--export_type([hook_fn/0, hook_list/0, hook_list/1]).
+-export_type([hook_fn/0, hook_list/0, hook_list/1, hook_fn_ret/0, hook_fn_ret/1, extra/0]).
 
 -record(hook_handler, {prio :: pos_integer(),
                        hook_fn :: hook_fn(),
-                       extra :: map()}).
+                       extra :: extra()}).
 
 -define(TABLE, ?MODULE).
 %%%----------------------------------------------------------------------
@@ -120,7 +125,7 @@ delete_handler({HookName, Tag, _, _, _} = HookTuple) ->
 -spec run_fold(HookName :: hook_name(),
                Tag :: hook_tag(),
                Acc :: hook_acc(),
-               Params :: hook_params()) -> hook_fn_ret_value().
+               Params :: hook_params()) -> hook_fn_ret().
 run_fold(HookName, Tag, Acc, Params) ->
     Key = hook_key(HookName, Tag),
     case ets:lookup(?TABLE, Key) of
@@ -198,7 +203,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
--spec run_hook([#hook_handler{}], hook_acc(), hook_params(), key()) -> hook_fn_ret_value().
+-spec run_hook([#hook_handler{}], hook_acc(), hook_params(), key()) -> hook_fn_ret().
 run_hook([], Acc, _Params, _Key) ->
     {ok, Acc};
 run_hook([Handler | Ls], Acc, Params, Key) ->
@@ -213,7 +218,7 @@ run_hook([Handler | Ls], Acc, Params, Key) ->
     end.
 
 -spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
-    hook_fn_ret_value() | {'EXIT', Reason :: any()}.
+    hook_fn_ret() | {'EXIT', Reason :: any()}.
 apply_hook_function(#hook_handler{hook_fn = HookFn, extra = Extra},
                     Acc, Params) ->
     safely:apply(HookFn, [Acc, Params, Extra]).
