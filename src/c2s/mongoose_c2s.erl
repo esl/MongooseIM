@@ -39,11 +39,6 @@
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(fsm_state(), state()).
 
-%% C2S hooks
--type hook_params() :: #{c2s_data := state(), c2s_state := fsm_state()}.
--type hook_fn() :: fun((mongoose_acc:t(), hook_params(), gen_hook:hook_extra()) ->
-                            {ok | stop, mongoose_acc:t()}).
--export_type([hook_params/0, hook_fn/0]).
 
 -type retries() :: 0..64.
 -type stream_state() :: stream_start | authenticated.
@@ -431,7 +426,7 @@ handle_c2s_packet(StateData = #state{host_type = HostType}, El) ->
 
 -spec do_handle_c2s_packet(state(), mongoose_acc:t()) -> fsm_res().
 do_handle_c2s_packet(StateData = #state{host_type = HostType}, Acc) ->
-    case user_send_packet(HostType, Acc, hook_arg(StateData)) of
+    case mongoose_c2s_hooks:user_send_packet(HostType, Acc, hook_arg(StateData)) of
         {ok, Acc1} ->
             Acc2 = process_outgoing_stanza(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
             handle_state_after_packet(StateData, Acc2);
@@ -443,20 +438,21 @@ do_handle_c2s_packet(StateData = #state{host_type = HostType}, Acc) ->
 -spec process_outgoing_stanza(state(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"message">>) ->
     TS0 = mongoose_acc:timestamp(Acc),
-    Acc1 = user_send_message(HostType, Acc, hook_arg(StateData)),
+    Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, hook_arg(StateData)),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
     mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
     Acc2;
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"iq">>) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
-    Acc2 = user_send_iq(HostType, Acc1, hook_arg(StateData)),
+    Acc2 = mongoose_c2s_hooks:user_send_iq(HostType, Acc1, hook_arg(StateData)),
     maybe_route(Acc2);
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"presence">>) ->
-    user_send_presence(HostType, Acc, hook_arg(StateData)),
+    mongoose_c2s_hooks:user_send_presence(HostType, Acc, hook_arg(StateData)),
     Acc;
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, _) ->
-    user_send_non_stanza(HostType, Acc, hook_arg(StateData)).
+    {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc, hook_arg(StateData)),
+    Acc1.
 
 -spec handle_state_after_packet(state(), mongoose_acc:t()) -> fsm_res().
 handle_state_after_packet(StateData, Acc) ->
@@ -485,9 +481,15 @@ hook_arg(StateData) ->
     #{c2s => StateData, handlers => #{}}.
 
 -spec handle_incoming_stanza(state(), mongoose_acc:t()) -> maybe_ok().
-handle_incoming_stanza(StateData, Acc) ->
-    El = mongoose_acc:element(Acc),
-    send_element(StateData, El, Acc).
+handle_incoming_stanza(StateData = #state{host_type = HostType}, Acc) ->
+    case mongoose_c2s_hooks:user_receive_packet(HostType, Acc, hook_arg(StateData)) of
+        {ok, Acc1} ->
+            El = mongoose_acc:element(Acc1),
+            send_element(StateData, El, Acc1);
+        {stop, _Acc1} ->
+            ok
+    end.
+
 
 -spec maybe_route({ok | stop, mongoose_acc:t()}) -> mongoose_acc:t().
 maybe_route({ok, Acc}) ->
@@ -673,45 +675,10 @@ new_stream_id() ->
 generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-",(mongoose_bin:gen_from_crypto())/binary>>.
 
--spec user_send_packet(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: {ok | stop, mongoose_acc:t()}.
-user_send_packet(HostType, Acc, Params) ->
-    {From, To, El} = mongoose_acc:packet(Acc),
-    Args = [From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    gen_hook:run_fold(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
+-spec hook_arg(state()) -> hook_params().
+hook_arg(StateData) ->
+    hook_arg(StateData, session_established).
 
--spec user_send_message(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: {ok | stop, mongoose_acc:t()}.
-user_send_message(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_send_message, HostType, Acc, Params).
-
--spec user_send_iq(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: {ok | stop, mongoose_acc:t()}.
-user_send_iq(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_send_iq, HostType, Acc, Params).
-
--spec user_send_presence(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: {ok | stop, mongoose_acc:t()}.
-user_send_presence(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_send_presence, HostType, Acc, Params).
-
--spec user_send_non_stanza(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: {ok | stop, mongoose_acc:t()}.
-user_send_non_stanza(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_send_non_stanza, HostType, Acc, Params).
+-spec hook_arg(state(), fsm_state()) -> hook_params().
+hook_arg(StateData, FsmState) ->
+    #{c2s_data => StateData, c2s_state => FsmState}.
