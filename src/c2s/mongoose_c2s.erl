@@ -142,7 +142,7 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_aut
         _ ->
             Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
             send_element_from_server_jid(StateData, Err),
-            maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries - 1}, Retries)
+            maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries})
     end;
 handle_event(internal, #xmlel{} = El, session_established, StateData) ->
     case verify_from(El, StateData#state.jid) of
@@ -166,7 +166,7 @@ handle_event({timeout, replaced_wait_timeout}, ReplacedPids, FsmState, StateData
     keep_state_and_data;
 handle_event({timeout, Name}, Handler, _, StateData) when is_atom(Name), is_function(Handler, 2) ->
     Acc = Handler(Name, StateData),
-    handle_state(StateData, Acc);
+    handle_state_result(StateData, Acc);
 
 handle_event(info, {Closed, Socket}, _, _StateData = #state{socket = Socket})
   when Closed =:= tcp_closed; Closed =:= ssl_closed ->
@@ -252,7 +252,7 @@ handle_stream_start(S0, StreamStart, StreamState) ->
 handle_starttls(StateData = #state{transport = ranch_ssl}, El, SaslState, Retries) ->
     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
     send_element_from_server_jid(StateData, Err),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries);
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries});
 handle_starttls(StateData = #state{transport = ranch_tcp,
                                    socket = TcpSocket,
                                    listener_opts = #{tls := #{opts := TlsOpts}},
@@ -315,12 +315,12 @@ handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
                 user => Username, lserver => Server, c2s_state => StateData}),
     mongoose_hooks:auth_failed(HostType, Server, Username),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries);
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries});
 handle_sasl_step(#state{host_type = HostType, lserver = Server} = StateData,
                  {error, Error}, SaslState, Retries) ->
     mongoose_hooks:auth_failed(HostType, Server, unknown),
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries - 1}, Retries).
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries}).
 
 -spec handle_sasl_success(state(), term()) -> fsm_res().
 handle_sasl_success(State, Creds) ->
@@ -362,7 +362,7 @@ handle_bind_resource(StateData, #iq{sub_el = SubEl} = IQ, El, Retries) ->
 handle_bind_resource(StateData, _, error, El, Retries) ->
     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
     send_element_from_server_jid(StateData, Err),
-    maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries - 1}, Retries);
+    maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries});
 handle_bind_resource(StateData, IQ, <<>>, _, _) ->
     do_bind_resource(StateData, IQ, generate_random_resource());
 handle_bind_resource(StateData, IQ, Res, _, _) ->
@@ -400,11 +400,33 @@ open_session(#state{host_type = HostType, sid = SID} = StateData, Jid) ->
                  end,
     {StateData#state{jid = Jid}, FsmActions}.
 
--spec maybe_retry_state(state(), fsm_state(), retries()) -> fsm_res().
-maybe_retry_state(StateData, _, 0) ->
-    {stop, {shutdown, retries}, StateData};
-maybe_retry_state(StateData, NextFsmState, _) ->
-    {next_state, NextFsmState, StateData, state_timeout()}.
+-spec maybe_retry_state(state(), fsm_state()) -> fsm_res().
+maybe_retry_state(StateData, FsmState) ->
+    case maybe_retry_state(FsmState) of
+        {stop, Reason} ->
+            {stop, Reason, StateData};
+        NextFsmState ->
+            {next_state, NextFsmState, StateData, state_timeout()}
+    end.
+
+-spec maybe_retry_state(fsm_state()) -> fsm_state() | {stop, term()}.
+maybe_retry_state(connect) -> connect;
+maybe_retry_state(session_established) -> session_established;
+maybe_retry_state(resume_session) -> resume_session;
+maybe_retry_state({wait_for_stream, StreamState}) ->
+    {wait_for_stream, StreamState};
+maybe_retry_state({wait_for_feature_after_auth, 0}) ->
+    {stop, {shutdown, retries}};
+maybe_retry_state({wait_for_feature_before_auth, _, 0}) ->
+    {stop, {shutdown, retries}};
+maybe_retry_state({wait_for_sasl_response, _, 0}) ->
+    {stop, {shutdown, retries}};
+maybe_retry_state({wait_for_feature_after_auth, Retries}) ->
+    {wait_for_feature_after_auth, Retries - 1};
+maybe_retry_state({wait_for_feature_before_auth, SaslState, Retries}) ->
+    {wait_for_feature_before_auth, SaslState, Retries - 1};
+maybe_retry_state({wait_for_sasl_response, SaslState, Retries}) ->
+    {wait_for_sasl_response, SaslState, Retries - 1}.
 
 %% @doc Check 'from' attribute in stanza RFC 6120 Section 8.1.2.1
 -spec verify_from(exml:element(), jid:jid()) -> boolean().
@@ -457,28 +479,22 @@ process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, _) ->
 -spec handle_state_after_packet(state(), mongoose_acc:t()) -> fsm_res().
 handle_state_after_packet(StateData, Acc) ->
     Res = maps:from_list(mongoose_acc:get(c2s, Acc)),
-    handle_state(StateData, Res).
+    handle_state_result(StateData, Res).
 
--type statem_actions() :: #{handlers => #{atom() => {module(), atom(), term()}},
-                            actions => [gen_statem:action()],
-                            stop => atom()}.
-
--spec handle_state(state(), statem_actions()) -> fsm_res().
-handle_state(StateData, #{stop := Reason}) ->
+-spec handle_state_result(state(), handler_res()) -> fsm_res().
+handle_state_result(StateData, #{stop := Reason}) ->
     {stop, {shutdown, Reason}, StateData};
-handle_state(StateData = #state{handlers = StateHandlers},
-             #{handlers := Handlers, actions := Actions}) ->
-    {keep_state, StateData#state{handlers = maps:merge(StateHandlers, Handlers)}, Actions};
-handle_state(StateData = #state{handlers = StateHandlers}, #{handlers := Handlers}) ->
-    {keep_state, StateData#state{handlers = maps:merge(StateHandlers, Handlers)}};
-handle_state(StateData, #{actions := Actions}) ->
-    {keep_state, StateData, Actions};
-handle_state(StateData, #{}) ->
-    {keep_state, StateData}.
-
--spec hook_arg(state()) -> handler_params().
-hook_arg(StateData) ->
-    #{c2s => StateData, handlers => #{}}.
+handle_state_result(StateData = #state{handlers = StateHandlers}, Result) ->
+    MaybeHandlers = maps:get(handlers, Result, #{}),
+    MaybeActions = maps:get(actions, Result, []),
+    NewStateData = StateData#state{handlers = maps:merge(StateHandlers, MaybeHandlers)},
+    case Result of
+        #{fsm_state := NewFmsState} ->
+            StateTimeout = state_timeout(),
+            {next_state, NewFmsState, StateData, [StateTimeout | MaybeActions]};
+        _ ->
+            {keep_state, NewStateData, MaybeActions}
+    end.
 
 -spec handle_incoming_stanza(state(), mongoose_acc:t()) -> maybe_ok().
 handle_incoming_stanza(StateData = #state{host_type = HostType}, Acc) ->
