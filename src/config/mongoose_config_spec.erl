@@ -738,7 +738,7 @@ configurable_modules() ->
      mod_jingle_sip,
      mod_keystore,
      mod_last,
-     mod_mam_meta,
+     mod_mam,
      mod_muc,
      mod_muc_light,
      mod_muc_log,

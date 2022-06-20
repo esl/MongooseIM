@@ -529,7 +529,7 @@ setup_mam(disabled) -> ok;
 setup_mam(Backend) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     dynamic_modules:ensure_modules(
-      host_type(), [{mod_mam_meta,
+      host_type(), [{mod_mam,
                      mam_helper:config_opts(#{backend => Backend,
                                               muc => #{host => HostPattern}})}]).
 

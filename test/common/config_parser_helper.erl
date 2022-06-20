@@ -411,12 +411,12 @@ all_modules() ->
       mod_mam_muc =>
           mod_config(mod_mam_muc,
                      #{archive_chat_markers => true,
-                       async_writer => config([modules, mod_mam_meta, async_writer],
+                       async_writer => config([modules, mod_mam, async_writer],
                                               #{enabled => false}),
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
       mod_caps => default_mod_config(mod_caps),
-      mod_mam_cache_user => (default_config([modules, mod_mam_meta, cache]))#{muc => true, pm => true},
+      mod_mam_cache_user => (default_config([modules, mod_mam, cache]))#{muc => true, pm => true},
       mod_offline =>
            mod_config(mod_offline, #{backend => riak,
                                      riak => #{bucket_type => <<"offline">>}}),
@@ -435,7 +435,7 @@ all_modules() ->
       mod_event_pusher_rabbit => custom_mod_event_pusher_rabbit(),
       mod_event_pusher_sns => custom_mod_event_pusher_sns(),
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
-      mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
+      mod_mam_rdbms_arch_async => default_config([modules, mod_mam, async_writer]),
       mod_keystore =>
           mod_config(mod_keystore, #{keys => #{access_secret => ram,
                                                access_psk => {file, "priv/access_psk"},
@@ -476,11 +476,11 @@ all_modules() ->
                                                refresh => #{unit => days, value => 13}},
                           iqdisc => one_queue},
       mod_carboncopy => #{iqdisc => no_queue},
-      mod_mam =>
-          mod_config(mod_mam,
+      mod_mam_pm =>
+          mod_config(mod_mam_pm,
                      #{archive_chat_markers => true,
                        archive_groupchats => false,
-                       async_writer => default_config([modules, mod_mam_meta, async_writer]),
+                       async_writer => default_config([modules, mod_mam, async_writer]),
                        full_text_search => false,
                        same_mam_id_for_peers => false,
                        no_stanzaid_element => true}),
@@ -573,11 +573,11 @@ all_modules() ->
             groupchat => [muclight],
             remove_on_kicked => true,
             reset_markers => [<<"displayed">>]},
-      mod_mam_meta =>
-          mod_config(mod_mam_meta,
+      mod_mam =>
+          mod_config(mod_mam,
                      #{archive_chat_markers => true,
                        muc =>
-                           #{async_writer => config([modules, mod_mam_meta, async_writer],
+                           #{async_writer => config([modules, mod_mam, async_writer],
                                                     #{enabled => false}),
                              db_message_format => mam_message_xml,
                              host => {fqdn, <<"muc.example.com">>},
@@ -901,13 +901,13 @@ default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
+default_mod_config(mod_mam_pm) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam, pm]));
 default_mod_config(mod_mam) ->
-    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
-default_mod_config(mod_mam_meta) ->
     (common_mam_config())#{backend => rdbms, cache_users => true,
-                           cache => default_config([modules, mod_mam_meta, cache])};
+                           cache => default_config([modules, mod_mam, cache])};
 default_mod_config(mod_mam_muc) ->
-    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
+    maps:merge(common_mam_config(), default_config([modules, mod_mam, muc]));
 default_mod_config(mod_mam_rdbms_arch) ->
     #{no_writer => false,
       db_message_format => mam_message_compressed_eterm,
@@ -1173,17 +1173,17 @@ default_config([modules, mod_privacy, riak]) ->
     #{defaults_bucket_type => <<"privacy_defaults">>,
       names_bucket_type => <<"privacy_lists_names">>,
       bucket_type => <<"privacy_lists">>};
-default_config([modules, mod_mam_meta, pm]) ->
+default_config([modules, mod_mam, pm]) ->
     #{archive_groupchats => false, same_mam_id_for_peers => false};
-default_config([modules, mod_mam_meta, muc]) ->
+default_config([modules, mod_mam, muc]) ->
     #{host => {prefix, <<"conference.">>}};
-default_config([modules, mod_mam_meta, cache]) ->
+default_config([modules, mod_mam, cache]) ->
     #{module => internal, strategy => fifo,
       time_to_live => 480, number_of_segments => 3};
-default_config([modules, mod_mam_meta, async_writer]) ->
+default_config([modules, mod_mam, async_writer]) ->
     #{batch_size => 30, enabled => true, flush_interval => 2000,
       pool_size => 4 * erlang:system_info(schedulers_online)};
-default_config([modules, mod_mam_meta, riak]) ->
+default_config([modules, mod_mam, riak]) ->
     #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
 default_config([modules, mod_muc_light, cache_affs]) ->
     #{module => internal, strategy => fifo,
@@ -1292,7 +1292,7 @@ common_mam_config() ->
       full_text_search => true,
       default_result_limit => 50,
       max_result_limit => 50,
-      async_writer => default_config([modules, mod_mam_meta, async_writer])}.
+      async_writer => default_config([modules, mod_mam, async_writer])}.
 
 mod_event_pusher_http_handler() ->
     #{pool_name => http_pool,

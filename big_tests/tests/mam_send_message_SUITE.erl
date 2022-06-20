@@ -73,9 +73,9 @@ end_per_group(_Groupname, Config) ->
 
 group_to_modules(send_message) ->
     MH = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{},
-                                             muc => #{host => MH},
-                                             send_message => mam_send_message_example})},
+    [{mod_mam, mam_helper:config_opts(#{pm => #{},
+                                        muc => #{host => MH},
+                                        send_message => mam_send_message_example})},
      {mod_muc_light, mod_config(mod_muc_light,
                                 #{backend => mongoose_helper:mnesia_or_rdbms_backend()})},
      {mam_send_message_example, []}].

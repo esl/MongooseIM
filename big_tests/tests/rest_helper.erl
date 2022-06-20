@@ -329,11 +329,11 @@ maybe_enable_mam(_, _, C) ->
 
 required_mam_modules(Backend) ->
     MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             pm => #{},
-                                             muc => #{host => MucPattern},
-                                             async_writer => #{enabled => false},
-                                             archive_chat_markers => true})}].
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        pm => #{},
+                                        muc => #{host => MucPattern},
+                                        async_writer => #{enabled => false},
+                                        archive_chat_markers => true})}].
 
 maybe_skip_mam_test_cases(CaseName, CasesRequireingMAM, Config) ->
     case lists:member(CaseName, CasesRequireingMAM) of
@@ -377,7 +377,7 @@ make_arc_id(Client) ->
     Server = escalus_client:server(Client),
     Bin = escalus_client:short_jid(Client),
     Jid = mongoose_helper:make_jid(User, Server, <<>>),
-    {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
+    {Bin, Jid, mam_helper:rpc_apply(mod_mam_pm, archive_id, [Server, User])}.
 
 fill_room_archive(RoomID, Users, AlreadyArchivedCount) ->
     {TodayDate, _} = calendar:local_time(),

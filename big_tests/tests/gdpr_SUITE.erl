@@ -354,33 +354,33 @@ groupchat_module(muclight) ->
 
 mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
                                        CN =:= retrieve_mam_pm ->
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend, pm => #{}})}];
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend, pm => #{}})}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                        CN =:= retrieve_mam_muc_light ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             pm => #{},
-                                             muc => #{host => HostPattern}})},
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        pm => #{},
+                                        muc => #{host => HostPattern}})},
      {mod_muc_light, default_mod_config(mod_muc_light)}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             db_message_format => mam_message_xml,
-                                             pm => #{archive_groupchats => true},
-                                             muc => #{host => HostPattern}})},
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        db_message_format => mam_message_xml,
+                                        pm => #{archive_groupchats => true},
+                                        muc => #{host => HostPattern}})},
      {mod_muc_light, default_mod_config(mod_muc_light)}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             pm => #{},
-                                             muc => #{host => HostPattern}})},
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        pm => #{},
+                                        muc => #{host => HostPattern}})},
      {mod_muc, muc_helper:make_opts(#{host => HostPattern})}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
-                                             pm => #{archive_groupchats => true},
-                                             muc => #{host => HostPattern}})},
+    [{mod_mam, mam_helper:config_opts(#{backend => Backend,
+                                        pm => #{archive_groupchats => true},
+                                        muc => #{host => HostPattern}})},
      {mod_muc, muc_helper:make_opts(#{host => HostPattern})}].
 
 pick_enabled_backend() ->
@@ -866,7 +866,7 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
             [mam_helper:wait_for_archive_size(User, 2) || User <- [Alice, Bob]],
 
             false = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
-                                                   [host_type(), mod_mam, archive_groupchats, undefined]),
+                                                   [host_type(), mod_mam_pm, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),
@@ -914,7 +914,7 @@ retrieve_mam_pm_and_muc_light_interfere(Config) ->
             mam_helper:wait_for_archive_size(Kate, 3),
 
             true = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
-                                                   [host_type(), mod_mam, archive_groupchats, undefined]),
+                                                   [host_type(), mod_mam_pm, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),

@@ -197,10 +197,10 @@ groups() ->
                             mod_keystore,
                             mod_keystore_keys,
                             mod_last,
-                            mod_mam_meta,
-                            mod_mam_meta_riak,
-                            mod_mam_meta_pm,
-                            mod_mam_meta_muc,
+                            mod_mam,
+                            mod_mam_riak,
+                            mod_mam_pm,
+                            mod_mam_muc,
                             mod_muc,
                             mod_muc_default_room,
                             mod_muc_default_room_affiliations,
@@ -1970,19 +1970,19 @@ mod_last(_Config) ->
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
-mod_mam_meta(_Config) ->
-    check_module_defaults(mod_mam_meta),
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
-    P = [modules, mod_mam_meta],
+mod_mam(_Config) ->
+    check_module_defaults(mod_mam),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam">> => Opts}} end,
+    P = [modules, mod_mam],
     test_cache_config(P ++ [cache], fun(Opts) -> T(#{<<"cache">> => Opts}) end),
-    test_mod_mam_meta(P, T).
+    test_mod_mam(P, T).
 
-mod_mam_meta_riak(_Config) ->
+mod_mam_riak(_Config) ->
     T = fun(Opts) ->
-                #{<<"modules">> => #{<<"mod_mam_meta">> => Opts#{<<"backend">> => <<"riak">>}}}
+                #{<<"modules">> => #{<<"mod_mam">> => Opts#{<<"backend">> => <<"riak">>}}}
         end,
-    P = [modules, mod_mam_meta, riak],
-    ?cfgh(P, default_config([modules, mod_mam_meta, riak]), T(#{})),
+    P = [modules, mod_mam, riak],
+    ?cfgh(P, default_config([modules, mod_mam, riak]), T(#{})),
     ?cfgh(P ++ [bucket_type], <<"mam_bucket">>,
           T(#{<<"riak">> => #{<<"bucket_type">> => <<"mam_bucket">>}})),
     ?cfgh(P ++ [search_index], <<"mam_index">>,
@@ -1990,10 +1990,10 @@ mod_mam_meta_riak(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => <<>>}})),
     ?errh(T(#{<<"riak">> => #{<<"search_index">> => <<>>}})).
 
-mod_mam_meta_pm(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"pm">> => Opts}}} end,
-    P = [modules, mod_mam_meta, pm],
-    test_mod_mam_meta(P, T),
+mod_mam_pm(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam">> => #{<<"pm">> => Opts}}} end,
+    P = [modules, mod_mam, pm],
+    test_mod_mam(P, T),
     ?cfgh(P, default_config(P), T(#{})),
     ?cfgh(P ++ [archive_groupchats], true, T(#{<<"archive_groupchats">> => true})),
     ?cfgh(P ++ [same_mam_id_for_peers], true, T(#{<<"same_mam_id_for_peers">> => true})),
@@ -2001,10 +2001,10 @@ mod_mam_meta_pm(_Config) ->
     ?errh(T(#{<<"archive_groupchats">> => <<"not really">>})),
     ?errh(T(#{<<"same_mam_id_for_peers">> => <<"not really">>})).
 
-mod_mam_meta_muc(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
-    P = [modules, mod_mam_meta, muc],
-    test_mod_mam_meta(P, T),
+mod_mam_muc(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam">> => #{<<"muc">> => Opts}}} end,
+    P = [modules, mod_mam, muc],
+    test_mod_mam(P, T),
     ?cfgh(P, default_config(P), T(#{})),
     ?cfgh(P ++ [host], {prefix, <<"muc.">>}, T(#{<<"host">> => <<"muc.@HOST@">>})),
     ?cfgh(P ++ [host], {fqdn, <<"muc.test">>}, T(#{<<"host">> => <<"muc.test">>})),
@@ -2014,7 +2014,7 @@ mod_mam_meta_muc(_Config) ->
     ?errh(T(#{<<"archive_groupchats">> => true})), % pm-only
     ?errh(T(#{<<"same_mam_id_for_peers">> => true})). % pm-only
 
-test_mod_mam_meta(P, T) ->
+test_mod_mam(P, T) ->
     test_async_writer(P, T),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),

@@ -40,7 +40,7 @@
 %% Implementation
 %%-------------------
 
-%% @doc Here will be declared which hooks should be registered when mod_mam is enabled.
+%% @doc Here will be declared which hooks should be registered when mod_mam_pm is enabled.
 -spec get_mam_hooks(_) -> [ejabberd_hooks:hook(), ...].
 get_mam_hooks(Host) ->
     [
