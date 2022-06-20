@@ -24,7 +24,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                 0 -> undefined;
                 _ -> Before
             end,
-    Params = #{archive_id => mod_mam:archive_id(LServer, LUser),
+    Params = #{archive_id => mod_mam_pm:archive_id(LServer, LUser),
                owner_jid => ArcJID,
                borders => undefined,
                rsm => #rsm_in{direction = before, id = undefined}, % last msgs
@@ -37,6 +37,6 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
                limit_passed => false,
                max_result_limit => 1,
                is_simple => true},
-    R = mod_mam:lookup_messages(HostType, Params),
+    R = mod_mam_pm:lookup_messages(HostType, Params),
     {ok, {_, _, L}} = R,
     L.

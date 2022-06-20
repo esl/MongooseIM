@@ -89,7 +89,7 @@ init_mam(Config) when is_list(Config) ->
         disabled ->
             Config;
         Backend ->
-            Mods = [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend, pm => #{}})}],
+            Mods = [{mod_mam, mam_helper:config_opts(#{backend => Backend, pm => #{}})}],
             dynamic_modules:ensure_modules(domain_helper:host_type(), Mods),
             [{has_mam, true}|Config]
     end;
