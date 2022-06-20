@@ -21,7 +21,7 @@
                     mongoose_async_pools:pool_extra()) ->
     {ok, mongoose_async_pools:task()} | {error, term()}.
 -callback request(mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
-    reference().
+    gen_server:request_id().
 -callback verify(term(), mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
     term().
 -optional_callbacks([verify/3]).
@@ -37,7 +37,7 @@
          code_change/3,
          format_status/2]).
 
--type request() :: no_request_pending | {reference(), mongoose_async_pools:task()}.
+-type request() :: no_request_pending | {gen_server:request_id(), mongoose_async_pools:task()}.
 -record(state, {
           host_type :: mongooseim:host_type(),
           pool_id :: mongoose_async_pools:pool_id(),

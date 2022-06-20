@@ -75,9 +75,60 @@ For example:
 
 #### `outgoing_pools.rdbms.*.connection.driver`
 * **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
+* **Default:** none - this option is mandatory
 * **Example:** `driver = "psgql"`
 
 Selects the driver for RDBMS connection. The choice of a driver impacts the set of available options.
+
+#### `outgoing_pools.rdbms.*.connection.keepalive_interval`
+* **Syntax:** positive integer
+* **Default:** not set - disabled by default
+* **Example:** `keepalive_interval = 30`
+
+When enabled, MongooseIM will send `SELECT 1 `query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network-related error returned from a database driver to a regular query will imply a connection restart.
+
+#### `outgoing_pools.rdbms.*.connection.max_start_interval`
+* **Syntax:** positive integer
+* **Default:** 30
+* **Example:** `max_start_interval = 30`
+
+When MongooseIM fails to connect to the DB, it retries with an exponential backoff. This option limits the backoff time for faster reconnection when the DB becomes reachable again.
+
+### Options for `pgsql` and `mysql`
+
+#### `outgoing_pools.rdbms.*.connection.host`
+* **Syntax:** string
+* **Default:** no default; required for `pgsql` and `mysql`
+* **Example:** `host = "localhost"`
+
+#### `outgoing_pools.rdbms.*.connection.port`
+* **Syntax:** string
+* **Default:** `5432` for `pgsql`; `3306` for `mysql`
+* **Example:** `port = 5343`
+
+#### `outgoing_pools.rdbms.*.connection.database`
+* **Syntax:** string
+* **Default:** no default; required for `pgsql` and `mysql`
+* **Example:** `database = "mim-db"`
+
+#### `outgoing_pools.rdbms.*.connection.username`
+* **Syntax:** string
+* **Default:** no default; required for `pgsql` and `mysql`
+* **Example:** `username = "mim-user"`
+
+#### `outgoing_pools.rdbms.*.connection.password`
+* **Syntax:** string
+* **Default:** no default; required for `pgsql` and `mysql`
+* **Example:** `password = "mim-password"`
+
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. There is one additonal option for PostgreSQL:
+
+#### `outgoing_pools.rdbms.*.connection.tls.required`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `tls.required = true`
+
+This option can be used to enforce a TLS connection.
 
 ### ODBC options
 
@@ -88,14 +139,14 @@ Selects the driver for RDBMS connection. The choice of a driver impacts the set 
 
 ODBC - specific string defining connection parameters.
 
-##### ODBC SSL connection setup
+#### ODBC SSL connection setup
 
 If you've configured MongooseIM to use an ODBC driver, then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
 
 To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
 Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
 
-###### Example ~/.odbc.ini configuration
+##### Example ~/.odbc.ini configuration
 
 ```ini
 [mydb]
@@ -107,35 +158,11 @@ sslmode     = verify-full
 sslrootcert = /path/to/ca/cert
 ```
 
-### Other RDBMS backends
-
-#### `outgoing_pools.rdbms.*.connection.host`
-* **Syntax:** string
-* **Example:** `host = "localhost"`
-
-#### `outgoing_pools.rdbms.*.connection.database`
-* **Syntax:** string
-* **Example:** `database = "mim-db"`
-
-#### `outgoing_pools.rdbms.*.connection.username`
-* **Syntax:** string
-* **Example:** `username = "mim-user"`
-
-#### `outgoing_pools.rdbms.*.connection.password`
-* **Syntax:** string
-* **Example:** `password = "mim-password"`
-
-#### `outgoing_pools.rdbms.*.connection.keepalive_interval`
-* **Syntax:** positive integer
-* **Default:** undefined (keep-alive not activated)
-* **Example:** `keepalive_interval = 30`
-
-When enabled, MongooseIM will send SELECT 1 query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network-related error returned from a database driver to a regular query will imply a connection restart.
-
 ## HTTP options
 
 ### `outgoing_pools.http.*.connection.host`
 * **Syntax:** `"http[s]://string[:integer]"`
+* **Default:** no default; this option is mandatory
 * **Example:** `host = "https://server.com:879"`
 
 ### `outgoing_pools.http.*.connection.path_prefix`
@@ -152,11 +179,11 @@ Initial part of path which will be common to all calls. Prefix will be automatic
 
 Number of milliseconds after which http call to the server will time out. It should be lower than `call_timeout` set at the pool level.
 
-HTTP also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Redis-specific options
 
-Redis can be used as a session manager backend. 
+Redis can be used as a session manager backend.
 Global distribution (implemented in `mod_global_distrib`) requires Redis pool.
 
 There are two important limitations:
@@ -195,10 +222,12 @@ Currently, only one Riak connection pool can exist for each supported XMPP host 
 
 ### `outgoing_pools.riak.*.connection.address`
 * **Syntax:** string
+* **Default:** none, this option is mandatory
 * **Example:** `address = "127.0.0.1"`
 
 ### `outgoing_pools.riak.*.connection.port`
 * **Syntax:** integer
+* **Default:** none, this option is mandatory
 * **Example:** `port = 8087`
 
 ### `outgoing_pools.riak.*.connection.credentials`
@@ -206,16 +235,14 @@ Currently, only one Riak connection pool can exist for each supported XMPP host 
 * **Default:** none
 * **Example:** `credentials = {user = "myuser", password = "tisismepasswd"}`
 
-This is optional - setting this option forces connection over TLS
-
-Riak also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options. The `cacertfile` option is then mandatory and `verify_mode` cannot be set to `none`.
 
 ## Cassandra options
 
 ### `outgoing_pools.cassandra.*.connection.servers`
-* **Syntax:** a TOML array of tables containing keys `"ip_adddress"` and `"port"`
-* **Default:** `[{ip_address = "localhost", port = 9042}]`
-* **Example:** `servers = [{ip_address = "host_one", port = 9042}, {ip_address = "host_two", port = 9042}]`
+* **Syntax:** a TOML array of tables containing keys `"host"` and `"port"`
+* **Default:** `[{host = "localhost", port = 9042}]`
+* **Example:** `servers = [{host = "host_one", port = 9042}, {host = "host_two", port = 9042}]`
 
 ### `outgoing_pools.cassandra.*.connection.keyspace`
 * **Syntax:** string
@@ -226,22 +253,24 @@ To use plain text authentication (using cqerl_auth_plain_handler module):
 
 ### `outgoing_pools.cassandra.*.connection.auth.plain.username`
 * **Syntax:** string
+* **Default:** none, this option is mandatory
 * **Example:** `username = "auser"`
 
 ### `outgoing_pools.cassandra.*.connection.auth.plain.password`
 * **Syntax:** string
+* **Default:** none, this option is mandatory
 * **Example:** `password = "somesecretpassword"`
 
 Support for other authentication modules may be added in the future.
 
-Cassandra also supports all TLS-specific options described in the TLS section.
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## Elasticsearch options
 
 Currently, only one pool tagged `default` can be used.
 
 ### `outgoing_pools.elastic.default.connection.host`
-* **Syntax:** string
+* **Syntax:** non-empty string
 * **Default:** `"localhost"`
 * **Example:** `host = "otherhost"`
 
@@ -286,25 +315,25 @@ The `Tag` parameter must be set to `event_pusher` in order to be able to use
 the pool for [`mod_event_pusher_rabbit`](../modules/mod_event_pusher_rabbit.md).
 Any other `Tag` can be used for other purposes.
 
-### `outgoing_pools.rabbit.*.connection.amqp_host`
+### `outgoing_pools.rabbit.*.connection.host`
 * **Syntax:** string
 * **Default:** `"localhost"`
-* **Example:** `amqp_host = "anotherhost"`
+* **Example:** `host = "anotherhost"`
 
-### `outgoing_pools.rabbit.*.connection.amqp_port`
+### `outgoing_pools.rabbit.*.connection.port`
 * **Syntax:** integer
 * **Default:** `5672`
-* **Example:** `amqp_port = 4561`
+* **Example:** `port = 4561`
 
-### `outgoing_pools.rabbit.*.connection.amqp_username`
+### `outgoing_pools.rabbit.*.connection.username`
 * **Syntax:** string
 * **Default:** `"guest"`
-* **Example:** `amqp_username = "corpop"`
+* **Example:** `username = "corpop"`
 
-### `outgoing_pools.rabbit.*.connection.amqp_password`
+### `outgoing_pools.rabbit.*.connection.password`
 * **Syntax:** string
 * **Default:** `"guest"`
-* **Example:** `amqp_password = "guest"`
+* **Example:** `password = "guest"`
 
 ### `outgoing_pools.rabbit.*.connection.confirms_enabled`
 * **Syntax:** boolean
@@ -329,13 +358,13 @@ Sets a limit of messages in a worker's mailbox above which the worker starts dro
 
 ### `outgoing_pools.ldap.*.connection.port`
 * **Syntax:** integer
-* **Default:** `389` (or `636` if encryption is enabled)
+* **Default:** `389` (or `636` if TLS is enabled)
 * **Example:** `port = 800`
 
-### `outgoing_pools.ldap.*.connection.rootdn`
+### `outgoing_pools.ldap.*.connection.root_dn`
 * **Syntax:** string
-* **Default:** empty string 
-* **Example:** `rootdn = "cn=admin,dc=example,dc=com"`
+* **Default:** empty string
+* **Example:** `root_dn = "cn=admin,dc=example,dc=com"`
 
 Leaving out this option makes it an anonymous connection, which most likely is what you want.
 
@@ -345,58 +374,40 @@ Leaving out this option makes it an anonymous connection, which most likely is w
 * **Example:** `password = "topsecret"`
 
 ### `outgoing_pools.ldap.*.connection.connect_interval`
-* **Syntax:** integer
+* **Syntax:** positive integer
 * **Default:** `10000`
 * **Example:** `connect_interval = 20000`
 
 Reconnect interval after a failed connection.
 
-### `outgoing_pools.ldap.*.connection.encrypt`
-* **Syntax:** string, one of: `"none"` or `"tls"`
-* **Default:** `"none"`
-* **Example:** `encrypt = "tls"`
-
-LDAP also supports all TLS-specific options described in the TLS section (provided `encrypt` is set to `tls`).
+To enable TLS, you need to include the [TLS section](#tls-options) in the connection options.
 
 ## TLS options
 
 TLS options for a given pool type/tag pair are defined in a subsection starting with `[outgoing_pools.[pool_type].[pool_tag].connection.tls]`.
 
-### `outgoing_pools.*.*.connection.tls.required`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `tls.required = true`
+### `outgoing_pools.*.*.connection.tls.verify_mode`
+* **Syntax:** string, one of: `"peer"`, `"selfsigned_peer"`, `"none"`
+* **Default:** `"peer"`
+* **Example:** `tls.verify_mode = "none"`
 
-This option is Postgresql-specific, doesn't apply in other cases.
-
-### `outgoing_pools.*.*.connection.tls.verify_peer`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `tls.verify_peer = true`
-
-Enforces verification of a client certificate. Requires a valid `cacertfile`.
+The default value, `"peer"`, enforces verification of the server certificate, and requires a valid `cacertfile` to do so.
+You can set it to `"selfsigned_peer"` to accept self-signed certificates or to `"none"` to skip certificate verification altogether.
 
 ### `outgoing_pools.*.*.connection.tls.certfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.certfile = "server.pem"`
 
-Path to the X509 PEM file with a certificate and a private key (not protected by a password). 
-If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
+Path to the X509 PEM file with a certificate.
+If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together.
 
 ### `outgoing_pools.*.*.connection.tls.cacertfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.cacertfile = "ca.pem"`
 
-Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
-
-### `outgoing_pools.*.*.connection.tls.dhfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.dhfile = "dh.pem"`
-
-Path to the Diffie-Hellman parameter file.
+Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_mode` is set to `"none"`.
 
 ### `outgoing_pools.*.*.connection.tls.keyfile`
 * **Syntax:** string, path in the file system
@@ -424,25 +435,25 @@ Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.ope
 * **Default:** not set, all supported versions are accepted
 * **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
 
-Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
+TLS protocol versions to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-ciphers)
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication`
+### `outgoing_pools.*.*.connection.tls.server_name_indication.enabled`
 * **Syntax:** boolean
-* **Default:** `false`, but enabled if the `verify_peer` option is set to `true`
-* **Example:** `tls.server_name_indication = false`
+* **Default:** `"true"`, but effective only if `verify_mode` is not `"none"`.
+* **Example:** `tls.server_name_indication.enabled = false`
 
-Enables SNI extension to TLS protocol. If set to `true`, the `server_name_indication_host` option should be provided.
+Enables SNI extension to TLS protocol. You can set it to `false` to disable the extension.
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication_host`
+### `outgoing_pools.*.*.connection.tls.server_name_indication.host`
 * **Syntax:** string
 * **Default:** not set
-* **Example:** `tls.server_name_indication_host = "domain.com"`
+* **Example:** `tls.server_name_indication.host = "domain.com"`
 
-Domain against which the certificates will be checked, using SNI. It can be specified only when `server_name_indication` is set to `true`.
+Domain against which the certificates will be checked, using SNI.
 
-### `outgoing_pools.*.*.connection.tls.server_name_indication_protocol`
-* **Syntax:** string, one of "default" or "https"
+### `outgoing_pools.*.*.connection.tls.server_name_indication.protocol`
+* **Syntax:** string, one of `"default"` or `"https"`
 * **Default:** "default"
 * **Example:** `tls.server_name_indication_protocol = "https"`
 
-See [https://www.erlang.org/doc/man/public_key.html#pkix_verify_hostname_match_fun-1] for an explanation. You'd usually want to set it to https for reasons described in [https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl.html].
+See the [OTP documentation](https://www.erlang.org/doc/man/public_key.html#pkix_verify_hostname_match_fun-1) for an explanation. You'd usually want to set it to `"https"` for reasons described in the [security recommendations](https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl.html).

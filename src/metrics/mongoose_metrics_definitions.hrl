@@ -38,32 +38,26 @@
     sessionCount
 ]).
 
--define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
+-define(REPORT_INTERVAL, mongoose_metrics:get_report_interval()).
+
+-define(PROBE(Name, Module),
+        {Name,
+          {probe,
+           [{callback_module, Module},
+            {sample_interval, ?REPORT_INTERVAL}]}}).
 
 -define(GLOBAL_COUNTERS,
-        [{totalSessionCount,
-          {function, ejabberd_sm, get_total_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {uniqueSessionCount,
-          {function, ejabberd_sm, get_unique_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {nodeSessionCount,
-          {function, ejabberd_sm, get_node_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}},
-         {nodeUpTime,
+        [{nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
            tagged, [value]}},
          {clusterSize,
           {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
            tagged, [value]}},
-         {tcpPortsUsed,
-          {probe,
-           [{callback_module, mongoose_metrics_probe_tcp},
-            {sample_interval, timer:seconds(30)}]}},
-         {processQueueLengths,
-          {probe,
-           [{callback_module, mongoose_metrics_probe_queues},
-            {sample_interval, timer:seconds(30)}]}}
+         ?PROBE(totalSessionCount, mongoose_metrics_probe_total_sessions),
+         ?PROBE(uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
+         ?PROBE(nodeSessionCount, mongoose_metrics_probe_node_sessions),
+         ?PROBE(tcpPortsUsed, mongoose_metrics_probe_tcp),
+         ?PROBE(processQueueLengths, mongoose_metrics_probe_queues)
         ]
 ).
 

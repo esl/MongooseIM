@@ -77,7 +77,6 @@ config_spec() ->
                   <<"stale_h">> => stale_h_config_spec()
                  },
         process = fun ?MODULE:process_buffer_and_ack/1,
-        format_items = map,
         defaults = #{<<"backend">> => mnesia,
                      <<"buffer">> => true,
                      <<"buffer_max">> => 100,
@@ -110,7 +109,6 @@ stale_h_config_spec() ->
                                                 validate = positive},
                   <<"geriatric">> => #option{type = integer,
                                              validate = positive}},
-        format_items = map,
         include = always,
         defaults = #{<<"enabled">> => false,
                      <<"repeat_after">> => 1800, % seconds

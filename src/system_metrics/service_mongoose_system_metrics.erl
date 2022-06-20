@@ -72,8 +72,7 @@ config_spec() ->
                                               validate = non_empty}
                 },
        defaults = #{<<"initial_report">> => timer:minutes(5),
-                    <<"periodic_report">> => timer:hours(3)},
-       format_items = map
+                    <<"periodic_report">> => timer:hours(3)}
       }.
 
 -spec start_link(mongoose_service:options()) -> {ok, pid()}.

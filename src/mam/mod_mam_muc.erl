@@ -519,7 +519,11 @@ lookup_messages_without_policy_violation_check(HostType,
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            mongoose_hooks:mam_muc_lookup_messages(HostType, Params)
+            StartT = erlang:monotonic_time(microsecond),
+            R = mongoose_hooks:mam_muc_lookup_messages(HostType, Params),
+            Diff = erlang:monotonic_time(microsecond) - StartT,
+            mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
+            R
     end.
 
 archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
@@ -671,6 +675,7 @@ remove_iq_handlers(HostType) ->
     ok.
 
 ensure_metrics(HostType) ->
+    mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, lookup], histogram),
     lists:foreach(fun(Name) ->
                       mongoose_metrics:ensure_metric(HostType, Name, spiral)
                   end,

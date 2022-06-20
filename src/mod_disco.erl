@@ -99,8 +99,7 @@ config_spec() ->
        defaults = #{<<"extra_domains">> => [],
                     <<"server_info">> => [],
                     <<"users_can_see_hidden_services">> => true,
-                    <<"iqdisc">> => one_queue},
-       format_items = map
+                    <<"iqdisc">> => one_queue}
       }.
 
 server_info_spec() ->
@@ -112,8 +111,7 @@ server_info_spec() ->
                  <<"modules">> => #list{items = #option{type = atom,
                                                         validate = module}}
                 },
-       required = [<<"name">>, <<"urls">>],
-       format_items = map
+       required = [<<"name">>, <<"urls">>]
       }.
 
 supported_features() -> [dynamic_domains].

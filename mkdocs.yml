@@ -62,6 +62,7 @@ nav:
       - 'Inbox': 'open-extensions/inbox.md'
       - 'Smart Markers': 'open-extensions/smart-markers.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
+      - 'MAM': 'open-extensions/mam.md'
   - Configuration:
       - 'Configuration Files': 'configuration/configuration-files.md'
       - 'Options: General': 'configuration/general.md'

@@ -98,7 +98,6 @@ config_spec() ->
                  <<"riak">> => riak_config_spec()},
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"backend">> => rdbms},
-       format_items = map,
        process = fun ?MODULE:remove_unused_backend_opts/1
     }.
 
@@ -111,8 +110,7 @@ riak_config_spec() ->
                                               validate = non_empty}
                 },
        defaults = #{<<"bucket_type">> => <<"private">>},
-       include = always,
-       format_items = map
+       include = always
       }.
 
 %% ------------------------------------------------------------------

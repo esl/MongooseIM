@@ -34,11 +34,11 @@
          muc_only_stanzaid/1,
          mam_service_discovery/1,
          muc_service_discovery/1,
-         simple_archive_request/1,
-         simple_archive_request_for_the_receiver/1,
+         easy_archive_request/1,
+         easy_archive_request_for_the_receiver/1,
          text_search_query_fails_if_disabled/1,
          text_search_is_not_available/1,
-         simple_text_search_request/1,
+         easy_text_search_request/1,
          long_text_search_request/1,
          text_search_is_available/1,
          muc_message_with_stanzaid/1,
@@ -73,12 +73,8 @@
          pagination_last_after_id5/1,
          pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
-         pagination_first5_opt_count/1,
-         pagination_first25_opt_count_all/1,
-         pagination_last5_opt_count/1,
-         pagination_last25_opt_count_all/1,
-         pagination_offset5_opt_count/1,
-         pagination_offset5_opt_count_all/1,
+         pagination_first_page_after_id4/1,
+         pagination_last_page_after_id4/1,
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_invalid_id/1,
@@ -105,7 +101,7 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
-         muc_light_simple/1,
+         muc_light_easy/1,
          muc_light_shouldnt_modify_pm_archive/1,
          muc_light_stored_in_pm_if_allowed_to/1,
          muc_light_chat_markers_are_archived_if_enabled/1,
@@ -252,7 +248,7 @@ configurations_for_running_ct() ->
 
 rdbms_configs(true) ->
     [rdbms,
-     rdbms_simple,
+     rdbms_easy,
      rdbms_async_pool,
      rdbms_mnesia,
      rdbms_async_cache,
@@ -373,8 +369,8 @@ mam_metrics_cases() ->
 
 mam_cases() ->
     [mam_service_discovery,
-     simple_archive_request,
-     simple_archive_request_for_the_receiver,
+     easy_archive_request,
+     easy_archive_request_for_the_receiver,
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
@@ -384,7 +380,7 @@ mam_cases() ->
 
 text_search_cases() ->
     [
-     simple_text_search_request,
+     easy_text_search_request,
      long_text_search_request,
      text_search_is_available,
      save_unicode_messages
@@ -463,7 +459,7 @@ configurable_archiveid_cases() ->
 
 muc_light_cases() ->
     [
-     muc_light_simple,
+     muc_light_easy,
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
      muc_light_chat_markers_are_archived_if_enabled,
@@ -489,16 +485,10 @@ rsm_cases() ->
        %% Border cases
        pagination_last_after_id5,
        pagination_last_after_id5_before_id11,
+       pagination_first_page_after_id4,
+       pagination_last_page_after_id4,
        %% Simple cases
        pagination_simple_before10,
-       %% opt_count cases
-       pagination_first5_opt_count,
-       pagination_last5_opt_count,
-       pagination_offset5_opt_count,
-       %% opt_count cases with all messages on the page
-       pagination_first25_opt_count_all,
-       pagination_last25_opt_count_all,
-       pagination_offset5_opt_count_all,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
        server_returns_item_not_found_for_after_filter_with_nonexistent_id,
@@ -686,10 +676,10 @@ mam_opts_for_conf(elasticsearch) ->
 mam_opts_for_conf(cassandra) ->
     #{backend => cassandra,
       user_prefs_store => cassandra};
-mam_opts_for_conf(rdbms_simple) ->
-    SimpleOpts = #{db_jid_format => mam_jid_rfc,
-                   db_message_format => mam_message_xml},
-    maps:merge(SimpleOpts, mam_opts_for_conf(rdbms));
+mam_opts_for_conf(rdbms_easy) ->
+    EasyOpts = #{db_jid_format => mam_jid_rfc,
+                 db_message_format => mam_message_xml},
+    maps:merge(EasyOpts, mam_opts_for_conf(rdbms));
 mam_opts_for_conf(rdbms) ->
     #{user_prefs_store => rdbms,
       async_writer => #{enabled => false},
@@ -864,7 +854,7 @@ init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
     skip_if_riak(C, Config);
-init_per_testcase(C=simple_text_search_request, Config) ->
+init_per_testcase(C=easy_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
@@ -882,7 +872,7 @@ init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     clean_archives(Config),
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_light_simple;
+init_per_testcase(C, Config) when C =:= muc_light_easy;
                                   C =:= muc_light_shouldnt_modify_pm_archive;
                                   C =:= muc_light_chat_markers_are_archived_if_enabled;
                                   C =:= muc_light_chat_markers_are_not_archived_if_disabled->
@@ -1172,7 +1162,7 @@ same_stanza_id(Config) ->
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Querying the archive for messages
-simple_archive_request(Config) ->
+easy_archive_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends "OH, HAI!" to Bob
@@ -1192,7 +1182,7 @@ simple_archive_request(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
-simple_archive_request_for_the_receiver(Config) ->
+easy_archive_request_for_the_receiver(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -1249,7 +1239,7 @@ text_search_is_available(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
-simple_text_search_request(Config) ->
+easy_text_search_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi there! My cat's name is John">>)),
@@ -1514,7 +1504,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
-muc_light_simple(Config) ->
+muc_light_easy(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Room = <<"testroom">>,
             given_muc_light_room(Room, Alice, []),
@@ -2386,30 +2376,6 @@ pagination_first0(Config) ->
         end,
     parallel_story(Config, [{alice, 1}], F).
 
-pagination_first5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the first page of size 5.
-        RSM = #rsm_in{max=5},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"first5_opt">>, RSM)),
-        wait_message_range(Alice, 1, 5),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_first25_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the first page of size 25.
-        RSM = #rsm_in{max=25},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"first25_opt_all">>, RSM)),
-        wait_message_range(Alice, 1, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
 pagination_last5(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -2457,55 +2423,6 @@ pagination_offset5_max0(Config) ->
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
-
-pagination_last5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction=before, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(Alice, 11, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_last25_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 25.
-        RSM = #rsm_in{max=25, direction=before, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last25_opt_all">>, RSM)),
-        wait_message_range(Alice, 1, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_offset5_opt_count(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Skip 5 messages, get 5 messages.
-        RSM = #rsm_in{max=5, index=5, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
-        wait_message_range(Alice, 6, 10),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
-pagination_offset5_opt_count_all(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Skip 5 messages, get 25 messages (only 10 are available).
-        RSM = #rsm_in{max=25, index=5, opt_count=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"last5_opt_all">>, RSM)),
-        wait_message_range(Alice, 6, 15),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
-
 
 pagination_before10(Config) ->
     P = ?config(props, Config),
@@ -2571,6 +2488,37 @@ pagination_last_after_id5_before_id11(Config) ->
             stanza_page_archive_request(P, <<"last_after_id5_before_id11">>, RSM)),
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,           5,      0,     6,  10),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_first_page_after_id4(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        % Default direction is after
+        RSM = #rsm_in{max = 5, after_id = message_id(4, Config)},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"first_page_after_id4">>, RSM)),
+        %% Gets 5, 6, 7, 8, 9
+        %% Total Count is 11: i.e. 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        %% Messages 1, 2, 3, 4 are ignored in the result
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,          11,      0,     5,  9),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_last_page_after_id4(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        RSM = #rsm_in{max = 5, after_id = message_id(4, Config), direction=before},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"last_page_after_id4">>, RSM)),
+        %% Gets 11, 12, 13, 14, 15
+        %% Total Count is 11: i.e. 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        %% Messages 1, 2, 3, 4 are ignored in the result
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,          11,      6,     11,  15),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).

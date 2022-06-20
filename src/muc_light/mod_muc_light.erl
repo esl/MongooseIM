@@ -245,8 +245,7 @@ config_spec() ->
                     <<"max_occupants">> => ?DEFAULT_MAX_OCCUPANTS,
                     <<"rooms_per_page">> => ?DEFAULT_ROOMS_PER_PAGE,
                     <<"rooms_in_rosters">> => ?DEFAULT_ROOMS_IN_ROSTERS,
-                    <<"config_schema">> => default_schema()},
-       format_items = map
+                    <<"config_schema">> => default_schema()}
       }.
 
 config_schema_spec() ->
@@ -259,8 +258,7 @@ config_schema_spec() ->
                  <<"internal_key">> => #option{type = atom,
                                                validate = non_empty}
                 },
-       required = [<<"field">>],
-       format_items = map
+       required = [<<"field">>]
       }.
 
 -spec process_config_schema([map()]) -> mod_muc_light_room_config:schema().

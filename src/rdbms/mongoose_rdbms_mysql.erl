@@ -18,9 +18,12 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms_backend).
 
--include("mongoose.hrl").
-
--define(MYSQL_PORT, 3306).
+-type options() :: #{host := string(),
+                     port := inet:port(),
+                     database := string(),
+                     username := string(),
+                     password := string(),
+                     atom() => any()}.
 
 -export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
          query/3, prepare/5, execute/4]).
@@ -35,10 +38,10 @@ escape_binary(Bin) when is_binary(Bin) ->
 unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
--spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
+-spec connect(options(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
-connect(Settings, QueryTimeout) ->
-    case mysql:start_link([{query_timeout, QueryTimeout} | db_opts(Settings)]) of
+connect(Options, QueryTimeout) ->
+    case mysql:start_link([{query_timeout, QueryTimeout} | db_opts(Options)]) of
         {ok, Ref} ->
             mysql:query(Ref, <<"set names 'utf8mb4';">>),
             mysql:query(Ref, <<"SET SESSION query_cache_type=1;">>),
@@ -70,32 +73,14 @@ execute(Connection, StatementRef, Params, _Timeout) ->
 
 %% Helpers
 
--spec db_opts(Settings :: term()) -> list().
-db_opts({mysql, Server, DB, User, Pass}) ->
-    db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass});
-db_opts({mysql, Server, Port, DB, User, Pass}) when is_integer(Port) ->
-    get_db_basic_opts({Server, Port, DB, User, Pass});
-db_opts({mysql, Server, DB, User, Pass, SSLConnOpts}) ->
-    db_opts({mysql, Server, ?MYSQL_PORT, DB, User, Pass, SSLConnOpts});
-db_opts({mysql, Server, Port, DB, User, Pass, SSLConnOpts})
-  when is_integer(Port) ->
-    DBBasicOpts = get_db_basic_opts({Server, Port, DB, User, Pass}),
-    extend_db_opts_with_ssl(DBBasicOpts, SSLConnOpts).
+-spec db_opts(options()) -> [mysql:option()].
+db_opts(Options) ->
+    FilteredOpts = maps:with([host, port, database, username, password, tls], Options),
+    [{found_rows, true} | lists:map(fun process_opt/1, maps:to_list(FilteredOpts))].
 
--spec get_db_basic_opts(Settings :: term()) -> [term()].
-get_db_basic_opts({Server, Port, DB, User, Pass}) ->
-    [
-     {host, Server},
-     {port, Port},
-     {user, User},
-     {password, Pass},
-     {database, DB},
-     {found_rows, true}
-    ].
-
--spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
-extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
-    Opts ++ [{ssl, SSLConnOpts}].
+process_opt({tls, TLSOpts}) -> {ssl, just_tls:make_ssl_opts(TLSOpts)};
+process_opt({username, UserName}) -> {user, UserName};
+process_opt(Opt) -> Opt.
 
 %% @doc Convert MySQL query result to Erlang RDBMS result formalism
 -spec mysql_to_rdbms(mysql:query_result(), Conn :: term()) -> mongoose_rdbms:query_result().

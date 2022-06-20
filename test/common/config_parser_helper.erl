@@ -17,7 +17,8 @@ options("host_types") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
+     {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -54,7 +55,7 @@ options("host_types") ->
      {{replaced_wait_timeout, <<"yet another host type">>}, 2000}];
 options("miscellaneous") ->
     [{all_metrics_are_global, false},
-     {cowboy_server_name, "Apache"},
+     {http_server_name, "Apache"},
      {default_server_domain, <<"localhost">>},
      {domain_certfile, #{<<"example.com">> => "priv/cert.pem",
                          <<"example.org">> => "priv/cert.pem"}},
@@ -77,7 +78,9 @@ options("miscellaneous") ->
                })]},
      {loglevel, warning},
      {mongooseimctl_access_commands,
-      [{local, ["join_cluster"], [{node, "mongooseim@prime"}]}]},
+      #{local => #{commands => [join_cluster],
+                   argument_restrictions => #{node => "mongooseim@prime"}}}},
+     {outgoing_pools, []},
      {rdbms_server_type, mssql},
      {registration_timeout, 600},
      {routing_modules,
@@ -107,7 +110,8 @@ options("modules") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
+     {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -136,7 +140,7 @@ options("mongooseim-pgsql") ->
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
                 zlib => 10000,
-                tls => [{certfile, "priv/dc1.pem"}, {dhfile, "priv/dh.pem"}, starttls]
+                tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem"}
                }),
        config([listen, c2s],
               #{port => 5223,
@@ -173,7 +177,7 @@ options("mongooseim-pgsql") ->
                             #{host => "localhost", path => "/api/contacts/{:jid}"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
                }),
        config([listen, http],
               #{ip_address => "127.0.0.1",
@@ -191,7 +195,7 @@ options("mongooseim-pgsql") ->
                             #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => [{certfile, "priv/cert.pem"}, {keyfile, "priv/dc1.pem"}, {password, []}]
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
                }),
        config([listen, http],
               #{ip_address => "127.0.0.1",
@@ -206,7 +210,7 @@ options("mongooseim-pgsql") ->
               #{port => 5269,
                 shaper => s2s_shaper,
                 max_stanza_size => 131072,
-                tls => [{dhfile, "priv/dh.pem"}]
+                tls => #{dhfile => "priv/dh.pem"}
                }),
        config([listen, service],
               #{ip_address => "127.0.0.1",
@@ -237,20 +241,22 @@ options("mongooseim-pgsql") ->
       ]},
      {loglevel, warning},
      {max_fsm_queue, 1000},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
-      lists:map(fun merge_with_default_pool_config/1,
-      [#{type => rdbms, scope => global, tag => default,
-         opts => #{workers => 5},
-         conn_opts => #{server =>
-                        {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
-                         [{ssl, required},
-                          {ssl_opts,
-                           [{cacertfile, "priv/ca.pem"},
-                            {server_name_indication, disable},
-                            {verify, verify_peer}]}]}}},
-       #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-         opts => #{workers => 10}, conn_opts => #{}}])},
+      lists:map(
+        fun pool_config/1,
+        [#{type => rdbms,
+           opts => #{workers => 5},
+           conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
+                          username => "ejabberd", password => "mongooseim_secret",
+                          tls => #{required => true,
+                                   cacertfile => "priv/ca.pem",
+                                   server_name_indication => #{enabled => false}}
+                         }
+          },
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}}
+        ])},
      {rdbms_server_type, generic},
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -313,53 +319,51 @@ options("outgoing_pools") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
-      lists:map(fun merge_with_default_pool_config/1,
-      [#{type => cassandra, scope => global, tag => default, opts => #{},
-         conn_opts => #{keyspace => big_mongooseim,
-                        servers => [{"cassandra_server1.example.com", 9042},
-                                    {"cassandra_server2.example.com", 9042}]}},
-       #{type => elastic, scope => global, tag => default, opts => #{},
-         conn_opts => #{host => "localhost"}},
-       #{type => http, scope => global, tag => mongoose_push_http,
-         opts => #{workers => 50},
-         conn_opts => #{server => "https://localhost:8443",
-                        path_prefix => "/",
-                        request_timeout => 2000}},
-       #{type => ldap, scope => host, tag => default,
-         opts => #{workers => 5},
-         conn_opts => #{password => <<"ldap-admin-password">>,
-                        rootdn => <<"cn=admin,dc=example,dc=com">>,
-                        servers => ["ldap-server.example.com"]}},
-       #{type => rabbit, scope => host, tag => event_pusher,
-         opts => #{workers => 20},
-         conn_opts => #{amqp_host => "localhost",
-                        amqp_password => <<"guest">>,
-                        amqp_port => 5672,
-                        amqp_username => <<"guest">>,
-                        confirms_enabled => true,
-                        max_worker_queue_len => 100}},
-       #{type => rdbms, scope => global, tag => default,
-         opts => #{workers => 5},
-         conn_opts => #{server =>
-                        {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
-                         [{ssl, required},
-                          {ssl_opts, [{cacertfile, "priv/ca.pem"},
-                                      {server_name_indication, disable},
-                                      {verify, verify_peer}]}]},
-                        keepalive_interval => 30}},
-       #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-         opts => #{workers => 10}, conn_opts => #{}},
-       #{type => riak, scope => global, tag => default,
-         opts => #{strategy => next_worker, workers => 20},
-         conn_opts => #{address => "127.0.0.1",
-                        credentials => {"username", "pass"},
-                        port => 8087,
-                        ssl_opts => [{certfile, "path/to/cert.pem"},
-                                     {keyfile, "path/to/key.pem"},
-                                     {verify, verify_peer}],
-                        cacertfile => "path/to/cacert.pem"}}])},
+      lists:map(
+        fun pool_config/1,
+        [#{type => cassandra, scope => global, tag => default, opts => #{},
+           conn_opts => #{keyspace => big_mongooseim,
+                          servers => [#{host => "cassandra_server1.example.com", port => 9042},
+                                      #{host => "cassandra_server2.example.com", port => 9042}]}},
+         #{type => elastic, scope => global, tag => default, opts => #{}, conn_opts => #{}},
+         #{type => http, scope => global, tag => mongoose_push_http,
+           opts => #{workers => 50},
+           conn_opts => #{host => "https://localhost:8443",
+                          request_timeout => 2000}},
+         #{type => ldap, scope => host, tag => default,
+           opts => #{workers => 5},
+           conn_opts => #{password => <<"ldap-admin-password">>,
+                          root_dn => <<"cn=admin,dc=example,dc=com">>,
+                          servers => ["ldap-server.example.com"]}},
+         #{type => rabbit, scope => host, tag => event_pusher,
+           opts => #{workers => 20},
+           conn_opts => #{confirms_enabled => true,
+                          max_worker_queue_len => 100}},
+         #{type => rdbms,
+           opts => #{workers => 5},
+           conn_opts => #{keepalive_interval => 30,
+                          driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
+                          username => "ejabberd", password => "mongooseim_secret",
+                          tls => #{required => true,
+                                   cacertfile => "priv/ca.pem",
+                                   server_name_indication => #{enabled => false}}
+                         }
+          },
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}},
+         #{type => riak, scope => global, tag => default,
+           opts => #{strategy => next_worker, workers => 20},
+           conn_opts => #{address => "127.0.0.1",
+                          credentials => #{user => "username", password => "pass"},
+                          port => 8087,
+                          tls => #{cacertfile => "priv/ca.pem",
+                                   certfile => "priv/cert.pem",
+                                   keyfile => "priv/dc1.pem"}
+                         }
+          }
+        ])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -386,7 +390,8 @@ options("s2s_only") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, []},
+     {mongooseimctl_access_commands, #{}},
+     {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -453,12 +458,12 @@ all_modules() ->
                                     resolved_endpoints => [{{172, 16, 0, 2}, 5555}],
                                     connections_per_endpoint => 30,
                                     tls => config([modules, mod_global_distrib, connections, tls],
-                                                  #{cafile => "priv/ca.pem",
+                                                  #{cacertfile => "priv/ca.pem",
                                                     certfile => "priv/dc1.pem"})
                                    })
                       }),
       mod_pubsub =>
-          mod_config(mod_pubsub, #{access => pubsub_createnode,
+          mod_config(mod_pubsub, #{access_createnode => pubsub_createnode,
                                    backend => rdbms,
                                    ignore_pep_from_offline => false,
                                    last_item_cache => mnesia,
@@ -738,7 +743,7 @@ custom_s2s() ->
           #{<<"fed1">> => #{ip_address => "127.0.0.1"},
             <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
       certfile => "priv/server.pem",
-      ciphers => ejabberd_tls:default_ciphers(),
+      ciphers => mongoose_tls:default_ciphers(),
       default_policy => allow,
       dns => #{retries => 1, timeout => 30},
       host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
@@ -748,7 +753,7 @@ custom_s2s() ->
       use_starttls => optional}.
 
 default_s2s() ->
-    #{ciphers => ejabberd_tls:default_ciphers(),
+    #{ciphers => mongoose_tls:default_ciphers(),
       default_policy => allow,
       dns => #{retries => 2, timeout => 10},
       max_retry_delay => 300,
@@ -784,18 +789,8 @@ pgsql_access() ->
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
 
-merge_with_default_pool_config(PoolIn = #{type := Type}) ->
-    DefaultConfig = #{opts := DefaultOpts, conn_opts := DefaultConnOpts} = default_pool_config(Type),
-    WpoolOptsWithDefaults = maps:merge(DefaultOpts, maps:get(opts, PoolIn, #{})),
-    ConnOptsWithDefaults = maps:merge(DefaultConnOpts, maps:get(conn_opts, PoolIn, #{})),
-    maps:merge(DefaultConfig, PoolIn#{opts => WpoolOptsWithDefaults,
-                                      conn_opts => ConnOptsWithDefaults}).
-
-default_pool_config(Type) ->
-    #{scope => global,
-      tag => default,
-      opts => default_pool_wpool_opts(Type),
-      conn_opts => default_pool_conn_opts(Type)}.
+pool_config(PoolIn = #{type := Type}) ->
+    config([outgoing_pools, Type, maps:get(tag, PoolIn, default)], PoolIn).
 
 default_pool_wpool_opts(cassandra) ->
     #{workers => 20,
@@ -814,22 +809,25 @@ default_wpool_opts() ->
       call_timeout => 5000}.
 
 default_pool_conn_opts(cassandra) ->
-    #{servers => [{"localhost", 9042}],
+    #{servers => [#{host => "localhost", port => 9042}],
       keyspace => mongooseim};
 default_pool_conn_opts(elastic) ->
-    #{host => "localhost",
+    #{host => <<"localhost">>,
       port => 9200};
 default_pool_conn_opts(http) ->
-    #{path_prefix => "/",
+    #{path_prefix => <<"/">>,
       request_timeout => 2000};
 default_pool_conn_opts(ldap) ->
-    #{rootdn => <<"">>,
-      password => <<"">>,
-      encrypt => none,
+    #{root_dn => <<>>,
+      password => <<>>,
+      port => 389,
       servers => ["localhost"],
       connect_interval => 10000};
 default_pool_conn_opts(rabbit) ->
-    #{amqp_port => 5672,
+    #{host => "localhost",
+      port => 5672,
+      username => <<"guest">>,
+      password => <<"guest">>,
       confirms_enabled => false,
       max_worker_queue_len => 1000};
 default_pool_conn_opts(redis) ->
@@ -837,6 +835,8 @@ default_pool_conn_opts(redis) ->
       port => 6379,
       database => 0,
       password => ""};
+default_pool_conn_opts(rdbms) ->
+    #{max_start_interval => 30};
 default_pool_conn_opts(_Type) ->
     #{}.
 
@@ -983,7 +983,7 @@ default_mod_config(mod_privacy) ->
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->
-    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access => all,
+    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
       last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
       default_node_config => [], item_publisher => false, sync_broadcast => false};
@@ -1073,6 +1073,8 @@ extra_service_listener_config() ->
       hidden_components => false,
       conflict_behaviour => disconnect}.
 
+default_config([general, mongooseimctl_access_commands, _Key]) ->
+    #{commands => all, argument_restrictions => #{}};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),
@@ -1102,13 +1104,20 @@ default_config([listen, http, transport]) ->
       max_connections => 1024};
 default_config([listen, http, protocol]) ->
     #{compress => false};
+default_config([listen, http, tls]) ->
+    #{verify_mode => peer};
 default_config([listen, c2s]) ->
     (common_xmpp_listener_config())#{module => ejabberd_c2s,
                                      access => all,
                                      shaper => none};
-default_config([listen, s2s]) ->
+default_config([listen, c2s, tls]) ->
+    default_c2s_tls(fast_tls);
+default_config([listen, s2s] = P) ->
     (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
-                                     shaper => none};
+                                     shaper => none,
+                                     tls => default_config(P ++ [tls])};
+default_config([listen, s2s, tls]) ->
+    default_tls(fast_tls);
 default_config([listen, service]) ->
     Extra = maps:merge(common_xmpp_listener_config(), extra_service_listener_config()),
     Extra#{module => ejabberd_service};
@@ -1147,7 +1156,7 @@ default_config([modules, mod_global_distrib, connections]) ->
       endpoint_refresh_interval_when_empty => 3,
       disabled_gc_interval => 60};
 default_config([modules, mod_global_distrib, connections, tls]) ->
-    #{ciphers => "TLSv1.2:TLSv1.3"};
+    default_tls(fast_tls);
 default_config([modules, mod_global_distrib, redis]) ->
     #{pool => global_distrib,
       expire_after => 120,
@@ -1237,6 +1246,21 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
                           {<<"Organization Unit">>, <<"ORGUNIT">>}],
       search_operator => 'and',
       binary_search_fields => []};
+default_config([outgoing_pools, Type, Tag] = P) ->
+    #{type => Type,
+      tag => Tag,
+      scope => global,
+      opts => default_config(P ++ [opts]),
+      conn_opts => default_config(P ++ [conn_opts])};
+default_config([outgoing_pools, Type, _Tag, opts]) ->
+    default_pool_wpool_opts(Type);
+default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
+    default_pool_conn_opts(Type);
+default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
+    #{verify_mode => peer,
+      server_name_indication => default_config(P ++ [server_name_indication])};
+default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
+    #{enabled => true, protocol => default};
 default_config([services, service_admin_extra]) ->
     #{submods => [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats, gdpr, upload, domain]};
@@ -1246,7 +1270,21 @@ default_config([services, service_domain_db]) ->
       db_pool => global};
 default_config([services, service_mongoose_system_metrics]) ->
     #{initial_report => timer:minutes(5),
-      periodic_report => timer:hours(3)}.
+      periodic_report => timer:hours(3)};
+default_config(Path) when is_list(Path) ->
+    #{}.
+
+default_c2s_tls(Module) ->
+    (default_tls(Module))#{mode => starttls, module => Module}.
+
+default_tls(just_tls) ->
+    #{verify_mode => peer,
+      disconnect_on_failure => true,
+      crl_files => []};
+default_tls(fast_tls) ->
+    #{verify_mode => peer,
+      ciphers => "TLSv1.2:TLSv1.3",
+      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
@@ -1265,4 +1303,12 @@ mod_event_pusher_http_handler() ->
       callback_module => mod_event_pusher_http_defaults}.
 
 config(Path, Opts) ->
+    config(Path, Opts, deep).
+
+config(Path, Opts, deep) ->
+    Opts1 = maps:map(fun(Key, Value) when is_map(Value) -> config(Path ++ [Key], Value, deep);
+                        (_Key, Value) -> Value
+                     end, Opts),
+    config(Path, Opts1, shallow);
+config(Path, Opts, shallow) ->
     maps:merge(default_config(Path), Opts).

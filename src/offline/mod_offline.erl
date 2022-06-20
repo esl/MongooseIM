@@ -132,18 +132,14 @@ config_spec() ->
                      <<"store_groupchat_messages">> => false,
                      <<"backend">> => mnesia
                     },
-        format_items = map,
-        process = fun ?MODULE:remove_unused_backend_opts/1
-        }.
+        process = fun ?MODULE:remove_unused_backend_opts/1}.
 
 riak_config_spec() ->
     #section{
         items = #{<<"bucket_type">> => #option{type = binary,
                                                validate = non_empty}},
         defaults = #{<<"bucket_type">> => <<"offline">>},
-        format_items = map,
-        include = always
-        }.
+        include = always}.
 
 -spec remove_unused_backend_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
 remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;

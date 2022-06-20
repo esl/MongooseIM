@@ -107,8 +107,7 @@ config_spec() ->
                  <<"validity_period">> => validity_periods_spec(),
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()},
        defaults = #{<<"backend">> => rdbms,
-                    <<"iqdisc">> => no_queue},
-       format_items = map
+                    <<"iqdisc">> => no_queue}
       }.
 
 validity_periods_spec() ->
@@ -117,7 +116,6 @@ validity_periods_spec() ->
                  <<"refresh">> => validity_period_spec()},
        defaults = #{<<"access">> => #{value => 1, unit => hours},
                     <<"refresh">> => #{value => 25, unit => days}},
-       format_items = map,
        include = always
       }.
 
@@ -128,8 +126,7 @@ validity_period_spec() ->
                  <<"unit">> => #option{type = atom,
                                        validate = {enum, [days, hours, minutes, seconds]}}
                 },
-       required = all,
-       format_items = map
+       required = all
       }.
 
 -spec commands() -> [ejabberd_commands:cmd()].

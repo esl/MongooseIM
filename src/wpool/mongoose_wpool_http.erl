@@ -18,6 +18,7 @@
 
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
+-spec init() -> ok.
 init() ->
     case ets:info(?MODULE) of
         undefined ->
@@ -32,11 +33,12 @@ init() ->
             ok
     end.
 
+-spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),
+            mongoose_wpool:pool_opts(), mongoose_wpool:conn_opts()) -> {ok, pid()} | {error, any()}.
 start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(http, HostType, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
-    PathPrefix = list_to_binary(maps:get(path_prefix, ConnOpts)),
-    RequestTimeout = maps:get(request_timeout, ConnOpts),
+    #{path_prefix := PathPrefix, request_timeout := RequestTimeout} = ConnOpts,
     case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
         {ok, Pid} ->
             ets:insert(?MODULE, {{HostType, Tag}, PathPrefix, RequestTimeout}),
@@ -45,6 +47,7 @@ start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
             Other
     end.
 
+-spec stop(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> ok.
 stop(HostType, Tag) ->
     true = ets:delete(?MODULE, {HostType, Tag}),
     ok.
@@ -65,9 +68,12 @@ get_params(HostType, Tag) ->
 %% --------------------------------------------------------------
 %% Internal functions
 
-wpool_spec(WpoolOptsIn, ConnOpts) ->
-    TargetServer = maps:get(server, ConnOpts),
-    HttpOpts = maps:get(http_opts, ConnOpts, []),
-    Worker = {fusco, {TargetServer, [{connect_options, HttpOpts}]}},
+wpool_spec(WpoolOptsIn, #{host := Host} = ConnOpts) ->
+    HTTPOpts = http_opts(ConnOpts),
+    Worker = {fusco, {Host, [{connect_options, HTTPOpts}]}},
     [{worker, Worker} | WpoolOptsIn].
 
+http_opts(#{tls := TLSOpts}) ->
+    just_tls:make_ssl_opts(TLSOpts);
+http_opts(#{}) ->
+    [].

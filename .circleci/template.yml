@@ -1,8 +1,8 @@
 version: 2.1
 
 references:
-  - &OTP24 cimg/elixir:1.12.3  # Contains Erlang 24.0.5
-  - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
+  - &OTP24 chrzaszcz/cimg-erlang:24.3.4
+  - &OTP25 chrzaszcz/cimg-erlang:25.0.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -172,55 +172,55 @@ containers:
     entrypoint: *ENTRYPOINT
 
 executors:
-  otp_23:
-    docker:
-      - image: *OTP23
   otp_24:
     docker:
       - image: *OTP24
-  otp_23_redis:
+  otp_25:
     docker:
-      - image: *OTP23
-      - *redis_container
+      - image: *OTP25
   otp_24_redis:
     docker:
       - image: *OTP24
       - *redis_container
-  otp_24_redis_minio_rmq:
+  otp_25_redis:
     docker:
-      - image: *OTP24
+      - image: *OTP25
+      - *redis_container
+  otp_25_redis_minio_rmq:
+    docker:
+      - image: *OTP25
       - *redis_container
       - *minio_container
       - *rabbit_container
-  otp_24_mysql_redis:
+  otp_25_mysql_redis:
     docker:
-      - image: *OTP24
+      - image: *OTP25
       - *redis_container
       - *mysql_container
       - *rabbit_container
-  otp_23_pgsql_redis:
-    docker:
-      - image: *OTP23
-      - *redis_container
-      - *pgsql_container
   otp_24_pgsql_redis:
     docker:
       - image: *OTP24
       - *redis_container
       - *pgsql_container
-  otp_23_ldap_redis:
+  otp_25_pgsql_redis:
     docker:
-      - image: *OTP23
+      - image: *OTP25
       - *redis_container
-      - *ldap_container
+      - *pgsql_container
   otp_24_ldap_redis:
     docker:
       - image: *OTP24
       - *redis_container
       - *ldap_container
-  otp_24_mssql_redis:
+  otp_25_ldap_redis:
     docker:
-      - image: *OTP24
+      - image: *OTP25
+      - *redis_container
+      - *ldap_container
+  otp_25_mssql_redis:
+    docker:
+      - image: *OTP25
       - *redis_container
       - *mssql_container
   otp_24_riak_redis:
@@ -228,9 +228,9 @@ executors:
       - image: *OTP24
       - *redis_container
       - *riak_container
-  otp_24_elasticsearch_cassandra_mnesia:
+  otp_25_elasticsearch_cassandra:
     docker:
-      - image: *OTP24
+      - image: *OTP25
       - *redis_container
       - *elasticsearch_container
       - *cassandra_container
@@ -670,61 +670,61 @@ workflows:
       # ============= PACKAGES =============
       - package:
           name: centos_7
-          executor: otp_24
+          executor: otp_25
           platform: centos_7
           context: mongooseim-org
-          otp_package: 24.0-1
+          otp_package: "25.0.1-1"
           filters: *all_tags
       - package:
           name: debian_stretch
-          executor: otp_24
+          executor: otp_25
           platform: debian_stretch
           context: mongooseim-org
-          otp_package: 24.0-1
+          otp_package: "25.0.1-1"
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
+      - build_in_docker:
+          name: otp_25_docker
+          executor: otp_25
+          context: mongooseim-org
+          build_prod: true
       - build_in_docker:
           name: otp_24_docker
           executor: otp_24
           context: mongooseim-org
-          build_prod: true
-      - build_in_docker:
-          name: otp_23_docker
-          executor: otp_23
-          context: mongooseim-org
           build_prod: false
       # ============= DIALYZER =============
       - dialyzer:
-          name: dialyzer
+          name: dialyzer_24
           executor: otp_24
           context: mongooseim-org
           requires:
             - otp_24_docker
+          filters: *all_tags
+      - dialyzer:
+          name: dialyzer_25
+          executor: otp_25
+          context: mongooseim-org
+          requires:
+            - otp_25_docker
           filters: *all_tags
       # ============= XREF =============
       - xref:
           name: xref
-          executor: otp_24
+          executor: otp_25
           context: mongooseim-org
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       # ============= EDOC =============
       - edoc:
           name: edoc
-          executor: otp_24
+          executor: otp_25
           context: mongooseim-org
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       # ============= SMALL TESTS =============
-      - small_tests_in_docker:
-          name: small_tests_23
-          executor: otp_23_redis
-          context: mongooseim-org
-          requires:
-            - otp_23_docker
-          filters: *all_tags
       - small_tests_in_docker:
           name: small_tests_24
           executor: otp_24_redis
@@ -732,41 +732,40 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - small_tests_in_docker:
+          name: small_tests_25
+          executor: otp_25_redis
+          context: mongooseim-org
+          requires:
+            - otp_25_docker
+          filters: *all_tags
       # ============= BIG TESTS =============
       - big_tests_in_docker:
-          name: internal_mnesia_24
-          executor: otp_24_redis_minio_rmq
+          name: internal_mnesia_25
+          executor: otp_25_redis_minio_rmq
           context: mongooseim-org
           preset: internal_mnesia
           db: "mnesia minio"
           tls_dist: true
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: mysql_redis_24
-          executor: otp_24_mysql_redis
+          name: mysql_redis_25
+          executor: otp_25_mysql_redis
           context: mongooseim-org
           preset: mysql_redis
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: dynamic_domains_mysql_redis_24
+          name: dynamic_domains_mysql_redis_25
           spec: dynamic_domains.spec
-          executor: otp_24_mysql_redis
+          executor: otp_25_mysql_redis
           context: mongooseim-org
           preset: mysql_redis
           requires:
-            - otp_24_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: pgsql_mnesia_23
-          executor: otp_23_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - otp_23_docker
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
           name: pgsql_mnesia_24
@@ -775,6 +774,23 @@ workflows:
           preset: pgsql_mnesia
           requires:
             - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: pgsql_mnesia_25
+          executor: otp_25_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_25_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_pgsql_mnesia_25
+          spec: dynamic_domains.spec
+          executor: otp_25_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
           name: dynamic_domains_pgsql_mnesia_24
@@ -786,32 +802,23 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: dynamic_domains_pgsql_mnesia_23
-          spec: dynamic_domains.spec
-          executor: otp_23_pgsql_redis
-          context: mongooseim-org
-          preset: pgsql_mnesia
-          requires:
-            - otp_23_docker
-          filters: *all_tags
-      - big_tests_in_docker:
-          name: mssql_mnesia_24
-          executor: otp_24_mssql_redis
+          name: mssql_mnesia_25
+          executor: otp_25_mssql_redis
           context: mongooseim-org
           preset: odbc_mssql_mnesia
           db: "mssql redis"
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: dynamic_domains_mssql_mnesia_24
+          name: dynamic_domains_mssql_mnesia_25
           spec: dynamic_domains.spec
-          executor: otp_24_mssql_redis
+          executor: otp_25_mssql_redis
           context: mongooseim-org
           preset: odbc_mssql_mnesia
           db: "mssql redis"
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
           name: riak_mnesia_24
@@ -823,15 +830,6 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: ldap_mnesia_23
-          executor: otp_23_ldap_redis
-          context: mongooseim-org
-          preset: ldap_mnesia
-          db: "ldap redis"
-          requires:
-            - otp_23_docker
-          filters: *all_tags
-      - big_tests_in_docker:
           name: ldap_mnesia_24
           executor: otp_24_ldap_redis
           context: mongooseim-org
@@ -841,38 +839,48 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: elasticsearch_and_cassandra_24
-          executor: otp_24_elasticsearch_cassandra_mnesia
+          name: ldap_mnesia_25
+          executor: otp_25_ldap_redis
+          context: mongooseim-org
+          preset: ldap_mnesia
+          db: "ldap redis"
+          requires:
+            - otp_25_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: elasticsearch_and_cassandra_25
+          executor: otp_25_elasticsearch_cassandra
           context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
           requires:
-            - otp_24_docker
+            - otp_25_docker
           filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
           name: docker_build_and_ship
-          executor: otp_24
+          executor: otp_25
           context: mongooseim-org
           requires:
-            - small_tests_23
-            - ldap_mnesia_23
-            - pgsql_mnesia_23
-            - dynamic_domains_pgsql_mnesia_23
-
             - small_tests_24
-            - internal_mnesia_24
-            - pgsql_mnesia_24
-            - mysql_redis_24
-            - mssql_mnesia_24
             - ldap_mnesia_24
+            - pgsql_mnesia_24
             - riak_mnesia_24
-            - elasticsearch_and_cassandra_24
             - dynamic_domains_pgsql_mnesia_24
-            - dynamic_domains_mysql_redis_24
-            - dynamic_domains_mssql_mnesia_24
+            - dialyzer_24
 
-            - dialyzer
+            - small_tests_25
+            - internal_mnesia_25
+            - pgsql_mnesia_25
+            - mysql_redis_25
+            - mssql_mnesia_25
+            - ldap_mnesia_25
+            - elasticsearch_and_cassandra_25
+            - dynamic_domains_pgsql_mnesia_25
+            - dynamic_domains_mysql_redis_25
+            - dynamic_domains_mssql_mnesia_25
+            - dialyzer_25
+
             - xref
             - edoc
           filters: *all_tags

@@ -60,8 +60,7 @@ config_spec() ->
                                                         validate = {enum, ?SUBMODS}},
                                         validate = unique}
                 },
-       defaults = #{<<"submods">> => ?SUBMODS},
-       format_items = map
+       defaults = #{<<"submods">> => ?SUBMODS}
       }.
 
 mod_name(ModAtom) ->

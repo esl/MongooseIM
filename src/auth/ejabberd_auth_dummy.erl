@@ -47,8 +47,7 @@ config_spec() ->
                  <<"variance">> => #option{type = integer,
                                            validate = positive}},
        defaults = #{<<"base_time">> => 50,
-                    <<"variance">> => 450},
-       format_items = map
+                    <<"variance">> => 450}
       }.
 
 authorize(Creds) ->

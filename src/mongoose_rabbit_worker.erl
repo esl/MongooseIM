@@ -112,7 +112,7 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
 %%%===================================================================
 
 do_init(Opts) ->
-    Host = proplists:get_value(host, Opts),
+    Host = proplists:get_value(host_type, Opts),
     PoolTag = proplists:get_value(pool_tag, Opts),
     AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
     {Connection, Channel} =
@@ -202,7 +202,8 @@ maybe_restart_rabbit_connection(#{connection := Conn, host := Host,
                                   amqp_client_opts := AMQPOpts}) ->
     case is_process_alive(Conn) of
         true ->
-            {Conn, amqp_connection:open_channel(Conn)};
+            {ok, Channel} = amqp_connection:open_channel(Conn),
+            {Conn, Channel};
         false ->
             establish_rabbit_connection(AMQPOpts, Host, PoolTag)
     end.

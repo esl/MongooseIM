@@ -8,6 +8,7 @@
 -module(mod_inbox_rdbms).
 
 -include("mod_inbox.hrl").
+-include("mongoose_logger.hrl").
 
 -behaviour(mod_inbox_backend).
 
@@ -141,9 +142,14 @@ empty_user_bin(HostType, LServer, LUser, TS) ->
 -spec empty_global_bin(HostType :: mongooseim:host_type(),
                        TS :: integer()) -> non_neg_integer().
 empty_global_bin(HostType, TS) ->
-    {updated, BinN} = mongoose_rdbms:execute_successfully(
-                        HostType, inbox_clean_global_bin, [TS]),
-    mongoose_rdbms:result_to_integer(BinN).
+    case mongoose_rdbms:execute(HostType, inbox_clean_global_bin, [TS]) of
+        {updated, BinN} ->
+            mongoose_rdbms:result_to_integer(BinN);
+        {Error, Reason} ->
+            ?LOG_WARNING(#{what => inbox_clean_global_bin_failed,
+                           error => Error, reason => Reason}),
+            0
+    end.
 
 -spec remove_inbox_row(HostType :: mongooseim:host_type(),
                        InboxEntryKey :: mod_inbox:entry_key()) -> mod_inbox:write_res().

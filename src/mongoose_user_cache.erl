@@ -45,8 +45,7 @@ config_spec() ->
        defaults = #{<<"module">> => internal,
                     <<"strategy">> => fifo,
                     <<"time_to_live">> => 480,
-                    <<"number_of_segments">> => 3},
-       format_items = map
+                    <<"number_of_segments">> => 3}
       }.
 
 %% If an external module is provided, disallow any other configuration key

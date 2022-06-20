@@ -111,7 +111,18 @@ worker_creates_fresh_amqp_conection_and_channel_when_amqp_call_fails(Config) ->
 
     %% then
     ConnectionAndChannel2 = get_worker_conn_and_chann(Worker),
-    ?assertNotMatch(ConnectionAndChannel1, ConnectionAndChannel2).
+    ?assertNotMatch(ConnectionAndChannel1, ConnectionAndChannel2),
+
+    %% when connection alive but channel fails
+    meck:expect(amqp_connection, start, fun(_) -> {ok, random_long_running_pid()} end),
+    gen_server:call(Worker, {amqp_call, {Exception, [ok]}}),
+    gen_server:call(Worker, {amqp_call, {Exception, [ok]}}),
+
+    %% then
+    {Connection3, Channel3} = ConnectionAndChannel3 = get_worker_conn_and_chann(Worker),
+    ?assert(is_pid(Connection3)),
+    ?assert(is_pid(Channel3)),
+    ?assertNotMatch(ConnectionAndChannel2, ConnectionAndChannel3).
 
 
 worker_processes_msgs_when_queue_msg_len_limit_is_not_reached(Config) ->
@@ -181,6 +192,9 @@ unload_amqp() ->
 
 random_pid() ->
     spawn(fun() -> ok end).
+
+random_long_running_pid() ->
+    spawn(fun() -> timer:sleep(5000) end).
 
 get_worker_conn_and_chann(Worker) ->
     State = sys:get_state(Worker),

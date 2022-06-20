@@ -127,25 +127,27 @@ old_exec(_C) ->
 
 old_access_ctl(_C) ->
     %% with no auth method it is all fine
-    checkauth(true, [], noauth),
+    checkauth(true, #{}, noauth),
     %% noauth fails if first item is not 'all' (users)
-    checkauth(account_unprivileged, [{none, none, []}], noauth),
+    checkauth(account_unprivileged, #{none => command_rules(all)}, noauth),
     %% if here we allow all commands to noauth
-    checkauth(true, [{all, all, []}], noauth),
+    checkauth(true, #{all => command_rules(all)}, noauth),
     %% and here only command_one
-    checkauth(true, [{all, [command_one], []}], noauth),
+    checkauth(true, #{all => command_rules([command_one])}, noauth),
     %% so this'd fail
-    checkauth(account_unprivileged, [{all, [command_two], []}], noauth),
+    checkauth(account_unprivileged, #{all => command_rules([command_two])}, noauth),
     % now we provide a role name, this requires a user and triggers password and acl check
     % this fails because password is bad
-    checkauth(invalid_account_data, [{some_acl_role, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"bbb">>}),
+    checkauth(invalid_account_data, #{some_acl_role => command_rules([command_one])},
+              {<<"zenek">>, <<"localhost">>, <<"bbb">>}),
     % this, because of acl
-    checkauth(account_unprivileged, [{some_acl_role, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"">>}),
+    checkauth(account_unprivileged, #{some_acl_role => command_rules([command_one])},
+              {<<"zenek">>, <<"localhost">>, <<"">>}),
     % and this should work, because we define command_one as available to experts only, while acls in config
     % (see ggo/1) state that experts-only funcs are available to coders and managers, and zenek is a coder, gah.
-    checkauth(true, [{experts_only, [command_one], []}], {<<"zenek">>, <<"localhost">>, <<"">>}),
+    checkauth(true, #{experts_only => command_rules([command_one])},
+              {<<"zenek">>, <<"localhost">>, <<"">>}),
     ok.
-
 
 new_type_checker(_C) ->
     true = t_check_type({msg, binary}, <<"zzz">>),
@@ -602,6 +604,9 @@ mc_holder() ->
         _ -> ok
     end,
     erlang:exit(Pid, kill).
+
+command_rules(Commands) ->
+    #{commands => Commands, argument_restrictions => #{}}.
 
 checkauth(true, AccessCommands, Auth) ->
     B = <<"bzzzz">>,

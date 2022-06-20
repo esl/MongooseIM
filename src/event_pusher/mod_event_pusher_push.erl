@@ -103,16 +103,12 @@ config_spec() ->
         defaults = #{<<"iqdisc">> => one_queue,
                      <<"backend">> => mnesia,
                      <<"plugin_module">> => mod_event_pusher_push_plugin:default_plugin_module(),
-                     <<"virtual_pubsub_hosts">> => []},
-        format_items = map
+                     <<"virtual_pubsub_hosts">> => []}
     }.
 
 wpool_spec() ->
-    WpoolDefaults = mongoose_config_spec:wpool_defaults(),
-    #section{items = mongoose_config_spec:wpool_items(),
-             defaults = WpoolDefaults#{<<"strategy">> := available_worker},
-             format_items = map,
-             include = always}.
+    Wpool = mongoose_config_spec:wpool(#{<<"strategy">> => available_worker}),
+    Wpool#section{include = always}.
 
 %%--------------------------------------------------------------------
 %% mod_event_pusher callbacks

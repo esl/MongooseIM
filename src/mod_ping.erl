@@ -134,8 +134,7 @@ config_spec() ->
                     <<"timeout_action">> => none,
                     <<"ping_req_timeout">> => ?DEFAULT_PING_REQ_TIMEOUT,
                     <<"iqdisc">> => no_queue
-                   },
-       format_items = map
+                   }
       }.
 
 supported_features() -> [dynamic_domains].

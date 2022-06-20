@@ -199,7 +199,6 @@ assert_server_running(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       format_items = map,
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
                  <<"host">> => #option{type = string,
@@ -282,7 +281,6 @@ keys_as_atoms(Map) ->
 
 default_room_config_spec() ->
     #section{
-       format_items = map,
        items = #{<<"title">> => #option{type = binary},
                  <<"description">> => #option{type = binary},
                  <<"allow_change_subj">> => #option{type = boolean},
@@ -353,9 +351,7 @@ default_room_affiliations_spec() ->
        process = fun ?MODULE:process_room_affiliation/1
       }.
 
-process_room_affiliation(KVs) ->
-    {[[{user, User}], [{server, Server}], [{resource, Res}], [{affiliation, Aff}]], []} =
-        proplists:split(KVs, [user, server, resource, affiliation]),
+process_room_affiliation(#{user := User, server := Server, resource := Res, affiliation := Aff}) ->
     {{User, Server, Res}, Aff}.
 
 stop_gen_server(HostType) ->
@@ -1356,17 +1352,17 @@ count_hibernated_rooms(Pid, Count) ->
             Count
     end.
 
--define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}], [value]}).
 ensure_metrics(_Host) ->
+    Interval = mongoose_metrics:get_report_interval(),
     mongoose_metrics:ensure_metric(global, [mod_muc, deep_hibernations], spiral),
     mongoose_metrics:ensure_metric(global, [mod_muc, process_recreations], spiral),
     mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
-    mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms],
-                                   {function, mod_muc, hibernated_rooms_number, [],
-                                    eval, ?EX_EVAL_SINGLE_VALUE}),
-    mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms],
-                                   {function, mod_muc, online_rooms_number, [],
-                                    eval, ?EX_EVAL_SINGLE_VALUE}).
+    M1 = [{callback_module, mongoose_metrics_probe_muc_hibernated_rooms},
+          {sample_interval, Interval}],
+    M2 = [{callback_module, mongoose_metrics_probe_muc_online_rooms},
+          {sample_interval, Interval}],
+    mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms], {probe, M1}),
+    mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms], {probe, M2}).
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->

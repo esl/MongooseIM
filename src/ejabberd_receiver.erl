@@ -147,14 +147,14 @@ handle_call({starttls, TLSOpts}, From, #state{socket = TCPSocket} = State) ->
     %% ejabberd_socket finish starttls negotiation and notify
     %% client that it can start TLS handshake.
     gen_server:reply(From, ok),
-    case ejabberd_tls:tcp_to_tls(TCPSocket, TLSOpts) of
+    case mongoose_tls:tcp_to_tls(TCPSocket, TLSOpts) of
         {ok, TLSSocket} ->
             StateAfterReset = reset_parser(State),
             NewState = StateAfterReset#state{socket   = TLSSocket,
-                                             sock_mod = ejabberd_tls},
+                                             sock_mod = mongoose_tls},
             %% fast_tls requires dummy recv_data/2 call to accomplish TLS
             %% handshake. such call is simply ignored by just_tls backend.
-            case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
+            case mongoose_tls:recv_data(TLSSocket, <<>>) of
                 {ok, TLSData} ->
                     NewState2 = process_data(TLSData, NewState),
                     {noreply, NewState2, maybe_hibernate(NewState2)};
@@ -221,10 +221,10 @@ handle_info({Tag, _TCPSocket, Data},
              sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
-        ejabberd_tls ->
+        mongoose_tls ->
             mongoose_metrics:update(global,
                             [data, xmpp, received, encrypted_size], size(Data)),
-            case ejabberd_tls:recv_data(Socket, Data) of
+            case mongoose_tls:recv_data(Socket, Data) of
                 {ok, TLSData} ->
                     NewState = process_data(TLSData, State),
                     {noreply, NewState, maybe_hibernate(NewState)};

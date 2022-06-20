@@ -34,11 +34,12 @@
 {mod_vcard, "  host = \"vjud.@HOST@\"\n"}.
 {sm_backend, "\"mnesia\""}.
 {auth_method, "internal"}.
-{tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"
-  tls.mode = \"starttls\""}.
-{https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"
+{tls_config, "tls.verify_mode = \"none\"
+  tls.certfile = \"priv/ssl/fake_server.pem\""}.
+{https_config, "tls.verify_mode = \"none\"
+  tls.certfile = \"priv/ssl/fake_cert.pem\"
   tls.keyfile = \"priv/ssl/fake_key.pem\"
-  tls.password =  \"\""}.
+  tls.password = \"\""}.
 {http_api_old_endpoint, "ip_address = \"127.0.0.1\"
   port = 5288"}.
 {http_graphql_api_admin_endpoint, "ip_address = \"127.0.0.1\"

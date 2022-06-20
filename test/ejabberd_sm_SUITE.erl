@@ -2,20 +2,16 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--include("ejabberd_c2s.hrl").
--include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
 -include_lib("session.hrl").
 -compile([export_all, nowarn_export_all]).
 
-
--define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
 
 -define(B(C), (proplists:get_value(backend, C))).
 -define(MAX_USER_SESSIONS, 2).
 
+-import(config_parser_helper, [default_config/1]).
 
 all() -> [{group, mnesia}, {group, redis}].
 
@@ -76,8 +72,7 @@ init_redis_group(true, Config) ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
-                  PoolConf = #{type => redis, scope => global, tag => default},
-                  Pool = config_parser_helper:merge_with_default_pool_config(PoolConf),
+                  Pool = default_config([outgoing_pools, redis, default]),
                   mongoose_wpool:start_configured_pools([Pool], []),
                   Self ! ready,
                   receive stop -> ok end

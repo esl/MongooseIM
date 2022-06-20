@@ -121,8 +121,7 @@ config_spec() ->
                                                    validate = positive}
                  },
         defaults = #{<<"cache_size">> => 1000,
-                     <<"cache_life_time">> => timer:hours(24) div 1000},
-        format_items = map
+                     <<"cache_life_time">> => timer:hours(24) div 1000}
        }.
 
 supported_features() -> [dynamic_domains].

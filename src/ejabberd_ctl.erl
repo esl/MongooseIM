@@ -231,9 +231,8 @@ process(Args) ->
     Code.
 
 
--spec process2(Args :: [string()],
-               AccessCommands :: [ejabberd_commands:access_cmd()]
-               ) -> {String::string(), Code::integer()}.
+-spec process2(Args :: [string()],  AccessCommands :: ejabberd_commands:access_commands()) ->
+          {String::string(), Code::integer()}.
 process2(["--auth", User, Server, Pass | Args], AccessCommands) ->
     process2(Args, {list_to_binary(User), list_to_binary(Server), list_to_binary(Pass)},
              AccessCommands);
@@ -258,7 +257,7 @@ process2(Args, Auth, AccessCommands) ->
     end.
 
 
--spec get_accesscommands() -> [char() | tuple()].
+-spec get_accesscommands() -> ejabberd_commands:access_commands().
 get_accesscommands() ->
     mongoose_config:get_opt(mongooseimctl_access_commands).
 
@@ -269,7 +268,7 @@ get_accesscommands() ->
 
 -spec try_run_ctp(Args :: [string()],
                   Auth :: ejabberd_commands:auth(),
-                  AccessCommands :: [ejabberd_commands:access_cmd()]
+                  AccessCommands :: ejabberd_commands:access_commands()
                  ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_run_ctp(Args, Auth, AccessCommands) ->
     try mongoose_hooks:ejabberd_ctl_process(false, Args) of
@@ -294,7 +293,7 @@ try_run_ctp(Args, Auth, AccessCommands) ->
 
 -spec try_call_command(Args :: [string()],
                        Auth :: ejabberd_commands:auth(),
-                       AccessCommands :: [ejabberd_commands:access_cmd()]
+                       AccessCommands :: ejabberd_commands:access_commands()
                       ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
@@ -310,7 +309,7 @@ try_call_command(Args, Auth, AccessCommands) ->
 
 -spec call_command(Args :: [string()],
                    Auth :: ejabberd_commands:auth(),
-                   AccessCommands :: [ejabberd_commands:access_cmd()]
+                   AccessCommands :: ejabberd_commands:access_commands()
                    ) -> string() | integer() | {string(), integer()}
                      | {string(), wrong_command_arguments} | {error, command_unknown}.
 call_command([CmdString | Args], Auth, AccessCommands) ->

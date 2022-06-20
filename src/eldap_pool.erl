@@ -30,8 +30,7 @@
 %% API
 -export([bind/3, search/2, delete/2, add/3, modify_passwd/3]).
 -import(eldap_utils, [maybe_b2list/1]).
--include("mongoose.hrl").
--include("eldap.hrl").
+-include_lib("eldap/include/eldap.hrl").
 
 %%====================================================================
 %% API

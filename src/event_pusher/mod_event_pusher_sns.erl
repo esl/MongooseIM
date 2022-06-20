@@ -94,8 +94,7 @@ config_spec() ->
                     <<"pool_size">> => 100,
                     <<"publish_retry_count">> => 2,
                     <<"publish_retry_time_ms">> => 50
-                   },
-       format_items = map
+                   }
     }.
 
 push_event(Acc, #user_status_event{jid = UserJID, status = Status}) ->

@@ -97,10 +97,8 @@ hooks(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       format_items = map,
-       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
-       defaults = #{<<"iqdisc">> => no_queue}}.
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
+             defaults = #{<<"iqdisc">> => no_queue}}.
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->

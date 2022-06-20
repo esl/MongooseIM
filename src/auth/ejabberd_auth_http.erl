@@ -51,10 +51,7 @@ stop(_HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"basic_auth">> => #option{type = string}},
-       format_items = map
-      }.
+    #section{items = #{<<"basic_auth">> => #option{type = string}}}.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;

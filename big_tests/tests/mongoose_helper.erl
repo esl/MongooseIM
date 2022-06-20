@@ -478,13 +478,15 @@ supports_sasl_module(Module) ->
 
 auth_opts_with_password_format(Type) ->
     HostType = domain_helper:host_type(mim),
-    AuthOpts = #{password := PassOpts} = rpc(mim(), mongoose_config, get_opt, [{auth, HostType}]),
-    AuthOpts#{password := build_new_password_opts(Type, PassOpts)}.
+    AuthOpts = rpc(mim(), mongoose_config, get_opt, [{auth, HostType}]),
+    AuthOpts#{password := build_new_password_opts(Type)}.
 
-build_new_password_opts(scram, PassOpts) ->
-    PassOpts#{format => scram, scram_iterations => 64};
-build_new_password_opts(Type, PassOpts) ->
-    PassOpts#{format => Type}.
+build_new_password_opts({scram, Hashes}) ->
+    #{format => scram, hash => Hashes, scram_iterations => 64};
+build_new_password_opts(scram) ->
+    #{format => scram, scram_iterations => 64};
+build_new_password_opts(Type) ->
+    #{format => Type}.
 
 get_listeners(#{} = Spec, Pattern) ->
     Keys = maps:keys(Pattern),

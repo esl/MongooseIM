@@ -112,8 +112,7 @@ config_spec() ->
                      <<"token_bytes">> => 32,
                      <<"max_file_size">> => ?DEFAULT_MAX_FILE_SIZE
         },
-        required = [<<"s3">>],
-        format_items = map
+        required = [<<"s3">>]
     }.
 
 s3_spec() ->
@@ -126,8 +125,7 @@ s3_spec() ->
                   <<"secret_access_key">> => #option{type = binary}
         },
         defaults = #{<<"add_acl">> => false},
-        required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>],
-        format_items = map
+        required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>]
     }.
 
 -spec supported_features() -> [atom()].

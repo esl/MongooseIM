@@ -7,7 +7,6 @@
 -behaviour(mongoose_aggregator_worker).
 
 -include("jlib.hrl").
--include("mongoose_logger.hrl").
 
 -export([init/2, stop/1, update_chat_marker/2, get_chat_markers/4, get_conv_chat_marker/6]).
 -export([remove_domain/2, remove_user/2, remove_to/2, remove_to_for_user/3]).
@@ -93,7 +92,7 @@ aggregate(_, NewTask, _Extra) ->
     {ok, NewTask}.
 
 -spec request(mod_smart_markers:chat_marker(),
-              mongoose_async_pools:pool_extra()) -> reference().
+              mongoose_async_pools:pool_extra()) -> gen_server:request_id().
 request(#{from := #jid{luser = LU, lserver = LS}, to := To, thread := Thread,
           type := Type, timestamp := TS, id := Id}, #{host_type := HostType}) ->
     ToEncoded = mod_smart_markers_rdbms:encode_jid(To),
@@ -107,9 +106,4 @@ request(#{from := #jid{luser = LU, lserver = LS}, to := To, thread := Thread,
 
 -spec verify(term(), mod_smart_markers:chat_marker(), mongoose_async_pools:pool_extra()) -> ok.
 verify(Answer, Marker, _Extra) ->
-    case mod_smart_markers_rdbms:check_upsert_result(Answer) of
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => smart_marker_insert_failed, reason => Reason,
-                           marker => Marker});
-        _ -> ok
-    end.
+    mod_smart_markers_rdbms:verify(Answer, Marker).

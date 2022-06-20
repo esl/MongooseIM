@@ -1,6 +1,5 @@
 The `listen` section specifies how MongooseIM handles incoming connections.
 
-* **Scope:** local
 * **Syntax:** Each listener is specified in a subsection starting with `[[listen.type]]` where `type` is one of the allowed listener types, handling different types of incoming connections:
 
     * `c2s` - client-to-server XMPP connections,
@@ -143,26 +142,20 @@ Same syntax as for `auth.methods` option.
 
 ## TLS options for C2S
 
-The following options allow enabling and configuring TLS which makes the client-to-server connections secure.
-They all have the `tls.` prefix.
+By default the C2S listener does not use TLS.
+To use TLS, you need to add a TOML subsection called `tls` to the listener options.
+You can set the following options in this section:
 
 ### `listen.c2s.tls.mode`
 * **Syntax:** string, one of `"tls"`, `"starttls"`, `"starttls_required"`
-* **Default:** not set
+* **Default:** `"starttls"`
 * **Example:** `tls.mode = "starttls"`
 
-By default there is no encryption for the incoming connections. You can change this by setting the `tls.mode` option to one of the following modes:
+This option determines how clients are supposed to set up the TLS encryption:
 
 * `tls` - clients must initiate a TLS session immediately after connecting, before beginning the normal XML stream,
 * `starttls` - enables StartTLS support; requires `certfile`,
 * `starttls_required` - enables and enforces StartTLS usage.
-
-### `listen.c2s.tls.verify_peer`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `verify_peer = true`
-
-Enforces verification of a client certificate. Requires a valid `cacertfile`.
 
 ### `listen.c2s.tls.module`
 * **Syntax:** string, one of `"just_tls"`, `"fast_tls"`
@@ -171,7 +164,16 @@ Enforces verification of a client certificate. Requires a valid `cacertfile`.
 
 By default the TLS library used for C2S connections is `fast_tls`, which uses OpenSSL-based NIFs. It is possible to change it to `just_tls` - Erlang TLS implementation provided by OTP. Some TLS-related options described here have different formats for these two libraries.
 
-Requires setting `tls.verify_mode`.  When set to `false`, it allows the client to connect even though the certificate verification failed. It is then up to the authentication layer to accept or reject the client connection. This behaviour mimics the FastTLS one.
+### `listen.c2s.tls.verify_mode`
+* **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
+* **Default:** `"peer"`
+* **Example:** `tls.verify_mode = "none"`
+
+Specifies the way client certificate verification works:
+
+* `peer` - makes sure the client certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`.
+* `none` - client certificate is not checked.
 
 ### `listen.c2s.tls.certfile`
 * **Syntax:** string, path in the file system
@@ -180,12 +182,15 @@ Requires setting `tls.verify_mode`.  When set to `false`, it allows the client t
 
 Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 
+!!! Note
+    For `just_tls` this file should only contain the certificate and the path to the private key can be provided separately as `keyfile`.
+
 ### `listen.c2s.tls.cacertfile`
 * **Syntax:** string, path in the file system
 * **Default:** not set
 * **Example:** `tls.cacertfile = "ca.pem"`
 
-Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
+Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_mode` is `"none"`.
 
 ### `listen.c2s.tls.dhfile`
 * **Syntax:** string, path in the file system
@@ -208,16 +213,19 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 
 A list of OpenSSL options for FastTLS. You can find the mappings between supported options and actual OpenSSL flags in the `fast_tls` [source code](https://github.com/processone/fast_tls/blob/master/c_src/options.h).
 
-### `listen.c2s.tls.verify_mode` - only for `just_tls`
-* **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
-* **Default:** not set (equivalent to `"peer"` in the current version of Erlang/OTP)
-* **Example:** `tls.verify_mode = "selfsigned_peer"`
+### `listen.c2s.tls.keyfile` - only for `just_tls`
+* **Syntax:** string, path in the file system
+* **Default:** not set
+* **Example:** `tls.keyfile = "key.pem"`
 
-Specifies the way certificate verification works:
+Path to the X509 PEM file with the private key.
 
-* `peer` - makes sure the peer's certificate is valid and signed by a trusted CA,
-* `selfsigned_peer` - makes sure the peer's certificate is valid, but allows self-signed certificates,
-* `none` - any certificate is accepted.
+### `listen.c2s.tls.password` - only for `just_tls`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `tls.password = "secret"`
+
+Password to the X509 PEM file with the private key.
 
 ### `listen.c2s.tls.disconnect_on_failure` - only for `just_tls`
 * **Syntax:** boolean
@@ -249,7 +257,6 @@ The following section configures two C2S listeners.
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
-  tls.mode = "starttls"
   tls.certfile = "server.pem"
   tls.dhfile = "dh_server.pem"
 
@@ -284,28 +291,7 @@ Name of the rule that determines what traffic shaper is used to limit the incomi
 ### TLS options for S2S
 
 S2S connections do not use TLS encryption unless enabled with the `use_starttls` option in the `s2s` section.
-Here you can specify some additional options of the TLS encryption.
-
-#### `listen.s2s.tls.cacertfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.cacertfile = "ca.pem"`
-
-Path to the X509 PEM file with a CA chain that will be used to verify the connecting XMPP servers (acting as clients here). It won't have any effect if `verify_peer` is not enabled.
-
-#### `listen.s2s.tls.dhfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.dhfile = "dh.pem"`
-
-Path to the Diffie-Hellman parameter file.
-
-#### `listen.s2s.tls.ciphers`
-* **Syntax:** string with the OpenSSL cipher suite specification
-* **Default:** `"TLSv1.2:TLSv1.3"`
-* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
-
-Cipher suites to use with StartTLS. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
+You can specify additional options of the TLS encryption in the `tls` subsection of the listener configuration. Accepted options are: `verify_mode`, `certfile`, `cacertfile`, `dhfile`, `ciphers` and `protocol_options`. They have the same semantics as the corresponding [c2s options](#tls-options-for-c2s) for `fast_tls`.
 
 ### S2S Example
 
@@ -607,72 +593,7 @@ If the keyfile is password-protected, `password` is required as well.
 If the certificate is signed by an intermediate CA, one will probably want to specify the CA chain with the `cacertfile` option.
 The library used for HTTP is the Erlang TLS implementation provided by OTP - see [ranch_ssl](https://github.com/ninenines/ranch/blob/master/doc/src/manual/ranch_ssl.asciidoc) for details.
 
-#### `listen.http.tls.verify_peer`
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `tls.verify_peer = true`
-
-Enforces verification of a client certificate. Requires a valid `cacertfile`.
-
-#### `listen.http.tls.verify_mode`
-* **Syntax:** string, one of `"peer"`, `"selfsigned_peer"`, `"none"`
-* **Default:** not set (equivalent to `"peer"` in the current version of Erlang/OTP)
-* **Example:** `tls.verify_mode = "selfsigned_peer"`
-
-Specifies the way certificate verification works:
-
-* `peer` - makes sure the peer's certificate is valid and signed by a trusted CA,
-* `selfsigned_peer` - makes sure the peer's certificate is valid, but allows self-signed certificates,
-* `none` - any certificate is accepted.
-
-#### `listen.http.tls.certfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.certfile = "server.pem"`
-
-Path to the X509 PEM file with a certificate and a private key (not protected by a password). If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
-
-#### `listen.http.tls.cacertfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.cacertfile = "ca.pem"`
-
-Path to the X509 PEM file with a CA chain that will be used to verify clients. It won't have any effect if `verify_peer` is not enabled.
-
-#### `listen.http.tls.dhfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.dhfile = "dh.pem"`
-
-Path to the Diffie-Hellman parameter file.
-
-#### `listen.http.tls.ciphers`
-* **Syntax:** string with the OpenSSL cipher suite specification
-* **Default:** not set, all supported cipher suites are accepted
-* **Example:** `tls.ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
-
-Cipher suites to use. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format. For allowed values, see the [Erlang/OTP OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html).
-
-#### `listen.http.tls.versions`
-* **Syntax:** array of strings
-* **Default:** not set, all supported versions are accepted
-* **Example:** `tls.versions = ["tlsv1.2", "tlsv1.3"]`
-
-TLS versions to use. For allowed values, see the [Erlang/OTP SSL documentation](https://erlang.org/doc/man/ssl.html#type-protocol_version)
-
-#### `listen.http.tls.keyfile`
-* **Syntax:** string, path in the file system
-* **Default:** not set
-* **Example:** `tls.keyfile = "key.pem"`
-
-Path to the X509 PEM file with the private key.
-
-#### `listen.http.tls.password`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `tls.password = "secret"`
-
-Password to the X509 PEM file with the private key.
+The options accepted here are: `verify_mode`, `certfile`, `cacertfile`, `ciphers`, `keyfile`, `password`, `versions`, `dhfile`. They have the same semantics as the corresponding [c2s options](#tls-options-for-c2s) for `just_tls`.
 
 ### Protocol options
 

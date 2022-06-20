@@ -113,7 +113,6 @@ config_spec() ->
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"backend">> => mnesia
                    },
-       format_items = map,
        process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
@@ -125,8 +124,7 @@ riak_config_spec() ->
                                                     validate = non_empty}
                       },
              defaults = #{<<"bucket_type">> => <<"last">>},
-             include = always,
-             format_items = map
+             include = always
             }.
 
 supported_features() -> [dynamic_domains].

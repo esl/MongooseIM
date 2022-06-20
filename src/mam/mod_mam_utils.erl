@@ -673,24 +673,13 @@ form_field_mess_id(QueryEl, Name) ->
     BExtMessID = form_field_value_s(QueryEl, Name),
     maybe_external_binary_to_mess_id(BExtMessID).
 
--spec decode_optimizations(exml:element()) -> 'false' | 'opt_count' | 'true'.
+-spec decode_optimizations(exml:element()) -> boolean().
 decode_optimizations(QueryEl) ->
-    case {exml_query:subelement(QueryEl, <<"simple">>),
-          exml_query:subelement(QueryEl, <<"opt_count">>)} of
-        {undefined, undefined} -> false;
-        {undefined, _}     -> opt_count;
-        _              -> true
-    end.
+    exml_query:path(QueryEl, [{element, <<"simple">>}, cdata]) =:= <<"true">>.
 
--spec form_decode_optimizations(exml:element()) -> false | opt_count | true.
+-spec form_decode_optimizations(exml:element()) -> boolean().
 form_decode_optimizations(QueryEl) ->
-    case {form_field_value(QueryEl, <<"simple">>),
-          form_field_value(QueryEl, <<"opt_count">>)} of
-        {_, <<"true">>}     -> opt_count;
-        {<<"true">>, _}     -> true;
-        {_, _}              -> false
-    end.
-
+    form_field_value(QueryEl, <<"simple">>) =:= <<"true">>.
 
 is_mam_result_message(Packet = #xmlel{name = <<"message">>}) ->
     Ns = maybe_get_result_namespace(Packet),

@@ -1,17 +1,13 @@
 -module(push_http_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("exml/include/exml.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(ETS_TABLE, push_http).
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 -import(domain_helper, [domain/0]).
--import(config_parser_helper, [mod_event_pusher_http_handler/0]).
+-import(config_parser_helper, [config/2, mod_event_pusher_http_handler/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -173,14 +169,13 @@ check_default_format(From, To, Body, Msg) ->
 
 start_pool() ->
     PoolOpts = #{strategy => random_worker, call_timeout => 5000, workers => 10},
-    HTTPOpts = #{path_prefix => "/", http_opts => [], server => http_notifications_host(),
-                 request_timeout => 5000},
-    Pool = #{type => http, scope => host, tag => http_pool, opts => PoolOpts, conn_opts => HTTPOpts},
-    ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                 [[Pool], [<<"localhost">>]]).
+    ConnOpts = #{host => http_notifications_host(), request_timeout => 5000},
+    Pool = config([outgoing_pools, http, http_pool],
+                  #{scope => host, opts => PoolOpts, conn_opts => ConnOpts}),
+    [{ok, _Pid}] = rpc(mongoose_wpool, start_configured_pools, [[Pool], [<<"localhost">>]]).
 
 stop_pool() ->
-    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]).
+    rpc(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]).
 
 setup_modules() ->
     {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),

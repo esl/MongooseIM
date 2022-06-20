@@ -25,8 +25,8 @@ config_spec() ->
                                    process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                        <<"namespace">> =>
                            #option{type = binary,
-                                   validate = non_empty}},
-             format_items = map}.
+                                   validate = non_empty}}
+            }.
 
 supported_features() -> [dynamic_domains].
 

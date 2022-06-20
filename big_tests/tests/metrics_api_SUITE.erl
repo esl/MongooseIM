@@ -208,9 +208,12 @@ one_presence_error(Config) ->
         {xmppErrorPresence, 1}]).
 
 session_counters(Config) ->
+    Names = [totalSessionCount, uniqueSessionCount, nodeSessionCount],
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
+               %% Force update
+               lists:foreach(fun metrics_helper:sample/1, Names),
                ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
                ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
                ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))

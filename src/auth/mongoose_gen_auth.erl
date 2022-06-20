@@ -135,8 +135,7 @@ stop(Mod, HostType) ->
 config_spec(Mod) ->
     case is_exported(Mod, config_spec, 0) of
         true -> Mod:config_spec();
-        false -> #section{items = #{},
-                          format_items = map}
+        false -> #section{}
     end.
 
 -spec supports_sasl_module(ejabberd_auth:authmodule(), mongooseim:host_type(),

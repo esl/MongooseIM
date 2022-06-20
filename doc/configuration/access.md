@@ -1,6 +1,5 @@
 The `access` section is used to define **access rules** which return specific values for specific access classes.
 
-* **Scope:** global
 * **Syntax:** each access rule is a key-value pair, where:
     * Key is the name of the rule,
     * Value is a TOML array of rule clauses - TOML tables, whose format is described below.

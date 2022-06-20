@@ -109,15 +109,14 @@ auth_failed(Config) ->
 
 session_global(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
-
+        metrics_helper:sample(totalSessionCount),
         wait_for_counter(global, 1, totalSessionCount)
-
         end).
 
 session_unique(Config) ->
     escalus:story(Config, [{alice, 2}], fun(_Alice1, _Alice2) ->
-
+        metrics_helper:sample(uniqueSessionCount),
+        metrics_helper:sample(totalSessionCount),
         wait_for_counter(global, 1, uniqueSessionCount),
         wait_for_counter(global, 2, totalSessionCount)
-
         end).

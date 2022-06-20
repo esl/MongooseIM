@@ -155,14 +155,11 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "tls.module = \"" ++ TLSModule ++ "\"\n"
                                     "  tls.certfile = \"priv/ssl/fake_server.pem\"\n"
-                                    "  tls.mode = \"starttls\"\n"
-                                    "  tls.verify_peer = true\n"
                                     "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                     ++ SSLOpts},
 		       {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"\n"
                                       "  tls.keyfile = \"priv/ssl/fake_key.pem\"\n"
                                       "  tls.password = \"\"\n"
-                                      "  tls.verify_peer = true\n"
                                       "  tls.cacertfile = \"" ++ CACertFile ++ "\""
                                       ++ VerifyMode},
                        {cyrsasl_external, CyrsaslExternalConfig},
@@ -424,7 +421,6 @@ generate_user_tcp(C, User) ->
 generate_user(C, User, Transport) ->
     Certs = ?config(certs, C),
     UserCert = maps:get(User, Certs),
-
     Common = [{username, list_to_binary(User)},
               {server, domain()},
               {host, <<"localhost">>},
@@ -432,7 +428,8 @@ generate_user(C, User, Transport) ->
               {resource, <<>>}, %% Allow the server to generate the resource
               {auth, {escalus_auth, auth_sasl_external}},
               {transport, Transport},
-              {ssl_opts, [{certfile, maps:get(cert, UserCert)},
+              {ssl_opts, [{versions, ['tlsv1.2']},
+                          {certfile, maps:get(cert, UserCert)},
                           {keyfile, maps:get(key, UserCert)}]}],
     Common ++ transport_specific_options(Transport)
     ++ [{port, ct:get_config({hosts, mim, c2s_port})}].
