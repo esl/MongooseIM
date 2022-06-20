@@ -14,7 +14,7 @@ Configure MAM with different storage backends:
 * Cassandra (NoSQL)
 * ElasticSearch (NoSQL)
 
-`mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
+`mod_mam` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 ### Message retraction
 This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone.
@@ -64,28 +64,28 @@ Also note that the default separator for the search query is `AND` (which roughl
 
 ## Options
 
-### `modules.mod_mam_meta.backend`
+### `modules.mod_mam.backend`
 * **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
 * **Default:** `"rdbms"`
 * **Example:** `backend = "riak"`
 
 Database backend to use.
 
-### `modules.mod_mam_meta.no_stanzaid_element`
+### `modules.mod_mam.no_stanzaid_element`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `no_stanzaid_element = true`
 
 Do not add a `<stanza-id/>` element from MAM v0.6.
 
-### `modules.mod_mam_meta.is_archivable_message`
+### `modules.mod_mam.is_archivable_message`
 * **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
 * **Example:** `is_archivable_message = "mod_mam_utils"`
 
 Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
 
-### `modules.mod_mam_meta.send_message`
+### `modules.mod_mam.send_message`
 * **Syntax:** non-empty string
 * **Default:** `"mod_mam_utils"`
 * **Example:** `send_message = "mod_mam_utils"`
@@ -96,7 +96,7 @@ Consult with `mod_mam_utils:send_message/4` code for more information.
 Check `big_tests/tests/mam_send_message_SUITE_data/mam_send_message_example.erl` file
 in the MongooseIM repository for the usage example.
 
-### `modules.mod_mam_meta.archive_chat_markers`
+### `modules.mod_mam.archive_chat_markers`
 * **Syntax:** boolean
 * **Default:** `false`
 * **Example:** `archive_chat_markers = true`
@@ -104,7 +104,7 @@ in the MongooseIM repository for the usage example.
 If set to true, XEP-0333 chat markers will be archived.
 See more details [here](#archiving-chat-markers).
 
-### `modules.mod_mam_meta.message_retraction`
+### `modules.mod_mam.message_retraction`
 * **Syntax:** boolean
 * **Default:** `true`
 * **Example:** `message_retraction = false`
@@ -119,17 +119,17 @@ This functionality is currently implemented only for the `rdbms` backend.
 
 Archive for one-to-one messages can be enabled in one of two ways:
 
-* Specify `[mod_mam_meta.pm]` section
+* Specify `[mod_mam.pm]` section
 
 ```toml
-[modules.mod_mam_meta]
-[modules.mod_mam_meta.pm] # defining this section enables PM support
+[modules.mod_mam]
+[modules.mod_mam.pm] # defining this section enables PM support
 ```
 
 * Define any PM related option
 
 ```toml
-[modules.mod_mam_meta]
+[modules.mod_mam]
   pm.backend = "rdbms" # enables PM support and overrides its backend
 ```
 
@@ -139,17 +139,17 @@ To disable archive for one-to-one messages please remove PM section or any PM re
 
 ### PM-specific options
 
-#### `modules.mod_mam_meta.pm.archive_groupchats`
+#### `modules.mod_mam.pm.archive_groupchats`
 * **Syntax:** boolean
 * **Default:** `false`
-* **Example:** `modules.mod_mam_meta.pm.archive_groupchats = true`
+* **Example:** `modules.mod_mam.pm.archive_groupchats = true`
 
 When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 
-#### `modules.mod_mam_meta.pm.same_mam_id_for_peers`
+#### `modules.mod_mam.pm.same_mam_id_for_peers`
 * **Syntax:** boolean
 * **Default:** `false`
-* **Example:** `modules.mod_mam_meta.pm.same_mam_id_for_peers = true`
+* **Example:** `modules.mod_mam.pm.same_mam_id_for_peers = true`
 
 When enabled, MAM will set the same MAM ID for both sender and recipient. This can be useful in combination with [retraction on the stanza-id](#retraction-on-the-stanza-id). Note that this might not work with clients across federation, as the recipient might not implement the same retraction, nor the same IDs.
 
@@ -157,17 +157,17 @@ When enabled, MAM will set the same MAM ID for both sender and recipient. This c
 
 Archive for MUC messages can be enabled in one of two ways:
 
-* Specify `[mod_mam_meta.muc]` section
+* Specify `[mod_mam.muc]` section
 
 ```toml
-[modules.mod_mam_meta]
-[modules.mod_mam_meta.muc] # defining this section enables MUC support
+[modules.mod_mam]
+[modules.mod_mam.muc] # defining this section enables MUC support
 ```
 
 * Define any MUC related option
 
 ```toml
-[modules.mod_mam_meta]
+[modules.mod_mam]
   muc.backend = "rdbms" # enables MUC support and overrides its backend
 ```
 
@@ -177,10 +177,10 @@ To disable archive for MUC messages please remove MUC section or any MUC related
 
 ### MUC-specific options
 
-#### `modules.mod_mam_meta.muc.host`
+#### `modules.mod_mam.muc.host`
 * **Syntax:** string
 * **Default:** `"conference.@HOST@"`
-* **Example:** `modules.mod_mam_meta.muc.host = "conference.@HOST@"`
+* **Example:** `modules.mod_mam.muc.host = "conference.@HOST@"`
 
 The MUC host that will be archived if MUC archiving is enabled.
 
@@ -193,7 +193,7 @@ The example below presents how to override common option for `muc` module specif
 Please note that you can override all common options (except `cache`) in a similar way.
 
 ```toml
-[modules.mod_mam_meta]
+[modules.mod_mam]
   backend = "rdbms"
   async_writer.enabled = true # this option enables async writer for RDBMS backend
   muc.async_writer.enabled = false # disable async writer for MUC archive only
@@ -203,64 +203,64 @@ Please note that you can override all common options (except `cache`) in a simil
 
 These options will only have effect when the `rdbms` backend is used:
 
-#### `modules.mod_mam_meta.cache_users`
+#### `modules.mod_mam.cache_users`
 * **Syntax:** boolean
 * **Default:** `true`
-* **Example:** `modules.mod_mam_meta.cache_users = false`
+* **Example:** `modules.mod_mam.cache_users = false`
 
 Enables Archive ID to integer mappings cache.
 
 If caching is enabled, by default it will spawn its own [segmented cache](https://github.com/esl/segmented_cache) cache, with defaults as in [`mod_cache_users`](./mod_cache_users.md). To change these defaults, the same config can be accessed within the `cache` key. To see details about the meaning of each flag, see [`mod_cache_users`](./mod_cache_users.md). To reuse the cache already created by `mod_cache_users`, see the option below.
 
 ```toml
-modules.mod_mam_meta.cache.strategy
-modules.mod_mam_meta.cache.time_to_live
-modules.mod_mam_meta.cache.number_of_segments
+modules.mod_mam.cache.strategy
+modules.mod_mam.cache.time_to_live
+modules.mod_mam.cache.number_of_segments
 ```
 
-#### `modules.mod_mam_meta.cache.module`
+#### `modules.mod_mam.cache.module`
 * **Syntax:** string, one of `"mod_cache_users"` or `"internal"`
 * **Default:** `internal`
-* **Example:** `modules.mod_mam_meta.cache.module = "mod_cache_users"`
+* **Example:** `modules.mod_mam.cache.module = "mod_cache_users"`
 
 Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled. Note that if reuse is desired – that is, `cache.module = "mod_cache_users"`, other cache configuration parameters will be ignored.
 
-#### `modules.mod_mam_meta.async_writer.enabled`
+#### `modules.mod_mam.async_writer.enabled`
 * **Syntax:** boolean
 * **Default:** `true`
-* **Example:** `modules.mod_mam_meta.async_writer.enabled = false`
+* **Example:** `modules.mod_mam.async_writer.enabled = false`
 
 Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
 The async writers store batches of messages that will be flush on a timeout (see **flush_interval**) or when the batch reaches a size (see **batch_size**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes or the queue is full.
 
-#### `modules.mod_mam_meta.async_writer.flush_interval`
+#### `modules.mod_mam.async_writer.flush_interval`
 * **Syntax:** non-negative integer
 * **Default:** `2000`
-* **Example:** `modules.mod_mam_meta.async_writer.flush_interval = 2000`
+* **Example:** `modules.mod_mam.async_writer.flush_interval = 2000`
 
 How often (in milliseconds) the buffered messages are flushed to DB.
 
-#### `modules.mod_mam_meta.async_writer.batch_size`
+#### `modules.mod_mam.async_writer.batch_size`
 * **Syntax:** non-negative integer
 * **Default:** `30`
-* **Example:** `modules.mod_mam_meta.async_writer.batch_size = 30`
+* **Example:** `modules.mod_mam.async_writer.batch_size = 30`
 
 Max size of the batch for an async writer before the queue is considered full and flushed.
 If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
-#### `modules.mod_mam_meta.async_writer.pool_size`
+#### `modules.mod_mam.async_writer.pool_size`
 * **Syntax:** non-negative integer
 * **Default:** `4 * erlang:system_info(schedulers_online)`
-* **Example:** `modules.mod_mam_meta.async_writer.pool_size = 32`
+* **Example:** `modules.mod_mam.async_writer.pool_size = 32`
 
 Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
 
 ### Common backend options
 
-#### `modules.mod_mam_meta.user_prefs_store`
+#### `modules.mod_mam.user_prefs_store`
 * **Syntax:** one of `"rdbms"`, `"cassandra"`, `"mnesia"`
 * **Default:** not set
-* **Example:** `modules.mod_mam_meta.user_prefs_store = "rdbms"`
+* **Example:** `modules.mod_mam.user_prefs_store = "rdbms"`
 
 Leaving this option unset will prevent users from setting their archiving preferences.
 It will also increase performance.
@@ -270,10 +270,10 @@ The possible values are:
 * `"cassandra"` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
 * `"mnesia"` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
 
-#### `modules.mod_mam_meta.full_text_search`
+#### `modules.mod_mam.full_text_search`
 * **Syntax:** boolean
 * **Default:** `true`
-* **Example:** `modules.mod_mam_meta.full_text_search = false`
+* **Example:** `modules.mod_mam.full_text_search = false`
 
 Enables full text search in message archive (see *Full Text Search* paragraph).
 Please note that the full text search is currently only implemented for `"rdbms"` and `"riak"` backends.
@@ -309,17 +309,17 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 #### Riak-specific options
 
-#### `modules.mod_mam_meta.riak.bucket_type`
+#### `modules.mod_mam.riak.bucket_type`
 * **Syntax:** non-empty string
 * **Default:** `"mam_yz"`
-* **Example:** `modules.mod_mam_meta.riak.bucket_type = "mam_yz"`
+* **Example:** `modules.mod_mam.riak.bucket_type = "mam_yz"`
 
 Riak bucket type.
 
-#### `modules.mod_mam_meta.riak.search_index`
+#### `modules.mod_mam.riak.search_index`
 * **Syntax:** non-empty string
 * **Default:** `"mam"`
-* **Example:** `modules.mod_mam_meta.riak.search_index = "mam"`
+* **Example:** `modules.mod_mam.riak.search_index = "mam"`
 
 Riak index name.
 
@@ -338,63 +338,63 @@ Please consult [Outgoing connections](../configuration/outgoing-connections.md#e
 
 These options allow for fine-grained control over MAM behaviour.
 
-#### `modules.mod_mam_meta.default_result_limit`
+#### `modules.mod_mam.default_result_limit`
 * **Syntax:** non-negative integer
 * **Default:** `50`
-* **Example:** `modules.mod_mam_meta.default_result_limit = 100`
+* **Example:** `modules.mod_mam.default_result_limit = 100`
 
 This sets the default page size of returned results.
 
-#### `modules.mod_mam_meta.max_result_limit`
+#### `modules.mod_mam.max_result_limit`
 * **Syntax:** non-negative integer
 * **Default:** `50`
-* **Example:** `modules.mod_mam_meta.max_result_limit = 100`
+* **Example:** `modules.mod_mam.max_result_limit = 100`
 
 This sets the maximum page size of returned results.
 
-#### `modules.mod_mam_meta.db_jid_format`
+#### `modules.mod_mam.db_jid_format`
 
 * **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_rfc_trust"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
 * **Default:** `"mam_jid_rfc"` for MUC archive, `"mam_jid_mini"` for PM archive
-* **Example:** `modules.mod_mam_meta.db_jid_format = "mam_jid_mini"`
+* **Example:** `modules.mod_mam.db_jid_format = "mam_jid_mini"`
 
 Sets the internal MAM jid encoder/decoder module for RDBMS.
 
 !!! Warning
     Archive MUST be empty to change this option
 
-#### `modules.mod_mam_meta.db_message_format`
+#### `modules.mod_mam.db_message_format`
 
 * **Syntax:** string, one of `"mam_message_xml"`, `"mam_message_eterm"`, `"mam_message_compressed_eterm"` or a module implementing `mam_message` behaviour
 * **Default:** `"mam_message_compressed_eterm"` for RDBMS, `"mam_message_xml"` for Riak and Cassandra
-* **Example:** `modules.mod_mam_meta.db_message_format = "mam_message_compressed_eterm"`
+* **Example:** `modules.mod_mam.db_message_format = "mam_message_compressed_eterm"`
 
 Sets the internal MAM message encoder/decoder module.
 
 !!! Warning
     Archive MUST be empty to change this option
 
-#### `modules.mod_mam_meta.extra_fin_element`
+#### `modules.mod_mam.extra_fin_element`
 
 * **Syntax:** string, a module implementing the `extra_fin_element/3` callback
 * **Default:** none
-* **Example:** `modules.mod_mam_meta.extra_fin_element = "example_mod"`
+* **Example:** `modules.mod_mam.extra_fin_element = "example_mod"`
 
 This module can be used to add subelements to the `<fin>` element of the MAM lookup query response.
 It can be useful to be able to add information to a mam query, that doesn't belong to any specific message but to all of them.
 
-#### `modules.mod_mam_meta.extra_lookup_params`
+#### `modules.mod_mam.extra_lookup_params`
 
 * **Syntax:** string, a module implementing the `extra_lookup_params/2` callback
 * **Default:** none
-* **Example:** `modules.mod_mam_meta.extra_lookup_params = "example_mod"`
+* **Example:** `modules.mod_mam.extra_lookup_params = "example_mod"`
 
 This module can be used to add extra lookup parameters to MAM lookup queries.
 
 ## Example configuration
 
 ```toml
-[modules.mod_mam_meta]
+[modules.mod_mam]
   backend = "rdbms"
   no_stanzaid_element = true
 

@@ -500,7 +500,7 @@ remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
     ok.
 
-%% See description in mod_mam.
+%% See description in mod_mam_pm.
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}

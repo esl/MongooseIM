@@ -34,7 +34,7 @@ init_per_group(G, _C) ->
     end.
 
 required_modules(_G) ->
-    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}].
+    [{mod_mam, mam_helper:config_opts(#{pm => #{}})}].
 
 end_per_group(_G, C) ->
     C.

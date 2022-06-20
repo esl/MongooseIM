@@ -85,7 +85,7 @@ supported_features() ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, HostType,
                      #jid{luser = LUser, lserver = LServer} = ArcJID) ->
-    case mod_mam:archive_id(LServer, LUser) of
+    case mod_mam_pm:archive_id(LServer, LUser) of
         undefined ->
             Acc;
         ArcID ->
@@ -99,7 +99,7 @@ uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
     {integer_to_binary(MessID), jid:to_binary(RemoteJID), exml:to_binary(Packet)}.
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Add hooks for mod_mam_pm
 
 -spec start_hooks(host_type()) -> ok.
 start_hooks(HostType) ->
@@ -195,8 +195,8 @@ env_vars(HostType, ArcJID) ->
       column_to_id_fn => fun column_to_id/1,
       lookup_fn => fun lookup_query/5,
       decode_row_fn => fun row_to_uniform_format/2,
-      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, HostType),
-      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, HostType),
+      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam_pm, HostType),
+      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam_pm, HostType),
       db_jid_codec => db_jid_codec(HostType, ?MODULE),
       db_message_codec => db_message_codec(HostType, ?MODULE)}.
 

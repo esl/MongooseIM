@@ -86,7 +86,7 @@ stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Add hooks for mod_mam_pm
 
 -spec hooks(host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->

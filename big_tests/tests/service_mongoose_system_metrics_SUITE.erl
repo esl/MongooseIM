@@ -237,7 +237,7 @@ rdbms_module_opts_are_reported(_Config) ->
     mongoose_helper:wait_until(fun are_modules_reported/0, true),
     check_module_backend(mod_auth_token, rdbms),
     check_module_backend(mod_inbox, rdbms),
-    check_module_backend(mod_mam_meta, rdbms).
+    check_module_backend(mod_mam, rdbms).
 
 check_module_backend(Module, Backend) ->
     check_module_opt(Module, backend, atom_to_binary(Backend)).
@@ -356,7 +356,7 @@ modules_to_test(module_opts_are_reported) ->
 modules_to_test(rdbms_module_opts_are_reported) ->
     [required_module(mod_auth_token),
      required_module(mod_inbox),
-     required_module(mod_mam_meta)].
+     required_module(mod_mam)].
 
 required_module(Module) ->
     required_module(Module, #{}).

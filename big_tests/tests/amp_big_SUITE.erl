@@ -302,7 +302,7 @@ notify_deliver_to_online_user_bare_jid_test(Config) ->
       end).
 
 notify_deliver_to_online_user_recipient_privacy_test(Config) ->
-    case is_module_loaded(mod_mam) of
+    case is_module_loaded(mod_mam_pm) of
         true -> {skip, "MAM does not support privacy lists"};
         false -> do_notify_deliver_to_online_user_recipient_privacy_test(Config)
     end.
@@ -398,7 +398,7 @@ is_offline_storage_working(Config) ->
     Status == mam orelse Status == offline.
 
 notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
-    case is_module_loaded(mod_mam) of
+    case is_module_loaded(mod_mam_pm) of
         true -> {skip, "MAM does not support privacy lists"};
         false -> do_notify_deliver_to_offline_user_recipient_privacy_test(Config)
     end.
@@ -735,14 +735,14 @@ user_has_no_incoming_offline_messages(FreshConfig, UserName) ->
       FreshConfig, [{UserName, 1}],
       fun(User) ->
               client_receives_nothing(User),
-              case is_module_loaded(mod_mam) of
+              case is_module_loaded(mod_mam_pm) of
                   true -> client_has_no_mam_messages(User);
                   false -> ok
               end
       end).
 
 user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
-    true = is_module_loaded(mod_mam) orelse is_module_loaded(mod_offline),
+    true = is_module_loaded(mod_mam_pm) orelse is_module_loaded(mod_offline),
     {ok, Client} = escalus_client:start(FreshConfig, UserName, <<"new-session">>),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     case is_module_loaded(mod_offline) of
@@ -751,7 +751,7 @@ user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
     end,
     Presence = escalus:wait_for_stanza(Client),
     escalus:assert(is_presence, Presence),
-    case is_module_loaded(mod_mam) of
+    case is_module_loaded(mod_mam_pm) of
         true -> client_has_mam_message(Client);
         false -> ok
     end,
@@ -988,10 +988,9 @@ required_modules(_) ->
     [].
 
 mam_modules(on) ->
-    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{},
-                                             async_writer => #{enabled => false}})}];
+    [{mod_mam, mam_helper:config_opts(#{pm => #{}, async_writer => #{enabled => false}})}];
 mam_modules(off) ->
-    [{mod_mam_meta, stopped}].
+    [{mod_mam, stopped}].
 
 offline_modules(on) ->
     [{mod_offline, config_parser_helper:mod_config(mod_offline,

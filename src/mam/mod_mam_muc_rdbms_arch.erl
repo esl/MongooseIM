@@ -71,7 +71,7 @@ supported_features() ->
                             host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(Acc, HostType, #jid{luser = LUser, lserver = LServer} = _UserJID) ->
-    case mod_mam:archive_id(LServer, LUser) of
+    case mod_mam_pm:archive_id(LServer, LUser) of
         undefined ->
             Acc;
         SenderID ->
@@ -82,7 +82,7 @@ get_mam_muc_gdpr_data(Acc, HostType, #jid{luser = LUser, lserver = LServer} = _U
     end.
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Add hooks for mod_mam_pm
 
 -spec start_hooks(host_type()) -> ok.
 start_hooks(HostType) ->
@@ -221,7 +221,7 @@ archive_size(Size, HostType, ArcID, ArcJID) when is_integer(Size) ->
 
 extend_params_with_sender_id(HostType, Params = #{remote_jid := SenderJID}) ->
     BareSenderJID = jid:to_bare(SenderJID),
-    SenderID = mod_mam:archive_id_int(HostType, BareSenderJID),
+    SenderID = mod_mam_pm:archive_id_int(HostType, BareSenderJID),
     Params#{sender_id => SenderID}.
 
 -spec archive_message(_Result, HostType :: mongooseim:host_type(),

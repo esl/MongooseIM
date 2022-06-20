@@ -744,7 +744,7 @@ find_field([], _Name) ->
 field_to_value(FieldEl) ->
     exml_query:path(FieldEl, [{element, <<"value">>}, cdata], <<>>).
 
--spec message_form(Mod :: mod_mam | mod_mam_muc,
+-spec message_form(Mod :: mod_mam_pm | mod_mam_muc,
                    HostType :: mongooseim:host_type(), binary()) ->
     exml:element().
 message_form(Module, HostType, MamNs) ->
@@ -811,7 +811,7 @@ normalize_search_text(Text, WordSeparator) ->
     Re2 = re:replace(Re1, "\s+", unicode:characters_to_list(WordSeparator), ReOpts),
     unicode:characters_to_binary(Re2).
 
--spec packet_to_search_body(Module :: mod_mam | mod_mam_muc,
+-spec packet_to_search_body(Module :: mod_mam_pm | mod_mam_muc,
                             HostType :: mongooseim:host_type(),
                             Packet :: exml:element()) -> binary().
 packet_to_search_body(Module, HostType, Packet) ->
@@ -826,14 +826,14 @@ packet_to_search_body(true, Packet) ->
 packet_to_search_body(false, _Packet) ->
     <<>>.
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc,
+-spec has_full_text_search(Module :: mod_mam_pm | mod_mam_muc,
                            HostType :: mongooseim:host_type()) -> boolean().
 has_full_text_search(Module, HostType) ->
     gen_mod:get_module_opt(HostType, Module, full_text_search).
 
 %% Message retraction
 
--spec has_message_retraction(Module :: mod_mam | mod_mam_muc,
+-spec has_message_retraction(Module :: mod_mam_pm | mod_mam_muc,
                              HostType :: mongooseim:host_type()) -> boolean().
 has_message_retraction(Module, HostType) ->
     gen_mod:get_module_opt(HostType, Module, message_retraction).

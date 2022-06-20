@@ -259,12 +259,12 @@ end_per_testcase(CaseName, Config) ->
 %% Module configuration per test case
 
 required_modules(CaseName, MAMBackend) ->
-    [{mod_mam_meta, mam_helper:config_opts(#{backend => MAMBackend,
-                                             muc => #{host => subhost_pattern(?MUCHOST)}})} |
+    [{mod_mam, mam_helper:config_opts(#{backend => MAMBackend,
+                                        muc => #{host => subhost_pattern(?MUCHOST)}})} |
      common_required_modules(CaseName)].
 
 required_modules(CaseName) ->
-    [{mod_mam_meta, stopped} | common_required_modules(CaseName)].
+    [{mod_mam, stopped} | common_required_modules(CaseName)].
 
 common_required_modules(CaseName) ->
     BasicOpts = maps:merge(common_muc_light_opts(), muc_light_opts(CaseName)),

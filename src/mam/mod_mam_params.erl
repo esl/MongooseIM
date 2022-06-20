@@ -16,7 +16,7 @@
 
 -module(mod_mam_params).
 
--type mam_module() :: mod_mam | mod_mam_muc.
+-type mam_module() :: mod_mam_pm | mod_mam_muc.
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
          has_full_text_search/2, is_archivable_message_module/2, send_message_mod/2,
@@ -39,7 +39,7 @@ default_result_limit(Module, HostType) ->
     gen_mod:get_module_opt(HostType, Module, default_result_limit).
 
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc, mongooseim:host_type()) -> boolean().
+-spec has_full_text_search(Module :: mod_mam_pm | mod_mam_muc, mongooseim:host_type()) -> boolean().
 has_full_text_search(Module, HostType) ->
     gen_mod:get_module_opt(HostType, Module, full_text_search).
 

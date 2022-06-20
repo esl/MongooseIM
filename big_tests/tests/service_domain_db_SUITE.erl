@@ -265,7 +265,7 @@ end_per_testcase(TestcaseName, Config) ->
 init_per_testcase2(TestcaseName, Config)
     when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
     HostType = dummy_auth_host_type(),
-    Mods = [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}],
+    Mods = [{mod_mam, mam_helper:config_opts(#{pm => #{}})}],
     dynamic_modules:ensure_modules(HostType, Mods),
     escalus:init_per_testcase(TestcaseName, Config);
 init_per_testcase2(_, Config) ->
