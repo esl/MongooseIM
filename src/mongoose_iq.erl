@@ -49,16 +49,14 @@ update_acc_info(Acc0) ->
         CurrentRef ->
             El = mongoose_acc:element(Acc0),
             IQ = jlib:iq_query_or_response_info(El),
-            Acc1 = mongoose_acc:set(iq, record, IQ, Acc0),
             {XMLNS, Command} = case IQ of
                                    #iq{ xmlns = XMLNS0, sub_el = SubEl } ->
                                        {XMLNS0, sub_el_to_command(SubEl)};
                                    _ ->
                                        {undefined, undefined}
                                end,
-            Acc2 = mongoose_acc:set(iq, xmlns, XMLNS, Acc1),
-            Acc3 = mongoose_acc:set(iq, command, Command, Acc2),
-            mongoose_acc:set(iq, ref, CurrentRef, Acc3)
+            IqData = [{record, IQ}, {xmlns, XMLNS}, {command, Command}, {ref, CurrentRef}],
+            mongoose_acc:set(iq, IqData, Acc0)
     end.
 
 %% update_and_get updates only when it is actually necessary

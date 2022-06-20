@@ -3311,8 +3311,8 @@ element_to_origin_accum(El, StateData = #state{sid = SID, jid = JID}) ->
         _ToBin -> BaseParams
     end,
     Acc = new_acc(StateData, Params),
-    Acc1 = mongoose_acc:set_permanent(c2s, origin_sid, SID, Acc),
-    mongoose_acc:set_permanent(c2s, origin_jid, JID, Acc1).
+    C2S = [{origin_sid, SID}, {origin_jid, JID}],
+    mongoose_acc:set_permanent(c2s, C2S, Acc).
 
 -spec hibernate() -> hibernate | infinity.
 hibernate() ->
