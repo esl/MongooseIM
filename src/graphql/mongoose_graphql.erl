@@ -144,6 +144,7 @@ admin_mapping_rules() ->
         'MUCAdminQuery' => mongoose_graphql_muc_admin_query,
         'MUCLightAdminMutation' => mongoose_graphql_muc_light_admin_mutation,
         'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
+        'OfflineAdminMutation' => mongoose_graphql_offline_admin_mutation,
         'PrivateAdminMutation' => mongoose_graphql_private_admin_mutation,
         'PrivateAdminQuery' => mongoose_graphql_private_admin_query,
         'RosterAdminQuery' => mongoose_graphql_roster_admin_query,

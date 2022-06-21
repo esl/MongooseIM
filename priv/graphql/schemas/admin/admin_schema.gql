@@ -61,4 +61,6 @@ type AdminMutation @protected{
   private: PrivateAdminMutation
   "Http upload"
   httpUpload: HttpUploadAdminMutation
+  "Offline deleting old messages"
+  offline: OfflineAdminMutation
 }

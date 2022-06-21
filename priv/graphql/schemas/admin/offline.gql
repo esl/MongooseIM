@@ -1,0 +1,10 @@
+"""
+"""
+type OfflineAdminMutation @protected{
+    ""
+    deleteExpiredMessages(domain: String!): String
+      @protected(type: DOMAIN, args: ["domain"])
+    ""
+    deleteOldMessages(domain: String!, days: Int!): String
+      @protected(type: DOMAIN, args: ["domain"])
+}
