@@ -125,7 +125,6 @@ commands() ->
       {module, ?MODULE},
       {function, list_contacts},
       {action, read},
-      {security_policy, [user]},
       {args, [{caller, binary}]},
       {result, []}
      ],
@@ -136,7 +135,6 @@ commands() ->
       {module, ?MODULE},
       {function, add_contact},
       {action, create},
-      {security_policy, [user]},
       {args, [{caller, binary}, {jid, binary}]},
       {result, ok}
      ],
@@ -147,7 +145,6 @@ commands() ->
       {module, ?MODULE},
       {function, subscription},
       {action, update},
-      {security_policy, [user]},
       {identifiers, [caller, jid]},
       % caller has to be in identifiers, otherwise it breaks admin rest api
       {args, [{caller, binary}, {jid, binary}, {action, binary}]},
@@ -172,7 +169,6 @@ commands() ->
       {module, ?MODULE},
       {function, delete_contact},
       {action, delete},
-      {security_policy, [user]},
       {args, [{caller, binary}, {jid, binary}]},
       {result, ok}
      ],
@@ -184,7 +180,6 @@ commands() ->
       {module, ?MODULE},
       {function, delete_contacts},
       {action, delete},
-      {security_policy, [user]},
       {args, [{caller, binary}, {jids, [binary]}]},
       {result,  []}
      ],
