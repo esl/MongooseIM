@@ -19,6 +19,8 @@ execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
     {ok, httpUpload};
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
+execute(_Ctx, _Obj, <<"offline">>, _Args) ->
+    {ok, offline};
 execute(_Ctx, _Obj, <<"private">>, _Args) ->
     {ok, private};
 execute(_Ctx, _Obj, <<"roster">>, _Args) ->
