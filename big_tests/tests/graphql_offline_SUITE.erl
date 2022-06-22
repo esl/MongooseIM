@@ -21,7 +21,7 @@ suite() ->
 
 all() ->
     [{group, admin_offline},
-      {group, admin_offline_not_configured}].
+     {group, admin_offline_not_configured}].
 
 groups() ->
     [{admin_offline, [], admin_offline_handler()},
@@ -79,13 +79,13 @@ end_per_testcase(CaseName, Config) ->
 
 admin_delete_expired_messages_test(Config) ->
     Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_expired_messages/0),
+    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
     Message = ok_result(<<"offline">>, <<"deleteExpiredMessages">>, GraphQlRequest),
     ?assertEqual(<<"Removed 0 messages">>, Message).
 
 admin_delete_old_messages_test(Config) ->
     Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_old_messages/0),
+    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
     Message = ok_result(<<"offline">>, <<"deleteOldMessages">>, GraphQlRequest),
     ?assertEqual(<<"Removed 0 messages">>, Message).
 
@@ -96,7 +96,7 @@ admin_delete_expired_messages2_test(Config, JidMike, JidKate) ->
     generate_message(JidMike, JidKate, 10, 2),
     generate_message(JidMike, JidKate, 10, 2),
     Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_expired_messages/0),
+    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
     Message = ok_result(<<"offline">>, <<"deleteExpiredMessages">>, GraphQlRequest),
     ?assertEqual(<<"Removed 2 messages">>, Message).
 
@@ -107,46 +107,48 @@ admin_delete_old_messages2_test(Config, JidMike, JidKate) ->
     generate_message(JidMike, JidKate, 2, 10),
     generate_message(JidMike, JidKate, 2, 10),
     Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_old_messages/0),
+    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
     Message = ok_result(<<"offline">>, <<"deleteOldMessages">>, GraphQlRequest),
     ?assertEqual(<<"Removed 2 messages">>, Message).
 
 admin_delete_expired_messages_no_domain_test(Config) ->
     Vars = #{<<"domain">> => <<"AAAA">>},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_expired_messages/0),
+    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"domain_not_found">>, ParsedResult).
 
 admin_delete_old_messages_no_domain_test(Config) ->
     Vars = #{<<"domain">> => <<"AAAA">>, <<"days">> => 2},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_old_messages/0),
+    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"domain_not_found">>, ParsedResult).
 
 admin_delete_expired_messages_offline_not_configured_test(Config) ->
     Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_expired_messages/0),
+    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
 
 admin_delete_old_messages_offline_not_configured_test(Config) ->
     Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_send_request(Config, Vars, fun admin_delete_old_messages/0),
+    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
     ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
     ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
 
 % Helpers
 
-admin_delete_expired_messages() ->
-    <<"mutation M1($domain: String!)
-           {offline{deleteExpiredMessages(domain: $domain)}}">>.
+admin_delete_expired_messages_mutation(Config, Vars) ->
+    Mutation = <<"mutation M1($domain: String!)
+                      {offline{deleteExpiredMessages(domain: $domain)}}">>,
+    admin_send_mutation(Config, Vars, Mutation).
 
-admin_delete_old_messages() ->
-    <<"mutation M1($domain: String!, $days: Int!)
-           {offline{deleteOldMessages(domain: $domain, days: $days)}}">>.
+admin_delete_old_messages_mutation(Config, Vars) ->
+    Mutation = <<"mutation M1($domain: String!, $days: Int!)
+                      {offline{deleteOldMessages(domain: $domain, days: $days)}}">>,
+    admin_send_mutation(Config, Vars, Mutation).
 
-admin_send_request(Config, Vars, Function) ->
-    Body = #{query => Function(), operationName => <<"M1">>, variables => Vars},
+admin_send_mutation(Config, Vars, Mutation) ->
+    Body = #{query => Mutation, operationName => <<"M1">>, variables => Vars},
     execute_auth(Body, Config).
 
 error_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
