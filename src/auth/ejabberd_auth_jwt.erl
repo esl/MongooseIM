@@ -164,7 +164,9 @@ supported_features() -> [dynamic_domains].
 % a path in environment variable is read on every auth request.
 get_jwt_secret(HostType) ->
     case mongoose_config:get_opt([{auth, HostType}, jwt, secret]) of
-        {value, JWTSecret} ->
+        {value, JWTSecret} when is_list(JWTSecret0) ->
+            list_to_binary(JWTSecret);
+        {value, JWTSecret} when is_binary(JWTSecret0) ->
             JWTSecret;
         {env, Env} ->
             {env, Env};
