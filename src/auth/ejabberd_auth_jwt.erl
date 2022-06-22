@@ -100,7 +100,7 @@ authorize(Creds) ->
                      Password :: binary()) -> boolean().
 check_password(HostType, LUser, LServer, Password) ->
     Key = case persistent_term:get({?MODULE, HostType, jwt_secret}) of
-              Key1 when is_binary(Key1) -> Key1;
+              Key1 -> list_to_binary(Key1);
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
     BinAlg = mongoose_config:get_opt([{auth, HostType}, jwt, algorithm]),
