@@ -553,12 +553,12 @@ paths:
       consumes:
         - application/json
       parameters:
-        - name: roomDetails
+        - name: affiliationDetails
           in: body
           description: Details for the affiliation update
           required: true
           schema:
-            title: userDetails
+            title: affiliationDetails
             type: object
             properties:
               target:
