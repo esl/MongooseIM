@@ -536,6 +536,44 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
+  /muc-lights/{XMPPMUCHost}/{roomName}/{user}/affiliation:
+    parameters:
+      - $ref: '#/parameters/MUCServer'
+      - $ref: '#/parameters/roomName'
+      - name: user
+        in: path
+        description: User's JID (f.e. alice@wonderland.lit)
+        required: true
+        type: string
+        format: JID
+    put:
+      tags:
+        - "MUC-light management"
+      description: Changes a MUC light member affiliation
+      consumes:
+        - application/json
+      parameters:
+        - name: roomDetails
+          in: body
+          description: Details for the affiliation update
+          required: true
+          schema:
+            title: userDetails
+            type: object
+            properties:
+              target:
+                type: string
+                description: |
+                  The user JID whose affiliation we want to change
+                example: "alice@wonderland.lit"
+              affiliation:
+                type: string
+                description: The new target affiliation
+                enum: ["none", "member", "owner"]
+                example: "none"
+      responses:
+        204:
+          description: The MUC-light room affiliation was updated.
   /muc-lights/{XMPPMUCHost}/{roomName}/{user}/management:
     parameters:
       - $ref: '#/parameters/MUCServer'

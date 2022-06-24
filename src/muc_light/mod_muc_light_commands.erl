@@ -156,7 +156,23 @@ commands() ->
        [{domain, binary},
         {name, binary},
         {owner, binary}]},
-      {result, ok}]
+      {result, ok}],
+
+      [{name, change_affiliation},
+        {category, <<"muc-lights">>},
+        {subcategory, <<"affiliation">>},
+        {desc, <<"Changes a MUC light member affiliation">>},
+        {module, ?MODULE},
+        {function, change_affiliation},
+        {action, update},
+        {identifiers, [domain, name, owner]},
+        {args,
+          [{domain, binary},
+            {name, binary},
+            {owner, binary},
+            {target, binary},
+            {affiliation, binary}]},
+        {result, ok}]
     ].
 
 
