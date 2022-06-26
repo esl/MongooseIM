@@ -136,6 +136,7 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", local_iq_SUITE}.
+{suites, "tests", tcp_listener_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 

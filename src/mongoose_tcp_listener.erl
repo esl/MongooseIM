@@ -27,9 +27,9 @@
 -export([start_listener/1, start_link/1, init/1]).
 
 %% Internal
--export([start_accept_loop/3, accept_loop/3]).
+-export([start_accept_loop/3, accept_loop/3, read_connection_details/2]).
 
--ignore_xref([start_link/1, start_accept_loop/3]).
+-ignore_xref([start_link/1, start_accept_loop/3, read_connection_details/2]).
 
 -type options() :: #{module := module(),
                      port := inet:port_number(),
@@ -99,8 +99,8 @@ start_accept_loop(ListenSock, Module, Opts) ->
 -spec accept_loop(Socket :: port(),
                   Module :: module(),
                   Opts :: options()) -> no_return().
-accept_loop(ListenSocket, Module, Opts = #{proxy_protocol := ProxyProtocol}) ->
-    case do_accept(ListenSocket, ProxyProtocol) of
+accept_loop(ListenSocket, Module, Opts) ->
+    case do_accept(ListenSocket, Opts) of
         {ok, Socket, ConnectionDetails} ->
             ?LOG_INFO(#{what => tcp_accepted,
                         socket => Socket, handler_module => Module,
@@ -115,34 +115,54 @@ accept_loop(ListenSocket, Module, Opts = #{proxy_protocol := ProxyProtocol}) ->
             ?MODULE:accept_loop(ListenSocket, Module, Opts)
     end.
 
--spec do_accept(gen_tcp:socket(), boolean()) ->
+-spec do_accept(gen_tcp:socket(), options()) ->
     {ok, gen_tcp:socket(), connection_details()} | {error, term()}.
-do_accept(ListenSocket, ProxyProtocol) ->
+do_accept(ListenSocket, Opts) ->
     case gen_tcp:accept(ListenSocket) of
-        {ok, Socket} when ProxyProtocol ->
-            read_proxy_header(Socket);
         {ok, Socket} ->
-            {ok, {DestAddr, DestPort}} = inet:sockname(Socket),
-            {ok, {SrcAddr, SrcPort}} = inet:peername(Socket),
+            ?MODULE:read_connection_details(Socket, Opts);
+        Other ->
+            Other
+    end.
+
+-spec read_connection_details(gen_tcp:socket(), options()) ->
+    {ok, gen_tcp:socket(), connection_details()} | {error, term()}.
+read_connection_details(Socket, #{proxy_protocol := true}) ->
+    read_proxy_header(Socket);
+read_connection_details(Socket, _Opts) ->
+    case {inet:sockname(Socket), inet:peername(Socket)} of
+        {{ok, {DestAddr, DestPort}}, {ok, {SrcAddr, SrcPort}}} ->
             {ok, Socket, #{proxy => false,
                            src_address => SrcAddr,
                            src_port => SrcPort,
                            dest_address => DestAddr,
                            dest_port => DestPort}};
         Other ->
-            Other
+            gen_tcp:close(Socket),
+            {error, simple_reason(Other)}
     end.
 
--spec read_proxy_header(gen_tcp:socket()) -> {ok, gen_tcp:socket(), connection_details()}.
+simple_reason({{error, Reason}, _}) ->
+    Reason;
+simple_reason({_, {error, Reason}}) ->
+    Reason.
+
+-spec read_proxy_header(gen_tcp:socket()) ->
+        {ok, gen_tcp:socket(), connection_details()} | {error, term()}.
 read_proxy_header(Socket) ->
-    {ok, ProxyInfo} = ranch_tcp:recv_proxy_header(Socket, 1000),
-    {ok, Socket, #{proxy => true,
-                   src_address => maps:get(src_address, ProxyInfo),
-                   src_port => maps:get(src_port, ProxyInfo),
-                   dest_address => maps:get(dest_address, ProxyInfo),
-                   dest_port => maps:get(dest_port, ProxyInfo),
-                   version => maps:get(version, ProxyInfo)
-                  }}.
+    case ranch_tcp:recv_proxy_header(Socket, 1000) of
+	{ok, ProxyInfo} ->
+            {ok, Socket, #{proxy => true,
+                           src_address => maps:get(src_address, ProxyInfo),
+                           src_port => maps:get(src_port, ProxyInfo),
+                           dest_address => maps:get(dest_address, ProxyInfo),
+                           dest_port => maps:get(dest_port, ProxyInfo),
+                           version => maps:get(version, ProxyInfo)
+                          }};
+        {error, Reason} ->
+            gen_tcp:close(Socket),
+            {error, Reason}
+    end.
 
 -spec make_childspec(Id :: term(), ListenSock :: port(),
                      Module :: module(), Opts :: options()) ->
