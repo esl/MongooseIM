@@ -17,7 +17,8 @@
 -export([maybe_integer/1]).
 -export([maybe_before_to_us/2]).
 
--ignore_xref([send_message/2, to_json/2, trails/0]).
+-ignore_xref([send_message/2, to_json/2, trails/0,
+              maybe_before_to_us/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

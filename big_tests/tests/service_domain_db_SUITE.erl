@@ -70,6 +70,12 @@ db_cases() -> [
      db_cannot_enable_domain_with_unknown_host_type,
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
+     db_can_insert_update_delete_dynamic_domain_password,
+     db_can_insert_update_delete_static_domain_password,
+     db_cannot_set_password_for_unknown_domain,
+     db_can_check_domain_password,
+     db_cannot_check_password_for_unknown_domain,
+     db_deleting_domain_deletes_domain_admin,
      sql_select_from,
      sql_find_gaps_between,
      db_records_are_restored_on_mim_restart,
@@ -198,7 +204,7 @@ all_nodes() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_group(db, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(dummy_auth_host_type()) of
         true -> [{service, true}|Config];
         false -> {skip, require_rdbms}
     end;
@@ -450,6 +456,46 @@ db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
     sync(),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
+
+db_can_insert_update_delete_dynamic_domain_password(_) ->
+    Domain = <<"password-example.com">>,
+    ok = insert_domain(mim(), Domain, <<"type1">>),
+    sync(),
+    ok = set_domain_password(mim(), Domain, <<"rocky1">>),
+    ok = check_domain_password(mim(), Domain, <<"rocky1">>),
+    ok = set_domain_password(mim(), Domain, <<"rocky2">>),
+    ok = check_domain_password(mim(), Domain, <<"rocky2">>),
+    ok = delete_domain_password(mim(), Domain),
+    {error, not_found} = select_domain_admin(mim(), Domain).
+
+db_can_insert_update_delete_static_domain_password(_) ->
+    StaticDomain = <<"example.cfg">>,
+    ok = set_domain_password(mim(), StaticDomain, <<"rocky1">>),
+    ok = check_domain_password(mim(), StaticDomain, <<"rocky1">>),
+    ok = set_domain_password(mim(), StaticDomain, <<"rocky2">>),
+    ok = check_domain_password(mim(), StaticDomain, <<"rocky2">>),
+    ok = delete_domain_password(mim(), StaticDomain),
+    {error, not_found} = select_domain_admin(mim(), StaticDomain).
+
+db_cannot_set_password_for_unknown_domain(_) ->
+    {error, not_found} = set_domain_password(mim(), <<"unknown_domain">>, <<>>).
+
+db_can_check_domain_password(_) ->
+    StaticDomain = <<"example.cfg">>,
+    ok = set_domain_password(mim(), StaticDomain, <<"myrock">>),
+    ok = check_domain_password(mim(), StaticDomain, <<"myrock">>),
+    {error, wrong_password} = check_domain_password(mim(), StaticDomain, <<"wrongrock">>).
+
+db_cannot_check_password_for_unknown_domain(_) ->
+    {error, not_found} = check_domain_password(mim(), <<"unknown_domain">>, <<>>).
+
+db_deleting_domain_deletes_domain_admin(_) ->
+    Domain = <<"password-del-example.db">>,
+    ok = insert_domain(mim(), Domain, <<"type1">>),
+    sync(),
+    ok = set_domain_password(mim(), Domain, <<"deleteme">>),
+    ok = delete_domain(mim(), Domain, <<"type1">>),
+    {error, not_found} = select_domain_admin(mim(), Domain).
 
 sql_select_from(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
@@ -1064,6 +1110,18 @@ delete_domain(Node, Domain, HostType) ->
 
 select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).
+
+check_domain_password(Node, Domain, Password) ->
+    rpc(Node, mongoose_domain_api, check_domain_password, [Domain, Password]).
+
+set_domain_password(Node, Domain, Password) ->
+    rpc(Node, mongoose_domain_api, set_domain_password, [Domain, Password]).
+
+delete_domain_password(Node, Domain) ->
+    rpc(Node, mongoose_domain_api, delete_domain_password, [Domain]).
+
+select_domain_admin(Node, Domain) ->
+    rpc(Node, mongoose_domain_sql, select_domain_admin, [Domain]).
 
 insert_full_event(Node, EventId, Domain) ->
     rpc(Node, mongoose_domain_sql, insert_full_event, [EventId, Domain]).

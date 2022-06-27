@@ -1,0 +1,18 @@
+"Information about user request authorization"
+type AdminAuthInfo{
+  "Authorized for a domain"
+  domain: String
+  "Authorization status"
+  authStatus: AuthStatus!
+  "Authorization as a "
+  authType: AuthType
+}
+
+enum AuthType{
+  ""
+  DOMAIN_ADMIN
+  ""
+  ADMIN
+  ""
+  UNAUTHORIZED
+}

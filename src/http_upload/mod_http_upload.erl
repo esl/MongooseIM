@@ -146,21 +146,12 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     Res = case parse_request(Request) of
         {Filename, Size, ContentType} ->
-            MaxFileSize = max_file_size(HostType),
-            case Size =< MaxFileSize of
-                true ->
-                    UTCDateTime = calendar:universal_time(),
-                    Token = generate_token(HostType),
-                    Opts = module_opts(HostType),
-
-                    {PutUrl, GetUrl, Headers} =
-                        mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
-                                                            ContentType, Size, Opts),
-
+            Opts = module_opts(HostType),
+            case get_urls_helper(HostType, Filename, Size, ContentType, Opts) of
+                {PutUrl, GetUrl, Headers} ->
                     compose_iq_reply(IQ, PutUrl, GetUrl, Headers);
-
-                false ->
-                    IQ#iq{type = error, sub_el = [file_too_large_error(MaxFileSize)]}
+                file_too_large_error ->
+                    IQ#iq{type = error, sub_el = [file_too_large_error(max_file_size(HostType))]}
             end;
 
         bad_request ->
@@ -200,18 +191,27 @@ disco_local_items(Acc) ->
 
 -spec get_urls(HostType :: mongooseim:host_type(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
-                  {PutURL :: binary(), GetURL :: binary(), Headers :: #{binary() => binary()}}.
+                  file_too_large_error | {PutURL :: binary(), GetURL :: binary(),
+                                          Headers :: #{binary() => binary()}}.
 get_urls(HostType, Filename, Size, ContentType, Timeout) ->
-    UTCDateTime = calendar:universal_time(),
-    Token = generate_token(HostType),
     Opts = module_opts(HostType),
-    NewOpts = Opts#{expiration_time := Timeout},
-    mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
-                                        ContentType, Size, NewOpts).
+    get_urls_helper(HostType, Filename, Size, ContentType, Opts#{expiration_time := Timeout}).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+get_urls_helper(HostType, Filename, Size, ContentType, Opts) ->
+    MaxFileSize = max_file_size(HostType),
+    case Size =< MaxFileSize of
+        true ->
+            UTCDateTime = calendar:universal_time(),
+            Token = generate_token(HostType),
+            mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
+                                                ContentType, Size, Opts);
+        false ->
+            file_too_large_error
+    end.
 
 -spec disco_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
 disco_identity(Lang) ->

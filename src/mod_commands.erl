@@ -27,8 +27,6 @@
          send_stanza/1
         ]).
 
--export([parse_from_to/2]).
-
 -ignore_xref([add_contact/2, add_contact/3, add_contact/4, change_user_password/3,
               delete_contact/2, delete_contacts/2, get_recent_messages/3,
               get_recent_messages/4, kick_session/3, list_contacts/1,
@@ -250,55 +248,40 @@ commands() ->
     ].
 
 kick_session(Host, User, Resource) ->
-    J = jid:make(User, Host, Resource),
-    case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
-        no_session -> {error, not_found, <<"no active session">> };
-        {exit, <<"kicked">>} -> <<"kicked">>
+    case mongoose_session_api:kick_session(User, Host, Resource, <<"kicked">>) of
+        {ok, Msg} -> Msg;
+        {no_session, Msg} -> {error, not_found, Msg}
     end.
 
 list_sessions(Host) ->
-    Lst = ejabberd_sm:get_vh_session_list(Host),
-    [jid:to_binary(USR) || #session{usr = USR} <- Lst].
+    mongoose_session_api:list_resources(Host).
 
 registered_users(Host) ->
-    Users = ejabberd_auth:get_vh_registered_users(Host),
-    SUsers = lists:sort(Users),
-    [jid:to_binary(US) || US <- SUsers].
+    mongoose_account_api:list_users(Host).
 
 register(Host, User, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:try_register(JID, Password) of
-        {error, exists} ->
-            String = io_lib:format("User ~s already registered at node ~p",
-                                   [jid:to_binary(JID), node()]),
-            {error, denied, String};
-        {error, invalid_jid} ->
-            String = io_lib:format("Invalid jid: ~s@~s",
-                                   [User, Host]),
-            {error, bad_request, String};
-        {error, Reason} ->
-            String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
-                                   [User, Host, node(), Reason]),
-            {error, internal, String};
-        _ ->
-            <<"User ", (jid:to_binary(JID))/binary, "successfully registered">>
-    end.
+    Res = mongoose_account_api:register_user(User, Host, Password),
+    format_account_result(Res).
 
 unregister(Host, User) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:remove_user(JID) of
-        ok ->
-            <<"ok">>;
-        error ->
-            {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
-        {error, not_allowed} ->
-            {error, forbidden, "User does not exist or you are not authorised properly"}
-    end.
+    Res = mongoose_account_api:unregister_user(User, Host),
+    format_account_result(Res).
+
+change_user_password(Host, User, Password) ->
+    Res = mongoose_account_api:change_password(User, Host, Password),
+    format_account_result(Res).
+
+format_account_result({ok, Msg}) -> iolist_to_binary(Msg);
+format_account_result({empty_password, Msg}) -> {error, bad_request, Msg};
+format_account_result({invalid_jid, Msg}) -> {error, bad_request, Msg};
+format_account_result({not_allowed, Msg}) -> {error, denied, Msg};
+format_account_result({exists, Msg}) -> {error, denied, Msg};
+format_account_result({cannot_register, Msg}) -> {error, internal, Msg}.
 
 send_message(From, To, Body) ->
-    case parse_from_to(From, To) of
+    case mongoose_stanza_helper:parse_from_to(From, To) of
         {ok, FromJID, ToJID} ->
-            Packet = build_message(From, To, Body),
+            Packet = mongoose_stanza_helper:build_message(From, To, Body),
             do_send_packet(FromJID, ToJID, Packet);
         Error ->
             Error
@@ -309,7 +292,7 @@ send_stanza(BinStanza) ->
         {ok, Packet} ->
             From = exml_query:attr(Packet, <<"from">>),
             To = exml_query:attr(Packet, <<"to">>),
-            case parse_from_to(From, To) of
+            case mongoose_stanza_helper:parse_from_to(From, To) of
                 {ok, FromJID, ToJID} ->
                     do_send_packet(FromJID, ToJID, Packet);
                 {error, missing} ->
@@ -335,27 +318,13 @@ do_send_packet(From, To, Packet) ->
             {error, unknown_domain}
     end.
 
--spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
-    {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
-parse_from_to(F, T) when F == undefined; T == undefined ->
-    {error, missing};
-parse_from_to(F, T) ->
-    case parse_jid_list([F, T]) of
-        {ok, [Fjid, Tjid]} -> {ok, Fjid, Tjid};
-        E -> E
-    end.
-
 list_contacts(Caller) ->
-    CallerJID = #jid{lserver = LServer} = jid:from_binary(Caller),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                               host_type => HostType,
-                               lserver => LServer,
-                               element => undefined }),
-    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
-    Res = mongoose_acc:get(roster, items, Acc2),
-    [roster_info(mod_roster:item_to_map(I)) || I <- Res].
+    case mod_roster_api:list_contacts(jid:from_binary(Caller)) of
+        {ok, Rosters} ->
+            [roster_info(mod_roster:item_to_map(R)) || R <- Rosters];
+        Error ->
+            skip_result_msg(Error)
+    end.
 
 roster_info(M) ->
     Jid = jid:to_binary(maps:get(jid, M)),
@@ -369,14 +338,10 @@ add_contact(Caller, JabberID, Name) ->
     add_contact(Caller, JabberID, Name, []).
 
 add_contact(Caller, Other, Name, Groups) ->
-    case parse_from_to(Caller, Other) of
-        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
-            case mongoose_domain_api:get_domain_host_type(LServer) of
-                {ok, HostType} ->
-                    mod_roster:set_roster_entry(HostType, CallerJid, OtherJid, Name, Groups);
-                {error, not_found} ->
-                    {error, unknown_domain}
-            end;
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
+        {ok, CallerJid, OtherJid} ->
+            Res = mod_roster_api:add_contact(CallerJid, OtherJid, Name, Groups),
+            skip_result_msg(Res);
         E ->
             E
     end.
@@ -389,19 +354,15 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
     case delete_contact(Caller, H) of
         ok ->
             maybe_delete_contacts(Caller, T, NotDeleted);
-        {error, _Reason} ->
+        _Error ->
             maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
 delete_contact(Caller, Other) ->
-    case parse_from_to(Caller, Other) of
-        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
-            case mongoose_domain_api:get_domain_host_type(LServer) of
-                {ok, HostType} ->
-                    mod_roster:remove_from_roster(HostType, CallerJid, OtherJid);
-                {error, not_found} ->
-                    {error, unknown_domain}
-            end;
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
+        {ok, CallerJID, OtherJID} ->
+            Res = mod_roster_api:delete_contact(CallerJID, OtherJID),
+            skip_result_msg(Res);
         E ->
             E
     end.
@@ -442,26 +403,15 @@ term_as_binary(X) ->
 get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
-get_recent_messages(Caller, With, 0, Limit) ->
-    {MegaSecs, Secs, _} = os:timestamp(),
-    % wait a while to make sure we return all messages
-    Future = (MegaSecs + 1) * 1000000 + Secs,
-    get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
-    Res = lookup_recent_messages(Caller, With, Before, Limit),
+    Before2 = maybe_seconds_to_microseconds(Before),
+    Res = mongoose_stanza_api:lookup_recent_messages(Caller, With, Before2, Limit),
     lists:map(fun row_to_map/1, Res).
 
-change_user_password(Host, User, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:set_password(JID, Password) of
-        ok -> ok;
-        {error, empty_password} ->
-            {error, bad_request, "empty password"};
-        {error, not_allowed} ->
-            {error, denied, "password change not allowed"};
-        {error, invalid_jid} ->
-            {error, bad_request, "invalid jid"}
-    end.
+maybe_seconds_to_microseconds(X) when is_number(X) ->
+    X * 1000000;
+maybe_seconds_to_microseconds(X) ->
+    X.
 
 -spec row_to_map(mod_mam:message_row()) -> map().
 row_to_map(#{id := Id, jid := From, packet := Msg}) ->
@@ -475,51 +425,15 @@ row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
       body => Body}.
 
--spec build_message(From :: binary(), To :: binary(), Body :: binary()) -> exml:element().
-build_message(From, To, Body) ->
-    #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"chat">>},
-                    {<<"id">>, mongoose_bin:gen_from_crypto()},
-                    {<<"from">>, From},
-                    {<<"to">>, To}],
-           children = [#xmlel{name = <<"body">>,
-                              children = [#xmlcdata{content = Body}]}]
-          }.
-
-lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
-    throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), With, Before, Limit);
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
-lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
-    #jid{luser = LUser, lserver = LServer} = ArcJID,
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Params = #{archive_id => mod_mam_pm:archive_id(LServer, LUser),
-               owner_jid => ArcJID,
-               borders => undefined,
-               rsm => #rsm_in{direction = before, id = undefined}, % last msgs
-               start_ts => undefined,
-               end_ts => Before * 1000000,
-               now => os:system_time(microsecond),
-               with_jid => WithJID,
-               search_text => undefined,
-               page_size => Limit,
-               limit_passed => false,
-               max_result_limit => 1,
-               is_simple => true},
-    R = mod_mam_pm:lookup_messages(HostType, Params),
-    {ok, {_, _, L}} = R,
-    L.
-
 subscription(Caller, Other, Action) ->
     case decode_action(Action) of
         error ->
             {error, bad_request, <<"invalid action">>};
         Act ->
-            case parse_from_to(Caller, Other) of
-                {ok, CallerJid, OtherJid} ->
-                    run_subscription(Act, CallerJid, OtherJid);
+            case mongoose_stanza_helper:parse_from_to(Caller, Other) of
+                {ok, CallerJID, OtherJID} ->
+                    Res = mod_roster_api:subscription(CallerJID, OtherJID, Act),
+                    skip_result_msg(Res);
                 E ->
                     E
             end
@@ -529,63 +443,24 @@ decode_action(<<"subscribe">>) -> subscribe;
 decode_action(<<"subscribed">>) -> subscribed;
 decode_action(_) -> error.
 
--spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
-run_subscription(Type, CallerJid, OtherJid) ->
-    StanzaType = atom_to_binary(Type, latin1),
-    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
-    LServer = CallerJid#jid.lserver,
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
-                               from_jid => CallerJid,
-                               to_jid => OtherJid,
-                               host_type => HostType,
-                               lserver => LServer,
-                               element => El }),
-    % set subscription to
-    Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJid, OtherJid, Type),
-    ejabberd_router:route(CallerJid, OtherJid, Acc2),
-    ok.
-
-
 set_subscription(Caller, Other, Action) ->
-    case parse_from_to(Caller, Other) of
-        {ok, CallerJid, OtherJid} ->
-            case Action of
-                A when A == <<"connect">>; A == <<"disconnect">> ->
-                    do_set_subscription(CallerJid, OtherJid, Action);
-                _ ->
-                    {error, bad_request, <<"invalid action">>}
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
+        {ok, CallerJID, OtherJID} ->
+            case decode_both_sub_action(Action) of
+                error ->
+                    {error, bad_request, <<"invalid action">>};
+                ActionDecoded  ->
+                    Res = mod_roster_api:set_mutual_subscription(CallerJID, OtherJID,
+                                                                 ActionDecoded),
+                    skip_result_msg(Res)
             end;
         E ->
             E
     end.
 
-do_set_subscription(Caller, Other, <<"connect">>) ->
-    add_contact(Caller, Other),
-    add_contact(Other, Caller),
-    subscription(Caller, Other, <<"subscribe">>),
-    subscription(Other, Caller, <<"subscribe">>),
-    subscription(Other, Caller, <<"subscribed">>),
-    subscription(Caller, Other, <<"subscribed">>),
-    ok;
-do_set_subscription(Caller, Other, <<"disconnect">>) ->
-    delete_contact(Caller, Other),
-    delete_contact(Other, Caller),
-    ok.
+decode_both_sub_action(<<"connect">>) -> connect;
+decode_both_sub_action(<<"disconnect">>) -> disconnect;
+decode_both_sub_action(_) -> error.
 
--spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
-parse_jid_list([_ | _] = BinJids) ->
-    Jids = lists:map(fun parse_jid/1, BinJids),
-    case [Msg || {error, Msg} <- Jids] of
-        [] -> {ok, Jids};
-        Errors -> {error, type_error, lists:join("; ", Errors)}
-    end.
-
--spec parse_jid(binary() | jid:jid()) -> jid:jid() | {error, string()}.
-parse_jid(#jid{} = Jid) ->
-    Jid;
-parse_jid(Jid) when is_binary(Jid) ->
-    case jid:from_binary(Jid) of
-        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
-        B -> B
-    end.
+skip_result_msg({ok, _Msg}) -> ok;
+skip_result_msg({ErrCode, _Msg}) -> {error, ErrCode}.

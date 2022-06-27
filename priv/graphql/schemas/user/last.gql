@@ -1,0 +1,15 @@
+"""
+Allow user to manage last activity.
+"""
+type LastUserQuery @protected{
+  "Get the user's last activity information"
+  getLast(user: JID): LastActivity
+}
+
+"""
+Allow user to get information about last activity.
+"""
+type LastUserMutation @protected{
+  "Set user's last activity information"
+  setLast(timestamp: DateTime, status: String!): LastActivity
+}

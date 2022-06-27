@@ -730,6 +730,10 @@ CREATE TABLE offline_markers (
 
 CREATE INDEX i_offline_markers ON offline_markers(jid);
 
+CREATE TABLE domain_admins(
+     domain VARCHAR(250) NOT NULL PRIMARY KEY,
+     pass_details NVARCHAR(max) NOT NULL
+);
 
 -- Mapping from domain hostname to host_type.
 -- Column id is used for ordering only.

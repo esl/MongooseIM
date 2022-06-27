@@ -1,0 +1,21 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
+directive @protected on FIELD_DEFINITION | OBJECT
+
+"""
+Contains all user available queries.
+"""
+type UserQuery{
+  field: String
+  id(value: String!): String
+}
+
+"""
+Contains all user available mutations.
+"""
+type UserMutation{
+  field: String
+}

@@ -1,0 +1,87 @@
+enum MUCAffiliation{
+  OWNER
+  ADMIN
+  MEMBER
+  OUTCAST
+  NONE
+}
+
+enum MUCRole{
+  VISITOR
+  PARTICIPANT
+  MODERATOR
+}
+
+type MUCRoomUser{
+  jid: JID
+  nick: String!
+  role: MUCRole!
+}
+
+type MUCRoomAffiliation{
+  jid: JID!
+  affiliation: MUCAffiliation!
+}
+
+type MUCRoomDesc{
+  jid: JID!
+  title: String!
+  private: Boolean
+  usersNumber: Int
+}
+
+type MUCRoomConfig{
+  title: String!,
+  description: String!,
+  allowChangeSubject: Bool!,
+  allowQueryUsers: Bool!,
+  allowPrivateMessages: Bool!,
+  allowVisitorStatus: Bool!,
+  allowVisitorNickchange: Bool!,
+  public: Bool!,
+  publicList: Bool!,
+  persistent: Bool!,
+  moderated: Bool!,
+  membersByDefault: Bool!,
+  membersOnly: Bool!,
+  allowUserInvites: Bool!,
+  allowMultipleSession: Bool!,
+  passwordProtected: Bool!,
+  password: String!,
+  anonymous: Bool!,
+  mayGetMemberList: [String!]!
+  maxUsers: Int,
+  logging: Bool!,
+}
+
+input MUCRoomConfigInput{
+  title: String,
+  description: String,
+  allowChangeSubject: Bool,
+  allowQueryUsers: Bool,
+  allowPrivateMessages: Bool,
+  allowVisitorStatus: Bool,
+  allowVisitorNickchange: Bool,
+  public: Bool,
+  publicList: Bool,
+  persistent: Bool,
+  moderated: Bool,
+  membersByDefault: Bool,
+  membersOnly: Bool,
+  allowUserInvites: Bool,
+  allowMultipleSession: Bool,
+  passwordProtected: Bool,
+  password: String,
+  anonymous: Bool,
+  mayGetMemberList: [String!],
+  maxUsers: Int
+  logging: Bool,
+}
+
+type MUCRoomsPayload{
+  rooms: [MUCRoomDesc!]
+  count: Int
+  index: Int
+  first: String
+  last: String
+}

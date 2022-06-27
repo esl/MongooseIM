@@ -70,79 +70,17 @@ commands() ->
 %% <aa xmlns='bb'>Cluth</aa>
 
 -spec private_get(jid:user(), jid:server(), binary(), binary()) ->
-    {error, string()} | string().
+    {not_found, string()} | string().
 private_get(Username, Host, Element, Ns) ->
     JID = jid:make(Username, Host, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
-        true ->
-            do_private_get(JID, Element, Ns);
-        false ->
-            {error, io_lib:format("User ~s@~s does not exist", [Username, Host])}
+    case mod_private_api:private_get(JID, Element, Ns) of
+        {ok, String} -> String;
+        Error -> Error
     end.
-
-do_private_get(JID, Element, Ns) ->
-    From = To = JID,
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(From#jid.lserver),
-    IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
-          #xmlel{ name = <<"query">>,
-                  attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-                  children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => From#jid.lserver,
-                              host_type => HostType,
-                              element => jlib:iq_to_xml(IQ) }),
-    {_, ResIq} = mod_private:process_iq(Acc, From, To, IQ, #{}),
-    [#xmlel{ name = <<"query">>,
-             attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-             children = [SubEl] }] = ResIq#iq.sub_el,
-    exml:to_binary(SubEl).
 
 -spec private_set(jid:user(), jid:server(),
                   ElementString :: binary()) -> {Res, string()} when
-    Res :: ok | user_does_not_exist | user_does_not_exist | not_loaded.
+    Res :: ok | not_found | not_loaded | parse_error.
 private_set(Username, Host, ElementString) ->
-    case exml:parse(ElementString) of
-        {error, Error} ->
-            String = io_lib:format("Error found parsing the element:~n  ~p~nError: ~p~n",
-                      [ElementString, Error]),
-            {parse_error, String};
-        {ok, Xml} ->
-            private_set2(Username, Host, Xml)
-    end.
-
-
-private_set2(Username, Host, Xml) ->
     JID = jid:make(Username, Host, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
-        true ->
-            do_private_set2(JID, Xml);
-        false ->
-            {user_does_not_exist, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
-    end.
-
-do_private_set2(#jid{lserver = Domain} = JID, Xml) ->
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
-    case is_private_module_loaded(HostType) of
-        true ->
-            From = To = JID,
-            IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
-                  #xmlel{ name = <<"query">>,
-                          attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-                          children = [Xml]}},
-            Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                                      from_jid => From,
-                                      to_jid => To,
-                                      lserver => Domain,
-                                      host_type => HostType,
-                                      element => jlib:iq_to_xml(IQ) }),
-            mod_private:process_iq(Acc, From, To, IQ, #{}),
-            {ok, ""};
-        false ->
-            {not_loaded, io_lib:format("Module mod_private is not loaded on domain ~s", [Domain])}
-    end.
-
--spec is_private_module_loaded(jid:server()) -> true | false.
-is_private_module_loaded(Server) ->
-    lists:member(mod_private, gen_mod:loaded_modules(Server)).
+    mod_private_api:private_set(JID, ElementString).

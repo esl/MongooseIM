@@ -1,0 +1,56 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
+"""
+Contains all user available queries.
+Only an authenticated user can execute these queries.
+"""
+type UserQuery{
+  "Check authorization status"
+  checkAuth: UserAuthInfo
+  "Account management"
+  account: AccountUserQuery
+  "Last activity management"
+  last: LastUserQuery
+  "MUC room management"
+  muc: MUCUserQuery
+  "MUC Light room management"
+  muc_light: MUCLightUserQuery
+  "Session management"
+  session: SessionUserQuery
+  "Stanza management"
+  stanza: StanzaUserQuery
+  "Roster/Contacts management"
+  roster: RosterUserQuery
+  "Vcard management"
+  vcard: VcardUserQuery
+  "User's private storage management"
+  private: PrivateUserQuery
+}
+
+"""
+Contains all user available mutations.
+Only an authenticated user can execute these mutations.
+"""
+type UserMutation @protected{
+  "Account management"
+  account: AccountUserMutation
+  "Last activity management"
+  last: LastUserMutation
+  "MUC room management"
+  muc: MUCUserMutation
+  "MUC Light room management"
+  muc_light: MUCLightUserMutation
+  "Stanza management"
+  stanza: StanzaUserMutation
+  "Roster/Contacts management"
+  roster: RosterUserMutation
+  "Vcard management"
+  vcard: VcardUserMutation
+  "User's private storage management"
+  private: PrivateUserMutation
+  "Http upload"
+  httpUpload: HttpUploadUserMutation
+}

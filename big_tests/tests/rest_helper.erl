@@ -41,7 +41,7 @@
 
 -define(PATHPREFIX, <<"/api">>).
 
--type role() :: admin | client.
+-type role() :: admin | client | {graphql, binary()}.
 -type credentials() :: {Username :: binary(), Password :: binary()}.
 -type request_params() :: #{
         role := role(),
@@ -49,6 +49,7 @@
         creds => credentials(),
         path := binary(),
         body := binary(),
+        headers => [{binary(), binary()}],
         return_headers := boolean(),
         server := distributed_helper:rpc_spec(),
         port => inet:port_number(),
@@ -195,15 +196,17 @@ fusco_request(#{ role := Role, method := Method, creds := {User, Password},
                  path := Path, body := Body, server := Server } = Params) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
     Basic = list_to_binary("Basic " ++ EncodedAuth),
-    Headers = [{<<"authorization">>, Basic}],
+    Headers = [{<<"authorization">>, Basic} | maps:get(headers, Params, [])],
     fusco_request(Method, Path, Body, Headers,
                   get_port(Role, Server, Params), get_ssl_status(Role, Server), Params);
 %% an API to just send a request to a given port, without authentication
 fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = Params) ->
-    fusco_request(Method, Path, Body, [], Port, false, Params);
+    Headers = maps:get(headers, Params, []),
+    fusco_request(Method, Path, Body, Headers, Port, false, Params);
 %% without credentials it is for admin (secure) interface
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
-    fusco_request(Method, Path, Body, [], get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
+    Headers = maps:get(headers, Params, []),
+    fusco_request(Method, Path, Body, Headers, get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
@@ -291,8 +294,14 @@ inject_creds_to_opts(Handler = #{module := mongoose_api_admin}, Creds) ->
 inject_creds_to_opts(Handler, _Creds) ->
     Handler.
 
-% @doc Checks whether a config for a port is an admin or client one.
+% @doc Checks whether a config for a port is an admin, client or GraphQL one.
 % This is determined based on handler modules used.
+is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, SchemaEndpoint}) ->
+    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := Ep}) ->
+                      SchemaEndpoint =:= Ep;
+                 (_) ->
+                      false
+              end, Handlers);
 is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
     RoleModule = role_to_module(Role),
     lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);

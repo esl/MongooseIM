@@ -1,0 +1,66 @@
+schema{
+  query: AdminQuery,
+  mutation: AdminMutation
+}
+
+"""
+Contains all admin available queries.
+Only an authenticated admin can execute these queries.
+"""
+type AdminQuery{
+  "Check authorization status"
+  checkAuth: AdminAuthInfo
+  "Account management"
+  account: AccountAdminQuery
+  "Domain management"
+  domains: DomainAdminQuery
+  "Last activity management"
+  last: LastAdminQuery
+  "MUC room management"
+  muc: MUCAdminQuery
+  "MUC Light room management"
+  muc_light: MUCLightAdminQuery
+  "Session management"
+  session: SessionAdminQuery
+  "Stanza management"
+  stanza: StanzaAdminQuery
+  "Roster/Contacts management"
+  roster: RosterAdminQuery
+  "Vcard management"
+  vcard: VcardAdminQuery
+  "Private storage management"
+  private: PrivateAdminQuery
+  "Metrics management"
+  metric: MetricAdminQuery
+}
+
+"""
+Contains all admin available mutations.
+Only an authenticated admin can execute these mutations.
+"""
+type AdminMutation @protected{
+  "Account management"
+  account: AccountAdminMutation
+  "Domain management"
+  domains: DomainAdminMutation
+  "Last activity management"
+  last: LastAdminMutation
+  "MUC room management"
+  muc: MUCAdminMutation
+  "MUC Light room management"
+  muc_light: MUCLightAdminMutation
+  "Session management"
+  session: SessionAdminMutation
+  "Stanza management"
+  stanza: StanzaAdminMutation
+  "Roster/Contacts management"
+  roster: RosterAdminMutation
+  "Vcard management"
+  vcard: VcardAdminMutation
+  "Private storage management"
+  private: PrivateAdminMutation
+  "Http upload"
+  httpUpload: HttpUploadAdminMutation
+  "Offline deleting old messages"
+  offline: OfflineAdminMutation
+}

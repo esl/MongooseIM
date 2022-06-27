@@ -243,8 +243,8 @@ user_can_be_registered_and_removed(_Config) ->
     assert_notinlist(<<"mike@", Domain/binary>>, Lusers2),
     % invalid jid
     CrBadUser = #{username => <<"m@ke">>, password => <<"nicniema">>},
-    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, path("users"), CrBadUser),
-    {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = delete(admin, path("users", ["@mike"])),
+    {?BAD_REQUEST, <<"Invalid JID", _/binary>>} = post(admin, path("users"), CrBadUser),
+    {?BAD_REQUEST, <<"Invalid JID", _/binary>>} = delete(admin, path("users", ["@mike"])),
 %%    {?FORBIDDEN, _} = delete(admin, path("users", ["mike"])), % he's already gone, but we
 %%    can't test it because ejabberd_auth_internal:remove_user/2 always returns ok, grrrr
     ok.
@@ -269,7 +269,7 @@ session_can_be_kicked(Config) ->
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett(admin, path("sessions")),
         assert_notinlist(AliceJid, Sessions2),
-        {?NOT_FOUND, <<"no active session">>} = delete(admin, AliceSessionPath),
+        {?NOT_FOUND, <<"No active session">>} = delete(admin, AliceSessionPath),
         ok
     end).
 
@@ -398,10 +398,10 @@ password_can_be_changed(Config) ->
     % test invalid calls
     Res1 = putt(admin, path("users", ["bob"]),
                            #{newpass => <<>>}),
-    {?BAD_REQUEST, <<"empty password">>} = Res1,
+    {?BAD_REQUEST, <<"Empty password">>} = Res1,
     Res2 = putt(admin, path("users", ["b@b"]),
                 #{newpass => NewPass}),
-    {?BAD_REQUEST, <<"invalid jid">>} = Res2,
+    {?BAD_REQUEST, <<"Invalid JID">>} = Res2,
     ok.
 
 list_contacts(Config) ->

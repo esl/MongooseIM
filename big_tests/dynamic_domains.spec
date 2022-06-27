@@ -41,6 +41,21 @@
   remove_personal_data_pubsub],
  "at the moment mod_pubsub doesn't support dynamic domains"}.
 
+{suites, "tests", graphql_SUITE}.
+{suites, "tests", graphql_account_SUITE}.
+{suites, "tests", graphql_domain_SUITE}.
+{suites, "tests", graphql_last_SUITE}.
+{suites, "tests", graphql_muc_SUITE}.
+{suites, "tests", graphql_muc_light_SUITE}.
+{suites, "tests", graphql_private_SUITE}.
+{suites, "tests", graphql_roster_SUITE}.
+{suites, "tests", graphql_session_SUITE}.
+{suites, "tests", graphql_stanza_SUITE}.
+{suites, "tests", graphql_vcard_SUITE}.
+{suites, "tests", graphql_offline_SUITE}.
+{suites, "tests", graphql_http_upload_SUITE}.
+{suites, "tests", graphql_metric_SUITE}.
+
 {suites, "tests", inbox_SUITE}.
 
 {suites, "tests", inbox_extensions_SUITE}.

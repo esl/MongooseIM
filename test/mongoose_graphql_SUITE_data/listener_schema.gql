@@ -1,0 +1,32 @@
+schema{
+  query: Query,
+  mutation: Mutation
+}
+
+directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
+  on FIELD_DEFINITION | OBJECT
+
+enum ProtectionType{
+  DOMAIN
+  GLOBAL
+  DEFAULT
+}
+
+"""
+Contains all available queries.
+"""
+type Query @protected{
+  field: String
+  fieldDP(argA: String): String
+    @protected(type: DOMAIN, args: ["argA"])
+  fieldGlobal(argA: String): String
+    @protected(type: GLOBAL)
+}
+
+"""
+Contains all available mutations.
+"""
+type Mutation{
+  field: String
+  id(value: String!): String
+}

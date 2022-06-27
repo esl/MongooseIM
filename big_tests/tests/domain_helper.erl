@@ -4,6 +4,8 @@
          delete_configured_domains/0,
          insert_domain/3,
          delete_domain/2,
+         set_domain_password/3,
+         delete_domain_password/2,
          make_metrics_prefix/1,
          host_types/0,
          host_types/1,
@@ -65,6 +67,12 @@ insert_persistent_domain(Node, Domain, HostType) ->
 
 delete_persistent_domain(Node, Domain, HostType) ->
     ok = rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
+
+set_domain_password(Node, Domain, Password) ->
+    ok = rpc(Node, mongoose_domain_api, set_domain_password, [Domain, Password]).
+
+delete_domain_password(Node, Domain) ->
+    ok = rpc(Node, mongoose_domain_api, delete_domain_password, [Domain]).
 
 for_each_configured_domain(F) ->
     [for_each_configured_domain(F, Opts) || {_, Opts} <- ct:get_config(hosts)],

@@ -10,6 +10,7 @@
 
 %% UID
 -export([get_or_generate_mam_id/1,
+         get_mam_id_ext/1,
          generate_message_id/1,
          encode_compact_uuid/2,
          decode_compact_uuid/1,
@@ -174,6 +175,15 @@ get_or_generate_mam_id(Acc) ->
             generate_message_id(CandidateStamp);
         ExtMessId ->
             mod_mam_utils:external_binary_to_mess_id(ExtMessId)
+    end.
+
+-spec get_mam_id_ext(mongoose_acc:t()) -> binary().
+get_mam_id_ext(Acc) ->
+    case mongoose_acc:get(mam, mam_id, undefined, Acc) of
+        undefined ->
+            <<>>;
+        ExtMessId ->
+            ExtMessId
     end.
 
 -spec generate_message_id(integer()) -> integer().

@@ -46,6 +46,7 @@
          broadcast_service_message/2,
          can_use_nick/4,
          room_jid_to_pid/1,
+         get_vh_rooms/2,
          default_host/0]).
 -export([server_host_to_muc_host/2]).
 
@@ -944,9 +945,9 @@ register_room(HostType, MucHost, Room, Pid) ->
 room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
     case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
         [R] ->
-        {ok, R#muc_online_room.pid};
-    [] ->
-        {error, not_found}
+            {ok, R#muc_online_room.pid};
+        [] ->
+            {error, not_found}
     end.
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
@@ -985,7 +986,7 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
          _ ->
              false
      end;
-room_to_item({{ Name, _ }, _}, MucHost, _, _) ->
+room_to_item({{Name, _}, _}, MucHost, _, _) ->
      {true,
      #xmlel{name = <<"item">>,
             attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},

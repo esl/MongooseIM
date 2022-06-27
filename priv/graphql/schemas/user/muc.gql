@@ -1,0 +1,43 @@
+"""
+Allow user to manage Multi-User Chat rooms.
+"""
+type MUCUserMutation @protected{
+  "Create a MUC room under the given XMPP hostname"
+  createInstantRoom(mucDomain: String!, name: String!, nick: String!): MUCRoomDesc
+  "Invite a user to a MUC room"
+  inviteUser(room: JID!, recipient: JID!, reason: String): String
+  "Kick a user from a MUC room"
+  kickUser(room: JID!, nick: String!, reason: String): String
+  "Send a message to a MUC room"
+  sendMessageToRoom(room: JID!, body: String!, resource: String): String
+  "Send a private message to a MUC room user from the given resource"
+  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String
+  "Remove a MUC room"
+  deleteRoom(room: JID!, reason: String): String
+  "Change configuration of a MUC room"
+  changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig
+  "Change a user role"
+  setUserRole(room: JID!, nick: String!, role: MUCRole!): String
+  "Change a user affiliation"
+  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String
+  "Enter the room with given resource and nick"
+  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String
+  "Exit the room with given resource and nick"
+  exitRoom(room: JID!, nick: String!, resource: String!): String
+}
+
+"""
+Allow user to get information about Multi-User Chat rooms.
+"""
+type MUCUserQuery @protected{
+  "Get MUC rooms under the given MUC domain"
+  listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
+  "Get configuration of the MUC room"
+  getRoomConfig(room: JID!): MUCRoomConfig
+  "Get the user list of a given MUC room"
+  listRoomUsers(room: JID!): [MUCRoomUser!]
+  "Get the affiliation list of given MUC room"
+  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
+  "Get the MUC room archived messages"
+  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
+}

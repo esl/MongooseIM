@@ -1,0 +1,62 @@
+"""
+Allow admin to get information about accounts.
+"""
+type AccountAdminQuery @protected{
+  "List users per domain"
+  listUsers(domain: String!): [String!]!
+    @protected(type: DOMAIN, args: ["domain"])
+  "Get number of users per domain"
+  countUsers(domain: String!): Int!
+    @protected(type: DOMAIN, args: ["domain"])
+  "Check if a password is correct"
+  checkPassword(user: JID!, password: String!): CheckPasswordPayload
+    @protected(type: DOMAIN, args: ["user"])
+  "Check if a password hash is correct (allowed methods: md5, sha). Works only for a plain passwords"
+  checkPasswordHash(user: JID!, passwordHash: String!, hashMethod: String!): CheckPasswordPayload
+    @protected(type: DOMAIN, args: ["user"])
+  "Check if a user exists"
+  checkUser(user: JID!): CheckUserPayload
+    @protected(type: DOMAIN, args: ["user"])
+}
+
+"""
+Allow admin to manage user accounts.
+"""
+type AccountAdminMutation @protected{
+  "Register a user. Username will be generated when skipped"
+  registerUser(domain: String!, username: String, password: String!): UserPayload
+    @protected(type: DOMAIN, args: ["domain"])
+  "Remove a user"
+  removeUser(user: JID!): UserPayload
+    @protected(type: DOMAIN, args: ["user"])
+  "Ban an account: kick sessions and set a random password"
+  banUser(user: JID!, reason: String!): UserPayload 
+    @protected(type: DOMAIN, args: ["user"])
+  "Change the password of a user"
+  changeUserPassword(user: JID!, newPassword: String!): UserPayload 
+    @protected(type: DOMAIN, args: ["user"])
+}
+
+"Modify user payload"
+type UserPayload{
+  "User JID"
+  jid: JID!
+  "Result message"
+  message: String!
+}
+
+"Check password correctness payload"
+type CheckPasswordPayload{
+  "Status of the password correctness"
+  correct: Bool!
+  "Result message"
+  message: String!
+}
+
+"Check user existence payload"
+type CheckUserPayload{
+  "Status of the user existence"
+  exist: Bool!
+  "Result message"
+  message: String!
+}

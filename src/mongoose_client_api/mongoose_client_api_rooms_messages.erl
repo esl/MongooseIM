@@ -17,7 +17,7 @@
 
 -ignore_xref([from_json/2, to_json/2, trails/0]).
 
--import(mongoose_client_api_messages, [maybe_integer/1, maybe_before_to_us/2]).
+-import(mongoose_client_api_messages, [maybe_integer/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -50,32 +50,13 @@ allow_missing_post(Req, State) ->
 
 to_json(Req, #{role_in_room := none} = State) ->
     mongoose_client_api:forbidden_request(Req, State);
-to_json(Req, #{jid := UserJID, room := Room} = State) ->
-    RoomJID = maps:get(jid, Room),
+to_json(Req, #{jid := UserJID, room := #{jid := RoomJID}} = State) ->
     HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJID),
-    Now = os:system_time(microsecond),
-    ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
     QS = cowboy_req:parse_qs(Req),
     PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
-    Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
-    End = maybe_before_to_us(Before, Now),
-    RSM = #rsm_in{direction = before, id = undefined},
-    R = mod_mam_muc:lookup_messages(HostType,
-                                    #{archive_id => ArchiveID,
-                                      owner_jid => RoomJID,
-                                      caller_jid => UserJID,
-                                      rsm => RSM,
-                                      borders => undefined,
-                                      start_ts => undefined,
-                                      end_ts => End,
-                                      now => Now,
-                                      with_jid => undefined,
-                                      search_text => undefined,
-                                      page_size => PageSize,
-                                      limit_passed => true,
-                                      max_result_limit => 50,
-                                      is_simple => true}),
-    {ok, {_, _, Msgs}} = R,
+    Before = maybe_integer_to_us(proplists:get_value(<<"before">>, QS)),
+    {ok, Msgs} = mod_muc_light_api:get_room_messages(HostType, RoomJID, UserJID,
+                                                     PageSize, Before),
     JSONData = [make_json_item(Msg) || Msg <- Msgs],
     {jiffy:encode(JSONData), Req, State}.
 
@@ -213,3 +194,8 @@ add_aff_change_body(Item, #xmlel{attrs = Attrs} = User) ->
     Item#{type => <<"affiliation">>,
           affiliation => proplists:get_value(<<"affiliation">>, Attrs),
           user => exml_query:cdata(User)}.
+
+maybe_integer_to_us(undefined) ->
+    undefined;
+maybe_integer_to_us(Val) ->
+    binary_to_integer(Val) * 1000.

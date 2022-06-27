@@ -391,7 +391,7 @@ paths:
       responses:
         204:
           description: "The operation was successful."
-  /muc-lights/{XMPPHost}:
+  /muc-lights/{XMPPMUCHost}:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
@@ -472,10 +472,10 @@ paths:
           schema:
             title: roomJID
             type: string
-  /muc-lights/{XMPPMUCHost}/{roomName}/participants:
+  /muc-lights/{XMPPMUCHost}/{roomID}/participants:
     parameters:
       - $ref: '#/parameters/MUCServer'
-      - $ref: '#/parameters/roomName'
+      - $ref: '#/parameters/roomID'
     post:
       tags:
         - "MUC-light management"
@@ -504,10 +504,10 @@ paths:
       responses:
         204:
           description: An invite was sent out
-  /muc-lights/{XMPPMUCHost}/{roomName}/messages:
+  /muc-lights/{XMPPMUCHost}/{roomID}/messages:
     parameters:
       - $ref: '#/parameters/MUCServer'
-      - $ref: '#/parameters/roomName'
+      - $ref: '#/parameters/roomID'
     post:
       tags:
         - "MUC-light management"
@@ -536,16 +536,10 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
-  /muc-lights/{XMPPMUCHost}/{roomName}/{user}/management:
+  /muc-lights/{XMPPMUCHost}/{roomID}/management:
     parameters:
       - $ref: '#/parameters/MUCServer'
-      - $ref: '#/parameters/roomName'
-      - name: user
-        in: path
-        description: User's JID (f.e. alice@wonderland.lit)
-        required: true
-        type: string
-        format: JID
+      - $ref: '#/parameters/roomID'
     delete:
       tags:
         - "MUC-light management"
@@ -687,6 +681,12 @@ parameters:
     name: roomName
     in: path
     description: The MUC Light room's **name** (i.e. **not** the room's JID)
+    required: true
+    type: string
+  roomID:
+    name: roomID
+    in: path
+    description: The MUC Light room's **id**
     required: true
     type: string
 

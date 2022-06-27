@@ -33,7 +33,6 @@
     resource_num/3,
     kick_session/2,
     kick_session/4,
-    prepare_reason/1,
     status_num/2, status_num/1,
     status_list/2, status_list/1,
     connected_users_info/0,
@@ -44,30 +43,15 @@
 
 -ignore_xref([
     commands/0, num_resources/2, resource_num/3, kick_session/2, kick_session/4,
-    prepare_reason/1, status_num/2, status_num/1, status_list/2, status_list/1,
+    status_num/2, status_num/1, status_list/2, status_list/1,
     connected_users_info/0, connected_users_info/1, set_presence/7,
     user_sessions_info/2
 ]).
 
--include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
--include("jlib.hrl").
--include("session.hrl").
--include_lib("exml/include/exml.hrl").
 
--type status() :: binary().
--type u_s_r_p_st() :: { User    :: jid:user(),
-                        Server  :: jid:server(),
-                        Res     :: jid:resource(),
-                        Prio    :: ejabberd_sm:priority(),
-                        Status  :: status()}.
--type formatted_user_info() :: {USR :: string(),
-                                Conn :: string(),
-                                IPS :: string(),
-                                Port :: inet:port_number(),
-                                Prio :: ejabberd_sm:priority(),
-                                NodeS :: string(),
-                                Uptime :: integer()}.
+-type status() :: mongoose_session_api:status().
+
 %%%
 %%% Register commands
 %%%
@@ -96,13 +80,13 @@ commands() ->
                            desc = "Resource string of a session number",
                            module = ?MODULE, function = resource_num,
                            args = [{user, binary}, {host, binary}, {num, integer}],
-                           result = {resource, binary}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = kick_session, tags = [session],
                            desc = "Kick a user session",
                            module = ?MODULE, function = kick_session,
                            args = [{user, binary}, {host, binary},
                                    {resource, binary}, {reason, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = status_num_host, tags = [session, stats],
                            desc = "Number of logged users with this status in host",
                            module = ?MODULE, function = status_num,
@@ -175,136 +159,52 @@ commands() ->
 
 -spec num_resources(jid:user(), jid:server()) -> non_neg_integer().
 num_resources(User, Host) ->
-    JID = jid:make(User, Host, <<>>),
-    length(ejabberd_sm:get_user_resources(JID)).
+    mongoose_session_api:num_resources(User, Host).
 
-
--spec resource_num(jid:user(), jid:server(), integer()) -> binary() | string().
+-spec resource_num(jid:user(), jid:server(), integer()) -> mongoose_session_api:res_number_result().
 resource_num(User, Host, Num) ->
-    JID = jid:make(User, Host, <<>>),
-    Resources = ejabberd_sm:get_user_resources(JID),
-    case (0 < Num) and (Num =< length(Resources)) of
-        true ->
-            lists:nth(Num, Resources);
-        false ->
-            lists:flatten(io_lib:format("Error: Wrong resource number: ~p", [Num]))
-    end.
+    mongoose_session_api:get_user_resource(User, Host, Num).
 
-
--spec kick_session(jid:jid(), binary() | list()) -> ok.
+-spec kick_session(jid:jid(), binary()) -> mongoose_session_api:kick_session_result().
 kick_session(JID, ReasonText) ->
-    ejabberd_c2s:terminate_session(JID, prepare_reason(ReasonText)),
-    ok.
+    mongoose_session_api:kick_session(JID, ReasonText).
 
--spec kick_session(jid:user(), jid:server(), jid:resource(), list() | binary()) -> ok.
+-spec kick_session(jid:user(), jid:server(), jid:resource(), binary()) ->
+    mongoose_session_api:kick_session_result().
 kick_session(User, Server, Resource, ReasonText) ->
-    kick_session(jid:make(User, Server, Resource), prepare_reason(ReasonText)).
+    mongoose_session_api:kick_session(User, Server, Resource, ReasonText).
 
-
--spec prepare_reason(binary() | string()) -> binary().
-prepare_reason(<<>>) ->
-    <<"Kicked by administrator">>;
-prepare_reason([Reason]) ->
-    prepare_reason(Reason);
-prepare_reason(Reason) when is_list(Reason) ->
-    list_to_binary(Reason);
-prepare_reason(Reason) when is_binary(Reason) ->
-    Reason.
-
-
--spec status_num('all' | jid:server(), status()) -> non_neg_integer().
+-spec status_num(jid:server(), status()) -> non_neg_integer().
 status_num(Host, Status) ->
-    length(get_status_list(Host, Status)).
-
+    mongoose_session_api:num_status_users(Host, Status).
 
 -spec status_num(status()) -> non_neg_integer().
 status_num(Status) ->
-    status_num(all, Status).
+    mongoose_session_api:num_status_users(Status).
 
-
--spec status_list('all' | jid:server(), status()) -> [u_s_r_p_st()].
+-spec status_list(jid:server(), status()) -> [mongoose_session_api:status_user_info()].
 status_list(Host, Status) ->
-    Res = get_status_list(Host, Status),
-    [{U, S, R, P, St} || {U, S, R, P, St} <- Res].
+    mongoose_session_api:list_status_users(Host, Status).
 
-
--spec status_list(binary()) -> [u_s_r_p_st()].
+-spec status_list(binary()) -> [mongoose_session_api:status_user_info()].
 status_list(Status) ->
-    status_list(all, Status).
+    mongoose_session_api:list_status_users(Status).
 
-
--spec get_status_list('all' | jid:server(), status()) -> [u_s_r_p_st()].
-get_status_list(Host, StatusRequired) ->
-    Sessions0 = case Host of
-        all -> ejabberd_sm:get_full_session_list();
-        _ -> ejabberd_sm:get_vh_session_list(Host)
-    end,
-    Sessions = [ {catch ejabberd_c2s:get_presence(Pid), S, P}
-                 || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P}
-                    <- Sessions0 ],
-
-    %% Filter by status
-    Fstatus = case StatusRequired of
-        all -> fun(_, _) -> true end;
-        _ -> fun(A, B) -> A == B end
-    end,
-    [{User, Server, Resource, Priority, StatusText}
-     || {{User, Resource, Status, StatusText}, Server, Priority} <- Sessions,
-        apply(Fstatus, [Status, StatusRequired])].
-
-
--spec connected_users_info() -> [formatted_user_info()].
+-spec connected_users_info() -> mongoose_session_api:list_sessions_result().
 connected_users_info() ->
-    connected_users_info(all).
+    mongoose_session_api:list_sessions().
 
-
--spec connected_users_info('all' | jid:server()) -> [formatted_user_info()].
+-spec connected_users_info(jid:server()) -> mongoose_session_api:list_sessions_result().
 connected_users_info(Host) ->
-    USRIs = case Host of
-        all -> ejabberd_sm:get_full_session_list();
-        _ -> ejabberd_sm:get_vh_session_list(Host)
-    end,
-    lists:map(fun format_user_info/1, USRIs).
-
+    mongoose_session_api:list_sessions(Host).
 
 -spec set_presence(jid:user(), jid:server(), jid:resource(),
-        Type :: binary(), Show :: binary() | string(), Status :: binary() | string(),
-        Prio :: binary() | string()) -> 'ok'.
+        Type :: binary(), Show :: binary(), Status :: binary(),
+        Prio :: binary()) -> ok.
 set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
-    Pid = ejabberd_sm:get_session_pid(jid:make(User, Host, Resource)),
-    USR = <<User/binary, $@, Host/binary, $/, Resource/binary>>,
-    US = <<User/binary, $@, Host/binary>>,
-    Message = {xmlstreamelement,
-               #xmlel{ name = <<"presence">>,
-                      attrs = [{<<"from">>, USR}, {<<"to">>, US}, {<<"type">>, Type}],
-                      children = [#xmlel{ name = <<"show">>,
-                                          children = [#xmlcdata{content = Show}]},
-                                  #xmlel{ name = <<"status">>,
-                                          children = [#xmlcdata{content = Status}]},
-                                  #xmlel{ name = <<"priority">>,
-                                          children = [#xmlcdata{content = Priority}]}]}},
-    p1_fsm_old:send_event(Pid, Message).
+    mongoose_session_api:set_presence(User, Host, Resource, Type, Show, Status, Priority),
+    ok.
 
-
--spec user_sessions_info(jid:user(), jid:server()) -> [formatted_user_info()].
+-spec user_sessions_info(jid:user(), jid:server()) -> [mongoose_session_api:session_info()].
 user_sessions_info(User, Host) ->
-    JID = jid:make(User, Host, <<>>),
-    Resources = ejabberd_sm:get_user_resources(JID),
-    lists:foldl(fun(Res, Acc) ->
-                RJID = jid:replace_resource(JID, Res),
-                case ejabberd_sm:get_session(RJID) of
-                    offline -> Acc;
-                    Session -> [format_user_info(Session) | Acc]
-                end
-        end, [], Resources).
-
-
--spec format_user_info(ejabberd_sm:session()) -> formatted_user_info().
-format_user_info(#session{sid = {Microseconds, Pid}, usr = {U, S, R},
-                          priority = Priority, info = Info}) ->
-    Conn = maps:get(conn, Info, undefined),
-    {Ip, Port} = maps:get(ip, Info, undefined),
-    IPS = inet_parse:ntoa(Ip),
-    NodeS = atom_to_list(node(Pid)),
-    Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,
-    {[U, $@, S, $/, R], atom_to_list(Conn), IPS, Port, Priority, NodeS, Uptime}.
+    mongoose_session_api:list_user_sessions(User, Host).

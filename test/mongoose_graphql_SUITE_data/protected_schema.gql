@@ -1,0 +1,22 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
+directive @protected on FIELD_DEFINITION | OBJECT
+
+"""
+Contains all user available queries.
+Only an authenticated user can execute these queries.
+"""
+type UserQuery @protected{
+  field: String
+}
+
+"""
+Contains all user available mutations.
+Only an authenticated user can execute these mutations.
+"""
+type UserMutation @protected{
+  field: String
+}

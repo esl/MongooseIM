@@ -1,0 +1,21 @@
+schema{
+  query: Query,
+  mutation: Mutation
+}
+
+directive @protected on FIELD_DEFINITION | OBJECT
+
+"""
+Contains all available queries.
+"""
+type Query @protected{
+  field: String
+}
+
+"""
+Contains all available mutations.
+"""
+type Mutation{
+  field: String
+  id(value: String!): String
+}

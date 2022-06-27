@@ -101,7 +101,8 @@ all() ->
      {group, stanza},
      {group, stats},
      {group, basic},
-     {group, upload}
+     {group, upload},
+     {group, graphql}
     ].
 
 groups() ->
@@ -117,7 +118,8 @@ groups() ->
      {stats, [sequence], stats()},
      {upload, [], upload()},
      {upload_with_acl, [], upload_enabled()},
-     {upload_without_acl, [], upload_enabled()}].
+     {upload_without_acl, [], upload_enabled()},
+     {graphql, [], graphql()}].
 
 basic() ->
     [simple_register,
@@ -171,6 +173,11 @@ upload_enabled() ->
      upload_returns_correct_urls_with_content_type,
      real_upload_without_content_type,
      real_upload_with_content_type].
+
+graphql() ->
+    [graphql_wrong_arguments_number,
+     can_execute_admin_queries_with_permissions,
+     can_handle_execution_error].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -1110,23 +1117,49 @@ stats_host(Config) ->
                 {"0\n", 0} = mongooseimctl("stats_host", ["onlineusers", SecDomain], Config)
         end).
 
+%%--------------------------------------------------------------------
+%% mongoose_graphql tests
+%%--------------------------------------------------------------------
 
+can_execute_admin_queries_with_permissions(Config) ->
+    Query = "query { checkAuth { authStatus } }",
+    Res = mongooseimctl("graphql", [Query], Config),
+    ?assertMatch({_, 0}, Res),
+    Data = element(1, Res),
+    ?assertNotEqual(nomatch, string:find(Data, "AUTHORIZED")).
+
+can_handle_execution_error(Config) ->
+    Query = "{}",
+    Res = mongooseimctl("graphql", [Query], Config),
+    ?assertMatch({_, 0}, Res),
+    Data = element(1, Res),
+    ?assertNotEqual(nomatch, string:find(Data, "parser_error")).
+
+graphql_wrong_arguments_number(Config) ->
+    ExpectedFragment = "This command requires",
+    ResNoArgs = mongooseimctl("graphql", [], Config),
+    ?assertMatch({_, 1}, ResNoArgs),
+    Data1 = element(1, ResNoArgs),
+    ?assertNotEqual(nomatch, string:find(Data1, ExpectedFragment)),
+
+    ResTooManyArgs = mongooseimctl("graphql", ["{}", "{}"], Config),
+    ?assertMatch({_, 1}, ResTooManyArgs),
+    Data2 = element(1, ResTooManyArgs),
+    ?assertNotEqual(nomatch, string:find(Data2, ExpectedFragment)).
 
 %%-----------------------------------------------------------------
 %% Improve coverage
 %%-----------------------------------------------------------------
 
-
-
 simple_register(Config) ->
     %% given
     Domain = domain(),
-    {_, Password} = {<<"tyler">>, <<"durden">>},
+    {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {R1, 0} = mongooseimctl("registered_users", [Domain], Config),
     Before = length(string:tokens(R1, "\n")),
     {_, 0} = mongooseimctl("register", [Domain, Password], Config),
-    {_, 0} = mongooseimctl("register", [Domain, Password], Config),
+    {_, 0} = mongooseimctl("register_identified", [Name, Domain, Password], Config),
 
     {R2, 0} = mongooseimctl("registered_users", [Domain], Config),
     After = length(string:tokens(R2, "\n")),
@@ -1154,8 +1187,6 @@ register_twice(Config) ->
     {match, _} = re:run(R, ".*(already registered).*"),
     true = (Code =/= 0),
     {_, 0} = mongooseimctl("unregister", [Name, Domain], Config).
-
-
 
 backup_restore_mnesia(Config) ->
     %% given

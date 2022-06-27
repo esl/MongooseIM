@@ -110,7 +110,7 @@ commands() ->
                         desc = "List all registered users in HOST",
                         module = ?MODULE, function = registered_users,
                         args = [{host, binary}],
-                        result = {users, {list, {username, binary}}}},
+                        result = {users, {list, {user_jid, binary}}}},
      #ejabberd_commands{name = import_users, tags = [accounts],
                         desc = "Import users from CSV file",
                         module = ?MODULE, function = import_users,
@@ -297,50 +297,26 @@ status() ->
 %%%
 
 -spec register(Host :: jid:server(),
-               Password :: binary()) -> {'cannot_register', io_lib:chars()}
-                                      | {'exists', io_lib:chars()}
-                                      | {'ok', io_lib:chars()}.
+               Password :: binary()) -> mongoose_account_api:register_result().
 register(Host, Password) ->
-    User = generate_user(),
-    register(User, Host, Password).
+    {Result, _} = mongoose_account_api:register_generated_user(Host, Password),
+    Result.
 
 -spec register(User :: jid:user(),
                Host :: jid:server(),
-               Password :: binary()) -> {'cannot_register', io_lib:chars()}
-                                      | {'exists', io_lib:chars()}
-                                      | {'ok', io_lib:chars()}.
+               Password :: binary()) -> mongoose_account_api:register_result().
 register(User, Host, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:try_register(JID, Password) of
-        {error, exists} ->
-            String = io_lib:format("User ~s already registered at node ~p",
-                                   [jid:to_binary(JID), node()]),
-            {exists, String};
-        {error, Reason} ->
-            String = io_lib:format("Can't register user ~s at node ~p: ~p",
-                                   [jid:to_binary(JID), node(), Reason]),
-            {cannot_register, String};
-        _ ->
-            {ok, io_lib:format("User ~s successfully registered", [jid:to_binary(JID)])}
-    end.
-
-generate_user() ->
-    mongoose_bin:join([mongoose_bin:gen_from_timestamp(),
-                      mongoose_bin:gen_from_crypto()],
-                      $-).
-
+    mongoose_account_api:register_user(User, Host, Password).
 
 -spec unregister(User :: jid:user(),
-                 Host :: jid:server()) -> {'ok', []}.
+                 Host :: jid:server()) -> mongoose_account_api:unregister_result().
 unregister(User, Host) ->
-    ejabberd_auth:remove_user(jid:make(User, Host, <<>>)),
-    {ok, ""}.
+    mongoose_account_api:unregister_user(User, Host).
 
--spec registered_users(Host :: jid:server()) -> [jid:user()].
+
+-spec registered_users(Host :: jid:server()) -> [binary()].
 registered_users(Host) ->
-    Users = ejabberd_auth:get_vh_registered_users(Host),
-    SUsers = lists:sort(Users),
-    lists:map(fun({U, _S}) -> U end, SUsers).
+    mongoose_account_api:list_users(Host).
 
 -spec import_users(Filename :: string()) -> [{ok, jid:user()} |
                                              {exists, jid:user()} |
@@ -438,33 +414,18 @@ get_loglevel() ->
 %%%
 
 -spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
-delete_expired_messages(LServer) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            case mod_offline:remove_expired_messages(HostType, LServer) of
-                {ok, C} ->
-                    {ok, io_lib:format("Removed ~p messages", [C])};
-                {error, Reason} ->
-                    {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
-            end;
-        {error, not_found} ->
-            {error, "Unknown domain"}
+delete_expired_messages(Domain) ->
+    case mod_offline_api:delete_expired_messages(Domain) of
+        {ok, _} = Result -> Result;
+        {_, Message} -> {error, Message}
     end.
 
 -spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
-delete_old_messages(LServer, Days) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            case mod_offline:remove_old_messages(HostType, LServer, Days) of
-                {ok, C} ->
-                    {ok, io_lib:format("Removed ~p messages", [C])};
-                {error, Reason} ->
-                    {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
-            end;
-        {error, not_found} ->
-            {error, "Unknown domain"}
+delete_old_messages(Domain, Days) ->
+    case mod_offline_api:delete_old_messages(Domain, Days) of
+        {ok, _} = Result -> Result;
+        {_, Message} -> {error, Message}
     end.
-
 
 %%%
 %%% Mnesia management

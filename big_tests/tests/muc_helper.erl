@@ -296,7 +296,7 @@ story_with_room(Config, RoomOpts, [{Owner, _}|_] = UserSpecs, StoryFun) ->
         StoryFun2 = fun(Args) -> apply(StoryFun, [Config2 | Args]) end,
         escalus_story:story_with_client_list(Config2, UserSpecs, StoryFun2)
     after
-        destroy_room(Config2)
+        mam_helper:destroy_room(Config2)
     end.
 
 %%--------------------------------------------------------------------

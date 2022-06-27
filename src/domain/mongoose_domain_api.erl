@@ -15,6 +15,11 @@
          get_all_static/0,
          get_domains_by_host_type/1]).
 
+%% domain admin API
+-export([check_domain_password/2,
+         set_domain_password/2,
+         delete_domain_password/1]).
+
 %% subdomain API
 -export([register_subdomain/3,
          unregister_subdomain/2,
@@ -72,6 +77,7 @@ delete_domain(Domain, HostType) ->
             Res = check_db(mongoose_domain_sql:delete_domain(Domain, HostType)),
             case Res of
                 ok ->
+                    delete_domain_password(Domain),
                     mongoose_hooks:remove_domain(HostType, Domain);
                 _ ->
                     ok
@@ -179,6 +185,43 @@ check_domain(Domain, HostType) ->
         true ->
             ok
     end.
+
+-type password() :: binary().
+
+-spec check_domain_password(domain(), password()) -> ok | {error, wrong_password | not_found}.
+check_domain_password(Domain, Password) ->
+    case mongoose_domain_sql:select_domain_admin(Domain) of
+        {ok, {Domain, PassDetails}} ->
+            case do_check_domain_password(Password, PassDetails) of
+                true ->
+                    ok;
+                false ->
+                    {error, wrong_password}
+            end;
+        {error, not_found} ->
+            {error, not_found}
+    end.
+
+do_check_domain_password(Password, PassDetails) ->
+    case mongoose_scram:deserialize(PassDetails) of
+        {ok, Scram} ->
+            mongoose_scram:check_password(Password, Scram);
+        {error, _Reason} ->
+            false
+    end.
+
+-spec set_domain_password(domain(), password()) -> ok | {error, not_found}.
+set_domain_password(Domain, Password) ->
+    case get_host_type(Domain) of
+        {ok, _} ->
+            mongoose_domain_sql:set_domain_admin(Domain, Password);
+        {error, not_found} ->
+            {error, not_found}
+    end.
+
+-spec delete_domain_password(domain()) -> ok.
+delete_domain_password(Domain) ->
+    mongoose_domain_sql:delete_domain_admin(Domain).
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->

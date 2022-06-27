@@ -1,0 +1,218 @@
+"""
+Result of a metric
+"""
+
+enum MetricType {
+  histogram
+  counter
+  spiral
+  gauge
+  merged_inet_stats
+  rdbms_stats
+  vm_stats_memory
+  vm_system_info
+  probe_queues
+}
+
+union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
+                   | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
+                   | VMStatsMemoryMetric | VMSystemInfoMetric
+                   | ProbeQueuesMetric
+
+type HistogramMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "The number of values used in the calculation"
+  n: Int
+  "Mean value"
+  mean: Int
+  "Min value"
+  min: Int
+  "Max value"
+  max: Int
+  "Median value"
+  median: Int
+  "50th percentile"
+  p50: Int
+  "75th percentile"
+  p75: Int
+  "90th percentile"
+  p90: Int
+  "95th percentile"
+  p95: Int
+  "99th percentile"
+  p99: Int
+  "99.9th percentile"
+  p999: Int
+}
+
+type CounterMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "The metric value"
+  value: Int
+  "Time since last reset"
+  ms_since_reset: Int
+}
+
+type GaugeMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "The metric value"
+  value: Int
+}
+
+type SpiralMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "One minute value"
+  one: Int
+  "Total value"
+  count: Int
+}
+
+type MergedInetStatsMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of connections"
+  connections: Int
+  "Number of packets received by the socket"
+  recv_cnt: Int
+  "Size of the largest packet, in bytes, received by the socket"
+  recv_max: Int
+  "Number of bytes received by the socket"
+  recv_oct: Int
+  "Number of packets sent from the socket"
+  send_cnt: Int
+  "Size of the largest packet, in bytes, sent from the socket"
+  send_max: Int
+  "Number of bytes sent from the socket"
+  send_oct: Int
+  "Number of bytes waiting to be sent by the socket"
+  send_pend: Int
+}
+
+type RDBMSStatsMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of workers"
+  workers: Int
+  "Number of packets received by the socket"
+  recv_cnt: Int
+  "Size of the largest packet, in bytes, received by the socket"
+  recv_max: Int
+  "Number of bytes received by the socket"
+  recv_oct: Int
+  "Number of packets sent from the socket"
+  send_cnt: Int
+  "Size of the largest packet, in bytes, sent from the socket"
+  send_max: Int
+  "Number of bytes sent from the socket"
+  send_oct: Int
+  "Number of bytes waiting to be sent by the socket"
+  send_pend: Int
+}
+
+type VMStatsMemoryMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "The total amount of memory in bytes currently allocated (processes_used + system)"
+  total: Int
+  "The total amount of memory in bytes allocated for Erlang processes"
+  processes_used: Int
+  "The total amount of memory in bytes allocated for atoms"
+  atom_used: Int
+  "The total amount of memory in bytes allocated for binaries"
+  binary: Int
+  "The total amount of memory in bytes allocated for ETS tables"
+  ets: Int
+  "The total amount of memory in bytes allocated for the emulator"
+  system: Int
+}
+
+type VMSystemInfoMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Current number of open Erlang ports"
+  port_count: Int
+  "Maximum allowed number of open Erlang ports"
+  port_limit: Int
+  "Current number of Erlang processes"
+  process_count: Int
+  "Maximum allowed number of Erlang processes"
+  process_limit: Int
+  "Maximum number of ETS tables"
+  ets_limit: Int
+}
+
+type ProbeQueuesMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of messages in p1_fsm queue"
+  fsm: Int
+  "Number of messages in the erlang process message queues"
+  regular: Int
+  "Total number of messages (fsm + regular)"
+  total: Int
+}
+
+type MetricDictEntry {
+  "The name of the metric key (i.e. one, count, value)"
+  key: String
+  "Metric value"
+  value: Int
+}
+
+type MetricDictResult {
+  "Metric name"
+  name: [String]
+  "A list of keys and values"
+  dict: [MetricDictEntry]
+}
+
+type MetricNodeResult {
+  node: String
+  result: [MetricDictResult]
+}
+
+"""
+Allow admin to get the metric values
+"""
+type MetricAdminQuery @protected{
+    """
+    Match metrics using a name pattern and return the metric values.
+    Return all metrics if the name is not provided.
+    Name is a list of name segments or an underscore (i.e. path).
+    """
+    getMetrics(name: [String]): [MetricResult]
+    """
+    Get metrics without using graphql unions.
+    Optionally returns only specified keys
+    (i.e. keys: ["one"] only returns key "one", but not key "count")
+    """
+    getMetricsAsDicts(name: [String], keys: [String]): [MetricDictResult]
+
+    """
+    Gather metrics from multiple nodes.
+    Optionally returns only from specified nodes.
+    """
+    getClusterMetricsAsDicts(name: [String], keys: [String], nodes: [String]): [MetricNodeResult]
+}

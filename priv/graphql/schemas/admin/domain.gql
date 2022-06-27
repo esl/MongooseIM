@@ -1,0 +1,37 @@
+type DomainAdminQuery @protected{
+  "Get all enabled domains by hostType"
+  domainsByHostType(hostType: String!): [String!]
+    @protected(type: GLOBAL)
+  "Get information about the domain"
+  domainDetails(domain: String!): Domain
+    @protected(type: DOMAIN, args: ["user"])
+}
+
+type DomainAdminMutation @protected{
+  "Add new domain"
+  addDomain(domain: String!, hostType: String!): Domain
+    @protected(type: GLOBAL)
+  "Remove domain"
+  removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
+    @protected(type: GLOBAL)
+  "Enable domain"
+  enableDomain(domain: String!): Domain
+    @protected(type: GLOBAL)
+  "Disable domain"
+  disableDomain(domain: String!): Domain
+    @protected(type: GLOBAL)
+  "Create or update domain admin password"
+  setDomainPassword(domain: String!, password: String!): String
+    @protected(type: DOMAIN, args: ["domain"])
+  "Delete domain admin password"
+  deleteDomainPassword(domain: String!): String
+    @protected(type: GLOBAL)
+}
+
+"A result of domain removal"
+type RemoveDomainPayload{
+  "Success message"
+  msg: String
+  "Removed domain data"
+  domain: Domain
+}

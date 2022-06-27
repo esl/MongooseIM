@@ -1,0 +1,7 @@
+"""
+Allow user to generate upload/download URL for a file".
+"""
+type HttpUploadUserMutation @protected{
+    "Allow user to generate upload/download URLs for a file"
+    getUrl(filename: String!, size: Int!, contentType: String!, timeout: Int!): FileUrls
+}
