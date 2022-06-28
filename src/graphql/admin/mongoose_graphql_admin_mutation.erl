@@ -5,18 +5,18 @@
 
 -ignore_xref([execute/4]).
 
--include("../mongoose_graphql_types.hrl").
-
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
 execute(_Ctx, _Obj, <<"domains">>, _Args) ->
     {ok, admin};
+execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
+    {ok, httpUpload};
+execute(_Ctx, _Obj, <<"inbox">>, _Args) ->
+    {ok, inbox};
 execute(_Ctx, _Obj, <<"last">>, _Args) ->
     {ok, last};
 execute(_Ctx, _Obj, <<"muc">>, _Args) ->
     {ok, muc};
-execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
-    {ok, httpUpload};
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
 execute(_Ctx, _Obj, <<"offline">>, _Args) ->
