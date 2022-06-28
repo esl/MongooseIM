@@ -1,0 +1,10 @@
+"""
+Allow user to flush own inbox bin".
+"""
+type InboxUserMutation @protected{
+  "Flush the user's bin and return deleted rows number"
+  flushBin(
+    "Remove older than given days. Use 0 to clear all"
+    days: Int!
+  ): Int 
+}
