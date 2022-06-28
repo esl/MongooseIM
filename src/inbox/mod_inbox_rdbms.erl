@@ -19,6 +19,7 @@
          set_inbox_incr_unread/5,
          reset_unread/4,
          empty_user_bin/4,
+         empty_domain_bin/3,
          empty_global_bin/2,
          remove_inbox_row/2,
          remove_domain/2,
@@ -56,6 +57,9 @@ init(HostType, _Options) ->
     % removals
     mongoose_rdbms:prepare(inbox_clean_global_bin, inbox, [timestamp],
                            <<"DELETE FROM inbox WHERE box='bin' AND timestamp < ?">>),
+    mongoose_rdbms:prepare(inbox_clean_domain_bin, inbox, [lserver, timestamp],
+                           <<"DELETE FROM inbox WHERE",
+                             " lserver = ? AND box='bin' AND timestamp < ?">>),
     mongoose_rdbms:prepare(inbox_clean_user_bin, inbox, [lserver, luser, timestamp],
                            <<"DELETE FROM inbox WHERE",
                              " lserver = ? AND luser = ? AND box='bin' AND timestamp < ?">>),
@@ -137,6 +141,14 @@ set_inbox(HostType, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestam
 empty_user_bin(HostType, LServer, LUser, TS) ->
     {updated, BinN} = mongoose_rdbms:execute_successfully(
                         HostType, inbox_clean_user_bin, [LServer, LUser, TS]),
+    mongoose_rdbms:result_to_integer(BinN).
+
+-spec empty_domain_bin(HostType :: mongooseim:host_type(),
+                       LServer :: jid:lserver(),
+                       TS :: integer()) -> non_neg_integer().
+empty_domain_bin(HostType, LServer, TS) ->
+    {updated, BinN} = mongoose_rdbms:execute_successfully(
+                        HostType, inbox_clean_domain_bin, [LServer, TS]),
     mongoose_rdbms:result_to_integer(BinN).
 
 -spec empty_global_bin(HostType :: mongooseim:host_type(),

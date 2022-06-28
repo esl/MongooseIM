@@ -49,13 +49,13 @@ commands() ->
     ].
 
 flush_user_bin(Domain, Name, Days) ->
-    {LU, LS} = jid:to_lus(jid:make_bare(Name, Domain)),
-    {ok, HostType} = mongoose_domain_api:get_host_type(LS),
-    Now = erlang:system_time(microsecond),
-    FromTS = mod_inbox_utils:calculate_ts_from(Now, Days),
-    mod_inbox_backend:empty_user_bin(HostType, LS, LU, FromTS).
+    JID = jid:make_bare(Name, Domain),
+    Res = mod_inbox_api:flush_user_bin(JID, Days),
+    format_result(Res).
 
 flush_global_bin(HostType, Days) ->
-    Now = erlang:system_time(microsecond),
-    FromTS = mod_inbox_utils:calculate_ts_from(Now, Days),
-    mod_inbox_backend:empty_global_bin(HostType, FromTS).
+    Res = mod_inbox_api:flush_global_bin(HostType, Days),
+    format_result(Res).
+
+format_result({ok, Count}) -> Count;
+format_result({_, ErrMsg}) -> {error, bad_request, ErrMsg}.

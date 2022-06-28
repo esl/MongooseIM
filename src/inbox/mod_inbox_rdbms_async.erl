@@ -20,6 +20,7 @@
          reset_unread/4,
          remove_inbox_row/2,
          empty_user_bin/4,
+         empty_domain_bin/3,
          empty_global_bin/2,
          remove_domain/2,
          clear_inbox/3,
@@ -167,6 +168,12 @@ set_entry_properties(HostType, Entry, Properties) ->
                      TS :: integer()) -> non_neg_integer().
 empty_user_bin(HostType, LServer, LUser, TS) ->
     mod_inbox_rdbms:empty_user_bin(HostType, LServer, LUser, TS).
+
+-spec empty_domain_bin(HostType :: mongooseim:host_type(),
+                       LServer :: jid:lserver(),
+                       TS :: integer()) -> non_neg_integer().
+empty_domain_bin(HostType, LServer, TS) ->
+    mod_inbox_rdbms:empty_domain_bin(HostType, LServer, TS).
 
 -spec empty_global_bin(HostType :: mongooseim:host_type(),
                        TS :: integer()) -> non_neg_integer().
