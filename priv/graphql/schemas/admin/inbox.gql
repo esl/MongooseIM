@@ -2,27 +2,27 @@
 Allow admin to flush the inbox bin".
 """
 type InboxAdminMutation @protected{
-  "Flush the user's bin and return deleted rows number"
+  "Flush the user's bin and return the number of deleted rows"
   flushUserBin(
     "User to clear a bin"
     user: JID!,
-    "Remove older than given days. Use 0 to clear all"
-    days: Int!
+    "Remove older than given days or all if null"
+    days: PosInt
   ): Int @protected(type: DOMAIN, args: ["user"])
 
-  "Flush the whole domain bin and return deleted rows number"
+  "Flush the whole domain bin and return the number of deleted rows"
   flushDomainBin(
     "Domain to be cleared"
     domain: String!,
-    "Remove older than given days. Use 0 to clear all"
-    days: Int!
+    "Remove older than given days or all if null"
+    days: PosInt
   ): Int @protected(type: Domain, args: ["domain"])
 
-  "Flush the global bin and return deleted rows number"
+  "Flush the global bin and return the number of deleted rows"
   flushGlobalBin(
     "Required to identify the DB backend"
     hostType: String!,
-    "Remove older than given days. Use 0 to clear all"
-    days: Int!
+    "Remove older than given days or all if null"
+    days: PosInt
   ): Int @protected(type: GLOBAL)
 }
