@@ -27,8 +27,8 @@ MIM_DIR="${RUNNER_SCRIPT_DIR%/*}"
 EJABBERD_VMARGS_PATH="${RUNNER_ETC_DIR}"/vm.args
 START_ERL=`cat "$MIM_DIR"/releases/start_erl.data`
 ERTS_VSN="${START_ERL% *}"
+APP_VSN="${START_ERL#* }"
 ERTS_PATH="$MIM_DIR/erts-$ERTS_VSN/bin"
-ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
 SCRIPTS_DIR="$MIM_DIR"/scripts
 
@@ -264,9 +264,11 @@ ctl ()
 
 ctlexec ()
 {
+    export BINDIR=$ERTS_PATH
     CONN_NAME=$1; shift
     COMMAND=$@
-    "$ERL" \
+    $ERTS_PATH/erlexec \
+      -boot "$MIM_DIR/releases/$APP_VSN/start_clean" \
       $NAME_TYPE ${CONN_NAME} \
       -noinput \
       -hidden \
