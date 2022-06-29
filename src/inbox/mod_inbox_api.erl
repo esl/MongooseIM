@@ -1,7 +1,9 @@
+%% @doc Provide an interface for frontends (like graphql or ctl) to manage inbox.
 -module(mod_inbox_api).
 
 -export([flush_user_bin/2, flush_domain_bin/2, flush_global_bin/2]).
 
+-include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
 
 -define(DOMAIN_NOT_FOUND_RESULT, {domain_not_found, <<"Domain not found">>}).
@@ -54,8 +56,7 @@ flush_global_bin(HostType, Days) ->
 %% Internal
 
 validate_host_type(HostType) ->
-    HostTypes = mongoose_config:get_opt(host_types) ++ mongoose_config:get_opt(hosts),
-    case lists:member(HostType, HostTypes) of
+    case lists:member(HostType, ?ALL_HOST_TYPES) of
         true ->
             ok;
         false ->
