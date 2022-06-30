@@ -99,7 +99,6 @@ groups() ->
                            listen_http_handlers_client_api,
                            listen_http_handlers_api,
                            listen_http_handlers_api_admin,
-                           listen_http_handlers_api_client,
                            listen_http_handlers_domain,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
@@ -613,9 +612,6 @@ listen_http_handlers_api(_Config) ->
 listen_http_handlers_api_admin(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_api_admin),
     test_listen_http_handler_creds(P, T).
-
-listen_http_handlers_api_client(_Config) ->
-    test_listen_http_handler(mongoose_api_client).
 
 listen_http_handlers_domain(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_domain_handler),

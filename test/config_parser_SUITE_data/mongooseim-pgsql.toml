@@ -44,10 +44,6 @@
     username = "ala"
     password = "makotaipsa"
 
-  [[listen.http.handlers.mongoose_api_client]]
-    host = "localhost"
-    path = "/api/contacts/{:jid}"
-
   [[listen.http.handlers.mod_bosh]]
     host = "_"
     path = "/http-bind"

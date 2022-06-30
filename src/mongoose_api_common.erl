@@ -66,7 +66,6 @@
 
 %% API
 -export([create_admin_url_path/1,
-         create_user_url_path/1,
          action_to_method/1,
          method_to_action/1,
          parse_request_body/1,
@@ -101,13 +100,6 @@ create_admin_url_path(Command) ->
 create_admin_url_path_iodata(Command) ->
     ["/", mongoose_commands:category(Command),
           maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
-
--spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
-create_user_url_path(Command) ->
-    iolist_to_binary(create_user_url_path_iodata(Command)).
-
-create_user_url_path_iodata(Command) ->
-    ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
 -spec process_request(Method :: method(),
                       Command :: mongoose_commands:t(),
@@ -309,8 +301,6 @@ add_bindings(Args, Entity) ->
     [add_bind(A, Entity) || A <- Args].
 
 %% skip "caller" arg for frontend command
-add_bind({caller, _}, user) ->
-    "";
 add_bind({ArgName, _}, _Entity) ->
     lists:flatten(["/:", atom_to_list(ArgName)]);
 add_bind(Other, _) ->

@@ -172,9 +172,7 @@ options("mongooseim-pgsql") ->
                               ping_rate => 120000, timeout => infinity}),
                      config([listen, http, handlers, mongoose_api_admin],
                             #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>}),
-                     config([listen, http, handlers, mongoose_api_client],
-                            #{host => "localhost", path => "/api/contacts/{:jid}"})
+                              username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}

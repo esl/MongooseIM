@@ -14,9 +14,6 @@
 %%%% suite configuration
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-client_module() ->
-    mongoose_api_client.
-
 backend_module() ->
     mongoose_api_admin.
 
@@ -25,8 +22,7 @@ all() ->
      {group, simple_backend},
      {group, get_advanced_backend},
      {group, post_advanced_backend},
-     {group, delete_advanced_backend},
-     {group, simple_client}
+     {group, delete_advanced_backend}
     ].
 
 groups() ->
@@ -75,16 +71,6 @@ groups() ->
        put_too_less_binds,
        put_wrong_bind_name,
        put_wrong_param_name
-      ]
-     },
-     {simple_client, [sequence],
-      [
-       get_simple_client,
-       get_two_args_client,
-       get_bad_auth,
-       post_simple_client,
-       put_simple_client,
-       delete_simple_client
       ]
      }
     ].
@@ -337,135 +323,8 @@ put_wrong_param_name(_Config) ->
     check_status_code(Response, 404).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%% Client side tests
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-get_simple_client(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
-    Base = "/api/clients",
-    Username = <<"username@localhost">>,
-    Auth = {binary_to_list(Username), "secret"},
-    ExpectedBody = get_simple_client_command(Username, element(2, Arg)),
-    {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, true}),
-    check_status_code(Response, 200),
-    check_response_body(Response, ExpectedBody).
-
-get_two_args_client(_Config) ->
-    Arg1 = {other, <<"bob@localhost">>},
-    Arg2 = {limit, 10},
-    Base = "/api/message",
-    Username = <<"alice@localhost">>,
-    Auth = {binary_to_list(Username), "secret"},
-    ExpectedBody = get_two_args_client_command(Username, element(2, Arg1), element(2, Arg2)),
-    {ok, Response} = request(create_path_with_binds(Base, [Arg1, Arg2]), "GET", {Auth, true}),
-    check_status_code(Response, 200),
-    check_response_body(Response, ExpectedBody).
-
-get_bad_auth(_Config) ->
-    Arg = {arg1, <<"bob@localhost">>},
-    Base = "/api/clients",
-    Username = <<"username@localhost">>,
-    Auth = {binary_to_list(Username), "secret"},
-    get_simple_client_command(Username, element(2, Arg)),
-    {ok, Response} = request(create_path_with_binds(Base, [Arg]), "GET", {Auth, false}),
-    check_status_code(Response, 401).
-
-post_simple_client(_Config) ->
-    Arg1 = {title, <<"Juliet's despair">>},
-    Arg2 = {content, <<"If they do see thee, they will murder thee!">>},
-    Base = <<"/api/ohmyromeo">>,
-    Username = <<"username@localhost">>,
-    Auth = {binary_to_list(Username), "secret"},
-    Result = binary_to_list(post_simple_client_command(Username, element(2, Arg1), element(2, Arg2))),
-    {ok, Response} = request(Base, "POST", [Arg1, Arg2], {Auth, true}),
-    check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary(build_path_prefix() ++"/api/ohmyromeo/" ++ Result)).
-
-put_simple_client(_Config) ->
-    Arg = {password, <<"ilovepancakes">>},
-    Base = <<"/api/superusers">>,
-    Username = <<"joe@localhost">>,
-    Auth = {binary_to_list(Username), "secretpassword"},
-    put_simple_client_command(Username, element(2, Arg)),
-    {ok, Response} = request(Base, "PUT", [Arg], {Auth, true}),
-    check_status_code(Response, 204).
-
-delete_simple_client(_Config) ->
-    Arg = {name, <<"giant">>},
-    Base = "/api/bikes",
-    Username = <<"username@localhost">>,
-    Auth = {binary_to_list(Username), "secret"},
-    get_simple_client_command(Username, element(2, Arg)),
-    {ok, Response} = request(create_path_with_binds(Base, [Arg]), "DELETE", {Auth, true}),
-    check_status_code(Response, 204).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-commands_client() ->
-    [
-     [
-      {name, get_simple_client},
-      {category, <<"clients">>},
-      {desc, <<"do nothing and return">>},
-      {module, ?MODULE},
-      {function, get_simple_client_command},
-      {action, read},
-      {identifiers, []},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {arg1, binary}]},
-      {result, {result, binary}}
-     ],
-     [
-      {name, get_two_args_client},
-      {category, <<"message">>},
-      {desc, <<"do nothing and return">>},
-      {module, ?MODULE},
-      {function, get_two_args_client_command},
-      {action, read},
-      {identifiers, []},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {other, binary}, {limit, integer}]},
-      {result, {result, binary}}
-     ],
-     [
-      {name, post_simple_client},
-      {category, <<"ohmyromeo">>},
-      {desc, <<"do nothing and return">>},
-      {module, ?MODULE},
-      {function, post_simple_client_command},
-      {action, create},
-      {identifiers, []},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {title, binary}, {content, binary}]},
-      {result, {result, binary}}
-     ],
-     [
-      {name, put_simple_client},
-      {category, <<"superusers">>},
-      {desc, <<"do nothing and return">>},
-      {module, ?MODULE},
-      {function, put_simple_client_command},
-      {action, update},
-      {identifiers, [caller]},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {password, binary}]},
-      {result, ok}
-     ],
-     [
-      {name, delete_simple_client},
-      {category, <<"bikes">>},
-      {desc, <<"do nothing and return">>},
-      {module, ?MODULE},
-      {function, delete_simple_client_command},
-      {action, delete},
-      {identifiers, []},
-      {security_policy, [user]},
-      {args, [{caller, binary}, {name, binary}]},
-      {result, ok}
-     ]
-    ].
 
 commands_admin() ->
     [
@@ -564,8 +423,7 @@ commands_admin() ->
     ].
 
 commands_new() ->
-    commands_admin() ++ commands_client().
-
+    commands_admin().
 
 %% admin command funs
 get_simple_command(<<"bob@localhost">>) ->
@@ -590,22 +448,6 @@ put_advanced_command(Arg1, Arg2, Arg3, Arg4) when is_binary(Arg1) and is_binary(
                                              and is_integer(Arg3) and is_integer(Arg4) ->
     ok.
 
-%% clients command funs
-get_simple_client_command(_Caller, _SomeBinary) ->
-    <<"client bob is OK">>.
-
-get_two_args_client_command(_Caller, _SomeBinary, _SomeInteger) ->
-    <<"client2 bob is OK">>.
-
-post_simple_client_command(_Caller, _Title, _Content) ->
-    <<"new_resource">>.
-
-put_simple_client_command(_Username, _Password) ->
-    changed.
-
-delete_simple_client_command(_Username, _BikeName) ->
-    changed.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -627,9 +469,6 @@ maybe_add_accepted_headers(_) ->
 accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 
-maybe_add_auth_header({User, Password}) ->
-    Basic = list_to_binary("Basic " ++ base64:encode_to_string(User ++ ":"++ Password)),
-    [{<<"authorization">>, Basic}];
 maybe_add_auth_header(admin) ->
     [].
 
@@ -665,13 +504,6 @@ do_request(Path, Method, Body, {headers, Headers}) ->
     teardown(),
     R.
 
-request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
-    setup(client_module()),
-    meck:expect(ejabberd_auth, check_password, fun(_, _) -> Authorized end),
-    Body = maybe_add_body(BodyData),
-    AuthHeader = maybe_add_auth_header(Auth),
-    AcceptHeader = maybe_add_accepted_headers(Method),
-    do_request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
 request(Path, Method, BodyData, admin) ->
     ct:pal("~p, ~p, ~p", [Path, Method, BodyData]),
     setup(backend_module()),

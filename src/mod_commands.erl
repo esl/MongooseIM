@@ -190,7 +190,6 @@ commands() ->
       {module, ?MODULE},
       {function, send_message},
       {action, create},
-      {security_policy, [user]},
       {args, [{caller, binary}, {to, binary}, {body, binary}]},
       {result, ok}
      ],
@@ -211,7 +210,6 @@ commands() ->
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},
-      {security_policy, [user]},
       {args, [{caller, binary}]},
       {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
@@ -223,7 +221,6 @@ commands() ->
       {module, ?MODULE},
       {function, get_recent_messages},
       {action, read},
-      {security_policy, [user]},
       {args, [{caller, binary}, {with, binary}]},
       {optargs, [{before, integer, 0}, {limit, integer, 100}]},
       {result, []}
@@ -235,7 +232,6 @@ commands() ->
       {module, ?MODULE},
       {function, change_user_password},
       {action, update},
-      {security_policy, [user]},
       {identifiers, [host, user]},
       {args, [{host, binary}, {user, binary}, {newpass, binary}]},
       {result, ok}
