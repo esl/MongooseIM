@@ -43,6 +43,8 @@ type AdminMutation @protected{
   account: AccountAdminMutation
   "Domain management"
   domains: DomainAdminMutation
+  "Inbox bin management"
+  inbox: InboxAdminMutation
   "Last activity management"
   last: LastAdminMutation
   "MUC room management"

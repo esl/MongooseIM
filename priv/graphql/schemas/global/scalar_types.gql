@@ -4,3 +4,4 @@ scalar JID
 "The JID with resource e.g. alice@localhost/res1"
 scalar FullJID
 scalar NonEmptyString
+scalar PosInt

@@ -37,6 +37,8 @@ Only an authenticated user can execute these mutations.
 type UserMutation @protected{
   "Account management"
   account: AccountUserMutation
+  "Inbox bin management"
+  inbox: InboxUserMutation
   "Last activity management"
   last: LastUserMutation
   "MUC room management"

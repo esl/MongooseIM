@@ -11,6 +11,7 @@
          set_inbox/6,
          remove_inbox_row/2,
          empty_user_bin/4,
+         empty_domain_bin/3,
          empty_global_bin/2,
          set_inbox_incr_unread/5,
          get_inbox_unread/2,
@@ -57,6 +58,11 @@
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     LUser :: jid:luser(),
+    TS :: integer().
+
+-callback empty_domain_bin(HostType, LServer, TS) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     TS :: integer().
 
 -callback empty_global_bin(HostType, TS) -> non_neg_integer() when
@@ -155,6 +161,14 @@ remove_inbox_row(HostType, InboxEntryKey) ->
     TS :: integer().
 empty_user_bin(HostType, LServer, LUser, TS) ->
     Args = [HostType, LServer, LUser, TS],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec empty_domain_bin(HostType, LServer, TS) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
+    TS :: integer().
+empty_domain_bin(HostType, LServer, TS) ->
+    Args = [HostType, LServer, TS],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec empty_global_bin(HostType, TS) -> non_neg_integer() when

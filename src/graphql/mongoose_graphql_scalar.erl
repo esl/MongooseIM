@@ -15,6 +15,7 @@ input(<<"Stanza">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
 input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
+input(<<"PosInt">>, Value) -> validate_pos_integer(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
     {ok, V}.
@@ -29,6 +30,7 @@ output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
 output(<<"Stanza">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
 output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
+output(<<"PosInt">>, Value) -> validate_pos_integer(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
     {ok, V}.
@@ -66,6 +68,11 @@ binary_to_non_empty_string(<<>>) ->
     {error, "Empty binary cannot be converted to NonEmptyString"};
 binary_to_non_empty_string(Val) ->
     {ok, Val}.
+
+validate_pos_integer(PosInt) when is_integer(PosInt), PosInt > 0 ->
+    {ok, PosInt};
+validate_pos_integer(_Value) ->
+    {error, "Value is not a positive integer"}.
 
 microseconds_to_binary(Microseconds) ->
     Opts = [{offset, "Z"}, {unit, microsecond}],
