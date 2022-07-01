@@ -10,7 +10,8 @@
          get_endpoint/1,
          create_endpoint/3,
          execute/2,
-         execute/3]).
+         execute/3,
+         admin_mapping_rules/0]).
 
 -ignore_xref([create_endpoint/3]).
 
@@ -38,6 +39,7 @@
 init() ->
     create_endpoint(?USER_EP_NAME, user_mapping_rules(), schema_global_patterns("user")),
     create_endpoint(?ADMIN_EP_NAME, admin_mapping_rules(), schema_global_patterns("admin")),
+    mongoose_graphql_commands:start(),
     ok.
 
 %% @doc Get endpoint_context for passed endpoint name.

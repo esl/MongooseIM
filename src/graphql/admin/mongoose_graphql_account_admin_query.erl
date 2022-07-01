@@ -1,7 +1,7 @@
 -module(mongoose_graphql_account_admin_query).
 -behaviour(mongoose_graphql).
 
--export([execute/4]).
+-export([execute/4, command/2]).
 
 -ignore_xref([execute/4]).
 
@@ -19,6 +19,33 @@ execute(_Ctx, _Obj, <<"checkPasswordHash">>, Args) ->
     check_password_hash(Args);
 execute(_Ctx, _Obj, <<"checkUser">>, Args) ->
     check_user(Args).
+
+command(<<"listUsers">>, [Domain]) ->
+    Doc = <<"query ($domain: String!) { account { listUsers(domain: $domain) } }">>,
+    Vars = #{<<"domain">> => list_to_binary(Domain)},
+    #{document => Doc, vars => Vars};
+command(<<"countUsers">>, [Domain]) ->
+    Doc = <<"query ($domain: String!) { account { countUsers(domain: $domain) } }">>,
+    Vars = #{<<"domain">> => list_to_binary(Domain)},
+    #{document => Doc, vars => Vars};
+command(<<"checkPassword">>, [UserJID, Password]) ->
+    Doc = <<"query ($user: JID!, $password: String!) "
+            "{ account { checkPassword(user: $user, password: $password) {correct message} } }">>,
+    Vars = #{<<"user">> => list_to_binary(UserJID),
+             <<"password">> => list_to_binary(Password)},
+    #{document => Doc, vars => Vars};
+command(<<"checkPasswordHash">>, [UserJID, Hash, Method]) ->
+    Doc = <<"query ($user: JID!, $hash: String!, $method: String!) "
+            "{ account { checkPasswordHash(user: $user, passwordHash: $hash, hashMethod: $method) "
+            "{correct message} } }">>,
+    Vars = #{<<"user">> => list_to_binary(UserJID),
+             <<"hash">> => list_to_binary(Hash),
+             <<"method">> => list_to_binary(Method)},
+    #{document => Doc, vars => Vars};
+command(<<"checkUser">>, [UserJID]) ->
+    Doc = <<"query ($user: JID!) { account { checkUser(user: $user) {exist message} } }">>,
+    Vars = #{<<"user">> => list_to_binary(UserJID)},
+    #{document => Doc, vars => Vars}.
 
 % Internal
 

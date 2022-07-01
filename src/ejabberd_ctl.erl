@@ -180,14 +180,8 @@ process(["mnesia", Arg]) when is_list(Arg) ->
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),
-    case mongoose_graphql:execute(Ep, undefined, Doc) of
-        {ok, Result} ->
-            PrettyResult = jiffy:encode(Result, [pretty]),
-            ?PRINT("~s\n", [PrettyResult]);
-        {error, _} = Err ->
-            ?PRINT("~p\n", [Err])
-    end,
-    ?STATUS_SUCCESS;
+    Result = mongoose_graphql:execute(Ep, undefined, Doc),
+    handle_graphql_result(Result);
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
     ?STATUS_ERROR;
@@ -220,7 +214,41 @@ process(["help" | Mode]) ->
             print_usage_commands(CmdStringU, MaxC, ShCode),
             ?STATUS_SUCCESS
     end;
+process([CategoryStr, CommandStr | CommandArgs] = Args) ->
+    Category = list_to_binary(CategoryStr),
+    Command = list_to_binary(CommandStr),
+    case mongoose_graphql_commands:find_resolver(Category, Command) of
+        {error, _} ->
+            run_command(Args);
+        {ok, ResolverMod} ->
+            Result = mongoose_graphql_commands:execute_command(ResolverMod, Command, CommandArgs),
+            handle_graphql_result(Result)
+    end;
 process(Args) ->
+    run_command(Args).
+
+handle_graphql_result({ok, Result}) ->
+    PrettyResult = jiffy:encode(sanitize_result(Result), [pretty]),
+    ?PRINT("~s\n", [PrettyResult]),
+    ?STATUS_SUCCESS;
+handle_graphql_result({error, _} = Error) ->
+    ?PRINT("~p\n", [Error]),
+    ?STATUS_ERROR.
+
+sanitize_result(X) when is_atom(X); is_binary(X); is_number(X) ->
+    X;
+sanitize_result(L) when is_list(L) ->
+    try
+        iolist_to_binary(L)
+    catch
+        _:_ -> lists:map(fun sanitize_result/1, L)
+    end;
+sanitize_result(M) when is_map(M) ->
+    maps:map(fun(_K, V) -> sanitize_result(V) end, M);
+sanitize_result(T) ->
+    iolist_to_binary(io_lib:format("~p", [T])).
+
+run_command(Args) ->
     AccessCommands = get_accesscommands(),
     {String, Code} = process2(Args, AccessCommands),
     case String of
@@ -229,7 +257,6 @@ process(Args) ->
             io:format("~s~n", [String])
     end,
     Code.
-
 
 -spec process2(Args :: [string()],  AccessCommands :: ejabberd_commands:access_commands()) ->
           {String::string(), Code::integer()}.
