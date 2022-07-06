@@ -1,0 +1,10 @@
+"Allow admin to get statistics"
+type StatsAdminQuery @protected{
+    "Get number of incoming s2s connections"
+    getIncomingS2SNumber: Int
+    "Get number of outgoing s2s connections"
+    getOutgoingS2SNumber: Int
+    "Get specific stat"
+    stats(statName: String!, domain: String): Int
+      @protected(type: DOMAIN, args: ["domain"])
+}
