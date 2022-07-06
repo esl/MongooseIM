@@ -1,9 +1,12 @@
--module(mongoose_graphql_cowboy_response).
+-module(mongoose_graphql_response).
 
--export([term_to_json/1]).
+-export([term_to_json/1, term_to_pretty_json/1]).
 
 term_to_json(Term) ->
     jiffy:encode(fixup(Term)).
+
+term_to_pretty_json(Term) ->
+    jiffy:encode(fixup(Term), [pretty]).
 
 %% Ground types
 fixup(Term) when is_number(Term) -> Term;
@@ -27,4 +30,3 @@ fixup_key(Term) ->
         T ->
             iolist_to_binary(io_lib:format("~p", [T]))
     end.
-

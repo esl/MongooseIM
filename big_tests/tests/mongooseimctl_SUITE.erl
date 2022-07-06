@@ -1131,7 +1131,7 @@ can_execute_admin_queries_with_permissions(Config) ->
 can_handle_execution_error(Config) ->
     Query = "{}",
     Res = mongooseimctl("graphql", [Query], Config),
-    ?assertMatch({_, 0}, Res),
+    ?assertMatch({_, 1}, Res),
     Data = element(1, Res),
     ?assertNotEqual(nomatch, string:find(Data, "parser_error")).
 

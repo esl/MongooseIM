@@ -179,15 +179,8 @@ process(["mnesia", Arg]) when is_list(Arg) ->
     ?STATUS_SUCCESS;
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
-    Ep = mongoose_graphql:get_endpoint(admin),
-    case mongoose_graphql:execute(Ep, undefined, Doc) of
-        {ok, Result} ->
-            PrettyResult = jiffy:encode(Result, [pretty]),
-            ?PRINT("~s\n", [PrettyResult]);
-        {error, _} = Err ->
-            ?PRINT("~p\n", [Err])
-    end,
-    ?STATUS_SUCCESS;
+    Result = mongoose_graphql_commands:execute(Doc, #{}), % TODO Support vars?
+    handle_graphql_result(Result);
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
     ?STATUS_ERROR;
@@ -220,7 +213,31 @@ process(["help" | Mode]) ->
             print_usage_commands(CmdStringU, MaxC, ShCode),
             ?STATUS_SUCCESS
     end;
+process([CategoryStr, CommandStr, VarsStr] = Args) ->
+    Category = list_to_binary(CategoryStr),
+    Command = list_to_binary(CommandStr),
+    case mongoose_graphql_commands:find_document(Category, Command) of
+        {ok, Doc} ->
+            Vars = jiffy:decode(VarsStr, [return_maps]),
+            Result = mongoose_graphql_commands:execute(Doc, Vars),
+            handle_graphql_result(Result);
+        {error, not_found} ->
+            run_command(Args)
+    end;
 process(Args) ->
+    run_command(Args).
+
+handle_graphql_result({ok, Result}) ->
+    JSONResult = mongoose_graphql_response:term_to_pretty_json(Result),
+    ?PRINT("~s\n", [JSONResult]),
+    ?STATUS_SUCCESS;
+handle_graphql_result({error, Reason}) ->
+    {_Code, Error} = mongoose_graphql_errors:format_error(Reason),
+    JSONResult = jiffy:encode(#{errors => [Error]}, [pretty]),
+    ?PRINT("~s\n", [JSONResult]),
+    ?STATUS_ERROR.
+
+run_command(Args) ->
     AccessCommands = get_accesscommands(),
     {String, Code} = process2(Args, AccessCommands),
     case String of
@@ -229,7 +246,6 @@ process(Args) ->
             io:format("~s~n", [String])
     end,
     Code.
-
 
 -spec process2(Args :: [string()],  AccessCommands :: ejabberd_commands:access_commands()) ->
           {String::string(), Code::integer()}.
