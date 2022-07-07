@@ -7,7 +7,7 @@
 -spec input(Type, Value) -> {ok, Coerced} | {error, Reason}
   when
     Type :: binary(),
-    Value :: binary(),
+    Value :: binary() | pos_integer(),
     Coerced :: any(),
     Reason :: term().
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
@@ -23,7 +23,7 @@ input(Ty, V) ->
 -spec output(Type, Value) -> {ok, Coerced} | {error, Reason}
   when
     Type :: binary(),
-    Value :: binary(),
+    Value :: binary() | pos_integer(),
     Coerced :: any(),
     Reason :: term().
 output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};

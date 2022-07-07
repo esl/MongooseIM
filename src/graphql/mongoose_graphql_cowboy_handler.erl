@@ -178,7 +178,7 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
     ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx},
     case mongoose_graphql:execute(Ep, ReqCtx2) of
         {ok, Response} ->
-            ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response),
+            ResponseBody = mongoose_graphql_response:term_to_json(Response),
             Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
             Reply = cowboy_req:reply(200, Req2),
             {stop, Reply, State};
