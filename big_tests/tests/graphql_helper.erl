@@ -1,12 +1,8 @@
 -module(graphql_helper).
 
--import(distributed_helper, [mim/0, rpc/4]).
+-compile([export_all, nowarn_export_all]).
 
--export([execute/3, execute_auth/2, execute_domain_auth/2, execute_user/3]).
--export([init_admin_handler/1, init_domain_admin_handler/1, end_domain_admin_handler/1]).
--export([get_listener_port/1, get_listener_config/1]).
--export([get_ok_value/2, get_err_msg/1, get_err_msg/2, get_err_code/1, make_creds/1,
-         user_to_bin/1, user_to_full_bin/1, user_to_jid/1, user_to_lower_jid/1]).
+-import(distributed_helper, [mim/0, rpc/4]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -23,6 +19,18 @@ execute(EpName, Body, Creds) ->
         path => "/graphql",
         body => Body},
     rest_helper:make_request(Request).
+
+execute_command(Category, Command, Args, Config) ->
+    Protocol = ?config(protocol, Config),
+    execute_command(Category, Command, Args, Config, Protocol).
+
+execute_command(Category, Command, Args, Config, http) ->
+    {ok, Doc} = rpc(mim(), mongoose_graphql_commands, find_document, [Category, Command]),
+    execute_auth(#{query => Doc, variables => Args}, Config);
+execute_command(Category, Command, Args, Config, cli) ->
+    VarsJSON = jiffy:encode(Args),
+    {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command, VarsJSON], Config),
+    {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
 
 execute_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -56,10 +64,13 @@ init_admin_handler(Config) ->
     Opts = get_listener_opts(Endpoint),
     case maps:is_key(username, Opts) of
         true ->
-            [{schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
+            [{protocol, http}, {schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
         false ->
             ct:fail(<<"Admin credentials are not defined in config">>)
     end.
+
+init_admin_cli(Config) ->
+    [{protocol, cli} | Config].
 
 init_domain_admin_handler(Config) ->
     Domain = domain_helper:domain(),
@@ -78,21 +89,27 @@ get_listener_opts(EpName) ->
     Opts.
 
 get_err_code(Resp) ->
-    get_ok_value([errors, 1, extensions, code], Resp).
+    get_value([extensions, code], get_error(1, Resp)).
 
--spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(Resp) ->
-    get_ok_value([errors, 1, message], Resp).
+    get_err_msg(1, Resp).
 
--spec get_err_msg(pos_integer(), #{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(N, Resp) ->
-    get_ok_value([errors, N, message], Resp).
+    get_value([message], get_error(N, Resp)).
 
--spec get_ok_value([atom()], {tuple(), map()}) -> binary().
-get_ok_value([errors, N | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
-    get_value(Path, lists:nth(N, Errors));
-get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
+get_error(N, {Code, #{<<"errors">> := Errors}}) ->
+    assert_response_code(error, Code),
+    lists:nth(N, Errors).
+
+get_ok_value(Path, {Code, Data}) ->
+    assert_response_code(ok, Code),
     get_value(Path, Data).
+
+assert_response_code(_, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(error, {exit_status, 1}) -> ok;
+assert_response_code(ok, {exit_status, 0}) -> ok;
+assert_response_code(Type, Code) ->
+    error(#{what => invalid_response_code, expected_type => Type, response_code => Code}).
 
 make_creds(#client{props = Props} = Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
