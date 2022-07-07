@@ -1,10 +1,31 @@
 "Allow admin to get statistics"
 type StatsAdminQuery @protected{
-    "Get number of incoming s2s connections"
-    getIncomingS2SNumber: Int
-    "Get number of outgoing s2s connections"
-    getOutgoingS2SNumber: Int
-    "Get specific stat"
-    stats(statName: String!, domain: String): Int
+    "allow admin to acquire all nodes' statistics"
+    stats: Stats
+      @protected(type: GLOBAL)
+    "allow admin to acquire domain's statistics"
+    domainStats(domain: String!): DomainStats
       @protected(type: DOMAIN, args: ["domain"])
+}
+
+type Stats {
+  "uptime of the node"
+  uptimeSeconds: Int
+  "number of registered users"
+  registeredUsers: Int
+  "number of online users on the node"
+  onlineUsersNode: Int
+  "number of online users"
+  onlineUsers: Int
+  "number of all incoming s2s connections"
+  incomingS2S: Int
+  "number of all outgoing s2s connections"
+  outgoingS2S: Int
+}
+
+type DomainStats {
+  "number of registered users on a given domain"
+  registeredUsers: Int
+  "number of online users on a given domain"
+  onlineUsers: Int
 }

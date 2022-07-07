@@ -24,11 +24,7 @@ groups() ->
     [{admin_stats, [], admin_stats_handler()}].
 
 admin_stats_handler() ->
-    [admin_get_incoming_s2s_number_test,
-     admin_get_outgoing_s2s_number_test,
-     admin_stats_no_stat_name_test,
-     admin_stats_domain_no_stat_name_test,
-     admin_stats_test,
+    [admin_stats_test,
      admin_stats_domain_test].
 
 init_per_suite(Config) ->
@@ -51,58 +47,38 @@ end_per_testcase(CaseName, Config) ->
 
 % Admin test cases
 
-admin_get_incoming_s2s_number_test(Config) ->
-    GraphQlRequest = admin_get_incoming_s2s(Config, #{}),
-    Number = ok_result(<<"stats">>, <<"getIncomingS2SNumber">>, GraphQlRequest),
-    ?assertEqual(0, Number).
-
-admin_get_outgoing_s2s_number_test(Config) ->
-    GraphQlRequest = admin_get_outgoing_s2s(Config, #{}),
-    Number = ok_result(<<"stats">>, <<"getOutgoingS2SNumber">>, GraphQlRequest),
-    ?assertEqual(0, Number).
-
-admin_stats_no_stat_name_test(Config) ->
-    GraphQlRequest = admin_get_stats(Config, #{<<"statName">> => <<"AAA">>}),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"no_command_error">>, ParsedResult).
-
-admin_stats_domain_no_stat_name_test(Config) ->
-    Vars = #{<<"statName">> => <<"AAA">>, <<"domain">> => domain()},
-    GraphQlRequest = admin_get_stats_domain(Config, Vars),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"no_command_error">>, ParsedResult).
-
 admin_stats_test(Config) ->
-    GraphQlRequest = admin_get_stats(Config, #{<<"statName">> => <<"onlineusers">>}),
-    Number = ok_result(<<"stats">>, <<"stats">>, GraphQlRequest),
-    ?assertEqual(0, Number).
+    GraphQlRequest = admin_get_stats(Config, #{}),
+    Result = ok_result(<<"stats">>, <<"stats">>, GraphQlRequest),
+    #{<<"uptimeSeconds">> := UptimeSeconds, <<"registeredUsers">> := RegisteredUsers,
+      <<"onlineUsersNode">> := OnlineUsersNode, <<"onlineUsers">> := OnlineUsers,
+      <<"incomingS2S">> := IncomingS2S, <<"outgoingS2S">> := OutgoingS2S} = Result,
+    ?assertEqual(true, is_integer(UptimeSeconds)),
+    ?assertEqual(0, RegisteredUsers),
+    ?assertEqual(0, OnlineUsersNode),
+    ?assertEqual(0, OnlineUsers),
+    ?assertEqual(0, IncomingS2S),
+    ?assertEqual(0, OutgoingS2S).
 
 admin_stats_domain_test(Config) ->
-    Vars = #{<<"statName">> => <<"onlineusers">>, <<"domain">> => domain()},
+    Vars = #{<<"domain">> => domain()},
     GraphQlRequest = admin_get_stats_domain(Config, Vars),
-    Number = ok_result(<<"stats">>, <<"stats">>, GraphQlRequest),
-    ?assertEqual(0, Number).
+    Result = ok_result(<<"stats">>, <<"domainStats">>, GraphQlRequest),
+    #{<<"registeredUsers">> := RegisteredUsers, <<"onlineUsers">> := OnlineUsers} = Result,
+    ?assertEqual(0, RegisteredUsers),
+    ?assertEqual(0, OnlineUsers).
 
 % Helpers
 
-admin_get_incoming_s2s(Config, Vars) ->
-    Query = <<"query Q1
-                   {stats{getIncomingS2SNumber}}">>,
-    admin_send_mutation(Config, Vars, Query).
-
-admin_get_outgoing_s2s(Config, Vars) ->
-    Query = <<"query Q1
-                   {stats{getOutgoingS2SNumber}}">>,
-    admin_send_mutation(Config, Vars, Query).
-
 admin_get_stats(Config, Vars) ->
-    Query = <<"query Q1($statName: String!)
-                   {stats{stats(statName: $statName)}}">>,
+    Query = <<"query Q1
+                   {stats{stats{uptimeSeconds registeredUsers onlineUsersNode
+                                onlineUsers incomingS2S outgoingS2S}}}">>,
     admin_send_mutation(Config, Vars, Query).
 
 admin_get_stats_domain(Config, Vars) ->
-    Query = <<"query Q1($statName: String!, $domain: String)
-                   {stats{stats(statName: $statName, domain: $domain)}}">>,
+    Query = <<"query Q1($domain: String!)
+                   {stats{domainStats(domain: $domain){registeredUsers onlineUsers}}}">>,
     admin_send_mutation(Config, Vars, Query).
 
 admin_send_mutation(Config, Vars, Query) ->
