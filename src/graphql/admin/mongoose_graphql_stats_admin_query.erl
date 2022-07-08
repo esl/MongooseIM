@@ -11,7 +11,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(_Ctx, stats, <<"stats">>, _Args) ->
-    {ok, stats};
+execute(_Ctx, stats, <<"globalStats">>, _Args) ->
+    {ok, globalStats};
 execute(_Ctx, stats, <<"domainStats">>, #{<<"domain">> := Domain}) ->
     {ok, Domain}.

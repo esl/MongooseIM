@@ -1,14 +1,14 @@
 "Allow admin to get statistics"
 type StatsAdminQuery @protected{
     "allow admin to acquire all nodes' statistics"
-    stats: Stats
+    globalStats: GlobalStats
       @protected(type: GLOBAL)
     "allow admin to acquire domain's statistics"
     domainStats(domain: String!): DomainStats
       @protected(type: DOMAIN, args: ["domain"])
 }
 
-type Stats {
+type GlobalStats {
   "uptime of the node"
   uptimeSeconds: Int
   "number of registered users"
