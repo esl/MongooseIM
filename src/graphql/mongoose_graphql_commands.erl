@@ -2,25 +2,39 @@
 
 -module(mongoose_graphql_commands).
 
--export([start/0, stop/0, find_document/2, execute/2]).
+%% API
+-export([start/0, stop/0, process/1]).
+
+%% Only for tests
+-export([get_specs/0]).
+
+-ignore_xref([get_specs/0]).
 
 %% This level of nesting is needed for basic type introspection, e.g. see below for [String!]!
 %%                         NON_NULL          LIST              NON_NULL          SCALAR
 -define(TYPE_QUERY, "{name kind ofType {name kind ofType {name kind ofType {name kind}}}}").
 
+-type context() :: #{args := [string()],
+                     category => category(),
+                     cat_spec => category_spec(),
+                     command => command(),
+                     doc => doc(),
+                     vars => json_map(),
+                     reason => atom()}.
+-type result() :: {ok, #{atom() => graphql:json()}} | {error, any()}.
+-type specs() :: #{category() => category_spec()}.
 -type category() :: binary().
+-type category_spec() :: #{command() => command_spec()}.
 -type command() :: binary().
--type doc() :: binary().
--type ep() :: graphql:endpoint_context().
--type op_type() :: binary().
 -type command_spec() :: #{op_type := op_type(),
                           args := [arg_spec()],
                           fields := [field_spec()],
                           doc := doc()}.
 -type arg_spec() :: #{name := binary(), type := binary(), wrap := [list | required]}.
 -type field_spec() :: #{name := binary(), fields => [field_spec()]}.
--type category_spec() :: #{command() => command_spec()}.
--type specs() :: #{category() => category_spec()}.
+-type op_type() :: binary().
+-type doc() :: binary().
+-type ep() :: graphql:endpoint_context().
 -type json_map() :: #{binary() => graphql:json()}.
 
 %% API
@@ -39,18 +53,62 @@ stop() ->
     persistent_term:erase(?MODULE),
     ok.
 
--spec find_document(category(), command()) -> {ok, doc()} | {error, not_found}.
-find_document(Category, Command) ->
-    case persistent_term:get(?MODULE) of
-        #{Category := #{Command := CommandSpec}} ->
-            #{doc := Doc} = CommandSpec,
-            {ok, Doc};
-        _ ->
-            {error, not_found}
-    end.
+-spec process([string()]) -> result().
+process(Args) ->
+    lists:foldl(fun(_, {error, _} = Error) -> Error;
+                   (StepF, Ctx) -> StepF(Ctx)
+                end,
+                #{args => Args},
+                [fun find_category/1, fun find_command/1, fun parse_vars/1, fun execute/1]).
 
--spec execute(doc(), json_map()) -> {ok, map()} | {error, term()}.
-execute(Doc, Vars) ->
+-spec get_specs() -> specs().
+get_specs() ->
+    persistent_term:get(?MODULE).
+
+%% Internals
+
+-spec find_category(context()) -> context() | {error, context()}.
+find_category(CtxIn = #{args := [CategoryStr | Args]}) ->
+    Category = list_to_binary(CategoryStr),
+    Ctx = CtxIn#{category => Category, args => Args},
+    case get_specs() of
+        #{Category := CatSpec} ->
+            Ctx#{cat_spec => CatSpec};
+        #{} ->
+            {error, Ctx#{reason => unknown_category}}
+    end;
+find_category(Ctx = #{args := []}) ->
+    {error, Ctx#{reason => no_args}}.
+
+-spec find_command(context()) -> context() | {error, context()}.
+find_command(CtxIn = #{args := [CommandStr | Args]}) ->
+    Command = list_to_binary(CommandStr),
+    Ctx = #{cat_spec := CatSpec} = CtxIn#{command => Command, args => Args},
+    case CatSpec of
+        #{Command := CommandSpec} ->
+            #{doc := Doc} = CommandSpec,
+            Ctx#{doc => Doc};
+        #{} ->
+            {error, Ctx#{reason => unknown_command}}
+    end;
+find_command(Ctx) ->
+    {error, Ctx#{reason => no_command}}.
+
+-spec parse_vars(context()) -> context() | {error, context()}.
+parse_vars(Ctx = #{args := [VarsStr]}) ->
+    try jiffy:decode(VarsStr, [return_maps]) of
+        Vars ->
+            Ctx#{vars => Vars}
+    catch _:_ ->
+            {error, Ctx#{reason => invalid_vars}}
+    end;
+parse_vars(Ctx = #{args := []}) ->
+    {error, Ctx#{reason => no_vars}};
+parse_vars(Ctx = #{args := [_|_]}) ->
+    {error, Ctx#{reason => too_many_args}}.
+
+-spec execute(context()) -> result().
+execute(#{doc := Doc, vars := Vars}) ->
     execute(mongoose_graphql:get_endpoint(admin), Doc, Vars).
 
 %% Internals
@@ -186,7 +244,7 @@ return_field(#{name := Name, fields := Fields}) ->
 return_field(#{name := Name}) ->
     Name.
 
--spec execute(ep(), doc(), json_map()) -> {ok, #{atom() => graphql:json()}} | {error, term()}.
+-spec execute(ep(), doc(), json_map()) -> result().
 execute(Ep, Doc, Vars) ->
     mongoose_graphql:execute(Ep, #{document => Doc,
                                    operation_name => undefined,

@@ -25,7 +25,8 @@ execute_command(Category, Command, Args, Config) ->
     execute_command(Category, Command, Args, Config, Protocol).
 
 execute_command(Category, Command, Args, Config, http) ->
-    {ok, Doc} = rpc(mim(), mongoose_graphql_commands, find_document, [Category, Command]),
+    #{Category := #{Command := #{doc := Doc}}} =
+        rpc(mim(), mongoose_graphql_commands, get_specs, []),
     execute_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
     VarsJSON = jiffy:encode(Args),

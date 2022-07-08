@@ -177,7 +177,15 @@ upload_enabled() ->
 graphql() ->
     [graphql_wrong_arguments_number,
      can_execute_admin_queries_with_permissions,
-     can_handle_execution_error].
+     can_handle_execution_error,
+     graphql_error_unknown_command_with_args,
+     graphql_error_unknown_command_without_args,
+     graphql_error_no_command,
+     graphql_error_invalid_vars,
+     graphql_error_no_vars,
+     graphql_error_too_many_args,
+     graphql_error_missing_variable,
+     graphql_command].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -1146,6 +1154,44 @@ graphql_wrong_arguments_number(Config) ->
     ?assertMatch({_, 1}, ResTooManyArgs),
     Data2 = element(1, ResTooManyArgs),
     ?assertNotEqual(nomatch, string:find(Data2, ExpectedFragment)).
+
+%% Generic GraphQL command tests
+%% Specific commands are tested in graphql_*_SUITE
+
+graphql_error_unknown_command_with_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["makeCoffee", "{}"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Unknown command")).
+
+graphql_error_unknown_command_without_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["makeCoffee"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Unknown command")).
+
+graphql_error_no_command(Config) ->
+    {Res, 1} = mongooseimctl("account", [], Config),
+    ?assertMatch({match, _}, re:run(Res, "No command")).
+
+graphql_error_invalid_vars(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers", "now"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Could not parse")).
+
+graphql_error_no_vars(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers"], Config),
+    ?assertMatch({match, _}, re:run(Res, "This command requires variables")).
+
+graphql_error_too_many_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers", "{}", "{}"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Too many arguments")).
+
+graphql_error_missing_variable(Config) ->
+    {ResJSON, 1} = mongooseimctl("account", ["countUsers", "{}"], Config),
+    #{<<"errors">> := Errors} = rest_helper:decode(ResJSON, #{return_maps => true}),
+    ?assertMatch([#{<<"extensions">> := #{<<"code">> := <<"missing_non_null_param">>}}], Errors).
+
+graphql_command(Config) ->
+    VarsJSON = jiffy:encode(#{domain => domain()}),
+    {ResJSON, 0} = mongooseimctl("account", ["countUsers", VarsJSON], Config),
+    #{<<"data">> := Data} = rest_helper:decode(ResJSON, #{return_maps => true}),
+    ?assertMatch(#{<<"account">> := #{<<"countUsers">> := _}}, Data).
 
 %%-----------------------------------------------------------------
 %% Improve coverage
