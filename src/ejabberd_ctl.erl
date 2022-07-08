@@ -230,7 +230,10 @@ process(Args) ->
 handle_graphql_result({ok, Result}) ->
     JSONResult = mongoose_graphql_response:term_to_pretty_json(Result),
     ?PRINT("~s\n", [JSONResult]),
-    ?STATUS_SUCCESS;
+    case Result of
+        #{errors := _} -> ?STATUS_ERROR;
+        _ -> ?STATUS_SUCCESS
+    end;
 handle_graphql_result({error, Reason}) ->
     {_Code, Error} = mongoose_graphql_errors:format_error(Reason),
     JSONResult = jiffy:encode(#{errors => [Error]}, [pretty]),
