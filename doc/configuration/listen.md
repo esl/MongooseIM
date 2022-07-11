@@ -410,6 +410,7 @@ There are the following options for each of the HTTP listeners:
 
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
+    * `mongoose_graphql_cowboy_handler` - for GraphQL API,
     * `mongoose_api_admin`, `mongoose_api_client`(obsolete), `mongoose_client_api`, `mongoose_domain_handler`, `mongoose_api` - for REST API.
 
     These types are described below in more detail.
@@ -491,6 +492,36 @@ Maximum allowed incoming stanza size.
 
 This subsection enables external component connections over WebSockets.
 See the [service](#xmpp-components-listenservice) listener section for details.
+
+### Handler types: GraphQL API - `mongoose_graphql_cowboy_handler`
+
+For more information about the API, see the [Admin interface](../graphql-api/Admin-GraphQL.md) and [User interface](../graphql-api/User-GraphQL.md) documentation.
+The following options are supported for this handler:
+
+#### `listen.http.handlers.mongoose_graphql_cowboy_handler.schema_endpoint`
+* **Syntax:** string, one of `"admin"`, `"domain_admin"`, `"user"`
+* **Default:** not set
+* **Example:** `schema_endpoint = "admin"`
+
+Specifies the schema endpoint:
+
+* `admin` - Endpoint with the admin commands. A global admin has permission to execute all commands. See the recommended configuration -  [Example 5](#example-5-admin-graphql-api).
+* `domain_admin` - Endpoint with the admin commands. A domain admin has permission to execute only commands with the owned domain. See the recommended configuration - [Example 6](#example-6-domain-admin-graphql-api).
+* `user` - Endpoint with the user commands. Used to manage the authorized user. See the recommended configuration - [Example 7](#example-7-user-graphql-api).
+
+#### `listen.http.handlers.mongoose_graphql_cowboy_handler.username` - only for `admin`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `username = "admin"`
+
+When set, enables authentication for the admin API, otherwise it is disabled. Requires setting `password`.
+
+#### `listen.http.handlers.mongoose_graphql_cowboy_handler.password` - only for `admin`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `password = "secret"`
+
+Required to enable authentication for the admin API.
 
 ### Handler types: REST API - Admin - `mongoose_api_admin`
 
@@ -678,4 +709,57 @@ REST API for domain management.
     path = "/api"
     username = "admin"
     password = "secret"
+```
+
+#### Example 5. Admin GraphQL API
+
+GraphQL API for administration, the listener is bound to 127.0.0.1 for increased security. The number of acceptors and connections is specified (reduced).
+
+```toml
+[[listen.http]]
+  ip_address = "127.0.0.1"
+  port = 8088
+  transport.num_acceptors = 5
+  transport.max_connections = 10
+
+  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+    host = "localhost"
+    path = "/api/graphql"
+    schema_endpoint = "admin"
+    username = "admin"
+    password = "secret"
+```
+
+#### Example 6. Domain Admin GraphQL API
+
+GraphQL API for the domain admin.
+
+```toml
+[[listen.http]]
+  ip_address = "0.0.0.0"
+  port = 5041
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+    host = "_"
+    path = "/api/graphql"
+    schema_endpoint = "domain_admin"
+```
+
+#### Example 7. User GraphQL API
+
+GraphQL API for the user.
+
+```toml
+[[listen.http]]
+  ip_address = "0.0.0.0"
+  port = 5061
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+    host = "_"
+    path = "/api/graphql"
+    schema_endpoint = "user"
 ```
