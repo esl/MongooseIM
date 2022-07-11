@@ -179,7 +179,8 @@ process(["mnesia", Arg]) when is_list(Arg) ->
     ?STATUS_SUCCESS;
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
-    Result = mongoose_graphql_commands:execute(Doc, #{}), % TODO Support vars?
+    Ep = mongoose_graphql:get_endpoint(admin),
+    Result = mongoose_graphql:execute(Ep, undefined, Doc),
     handle_graphql_result(Result);
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
@@ -213,24 +214,41 @@ process(["help" | Mode]) ->
             print_usage_commands(CmdStringU, MaxC, ShCode),
             ?STATUS_SUCCESS
     end;
-process([CategoryStr, CommandStr, VarsStr] = Args) ->
-    Category = list_to_binary(CategoryStr),
-    Command = list_to_binary(CommandStr),
-    case mongoose_graphql_commands:find_document(Category, Command) of
-        {ok, Doc} ->
-            Vars = jiffy:decode(VarsStr, [return_maps]),
-            Result = mongoose_graphql_commands:execute(Doc, Vars),
-            handle_graphql_result(Result);
-        {error, not_found} ->
-            run_command(Args)
-    end;
 process(Args) ->
-    run_command(Args).
+    case mongoose_graphql_commands:process(Args) of
+        {error, #{reason := Reason}} when Reason =:= no_args;
+                                          Reason =:= unknown_category ->
+            run_command(Args); % Fallback to the old commands
+        {error, #{reason := unknown_command, category := Category, cat_spec := CatSpec,
+                  command := Command}} ->
+            ?PRINT("Unknown command '~s'. Available commands in category '~s':~n",
+                   [Command, Category]),
+            [?PRINT("  ~s~n", [Cmd]) || Cmd <- lists:sort(maps:keys(CatSpec))],
+            ?STATUS_ERROR;
+        {error, #{reason := no_command, category := Category, cat_spec := CatSpec}} ->
+            ?PRINT("No command was specified. Available commands in category '~s':~n", [Category]),
+            [?PRINT("  ~s~n", [Cmd]) || Cmd <- lists:sort(maps:keys(CatSpec))],
+            ?STATUS_ERROR;
+        {error, #{reason := invalid_vars}} ->
+            ?PRINT("Could not parse command variables from JSON~n", []),
+            ?STATUS_ERROR;
+        {error, #{reason := no_vars}} ->
+            ?PRINT("This command requires variables in JSON~n", []),
+            ?STATUS_ERROR;
+        {error, #{reason := too_many_args}} ->
+            ?PRINT("Too many arguments~n", []),
+            ?STATUS_ERROR;
+        Result ->
+            handle_graphql_result(Result)
+    end.
 
 handle_graphql_result({ok, Result}) ->
     JSONResult = mongoose_graphql_response:term_to_pretty_json(Result),
     ?PRINT("~s\n", [JSONResult]),
-    ?STATUS_SUCCESS;
+    case Result of
+        #{errors := _} -> ?STATUS_ERROR;
+        _ -> ?STATUS_SUCCESS
+    end;
 handle_graphql_result({error, Reason}) ->
     {_Code, Error} = mongoose_graphql_errors:format_error(Reason),
     JSONResult = jiffy:encode(#{errors => [Error]}, [pretty]),
