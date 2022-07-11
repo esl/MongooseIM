@@ -264,7 +264,6 @@ admin_change_user_password(Config) ->
     Path = [data, account, changeUserPassword, message],
     NewPassword = <<"new password">>,
     % Change password of not existing user
-
     Resp1 = change_user_password(?NOT_EXISTING_JID, NewPassword, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"not allowed">>)),
     % Set an empty password
