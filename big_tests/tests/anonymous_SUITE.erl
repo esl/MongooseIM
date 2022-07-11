@@ -18,7 +18,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -33,7 +33,8 @@ groups() ->
     [{anonymous, [sequence], all_tests()}].
 
 all_tests() ->
-    [connection_is_registered,
+    [connection_is_registered_with_sasl_anon,
+     connection_is_registered_with_login,
      messages_story].
 
 suite() ->
@@ -48,14 +49,8 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice])).
-
-end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice])).
-
 init_per_testcase(CaseName, Config0) ->
-    NewUsers = proplists:get_value(escalus_users, Config0) ++ escalus_ct:get_config(escalus_anon_users),
+    NewUsers = escalus_ct:get_config(escalus_anon_users),
     Config = [{escalus_users, NewUsers}] ++ Config0,
     escalus:init_per_testcase(CaseName, Config).
 
@@ -68,20 +63,33 @@ end_per_testcase(CaseName, Config) ->
 %% Anonymous tests
 %%--------------------------------------------------------------------
 
-connection_is_registered(Config) ->
+connection_is_registered_with_sasl_anon(Config) ->
     escalus:story(Config, [{jon, 1}], fun(Jon) ->
         JID = jid:from_binary(escalus_client:short_jid(Jon)),
+        OrigName = escalus_users:get_username(Config, jon),
+        ?assertNotEqual(OrigName, JID#jid.user),
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Jon),
         mongoose_helper:wait_until(F, false)
     end).
 
+connection_is_registered_with_login(Config) ->
+    escalus:story(Config, [{anna, 1}], fun(Anna) ->
+        JID = jid:from_binary(escalus_client:short_jid(Anna)),
+        OrigName = escalus_users:get_username(Config, anna),
+        ?assertEqual(OrigName, JID#jid.user),
+        F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
+        true = F(),
+        escalus_connection:kill(Anna),
+        mongoose_helper:wait_until(F, false)
+    end).
+
 messages_story(Config) ->
-    escalus:story(Config, [{alice, 1}, {jon, 1}], fun(Alice, Jon) ->
+    escalus:story(Config, [{anna, 1}, {jon, 1}], fun(Anna, Jon) ->
         erlang:put(anon_user, escalus_utils:get_jid(Jon)),
-        escalus_client:send(Jon, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        Stanza = escalus_client:wait_for_stanza(Alice),
+        escalus_client:send(Jon, escalus_stanza:chat_to(Anna, <<"Hi!">>)),
+        Stanza = escalus_client:wait_for_stanza(Anna),
         %% Below's dirty, but there is no other easy way...
         escalus_assert:is_chat_message(<<"Hi!">>, Stanza)
     end).
