@@ -32,6 +32,8 @@ type AdminQuery{
   private: PrivateAdminQuery
   "Metrics management"
   metric: MetricAdminQuery
+  "Statistics"
+  stats: StatsAdminQuery
 }
 
 """

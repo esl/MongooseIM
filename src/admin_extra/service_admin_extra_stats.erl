@@ -27,11 +27,7 @@
 -author('badlop@process-one.net').
 
 
--export([
-    commands/0,
-
-    stats/1, stats/2
-    ]).
+-export([commands/0]).
 
 -ignore_xref([commands/0, stats/1, stats/2]).
 
@@ -48,46 +44,13 @@ commands() ->
         #ejabberd_commands{name = stats, tags = [stats],
                            desc = "Get statistical value:"
                                   " registeredusers onlineusers onlineusersnode uptimeseconds",
-                           module = ?MODULE, function = stats,
+                           module = stats_api, function = stats,
                            args = [{name, binary}],
                            result = {stat, integer}},
         #ejabberd_commands{name = stats_host, tags = [stats],
                            desc = "Get statistical value for this host:"
                                   " registeredusers onlineusers",
-                           module = ?MODULE, function = stats,
+                           module = stats_api, function = stats,
                            args = [{name, binary}, {host, binary}],
                            result = {stat, integer}}
         ].
-
-%%%
-%%% Stats
-%%%
-
--spec stats(binary()) -> integer() | {error, string()}.
-stats(Name) ->
-    case Name of
-        <<"uptimeseconds">> ->
-            trunc(element(1, erlang:statistics(wall_clock))/1000);
-        <<"registeredusers">> ->
-            Domains = lists:flatmap(fun mongoose_domain_api:get_domains_by_host_type/1,
-                                    ?ALL_HOST_TYPES),
-            lists:sum([ejabberd_auth:get_vh_registered_users_number(Domain) || Domain <- Domains]);
-        <<"onlineusersnode">> ->
-            ejabberd_sm:get_node_sessions_number();
-        <<"onlineusers">> ->
-            ejabberd_sm:get_total_sessions_number();
-        _ ->
-            {error, "Wrong command name."}
-    end.
-
-
--spec stats(binary(), jid:server()) -> integer() | {error, string()}.
-stats(Name, Host) ->
-    case Name of
-        <<"registeredusers">> ->
-            ejabberd_auth:get_vh_registered_users_number(Host);
-        <<"onlineusers">> ->
-            ejabberd_sm:get_vh_session_number(Host);
-        _ ->
-            {error, "Wrong command name."}
-    end.
