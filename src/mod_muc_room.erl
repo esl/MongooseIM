@@ -2801,12 +2801,7 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
                     fun(ChangedItem, SD) ->
                             process_admin_item_set(ChangedItem, UJID, SD)
                     end, StateData, Res),
-            case (NSD#state.config)#config.persistent of
-                true ->
-                    mod_muc:store_room(NSD#state.host_type,
-                                       NSD#state.host, NSD#state.room, make_opts(NSD));
-                _ -> ok
-            end,
+            save_persistent_room_state(NSD),
             {result, [], NSD};
         Err ->
             Err
@@ -3230,10 +3225,11 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
 -spec process_authorized_submit_owner(From ::jid:jid(), XEl :: exml:element(), StateData :: state()) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_authorized_submit_owner(_From, #xmlel{ children = [] } = _XEl, StateData) ->
-    %confrm an instant room
+    %confirm an instant room
+    save_persistent_room_state(StateData),
     {result, [], StateData};
 process_authorized_submit_owner(From, XEl, StateData) ->
-    %attepmt to configure
+    %attempt to configure
     case is_allowed_log_change(XEl, StateData, From)
          andalso is_allowed_persistent_change(XEl, StateData, From)
          andalso is_allowed_room_name_desc_limits(XEl, StateData)
