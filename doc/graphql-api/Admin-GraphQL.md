@@ -1,14 +1,14 @@
 # MongooseIM's GraphQL API for the administrator
 
-The new GraphQL admin API contains all the commands available through the REST API, and the vast majority of the CTL commands. Only commands that wouldn't have worked well with GraphQL style have been omitted.
+The new GraphQL admin API contains all the commands available through the REST API, and the vast majority of the CLI (`mongooseimctl`) commands. Only commands that wouldn't have worked well with GraphQL style have been omitted.
 
 We can distinguish two levels of the administration. A global admin (has access to all commands), and the admin per domain (has access only to the own domain). Each of them is handled by a different endpoint. Please see the configuration [Listen](../../configuration/listen/#handler-types-graphql-api-mongoose_graphql_cowboy_handler) section for more details.
 
 There is only one schema for both admin types. Admin per domain simply has no permissions to execute global commands or commands with not owned domain. The API documentation clearly says which commands are global.
 
-## Domain per admin configuration
+## Domain admin configuration
 
-Out of the box, domains are created a with disabled admin account. Admin per domain can be enabled only by the global admin with the command
+Out of the box, domains are created with a disabled admin account. Admin per domain can be enabled only by the global admin with the command
 <a href="../admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.setDomainPassword</a>. Afterward, the domain admin can change the password with the same command.
 
 The admin per domain can be disabled by the global admin with the command <a href="../admin-graphql-doc.html#definition-DomainAdminMutation" target="_blank" rel="noopener noreferrer">mutation.domains.removeDomainPassword</a>.
@@ -25,7 +25,7 @@ with the word `Basic` followed by a space and a base64-encoded string.
 
 The authentication for global admin is optional because this endpoint shouldn't be exposed outside. The credentials set in the handler section in the config enables the authentication. Please see the [GraphQL handler](../configuration/listen.md#handler-types-graphql-api-mongoose_graphql_cowboy_handler) section for more details.
 
-The base64-encoded string should have form
+The base64-encoded string should have the form
 `LOGIN:PASSWORD`, where:
 
 - `LOGIN` is the login set in the config,
@@ -33,7 +33,7 @@ The base64-encoded string should have form
 
 ### Domain admin endpoint
 
-The authorization as a domain admin the base64-encoded string should have form
+The authorization as a domain admin the base64-encoded string should have the form
 `admin@DOMAIN:PASSWORD`, where:
 
 - `DOMAIN` is the domain to authorize,

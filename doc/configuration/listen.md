@@ -500,7 +500,7 @@ The following options are supported for this handler:
 
 #### `listen.http.handlers.mongoose_graphql_cowboy_handler.schema_endpoint`
 * **Syntax:** string, one of `"admin"`, `"domain_admin"`, `"user"`
-* **Default:** not set
+* **Default:** no default, this option is mandatory
 * **Example:** `schema_endpoint = "admin"`
 
 Specifies the schema endpoint:

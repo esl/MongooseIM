@@ -1,10 +1,10 @@
-# MongooseIM's REST API for the user
+# MongooseIM's GraphQL API for the user
 
-The new GraphQL user API contains all commands from the client REST API and provides plenty of news. Multiple commands previously available only for the admin have their counterparts for the user.  
+The new GraphQL user API contains all commands from the client REST API and provides plenty of new ones. Multiple commands previously available only for the admin have their counterparts for the user.
 
 ## Authentication
 
-MongooseIM uses *Basic Authentication* as an authentication method for the GraphQL API.
+MongooseIM uses *Basic Authentication* as the authentication method for the GraphQL API.
 
 *Basic authentication* is a simple authentication scheme built into the HTTP protocol.
 Each HTTP request to the client REST API has to contain the Authorization header
