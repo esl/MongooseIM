@@ -1,4 +1,4 @@
-# MongooseIM's GraphQL API for the administration
+# MongooseIM's GraphQL API for the administrator
 
 The new GraphQL admin API contains all the commands available through the REST API, and the vast majority of the CTL commands. Only commands that wouldn't have worked well with GraphQL style have been omitted.
 

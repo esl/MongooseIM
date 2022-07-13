@@ -17,7 +17,7 @@ info:
     email: mongoose-im@erlang-solutions.com
   license:
     name: GPL-2.0
-    url: https://github.com/esl/MongooseIM/blob/master/COPYIN
+    url: https://github.com/esl/MongooseIM/blob/master/COPYING
 
 servers:
   - url: http://localhost:5551/api/graphql
