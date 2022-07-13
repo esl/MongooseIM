@@ -144,6 +144,9 @@ nav:
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
       - 'Dynamic domains': 'rest-api/Dynamic-domains.md'
+  - 'GraphQL API':
+      - 'User': 'graphql-api/User-GraphQL.md'
+      - 'Admin': 'graphql-api/Admin-GraphQL.md'
   - 'Operation and Maintenance':
       - 'GDPR considerations': 'operation-and-maintenance/gdpr-considerations.md'
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'

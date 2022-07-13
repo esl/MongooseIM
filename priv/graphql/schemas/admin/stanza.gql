@@ -11,7 +11,7 @@ type StanzaAdminMutation @protected{
   "Send a headline message to a local or remote bare or full JID"
   sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
     @protected(type: DOMAIN, args: ["from"])
-  "Send an arbitrary stanza"
+  "Send an arbitrary stanza. Only for global admin"
   sendStanza(stanza: Stanza): SendStanzaPayload
     @protected(type: GLOBAL)
 }

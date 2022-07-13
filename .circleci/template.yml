@@ -435,9 +435,15 @@ jobs:
   docs_build_deploy:
     parallelism: 1
     docker:
-      - image: cimg/python:3.9.0
+      - image: cimg/python:3.9.0-node
     steps:
       - checkout
+      - run:
+          name: Build GraphQL static docs
+          command: |
+            npm install --prefix=$HOME/.local --global spectaql
+            npx spectaql -t doc/graphql-api -f admin-graphql-doc.html doc/graphql-api/Admin-GraphQL_spectaql.yml
+            npx spectaql -C -J -t doc/graphql-api -f user-graphql-doc.html doc/graphql-api/User-GraphQL_spectaql.yml
       - run:
           name: Test that docs build
           command: |
