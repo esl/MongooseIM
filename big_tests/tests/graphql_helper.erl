@@ -112,12 +112,12 @@ assert_response_code(ok, {exit_status, 0}) -> ok;
 assert_response_code(Type, Code) ->
     error(#{what => invalid_response_code, expected_type => Type, response_code => Code}).
 
-skip_null_values(M) when is_map(M) ->
+skip_null_fields(M) when is_map(M) ->
     M1 = maps:filter(fun(_K, V) -> V =/= null end, M),
-    maps:map(fun(_K, V) -> skip_null_values(V) end, M1);
-skip_null_values(L) when is_list(L) ->
-    [skip_null_values(Item) || Item <- L];
-skip_null_values(V) ->
+    maps:map(fun(_K, V) -> skip_null_fields(V) end, M1);
+skip_null_fields(L) when is_list(L) ->
+    [skip_null_fields(Item) || Item <- L];
+skip_null_fields(V) ->
     V.
 
 make_creds(#client{props = Props} = Client) ->

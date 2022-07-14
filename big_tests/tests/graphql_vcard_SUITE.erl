@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_user/3, execute_command/4, user_to_bin/1, get_ok_value/2,
-                         skip_null_values/1, get_err_msg/1]).
+                         skip_null_fields/1, get_err_msg/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -170,10 +170,10 @@ admin_set_vcard(Config, Alice, _Bob) ->
     Vcard = ?config(vcard, Config),
     ResultSet = set_vcard(Vcard, user_to_bin(Alice), Config),
     ParsedResultSet = get_ok_value([data, vcard, setVcard], ResultSet),
-    ?assertEqual(Vcard, skip_null_values(ParsedResultSet)),
+    ?assertEqual(Vcard, skip_null_fields(ParsedResultSet)),
     ResultGet = get_vcard(user_to_bin(Alice), Config),
     ParsedResultGet = get_ok_value([data, vcard, getVcard], ResultGet),
-    ?assertEqual(Vcard, skip_null_values(ParsedResultGet)).
+    ?assertEqual(Vcard, skip_null_fields(ParsedResultGet)).
 
 admin_set_vcard_no_user(Config) ->
     Vcard = complete_vcard_input(),
@@ -197,7 +197,7 @@ admin_get_vcard(Config, Alice, _Bob) ->
     escalus_client:send_and_wait(Alice, escalus_stanza:vcard_update(Client1Fields)),
     Result = get_vcard(user_to_bin(Alice), Config),
     ParsedResult = get_ok_value([data, vcard, getVcard], Result),
-    ?assertEqual(ExpectedResult, skip_null_values(ParsedResult)).
+    ?assertEqual(ExpectedResult, skip_null_fields(ParsedResult)).
 
 admin_get_vcard_no_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -232,10 +232,6 @@ error_result(What, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
 set_vcard_body_user(Body) ->
     QuerySet = user_get_full_vcard_as_result_mutation(),
     #{query => QuerySet, operationName => <<"M1">>, variables => #{vcard => Body}}.
-
-set_vcard_body_admin(Body, User) ->
-    QuerySet = admin_get_full_vcard_as_result_mutation(),
-    #{query => QuerySet, operationName => <<"M1">>, variables => #{vcard => Body, user => User}}.
 
 address_vcard_input() ->
    #{<<"formattedName">> => <<"TestName">>,
@@ -367,28 +363,6 @@ agent_vcard_input() ->
         #{<<"extValue">> => <<"External Value">>}
     ]}.
 
-admin_get_address_query() ->
-    <<"query Q1($user: JID!)
-       {
-           vcard
-           {
-               getVcard(user: $user)
-               {
-                   address
-                   {
-                       tags
-                       pobox
-                       extadd
-                       street
-                       locality
-                       region
-                       pcode
-                       country
-                   }
-               }
-           }
-       }">>.
-
 user_get_query() ->
     <<"query Q1($user: JID)
        {
@@ -406,11 +380,6 @@ user_get_query() ->
            }
        }">>.
 
-admin_get_full_vcard_as_result_mutation() ->
-    ResultFormat = get_full_vcard_as_result(),
-    <<"mutation M1($vcard: VcardInput!, $user: JID!)",
-      "{vcard{setVcard(vcard: $vcard, user: $user)", ResultFormat/binary, "}}">>.
-
 user_get_full_vcard_as_result_mutation() ->
     ResultFormat = get_full_vcard_as_result(),
     <<"mutation M1($vcard: VcardInput!){vcard{setVcard(vcard: $vcard)",
@@ -420,11 +389,6 @@ user_get_full_vcard_as_result_query() ->
     ResultFormat = get_full_vcard_as_result(),
     <<"query Q1($user: JID){vcard{getVcard(user: $user)",
       ResultFormat/binary, "}}">>.
-
-admin_get_full_vcard_as_result_query() ->
-    ResultFormat = get_full_vcard_as_result(),
-    <<"query Q1($user: JID!)",
-      "{vcard{getVcard(user: $user)", ResultFormat/binary, "}}">>.
 
 get_full_vcard_as_result() ->
     <<"{
