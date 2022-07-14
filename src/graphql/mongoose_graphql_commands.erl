@@ -6,9 +6,9 @@
 -export([start/0, stop/0, process/1]).
 
 %% Only for tests
--export([get_specs/0]).
+-export([build_specs/1, get_specs/0]).
 
--ignore_xref([get_specs/0]).
+-ignore_xref([build_specs/1, get_specs/0]).
 
 % Needed to get the 'agent' vCard Fields inside a vCard
 -define(MAX_TYPE_RECURSION_DEPTH, 2).
@@ -43,12 +43,8 @@
 
 -spec start() -> ok.
 start() ->
-    Ep = mongoose_graphql:get_endpoint(admin),
-    CatSpecs = get_category_specs(Ep),
-    CommandMap = lists:foldl(fun({Category, CategorySpec}, Acc) ->
-                                     insert_category(Category, CategorySpec, Acc)
-                             end, #{}, CatSpecs),
-    persistent_term:put(?MODULE, CommandMap).
+    Specs = build_specs(admin),
+    persistent_term:put(?MODULE, Specs).
 
 -spec stop() -> ok.
 stop() ->
@@ -62,6 +58,16 @@ process(Args) ->
                 end,
                 #{args => Args},
                 [fun find_category/1, fun find_command/1, fun parse_vars/1, fun execute/1]).
+
+%% Internal API
+
+-spec build_specs(atom()) -> specs().
+build_specs(EpName) ->
+    Ep = mongoose_graphql:get_endpoint(EpName),
+    CatSpecs = get_category_specs(Ep),
+    lists:foldl(fun({Category, CategorySpec}, Acc) ->
+                        insert_category(Category, CategorySpec, Acc)
+                end, #{}, CatSpecs).
 
 -spec get_specs() -> specs().
 get_specs() ->
@@ -220,12 +226,13 @@ insert_category(Category, NewCatSpec, Specs) ->
 
 -spec prepare_doc(category(), command(), map()) -> doc().
 prepare_doc(Category, Command, #{op_type := OpType, args := Args, fields := Fields}) ->
-    iolist_to_binary([OpType, " (", declare_variables(Args), ") { ", Category, " { ", Command,
-                     "(", use_variables(Args), ")", return_fields(Fields), " } }"]).
+    iolist_to_binary([OpType, " ", declare_variables(Args), "{ ", Category, " { ", Command,
+                      use_variables(Args), return_fields(Fields), " } }"]).
 
 -spec declare_variables([arg_spec()]) -> iolist().
+declare_variables([]) -> "";
 declare_variables(Args) ->
-    lists:join(", ", lists:map(fun declare_variable/1, Args)).
+    ["(", lists:join(", ", lists:map(fun declare_variable/1, Args)), ") "].
 
 -spec declare_variable(arg_spec()) -> iolist().
 declare_variable(#{name := Name, type := Type, wrap := Wrap}) ->
@@ -240,8 +247,9 @@ wrap_type([], Type) ->
     Type.
 
 -spec use_variables([arg_spec()]) -> iolist().
+use_variables([]) -> "";
 use_variables(Args) ->
-    lists:join(", ", lists:map(fun use_variable/1, Args)).
+    ["(", lists:join(", ", lists:map(fun use_variable/1, Args)), ")"].
 
 -spec use_variable(arg_spec()) -> iolist().
 use_variable(#{name := Name}) ->
