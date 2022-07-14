@@ -7,7 +7,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_auth/2, execute_command/4, get_ok_value/2]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -16,12 +16,12 @@ suite() ->
     require_rpc_nodes([mim, mim2]) ++ escalus:suite().
 
 all() ->
-     [{group, metrics_handler},
+     [{group, metrics_http},
       {group, metrics_cli}].
 
 groups() ->
-     [{metrics_handler, [parallel], metrics_tests()},
-      {metrics_cli, [parallel], metrics_tests()}].
+     [{metrics_http, [], metrics_tests()},
+      {metrics_cli, [], metrics_tests()}].
 
 metrics_tests() ->
     [get_all_metrics,
@@ -45,7 +45,7 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(metrics_handler, Config) ->
+init_per_group(metrics_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(metrics_cli, Config) ->
     graphql_helper:init_admin_cli(Config).
