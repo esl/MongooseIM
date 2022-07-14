@@ -29,7 +29,7 @@ execute_command(Category, Command, Args, Config, http) ->
         rpc(mim(), mongoose_graphql_commands, get_specs, []),
     execute_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
-    VarsJSON = jiffy:encode(Args),
+    VarsJSON = iolist_to_binary(jiffy:encode(Args)),
     {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command, VarsJSON], Config),
     {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
 
@@ -111,6 +111,14 @@ assert_response_code(error, {exit_status, 1}) -> ok;
 assert_response_code(ok, {exit_status, 0}) -> ok;
 assert_response_code(Type, Code) ->
     error(#{what => invalid_response_code, expected_type => Type, response_code => Code}).
+
+skip_null_fields(M) when is_map(M) ->
+    M1 = maps:filter(fun(_K, V) -> V =/= null end, M),
+    maps:map(fun(_K, V) -> skip_null_fields(V) end, M1);
+skip_null_fields(L) when is_list(L) ->
+    [skip_null_fields(Item) || Item <- L];
+skip_null_fields(V) ->
+    V.
 
 make_creds(#client{props = Props} = Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),

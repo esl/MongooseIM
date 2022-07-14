@@ -10,9 +10,11 @@
 
 -ignore_xref([get_specs/0]).
 
-%% This level of nesting is needed for basic type introspection, e.g. see below for [String!]!
-%%                         NON_NULL          LIST              NON_NULL          SCALAR
--define(TYPE_QUERY, "{name kind ofType {name kind ofType {name kind ofType {name kind}}}}").
+% Needed to get the 'agent' vCard Fields inside a vCard
+-define(MAX_TYPE_RECURSION_DEPTH, 2).
+
+% Needed to handle e.g. [String!]!, which has 3 wrapper types: NON_NULL, LIST, NON_NULL
+-define(MAX_INTROSPECTION_DEPTH, 3).
 
 -type context() :: #{args := [string()],
                      category => category(),
@@ -31,7 +33,7 @@
                           fields := [field_spec()],
                           doc := doc()}.
 -type arg_spec() :: #{name := binary(), type := binary(), wrap := [list | required]}.
--type field_spec() :: #{name := binary(), fields => [field_spec()]}.
+-type field_spec() :: #{name | on := binary(), fields => [field_spec()]}.
 -type op_type() :: binary().
 -type doc() :: binary().
 -type ep() :: graphql:endpoint_context().
@@ -131,8 +133,10 @@ get_category_specs(Ep, OpType, Categories) ->
 -spec get_category_spec(ep(), op_type(), json_map()) -> {category(), category_spec()}.
 get_category_spec(Ep, OpType, #{<<"name">> := Category,
                                 <<"type">> := #{<<"name">> := CategoryType}}) ->
-    Doc = <<"query ($type: String!) { __type(name: $type) "
-            "{name fields {name args {name type ", ?TYPE_QUERY, "} type ", ?TYPE_QUERY, "}}}">>,
+    Doc = iolist_to_binary(
+            ["query ($type: String!) { __type(name: $type) "
+             "{name fields {name args {name type ", arg_type_query(), "} type ",
+             field_type_query(), "}}}"]),
     Vars = #{<<"type">> => CategoryType},
     {ok, #{data := #{<<"__type">> := #{<<"fields">> := Commands}}}} = execute(Ep, Doc, Vars),
     CommandSpecs = [get_command_spec(Ep, Category, OpType, Command) || Command <- Commands],
@@ -140,8 +144,8 @@ get_category_spec(Ep, OpType, #{<<"name">> := Category,
 
 -spec get_command_spec(ep(), category(), op_type(), json_map()) -> {command(), command_spec()}.
 get_command_spec(Ep, Category, OpType,
-                 #{<<"name">> := Name, <<"args">> := Args, <<"type">> := Type}) ->
-    Spec = #{op_type => OpType, args => get_args(Args), fields => get_fields(Ep, Type)},
+                 #{<<"name">> := Name, <<"args">> := Args, <<"type">> := TypeMap}) ->
+    Spec = #{op_type => OpType, args => get_args(Args), fields => get_fields(Ep, TypeMap, [])},
     Doc = prepare_doc(Category, Name, Spec),
     {Name, Spec#{doc => Doc}}.
 
@@ -153,39 +157,49 @@ get_args(Args) ->
 get_arg_info(#{<<"name">> := ArgName, <<"type">> := Arg}) ->
     (get_arg_type(Arg, []))#{name => ArgName}.
 
-get_arg_type(#{<<"kind">> := <<"NON_NULL">>, <<"ofType">> := Type}, Wrap) ->
-    get_arg_type(Type, [required | Wrap]);
-get_arg_type(#{<<"kind">> := <<"LIST">>, <<"ofType">> := Type}, Wrap) ->
-    get_arg_type(Type, [list | Wrap]);
+get_arg_type(#{<<"kind">> := <<"NON_NULL">>, <<"ofType">> := TypeMap}, Wrap) ->
+    get_arg_type(TypeMap, [required | Wrap]);
+get_arg_type(#{<<"kind">> := <<"LIST">>, <<"ofType">> := TypeMap}, Wrap) ->
+    get_arg_type(TypeMap, [list | Wrap]);
 get_arg_type(#{<<"name">> := Type, <<"kind">> := Kind}, Wrap) when Kind =:= <<"SCALAR">>;
                                                                    Kind =:= <<"ENUM">>;
                                                                    Kind =:= <<"INPUT_OBJECT">> ->
     #{type => Type, wrap => lists:reverse(Wrap)}.
 
--spec get_fields(ep(), json_map()) -> [field_spec()].
-get_fields(_Ep, #{<<"kind">> := Kind})
+-spec get_fields(ep(), json_map(), [binary()]) -> [field_spec()].
+get_fields(_Ep, #{<<"kind">> := Kind}, _Path)
   when Kind =:= <<"SCALAR">>;
-       Kind =:= <<"ENUM">>;
-       Kind =:= <<"UNION">> -> []; %% TODO implement support for UNION
-get_fields(Ep, #{<<"kind">> := Kind, <<"ofType">> := Type})
+       Kind =:= <<"ENUM">> -> [];
+get_fields(Ep, #{<<"kind">> := <<"UNION">>, <<"possibleTypes">> := TypeMaps}, Path) ->
+    [get_union_type(Ep, TypeMap, Path) || TypeMap <- TypeMaps];
+get_fields(Ep, #{<<"kind">> := Kind, <<"ofType">> := Type}, Path)
   when Kind =:= <<"NON_NULL">>;
        Kind =:= <<"LIST">> ->
-    get_fields(Ep, Type);
-get_fields(Ep, #{<<"name">> := Name, <<"kind">> := <<"OBJECT">>}) ->
-    Fields = get_object_fields(Ep, Name),
-    [get_field(Ep, Field) || Field <- Fields].
+    get_fields(Ep, Type, Path);
+get_fields(Ep, #{<<"kind">> := <<"OBJECT">>, <<"name">> := Type}, Path) ->
+    case length([T || T <- Path, T =:= Type]) >= ?MAX_TYPE_RECURSION_DEPTH of
+        true ->
+            [#{name => <<"__typename">>}]; % inform about the type of the trimmed subtree
+        false ->
+            Fields = get_object_fields(Ep, Type),
+            [get_field(Ep, Field, [Type | Path]) || Field <- Fields]
+    end.
 
--spec get_field(ep(), json_map()) -> field_spec().
-get_field(Ep, #{<<"type">> := Type, <<"name">> := Name}) ->
-    case get_fields(Ep, Type) of
+-spec get_union_type(ep(), json_map(), [binary()]) -> field_spec().
+get_union_type(Ep, #{<<"kind">> := <<"OBJECT">>, <<"name">> := Type} = M, Path) ->
+    #{on => Type, fields => get_fields(Ep, M, Path)}.
+
+-spec get_field(ep(), json_map(), [binary()]) -> field_spec().
+get_field(Ep, #{<<"type">> := Type, <<"name">> := Name}, Path) ->
+    case get_fields(Ep, Type, Path) of
         [] -> #{name => Name};
         Fields -> #{name => Name, fields => Fields}
     end.
 
 -spec get_object_fields(ep(), binary()) -> [json_map()].
 get_object_fields(Ep, ObjectType) ->
-    Doc = <<"query ($type: String!) { __type(name: $type) "
-            "{name fields {name type ", ?TYPE_QUERY, "}}}">>,
+    Doc = iolist_to_binary(["query ($type: String!) { __type(name: $type) "
+                            "{name fields {name type ", field_type_query(), "}}}"]),
     Vars = #{<<"type">> => ObjectType},
     {ok, #{data := #{<<"__type">> := #{<<"fields">> := Fields}}}} = execute(Ep, Doc, Vars),
     Fields.
@@ -242,7 +256,9 @@ return_fields(Fields) ->
 return_field(#{name := Name, fields := Fields}) ->
     [Name, return_fields(Fields)];
 return_field(#{name := Name}) ->
-    Name.
+    Name;
+return_field(#{on := Type, fields := Fields}) ->
+    ["... on ", Type, return_fields(Fields)].
 
 -spec execute(ep(), doc(), json_map()) -> result().
 execute(Ep, Doc, Vars) ->
@@ -251,3 +267,13 @@ execute(Ep, Doc, Vars) ->
                                    vars => Vars,
                                    authorized => true,
                                    ctx => #{}}).
+
+field_type_query() ->
+    nested_type_query("name kind possibleTypes {name kind}").
+
+arg_type_query() ->
+    nested_type_query("name kind").
+
+nested_type_query(BasicQuery) ->
+    lists:foldl(fun(_, QueryAcc) -> ["{ ", BasicQuery, " ofType ", QueryAcc, " }"] end,
+                ["{ ", BasicQuery, " }"], lists:seq(1, ?MAX_INTROSPECTION_DEPTH)).

@@ -15,13 +15,13 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_account_handler},
-     {group, admin_account_handler},
+    [{group, user_account},
+     {group, admin_account_http},
      {group, admin_account_cli}].
 
 groups() ->
-    [{user_account_handler, [parallel], user_account_tests()},
-     {admin_account_handler, [], admin_account_tests()},
+    [{user_account, [parallel], user_account_tests()},
+     {admin_account_http, [], admin_account_tests()},
      {admin_account_cli, [], admin_account_tests()}].
 
 user_account_tests() ->
@@ -52,20 +52,20 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_account_handler, Config) ->
+init_per_group(admin_account_http, Config) ->
     graphql_helper:init_admin_handler(init_users(Config));
 init_per_group(admin_account_cli, Config) ->
     graphql_helper:init_admin_cli(init_users(Config));
-init_per_group(user_account_handler, Config) ->
+init_per_group(user_account, Config) ->
     [{schema_endpoint, user} | Config];
 init_per_group(_, Config) ->
     Config.
 
-end_per_group(admin_account_handler, Config) ->
+end_per_group(admin_account_http, Config) ->
     clean_users(Config);
 end_per_group(admin_account_cli, Config) ->
     clean_users(Config);
-end_per_group(user_account_handler, _Config) ->
+end_per_group(user_account, _Config) ->
     escalus_fresh:clean();
 end_per_group(_, _Config) ->
     ok.
