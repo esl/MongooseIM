@@ -20,13 +20,17 @@ execute(EpName, Body, Creds) ->
         body => Body},
     rest_helper:make_request(Request).
 
+execute_user_command(Category, Command, User, Args, Config) ->
+    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    execute_user(#{query => Doc, variables => Args}, User, Config).
+
 execute_command(Category, Command, Args, Config) ->
     Protocol = ?config(protocol, Config),
     execute_command(Category, Command, Args, Config, Protocol).
 
+%% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Category, Command, Args, Config, http) ->
-    #{Category := #{Command := #{doc := Doc}}} =
-        rpc(mim(), mongoose_graphql_commands, get_specs, []),
+    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
     execute_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
     VarsJSON = iolist_to_binary(jiffy:encode(Args)),
@@ -65,20 +69,36 @@ init_admin_handler(Config) ->
     Opts = get_listener_opts(Endpoint),
     case maps:is_key(username, Opts) of
         true ->
-            [{protocol, http}, {schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
+            add_specs([{protocol, http}, {schema_endpoint, Endpoint}, {listener_opts, Opts}
+                      | Config]);
         false ->
             ct:fail(<<"Admin credentials are not defined in config">>)
     end.
 
 init_admin_cli(Config) ->
-    [{protocol, cli} | Config].
+    add_specs([{protocol, cli}, {schema_endpoint, admin} | Config]).
+
+init_user(Config) ->
+    add_specs([{schema_endpoint, user} | Config]).
 
 init_domain_admin_handler(Config) ->
     Domain = domain_helper:domain(),
     Password = base16:encode(crypto:strong_rand_bytes(8)),
     Creds = {<<"admin@", Domain/binary>>, Password},
     ok = domain_helper:set_domain_password(mim(), Domain, Password),
-    [{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config].
+    add_specs([{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config]).
+
+add_specs(Config) ->
+    EpName = ?config(schema_endpoint, Config),
+    Specs = rpc(mim(), mongoose_graphql_commands, build_specs, [EpName]),
+    persistent_term:put(graphql_specs, Specs),
+    Config.
+
+get_specs() ->
+    persistent_term:get(graphql_specs).
+
+clean() ->
+    persistent_term:erase(graphql_specs).
 
 end_domain_admin_handler(Config) ->
     {JID, _} = ?config(domain_admin, Config),
