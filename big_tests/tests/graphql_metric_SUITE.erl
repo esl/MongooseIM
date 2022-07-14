@@ -1,8 +1,6 @@
 -module(graphql_metric_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
@@ -51,7 +49,7 @@ init_per_group(metrics_cli, Config) ->
     graphql_helper:init_admin_cli(Config).
 
 end_per_group(_GroupName, _Config) ->
-    ok.
+    graphql_helper:clean().
 
 init_per_testcase(CaseName, Config) ->
      escalus:init_per_testcase(CaseName, Config).

@@ -1,12 +1,11 @@
 -module(graphql_account_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, execute_command/4, get_listener_port/1,
+-import(graphql_helper, [execute_command/4, execute_user_command/5, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1]).
 
 -define(NOT_EXISTING_JID, <<"unknown987@unknown">>).
@@ -57,18 +56,14 @@ init_per_group(admin_account_http, Config) ->
 init_per_group(admin_account_cli, Config) ->
     graphql_helper:init_admin_cli(init_users(Config));
 init_per_group(user_account, Config) ->
-    [{schema_endpoint, user} | Config];
-init_per_group(_, Config) ->
-    Config.
+    graphql_helper:init_user(Config).
 
-end_per_group(admin_account_http, Config) ->
-    clean_users(Config);
-end_per_group(admin_account_cli, Config) ->
-    clean_users(Config);
 end_per_group(user_account, _Config) ->
+    graphql_helper:clean(),
     escalus_fresh:clean();
-end_per_group(_, _Config) ->
-    ok.
+end_per_group(_GroupName, Config) ->
+    graphql_helper:clean(),
+    clean_users(Config).
 
 init_users(Config) ->
     escalus:create_users(Config, escalus:get_users([alice])).
@@ -109,33 +104,24 @@ user_unregister(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_unregister_story/2).
 
 user_unregister_story(Config, Alice) ->
-    Ep = ?config(schema_endpoint, Config),
-    Password = lists:last(escalus_users:get_usp(Config, alice)),
-    BinJID = escalus_client:full_jid(Alice),
-    Creds = {BinJID, Password},
-    Query = <<"mutation { account { unregister } }">>,
-
+    Resp = user_unregister(Alice, Config),
     Path = [data, account, unregister],
-    Resp = execute(Ep, #{query => Query}, Creds),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp), <<"successfully unregistered">>)),
     % Ensure the user is removed
     AllUsers = rpc(mim(), mongoose_account_api, list_users, [domain_helper:domain()]),
-    LAliceJID = jid:to_binary(jid:to_lower((jid:binary_to_bare(BinJID)))),
+    LAliceJID = jid:to_binary(jid:from_binary(escalus_client:short_jid(Alice))),
     ?assertNot(lists:member(LAliceJID, AllUsers)).
 
 user_change_password(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_password_story/2).
 
 user_change_password_story(Config, Alice) ->
-    Ep = ?config(schema_endpoint, Config),
-    Password = lists:last(escalus_users:get_usp(Config, alice)),
-    Creds = {escalus_client:full_jid(Alice), Password},
     % Set an empty password
-    Resp1 = execute(Ep, user_change_password_body(<<>>), Creds),
+    Resp1 = user_change_password(Alice, <<>>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"Empty password">>)),
     % Set a correct password
+    Resp2 = user_change_password(Alice, <<"kaczka">>, Config),
     Path = [data, account, changePassword],
-    Resp2 = execute(Ep, user_change_password_body(<<"kaczka">>), Creds),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp2), <<"Password changed">>)).
 
 admin_list_users(Config) ->
@@ -282,7 +268,14 @@ get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 
-%% Admin commands
+%% Commands
+
+user_unregister(User, Config) ->
+    execute_user_command(<<"account">>, <<"unregister">>, User, #{}, Config).
+
+user_change_password(User, Password, Config) ->
+    Vars = #{<<"newPassword">> => Password},
+    execute_user_command(<<"account">>, <<"changePassword">>, User, Vars, Config).
 
 list_users(Domain, Config) ->
     Vars = #{<<"domain">> => Domain},
@@ -323,12 +316,3 @@ ban_user(JID, Reason, Config) ->
 change_user_password(JID, NewPassword, Config) ->
     Vars = #{<<"user">> => JID, <<"newPassword">> => NewPassword},
     execute_command(<<"account">>, <<"changeUserPassword">>, Vars, Config).
-
-%% Request bodies
-
-user_change_password_body(NewPassword) ->
-    Query = <<"mutation M1($newPassword: String!)
-              { account { changePassword(newPassword: $newPassword) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{<<"newPassword">> => NewPassword},
-    #{query => Query, operationName => OpName, variables => Vars}.
