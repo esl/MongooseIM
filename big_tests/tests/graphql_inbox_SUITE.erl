@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_user/3, execute_auth/2, user_to_bin/1, user_to_jid/1,
+-import(graphql_helper, [execute_user_command/5, execute_command/4, user_to_bin/1,
                          get_ok_value/2, get_err_msg/1, get_err_code/1]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -20,16 +20,18 @@ all() ->
 
 tests() ->
     [{group, user_inbox},
-     {group, admin_inbox}].
+     {group, admin_inbox_http},
+     {group, admin_inbox_cli}].
 
 groups() ->
-    [{user_inbox, [], user_inbox_handler()},
-     {admin_inbox, [], admin_inbox_handler()}].
+    [{user_inbox, [], user_inbox_tests()},
+     {admin_inbox_http, [], admin_inbox_tests()},
+     {admin_inbox_cli, [], admin_inbox_tests()}].
 
-user_inbox_handler() ->
+user_inbox_tests() ->
     [user_flush_own_bin].
 
-admin_inbox_handler() ->
+admin_inbox_tests() ->
     [admin_flush_user_bin,
      admin_try_flush_nonexistent_user_bin,
      admin_flush_domain_bin,
@@ -45,19 +47,22 @@ init_per_suite(Config) ->
     Modules = [{mod_inbox, inbox_helper:inbox_opts(async_pools)} | inbox_helper:muclight_modules()],
     ok = dynamic_modules:ensure_modules(HostType, Modules),
     ok = dynamic_modules:ensure_modules(SecHostType, Modules),
-    escalus:init_per_suite(Config1).
+    Config2 = ejabberd_node_utils:init(mim(), Config1),
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_inbox, Config) ->
+init_per_group(admin_inbox_http, Config) ->
     graphql_helper:init_admin_handler(Config);
+init_per_group(admin_inbox_cli, Config) ->
+    graphql_helper:init_admin_cli(Config);
 init_per_group(user_inbox, Config) ->
-    [{schema_endpoint, user} | Config].
+    graphql_helper:init_user(Config).
 
 end_per_group(_, _) ->
-    ok.
+    graphql_helper:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -75,7 +80,7 @@ admin_flush_user_bin(Config) ->
 
 admin_flush_user_bin(Config, Alice, Bob, Kate) ->
     RoomBinJID = create_room_and_make_users_leave(Alice, Bob, Kate),
-    Res = execute_auth(admin_flush_user_bin_body(Bob, null), Config),
+    Res = flush_user_bin(Bob, Config),
     NumOfRows = get_ok_value(p(flushUserBin), Res),
     ?assertEqual(1, NumOfRows),
     inbox_helper:check_inbox(Bob, [], #{box => bin}),
@@ -88,7 +93,7 @@ admin_flush_domain_bin(Config) ->
 admin_flush_domain_bin(Config, Alice, AliceBis, Kate) ->
     RoomBinJID = create_room_and_make_users_leave(Alice, AliceBis, Kate),
     Domain = domain_helper:domain(),
-    Res = execute_auth(admin_flush_domain_bin_body(Domain, null), Config),
+    Res = flush_domain_bin(Domain, Config),
     NumOfRows = get_ok_value(p(flushDomainBin), Res),
     ?assertEqual(1, NumOfRows),
     inbox_helper:check_inbox(Kate, [], #{box => bin}),
@@ -101,7 +106,7 @@ admin_flush_global_bin(Config) ->
 admin_flush_global_bin(Config, Alice, AliceBis, Kate) ->
     SecHostType = domain_helper:host_type(),
     create_room_and_make_users_leave(Alice, AliceBis, Kate),
-    Res = execute_auth(admin_flush_global_bin_body(SecHostType, null), Config),
+    Res = flush_global_bin(SecHostType, null, Config),
     NumOfRows = get_ok_value(p(flushGlobalBin), Res),
     ?assertEqual(2, NumOfRows),
     inbox_helper:check_inbox(AliceBis, [], #{box => bin}),
@@ -114,7 +119,7 @@ admin_flush_global_bin_after_days(Config) ->
 admin_flush_global_bin_after_days(Config, Alice, AliceBis, Kate) ->
     SecHostType = domain_helper:host_type(),
     RoomBinJID = create_room_and_make_users_leave(Alice, AliceBis, Kate),
-    Res = execute_auth(admin_flush_global_bin_body(SecHostType, 1), Config),
+    Res = flush_global_bin(SecHostType, 1, Config),
     NumOfRows = get_ok_value(p(flushGlobalBin), Res),
     ?assertEqual(0, NumOfRows),
     check_aff_msg_in_inbox_bin(AliceBis, RoomBinJID),
@@ -122,22 +127,22 @@ admin_flush_global_bin_after_days(Config, Alice, AliceBis, Kate) ->
 
 admin_try_flush_nonexistent_user_bin(Config) ->
     %% Check nonexistent domain error
-    Res = execute_auth(admin_flush_user_bin_body(<<"user@user.com">>, null), Config),
+    Res = flush_user_bin(<<"user@user.com">>, Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found),
-    %% Check nonexistent user error 
+    %% Check nonexistent user error
     User = <<"nonexistent-user@", (domain_helper:domain())/binary>>,
-    Res2 = execute_auth(admin_flush_user_bin_body(User, null), Config),
+    Res2 = flush_user_bin(User, Config),
     ?assertErrMsg(Res2, <<"does not exist">>),
     ?assertErrCode(Res2, user_does_not_exist).
 
 admin_try_flush_nonexistent_domain_bin(Config) ->
-    Res = execute_auth(admin_flush_domain_bin_body(<<"unknown-domain">>, null), Config),
+    Res = flush_domain_bin(<<"unknown-domain">>, Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
 
 admin_try_flush_nonexistent_host_type_bin(Config) ->
-    Res = execute_auth(admin_flush_global_bin_body(<<"nonexistent host type">>, null), Config),
+    Res = flush_global_bin(<<"nonexistent host type">>, null, Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, host_type_not_found).
 
@@ -149,7 +154,7 @@ user_flush_own_bin(Config) ->
 
 user_flush_own_bin(Config, Alice, Bob, Kate) ->
     create_room_and_make_users_leave(Alice, Bob, Kate),
-    Res = execute_user(user_flush_own_bin_body(null), Bob, Config),
+    Res = user_flush_own_bin(Bob, Config),
     NumOfRows = get_ok_value(p(flushBin), Res),
     ?assertEqual(1, NumOfRows),
     inbox_helper:check_inbox(Bob, [], #{box => bin}).
@@ -176,31 +181,19 @@ p(Cmd) when is_atom(Cmd) ->
 p(Path) when is_list(Path) ->
     [data, inbox] ++ Path.
 
-%% Request bodies
+%% Commands
 
-admin_flush_user_bin_body(User, Days) ->
-    Query = <<"mutation M1($user: JID!, $days: PosInt)
-              { inbox { flushUserBin(user: $user, days: $days) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{user => user_to_bin(User), days => Days},
-    #{query => Query, operationName => OpName, variables => Vars}.
+flush_user_bin(User, Config) ->
+    Vars = #{user => user_to_bin(User)},
+    graphql_helper:execute_command(<<"inbox">>, <<"flushUserBin">>, Vars, Config).
 
-admin_flush_domain_bin_body(Domain, Days) ->
-    Query = <<"mutation M1($domain: String!, $days: PosInt)
-              { inbox { flushDomainBin(domain: $domain, days: $days) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{domain => Domain, days => Days},
-    #{query => Query, operationName => OpName, variables => Vars}.
+flush_domain_bin(Domain, Config) ->
+    Vars = #{domain => Domain},
+    graphql_helper:execute_command(<<"inbox">>, <<"flushDomainBin">>, Vars, Config).
 
-admin_flush_global_bin_body(HostType, Days) ->
-    Query = <<"mutation M1($hostType: String!, $days: PosInt)
-              { inbox { flushGlobalBin(hostType: $hostType, days: $days) } }">>,
-    OpName = <<"M1">>,
+flush_global_bin(HostType, Days, Config) ->
     Vars = #{hostType => HostType, days => Days},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    graphql_helper:execute_command(<<"inbox">>, <<"flushGlobalBin">>, Vars, Config).
 
-user_flush_own_bin_body(Days) ->
-    Query = <<"mutation M1($days: PosInt) { inbox { flushBin(days: $days) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{days => Days},
-    #{query => Query, operationName => OpName, variables => Vars}.
+user_flush_own_bin(User, Config) ->
+    graphql_helper:execute_user_command(<<"inbox">>, <<"flushBin">>, User, #{}, Config).
