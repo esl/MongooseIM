@@ -3,9 +3,9 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, get_listener_port/1,
+-import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
-                         make_creds/1]).
+                         get_coercion_err_msg/1, make_creds/1]).
 
 -import(config_parser_helper, [mod_config/2]).
 
@@ -37,13 +37,15 @@ suite() ->
 
 all() ->
     [{group, user_muc_light},
-     {group, admin_muc_light}].
+     {group, admin_muc_light_http},
+     {group, admin_muc_light_cli}].
 
 groups() ->
-    [{user_muc_light, [parallel], user_muc_light_handler()},
-     {admin_muc_light, [parallel], admin_muc_light_handler()}].
+    [{user_muc_light, [parallel], user_muc_light_tests()},
+     {admin_muc_light_http, [parallel], admin_muc_light_tests()},
+     {admin_muc_light_cli, [], admin_muc_light_tests()}].
 
-user_muc_light_handler() ->
+user_muc_light_tests() ->
     [user_create_room,
      user_create_identified_room,
      user_change_room_config,
@@ -61,7 +63,7 @@ user_muc_light_handler() ->
      user_blocking_list
     ].
 
-admin_muc_light_handler() ->
+admin_muc_light_tests() ->
     [admin_create_room,
      admin_create_identified_room,
      admin_change_room_config,
@@ -81,8 +83,9 @@ admin_muc_light_handler() ->
 
 init_per_suite(Config) ->
     Config1 = init_modules(Config),
+    Config2 = ejabberd_node_utils:init(mim(), Config1),
     [{muc_light_host, muc_light_helper:muc_host()}
-     | escalus:init_per_suite(Config1)].
+     | escalus:init_per_suite(Config2)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -100,13 +103,15 @@ required_modules(_) ->
     MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true}),
     [{mod_muc_light, MucLightOpts}].
 
-init_per_group(admin_muc_light, Config) ->
+init_per_group(admin_muc_light_http, Config) ->
     graphql_helper:init_admin_handler(Config);
+init_per_group(admin_muc_light_cli, Config) ->
+    graphql_helper:init_admin_cli(Config);
 init_per_group(user_muc_light, Config) ->
-    [{schema_endpoint, user} | Config].
+    graphql_helper:init_user(Config).
 
-end_per_group(_GN, Config) ->
-    Config.
+end_per_group(_GN, _Config) ->
+    graphql_helper:clean().
 
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
@@ -121,59 +126,53 @@ user_create_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_create_room_story/2).
 
 user_create_room_story(Config, Alice) ->
-    Ep = ?config(schema_endpoint, Config),
     MucServer = ?config(muc_light_host, Config),
     AliceBinLower = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
-    Creds = make_creds(Alice),
     Name = <<"first room">>,
     Subject = <<"testing">>,
-    Res = execute(Ep, user_create_room_body(MucServer, Name, Subject, null), Creds),
+    Res = user_create_room(Alice, MucServer, Name, Subject, null, Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{lserver = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
     % Try with a non-existent domain
-    Res2 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, Name, Subject, null), Creds),
+    Res2 = user_create_room(Alice, ?UNKNOWN_DOMAIN, Name, Subject, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
 user_create_identified_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_create_identified_room_story/2).
 
 user_create_identified_room_story(Config, Alice) ->
-    Ep = ?config(schema_endpoint, Config),
     MucServer = ?config(muc_light_host, Config),
-    Creds = make_creds(Alice),
     Name = <<"first room">>,
     Subject = <<"testing">>,
     Id = <<"my_user_room">>,
-    Res = execute(Ep, user_create_room_body(MucServer, Name, Subject, Id), Creds),
+    Res = user_create_room(Alice, MucServer, Name, Subject, Id, Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
         get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
-    Res2 = execute(Ep, user_create_room_body(MucServer, <<"snd room">>, Subject, Id), Creds),
+    Res2 = user_create_room(Alice, MucServer, <<"snd room">>, Subject, Id, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
     % Try with a non-existent domain
-    Res3 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, Subject, Id), Creds),
+    Res3 = user_create_room(Alice, ?UNKNOWN_DOMAIN, <<"name">>, Subject, Id, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with an empty string passed as ID
-    Res4 = execute(Ep, user_create_room_body(MucServer, <<"name">>, Subject, <<>>), Creds),
-    ?assertNotEqual(nomatch, binary:match(get_coertion_err_msg(Res4), <<"Given string is empty">>)).
+    Res4 = user_create_room(Alice, MucServer, <<"name">>, Subject, <<>>, Config),
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res4), <<"Given string is empty">>)).
 
 user_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_room_config_story/2).
 
 user_change_room_config_story(Config, Alice) ->
     AliceBin = escalus_client:short_jid(Alice),
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    Creds = make_creds(Alice),
     % Create a new room
     {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"ornithology">>, <<"birds">>, AliceBin),
     % Try to change the room configuration
     Name2 = <<"changed room">>,
     Subject2 = <<"not testing">>,
-    Res = execute(Ep, user_change_room_configuration_body(jid:to_binary(RoomJID), Name2, Subject2), Creds),
+    Res = user_change_room_configuration(Alice, jid:to_binary(RoomJID), Name2, Subject2, Config),
     ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2}, get_ok_value(?CHANGE_CONFIG_PATH, Res)).
 
 user_change_room_config_errors(Config) ->
@@ -181,31 +180,28 @@ user_change_room_config_errors(Config) ->
                                     fun user_change_room_config_errors_story/3).
 
 user_change_room_config_errors_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     % Try to change the config with a non-existent domain
-    Res = execute(Ep, user_change_room_configuration_body(
-                        make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), RoomName, <<"subject2">>), CredsAlice),
+    Res = user_change_room_configuration(
+            Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
     % Try to change the config of the non-existent room
-    Res2 = execute(Ep, user_change_room_configuration_body(
-                         make_bare_jid(?UNKNOWN, MUCServer), RoomName, <<"subject2">>), CredsAlice),
+    Res2 = user_change_room_configuration(
+             Alice, make_bare_jid(?UNKNOWN, MUCServer), RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try to change the config by the user that does not occupy this room
-    Res3 = execute(Ep, user_change_room_configuration_body(
-                         jid:to_binary(RoomJID), RoomName, <<"subject2">>), CredsBob),
+    Res3 = user_change_room_configuration(
+             Bob, jid:to_binary(RoomJID), RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not occupy this room">>)),
     % Try to change a config by the user without permission
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res4 = execute(Ep, user_change_room_configuration_body(
-                         jid:to_binary(RoomJID), RoomName, <<"subject2">>), CredsBob),
+    Res4 = user_change_room_configuration(
+             Bob, jid:to_binary(RoomJID), RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4),
                                           <<"does not have permission to change">>)).
 
@@ -213,16 +209,14 @@ user_invite_user(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_invite_user_story/3).
 
 user_invite_user_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     Domain = escalus_client:server(Alice),
     Name = <<"first room">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, <<"subject2">>, AliceBin),
     % Room owner can invite a user
-    Res = execute(Ep, user_invite_user_body(jid:to_binary(RoomJID), BobBin), CredsAlice),
+    Res = user_invite_user(Alice, jid:to_binary(RoomJID), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     escalus:wait_for_stanza(Bob),
@@ -237,35 +231,26 @@ user_invite_user_errors(Config) ->
                                     fun user_invite_user_errors_story/3).
 
 user_invite_user_errors_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
     % Try to invite a user to not existing room
-    Res = execute(Ep, user_invite_user_body(
-                        make_bare_jid(?UNKNOWN, MUCServer), BobBin), CredsAlice),
+    Res = user_invite_user(Alice, make_bare_jid(?UNKNOWN, MUCServer), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not occupy this room">>)),
     % User without rooms tries to invite a user
-    Res2 = execute(Ep, user_invite_user_body(
-                         jid:to_binary(RoomJID), AliceBin), CredsBob),
+    Res2 = user_invite_user(Bob, jid:to_binary(RoomJID), AliceBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not occupy this room">>)),
     % Try with a non-existent domain
-    Res3 = execute(Ep, user_invite_user_body(
-                         make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), BobBin), CredsAlice),
+    Res3 = user_invite_user(Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
 user_delete_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_delete_room_story/3).
 
 user_delete_room_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     Name = <<"first room">>,
@@ -273,29 +258,26 @@ user_delete_room_story(Config, Alice, Bob) ->
         create_room(MUCServer, Name, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Member cannot delete room
-    Res = execute(Ep, delete_room_body(jid:to_binary(RoomJID)), CredsBob),
+    Res = user_delete_room(Bob, jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res),
                                           <<"cannot delete this room">>)),
     % Owner can delete own room
-    Res2 = execute(Ep, delete_room_body(jid:to_binary(RoomJID)), CredsAlice),
+    Res2 = user_delete_room(Alice, jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res2),
                                           <<"successfully">>)),
     ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
     % Try with a non-existent domain
-    Res3 = execute(Ep, delete_room_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), CredsAlice),
+    Res3 = user_delete_room(Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with a non-existent room
-    Res4 = execute(Ep, delete_room_body(make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
+    Res4 = user_delete_room(Alice, make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not existing room">>)).
 
 user_kick_user(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_kick_user_story/3).
 
 user_kick_user_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
@@ -303,19 +285,19 @@ user_kick_user_story(Config, Alice, Bob) ->
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Member kicks himself from a room
     ?assertEqual(2, length(get_room_aff(RoomJID))),
-    Res = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), null), CredsBob),
+    Res = user_kick_user(Bob, jid:to_binary(RoomJID), null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))),
     % Member cannot kick the room owner. The kick stanza is sent successfully,
     % but is ignored by server
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res2 = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), AliceBin), CredsBob),
+    Res2 = user_kick_user(Bob, jid:to_binary(RoomJID), AliceBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res2), <<"successfully">>)),
     ?assertEqual(2, length(get_room_aff(RoomJID))),
     % Owner kicks the member from a room
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res3 = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), BobBin), CredsAlice),
+    Res3 = user_kick_user(Alice, jid:to_binary(RoomJID), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res3), <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))).
 
@@ -324,16 +306,14 @@ user_send_message_to_room(Config) ->
                                     fun user_send_message_to_room_story/3).
 
 user_send_message_to_room_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res = execute(Ep, user_send_message_to_room_body(jid:to_binary(RoomJID), MsgBody), CredsAlice),
+    Res = user_send_message_to_room(Alice, jid:to_binary(RoomJID), MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res), <<"successfully">>)),
     [_, Msg] = escalus:wait_for_stanzas(Bob, 2),
     escalus:assert(is_message, Msg).
@@ -343,37 +323,29 @@ user_send_message_to_room_errors(Config) ->
                                     fun user_send_message_to_room_errors_story/3).
 
 user_send_message_to_room_errors_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
         create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
     % Try with a non-existent domain
-    Res = execute(Ep, user_send_message_to_room_body(
-                        make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), MsgBody), CredsAlice),
+    Res = user_send_message_to_room(
+            Alice, make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
     % Try with a user without rooms
-    Res2 = execute(Ep, user_send_message_to_room_body(
-                         jid:to_binary(ARoomJID), MsgBody), CredsBob),
+    Res2 = user_send_message_to_room(Bob, jid:to_binary(ARoomJID), MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not occupy this room">>)),
     % Try with a room not occupied by this user
     {ok, #{jid := _RoomJID2}} = create_room(MUCServer, <<"bob room">>, <<"subject">>, BobBin),
-    Res3 = execute(Ep, user_send_message_to_room_body(
-                         jid:to_binary(ARoomJID), MsgBody), CredsBob),
+    Res3 = user_send_message_to_room(Bob, jid:to_binary(ARoomJID), MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not occupy this room">>)).
 
 user_get_room_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_get_room_messages_story/3).
 
 user_get_room_messages_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
@@ -382,37 +354,34 @@ user_get_room_messages_story(Config, Alice, Bob) ->
     mam_helper:maybe_wait_for_archive(Config),
     % Get messages so far
     Limit = 40,
-    Res = execute(Ep, get_room_messages_body(jid:to_binary(RoomJID), Limit, null), CredsAlice),
+    Res = user_get_room_messages(Alice, jid:to_binary(RoomJID), Limit, null, Config),
     #{<<"stanzas">> :=[#{<<"stanza">> := StanzaXML}], <<"limit">> := Limit} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)),
     % Get messages before the given date and time
     Before = <<"2022-02-17T04:54:13+00:00">>,
-    Res2 = execute(Ep, get_room_messages_body(jid:to_binary(RoomJID), null, Before), CredsAlice),
+    Res2 = user_get_room_messages(Alice, jid:to_binary(RoomJID), null, Before, Config),
     ?assertMatch(#{<<"stanzas">> := [], <<"limit">> := 50}, get_ok_value(?GET_MESSAGES_PATH, Res2)),
     % Try to pass too big page size value
-    Res3 = execute(Ep, get_room_messages_body(jid:to_binary(RoomJID), 51, Before), CredsAlice),
+    Res3 = user_get_room_messages(Alice, jid:to_binary(RoomJID), 51, Before, Config),
     ?assertMatch(#{<<"limit">> := 50}, get_ok_value(?GET_MESSAGES_PATH, Res3)),
     % Try with a non-existent domain
-    Res4 = execute(Ep, get_room_messages_body(
-                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null), CredsAlice),
+    Res4 = user_get_room_messages(
+             Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not found">>)),
     % Try with a user that is not a room member
-    Res5 = execute(Ep, get_room_messages_body(
-                          jid:to_binary(RoomJID), Limit, null), CredsBob),
+    Res5 = user_get_room_messages(Bob, jid:to_binary(RoomJID), Limit, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res5), <<"not occupy this room">>)).
 
 user_list_rooms(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_list_rooms_story/2).
 
 user_list_rooms_story(Config, Alice) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
     AliceBin = escalus_client:short_jid(Alice),
     {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"room a">>, <<"subject">>, AliceBin),
     {ok, #{jid := RoomJID2}} = create_room(MUCServer, <<"room b">>, <<"subject">>, AliceBin),
-    Res = execute(Ep, user_list_rooms_body(), CredsAlice),
+    Res = user_list_rooms(Alice, Config),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
                  lists:sort(get_ok_value(?USER_LIST_ROOMS_PATH, Res))).
 
@@ -420,43 +389,35 @@ user_list_room_users(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_list_room_users_story/3).
 
 user_list_room_users_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     AliceLower = escalus_utils:jid_to_lower(AliceBin),
     {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"room a">>, <<"subject">>, AliceBin),
     % Owner can list room users
-    Res = execute(Ep, list_room_users_body(jid:to_binary(RoomJID)), CredsAlice),
+    Res = user_list_room_users(Alice, jid:to_binary(RoomJID), Config),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
     % Try with a non-existent domain
-    Res2 = execute(Ep, list_room_users_body(
-                         make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN)), CredsAlice),
+    Res2 = user_list_room_users(Alice, make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
-    Res3 = execute(Ep, list_room_users_body(
-                         make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
+    Res3 = user_list_room_users(Alice, make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % User that is not a member cannot get aff
-    Res4 = execute(Ep, list_room_users_body(jid:to_binary(RoomJID)), CredsBob),
+    Res4 = user_list_room_users(Bob, jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not occupy this room">>)),
     % Member can get aff
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     escalus:wait_for_stanza(Bob),
-    Res5 = execute(Ep, list_room_users_body(jid:to_binary(RoomJID)), CredsBob),
+    Res5 = user_list_room_users(Bob, jid:to_binary(RoomJID), Config),
     ?assertMatch([_, _], get_ok_value(?LIST_ROOM_USERS_PATH, Res5)).
 
 user_get_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_get_room_config_story/3).
 
 user_get_room_config_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
     MUCServer = ?config(muc_light_host, Config),
-    CredsAlice = make_creds(Alice),
-    CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     AliceLower = escalus_utils:jid_to_lower(AliceBin),
@@ -466,24 +427,24 @@ user_get_room_config_story(Config, Alice, Bob) ->
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, RoomSubject, AliceBin),
     RoomJIDBin = jid:to_binary(RoomJID),
-    Res = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsAlice),
+    Res = user_get_room_config(Alice, jid:to_binary(RoomJID), Config),
     % Owner can get a config
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value(?GET_ROOM_CONFIG_PATH, Res)),
     % Try with a non-existent domain
-    Res2 = execute(Ep, get_room_config_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), CredsAlice),
+    Res2 = user_get_room_config(Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
-    Res3 = execute(Ep, get_room_config_body(make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
+    Res3 = user_get_room_config(Alice, make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % User that is not a member cannot get a room config
-    Res4 = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsBob),
+    Res4 = user_get_room_config(Bob, jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not occupy this room">>)),
     % Member can get a config
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res5 = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsBob),
+    Res5 = user_get_room_config(Bob, jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>},
@@ -495,29 +456,26 @@ user_blocking_list(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_blocking_list_story/3).
 
 user_blocking_list_story(Config, Alice, Bob) ->
-    Ep = ?config(schema_endpoint, Config),
-    CredsAlice = make_creds(Alice),
     BobBin = escalus_client:full_jid(Bob),
     BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
     {ok, #{jid := RoomJID}} = create_room(?config(muc_light_host, Config),
                                           <<"room">>, <<"subject">>, BobBin),
     RoomBin = jid:to_binary(RoomJID),
-    Res = execute(Ep, user_get_blocking_body(), CredsAlice),
+    Res = user_get_blocking(Alice, Config),
     ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res)),
-    Res2 = execute(Ep, user_set_blocking_body([{<<"USER">>, <<"DENY">>, BobBin}]), CredsAlice),
+    Res2 = user_set_blocking(Alice, [{<<"USER">>, <<"DENY">>, BobBin}], Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
                                           <<"successfully">>)),
-    Res3 = execute(Ep, user_get_blocking_body(), CredsAlice),
+    Res3 = user_get_blocking(Alice, Config),
     ?assertEqual([#{<<"entityType">> => <<"USER">>,
                     <<"action">> => <<"DENY">>,
                     <<"entity">> => BobShortBin}],
                  get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
-    Res4 = execute(Ep, user_set_blocking_body([{<<"USER">>, <<"ALLOW">>, BobBin},
-                                               {<<"ROOM">>, <<"DENY">>, jid:to_binary(RoomJID)}]),
-                   CredsAlice),
+    Res4 = user_set_blocking(Alice, [{<<"USER">>, <<"ALLOW">>, BobBin},
+                                     {<<"ROOM">>, <<"DENY">>, jid:to_binary(RoomJID)}], Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
                                           <<"successfully">>)),
-    Res5 = execute(Ep, user_get_blocking_body(), CredsAlice),
+    Res5 = user_get_blocking(Alice, Config),
     ?assertEqual([#{<<"entityType">> => <<"ROOM">>,
                     <<"action">> => <<"DENY">>,
                     <<"entity">> => RoomBin}],
@@ -532,28 +490,26 @@ admin_blocking_list_story(Config, Alice, Bob) ->
     AliceBin = escalus_client:full_jid(Alice),
     BobBin = escalus_client:full_jid(Bob),
     BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-    Res = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    Res = get_user_blocking(AliceBin, Config),
     ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res)),
-    Res2 = execute_auth(admin_set_blocking_body(
-                          AliceBin, [{<<"USER">>, <<"DENY">>, BobBin}]), Config),
+    Res2 = set_blocking(AliceBin, [{<<"USER">>, <<"DENY">>, BobBin}], Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
                                           <<"successfully">>)),
-    Res3 = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    Res3 = get_user_blocking(AliceBin, Config),
     ?assertEqual([#{<<"entityType">> => <<"USER">>,
                     <<"action">> => <<"DENY">>,
                     <<"entity">> => BobShortBin}],
                  get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
-    Res4 = execute_auth(admin_set_blocking_body(
-                          AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}]), Config),
+    Res4 = set_blocking(AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}], Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
                                           <<"successfully">>)),
-    Res5 = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    Res5 = get_user_blocking(AliceBin, Config),
     ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)),
     % Check whether errors are handled correctly
     InvalidUser = make_bare_jid(?UNKNOWN, ?UNKNOWN_DOMAIN),
-    Res6 = execute_auth(admin_get_user_blocking_body(InvalidUser), Config),
+    Res6 = get_user_blocking(InvalidUser, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res6), <<"not found">>)),
-    Res7 = execute_auth(admin_set_blocking_body(InvalidUser, []), Config),
+    Res7 = set_blocking(InvalidUser, [], Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res7), <<"not found">>)).
 
 admin_create_room(Config) ->
@@ -565,14 +521,13 @@ admin_create_room_story(Config, Alice) ->
     MucServer = ?config(muc_light_host, Config),
     Name = <<"first room">>,
     Subject = <<"testing">>,
-    Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, null), Config),
+    Res = create_room(MucServer, Name, AliceBin, Subject, null, Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{lserver = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
     % Try with a non-existent domain
-    Res2 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null),
-                        Config),
+    Res2 = create_room(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
 admin_create_identified_room(Config) ->
@@ -583,22 +538,20 @@ admin_create_identified_room_story(Config, Alice) ->
     MucServer = ?config(muc_light_host, Config),
     Name = <<"first room">>,
     Subject = <<"testing">>,
-    Id = <<"my_room">>,
-    Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, Id), Config),
+    Id = <<"my_room_", (atom_to_binary(?config(protocol, Config)))/binary>>,
+    Res = create_room(MucServer, Name, AliceBin, Subject, Id, Config),
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
         get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
-    Res2 = execute_auth(admin_create_room_body(MucServer, <<"snd room">>, AliceBin, Subject, Id),
-                        Config),
+    Res2 = create_room(MucServer, <<"snd room">>, AliceBin, Subject, Id, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
     % Try with a non-existent domain
-    Res3 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, AliceBin, Subject, Id),
-                        Config),
+    Res3 = create_room(?UNKNOWN_DOMAIN, <<"name">>, AliceBin, Subject, Id, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with an empty string passed as ID
-    Res4 = execute_auth(admin_create_room_body(MucServer, <<"name">>, AliceBin, Subject, <<>>), Config),
-    ?assertNotEqual(nomatch, binary:match(get_coertion_err_msg(Res4), <<"Given string is empty">>)).
+    Res4 = create_room(MucServer, <<"name">>, AliceBin, Subject, <<>>, Config),
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res4), <<"Given string is empty">>)).
 
 admin_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_change_room_config_story/2).
@@ -613,8 +566,7 @@ admin_change_room_config_story(Config, Alice) ->
     % Try to change the room configuration
     Name2 = <<"changed room">>,
     Subject2 = <<"not testing">>,
-    Res = execute_auth(admin_change_room_configuration_body(jid:to_binary(RoomJID),
-                                                            AliceBin, Name2, Subject2), Config),
+    Res = change_room_configuration(jid:to_binary(RoomJID), AliceBin, Name2, Subject2, Config),
     ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2},
                  get_ok_value(?CHANGE_CONFIG_PATH, Res)).
 
@@ -631,22 +583,21 @@ admin_change_room_config_errors_story(Config, Alice, Bob) ->
         create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Try to change the config with a non-existent domain
-    Res = execute_auth(admin_change_room_configuration_body(
-                         make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, RoomName, <<"subject2">>), Config),
+    Res = change_room_configuration(
+            make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
     % Try to change the config of the non-existent room
-    Res2 = execute_auth(admin_change_room_configuration_body(
-                          make_bare_jid(<<"unknown">>, MUCServer), AliceBin,
-                          RoomName, <<"subject2">>), Config),
+    Res2 = change_room_configuration(
+             make_bare_jid(<<"unknown">>, MUCServer), AliceBin, RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try to change the config by the non-existent user
-    Res3 = execute_auth(admin_change_room_configuration_body(
-                          jid:to_binary(RoomJID), <<"wrong-user@wrong-domain">>,
-                          RoomName, <<"subject2">>), Config),
+    Res3 = change_room_configuration(
+             jid:to_binary(RoomJID), <<"wrong-user@wrong-domain">>, RoomName, <<"subject2">>,
+             Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not occupy this room">>)),
     % Try to change a config by the user without permission
-    Res4 = execute_auth(admin_change_room_configuration_body(
-                          jid:to_binary(RoomJID), BobBin, RoomName, <<"subject2">>), Config),
+    Res4 = change_room_configuration(
+             jid:to_binary(RoomJID), BobBin, RoomName, <<"subject2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4),
                                           <<"does not have permission to change">>)).
 
@@ -661,7 +612,7 @@ admin_invite_user_story(Config, Alice, Bob) ->
     Name = <<"first room">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, <<"subject2">>, AliceBin),
 
-    Res = execute_auth(admin_invite_user_body(jid:to_binary(RoomJID), AliceBin, BobBin), Config),
+    Res = invite_user(jid:to_binary(RoomJID), AliceBin, BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     BobName = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
@@ -681,16 +632,13 @@ admin_invite_user_errors_story(Config, Alice, Bob) ->
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
     % Try to invite a user to not existing room
-    Res = execute_auth(admin_invite_user_body(
-                         make_bare_jid(?UNKNOWN, MUCServer), AliceBin, BobBin), Config),
+    Res = invite_user(make_bare_jid(?UNKNOWN, MUCServer), AliceBin, BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not occupy this room">>)),
     % User without rooms tries to invite a user
-    Res2 = execute_auth(admin_invite_user_body(
-                          jid:to_binary(RoomJID), BobBin, AliceBin), Config),
+    Res2 = invite_user(jid:to_binary(RoomJID), BobBin, AliceBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not occupy this room">>)),
     % Try with a non-existent domain
-    Res3 = execute_auth(admin_invite_user_body(
-                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, BobBin), Config),
+    Res3 = invite_user(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
 admin_delete_room(Config) ->
@@ -702,15 +650,15 @@ admin_delete_room_story(Config, Alice) ->
     Name = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, Name, <<"subject">>, AliceBin),
-    Res = execute_auth(delete_room_body(jid:to_binary(RoomJID)), Config),
+    Res = delete_room(jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
     % Try with a non-existent domain
-    Res2 = execute_auth(delete_room_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), Config),
+    Res2 = delete_room(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
-    Res3 = execute_auth(delete_room_body(make_bare_jid(?UNKNOWN, MUCServer)), Config),
+    Res3 = delete_room(make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"Cannot remove">>)).
 
 admin_kick_user(Config) ->
@@ -724,7 +672,7 @@ admin_kick_user_story(Config, Alice, Bob) ->
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     ?assertEqual(2, length(get_room_aff(RoomJID))),
-    Res = execute_auth(admin_kick_user_body(jid:to_binary(RoomJID), BobBin), Config),
+    Res = kick_user(jid:to_binary(RoomJID), BobBin, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))).
@@ -741,8 +689,7 @@ admin_send_message_to_room_story(Config, Alice, Bob) ->
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res = execute_auth(admin_send_message_to_room_body(
-                         jid:to_binary(RoomJID), AliceBin, MsgBody), Config),
+    Res = send_message_to_room(jid:to_binary(RoomJID), AliceBin, MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     [_, Msg] = escalus:wait_for_stanzas(Bob, 2),
@@ -760,17 +707,14 @@ admin_send_message_to_room_errors_story(Config, Alice, Bob) ->
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
         create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
     % Try with a non-existent domain
-    Res2 = execute_auth(admin_send_message_to_room_body(
-                          make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), AliceBin, MsgBody), Config),
+    Res2 = send_message_to_room(make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), AliceBin, MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a user without rooms
-    Res3 = execute_auth(admin_send_message_to_room_body(
-                          jid:to_binary(ARoomJID), BobBin, MsgBody), Config),
+    Res3 = send_message_to_room(jid:to_binary(ARoomJID), BobBin, MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"does not occupy this room">>)),
     % Try with a room not occupied by this user
     {ok, #{jid := _RoomJID2}} = create_room(MUCServer, <<"bob room">>, <<"subject">>, BobBin),
-    Res4 = execute_auth(admin_send_message_to_room_body(
-                          jid:to_binary(ARoomJID), BobBin, MsgBody), Config),
+    Res4 = send_message_to_room(jid:to_binary(ARoomJID), BobBin, MsgBody, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"does not occupy this room">>)).
 
 admin_get_room_messages(Config) ->
@@ -790,20 +734,19 @@ admin_get_room_messages_story(Config, Alice) ->
     mam_helper:maybe_wait_for_archive(Config),
     % Get messages so far
     Limit = 40,
-    Res = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), Limit, null), Config),
+    Res = get_room_messages(jid:to_binary(RoomJID), Limit, null, Config),
     #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := Limit} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)),
     % Get messages before the given date and time
     Before = <<"2022-02-17T04:54:13+00:00">>,
-    Res2 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), null, Before), Config),
+    Res2 = get_room_messages(jid:to_binary(RoomJID), null, Before, Config),
     ?assertMatch(#{<<"stanzas">> := [], <<"limit">> := 50}, get_ok_value(?GET_MESSAGES_PATH, Res2)),
     % Try to pass too big page size value
-    Res3 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 51, Before), Config),
+    Res3 = get_room_messages(jid:to_binary(RoomJID), 51, Before, Config),
     ?assertMatch(#{<<"limit">> := 50},get_ok_value(?GET_MESSAGES_PATH, Res3)),
     % Try with a non-existent domain
-    Res4 = execute_auth(get_room_messages_body(
-                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null), Config),
+    Res4 = get_room_messages(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not found">>)).
 
 admin_list_user_rooms(Config) ->
@@ -817,14 +760,14 @@ admin_list_user_rooms_story(Config, Alice) ->
     RoomName2 = <<"second room">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, #{jid := RoomJID2}} = create_room(MUCServer, RoomName2, <<"subject">>, AliceBin),
-    Res = execute_auth(admin_list_user_rooms_body(AliceBin), Config),
+    Res = list_user_rooms(AliceBin, Config),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
                  lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res))),
     % Try with a non-existent user
-    Res2 = execute_auth(admin_list_user_rooms_body(<<"not-exist@", Domain/binary>>), Config),
+    Res2 = list_user_rooms(<<"not-exist@", Domain/binary>>, Config),
     ?assertEqual([], lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res2))),
     % Try with a non-existent domain
-    Res3 = execute_auth(admin_list_user_rooms_body(<<"not-exist@not-exist">>), Config),
+    Res3 = list_user_rooms(<<"not-exist@not-exist">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
 admin_list_room_users(Config) ->
@@ -836,16 +779,14 @@ admin_list_room_users_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
-    Res = execute_auth(list_room_users_body(jid:to_binary(RoomJID)), Config),
+    Res = list_room_users(jid:to_binary(RoomJID), Config),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
     % Try with a non-existent domain
-    Res2 = execute_auth(list_room_users_body(
-                          make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN)), Config),
+    Res2 = list_room_users(make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
-    Res3 = execute_auth(list_room_users_body(
-                          make_bare_jid(?UNKNOWN, MUCServer)), Config),
+    Res3 = list_room_users(make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
 admin_get_room_config(Config) ->
@@ -860,16 +801,16 @@ admin_get_room_config_story(Config, Alice) ->
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, RoomSubject, AliceBin),
     RoomJIDBin = jid:to_binary(RoomJID),
-    Res = execute_auth(get_room_config_body(jid:to_binary(RoomJID)), Config),
+    Res = get_room_config(jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value([data, muc_light, getRoomConfig], Res)),
     % Try with a non-existent domain
-    Res2 = execute_auth(get_room_config_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), Config),
+    Res2 = get_room_config(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
-    Res3 = execute_auth(get_room_config_body(make_bare_jid(?UNKNOWN, MUCServer)), Config),
+    Res3 = get_room_config(make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
 %% Helpers
@@ -901,162 +842,107 @@ get_room_info(JID) ->
 
 get_room_aff(JID) ->
     {ok, _, Aff, _} = get_room_info(JID),
-    Aff. 
+    Aff.
 
 prepare_blocking_items_for_query(Items) ->
     [#{<<"entity">> => Who, <<"entityType">> => What,
        <<"action">> => Action} || {What, Action, Who} <- Items].
 
-get_coertion_err_msg(Response) ->
-  {{<<"400">>, <<"Bad Request">>},
-   #{<<"errors">> := [#{<<"message">> := Msg,
-                        <<"extensions">> := #{<<"code">> := <<"input_coercion">>}}]}} = Response,
-    Msg.
-
 %% Commands
 
-admin_create_room_body(MUCDomain, Name, Owner, Subject, Id) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $owner: JID!, $subject: String!, $id: NonEmptyString)
-              { muc_light { createRoom(mucDomain: $mucDomain, name: $name, owner: $owner, subject: $subject, id: $id)
-              { jid name subject participants {jid affiliation} } } }">>,
-    OpName = <<"M1">>,
+create_room(MUCDomain, Name, Owner, Subject, Id, Config) ->
     Vars = #{<<"mucDomain">> => MUCDomain, <<"name">> => Name, <<"owner">> => Owner,
              <<"subject">> => Subject, <<"id">> => Id},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"createRoom">>, Vars, Config).
 
-admin_change_room_configuration_body(RoomJID, OwnerJID, Name, Subject) ->
-    Query = <<"mutation M1($room: JID!, $name: String!, $owner: JID!, $subject: String!)
-              { muc_light { changeRoomConfiguration(room: $room, name: $name, owner: $owner, subject: $subject)
-              { jid name subject participants {jid affiliation} } } }">>,
-    OpName = <<"M1">>,
+change_room_configuration(RoomJID, OwnerJID, Name, Subject, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"name">> => Name, <<"owner">> => OwnerJID,
              <<"subject">> => Subject},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"changeRoomConfiguration">>, Vars, Config).
 
-admin_invite_user_body(RoomJID, Sender, Recipient) ->
-    Query = <<"mutation M1($room: JID!, $sender: JID!, $recipient: JID!)
-              { muc_light { inviteUser(room: $room, sender: $sender, recipient: $recipient) } }">>,
-    OpName = <<"M1">>,
+invite_user(RoomJID, Sender, Recipient, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"sender">> => Sender, <<"recipient">> => Recipient},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"inviteUser">>, Vars, Config).
 
-admin_kick_user_body(RoomJID, User) ->
-    Query = <<"mutation M1($room: JID!, $user: JID!)
-              { muc_light { kickUser(room: $room, user: $user)} }">>,
-    OpName = <<"M1">>,
+kick_user(RoomJID, User, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"user">> => User},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"kickUser">>, Vars, Config).
 
-admin_send_message_to_room_body(RoomJID, From, Body) ->
-    Query = <<"mutation M1($room: JID!, $from: JID!, $body: String!)
-              { muc_light { sendMessageToRoom(room: $room, from: $from, body: $body)} }">>,
-    OpName = <<"M1">>,
+send_message_to_room(RoomJID, From, Body, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"from">> => From, <<"body">> => Body},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"sendMessageToRoom">>, Vars, Config).
 
-admin_list_user_rooms_body(User) ->
-    Query = <<"query Q1($user: JID!)
-              { muc_light { listUserRooms(user: $user) } }">>,
-    OpName = <<"Q1">>,
+list_user_rooms(User, Config) ->
     Vars = #{<<"user">> => User},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc_light">>, <<"listUserRooms">>, Vars, Config).
 
-user_create_room_body(MUCDomain, Name, Subject, Id) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $subject: String!, $id: NonEmptyString)
-              { muc_light { createRoom(mucDomain: $mucDomain, name: $name, subject: $subject, id: $id)
-              { jid name subject participants {jid affiliation} } } }">>,
-    OpName = <<"M1">>,
+delete_room(RoomJID, Config) ->
+    Vars = #{<<"room">> => RoomJID},
+    execute_command(<<"muc_light">>, <<"deleteRoom">>, Vars, Config).
+
+get_room_messages(RoomJID, PageSize, Before, Config) ->
+    Vars = #{<<"room">> => RoomJID, <<"pageSize">> => PageSize, <<"before">> => Before},
+    execute_command(<<"muc_light">>, <<"getRoomMessages">>, Vars, Config).
+
+list_room_users(RoomJID, Config) ->
+    Vars = #{<<"room">> => RoomJID},
+    execute_command(<<"muc_light">>, <<"listRoomUsers">>, Vars, Config).
+
+get_room_config(RoomJID, Config) ->
+    Vars = #{<<"room">> => RoomJID},
+    execute_command(<<"muc_light">>, <<"getRoomConfig">>, Vars, Config).
+
+get_user_blocking(UserJID, Config) ->
+    Vars = #{<<"user">> => UserJID},
+    execute_command(<<"muc_light">>, <<"getBlockingList">>, Vars, Config).
+
+set_blocking(UserJID, Items, Config) ->
+    Vars = #{<<"user">> => UserJID, <<"items">> => prepare_blocking_items_for_query(Items)},
+    execute_command(<<"muc_light">>, <<"setBlockingList">>, Vars, Config).
+
+user_create_room(User, MUCDomain, Name, Subject, Id, Config) ->
     Vars = #{<<"mucDomain">> => MUCDomain, <<"name">> => Name, <<"subject">> => Subject,
              <<"id">> => Id},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"createRoom">>, User, Vars, Config).
 
-user_change_room_configuration_body(RoomJID, Name, Subject) ->
-    Query = <<"mutation M1($room: JID!, $name: String!, $subject: String!)
-              { muc_light { changeRoomConfiguration(room: $room, name: $name, subject: $subject)
-              { jid name subject participants {jid affiliation} } } }">>,
-    OpName = <<"M1">>,
+user_change_room_configuration(User, RoomJID, Name, Subject, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"name">> => Name, <<"subject">> => Subject},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"changeRoomConfiguration">>, User, Vars, Config).
 
-user_invite_user_body(RoomJID, Recipient) ->
-    Query = <<"mutation M1($room: JID!, $recipient: JID!)
-              { muc_light { inviteUser(room: $room, recipient: $recipient) } }">>,
-    OpName = <<"M1">>,
+user_invite_user(User, RoomJID, Recipient, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"recipient">> => Recipient},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"inviteUser">>, User, Vars, Config).
 
-delete_room_body(RoomJID) ->
-    Query = <<"mutation M1($room: JID!)
-              { muc_light { deleteRoom(room: $room) } }">>,
-    OpName = <<"M1">>,
+user_delete_room(User, RoomJID, Config) ->
     Vars = #{<<"room">> => RoomJID},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"deleteRoom">>, User, Vars, Config).
 
-user_kick_user_body(RoomJID, User) ->
-    Query = <<"mutation M1($room: JID!, $user: JID)
-              { muc_light { kickUser(room: $room, user: $user)} }">>,
-    OpName = <<"M1">>,
-    Vars = #{<<"room">> => RoomJID, <<"user">> => User},
-    #{query => Query, operationName => OpName, variables => Vars}.
+user_kick_user(User, RoomJID, QueriedUser, Config) ->
+    Vars = #{<<"room">> => RoomJID, <<"user">> => QueriedUser},
+    execute_user_command(<<"muc_light">>, <<"kickUser">>, User, Vars, Config).
 
-user_send_message_to_room_body(RoomJID, Body) ->
-    Query = <<"mutation M1($room: JID!, $body: String!)
-              { muc_light { sendMessageToRoom(room: $room, body: $body)} }">>,
-    OpName = <<"M1">>,
+user_send_message_to_room(User, RoomJID, Body, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"body">> => Body},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"sendMessageToRoom">>, User, Vars, Config).
 
-get_room_messages_body(RoomJID, PageSize, Before) ->
-    Query = <<"query Q1($room: JID!, $pageSize: Int, $before: DateTime)
-              { muc_light { getRoomMessages(room: $room, pageSize: $pageSize, before: $before)
-              { stanzas { stanza } limit } } }">>,
-    OpName = <<"Q1">>,
+user_get_room_messages(User, RoomJID, PageSize, Before, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"pageSize">> => PageSize, <<"before">> => Before},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"getRoomMessages">>, User, Vars, Config).
 
-user_list_rooms_body() ->
-    Query = <<"query Q1 { muc_light { listRooms } }">>,
-    #{query => Query, operationName => <<"Q1">>, variables => #{}}.
+user_list_rooms(User, Config) ->
+    execute_user_command(<<"muc_light">>, <<"listRooms">>, User, #{}, Config).
 
-list_room_users_body(RoomJID) ->
-    Query = <<"query Q1($room: JID!)
-              { muc_light { listRoomUsers(room: $room)
-              { jid affiliation} } }">>,
-    OpName = <<"Q1">>,
+user_list_room_users(User, RoomJID, Config) ->
     Vars = #{<<"room">> => RoomJID},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"listRoomUsers">>, User, Vars, Config).
 
-get_room_config_body(RoomJID) ->
-    Query = <<"query Q1($room: JID!)
-              { muc_light { getRoomConfig(room: $room)
-              { jid name subject participants {jid affiliation} } } }">>,
-    OpName = <<"Q1">>,
+user_get_room_config(User, RoomJID, Config) ->
     Vars = #{<<"room">> => RoomJID},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"getRoomConfig">>, User, Vars, Config).
 
-admin_get_user_blocking_body(UserJID) ->
-    Query = <<"query Q1($user: JID!)
-              { muc_light { getBlockingList(user: $user)
-              { entity entityType action } } }">>,
-    OpName = <<"Q1">>,
-    Vars = #{<<"user">> => UserJID},
-    #{query => Query, operationName => OpName, variables => Vars}.
+user_get_blocking(User, Config) ->
+    execute_user_command(<<"muc_light">>, <<"getBlockingList">>, User, #{}, Config).
 
-admin_set_blocking_body(UserJID, Items) ->
-    Query = <<"mutation M1($user: JID!, $items: [BlockingInput!]!)
-              { muc_light { setBlockingList(user: $user, items: $items) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{<<"user">> => UserJID, <<"items">> => prepare_blocking_items_for_query(Items)},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-user_get_blocking_body() ->
-    Query = <<"query Q1 { muc_light { getBlockingList { entity entityType action } } }">>,
-    OpName = <<"Q1">>,
-    #{query => Query, operationName => OpName}.
-
-user_set_blocking_body(Items) ->
-    Query = <<"mutation M1($items: [BlockingInput!]!)
-              { muc_light { setBlockingList(items: $items) } }">>,
-    OpName = <<"M1">>,
+user_set_blocking(User, Items, Config) ->
     Vars = #{<<"items">> => prepare_blocking_items_for_query(Items)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_user_command(<<"muc_light">>, <<"setBlockingList">>, User, Vars, Config).
