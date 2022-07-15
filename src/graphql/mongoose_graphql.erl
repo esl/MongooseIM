@@ -130,6 +130,7 @@ admin_mapping_rules() ->
         'AdminQuery' => mongoose_graphql_admin_query,
         'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
+        'GdprAdminQuery' => mongoose_graphql_gdpr_admin_query,
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
         'InboxAdminMutation' => mongoose_graphql_inbox_admin_mutation,
