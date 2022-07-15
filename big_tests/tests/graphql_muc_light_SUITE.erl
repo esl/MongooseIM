@@ -913,7 +913,7 @@ get_coertion_err_msg(Response) ->
                         <<"extensions">> := #{<<"code">> := <<"input_coercion">>}}]}} = Response,
     Msg.
 
-%% Request bodies
+%% Commands
 
 admin_create_room_body(MUCDomain, Name, Owner, Subject, Id) ->
     Query = <<"mutation M1($mucDomain: String!, $name: String!, $owner: JID!, $subject: String!, $id: NonEmptyString)
