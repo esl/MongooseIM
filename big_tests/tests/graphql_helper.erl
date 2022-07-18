@@ -122,6 +122,11 @@ get_error(N, {Code, #{<<"errors">> := Errors}}) ->
     assert_response_code(error, Code),
     lists:nth(N, Errors).
 
+%% Expect both errors and successful responses
+get_err_value(Path, {Code, Data}) ->
+    assert_response_code(error, Code),
+    get_value(Path, Data).
+
 get_ok_value(Path, {Code, Data}) ->
     assert_response_code(ok, Code),
     get_value(Path, Data).
