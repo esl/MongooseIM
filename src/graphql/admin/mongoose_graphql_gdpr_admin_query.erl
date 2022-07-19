@@ -15,8 +15,7 @@ execute(_Ctx, gdpr, <<"retrievePersonalData">>, #{<<"username">> := User, <<"dom
                                                   <<"resultFilepath">> := FilePath}) ->
     try gdpr_api:retrieve_all(User, Domain, FilePath) of
         ok -> {ok, "Data retrieved"};
-        {error, String} -> make_error({user_does_not_exist_error, String},
-                                      #{user => User, domain => Domain})
+        Error -> make_error(Error, #{user => User, domain => Domain})
     catch
         _ -> make_error({internal_server_error, "Internal server error"},
                         #{user => User, domain => Domain, filePath => FilePath})

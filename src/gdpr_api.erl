@@ -11,7 +11,8 @@
 
 -define(CMD_TIMEOUT, 300000).
 
--spec retrieve_all(jid:user(), jid:server(), Path :: binary()) -> ok | {error, Reason :: any()}.
+-spec retrieve_all(jid:user(), jid:server(), Path :: binary()) ->
+    ok | {user_does_not_exist_error, Reason :: string()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     JID = jid:make(Username, Domain, <<>>),
     case user_exists(JID) of
@@ -39,7 +40,7 @@ retrieve_all(Username, Domain, ResultFilePath) ->
             remove_tmp_dir(TmpDir),
             ok;
         false ->
-            {error, "User does not exist"}
+            {user_does_not_exist_error, "User does not exist"}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
