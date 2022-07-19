@@ -1,4 +1,4 @@
--module(mongoose_graphql_private_admin_mutation).
+-module(mongoose_graphql_token_admin_mutation).
 -behaviour(mongoose_graphql).
 
 -export([execute/4]).
@@ -9,9 +9,13 @@
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 
-execute(_Ctx, _Obj, <<"setPrivate">>, #{<<"user">> := CallerJID,
-        <<"elementString">> := Element}) ->
-    case mod_private_api:private_set(CallerJID, Element) of
-        {ok, _} = Result -> Result;
-        Error -> make_error(Error, #{user => CallerJID, element => Element})
-    end.
+-type token_info() :: map().
+-type args() :: mongoose_graphql:args().
+-type ctx() :: mongoose_graphql:ctx().
+
+execute(_Ctx, token, <<"requestToken">>, #{<<"user">> := JID}) ->
+    request_token(JID).
+
+-spec request_token(jid:jid()) -> {ok, token_info()} | {error, resolver_error()}.
+request_token(JID) ->
+    {ok, #{<<"access">> => <<"123">>, <<"revoke">> => <<"1234">>}}.

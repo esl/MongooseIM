@@ -1,0 +1,7 @@
+"""
+Allow admin to get user's auth tokens
+"""
+type TokenAdminMutation @protected {
+    "Request auth token for an user"
+    requestToken(user: JID!): Token
+}

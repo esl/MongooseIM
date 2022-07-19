@@ -158,6 +158,7 @@ admin_mapping_rules() ->
         'RosterAdminMutation' => mongoose_graphql_roster_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         'MetricAdminQuery' => mongoose_graphql_metric_admin_query,
+        'TokenAdminMutation' => mongoose_graphql_token_admin_query,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
       scalars => #{default => mongoose_graphql_scalar},
