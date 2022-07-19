@@ -55,4 +55,6 @@ type UserMutation @protected{
   private: PrivateUserMutation
   "Http upload"
   httpUpload: HttpUploadUserMutation
+  "OAUTH token management"
+  token: TokenUserMutation
 }

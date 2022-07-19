@@ -187,6 +187,7 @@ user_mapping_rules() ->
         'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
         'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
         'HttpUploadUserMutation' => mongoose_graphql_http_upload_user_mutation,
+        'TokenUserMutation' => mongoose_graphql_token_user_mutation,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
