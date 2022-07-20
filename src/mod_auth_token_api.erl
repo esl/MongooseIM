@@ -3,11 +3,13 @@
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
 
--export([revoke_token_command/1, create_token/2]).
+-export([revoke_token_command/1, create_token/1]).
+
+-import(mod_auth_token, [token/3, serialize/1]).
 
 -spec revoke_token_command(User) -> ResTuple when
-    User :: binary(),
-    ResCode :: ok | not_found | error,
+    User :: jid:jid(),
+    ResCode :: ok | not_found | internal_server_error,
     ResTuple :: {ResCode, string()}.
 revoke_token_command(User) ->
     #jid{lserver = LServer} = Jid = convert_user(User),
@@ -19,26 +21,27 @@ revoke_token_command(User) ->
                 ok ->
                     {ok, "Revoked."};
                 error ->
-                    {error, "Internal server error"}
+                    {internal_server_error, "Internal server error."}
             catch _:_ ->
-                    {error, "Internal server error"}
+                    {internal_server_error, "Internal server error."}
             end;
         _ ->
             {not_found, "User or token not found."}
     end.
 
--spec create_token(User, Type) -> ResTuple when
+-spec create_token(User) -> ResTuple when
     User :: jid:jid(),
-    Type :: access | refresh,
     ResCode :: ok | internal_server_error | not_found,
-    ResTuple :: {ResCode, string()}.
-create_token(User, Type) ->
+    ResTuple :: {ResCode, string() | #{binary() => string()}}.
+create_token(User) ->
     #jid{lserver = LServer} = Jid = convert_user(User),
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            case mod_auth_token:token(HostType, Jid, Type) of
-                #token{} = Token -> {ok, mod_auth_token:serialize(Token)};
-                _ -> {internal_server_error, "Internal server errror"}
+            case {token(HostType, Jid, access), token(HostType, Jid, refresh)} of
+                {#token{} = AccessToken, #token{} = RefreshToken} ->
+                    {ok, #{<<"access">> => serialize(AccessToken),
+                           <<"refresh">> => serialize(RefreshToken)}};
+                _ -> {internal_server_error, "Internal server errror."}
             end;
         _ ->
             {not_found, "User or token not found."}
