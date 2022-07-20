@@ -34,6 +34,8 @@ type AdminQuery{
   metric: MetricAdminQuery
   "Statistics"
   stats: StatsAdminQuery
+  "Personal data management according to GDPR"
+  gdpr: GdprAdminQuery
 }
 
 """

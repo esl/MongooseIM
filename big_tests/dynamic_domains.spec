@@ -55,6 +55,7 @@
 {suites, "tests", graphql_vcard_SUITE}.
 {suites, "tests", graphql_offline_SUITE}.
 {suites, "tests", graphql_stats_SUITE}.
+{suites, "tests", graphql_gdpr_SUITE}.
 {suites, "tests", graphql_http_upload_SUITE}.
 {suites, "tests", graphql_metric_SUITE}.
 

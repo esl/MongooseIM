@@ -13,6 +13,8 @@ execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
 execute(_Ctx, _Obj, <<"domains">>, _Args) ->
     {ok, admin};
+execute(_Ctx, _Obj, <<"gdpr">>, _Args) ->
+    {ok, gdpr};
 execute(_Ctx, _Obj, <<"last">>, _Args) ->
     {ok, last};
 execute(_Ctx, _Obj, <<"muc">>, _Args) ->
