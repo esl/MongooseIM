@@ -9,9 +9,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
--include_lib("escalus/include/escalus.hrl").
--include("../../include/mod_roster.hrl").
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
