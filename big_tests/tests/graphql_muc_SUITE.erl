@@ -3,11 +3,10 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_user/3, execute_auth/2, get_ok_value/2, get_err_msg/1,
-                         user_to_bin/1, user_to_full_bin/1, user_to_jid/1]).
+-import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
+                         get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1]).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -16,13 +15,15 @@ suite() ->
 
 all() ->
     [{group, user_muc},
-     {group, admin_muc}].
+     {group, admin_muc_http},
+     {group, admin_muc_cli}].
 
 groups() ->
-    [{user_muc, [parallel], user_muc_handler()},
-     {admin_muc, [parallel], admin_muc_handler()}].
+    [{user_muc, [parallel], user_muc_tests()},
+     {admin_muc_http, [parallel], admin_muc_tests()},
+     {admin_muc_cli, [], admin_muc_tests()}].
 
-user_muc_handler() ->
+user_muc_tests() ->
     [user_create_and_delete_room,
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
@@ -62,7 +63,7 @@ user_muc_handler() ->
      user_try_list_nonexistent_room_affiliations
     ].
 
-admin_muc_handler() ->
+admin_muc_tests() ->
     [admin_create_and_delete_room,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_create_instant_room_with_nonexistent_user,
@@ -105,11 +106,12 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(HostType, Config2),
     Config4 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config3),
+    Config5 = ejabberd_node_utils:init(mim(), Config4),
     dynamic_modules:restart(HostType, mod_disco,
                             config_parser_helper:default_mod_config(mod_disco)),
     muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
-    Config4.
+    Config5.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -118,13 +120,15 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_muc, Config) ->
+init_per_group(admin_muc_http, Config) ->
     graphql_helper:init_admin_handler(Config);
+init_per_group(admin_muc_cli, Config) ->
+    graphql_helper:init_admin_cli(Config);
 init_per_group(user_muc, Config) ->
-    [{schema_endpoint, user} | Config].
+    graphql_helper:init_user(Config).
 
-end_per_group(_GN, Config) ->
-    Config.
+end_per_group(_GN, _Config) ->
+    graphql_helper:clean().
 
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
@@ -164,7 +168,7 @@ admin_list_rooms_story(Config, Alice, Bob) ->
     BobRoom = rand_name(),
     muc_helper:create_instant_room(AliceRoom, AliceJID, <<"Ali">>, []),
     muc_helper:create_instant_room(BobRoom, BobJID, <<"Bob">>, [{public_list, false}]),
-    Res = execute_auth(admin_list_rooms_body(muc_helper:muc_host(), Alice, null, null), Config),
+    Res = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
     #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res),
     ?assert(contain_room(AliceRoom, Rooms)),
     ?assert(contain_room(BobRoom, Rooms)).
@@ -177,16 +181,16 @@ admin_create_and_delete_room_story(Config, Alice) ->
     MUCServer = muc_helper:muc_host(),
     RoomJID = jid:make_bare(Name, MUCServer),
     % Create instant room
-    Res = execute_auth(admin_create_instant_room_body(MUCServer, Name, Alice, <<"Ali">>), Config),
+    Res = create_instant_room(MUCServer, Name, Alice, <<"Ali">>, Config),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
                  get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
-    Res2 = execute_auth(admin_list_rooms_body(MUCServer, Alice, null, null), Config),
+    Res2 = list_rooms(MUCServer, Alice, null, null, Config),
     ?assert(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res2))),
     % Delete room
-    Res3 = execute_auth(delete_room_body(RoomJID, null), Config),
+    Res3 = delete_room(RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res3),
                                           <<"successfully">>)),
-    Res4 = execute_auth(admin_list_rooms_body(MUCServer, Alice, null, null), Config),
+    Res4 = list_rooms(MUCServer, Alice, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
 admin_try_create_instant_room_with_nonexistent_domain(Config) ->
@@ -194,25 +198,24 @@ admin_try_create_instant_room_with_nonexistent_domain(Config) ->
                                     fun admin_try_create_instant_room_with_nonexistent_domain_story/2).
 
 admin_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
-    Res = execute_auth(admin_create_instant_room_body(<<"unknown">>, rand_name(), Alice, <<"Ali">>),
-                       Config),
+    Res = create_instant_room(<<"unknown">>, rand_name(), Alice, <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_create_instant_room_with_nonexistent_user(Config) ->
     Name = rand_name(),
     MUCServer = muc_helper:muc_host(),
     JID = <<(rand_name())/binary, "@localhost">>,
-    Res = execute_auth(admin_create_instant_room_body(MUCServer, Name, JID, <<"Ali">>), Config),
+    Res = create_instant_room(MUCServer, Name, JID, <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_delete_nonexistent_room(Config) ->
     RoomJID = jid:make_bare(<<"unknown">>, muc_helper:muc_host()),
-    Res = execute_auth(delete_room_body(RoomJID, null), Config),
+    Res = delete_room(RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 admin_try_delete_room_with_nonexistent_domain(Config) ->
     RoomJID = jid:make_bare(<<"unknown">>, <<"unknown">>),
-    Res = execute_auth(delete_room_body(RoomJID, null), Config),
+    Res = delete_room(RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 admin_invite_user(Config) ->
@@ -221,7 +224,7 @@ admin_invite_user(Config) ->
 admin_invite_user_story(Config, Alice, Bob) ->
     RoomJIDBin = ?config(room_jid, Config),
     RoomJID = jid:from_binary(RoomJIDBin),
-    Res = execute_auth(admin_invite_user_body(RoomJID, Alice, Bob, null), Config),
+    Res = invite_user(RoomJID, Alice, Bob, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     Stanza = escalus:wait_for_stanza(Bob),
@@ -237,7 +240,7 @@ admin_invite_user_with_password(Config) ->
 admin_invite_user_with_password(Config, Alice, Bob) ->
     RoomJIDBin = ?config(room_jid, Config),
     RoomJID = jid:from_binary(RoomJIDBin),
-    Res = execute_auth(admin_invite_user_body(RoomJID, Alice, Bob, null), Config),
+    Res = invite_user(RoomJID, Alice, Bob, null, Config),
     assert_success(?INVITE_USER_PATH, Res),
     Stanza = escalus:wait_for_stanza(Bob),
     escalus:assert(is_message, Stanza),
@@ -250,7 +253,7 @@ admin_try_invite_user_to_nonexistent_room(Config) ->
                                     fun admin_try_invite_user_to_nonexistent_room_story/3).
 
 admin_try_invite_user_to_nonexistent_room_story(Config, Alice, Bob) ->
-    Res = execute_auth(admin_invite_user_body(?NONEXISTENT_ROOM, Alice, Bob, null), Config),
+    Res = invite_user(?NONEXISTENT_ROOM, Alice, Bob, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_kick_user(Config) ->
@@ -263,7 +266,7 @@ admin_kick_user_story(Config, Alice, Bob) ->
     Reason = <<"You are too laud">>,
     enter_room(RoomJID, Alice, <<"ali">>),
     enter_room(RoomJID, Bob, BobNick),
-    Res = execute_auth(kick_user_body(RoomJID, BobNick, Reason), Config),
+    Res = kick_user(RoomJID, BobNick, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     escalus:wait_for_stanzas(Bob, 2),
@@ -281,11 +284,11 @@ admin_try_kick_user_from_room_without_moderators(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
-    Res = execute_auth(kick_user_body(RoomJID, BobNick, null), Config),
+    Res = kick_user(RoomJID, BobNick, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_kick_user_from_nonexistent_room(Config) ->
-    Res = execute_auth(kick_user_body(?NONEXISTENT_ROOM, <<"ali">>, null), Config),
+    Res = kick_user(?NONEXISTENT_ROOM, <<"ali">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_send_message_to_room(Config) ->
@@ -298,12 +301,12 @@ admin_send_message_to_room_story(Config, _Alice, Bob) ->
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanza(Bob),
-    % Try send messsage from bare JID,
+    % Try send message from bare JID,
     BareBob = escalus_client:short_jid(Bob),
-    Res = execute_auth(admin_send_message_to_room_body(RoomJID, BareBob, Message), Config),
+    Res = send_message_to_room(RoomJID, BareBob, Message, Config),
     assert_no_full_jid(Res),
     % Send message
-    Res1 = execute_auth(admin_send_message_to_room_body(RoomJID, Bob, Message), Config),
+    Res1 = send_message_to_room(RoomJID, Bob, Message, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res1),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -321,13 +324,12 @@ admin_send_private_message(Config, Alice, Bob) ->
     enter_room(RoomJID, Alice, AliceNick),
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanzas(Bob, 2),
-    % Try send private messsage from bare JID,
+    % Try send private message from bare JID,
     BareAlice = escalus_client:short_jid(Alice),
-    Res = execute_auth(admin_send_private_message_body(RoomJID, BareAlice, BobNick, Message),
-                       Config),
+    Res = send_private_message(RoomJID, BareAlice, BobNick, Message, Config),
     assert_no_full_jid(Res),
     % Send message
-    Res1 = execute_auth(admin_send_private_message_body(RoomJID, Alice, BobNick, Message), Config),
+    Res1 = send_private_message(RoomJID, Alice, BobNick, Message, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res1),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -337,11 +339,11 @@ admin_get_room_config(Config) ->
 
 admin_get_room_config_story(Config, _Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_auth(get_room_config_body(RoomJID), Config),
+    Res = get_room_config(RoomJID, Config),
     assert_default_room_config(Res).
 
 admin_try_get_nonexistent_room_config(Config) ->
-    Res = execute_auth(get_room_config_body(?NONEXISTENT_ROOM), Config),
+    Res = get_room_config(?NONEXISTENT_ROOM, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_change_room_config(Config) ->
@@ -353,14 +355,14 @@ admin_change_room_config_story(Config, _Alice) ->
     Description = <<"The chat about aloes">>,
     Public = false,
     RoomConfig = #{title => Title, description => Description, public => Public},
-    Res = execute_auth(change_room_config_body(RoomJID, RoomConfig), Config),
+    Res = change_room_config(RoomJID, RoomConfig, Config),
     ?assertMatch(#{<<"title">> := Title,
                    <<"description">> := Description,
                    <<"public">> := Public}, get_ok_value(?CHANGE_ROOM_CONFIG_PATH, Res)).
 
 admin_try_change_nonexistent_room_config(Config) ->
     RoomConfig = #{title => <<"NewTitle">>},
-    Res = execute_auth(change_room_config_body(?NONEXISTENT_ROOM, RoomConfig), Config),
+    Res = change_room_config(?NONEXISTENT_ROOM, RoomConfig, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_list_room_users(Config) ->
@@ -373,13 +375,13 @@ admin_list_room_users_story(Config, Alice, Bob) ->
     AliceNick = <<"Ali">>,
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice, AliceNick),
-    Res = execute_auth(list_room_users_body(RoomJID), Config),
+    Res = list_room_users(RoomJID, Config),
     ExpectedUsers = [{escalus_client:full_jid(Bob), BobNick, <<"PARTICIPANT">>},
                      {escalus_client:full_jid(Alice), AliceNick, <<"MODERATOR">>}],
     assert_room_users(ExpectedUsers, get_ok_value(?LIST_ROOM_USERS_PATH, Res)).
 
 admin_try_list_users_from_nonexistent_room(Config) ->
-    Res = execute_auth(list_room_users_body(?NONEXISTENT_ROOM), Config),
+    Res = list_room_users(?NONEXISTENT_ROOM, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_get_room_messages(Config) ->
@@ -391,16 +393,16 @@ admin_get_room_messages_story(Config, Alice, Bob) ->
     enter_room(RoomJID, Bob, <<"Bobek">>),
     enter_room(RoomJID, Alice, <<"Ali">>),
     escalus:wait_for_stanzas(Bob, 2),
-    execute_auth(admin_send_message_to_room_body(RoomJID, Bob, <<"Hi!">>), Config),
+    send_message_to_room(RoomJID, Bob, <<"Hi!">>, Config),
     escalus:wait_for_stanzas(Bob, 1),
     mam_helper:maybe_wait_for_archive(Config),
-    Res = execute_auth(get_room_messages_body(RoomJID, 50, null), Config),
+    Res = get_room_messages(RoomJID, 50, null, Config),
     #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := 50} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)).
 
 admin_try_get_nonexistent_room_messages(Config) ->
-    Res = execute_auth(get_room_messages_body(?NONEXISTENT_ROOM, null, null), Config),
+    Res = get_room_messages(?NONEXISTENT_ROOM, null, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 
@@ -411,23 +413,23 @@ admin_set_user_affiliation(Config) ->
 admin_set_user_affiliation(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     % Grant member affiliation
-    Res = execute_auth(set_user_affiliation_body(RoomJID, Bob, member), Config),
+    Res = set_user_affiliation(RoomJID, Bob, member, Config),
     assert_success(?SET_AFFILIATION_PATH, Res),
     assert_user_affiliation(RoomJID, Bob, member),
     % Grant admin affiliation
-    Res1 = execute_auth(set_user_affiliation_body(RoomJID, Bob, admin), Config),
+    Res1 = set_user_affiliation(RoomJID, Bob, admin, Config),
     assert_success(?SET_AFFILIATION_PATH, Res1),
     assert_user_affiliation(RoomJID, Bob, admin),
     % Grant owner affiliation
-    Res2 = execute_auth(set_user_affiliation_body(RoomJID, Bob, owner), Config),
+    Res2 = set_user_affiliation(RoomJID, Bob, owner, Config),
     assert_success(?SET_AFFILIATION_PATH, Res2),
     assert_user_affiliation(RoomJID, Bob, owner),
     % Revoke affiliation
-    Res3 = execute_auth(set_user_affiliation_body(RoomJID, Bob, none), Config),
+    Res3 = set_user_affiliation(RoomJID, Bob, none, Config),
     assert_success(?SET_AFFILIATION_PATH, Res3),
     assert_user_affiliation(RoomJID, Bob, none),
     % Ban user
-    Res4 = execute_auth(set_user_affiliation_body(RoomJID, Bob, outcast), Config),
+    Res4 = set_user_affiliation(RoomJID, Bob, outcast, Config),
     assert_success(?SET_AFFILIATION_PATH, Res4),
     assert_user_affiliation(RoomJID, Bob, outcast).
 
@@ -436,7 +438,7 @@ admin_try_set_nonexistent_room_user_affiliation(Config) ->
                                     fun admin_try_set_nonexistent_room_user_affiliation/2).
 
 admin_try_set_nonexistent_room_user_affiliation(Config, Alice) ->
-    Res = execute_auth(set_user_affiliation_body(?NONEXISTENT_ROOM, Alice, admin), Config),
+    Res = set_user_affiliation(?NONEXISTENT_ROOM, Alice, admin, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_set_user_role(Config) ->
@@ -448,15 +450,15 @@ admin_set_user_role(Config, Alice, Bob) ->
     enter_room(RoomJID, Alice, escalus_client:username(Alice)),
     enter_room(RoomJID, Bob, BobNick),
     % Change from participant to visitor
-    Res = execute_auth(set_user_role_body(RoomJID, BobNick, visitor), Config),
+    Res = set_user_role(RoomJID, BobNick, visitor, Config),
     assert_success(?SET_ROLE_PATH, Res),
     assert_user_role(RoomJID, Bob, visitor),
     % Change from visitor to participant
-    Res1 = execute_auth(set_user_role_body(RoomJID, BobNick, participant), Config),
+    Res1 = set_user_role(RoomJID, BobNick, participant, Config),
     assert_success(?SET_ROLE_PATH, Res1),
     assert_user_role(RoomJID, Bob, participant),
     % Change from participant to moderator
-    Res2 = execute_auth(set_user_role_body(RoomJID, BobNick, moderator), Config),
+    Res2 = set_user_role(RoomJID, BobNick, moderator, Config),
     assert_success(?SET_ROLE_PATH, Res2),
     assert_user_role(RoomJID, Bob, moderator).
 
@@ -466,7 +468,7 @@ admin_try_set_nonexistent_nick_role(Config) ->
 admin_try_set_nonexistent_nick_role(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     enter_room(RoomJID, Alice, escalus_client:username(Alice)),
-    Res = execute_auth(set_user_role_body(RoomJID, <<"kik">>, visitor), Config),
+    Res = set_user_role(RoomJID, <<"kik">>, visitor, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
 
 admin_try_set_user_role_in_room_without_moderators(Config) ->
@@ -477,11 +479,11 @@ admin_try_set_user_role_in_room_without_moderators(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     BobNick = <<"Boobek">>,
     enter_room(RoomJID, Bob, BobNick),
-    Res = execute_auth(set_user_role_body(RoomJID, BobNick, visitor), Config),
+    Res = set_user_role(RoomJID, BobNick, visitor, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_set_nonexistent_room_user_role(Config) ->
-    Res = execute_auth(set_user_role_body(?NONEXISTENT_ROOM, <<"Alice">>, moderator), Config),
+    Res = set_user_role(?NONEXISTENT_ROOM, <<"Alice">>, moderator, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_make_user_enter_room(Config) ->
@@ -492,7 +494,7 @@ admin_make_user_enter_room(Config, Alice) ->
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
     % Alice enter room with password
-    Res = execute_auth(admin_enter_room_body(RoomJID, Alice, Nick, null), Config),
+    Res = enter_room(RoomJID, Alice, Nick, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)).
 
@@ -506,15 +508,15 @@ admin_make_user_enter_room_with_password(Config, Alice, Bob) ->
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
     % Alice enter room with password
-    Res = execute_auth(admin_enter_room_body(RoomJID, Alice, Nick, ?PASSWORD), Config),
+    Res = enter_room(RoomJID, Alice, Nick, ?PASSWORD, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)),
-    % Bob try enter room without password 
-    Res1 = execute_auth(admin_enter_room_body(RoomJID, Bob, <<"Bobek">>, null), Config),
+    % Bob try enter room without password
+    Res1 = enter_room(RoomJID, Bob, <<"Bobek">>, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res1),
     ?assertMatch([_], get_room_users(RoomJID)),
     % Bob enter room with password
-    Res2 = execute_auth(admin_enter_room_body(RoomJID, Bob, <<"Bobek">>, ?PASSWORD), Config),
+    Res2 = enter_room(RoomJID, Bob, <<"Bobek">>, ?PASSWORD, Config),
     assert_success(?ENTER_ROOM_PATH, Res2),
     ?assertMatch([_, _], get_room_users(RoomJID)).
 
@@ -524,7 +526,7 @@ admin_make_user_enter_room_bare_jid(Config) ->
 admin_make_user_enter_room_bare_jid(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     BareAlice = escalus_client:short_jid(Alice),
-    Res = execute_auth(admin_enter_room_body(RoomJID, BareAlice, <<"Ali">>, null), Config),
+    Res = enter_room(RoomJID, BareAlice, <<"Ali">>, null, Config),
     assert_no_full_jid(Res).
 
 admin_make_user_exit_room(Config) ->
@@ -536,7 +538,7 @@ admin_make_user_exit_room(Config, Alice) ->
     Nick = <<"ali">>,
     enter_room(RoomJID, Alice, Nick),
     ?assertMatch([_], get_room_users(RoomJID)),
-    Res = execute_auth(admin_exit_room_body(RoomJID, Alice, Nick), Config),
+    Res = exit_room(RoomJID, Alice, Nick, Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
 
@@ -548,7 +550,7 @@ admin_make_user_exit_room_bare_jid(Config, Alice) ->
     BareAlice = escalus_client:short_jid(Alice),
     Nick = <<"ali">>,
     enter_room(RoomJID, Alice, Nick),
-    Res = execute_auth(admin_exit_room_body(RoomJID, BareAlice, Nick), Config),
+    Res = exit_room(RoomJID, BareAlice, Nick, Config),
     assert_no_full_jid(Res).
 
 admin_list_room_affiliations(Config) ->
@@ -564,20 +566,20 @@ admin_list_room_affiliations(Config, Alice, Bob) ->
     AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
     BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
     % List all owners
-    Res = execute_auth(list_room_affiliations_body(RoomJID, owner), Config),
+    Res = list_room_affiliations(RoomJID, owner, Config),
     ?assertMatch([#{<<"jid">> := AliceJID, <<"affiliation">> := <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res)),
     % List all members
-    execute_auth(set_user_affiliation_body(RoomJID, Bob, member), Config),
-    Res1 = execute_auth(list_room_affiliations_body(RoomJID, member), Config),
+    set_user_affiliation(RoomJID, Bob, member, Config),
+    Res1 = list_room_affiliations(RoomJID, member, Config),
     ?assertMatch([#{<<"jid">> := BobJID, <<"affiliation">> := <<"MEMBER">>}],
                  get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res1)),
     % List all
-    Res2 = execute_auth(list_room_affiliations_body(RoomJID, null), Config),
+    Res2 = list_room_affiliations(RoomJID, null, Config),
     ?assertMatch([_, _], get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res2)).
 
 admin_try_list_nonexistent_room_affiliations(Config) ->
-    Res = execute_auth(list_room_affiliations_body(?NONEXISTENT_ROOM, null), Config),
+    Res = list_room_affiliations(?NONEXISTENT_ROOM, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 %% User test cases
@@ -593,7 +595,7 @@ user_list_rooms_story(Config, Alice, Bob) ->
     muc_helper:create_instant_room(AliceRoom, AliceJID, <<"Ali">>, []),
     muc_helper:create_instant_room(BobRoom, BobJID, <<"Bob">>, []),
 
-    Res = execute_user(user_list_rooms_body(muc_helper:muc_host(), null, null), Alice, Config),
+    Res = user_list_rooms(Alice, muc_helper:muc_host(), null, null, Config),
     #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res),
     ?assert(contain_room(AliceRoom, Rooms)),
     ?assert(contain_room(BobRoom, Rooms)).
@@ -606,16 +608,16 @@ user_create_and_delete_room_story(Config, Alice) ->
     MUCServer = muc_helper:muc_host(),
     RoomJID = jid:make_bare(Name, MUCServer),
     % Create instant room
-    Res = execute_user(user_create_instant_room_body(MUCServer, Name, <<"Ali">>), Alice, Config),
+    Res = user_create_instant_room(Alice, MUCServer, Name, <<"Ali">>, Config),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
                  get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
-    Res2 = execute_user(user_list_rooms_body(MUCServer, null, null), Alice, Config),
+    Res2 = user_list_rooms(Alice, MUCServer, null, null, Config),
     ?assert(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res2))),
     % Delete room
-    Res3 = execute_user(delete_room_body(RoomJID, null), Alice, Config),
+    Res3 = user_delete_room(Alice, RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res3),
                                           <<"successfully">>)),
-    Res4 = execute_user(user_list_rooms_body(MUCServer, null, null), Alice, Config),
+    Res4 = user_list_rooms(Alice, MUCServer, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
 user_try_create_instant_room_with_nonexistent_domain(Config) ->
@@ -623,8 +625,7 @@ user_try_create_instant_room_with_nonexistent_domain(Config) ->
                                     fun user_try_create_instant_room_with_nonexistent_domain_story/2).
 
 user_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
-    Res = execute_user(user_create_instant_room_body(<<"unknown">>, rand_name(), <<"Ali">>),
-                       Alice, Config),
+    Res = user_create_instant_room(Alice, <<"unknown">>, rand_name(), <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_try_delete_nonexistent_room(Config) ->
@@ -633,7 +634,7 @@ user_try_delete_nonexistent_room(Config) ->
 
 user_try_delete_nonexistent_room_story(Config, Alice) ->
     RoomJID = jid:make_bare(<<"unknown">>, muc_helper:muc_host()),
-    Res = execute_user(delete_room_body(RoomJID, null), Alice, Config),
+    Res = user_delete_room(Alice, RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 user_try_delete_room_by_not_owner(Config) ->
@@ -642,7 +643,7 @@ user_try_delete_room_by_not_owner(Config) ->
 
 user_try_delete_room_by_not_owner_story(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_user(delete_room_body(RoomJID, null), Bob, Config),
+    Res = user_delete_room(Bob, RoomJID, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
 
 user_invite_user(Config) ->
@@ -651,7 +652,7 @@ user_invite_user(Config) ->
 user_invite_user_story(Config, Alice, Bob) ->
     RoomJIDBin = ?config(room_jid, Config),
     RoomJID = jid:from_binary(RoomJIDBin),
-    Res = execute_user(user_invite_user_body(RoomJID, Bob, null), Alice, Config),
+    Res = user_invite_user(Alice, RoomJID, Bob, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     Stanza = escalus:wait_for_stanza(Bob),
@@ -669,7 +670,7 @@ user_kick_user_story(Config, Alice, Bob) ->
     Reason = <<"You are too loud">>,
     enter_room(RoomJID, Alice, <<"ali">>),
     enter_room(RoomJID, Bob, BobNick),
-    Res = execute_user(kick_user_body(RoomJID, BobNick, Reason), Alice, Config),
+    Res = user_kick_user(Alice, RoomJID, BobNick, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     escalus:wait_for_stanzas(Bob, 2),
@@ -688,7 +689,7 @@ user_try_kick_user_without_moderator_resource(Config, Alice, Bob) ->
     RoomJID = jid:from_binary(RoomJIDBin),
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
-    Res = execute_user(kick_user_body(RoomJID, BobNick, null), Alice, Config),
+    Res = user_kick_user(Alice, RoomJID, BobNick, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_try_kick_user_from_nonexistent_room(Config) ->
@@ -696,7 +697,7 @@ user_try_kick_user_from_nonexistent_room(Config) ->
                                     fun user_try_kick_user_from_nonexistent_room/2).
 
 user_try_kick_user_from_nonexistent_room(Config, Alice) ->
-    Res = execute_user(kick_user_body(?NONEXISTENT_ROOM, <<"bobi">>, null), Alice, Config),
+    Res = user_kick_user(Alice, ?NONEXISTENT_ROOM, <<"bobi">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_send_message_to_room(Config) ->
@@ -710,7 +711,7 @@ user_send_message_to_room_story(Config, _Alice, Bob) ->
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanza(Bob),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, Message, null), Bob, Config),
+    Res = user_send_message_to_room(Bob, RoomJID, Message, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -727,7 +728,7 @@ user_send_message_to_room_with_specified_res_story(Config, _Alice, Bob, Bob2) ->
     enter_room(RoomJID, Bob2, BobNick),
     escalus:wait_for_stanza(Bob2),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, Message, <<"res2">>), Bob, Config),
+    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res2">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -746,8 +747,7 @@ user_send_private_message(Config, Alice, Bob) ->
     enter_room(RoomJID, Alice, AliceNick),
     escalus:wait_for_stanzas(Bob, 2),
     % Send message
-    Res = execute_user(user_send_private_message_body(RoomJID, Message, BobNick, null),
-                       Alice, Config),
+    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, null, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -765,8 +765,7 @@ user_send_private_message_with_specified_res(Config, Alice, Alice2, Bob) ->
     enter_room(RoomJID, Alice2, AliceNick),
     escalus:wait_for_stanzas(Bob, 2),
     % Send message
-    Res = execute_user(user_send_private_message_body(RoomJID, Message, BobNick, <<"res2">>),
-                       Alice, Config),
+    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res2">>, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -780,7 +779,7 @@ user_without_session_send_message_to_room_story(Config, Alice) ->
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
     {exit, _} = rpc(mim(), ejabberd_c2s, terminate_session, [JID, <<"Kicked">>]),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, <<"Hello!">>, null), Alice, Config),
+    Res = user_send_message_to_room(Alice, RoomJID, <<"Hello!">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have any session">>)).
 
 user_get_room_config(Config) ->
@@ -789,10 +788,10 @@ user_get_room_config(Config) ->
 
 user_get_room_config_story(Config, Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_user(get_room_config_body(RoomJID), Alice, Config),
+    Res = user_get_room_config(Alice, RoomJID, Config),
     assert_default_room_config(Res),
     % Not an owner tries to get room config
-    Res2 = execute_user(get_room_config_body(RoomJID), Bob, Config),
+    Res2 = user_get_room_config(Bob, RoomJID, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not have permission">>)).
 
 user_try_get_nonexistent_room_config(Config) ->
@@ -800,7 +799,7 @@ user_try_get_nonexistent_room_config(Config) ->
                                     fun user_try_get_nonexistent_room_config_story/2).
 
 user_try_get_nonexistent_room_config_story(Config, Alice) ->
-    Res = execute_user(get_room_config_body(?NONEXISTENT_ROOM), Alice, Config),
+    Res = user_get_room_config(Alice, ?NONEXISTENT_ROOM, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_change_room_config(Config) ->
@@ -813,12 +812,12 @@ user_change_room_config_story(Config, Alice, Bob) ->
     Description = <<"The chat about aloes">>,
     Public = false,
     RoomConfig = #{title => Title, description => Description, public => Public},
-    Res = execute_user(change_room_config_body(RoomJID, RoomConfig), Alice, Config),
+    Res = user_change_room_config(Alice, RoomJID, RoomConfig, Config),
     ?assertMatch(#{<<"title">> := Title,
                    <<"description">> := Description,
                    <<"public">> := Public}, get_ok_value(?CHANGE_ROOM_CONFIG_PATH, Res)),
     % Not an owner tries to change the room config
-    Res2 = execute_user(change_room_config_body(RoomJID, RoomConfig), Bob, Config),
+    Res2 = user_change_room_config(Bob, RoomJID, RoomConfig, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not have permission">>)).
 
 user_try_change_nonexistent_room_config(Config) ->
@@ -827,7 +826,7 @@ user_try_change_nonexistent_room_config(Config) ->
 
 user_try_change_nonexistent_room_config_story(Config, Alice) ->
     RoomConfig = #{title => <<"NewTitle">>},
-    Res = execute_user(change_room_config_body(?NONEXISTENT_ROOM, RoomConfig), Alice, Config),
+    Res = user_change_room_config(Alice, ?NONEXISTENT_ROOM, RoomConfig, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_list_room_users(Config) ->
@@ -840,7 +839,7 @@ user_list_room_users_story(Config, Alice, Bob) ->
     AliceNick = <<"Ali">>,
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice, AliceNick),
-    Res = execute_user(list_room_users_body(RoomJID), Alice, Config),
+    Res = user_list_room_users(Alice, RoomJID, Config),
     ExpectedUsers = [{null, BobNick, <<"PARTICIPANT">>},
                      {null, AliceNick, <<"MODERATOR">>}],
     assert_room_users(ExpectedUsers, get_ok_value(?LIST_ROOM_USERS_PATH, Res)).
@@ -855,7 +854,7 @@ user_list_room_users_without_anonymous_mode_story(Config, Alice, Bob) ->
     AliceNick = <<"Ali">>,
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice, AliceNick),
-    Res = execute_user(list_room_users_body(RoomJID), Alice, Config),
+    Res = user_list_room_users(Alice, RoomJID, Config),
     ExpectedUsers = [{escalus_client:full_jid(Bob), BobNick, <<"PARTICIPANT">>},
                      {escalus_client:full_jid(Alice), AliceNick, <<"MODERATOR">>}],
     assert_room_users(ExpectedUsers, get_ok_value(?LIST_ROOM_USERS_PATH, Res)).
@@ -865,7 +864,7 @@ user_try_list_nonexistent_room_users(Config) ->
                                     fun user_try_list_nonexistent_room_users_story/2).
 
 user_try_list_nonexistent_room_users_story(Config, Alice) ->
-    Res = execute_user(list_room_users_body(?NONEXISTENT_ROOM), Alice, Config),
+    Res = user_list_room_users(Alice, ?NONEXISTENT_ROOM, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_try_list_room_users_without_permission(Config) ->
@@ -874,7 +873,7 @@ user_try_list_room_users_without_permission(Config) ->
 
 user_try_list_room_users_without_permission_story(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_user(list_room_users_body(RoomJID), Bob, Config),
+    Res = user_list_room_users(Bob, RoomJID, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
 
 user_get_room_messages(Config) ->
@@ -886,10 +885,10 @@ user_get_room_messages_story(Config, Alice, Bob) ->
     enter_room(RoomJID, Bob, <<"Bobek">>),
     enter_room(RoomJID, Alice, <<"Ali">>),
     escalus:wait_for_stanzas(Bob, 2),
-    execute_user(user_send_message_to_room_body(RoomJID, <<"Hi!">>, null), Bob, Config),
+    user_send_message_to_room(Bob, RoomJID, <<"Hi!">>, null, Config),
     escalus:wait_for_stanzas(Bob, 1),
     mam_helper:maybe_wait_for_archive(Config),
-    Res = execute_user(get_room_messages_body(RoomJID, 50, null), Alice, Config),
+    Res = user_get_room_messages(Alice, RoomJID, 50, null, Config),
     #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := 50} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)).
@@ -900,10 +899,10 @@ user_try_get_nonexistent_room_messages(Config) ->
 
 user_try_get_nonexistent_room_messages_story(Config, Alice) ->
     % Non-existent room with non-existent domain
-    Res = execute_user(get_room_messages_body(?NONEXISTENT_ROOM, null, null), Alice, Config),
+    Res = user_get_room_messages(Alice, ?NONEXISTENT_ROOM, null, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
     % Non-existent room with existent domain
-    Res2 = execute_user(get_room_messages_body(?NONEXISTENT_ROOM2, null, null), Alice, Config),
+    Res2 = user_get_room_messages(Alice, ?NONEXISTENT_ROOM2, null, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
 user_try_get_room_messages_without_permission(Config) ->
@@ -912,7 +911,7 @@ user_try_get_room_messages_without_permission(Config) ->
 
 user_try_get_room_messages_without_permission(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_user(get_room_messages_body(RoomJID, null, null), Bob, Config),
+    Res = user_get_room_messages(Bob, RoomJID, null, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
 
 user_owner_set_user_affiliation(Config) ->
@@ -921,24 +920,24 @@ user_owner_set_user_affiliation(Config) ->
 
 user_owner_set_user_affiliation(Config, Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    % Grant a member affiliation 
-    Res = execute_user(set_user_affiliation_body(RoomJID, Bob, member), Alice, Config),
+    % Grant a member affiliation
+    Res = user_set_user_affiliation(Alice, RoomJID, Bob, member, Config),
     assert_success(?SET_AFFILIATION_PATH, Res),
     assert_user_affiliation(RoomJID, Bob, member),
-    % Grant a member affiliation 
-    Res1 = execute_user(set_user_affiliation_body(RoomJID, Bob, admin), Alice, Config),
+    % Grant a member affiliation
+    Res1 = user_set_user_affiliation(Alice, RoomJID, Bob, admin, Config),
     assert_success(?SET_AFFILIATION_PATH, Res1),
     assert_user_affiliation(RoomJID, Bob, admin),
     % Grant a owner affiliation
-    Res2 = execute_user(set_user_affiliation_body(RoomJID, Bob, owner), Alice, Config),
+    Res2 = user_set_user_affiliation(Alice, RoomJID, Bob, owner, Config),
     assert_success(?SET_AFFILIATION_PATH, Res2),
     assert_user_affiliation(RoomJID, Bob, owner),
-    % Revoke affiliation 
-    Res3 = execute_user(set_user_affiliation_body(RoomJID, Bob, none), Alice, Config),
+    % Revoke affiliation
+    Res3 = user_set_user_affiliation(Alice, RoomJID, Bob, none, Config),
     assert_success(?SET_AFFILIATION_PATH, Res3),
     assert_user_affiliation(RoomJID, Bob, none),
     % Ban user
-    Res4 = execute_user(set_user_affiliation_body(RoomJID, Bob, outcast), Alice, Config),
+    Res4 = user_set_user_affiliation(Alice, RoomJID, Bob, outcast, Config),
     assert_success(?SET_AFFILIATION_PATH, Res4),
     assert_user_affiliation(RoomJID, Bob, outcast).
 
@@ -949,27 +948,27 @@ user_admin_set_user_affiliation(Config) ->
 
 user_admin_set_user_affiliation(Config, Alice, Bob, Kate) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    execute_user(set_user_affiliation_body(RoomJID, Bob, admin), Alice, Config),
+    user_set_user_affiliation(Alice, RoomJID, Bob, admin, Config),
     % Grant member affiliation
-    Res = execute_user(set_user_affiliation_body(RoomJID, Kate, member), Bob, Config),
+    Res = user_set_user_affiliation(Bob, RoomJID, Kate, member, Config),
     assert_success(?SET_AFFILIATION_PATH, Res),
     assert_user_affiliation(RoomJID, Kate, member),
     % Revoke affiliation
-    Res1 = execute_user(set_user_affiliation_body(RoomJID, Kate, none), Bob, Config),
+    Res1 = user_set_user_affiliation(Bob, RoomJID, Kate, none, Config),
     assert_success(?SET_AFFILIATION_PATH, Res1),
     assert_user_affiliation(RoomJID, Kate, none),
     % Admin cannot grant admin affiliation
-    Res2 = execute_user(set_user_affiliation_body(RoomJID, Kate, admin), Bob, Config),
+    Res2 = user_set_user_affiliation(Bob, RoomJID, Kate, admin, Config),
     assert_no_permission(Res2),
     % Admin cannot grant owner affiliation
-    Res3 = execute_user(set_user_affiliation_body(RoomJID, Kate, owner), Bob, Config),
+    Res3 = user_set_user_affiliation(Bob, RoomJID, Kate, owner, Config),
     assert_no_permission(Res3),
     % Admin can ban member
-    Res4 = execute_user(set_user_affiliation_body(RoomJID, Kate, outcast), Bob, Config),
+    Res4 = user_set_user_affiliation(Bob, RoomJID, Kate, outcast, Config),
     assert_success(?SET_AFFILIATION_PATH, Res4),
     assert_user_affiliation(RoomJID, Kate, outcast),
     % Admin cannot ban owner
-    Res5 = execute_user(set_user_affiliation_body(RoomJID, Alice, outcast), Bob, Config),
+    Res5 = user_set_user_affiliation(Bob, RoomJID, Alice, outcast, Config),
     assert_no_permission(Res5).
 
 user_member_set_user_affiliation(Config) ->
@@ -978,19 +977,19 @@ user_member_set_user_affiliation(Config) ->
 
 user_member_set_user_affiliation(Config, Alice, Bob, Kate) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    execute_user(set_user_affiliation_body(RoomJID, Bob, member), Alice, Config),
+    user_set_user_affiliation(Alice, RoomJID, Bob, member, Config),
     % Member cannot grant member affiliation
-    Res = execute_user(set_user_affiliation_body(RoomJID, Kate, member), Bob, Config),
+    Res = user_set_user_affiliation(Bob, RoomJID, Kate, member, Config),
     assert_no_permission(Res),
     % Member cannot grant member admin affiliation
-    Res1 = execute_user(set_user_affiliation_body(RoomJID, Kate, admin), Bob, Config),
+    Res1 = user_set_user_affiliation(Bob, RoomJID, Kate, admin, Config),
     assert_no_permission(Res1),
     % Member cannot grant member owner affiliation
-    Res2 = execute_user(set_user_affiliation_body(RoomJID, Kate, owner), Bob, Config),
+    Res2 = user_set_user_affiliation(Bob, RoomJID, Kate, owner, Config),
     assert_no_permission(Res2),
     % Member cannot revoke member affiliation
-    execute_user(set_user_affiliation_body(RoomJID, Kate, member), Alice, Config),
-    Res3 = execute_user(set_user_affiliation_body(RoomJID, Kate, none), Bob, Config),
+    user_set_user_affiliation(Alice, RoomJID, Kate, member, Config),
+    Res3 = user_set_user_affiliation(Bob, RoomJID, Kate, none, Config),
     assert_no_permission(Res3).
 
 user_try_set_nonexistent_room_affiliation(Config) ->
@@ -998,7 +997,7 @@ user_try_set_nonexistent_room_affiliation(Config) ->
                                     fun user_try_set_nonexistent_room_affiliation/2).
 
 user_try_set_nonexistent_room_affiliation(Config, Alice) ->
-    Res = execute_user(set_user_affiliation_body(?NONEXISTENT_ROOM, Alice, none), Alice, Config),
+    Res = user_set_user_affiliation(Alice, ?NONEXISTENT_ROOM, Alice, none, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_moderator_set_user_role(Config) ->
@@ -1011,16 +1010,16 @@ user_moderator_set_user_role(Config, Alice, Bob) ->
     BobNick = <<"Boobek">>,
     enter_room(RoomJID, Alice, escalus_client:username(Alice)),
     enter_room(RoomJID, Bob, BobNick),
-    % Change from participant to visitor 
-    Res = execute_user(set_user_role_body(RoomJID, BobNick, visitor), Alice, Config),
+    % Change from participant to visitor
+    Res = user_set_user_role(Alice, RoomJID, BobNick, visitor, Config),
     assert_success(?SET_ROLE_PATH, Res),
     assert_user_role(RoomJID, Bob, visitor),
     % Change from visitor to participant
-    Res1 = execute_user(set_user_role_body(RoomJID, BobNick, participant), Alice, Config),
+    Res1 = user_set_user_role(Alice, RoomJID, BobNick, participant, Config),
     assert_success(?SET_ROLE_PATH, Res1),
     assert_user_role(RoomJID, Bob, participant),
-    % Change from participant to moderator 
-    Res2 = execute_user(set_user_role_body(RoomJID, BobNick, moderator), Alice, Config),
+    % Change from participant to moderator
+    Res2 = user_set_user_role(Alice, RoomJID, BobNick, moderator, Config),
     assert_success(?SET_ROLE_PATH, Res2),
     assert_user_role(RoomJID, Bob, moderator).
 
@@ -1036,14 +1035,14 @@ user_participant_set_user_role(Config, _Alice, Bob, Kate) ->
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Kate, KateNick),
     % Try change from participant to visitor
-    Res = execute_user(set_user_role_body(RoomJID, KateNick, visitor), Bob, Config),
+    Res = user_set_user_role(Bob, RoomJID, KateNick, visitor, Config),
     assert_no_permission(Res),
     % Change from participant to participant with success response
-    Res1 = execute_user(set_user_role_body(RoomJID, KateNick, participant), Bob, Config),
+    Res1 = user_set_user_role(Bob, RoomJID, KateNick, participant, Config),
     assert_success(?SET_ROLE_PATH, Res1),
     assert_user_role(RoomJID, Bob, participant),
-    % Try change from participant to moderator 
-    Res2 = execute_user(set_user_role_body(RoomJID, KateNick, moderator), Bob, Config),
+    % Try change from participant to moderator
+    Res2 = user_set_user_role(Bob, RoomJID, KateNick, moderator, Config),
     assert_no_permission(Res2).
 
 user_try_set_nonexistent_room_role(Config) ->
@@ -1051,7 +1050,7 @@ user_try_set_nonexistent_room_role(Config) ->
                                     fun user_try_set_nonexistent_room_role/2).
 
 user_try_set_nonexistent_room_role(Config, Alice) ->
-    Res = execute_user(set_user_role_body(?NONEXISTENT_ROOM, <<"Ali">>, participant), Alice, Config),
+    Res = user_set_user_role(Alice, ?NONEXISTENT_ROOM, <<"Ali">>, participant, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_can_enter_room(Config) ->
@@ -1062,10 +1061,10 @@ user_can_enter_room(Config, Alice) ->
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_utils:jid_to_lower(escalus_client:full_jid(Alice))),
     Resource = escalus_client:resource(Alice),
-    Res = execute_user(user_enter_room_body(RoomJID, Nick, Resource, null), Alice, Config),
+    Res = user_enter_room(Alice, RoomJID, Nick, Resource, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)).
-    
+
 user_can_enter_room_with_password(Config) ->
     muc_helper:story_with_room(Config, [{password_protected, true}, {password, ?PASSWORD}],
                                [{alice, 1}, {bob, 1}],
@@ -1077,15 +1076,15 @@ user_can_enter_room_with_password(Config, Alice, Bob) ->
     JID = jid:from_binary(escalus_utils:jid_to_lower(escalus_client:full_jid(Alice))),
     Resource = escalus_client:resource(Alice),
     % Alice enter room with password
-    Res = execute_user(user_enter_room_body(RoomJID, Nick, Resource, ?PASSWORD), Alice, Config),
+    Res = user_enter_room(Alice, RoomJID, Nick, Resource, ?PASSWORD, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)),
     % Bob try enter room without password
-    Res1 = execute_user(user_enter_room_body(RoomJID, <<"Bobek">>, Resource, null), Bob, Config),
+    Res1 = user_enter_room(Bob, RoomJID, <<"Bobek">>, Resource, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res1),
     ?assertMatch([_], get_room_users(RoomJID)),
     % Bob enter room with password
-    Res2 = execute_user(user_enter_room_body(RoomJID, <<"Bobek">>, Resource, ?PASSWORD), Bob, Config),
+    Res2 = user_enter_room(Bob, RoomJID, <<"Bobek">>, Resource, ?PASSWORD, Config),
     assert_success(?ENTER_ROOM_PATH, Res2),
     ?assertMatch([_, _], get_room_users(RoomJID)).
 
@@ -1099,7 +1098,7 @@ user_can_exit_room(Config, Alice) ->
     Resource = escalus_client:resource(Alice),
     enter_room(RoomJID, Alice, Nick),
     ?assertMatch([_], get_room_users(RoomJID)),
-    Res = execute_user(user_exit_room_body(RoomJID, Nick, Resource), Alice, Config),
+    Res = user_exit_room(Alice, RoomJID, Nick, Resource, Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
 
@@ -1116,16 +1115,16 @@ user_list_room_affiliations(Config, Alice, Bob) ->
     AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
     BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
     % List all owners
-    Res = execute_user(list_room_affiliations_body(RoomJID, owner), Alice, Config),
+    Res = user_list_room_affiliations(Alice, RoomJID, owner, Config),
     ?assertMatch([#{<<"jid">> := AliceJID, <<"affiliation">> := <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res)),
     % List all members
-    execute_user(set_user_affiliation_body(RoomJID, Bob, member), Alice, Config),
-    Res1 = execute_user(list_room_affiliations_body(RoomJID, member), Alice, Config),
+    user_set_user_affiliation(Alice, RoomJID, Bob, member, Config),
+    Res1 = user_list_room_affiliations(Alice, RoomJID, member, Config),
     ?assertMatch([#{<<"jid">> := BobJID, <<"affiliation">> := <<"MEMBER">>}],
                  get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res1)),
     % List all
-    Res2 = execute_user(list_room_affiliations_body(RoomJID, null), Alice, Config),
+    Res2 = user_list_room_affiliations(Alice, RoomJID, null, Config),
     ?assertMatch([_, _], get_ok_value(?LIST_ROOM_AFFILIATIONS_PATH, Res2)).
 
 user_try_list_room_affiliations_without_permission(Config) ->
@@ -1134,7 +1133,7 @@ user_try_list_room_affiliations_without_permission(Config) ->
 
 user_try_list_room_affiliations_without_permission(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Res = execute_user(list_room_affiliations_body(RoomJID, null), Bob, Config),
+    Res = user_list_room_affiliations(Bob, RoomJID, null, Config),
     assert_no_permission(Res).
 
 user_try_list_nonexistent_room_affiliations(Config) ->
@@ -1142,14 +1141,13 @@ user_try_list_nonexistent_room_affiliations(Config) ->
                                     fun user_try_list_nonexistent_room_affiliations/2).
 
 user_try_list_nonexistent_room_affiliations(Config, Alice) ->
-    Res = execute_user(list_room_affiliations_body(?NONEXISTENT_ROOM, null), Alice, Config),
+    Res = user_list_room_affiliations(Alice, ?NONEXISTENT_ROOM, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 %% Helpers
 
-assert_no_full_jid({{<<"400">>,<<"Bad Request">>},
-                    #{<<"errors">> := [#{<<"message">> := Msg}]}}) ->
-    ?assertNotEqual(nomatch, binary:match(Msg, <<"jid_without_resource">>)).
+assert_no_full_jid(Res) ->
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res), <<"jid_without_resource">>)).
 
 assert_no_permission(Res) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
@@ -1204,7 +1202,7 @@ enter_room(RoomJID, User, Nick) ->
 
 contain_room(Name, #{<<"rooms">> := Rooms}) ->
     contain_room(Name, Rooms);
-contain_room(Name, Rooms) when is_list(Rooms) -> 
+contain_room(Name, Rooms) when is_list(Rooms) ->
     lists:any(fun(#{<<"title">> := T}) -> T =:= Name end, Rooms).
 
 assert_default_room_config(Response) ->
@@ -1233,187 +1231,141 @@ assert_default_room_config(Response) ->
 atom_to_enum_item(null) -> null;
 atom_to_enum_item(Atom) -> list_to_binary(string:to_upper(atom_to_list(Atom))).
 
-%% Request bodies
+%% Commands
 
-admin_create_instant_room_body(MUCDomain, Name, Owner, Nick) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $owner: JID!, $nick: String!)
-              { muc { createInstantRoom(mucDomain: $mucDomain, name: $name, owner: $owner, nick: $nick)
-              { jid title private usersNumber } } }">>,
-    OpName = <<"M1">>,
+create_instant_room(MUCDomain, Name, Owner, Nick, Config) ->
     Vars = #{mucDomain => MUCDomain, name => Name, owner => user_to_bin(Owner), nick => Nick},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"createInstantRoom">>, Vars, Config).
 
-admin_invite_user_body(Room, Sender, Recipient, Reason) ->
-    Query = <<"mutation M1($room: JID!, $sender: JID!, $recipient: JID!, $reason: String)
-              { muc { inviteUser(room: $room, sender: $sender, recipient: $recipient, reason: $reason) } }">>,
-    OpName = <<"M1">>,
+invite_user(Room, Sender, Recipient, Reason, Config) ->
     Vars = #{room => jid:to_binary(Room), sender => user_to_bin(Sender),
              recipient => user_to_bin(Recipient), reason => Reason},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"inviteUser">>, Vars, Config).
 
-kick_user_body(Room, Nick, Reason) ->
-    Query = <<"mutation M1($room: JID!, $nick: String!, $reason: String)
-              { muc { kickUser(room: $room, nick: $nick, reason: $reason) } }">>,
-    OpName = <<"M1">>,
+kick_user(Room, Nick, Reason, Config) ->
     Vars = #{room => jid:to_binary(Room), nick => Nick, reason => Reason},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"kickUser">>, Vars, Config).
 
-admin_send_message_to_room_body(Room, From, Body) ->
-    Query = <<"mutation M1($room: JID!, $from: FullJID!, $body: String!)
-              { muc { sendMessageToRoom(room: $room, from: $from, body: $body) } }">>,
-    OpName = <<"M1">>,
+send_message_to_room(Room, From, Body, Config) ->
     Vars = #{room => jid:to_binary(Room), from => user_to_full_bin(From), body => Body},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"sendMessageToRoom">>, Vars, Config).
 
-admin_send_private_message_body(Room, From, ToNick, Body) ->
-    Query = <<"mutation M1($room: JID!, $from: FullJID!, $toNick: String!, $body: String!)
-              { muc { sendPrivateMessage(room: $room, from: $from, toNick: $toNick, body: $body) } }">>,
-    OpName = <<"M1">>,
+send_private_message(Room, From, ToNick, Body, Config) ->
     Vars = #{room => jid:to_binary(Room), from => user_to_full_bin(From),
              toNick => ToNick, body => Body},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"sendPrivateMessage">>, Vars, Config).
 
+enter_room(Room, User, Nick, Password, Config) ->
+    Vars = #{room => jid:to_binary(Room), user => user_to_full_bin(User),
+             nick => Nick, password => Password},
+    execute_command(<<"muc">>, <<"enterRoom">>, Vars, Config).
 
-admin_enter_room_body(Room, User, Nick, Password) ->
-    Query = <<"mutation M1($room: JID!, $user: FullJID!, $nick: String! $password: String)
-               { muc { enterRoom(room: $room, user: $user, nick: $nick, password: $password) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), user => user_to_full_bin(User), nick => Nick, password => Password},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-admin_exit_room_body(Room, User, Nick) ->
-    Query = <<"mutation M1($room: JID!, $user: FullJID!, $nick: String!)
-               { muc { exitRoom(room: $room, user: $user, nick: $nick) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), user => user_to_full_bin(User), nick => Nick},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-delete_room_body(Room, Reason) ->
-    Query = <<"mutation M1($room: JID!, $reason: String)
-              { muc { deleteRoom(room: $room, reason: $reason) } }">>,
-    OpName = <<"M1">>,
+delete_room(Room, Reason, Config) ->
     Vars = #{room => jid:to_binary(Room), reason => Reason},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"deleteRoom">>, Vars, Config).
 
-change_room_config_body(Room, Config) ->
-    Query = <<"mutation M1($room: JID!, $config: MUCRoomConfigInput!)
-              { muc { changeRoomConfiguration(room: $room, config: $config)
-              { title description allowChangeSubject allowQueryUsers allowPrivateMessages
-                allowVisitorStatus allowVisitorNickchange public publicList persistent
-                moderated membersByDefault membersOnly allowUserInvites allowMultipleSession
-                passwordProtected password anonymous mayGetMemberList maxUsers logging } } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), config => Config},
-    #{query => Query, operationName => OpName, variables => Vars}.
+change_room_config(Room, RoomConfig, Config) ->
+    Vars = #{room => jid:to_binary(Room), config => RoomConfig},
+    execute_command(<<"muc">>, <<"changeRoomConfiguration">>, Vars, Config).
 
-admin_list_rooms_body(MUCDomain, From, Limit, Index) ->
-    Query = <<"query Q1($mucDomain: String!, $from: JID, $limit: Int, $index: Int)
-              { muc { listRooms(mucDomain: $mucDomain, from: $from, limit: $limit, index: $index)
-              { rooms { jid title private usersNumber } count index first last} } }">>,
-    OpName = <<"Q1">>,
+list_rooms(MUCDomain, From, Limit, Index, Config) ->
     Vars = #{mucDomain => MUCDomain, from => user_to_bin(From), limit => Limit, index => Index},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"listRooms">>, Vars, Config).
 
-get_room_config_body(Room) ->
-    Query = <<"query Q1($room: JID!)
-              { muc { getRoomConfig(room: $room)
-              { title description allowChangeSubject allowQueryUsers allowPrivateMessages
-                allowVisitorStatus allowVisitorNickchange public publicList persistent
-                moderated membersByDefault membersOnly allowUserInvites allowMultipleSession
-                passwordProtected password anonymous mayGetMemberList maxUsers logging } } }">>,
-    OpName = <<"Q1">>,
+get_room_config(Room, Config) ->
     Vars = #{room => jid:to_binary(Room)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"getRoomConfig">>, Vars, Config).
 
-list_room_users_body(RoomJID) ->
-    Query = <<"query Q1($room: JID!)
-              { muc { listRoomUsers(room: $room)
-              { jid nick role } } }">>,
-    OpName = <<"Q1">>,
+list_room_users(RoomJID, Config) ->
     Vars = #{room => jid:to_binary(RoomJID)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"listRoomUsers">>, Vars, Config).
 
-get_room_messages_body(RoomJID, PageSize, Before) ->
-    Query = <<"query Q1($room: JID!, $pageSize: Int, $before: DateTime)
-              { muc { getRoomMessages(room: $room, pageSize: $pageSize, before: $before)
-              { stanzas { stanza } limit } } }">>,
-    OpName = <<"Q1">>,
+get_room_messages(RoomJID, PageSize, Before, Config) ->
     Vars = #{<<"room">> => jid:to_binary(RoomJID), <<"pageSize">> => PageSize,
              <<"before">> => Before},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"getRoomMessages">>, Vars, Config).
 
-user_list_rooms_body(MUCDomain, Limit, Index) ->
-    Query = <<"query Q1($mucDomain: String!, $limit: Int, $index: Int)
-              { muc { listRooms(mucDomain: $mucDomain, limit: $limit, index: $index)
-              { rooms { jid title private usersNumber } count index first last} } }">>,
-    OpName = <<"Q1">>,
-    Vars = #{mucDomain => MUCDomain, limit => Limit, index => Index},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-user_send_message_to_room_body(Room, Body, Resource) ->
-    Query = <<"mutation M1($room: JID!, $body: String!, $resource: String)
-              { muc { sendMessageToRoom(room: $room, body: $body, resource: $resource) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), body => Body, resource => Resource},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-user_send_private_message_body(Room, Body, ToNick, Resource) ->
-    Query = <<"mutation M1($room: JID!, $body: String!, $toNick: String!, $resource: String)
-              { muc { sendPrivateMessage(room: $room, body: $body, toNick: $toNick, resource: $resource) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), body => Body, toNick => ToNick, resource => Resource},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-
-user_create_instant_room_body(MUCDomain, Name, Nick) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $nick: String!)
-              { muc { createInstantRoom(mucDomain: $mucDomain, name: $name, nick: $nick)
-              { jid title private usersNumber } } }">>,
-    OpName = <<"M1">>,
-    Vars = #{mucDomain => MUCDomain, name => Name, nick => Nick},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-user_invite_user_body(Room, Recipient, Reason) ->
-    Query = <<"mutation M1($room: JID!, $recipient: JID!, $reason: String)
-              { muc { inviteUser(room: $room, recipient: $recipient, reason: $reason) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), recipient => user_to_bin(Recipient), reason => Reason},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-set_user_affiliation_body(Room, User, Aff) ->
-    Query = <<"mutation M1($room: JID!, $user: JID!, $affiliation: MUCAffiliation!)
-               { muc { setUserAffiliation(room: $room, user: $user, affiliation: $affiliation) } }">>,
-    OpName = <<"M1">>,
+set_user_affiliation(Room, User, Aff, Config) ->
     Vars = #{room => jid:to_binary(Room), user => user_to_bin(User),
              affiliation => atom_to_enum_item(Aff)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"setUserAffiliation">>, Vars, Config).
 
-set_user_role_body(Room, User, Role) ->
-    Query = <<"mutation M1($room: JID!, $nick: String!, $role: MUCRole!)
-               { muc { setUserRole(room: $room, nick: $nick, role: $role) } }">>,
-    OpName = <<"M1">>,
+set_user_role(Room, User, Role, Config) ->
     Vars = #{room => jid:to_binary(Room), nick => user_to_bin(User),
              role => atom_to_enum_item(Role)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"setUserRole">>, Vars, Config).
 
-user_enter_room_body(Room, Nick, Resource, Password) ->
-    Query = <<"mutation M1($room: JID!, $nick: String!, $resource: String!, $password: String)
-               { muc { enterRoom(room: $room, nick: $nick, resource: $resource, password: $password) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), resource => Resource, password => Password, nick => Nick},
-    #{query => Query, operationName => OpName, variables => Vars}.
+exit_room(Room, User, Nick, Config) ->
+    Vars = #{room => jid:to_binary(Room), user => user_to_full_bin(User), nick => Nick},
+    execute_command(<<"muc">>, <<"exitRoom">>, Vars, Config).
 
-user_exit_room_body(Room, Nick, Resource) ->
-    Query = <<"mutation M1($room: JID!, $nick: String!, $resource: String!)
-               { muc { exitRoom(room: $room, nick: $nick, resource: $resource) } }">>,
-    OpName = <<"M1">>,
-    Vars = #{room => jid:to_binary(Room), resource => Resource, nick => Nick},
-    #{query => Query, operationName => OpName, variables => Vars}.
-
-list_room_affiliations_body(Room, Aff) ->
-    Query = <<"query Q1($room: JID!, $affiliation: MUCAffiliation)
-               { muc { listRoomAffiliations(room: $room, affiliation: $affiliation)
-               { jid affiliation } } }">>,
-    OpName = <<"Q1">>,
+list_room_affiliations(Room, Aff, Config) ->
     Vars = #{room => jid:to_binary(Room), affiliation => atom_to_enum_item(Aff)},
-    #{query => Query, operationName => OpName, variables => Vars}.
+    execute_command(<<"muc">>, <<"listRoomAffiliations">>, Vars, Config).
+
+user_kick_user(User, Room, Nick, Reason, Config) ->
+    Vars = #{room => jid:to_binary(Room), nick => Nick, reason => Reason},
+    execute_user_command(<<"muc">>, <<"kickUser">>, User, Vars, Config).
+
+user_enter_room(User, Room, Nick, Resource, Password, Config) ->
+    Vars = #{room => jid:to_binary(Room), nick => Nick, resource => Resource, password => Password},
+    execute_user_command(<<"muc">>, <<"enterRoom">>, User, Vars, Config).
+
+user_get_room_messages(User, RoomJID, PageSize, Before, Config) ->
+    Vars = #{<<"room">> => jid:to_binary(RoomJID), <<"pageSize">> => PageSize,
+             <<"before">> => Before},
+    execute_user_command(<<"muc">>, <<"getRoomMessages">>, User, Vars, Config).
+
+user_delete_room(User, Room, Reason, Config) ->
+    Vars = #{room => jid:to_binary(Room), reason => Reason},
+    execute_user_command(<<"muc">>, <<"deleteRoom">>, User, Vars, Config).
+
+user_change_room_config(User, Room, RoomConfig, Config) ->
+    Vars = #{room => jid:to_binary(Room), config => RoomConfig},
+    execute_user_command(<<"muc">>, <<"changeRoomConfiguration">>, User, Vars, Config).
+
+user_list_rooms(User, MUCDomain, Limit, Index, Config) ->
+    Vars = #{mucDomain => MUCDomain, limit => Limit, index => Index},
+    execute_user_command(<<"muc">>, <<"listRooms">>, User, Vars, Config).
+
+user_get_room_config(User, Room, Config) ->
+    Vars = #{room => jid:to_binary(Room)},
+    execute_user_command(<<"muc">>, <<"getRoomConfig">>, User, Vars, Config).
+
+user_list_room_users(User, RoomJID, Config) ->
+    Vars = #{room => jid:to_binary(RoomJID)},
+    execute_user_command(<<"muc">>, <<"listRoomUsers">>, User, Vars, Config).
+
+user_send_message_to_room(User, Room, Body, Resource, Config) ->
+    Vars = #{room => jid:to_binary(Room), body => Body, resource => Resource},
+    execute_user_command(<<"muc">>, <<"sendMessageToRoom">>, User, Vars, Config).
+
+user_send_private_message(User, Room, Body, ToNick, Resource, Config) ->
+    Vars = #{room => jid:to_binary(Room), body => Body, toNick => ToNick, resource => Resource},
+    execute_user_command(<<"muc">>, <<"sendPrivateMessage">>, User, Vars, Config).
+
+user_create_instant_room(User, MUCDomain, Name, Nick, Config) ->
+    Vars = #{mucDomain => MUCDomain, name => Name, nick => Nick},
+    execute_user_command(<<"muc">>, <<"createInstantRoom">>, User, Vars, Config).
+
+user_invite_user(User, Room, Recipient, Reason, Config) ->
+    Vars = #{room => jid:to_binary(Room), recipient => user_to_bin(Recipient), reason => Reason},
+    execute_user_command(<<"muc">>, <<"inviteUser">>, User, Vars, Config).
+
+user_set_user_affiliation(User, Room, QueriedUser, Aff, Config) ->
+    Vars = #{room => jid:to_binary(Room), user => user_to_bin(QueriedUser),
+             affiliation => atom_to_enum_item(Aff)},
+    execute_user_command(<<"muc">>, <<"setUserAffiliation">>, User, Vars, Config).
+
+user_set_user_role(User, Room, QueriedUser, Role, Config) ->
+    Vars = #{room => jid:to_binary(Room), nick => user_to_bin(QueriedUser),
+             role => atom_to_enum_item(Role)},
+    execute_user_command(<<"muc">>, <<"setUserRole">>, User, Vars, Config).
+
+user_exit_room(User, Room, Nick, Resource, Config) ->
+    Vars = #{room => jid:to_binary(Room), resource => Resource, nick => Nick},
+    execute_user_command(<<"muc">>, <<"exitRoom">>, User, Vars, Config).
+
+user_list_room_affiliations(User, Room, Aff, Config) ->
+    Vars = #{room => jid:to_binary(Room), affiliation => atom_to_enum_item(Aff)},
+    execute_user_command(<<"muc">>, <<"listRoomAffiliations">>, User, Vars, Config).

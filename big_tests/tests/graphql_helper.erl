@@ -5,6 +5,7 @@
 -import(distributed_helper, [mim/0, rpc/4]).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
 -spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
@@ -115,6 +116,11 @@ get_err_code(Resp) ->
 get_err_msg(Resp) ->
     get_err_msg(1, Resp).
 
+get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
+    assert_response_code(bad_request, Code),
+    ?assertEqual(<<"input_coercion">>, get_value([extensions, code], Error)),
+    get_value([message], Error).
+
 get_err_msg(N, Resp) ->
     get_value([message], get_error(N, Resp)).
 
@@ -122,11 +128,19 @@ get_error(N, {Code, #{<<"errors">> := Errors}}) ->
     assert_response_code(error, Code),
     lists:nth(N, Errors).
 
+%% Expect both errors and successful responses
+get_err_value(Path, {Code, Data}) ->
+    assert_response_code(error, Code),
+    get_value(Path, Data).
+
 get_ok_value(Path, {Code, Data}) ->
     assert_response_code(ok, Code),
     get_value(Path, Data).
 
-assert_response_code(_, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(bad_request, {<<"400">>, <<"Bad Request">>}) -> ok;
+assert_response_code(error, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(ok, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(bad_request, {exit_status, 1}) -> ok;
 assert_response_code(error, {exit_status, 1}) -> ok;
 assert_response_code(ok, {exit_status, 0}) -> ok;
 assert_response_code(Type, Code) ->
