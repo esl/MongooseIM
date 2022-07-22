@@ -2,37 +2,38 @@
 
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
+-include("mongoose.hrl").
 
 -export([revoke_token_command/1, create_token/1]).
 
 -import(mod_auth_token, [token/3, serialize/1]).
 
--spec revoke_token_command(User) -> ResTuple when
+-spec revoke_token_command(User) -> Result when
     User :: jid:jid(),
-    ResCode :: ok | not_found | internal_server_error,
-    ResTuple :: {ResCode, string()}.
+    Reason :: {not_found | internal_server_error, string()},
+    Result :: {ok, string()} | {error, Reason}.
 revoke_token_command(User) ->
     #jid{lserver = LServer} = Jid = convert_user(User),
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             try mod_auth_token:revoke(HostType, Jid) of
                 not_found ->
-                    {not_found, "User or token not found."};
+                    {error, {not_found, "User or token not found."}};
                 ok ->
                     {ok, "Revoked."};
                 error ->
-                    {internal_server_error, "Internal server error."}
+                    {error, {internal_server_error, "Internal server error."}}
             catch _:_ ->
-                    {internal_server_error, "Internal server error."}
+                {error, {internal_server_error, "Internal server error."}}
             end;
         _ ->
-            {not_found, "User or token not found."}
+            {error, {not_found, "Unknown domain"}}
     end.
 
--spec create_token(User) -> ResTuple when
+-spec create_token(User) -> Result when
     User :: jid:jid(),
-    ResCode :: ok | internal_server_error | not_found,
-    ResTuple :: {ResCode, string() | #{binary() => string()}}.
+    Reason :: {not_found | internal_server_error, string()},
+    Result :: {ok, #{binary() => string()}} | {error, Reason}.
 create_token(User) ->
     #jid{lserver = LServer} = Jid = convert_user(User),
     case mongoose_domain_api:get_domain_host_type(LServer) of
@@ -41,10 +42,10 @@ create_token(User) ->
                 {#token{} = AccessToken, #token{} = RefreshToken} ->
                     {ok, #{<<"access">> => serialize(AccessToken),
                            <<"refresh">> => serialize(RefreshToken)}};
-                _ -> {internal_server_error, "Internal server errror."}
+                _ -> {error, {internal_server_error, "Internal server errror."}}
             end;
         _ ->
-            {not_found, "User or token not found."}
+            {error, {not_found, "Unknown domain"}}
     end.
 
 convert_user(User) when is_binary(User) ->

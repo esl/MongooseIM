@@ -20,12 +20,12 @@
  request_token(JID) ->
     case mod_auth_token_api:create_token(JID) of
         {ok, _} = Result -> Result;
-        Error -> make_error(Error, #{user => JID})
+        {error, Error} -> make_error(Error, #{user => JID})
     end.
 
  -spec revoke_token(jid:jid()) -> {ok, string()} | {error, resolver_error()}.
  revoke_token(JID) ->
     case mod_auth_token_api:revoke_token_command(JID) of
         {ok, _} = Result -> Result;
-        Error -> make_error(Error, #{user => JID})
+        {error, Error} -> make_error(Error, #{user => JID})
     end.
