@@ -71,4 +71,6 @@ type AdminMutation @protected{
   offline: OfflineAdminMutation
   "OAUTH token management"
   token: TokenAdminMutation
+  "Mnesia management"
+  mnesia: MnesiaAdminMutation
 }

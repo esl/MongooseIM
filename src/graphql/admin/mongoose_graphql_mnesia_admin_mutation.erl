@@ -1,0 +1,23 @@
+-module(mongoose_graphql_mnesia_admin_mutation).
+-behaviour(mongoose_graphql).
+
+-export([execute/4]).
+
+-import(mongoose_graphql_helper, [make_error/2]).
+
+-ignore_xref([execute/4]).
+
+-include("../mongoose_graphql_types.hrl").
+-include("mongoose.hrl").
+-include("jlib.hrl").
+
+execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
+    case mnesia_api:set_master(Node) of
+        {ok, _} -> {ok, "Master node set"};
+        {error, Reason} -> make_error({error, Reason}, #{node => Node})
+    end;
+execute(_Ctx, mnesia, <<"installFallback">>, #{<<"path">> := Path}) ->
+    case mnesia_api:install_fallback_mnesia(Path) of
+        {ok, _} -> {ok, "Fallback installed"};
+        Error -> make_error(Error, #{path => Path})
+    end.
