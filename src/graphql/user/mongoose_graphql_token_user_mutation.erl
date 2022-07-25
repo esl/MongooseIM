@@ -7,7 +7,7 @@
 
  -include("../mongoose_graphql_types.hrl").
 
- -import(mongoose_graphql_helper, [null_to_default/2, make_error/2]).
+ -import(mongoose_graphql_helper, [make_error/2]).
 
  -type token_info() :: map().
  -type args() :: mongoose_graphql:args().

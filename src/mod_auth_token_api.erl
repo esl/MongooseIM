@@ -23,7 +23,9 @@ revoke_token_command(User) ->
                     {ok, "Revoked."};
                 error ->
                     {error, {internal_server_error, "Internal server error."}}
-            catch _:_ ->
+            catch Class:Reason:Stacktrace ->
+                ?LOG_ERROR(#{what => auth_token_revoke_failed,
+                             class => Class, reason => Reason, stacktrace => Stacktrace}),
                 {error, {internal_server_error, "Internal server error."}}
             end;
         _ ->

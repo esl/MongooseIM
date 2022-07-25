@@ -7,7 +7,7 @@
 
  -include("../mongoose_graphql_types.hrl").
 
- -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
+ -import(mongoose_graphql_helper, [make_error/2]).
 
  -type token_info() :: map().
 

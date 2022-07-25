@@ -31,6 +31,9 @@
 -export([deserialize/1,
          serialize/1]).
 
+%% Command-line interface
+-export([revoke_token_command/1]).
+
 %% Test only!
 -export([datetime_to_seconds/1,
          seconds_to_datetime/1]).
@@ -130,7 +133,7 @@ validity_period_spec() ->
 commands() ->
     [#ejabberd_commands{ name = revoke_token, tags = [tokens],
                          desc = "Revoke REFRESH token",
-                         module = mod_auth_token_api, function = revoke_token_command,
+                         module = ?MODULE, function = revoke_token_command,
                          args = [{owner, binary}], result = {res, restuple} }].
 
 %%
@@ -411,6 +414,16 @@ get_key_for_host_type(HostType, TokenType) ->
 key_name(access)    -> token_secret;
 key_name(refresh)   -> token_secret;
 key_name(provision) -> provision_pre_shared.
+
+-spec revoke_token_command(Owner) -> ResTuple when
+      Owner :: jid:jid(),
+      ResCode :: ok | not_found | error,
+      ResTuple :: {ResCode, string()}.
+revoke_token_command(Owner) ->
+    case mod_auth_token_api:revoke_token_command(Owner) of
+        {ok, _} = Result -> Result;
+        {error, Error} -> Error
+    end.
 
 -spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) ->
           mongoose_acc:t().
