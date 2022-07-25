@@ -13,7 +13,7 @@ type AdminQuery{
   "Account management"
   account: AccountAdminQuery
   "Domain management"
-  domains: DomainAdminQuery
+  domain: DomainAdminQuery
   "Last activity management"
   last: LastAdminQuery
   "MUC room management"
@@ -33,7 +33,7 @@ type AdminQuery{
   "Metrics management"
   metric: MetricAdminQuery
   "Statistics"
-  stats: StatsAdminQuery
+  stat: StatsAdminQuery
   "Personal data management according to GDPR"
   gdpr: GdprAdminQuery
 }
@@ -46,7 +46,7 @@ type AdminMutation @protected{
   "Account management"
   account: AccountAdminMutation
   "Domain management"
-  domains: DomainAdminMutation
+  domain: DomainAdminMutation
   "Inbox bin management"
   inbox: InboxAdminMutation
   "Last activity management"
