@@ -1583,7 +1583,7 @@ get_personal_data_via_rpc(Client, ExpectedKeys) ->
     ClientU = escalus_utils:jid_to_lower(escalus_client:username(Client)),
     ClientS = escalus_utils:jid_to_lower(escalus_client:server(Client)),
     AllPersonalData = mongoose_helper:successful_rpc(
-                        service_admin_extra_gdpr, get_data_from_modules, [ClientU, ClientS]),
+                        gdpr_api, get_data_from_modules, [ClientU, ClientS]),
     %% We don't use lists:filter/2 because this line also ensures order
     [ lists:keyfind(Key, 1, AllPersonalData) || Key <- ExpectedKeys ].
 

@@ -43,8 +43,6 @@
          find_connection/2,
          dirty_get_connections/0,
          allow_host/2,
-         incoming_s2s_number/0,
-         outgoing_s2s_number/0,
          domain_utf8_to_ascii/1,
          timeout/0,
          lookup_certfile/1
@@ -516,25 +514,16 @@ commands() ->
      #ejabberd_commands{name = incoming_s2s_number,
                        tags = [stats, s2s],
                        desc = "Number of incoming s2s connections on the node",
-                       module = ?MODULE, function = incoming_s2s_number,
+                       module = stats_api, function = incoming_s2s_number,
                        args = [],
                        result = {s2s_incoming, integer}},
      #ejabberd_commands{name = outgoing_s2s_number,
                        tags = [stats, s2s],
                        desc = "Number of outgoing s2s connections on the node",
-                       module = ?MODULE, function = outgoing_s2s_number,
+                       module = stats_api, function = outgoing_s2s_number,
                        args = [],
                        result = {s2s_outgoing, integer}}
     ].
-
--spec incoming_s2s_number() -> non_neg_integer().
-incoming_s2s_number() ->
-    length(supervisor:which_children(ejabberd_s2s_in_sup)).
-
--spec outgoing_s2s_number() -> non_neg_integer().
-outgoing_s2s_number() ->
-    length(supervisor:which_children(ejabberd_s2s_out_sup)).
-
 
 %% Check if host is in blacklist or white list
 allow_host(MyServer, S2SHost) ->
