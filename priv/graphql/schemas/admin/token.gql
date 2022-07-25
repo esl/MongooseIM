@@ -1,0 +1,9 @@
+"""
+ Allow admin to get and revoke user's auth tokens
+ """
+ type TokenAdminMutation @protected {
+    "Request auth token for an user"
+    requestToken(user: JID!): Token
+    "Revoke any tokens for an user"
+    revokeToken(user: JID!): String
+ }

@@ -416,21 +416,13 @@ key_name(refresh)   -> token_secret;
 key_name(provision) -> provision_pre_shared.
 
 -spec revoke_token_command(Owner) -> ResTuple when
-      Owner :: binary(),
+      Owner :: jid:jid(),
       ResCode :: ok | not_found | error,
       ResTuple :: {ResCode, string()}.
 revoke_token_command(Owner) ->
-    #jid{lserver = LServer} = Jid = jid:from_binary(Owner),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    try revoke(HostType, Jid) of
-        not_found ->
-            {not_found, "User or token not found."};
-        ok ->
-            {ok, "Revoked."};
-        error ->
-            {error, "Internal server error"}
-    catch _:_ ->
-            {error, "Internal server error"}
+    case mod_auth_token_api:revoke_token_command(Owner) of
+        {ok, _} = Result -> Result;
+        {error, Error} -> Error
     end.
 
 -spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) ->

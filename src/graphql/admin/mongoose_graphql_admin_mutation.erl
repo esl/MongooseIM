@@ -30,4 +30,6 @@ execute(_Ctx, _Obj, <<"session">>, _Args) ->
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, stanza};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
-    {ok, vcard}.
+    {ok, vcard};
+execute(_Ctx, _Obj, <<"token">>, _Args) ->
+    {ok, token}.

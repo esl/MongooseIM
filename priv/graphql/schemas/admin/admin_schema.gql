@@ -69,4 +69,6 @@ type AdminMutation @protected{
   httpUpload: HttpUploadAdminMutation
   "Offline deleting old messages"
   offline: OfflineAdminMutation
+  "OAUTH token management"
+  token: TokenAdminMutation
 }
