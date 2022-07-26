@@ -76,10 +76,10 @@ config_spec() ->
 jwt_secret_config_spec() ->
     #section{
        items = #{<<"file">> => #option{type = string,
-                                       validate = non_empty},
+                                       validate = filename},
                  <<"env">> => #option{type = string,
                                       validate = non_empty},
-                 <<"value">> => #option{type = string}},
+                 <<"value">> => #option{type = binary}},
        format_items = list,
        process = fun ?MODULE:process_jwt_secret/1
       }.
@@ -162,6 +162,7 @@ supported_features() -> [dynamic_domains].
 
 % A direct path to a file is read only once during startup,
 % a path in environment variable is read on every auth request.
+-spec get_jwt_secret(mongooseim:host_type()) -> binary() | {env, string()}.
 get_jwt_secret(HostType) ->
     case mongoose_config:get_opt([{auth, HostType}, jwt, secret]) of
         {value, JWTSecret} ->
