@@ -52,6 +52,7 @@ start(normal, _Args) ->
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
+    mongoose_graphql_commands:start(),
     mongoose_config:start(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
@@ -89,6 +90,7 @@ prep_stop(State) ->
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
     mongoose_config:stop(),
+    mongoose_graphql_commands:stop(),
     State.
 
 %% All the processes were killed when this function is called

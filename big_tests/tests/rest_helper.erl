@@ -1,37 +1,7 @@
 -module(rest_helper).
 -author("bartekgorny").
 
-%% API
--export([
-    assert_inlist/2,
-    assert_notinlist/2,
-    assert_status/2,
-    decode_maplist/1,
-    gett/2,
-    gett/3,
-    post/3,
-    post/4,
-    putt/3,
-    putt/4,
-    delete/2,
-    delete/3,
-    delete/4,
-    make_request/1,
-    simple_request/2,
-    simple_request/3,
-    simple_request/4,
-    maybe_enable_mam/3,
-    maybe_skip_mam_test_cases/3,
-    fill_archive/2,
-    fill_room_archive/3,
-    make_timestamp/2,
-    change_admin_creds/1,
-    make_msg_stanza_with_props/2,
-    make_malformed_msg_stanza_with_props/2,
-    make_msg_stanza_with_thread_and_parent/4,
-    make_msg_stanza_with_thread/3,
-    make_msg_stanza_without_thread/2
-]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,

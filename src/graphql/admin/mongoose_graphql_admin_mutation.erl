@@ -7,7 +7,7 @@
 
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
-execute(_Ctx, _Obj, <<"domains">>, _Args) ->
+execute(_Ctx, _Obj, <<"domain">>, _Args) ->
     {ok, admin};
 execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
     {ok, httpUpload};
