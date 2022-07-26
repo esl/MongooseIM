@@ -1,0 +1,15 @@
+"""
+Allow admin to manage mnesia database
+"""
+
+type MnesiaAdminMutation {
+    setMaster(node: String!): String
+    mnesiaChangeNodename(fromString: String!, toString: String!,
+                         source: String!, target: String!): String
+    backup(path: String!): String
+    restore(path: String!): String
+    dump(path: String!): String
+    dumpTable(path: String!): String
+    load(path: String!): String
+    installFallback(path: String!): String
+}
