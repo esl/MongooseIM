@@ -1,0 +1,63 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
+directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
+  on FIELD_DEFINITION | OBJECT | INTERFACE
+
+enum ProtectionType{
+  DOMAIN
+  GLOBAL
+  DEFAULT
+}
+
+directive @use(modules: [String!] = [], services: [String!] = [], arg: String) on FIELD_DEFINITION | OBJECT
+
+type UserQuery {
+  catA: Category
+  catB: CategoryB
+  catC: CategoryC
+}
+
+type Category @protected {
+  command(domain: String): String
+    @use(modules: ["mod_b"], arg: "domain")
+  command2(domain: String): String
+    @use(modules: ["mod_b"], services: ["service_a", "service_b"], arg: "domain")
+  command3(domain: String): String
+    @use(modules: ["mod_a", "mod_z"], services: ["service_a", "service_d"], arg: "domain")
+  protectedCmd: String
+    @protected
+  domainProtectedCmd(domain: String): String
+    @protected(type: DOMAIN, args: ["domain"])
+  globalProtectedCmd: String
+    @protected(type: GLOBAL)
+}
+
+type CategoryB
+  @use(modules: ["mod_x"], services: ["service_x"])
+  @protected {
+  command(domain: String): String
+    @use(modules: ["mod_a"], arg: "domain")
+  command2(domain: String): String
+    @use(modules: ["mod_b"], services: ["service_a"], arg: "domain")
+  command3: String 
+    @use
+}
+
+type CategoryC
+  @use(modules: ["mod_a"], services: ["service_a"])
+  @protected {
+  command(domain: String): String
+    @use(modules: ["mod_b"], arg: "domain")
+  command2(domain: String): String
+    @use(modules: ["mod_b"])
+  command3(domain: String): String
+    @use(modules: ["mod_x"], services: ["service_x"], arg: "domain")
+}
+
+type UserMutation @protected{
+  field: String
+}
+
