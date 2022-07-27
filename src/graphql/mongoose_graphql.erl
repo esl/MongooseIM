@@ -79,8 +79,8 @@ execute(Ep, #{document := Doc,
                     operation_name => OpName,
                     authorized => AuthStatus,
                     error_module => mongoose_graphql_errors},
-        ok = mongoose_graphql_permissions:check_permissions(Ctx2, Ast2),
-        {ok, graphql:execute(Ep, Ctx2, Ast2)}
+        Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
+        {ok, graphql:execute(Ep, Ctx2, Ast3)}
     catch
         throw:{error, Err} ->
             {error, Err};
