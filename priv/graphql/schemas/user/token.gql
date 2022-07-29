@@ -1,0 +1,9 @@
+"""
+ Allow user to get and revoke tokens.
+ """
+ type TokenUserMutation @protected{
+   "Get a new token"
+   requestToken: Token
+   "Revoke any tokens"
+   revokeToken: String
+ }

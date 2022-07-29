@@ -1,0 +1,4 @@
+type Token {
+   access: String
+   refresh: String
+ }

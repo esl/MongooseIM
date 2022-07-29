@@ -839,12 +839,12 @@ auth_jwt(_Config) ->
              <<"algorithm">> => <<"HS512">>,
              <<"username_key">> => <<"user">>}, % tested together as all options are required
     Config = #{algorithm => <<"HS512">>,
-               secret => {value, "secret123"},
+               secret => {value, <<"secret123">>},
                username_key => user},
     ?cfgh([auth, jwt], Config,
           auth_raw(<<"jwt">>, Opts)),
-    ?cfgh([auth, jwt, secret], {file, "/home/user/jwt_secret"},
-          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}})),
+    ?cfgh([auth, jwt, secret], {file, "priv/jwt_secret"},
+          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"priv/jwt_secret">>}})),
     ?cfgh([auth, jwt, secret], {env, "SECRET"},
           auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
@@ -3165,6 +3165,7 @@ create_files(Config) ->
     [ensure_copied(filename:join(Root, From), To) || {From, To} <- files_to_copy()],
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
+    ok = file:write_file("priv/jwt_secret", "secret123"),
     ok = filelib:ensure_dir("www/muc/dummy").
 
 ensure_copied(From, To) ->

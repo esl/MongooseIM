@@ -710,7 +710,7 @@ extra_auth() ->
       external => #{instances => 1,
                     program => "/usr/bin/authenticator"},
       jwt => #{algorithm => <<"RS256">>,
-               secret => {value, "secret123"},
+               secret => {value, <<"secret123">>},
                username_key => user},
       ldap => #{base => <<"ou=Users,dc=esl,dc=com">>,
                 bind_pool_tag => bind,

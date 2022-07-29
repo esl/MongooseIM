@@ -1,0 +1,5 @@
+"Retrieve user's presonal data"
+type GdprAdminQuery {
+    "Retrieves all personal data from MongooseIM for a given user"
+    retrievePersonalData(username: String!, domain: String!, resultFilepath: String!): String
+}

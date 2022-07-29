@@ -323,8 +323,8 @@ does_user_exist(Status, _, _, _) ->
 -spec does_stored_user_exist(mongooseim:host_type(), jid:jid() | error) ->
           boolean() | {error, any()}.
 does_stored_user_exist(HostType, #jid{luser = LUser, lserver = LServer}) ->
-    F = fun(Mod) when Mod =/= ejabberd_auth_anonymous ->
-                does_user_exist_in_module(HostType, LUser, LServer, Mod)
+    F = fun(ejabberd_auth_anonymous) -> continue;
+           (Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod)
         end,
     call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist});
 does_stored_user_exist(_HostType, error) ->

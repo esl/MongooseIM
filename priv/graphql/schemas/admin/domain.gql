@@ -1,5 +1,5 @@
 type DomainAdminQuery @protected{
-  "Get all enabled domains by hostType"
+  "Get all enabled domains by hostType. Only for global admin"
   domainsByHostType(hostType: String!): [String!]
     @protected(type: GLOBAL)
   "Get information about the domain"
@@ -8,22 +8,22 @@ type DomainAdminQuery @protected{
 }
 
 type DomainAdminMutation @protected{
-  "Add new domain"
+  "Add new domain. Only for global admin"
   addDomain(domain: String!, hostType: String!): Domain
     @protected(type: GLOBAL)
-  "Remove domain"
+  "Remove domain. Only for global admin"
   removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
     @protected(type: GLOBAL)
-  "Enable domain"
+  "Enable domain. Only for global admin"
   enableDomain(domain: String!): Domain
     @protected(type: GLOBAL)
-  "Disable domain"
+  "Disable domain. Only for global admin"
   disableDomain(domain: String!): Domain
     @protected(type: GLOBAL)
   "Create or update domain admin password"
   setDomainPassword(domain: String!, password: String!): String
     @protected(type: DOMAIN, args: ["domain"])
-  "Delete domain admin password"
+  "Delete domain admin password. Only for global admin"
   deleteDomainPassword(domain: String!): String
     @protected(type: GLOBAL)
 }

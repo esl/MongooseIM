@@ -142,6 +142,7 @@ offline_message_is_stored_and_delivered_at_login(Config) ->
         fun(FreshConfig, Alice, Bob) ->
                 logout(FreshConfig, Bob),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"msgtxt">>)),
+                wait_for_n_offline_messages(Bob, 1),
                 NewBob = login_send_presence(FreshConfig, bob),
                 Stanzas = escalus:wait_for_stanzas(NewBob, 2),
                 escalus_new_assert:mix_match

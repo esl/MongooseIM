@@ -48,7 +48,7 @@ type UserPayload{
 "Check password correctness payload"
 type CheckPasswordPayload{
   "Status of the password correctness"
-  correct: Bool!
+  correct: Boolean!
   "Result message"
   message: String!
 }
@@ -56,7 +56,7 @@ type CheckPasswordPayload{
 "Check user existence payload"
 type CheckUserPayload{
   "Status of the user existence"
-  exist: Bool!
+  exist: Boolean!
   "Result message"
   message: String!
 }

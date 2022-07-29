@@ -2,17 +2,13 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [require_rpc_nodes/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0, domain/0]).
--import(graphql_helper, [execute_user/3, execute_auth/2, user_to_bin/1]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1]).
 -import(config_parser_helper, [mod_config/2]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
--include_lib("escalus/include/escalus.hrl").
--include("../../include/mod_roster.hrl").
 
 -record(offline_msg, {us, timestamp, expire, from, to, packet, permanent_fields = []}).
 
@@ -20,14 +16,20 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
+    [{group, admin_http},
+     {group, admin_cli}].
+
+groups() ->
+    [{admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {admin_offline, [], admin_offline_tests()},
+     {admin_offline_not_configured, [], admin_offline_not_configured_tests()}].
+
+admin_groups() ->
     [{group, admin_offline},
      {group, admin_offline_not_configured}].
 
-groups() ->
-    [{admin_offline, [], admin_offline_handler()},
-     {admin_offline_not_configured, [], admin_offline_not_configured_handler()}].
-
-admin_offline_handler() ->
+admin_offline_tests() ->
     [admin_delete_expired_messages_test,
      admin_delete_old_messages_test,
      admin_delete_expired_messages2_test,
@@ -35,13 +37,14 @@ admin_offline_handler() ->
      admin_delete_expired_messages_no_domain_test,
      admin_delete_old_messages_no_domain_test].
 
-admin_offline_not_configured_handler() ->
+admin_offline_not_configured_tests() ->
     [admin_delete_expired_messages_offline_not_configured_test,
      admin_delete_old_messages_offline_not_configured_test].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
-    escalus:init_per_suite(Config1).
+    Config2 = ejabberd_node_utils:init(mim(), Config1),
+    escalus:init_per_suite(Config2).
 
 -spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
 create_config(riak) ->
@@ -50,112 +53,99 @@ create_config(riak) ->
 create_config(Backend) ->
     [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 
-
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(admin_http, Config) ->
+    graphql_helper:init_admin_handler(Config);
+init_per_group(admin_cli, Config) ->
+    graphql_helper:init_admin_cli(Config);
 init_per_group(admin_offline, Config) ->
     HostType = host_type(),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
     ModConfig = create_config(Backend),
     dynamic_modules:ensure_modules(HostType, ModConfig),
-    Config1 = [{backend, Backend} | escalus:init_per_suite(Config)],
-    graphql_helper:init_admin_handler(Config1);
+    [{backend, Backend} | escalus:init_per_suite(Config)];
 init_per_group(admin_offline_not_configured, Config) ->
     dynamic_modules:ensure_modules(host_type(), [{mod_offline, stopped}]),
-    graphql_helper:init_admin_handler(Config).
+    Config.
 
+end_per_group(GroupName, _Config) when GroupName =:= admin_http;
+                                       GroupName =:= admin_cli ->
+    graphql_helper:clean();
 end_per_group(_, _Config) ->
-    escalus_fresh:clean().
+    ok.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+    escalus:end_per_testcase(CaseName, Config),
+    escalus_fresh:clean().
 
 % Admin test cases
 
 admin_delete_expired_messages_test(Config) ->
-    Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
-    Message = ok_result(<<"offline">>, <<"deleteExpiredMessages">>, GraphQlRequest),
-    ?assertEqual(<<"Removed 0 messages">>, Message).
+    Result = delete_expired_messages(domain(), Config),
+    ParsedResult = get_ok_value([data, offline, deleteExpiredMessages], Result),
+    ?assertEqual(<<"Removed 0 messages">>, ParsedResult).
 
 admin_delete_old_messages_test(Config) ->
-    Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
-    Message = ok_result(<<"offline">>, <<"deleteOldMessages">>, GraphQlRequest),
-    ?assertEqual(<<"Removed 0 messages">>, Message).
+    Result = delete_old_messages(domain(), 2, Config),
+    ParsedResult = get_ok_value([data, offline, deleteOldMessages], Result),
+    ?assertEqual(<<"Removed 0 messages">>, ParsedResult).
 
 admin_delete_expired_messages2_test(Config) ->
-    escalus:fresh_story_with_config(Config, [{mike, 1}, {kate, 1}], fun admin_delete_expired_messages2_test/3).
+    escalus:fresh_story_with_config(Config, [{mike, 1}, {kate, 1}],
+                                    fun admin_delete_expired_messages2_test/3).
 
 admin_delete_expired_messages2_test(Config, JidMike, JidKate) ->
-    generate_message(JidMike, JidKate, 10, 2),
-    generate_message(JidMike, JidKate, 10, 2),
-    Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
-    Message = ok_result(<<"offline">>, <<"deleteExpiredMessages">>, GraphQlRequest),
-    ?assertEqual(<<"Removed 2 messages">>, Message).
+    generate_message(JidMike, JidKate, 2, 1),
+    generate_message(JidMike, JidKate, 5, -1), % not expired yet
+    Result = delete_expired_messages(domain(), Config),
+    ParsedResult = get_ok_value([data, offline, deleteExpiredMessages], Result),
+    ?assertEqual(<<"Removed 1 messages">>, ParsedResult).
 
 admin_delete_old_messages2_test(Config) ->
-    escalus:fresh_story_with_config(Config, [{mike, 1}, {kate, 1}], fun admin_delete_old_messages2_test/3).
+    escalus:fresh_story_with_config(Config, [{mike, 1}, {kate, 1}],
+                                    fun admin_delete_old_messages2_test/3).
 
 admin_delete_old_messages2_test(Config, JidMike, JidKate) ->
-    generate_message(JidMike, JidKate, 2, 10),
-    generate_message(JidMike, JidKate, 2, 10),
-    Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
-    Message = ok_result(<<"offline">>, <<"deleteOldMessages">>, GraphQlRequest),
-    ?assertEqual(<<"Removed 2 messages">>, Message).
+    generate_message(JidMike, JidKate, 2, 1), % not old enough
+    generate_message(JidMike, JidKate, 5, -1),
+    generate_message(JidMike, JidKate, 7, 5),
+    Result = delete_old_messages(domain(), 3, Config),
+    ParsedResult = get_ok_value([data, offline, deleteOldMessages], Result),
+    ?assertEqual(<<"Removed 2 messages">>, ParsedResult).
 
 admin_delete_expired_messages_no_domain_test(Config) ->
-    Vars = #{<<"domain">> => <<"AAAA">>},
-    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"domain_not_found">>, ParsedResult).
+    Result = delete_expired_messages(<<"AAAA">>, Config),
+    ?assertEqual(<<"domain_not_found">>, get_err_code(Result)).
 
 admin_delete_old_messages_no_domain_test(Config) ->
-    Vars = #{<<"domain">> => <<"AAAA">>, <<"days">> => 2},
-    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"domain_not_found">>, ParsedResult).
+    Result = delete_old_messages(<<"AAAA">>, 2, Config),
+    ?assertEqual(<<"domain_not_found">>, get_err_code(Result)).
 
 admin_delete_expired_messages_offline_not_configured_test(Config) ->
-    Vars = #{<<"domain">> => domain()},
-    GraphQlRequest = admin_delete_expired_messages_mutation(Config, Vars),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
+    Result = delete_expired_messages(domain(), Config),
+    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)).
 
 admin_delete_old_messages_offline_not_configured_test(Config) ->
-    Vars = #{<<"domain">> => domain(), <<"days">> => 2},
-    GraphQlRequest = admin_delete_old_messages_mutation(Config, Vars),
-    ParsedResult = error_result(<<"extensions">>, <<"code">>, GraphQlRequest),
-    ?assertEqual(<<"module_not_loaded_error">>, ParsedResult).
+    Result = delete_old_messages(domain(), 2, Config),
+    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)).
 
-% Helpers
+%% Commands
 
-admin_delete_expired_messages_mutation(Config, Vars) ->
-    Mutation = <<"mutation M1($domain: String!)
-                      {offline{deleteExpiredMessages(domain: $domain)}}">>,
-    admin_send_mutation(Config, Vars, Mutation).
+delete_expired_messages(Domain, Config) ->
+    Vars = #{<<"domain">> => Domain},
+    execute_command(<<"offline">>, <<"deleteExpiredMessages">>, Vars, Config).
 
-admin_delete_old_messages_mutation(Config, Vars) ->
-    Mutation = <<"mutation M1($domain: String!, $days: Int!)
-                      {offline{deleteOldMessages(domain: $domain, days: $days)}}">>,
-    admin_send_mutation(Config, Vars, Mutation).
+delete_old_messages(Domain, Days, Config) ->
+    Vars = #{<<"domain">> => Domain, <<"days">> => Days},
+    execute_command(<<"offline">>, <<"deleteOldMessages">>, Vars, Config).
 
-admin_send_mutation(Config, Vars, Mutation) ->
-    Body = #{query => Mutation, operationName => <<"M1">>, variables => Vars},
-    execute_auth(Body, Config).
-
-error_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Data]}}) ->
-    maps:get(What2, maps:get(What1, Data)).
-
-ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
-    maps:get(What2, maps:get(What1, Data)).
+%% Helpers
 
 generate_message(JidMike, JidKate, TimestampDaysAgo, TimestampExpiringDaysAgo) ->
     JidRecordMike = jid:from_binary(user_to_bin(JidMike)),

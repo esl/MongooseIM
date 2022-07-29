@@ -22,7 +22,7 @@ type InboxAdminMutation @use(modules: ["mod_inbox"]) @protected{
   flushGlobalBin(
     "Required to identify the DB backend"
     hostType: String!,
-    "Remove older than given days or all if null"
+    "Remove older than given days or all if null. Only for global admin"
     days: PosInt
   ): Int @use(arg: "hostType") @protected(type: GLOBAL)
 }
