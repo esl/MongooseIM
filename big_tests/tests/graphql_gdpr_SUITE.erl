@@ -18,11 +18,11 @@ all() ->
      {group, admin_gdpr_cli}].
 
 groups() ->
-    [{admin_gdpr_http, [], admin_stats_handler()},
-     {admin_gdpr_cli, [], admin_stats_handler()}].
+    [{admin_gdpr_http, [], admin_stats_tests()},
+     {admin_gdpr_cli, [], admin_stats_tests()}].
 
-admin_stats_handler() ->
-    [admin_gdpr_test,
+admin_stats_tests() ->
+    [admin_retrive_user_data,
      admin_gdpr_no_user_test].
 
 init_per_suite(Config) ->
@@ -50,10 +50,10 @@ end_per_testcase(CaseName, Config) ->
 
 % Admin test cases
 
-admin_gdpr_test(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_test/2).
+admin_retrive_user_data(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_retrive_user_data/2).
 
-admin_gdpr_test(Config, Alice) ->
+admin_retrive_user_data(Config, Alice) ->
     Filename = random_filename(Config),
     Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
                                        list_to_binary(Filename), Config),
