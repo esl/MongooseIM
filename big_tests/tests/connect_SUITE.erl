@@ -53,46 +53,46 @@ all() ->
     ].
 
 groups() ->
-    G = [ {c2s_noproc, [], [reset_stream_noproc,
-                            starttls_noproc,
-                            compress_noproc,
-                            bad_xml,
-                            invalid_host,
-                            invalid_stream_namespace,
-                            deny_pre_xmpp_1_0_stream]},
-          {starttls, [], [should_fail_to_authenticate_without_starttls,
-                          should_not_send_other_features_with_starttls_required,
-                          auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
-          {tls, [parallel], auth_bind_pipelined_cases() ++
-                            protocol_test_cases() ++
-                            cipher_test_cases()},
-          {feature_order, [parallel], [stream_features_test,
-                                       tls_authenticate,
-                                       tls_compression_fail,
-                                       tls_compression_authenticate_fail,
-                                       tls_authenticate_compression,
-                                       auth_compression_bind_session,
-                                       auth_bind_compression_session,
-                                       bind_server_generated_resource,
-                                       cannot_connect_with_proxy_header]},
-          {just_tls, tls_groups()},
-          {fast_tls, tls_groups()},
-          {session_replacement, [], [
-                                     same_resource_replaces_session,
-                                     clean_close_of_replaced_session,
-                                     replaced_session_cannot_terminate
-                                    ]},
-          {security, [], [
-                          return_proper_stream_error_if_service_is_not_hidden,
-                          close_connection_if_service_type_is_hidden
-                         ]},
-          {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
-                                             close_connection_if_protocol_violation_after_authentication,
-                                             close_connection_if_protocol_violation_after_binding]},
-          {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
-                                        connect_with_proxy_header]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {c2s_noproc, [], [reset_stream_noproc,
+                       starttls_noproc,
+                       compress_noproc,
+                       bad_xml,
+                       invalid_host,
+                       invalid_stream_namespace,
+                       deny_pre_xmpp_1_0_stream]},
+     {starttls, [], [should_fail_to_authenticate_without_starttls,
+                     should_not_send_other_features_with_starttls_required,
+                     auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
+     {tls, [parallel], auth_bind_pipelined_cases() ++
+      protocol_test_cases() ++
+      cipher_test_cases()},
+     {feature_order, [parallel], [stream_features_test,
+                                  tls_authenticate,
+                                  tls_compression_fail,
+                                  tls_compression_authenticate_fail,
+                                  tls_authenticate_compression,
+                                  auth_compression_bind_session,
+                                  auth_bind_compression_session,
+                                  bind_server_generated_resource,
+                                  cannot_connect_with_proxy_header]},
+     {just_tls, [], tls_groups()},
+     {fast_tls, [], tls_groups()},
+     {session_replacement, [], [
+                                same_resource_replaces_session,
+                                clean_close_of_replaced_session,
+                                replaced_session_cannot_terminate
+                               ]},
+     {security, [], [
+                     return_proper_stream_error_if_service_is_not_hidden,
+                     close_connection_if_service_type_is_hidden
+                    ]},
+     {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
+                                        close_connection_if_protocol_violation_after_authentication,
+                                        close_connection_if_protocol_violation_after_binding]},
+     {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
+                                   connect_with_proxy_header]}
+    ].
 
 tls_groups()->
     [{group, starttls},
@@ -136,7 +136,7 @@ suite() ->
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
-    [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
+    [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
     Config1 = [{c2s_listener, C2SListener} | Config0],
     assert_cert_file_exists(),
     escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
@@ -340,15 +340,15 @@ reset_stream_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = get_connection_pids(),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
     %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
+    simulate_socket_disconnection(C2sPid),
+
     %% ...c2s process receives close and DOWN messages...
     %% Resume
     ok = rpc(mim(), sys, resume, [C2sPid]),
@@ -367,15 +367,14 @@ starttls_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = get_connection_pids(),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
     %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
+    simulate_socket_disconnection(C2sPid),
     %% ...c2s process receives close and DOWN messages...
     %% Resume
     ok = rpc(mim(), sys, resume, [C2sPid]),
@@ -394,8 +393,7 @@ compress_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = get_connection_pids(),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add compress element into message queue of the c2s process
@@ -403,7 +401,7 @@ compress_noproc(Config) ->
     ?assertThrow({timeout, compressed},
                  escalus_session:compress(Conn#client{props = [{compression, <<"zlib">>}|Props]})),
     %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
+    simulate_socket_disconnection(C2sPid),
     %% ...c2s process receives close and DOWN messages...
     %% Resume
     ok = rpc(mim(), sys, resume, [C2sPid]),
@@ -416,6 +414,15 @@ compress_noproc(Config) ->
             ct:fail("c2s_monitor_timeout", [])
     end,
     ok.
+
+get_connection_pids() ->
+    Ref = {5222, {0,0,0,0}, tcp},
+    rpc(mim(), ranch, procs, [Ref, connections]).
+
+simulate_socket_disconnection(C2sPid) ->
+    StateData = mongoose_helper:get_c2s_state_data(C2sPid),
+    C2sSocket = rpc(mim(), mongoose_c2s, get_socket, [StateData]),
+    ok = rpc(mim(), gen_tcp, close, [C2sSocket]).
 
 %% Tests features advertisement
 stream_features_test(Config) ->
@@ -615,8 +622,8 @@ replaced_session_cannot_terminate(Config) ->
     % GIVEN a session that is frozen and cannot terminate
     logger_ct_backend:capture(warning),
     UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
-    {ok, _Alice1, _} = escalus_connection:start(UserSpec),
-    [C2SPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    {ok, Alice1, _} = escalus_connection:start(UserSpec),
+    C2SPid = mongoose_helper:get_session_pid(Alice1),
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     % WHEN a session gets replaced ...
@@ -719,9 +726,12 @@ connect_with_proxy_header(Config) ->
     escalus:assert(is_presence, escalus:wait_for_stanza(Conn)),
 
     %% THEN
-    SessionInfo = mongoose_helper:get_session_info(mim(), Conn),
+    C2SPid = mongoose_helper:get_session_pid(Conn),
+    StateData = mongoose_helper:get_c2s_state_data(C2SPid),
+    IP = rpc(mim(), mongoose_c2s, get_ip, [StateData]),
+
     #{src_address := IPAddr, src_port := Port} = proxy_info(),
-    ?assertMatch({IPAddr, Port}, maps:get(ip, SessionInfo)),
+    ?assertMatch({IPAddr, Port}, IP),
     escalus_connection:stop(Conn).
 
 %%--------------------------------------------------------------------
@@ -832,9 +842,6 @@ default_context(To) ->
     [{version, <<"version='1.0'">>},
      {to, To},
      {stream_ns, ?NS_XMPP}].
-
-children_specs_to_pids(Children) ->
-    [Pid || {_, Pid, _, _} <- Children].
 
 pipeline_connect(UserSpec) ->
     Server = proplists:get_value(server, UserSpec),

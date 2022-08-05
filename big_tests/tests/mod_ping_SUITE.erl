@@ -57,10 +57,10 @@ suite() ->
     escalus:suite().
 
 ping_interval() ->
-    timer:seconds(3).
+    timer:seconds(1).
 
 ping_req_timeout() ->
-    timer:seconds(2).
+    timer:seconds(1) div 2.
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),

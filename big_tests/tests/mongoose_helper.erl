@@ -51,7 +51,7 @@
 -export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
 -export([restore_config/1, restore_config_option/2]).
 -export([wait_for_n_offline_messages/2]).
--export([wait_for_c2s_state_name/2, get_c2s_state_name/1]).
+-export([wait_for_c2s_state_name/2, get_c2s_state_name/1, get_c2s_state_data/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -577,10 +577,14 @@ wait_for_c2s_state_name(C2SPid, NewStateName) ->
                 #{name => get_c2s_state_name}).
 
 get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
-    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
+    SysStatus = rpc(mim(), sys, get_state, [C2SPid]),
     extract_state_name(SysStatus).
 
-extract_state_name(SysStatus) ->
-    {status, _Pid, {module, _},
-     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
-    proplists:get_value("StateName", FSMData).
+get_c2s_state_data(C2SPid) when is_pid(C2SPid) ->
+    {_StateName, StateData} = rpc(mim(), sys, get_state, [C2SPid]),
+    StateData.
+
+extract_state_name({StateName, _StateData}) ->
+    StateName; %% gen_statem
+extract_state_name([_, StateName | _]) ->
+    StateName. %% p1_fsm_old
