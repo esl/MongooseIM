@@ -34,6 +34,8 @@
         ]).
 % Stanza update
 -export([update_stanza/2]).
+% Statem accumulator
+-export([get_statem_acc/1, set_statem_acc/2]).
 % Access to namespaced fields
 -export([
          set/3,
@@ -85,6 +87,7 @@
         lserver := jid:lserver(),
         host_type := binary() | undefined,
         non_strippable := [ns_key()],
+        statem_acc := mongoose_c2s_acc:t(),
         ns_key() => Value :: any()
        }.
 
@@ -96,7 +99,8 @@
         element => exml:element() | undefined,
         host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional
-        to_jid => jid:jid() | undefined % optional
+        to_jid => jid:jid() | undefined, % optional
+        statem_acc => mongoose_c2s_acc:t() % optional
        }.
 
 -type strip_params() :: #{
@@ -137,6 +141,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       stanza => Stanza,
       lserver => LServer,
       host_type => HostType,
+      statem_acc => get_mongoose_c2s_acc(Params),
       %% The non_strippable elements must be unique.
       %% This used to be represented with the sets module, but as the number of elements inserted
       %% was too small, sets were themselves an overhead, and also annoying when printing
@@ -177,7 +182,7 @@ to_jid(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID } }) ->
 to_jid(#{ mongoose_acc := true }) ->
     undefined.
 
--spec packet(Acc :: t()) -> ejabberd_c2s:packet() | undefined.
+-spec packet(Acc :: t()) -> mongoose_c2s:packet() | undefined.
 packet(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID,
                                              from_jid := FromJID,
                                              element := El } }) ->
@@ -206,6 +211,14 @@ stanza_ref(#{ mongoose_acc := true }) ->
 -spec update_stanza(NewStanzaParams :: stanza_params(), Acc :: t()) -> t().
 update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
     Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
+
+-spec get_statem_acc(Acc :: t()) -> mongoose_c2s_acc:t().
+get_statem_acc(#{ mongoose_acc := true, statem_acc := StatemAcc }) ->
+    StatemAcc.
+
+-spec set_statem_acc(NewStatemAcc :: mongoose_c2s_acc:t(), Acc :: t()) -> t().
+set_statem_acc(NewStatemAcc, Acc = #{ mongoose_acc := true }) ->
+    Acc#{statem_acc := NewStatemAcc}.
 
 %% Values set with this function are discarded during 'strip' operation...
 -spec set(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
@@ -291,7 +304,8 @@ delete(NS, Acc) ->
 
 -spec strip(Acc :: t()) -> t().
 strip(#{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
-    maps:with(NonStrippable ++ default_non_strippable(), Acc).
+    Stripped = maps:with(NonStrippable ++ default_non_strippable(), Acc),
+    Stripped#{statem_acc := mongoose_c2s_acc:new()}.
 
 -spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
 strip(#{ lserver := NewLServer } = Params, Acc) ->
@@ -307,6 +321,12 @@ get_host_type(#{host_type := HostType}) ->
     HostType;
 get_host_type(_) ->
     undefined.
+
+-spec get_mongoose_c2s_acc(new_acc_params() | strip_params()) -> mongoose_c2s_acc:t() | undefined.
+get_mongoose_c2s_acc(#{statem_acc := C2SAcc}) ->
+    C2SAcc;
+get_mongoose_c2s_acc(_) ->
+    mongoose_c2s_acc:new().
 
 -spec stanza_from_params(Params :: stanza_params() | strip_params()) ->
     stanza_metadata().
@@ -341,6 +361,7 @@ default_non_strippable() ->
      stanza,
      lserver,
      host_type,
+     statem_acc,
      non_strippable
     ].
 
