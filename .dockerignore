@@ -15,6 +15,9 @@ _build/*
 # no vim temp files
 **/.*.sw*
 .git
+.github
+.circleci
+.dockerignore
 
 tools/pkg/Dockerfile_rpm
 tools/pkg/packages/
