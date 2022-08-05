@@ -241,8 +241,10 @@ case "$1" in
         # Log the startup
         logger -t "$SCRIPT[$$]" "Starting up"
 
+        export BINDIR
+
         # Start the VM
-        exec_echo "$BINDIR/erl" "$NAME" "debug-$id-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
+        exec_echo "$BINDIR/erlexec" -boot "$RUNNER_BASE_DIR/releases/$APP_VSN/start_clean" "$NAME" "debug-$id-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
         ;;
 
     version)
