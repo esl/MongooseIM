@@ -32,6 +32,8 @@
              sub_el       :: [exml:element()] | exml:element()
             }).
 
+-record(xmlstreamerror, {name :: binary()}).
+
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -endif.
