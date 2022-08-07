@@ -16,7 +16,7 @@ type InboxAdminMutation @use(modules: ["mod_inbox"]) @protected{
     domain: String!,
     "Remove older than given days or all if null"
     days: PosInt
-  ): Int @use(arg: "domain") @protected(type: Domain, args: ["domain"])
+  ): Int @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 
   "Flush the global bin and return the number of deleted rows"
   flushGlobalBin(

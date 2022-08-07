@@ -58,9 +58,7 @@ protected_graphql() ->
     [auth_can_execute_protected_query,
      auth_can_execute_protected_mutation,
      unauth_cannot_execute_protected_query,
-     unauth_cannot_execute_protected_mutation
-     %unauth_can_access_introspection
-    ].
+     unauth_cannot_execute_protected_mutation].
 
 unprotected_graphql() ->
     [can_execute_query_with_vars,
@@ -235,8 +233,7 @@ end_per_group(_, Config) ->
 init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= auth_can_execute_protected_mutation;
                                   C =:= unauth_cannot_execute_protected_query;
-                                  C =:= unauth_cannot_execute_protected_mutation;
-                                  C =:= unauth_can_access_introspection ->
+                                  C =:= unauth_cannot_execute_protected_mutation ->
     {Mapping, Pattern} = example_schema_protected_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -363,26 +360,6 @@ unauth_cannot_execute_protected_mutation(Config) ->
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
     ?assertMatch({error, #{error_term := {no_permissions, <<"ROOT">>}}}, Res).
-
-unauth_can_access_introspection(Config) ->
-    Ep = ?config(endpoint, Config),
-    Doc = <<"{ __schema { queryType { name } } __type(name: \"UserQuery\") { name } }">>,
-    Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    Expected =
-        {ok,
-            #{data =>
-                #{<<"__schema">> =>
-                    #{<<"queryType">> =>
-                        #{<<"name">> => <<"UserQuery">>}
-                },
-                <<"__type">> =>
-                    #{<<"name">> =>
-                        <<"UserQuery">>
-                     }
-                 }
-             }
-        },
-    ?assertEqual(Expected, Res).
 
 %% Unprotected graphql
 
@@ -933,7 +910,7 @@ use_dir_auth_admin_all_modules_and_services_loaded(Config) ->
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
 
 use_dir_auth_user_module_and_service_not_loaded(Config) ->
-    Doc = <<"{ catB { command3 } }">>,
+    Doc = <<"{ catB { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
@@ -943,11 +920,11 @@ use_dir_auth_user_module_and_service_not_loaded(Config) ->
           not_loaded_services := [<<"service_x">>]
          },
       message := <<"Some of required modules or services are not loaded">>,
-      path := [<<"catB">>, <<"command3">>]
+      path := [<<"catB">>, <<"command2">>]
      } = Error.
 
 use_dir_auth_admin_module_and_service_not_loaded(Config) ->
-    Doc = <<"{ catB { command3 } }">>,
+    Doc = <<"{ catB { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
@@ -957,7 +934,7 @@ use_dir_auth_admin_module_and_service_not_loaded(Config) ->
           not_loaded_services := [<<"service_x">>]
          },
       message := <<"Some of required modules or services are not loaded">>,
-      path := [<<"catB">>, <<"command3">>]
+      path := [<<"catB">>, <<"command2">>]
      } = Error.
 
 %% Helpers
@@ -1147,7 +1124,7 @@ meck_domain_api(Config) ->
     Hosts = [<<"test-domain.com">>, <<"localhost">>],
     % mongoose_domain_api
     meck:new(mongoose_domain_api, [no_link]),
-    meck:expect(mongoose_domain_api, get_domain_host_type,
+    meck:expect(mongoose_domain_api, get_host_type,
         fun (Host) ->
                 case lists:member(Host, Hosts) of
                     true -> {ok, Host};

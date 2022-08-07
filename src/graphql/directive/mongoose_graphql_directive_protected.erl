@@ -7,7 +7,7 @@
 %% Interfaces and objects permissions are checked independently. This means that when
 %% an interface is protected or has protected fields, then all implementing objects
 %% should be protected or have the same fields protected. <strong>This demands to mark all
-%% protected resources at every occurrence with the directive</strong>. Otherwise permissions
+%% protected resources at every occurrence with the directive</strong>. Otherwise, permissions
 %% will be different for interface and implementing objects.
 %%
 %% If an unauthorized request wants to execute a query that contains protected resources,

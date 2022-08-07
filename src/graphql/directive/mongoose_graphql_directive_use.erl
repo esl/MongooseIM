@@ -4,8 +4,8 @@
 %% only a category is not enough because, on the object level, we do not know the host type
 %% needed to check loaded modules.
 %%
-%% In below example <i>command1</i> will be checked for a loaded modules, but <i>command2</i>
-%% will be not because is not annotated. The admin endpoint does not have a host type in context,
+%% In below example <i>command1</i> will be checked for loaded modules, but <i>command2</i>
+%% will not be because it is not annotated. The admin endpoint does not have a host type in context,
 %% so we need to specify the `arg'.
 %% ```
 %% type Category @use(modules: ["module_a"]){
@@ -68,7 +68,7 @@ handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Fiel
     end.
 
 %% @doc Collect the used modules and services to be checked for each field separately.
-%% It cannot be checked here because the object directives have not access to the domain sometimes.
+%% It cannot be checked here because the object directives have no access to the domain sometimes.
 handle_object_directive(#directive{id = <<"use">>, args = Args}, Object, Ctx) ->
     {Object, Ctx#{use_dir => aggregate_use_ctx(Args, Ctx)}}.
 
@@ -101,20 +101,15 @@ prepare_use_dir_args(Args) ->
 host_type_from_arg(#jid{lserver = Domain}) ->
     host_type_from_arg(Domain);
 host_type_from_arg(ArgValue) ->
-    case mongoose_domain_api:get_domain_host_type(ArgValue) of
+    case mongoose_domain_api:get_host_type(ArgValue) of
         {ok, HostType} ->
             {ok, HostType};
         {error, not_found} ->
-            case mongoose_domain_api:get_subdomain_host_type(ArgValue) of
-                {ok, HostType} ->
-                    {ok, HostType};
-                {error, not_found} ->
-                    case lists:member(ArgValue, ?ALL_HOST_TYPES) of
-                        true ->
-                            {ok, ArgValue};
-                        false ->
-                            {error, not_found}
-                    end
+            case lists:member(ArgValue, ?ALL_HOST_TYPES) of
+                true ->
+                    {ok, ArgValue};
+                false ->
+                    {error, not_found}
             end
     end.
 

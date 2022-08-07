@@ -2,7 +2,7 @@
 %%
 %% GraphQL has directives that allow attaching additional information to the schema, objects,
 %% fields, and more. We decided to use directives to check if the user is allowed to execute
-%% commands and if commands require only loaded modules and services.
+%% commands and if commands require loaded modules and services.
 %%
 %% The behavior consists of two callbacks. One handles field directives, and the second one
 %% takes object directives. Callbacks can modify the document AST.

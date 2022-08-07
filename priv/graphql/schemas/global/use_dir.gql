@@ -1,10 +1,10 @@
 """
-Contain the modules and services used by the category or command.
+Contains the modules and services used by the category or command.
 """
 directive @use(
   "The list of modules used by the category or command"
   modules: [String!] = [],
-  "The list of modules used by the category or command"
+  "The list of services used by the category or command"
   services: [String!] = [],
   "The name of argument that contains domain or host type"
   arg: String) on FIELD_DEFINITION | OBJECT
