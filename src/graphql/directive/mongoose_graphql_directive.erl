@@ -74,21 +74,27 @@ process_selection(F = #field{id = Id,
                              args = FieldArgs,
                              schema = Schema},
                   Ctx) ->
-    #schema_field{ty = FieldType, directives = Directives} = Schema,
-    Ctx2 = append_path(Ctx, name(Id)),
-    %% Process field type (object) directives
-    {FieldType2, FieldTypeCtx} = handle_object_directives(unwrap_type(FieldType), Ctx2),
-    %% Process field directives
-    ObjField =
-        handle_directives(Directives,
-                          get_object_field(Id, Ctx2),
-                          set_field_args(FieldArgs, Ctx2)),
-    %% Process field type fields
-    #{set := ResSet, parent := FieldType3} =
-        process_selection_set(Set, set_parent_object(FieldType2, FieldTypeCtx)),
-    FieldType4 = wrap_new_type(FieldType, FieldType3),
-    #{parent => update_object_field(Id, ObjField, Ctx2),
-      schema => F#field{selection_set = ResSet, schema = Schema#schema_field{ty = FieldType4}}};
+    case Schema of
+        #schema_field{ty = FieldType, directives = Directives} ->
+            Ctx2 = append_path(Ctx, name(Id)),
+            %% Process field type (object) directives
+            {FieldType2, FieldTypeCtx} = handle_object_directives(unwrap_type(FieldType), Ctx2),
+            %% Process field directives
+            ObjField =
+                handle_directives(Directives,
+                                  get_object_field(Id, Ctx2),
+                                  set_field_args(FieldArgs, Ctx2)),
+            %% Process field type fields
+            #{set := ResSet, parent := FieldType3} =
+                process_selection_set(Set, set_parent_object(FieldType2, FieldTypeCtx)),
+            FieldType4 = wrap_new_type(FieldType, FieldType3),
+            #{parent => update_object_field(Id, ObjField, Ctx2),
+              schema =>
+                  F#field{selection_set = ResSet, schema = Schema#schema_field{ty = FieldType4}}};
+        _ ->
+            % Schema is not a `schema_field()` when a field is an introspection field
+            #{parent => maps:get(parent, Ctx), schema => F}
+    end;
 %% Process inline fragments e.g. `{ category {commandA { ... on Domain { domain }}}}`
 process_selection(F = #frag{selection_set = Set, schema = ObjectType}, Ctx) ->
     % FIXME think if frag is able to have annotations?
