@@ -44,6 +44,7 @@
       services := [binary()],
       arg => binary(),
       atom => term()}.
+-type domain_or_host_type_arg() :: jid:jid() | jid:lserver() | mongooseim:host_type().
 
 %% @doc Check the collected modules and services and swap the field resolver if any of them
 %% is not loaded. The new field resolver returns the error that some modules or services
@@ -64,7 +65,8 @@ handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Fiel
                     Field#schema_field{resolve = Fun}
             end;
         {error, not_found} ->
-            Field
+            Fun = resolve_invalid_domain_or_host_type(ArgValue),
+            Field#schema_field{resolve = Fun}
     end.
 
 %% @doc Collect the used modules and services to be checked for each field separately.
@@ -96,7 +98,7 @@ prepare_use_dir_args(Args) ->
     RdyArgs = maps:from_list([{binary_to_existing_atom(name(N)), V} || {N, V} <- Args]),
     maps:merge(Default, RdyArgs).
 
--spec host_type_from_arg(jid:jid() | jid:lserver() | mongooseim:host_type()) ->
+-spec host_type_from_arg(domain_or_host_type_arg()) ->
                             {ok, mongooseim:host_type()} | {error, not_found}.
 host_type_from_arg(#jid{lserver = Domain}) ->
     host_type_from_arg(Domain);
@@ -128,3 +130,14 @@ resolve_not_loaded_fun(Modules, Services) ->
     Msg = <<"Some of required modules or services are not loaded">>,
     Extra = #{not_loaded_modules => Modules, not_loaded_services => Services},
     fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end.
+
+-spec resolve_invalid_domain_or_host_type(domain_or_host_type_arg()) -> resolver().
+resolve_invalid_domain_or_host_type(ArgValue) ->
+    Msg = <<"Invalid domain or host type">>,
+    Extra = #{argument_value => arg_to_binary(ArgValue)},
+    fun(_, _, _, _) ->
+       mongoose_graphql_helper:make_error(invalid_domain_or_host_type, Msg, Extra)
+    end.
+
+arg_to_binary(#jid{} = JID) -> jid:to_binary(JID);
+arg_to_binary(Bin) -> Bin.
