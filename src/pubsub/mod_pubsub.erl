@@ -105,9 +105,10 @@
 %% packet handler export
 -export([process_packet/5]).
 
--export([send_loop/1]).
-
 -export([config_metrics/1]).
+
+%% Private export for wpool worker callbacks
+-export([handle_msg/3]).
 
 -define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
 -ignore_xref([
@@ -126,7 +127,8 @@
     on_user_offline/5, out_subscription/4, plugin/2, plugin/1, presence_probe/4,
     publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
     string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
-    subscription_to_string/1, tree_action/3, unsubscribe_node/5
+    subscription_to_string/1, tree_action/3, unsubscribe_node/5,
+    handle_msg/3
 ]).
 
 -export_type([
@@ -252,11 +254,16 @@ start(Host, Opts) ->
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
     ensure_metrics(Host),
+    start_pool(Host, Opts),
     ejabberd_sup:start_child(ChildSpec).
+
+start_pool(HostType, #{wpool := WpoolOpts}) ->
+    {ok, _} = mongoose_wpool:start(generic, HostType, pubsub_notify, maps:to_list(WpoolOpts)).
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
+    mongoose_wpool:stop(generic, Host, pubsub_notify),
     ejabberd_sup:stop_child(Proc).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -286,7 +293,8 @@ config_spec() ->
                                             format_items = map},
                  <<"default_node_config">> => default_node_config_spec(),
                  <<"item_publisher">> => #option{type = boolean},
-                 <<"sync_broadcast">> => #option{type = boolean}
+                 <<"sync_broadcast">> => #option{type = boolean},
+                 <<"wpool">> => wpool_spec()
                 },
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"host">> => default_host(),
@@ -302,6 +310,10 @@ config_spec() ->
                     <<"item_publisher">> => false,
                     <<"sync_broadcast">> => false}
       }.
+
+wpool_spec() ->
+    Wpool = mongoose_config_spec:wpool(#{}),
+    Wpool#section{include = always}.
 
 pep_mapping_config_spec() ->
     #section{
@@ -392,7 +404,7 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
         false ->
             ok
     end,
-    {_, State} = init_send_loop(ServerHost, Opts, Plugins),
+    State = init_state(ServerHost, Opts, Plugins),
 
     %% Pass State as extra into ?MODULE:process_packet/5 function
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
@@ -452,33 +464,18 @@ delete_pep_iq_handlers(ServerHost) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
 
-init_send_loop(ServerHost) ->
-    Plugins = gen_mod:get_module_opt(ServerHost, ?MODULE, plugins),
-    init_send_loop(ServerHost, gen_mod:get_module_opts(ServerHost, ?MODULE), Plugins).
-
-init_send_loop(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
-                             pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline,
-                             access_createnode := Access},
-               Plugins) ->
+init_state(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
+                         pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline,
+                         access_createnode := Access, plugins := Plugins}, Plugins) ->
     HostType = host_to_host_type(ServerHost),
     NodeTree = tree(HostType),
     Host = host(HostType, ServerHost),
-    State = #state{host = Host, server_host = ServerHost,
-                   access = Access, pep_mapping = PepMapping,
-                   ignore_pep_from_offline = PepOffline,
-                   last_item_cache = LastItemCache,
-                   max_items_node = MaxItemsNode, nodetree = NodeTree,
-                   plugins = Plugins },
-    Proc = gen_mod:get_module_proc(ServerHost, ?LOOPNAME),
-    Pid = case whereis(Proc) of
-              undefined ->
-                  SendLoop = spawn(?MODULE, send_loop, [State]),
-                  register(Proc, SendLoop),
-                  SendLoop;
-              Loop ->
-                  Loop
-          end,
-    {Pid, State}.
+    #state{host = Host, server_host = ServerHost,
+           access = Access, pep_mapping = PepMapping,
+           ignore_pep_from_offline = PepOffline,
+           last_item_cache = LastItemCache,
+           max_items_node = MaxItemsNode, nodetree = NodeTree,
+           plugins = Plugins }.
 
 %% @doc Call the init/1 function for each plugin declared in the config file.
 %% The default plugin module is implicit.
@@ -517,28 +514,30 @@ terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
     gen_pubsub_nodetree:terminate(TreePlugin, Host, ServerHost),
     ok.
 
-send_loop(State) ->
-    receive
-        {send_last_pubsub_items, Recipient} ->
-            send_last_pubsub_items(Recipient, State),
-            send_loop(State);
-        {send_last_pep_items, Recipient, Pid} ->
-            send_last_pep_items(Recipient, Pid, State),
-            send_loop(State);
-        {send_last_items_from_owner, NodeOwner, Recipient} ->
-            send_last_items_from_owner(State#state.host, NodeOwner, Recipient),
-            send_loop(State);
-        stop ->
-            ok
-    end.
 
-send_last_pubsub_items(Recipient, #state{host = Host, plugins = Plugins})
-  when is_list(Plugins) ->
-    lists:foreach(
-      fun(PluginType) ->
-              send_last_pubsub_items_for_plugin(Host, PluginType, Recipient)
-      end,
-      Plugins).
+%% Currently HostType = ServerHost always (pubsub does not support dynamic domains yet)
+notify_worker(HostType, ServerHost, LUser, Request) ->
+    %% Signature: mongoose_wpool:cast(PoolType, HostType, Tag, HashKey, Request).
+    mongoose_wpool:cast(generic, HostType, pubsub_notify, LUser,
+                        {?MODULE, handle_msg, [HostType, ServerHost, Request]}).
+
+handle_msg(HostType, ServerHost, {send_last_pubsub_items, Recipient}) ->
+    %% Get subdomain
+    Host = host(HostType, ServerHost),
+    Plugins = gen_mod:get_module_opt(HostType, ?MODULE, plugins),
+    send_last_pubsub_items(Host, Recipient, Plugins);
+handle_msg(HostType, ServerHost, {send_last_pep_items, RecipientJID, RecipientPid}) ->
+    Host = host(HostType, ServerHost),
+    IgnorePepFromOffline = gen_mod:get_module_opt(HostType, ?MODULE, ignore_pep_from_offline),
+    send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid);
+handle_msg(HostType, ServerHost, {send_last_items_from_owner, NodeOwner, RecipientJID}) ->
+    Host = host(HostType, ServerHost),
+    send_last_items_from_owner(Host, NodeOwner, RecipientJID).
+
+send_last_pubsub_items(Host, Recipient, Plugins) ->
+    lists:foreach(fun(PluginType) ->
+          send_last_pubsub_items_for_plugin(Host, PluginType, Recipient)
+      end, Plugins).
 
 send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
     JIDs = [Recipient, jid:to_lower(Recipient), jid:to_bare(Recipient)],
@@ -549,8 +548,7 @@ send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
       end,
       lists:usort(Subs)).
 
-send_last_pep_items(RecipientJID, RecipientPid,
-                    #state{host = Host, ignore_pep_from_offline = IgnorePepFromOffline}) ->
+send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid) ->
     RecipientLJID = jid:to_lower(RecipientJID),
     [send_last_item_to_jid(NodeOwnerJID, Node, RecipientLJID) ||
         NodeOwnerJID <- get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline),
@@ -785,22 +783,15 @@ handle_remote_hook(HandlerState, _, _, _) ->
 %% presence hooks handling functions
 %%
 
-caps_recognised(Acc, #jid{ lserver = S } = JID, Pid, _Features) ->
-    notify_send_loop(S, {send_last_pep_items, JID, Pid}),
+caps_recognised(Acc, #jid{ luser = U, lserver = S } = JID, Pid, _Features) ->
+    notify_worker(S, S, U, {send_last_pep_items, JID, Pid}),
     Acc.
 
-presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
-    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
+presence_probe(Acc, #jid{luser = U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
+    notify_worker(S, S, U, {send_last_pubsub_items, _Recipient = JID}),
     Acc;
 presence_probe(Acc, _Host, _JID, _Pid) ->
     Acc.
-
-notify_send_loop(ServerHost, Action) ->
-    {SendLoop, _} = case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
-                        undefined -> init_send_loop(ServerHost);
-                        Pid -> {Pid, undefined}
-                    end,
-    SendLoop ! Action.
 
 %% -------
 %% subscription hooks handling functions
@@ -811,13 +802,13 @@ notify_send_loop(ServerHost, Action) ->
                        ToJID :: jid:jid(),
                        Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t().
-out_subscription(Acc, #jid{lserver = LServer} = FromJID, ToJID, subscribed) ->
+out_subscription(Acc, #jid{lserver = LServer, luser = LUser} = FromJID, ToJID, subscribed) ->
     {PUser, PServer, PResource} = jid:to_lower(ToJID),
     PResources = case PResource of
                      <<>> -> user_resources(PUser, PServer);
                      _ -> [PResource]
                  end,
-    notify_send_loop(LServer, {send_last_items_from_owner, FromJID, {PUser, PServer, PResources}}),
+    notify_worker(LServer, LServer, LUser, {send_last_items_from_owner, FromJID, {PUser, PServer, PResources}}),
     Acc;
 out_subscription(Acc, _, _, _) ->
     Acc.
