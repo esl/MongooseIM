@@ -4,15 +4,99 @@
          backup_mnesia/1, restore_mnesia/1,
          dump_mnesia/1, dump_table/2, load_mnesia/1,
          install_fallback_mnesia/1,
-         dump_to_textfile/1, dump_to_textfile/2,
          mnesia_change_nodename/4,
-         restore/1]).
+         restore/1, mnesia_info/1]).
+
+-type info_result() :: #{binary() => binary() | [binary()] | integer()}.
+-type info_error() :: {{internal_server_error | bad_key_error, binary()}, #{key => binary()}}.
+-type dump_error() :: mnesia_not_running | table_does_not_exist | file_error | cannot_dump.
+
+-spec mnesia_info(Keys::[binary()]) -> [info_result() | info_error()].
+mnesia_info(Keys) ->
+    lists:foldl(fun
+        (<<"all">>, Acc) ->
+            try mnesia:system_info(all) of
+                Value ->
+                    Acc ++ lists:foldl(fun({Key, Result}, AllAcc) ->
+                        AllAcc ++ [{ok, #{<<"result">> => convert_value(Result), <<"key">> => Key}}]
+                    end, [], Value)
+            catch
+                _:_ ->
+                    Acc ++ [{{internal_server_error, <<"Internal server error">>},
+                            #{key => <<"all">>}}]
+            end;
+        (Key, Acc) ->
+            try mnesia:system_info(binary_to_atom(Key)) of
+                Value ->
+                    Acc ++ [{ok, #{<<"result">> => convert_value(Value), <<"key">> => Key}}]
+            catch
+                _:{_, {badarg, _}} ->
+                    Acc ++ [{{bad_key_error, <<"Key \"", Key/binary, "\" does not exist">>},
+                            #{key => Key}}];
+                _:_ ->
+                    Acc ++ [{{internal_server_error, <<"Internal server error">>}, #{key => Key}}]
+            end
+    end, [], Keys).
+
+-spec dump_mnesia(file:name()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+dump_mnesia(Path) ->
+    Tabs = get_local_tables(),
+    dump_tables(Path, Tabs).
+
+-spec dump_table(file:name(), string()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+dump_table(Path, STable) ->
+    Table = list_to_atom(STable),
+    dump_tables(Path, [Table]).
+
+%---------------------------------------------------------------------------------------------------
+%                                              Helpers
+%---------------------------------------------------------------------------------------------------
+
+-spec convert_value(any()) -> binary() | [{ok, any()}] | integer().
+convert_value(Value) when is_binary(Value) ->
+    Value;
+convert_value(Value) when is_integer(Value) ->
+    Value;
+convert_value(Value) when is_atom(Value) ->
+    atom_to_binary(Value);
+convert_value([Head | _] = Value) when is_integer(Head) ->
+    list_to_binary(Value);
+convert_value(Value) when is_list(Value) ->
+    lists:foldl(fun(Val, Acc) ->
+        Acc ++ [{ok, convert_value(Val)}]
+    end, [], Value);
+convert_value(Value) ->
+    list_to_binary(io_lib:format("~p", [Value])).
+
+-spec dump_tables(file:name(), list()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+dump_tables(File, Tabs) ->
+    case dump_to_textfile(mnesia:system_info(is_running), Tabs, file:open(File, [write])) of
+        ok ->
+            {ok, ""};
+        {file_error, Reason} ->
+            String = io_lib:format("Can't store dump in ~p at node ~p: ~p",
+                                   [filename:absname(File), node(), Reason]),
+            {error, {file_error, String}};
+        {error, Reason} ->
+            String = io_lib:format("Can't store dump in ~p at node ~p: ~p",
+                                   [filename:absname(File), node(), Reason]),
+            case Reason of
+                mnesia_not_running ->
+                    {error, {cannot_dump, String}};
+                table_not_exists ->
+                    {error, {table_does_not_exist, String}};
+                _ ->
+                    {error, {cannot_dump, String}}
+            end
+    end.
 
 -spec set_master(Node :: atom() | string()) -> {'error', io_lib:chars()} | {'ok', []}.
 set_master("self") ->
     set_master(node());
 set_master(NodeString) when is_list(NodeString) ->
     set_master(list_to_atom(NodeString));
+set_master(NodeString) when is_binary(NodeString) ->
+    set_master(binary_to_atom(NodeString));
 set_master(Node) when is_atom(Node) ->
     case mnesia:set_master_nodes([Node]) of
         ok ->
@@ -106,56 +190,27 @@ get_local_tables() ->
              end, Tabs1),
     Tabs.
 
--spec dump_mnesia(file:name()) -> {'cannot_dump', io_lib:chars()} | {'ok', []}.
-dump_mnesia(Path) ->
-    Tabs = get_local_tables(),
-    dump_tables(Path, Tabs).
-
--spec dump_table(file:name(), STable :: string()) ->
-                        {'cannot_dump', io_lib:chars()} | {'ok', []}.
-dump_table(Path, STable) ->
-    Table = list_to_atom(STable),
-    dump_tables(Path, [Table]).
-
--spec dump_tables(file:name(), Tables :: [atom()]) ->
-                        {'cannot_dump', io_lib:chars()} | {'ok', []}.
-dump_tables(Path, Tables) ->
-    case dump_to_textfile(Path, Tables) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't store dump in ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_dump, String}
-    end.
-
--spec dump_to_textfile(file:name()) -> 'ok' | {'error', atom()}.
-dump_to_textfile(File) ->
-    Tabs = get_local_tables(),
-    dump_to_textfile(File, Tabs).
-
--spec dump_to_textfile(file:name(), Tabs :: list()) -> 'ok' | {'error', atom()}.
-dump_to_textfile(File, Tabs) ->
-    dump_to_textfile(mnesia:system_info(is_running), Tabs, file:open(File, [write])).
-
--spec dump_to_textfile(any(),
-                      any(),
+-spec dump_to_textfile(any(), any(),
                       {'error', atom()} | {'ok', pid() | {'file_descriptor', atom() | tuple(), _}}
-                      ) -> 'ok' | {'error', atom()}.
+                      ) -> 'ok' | {'error', atom()} | {file_error, atom()}.
 dump_to_textfile(yes, Tabs, {ok, F}) ->
-    Defs = lists:map(
-             fun(T) -> {T, [{record_name, mnesia:table_info(T, record_name)},
-                            {attributes, mnesia:table_info(T, attributes)}]}
-             end,
-             Tabs),
-    io:format(F, "~p.~n", [{tables, Defs}]),
-    lists:foreach(fun(T) -> dump_tab(F, T) end, Tabs),
-    file:close(F);
+    try
+        Defs = lists:map(
+                 fun(T) -> {T, [{record_name, mnesia:table_info(T, record_name)},
+                                {attributes, mnesia:table_info(T, attributes)}]}
+                 end,
+                 Tabs),
+        io:format(F, "~p.~n", [{tables, Defs}]),
+        lists:foreach(fun(T) -> dump_tab(F, T) end, Tabs),
+        file:close(F)
+    catch _:_ ->
+        {error, table_not_exists}
+    end;
 dump_to_textfile(_, _, {ok, F}) ->
     file:close(F),
     {error, mnesia_not_running};
 dump_to_textfile(_, _, {error, Reason}) ->
-    {error, Reason}.
+    {file_error, Reason}.
 
 -spec dump_tab(pid(), atom()) -> 'ok'.
 dump_tab(F, T) ->

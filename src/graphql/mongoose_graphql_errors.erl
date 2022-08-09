@@ -45,6 +45,9 @@ err(_Ctx, ErrorTerm) ->
 -spec crash(map(), term()) -> err_msg().
 crash(_Ctx, Err = #{type := Type}) ->
     ?LOG_ERROR(Err#{what => graphql_crash}),
+    io:format("--------------\n\n"),
+    io:format("~p\n", [Err]),
+    io:format("--------------\n\n"),
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
 

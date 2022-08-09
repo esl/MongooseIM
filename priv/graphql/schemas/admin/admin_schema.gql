@@ -36,6 +36,8 @@ type AdminQuery{
   stat: StatsAdminQuery
   "Personal data management according to GDPR"
   gdpr: GdprAdminQuery
+  "Mnesia management"
+  mnesia: MnesiaAdminQuery
 }
 
 """

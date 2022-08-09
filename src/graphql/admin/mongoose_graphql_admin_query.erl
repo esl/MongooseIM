@@ -33,5 +33,7 @@ execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, #{}};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
     {ok, vcard};
+execute(_Ctx, _Obj, <<"mnesia">>, _Args) ->
+    {ok, mnesia};
 execute(_Ctx, _Obj, <<"metric">>, _Args) ->
     {ok, metric}.

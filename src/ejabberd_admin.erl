@@ -45,11 +45,11 @@
 
 -ignore_xref([
     backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
-    dump_mnesia/1, dump_table/2, dump_to_textfile/1, dump_to_textfile/2,
+    dump_mnesia/1, dump_table/2,
     get_loglevel/0, import_users/1, install_fallback_mnesia/1,
     join_cluster/1, leave_cluster/0, load_mnesia/1, mnesia_change_nodename/4,
     register/2, register/3, registered_users/1, remove_from_cluster/1,
-    restore_mnesia/1, set_master/1, status/0,
+    restore_mnesia/1, status/0,
     stop/0, unregister/2]).
 
 -include("mongoose.hrl").

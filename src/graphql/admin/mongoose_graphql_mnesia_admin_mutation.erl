@@ -16,6 +16,16 @@ execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
         {ok, _} -> {ok, "Master node set"};
         {error, Reason} -> make_error({error, Reason}, #{node => Node})
     end;
+execute(_Ctx, mnesia, <<"dump">>, #{<<"path">> := Path}) ->
+    case mnesia_api:dump_mnesia(Path) of
+        {ok, _} -> {ok, "Mnesia successfully dumped"};
+        {error, Error} -> make_error(Error, #{path => Path})
+    end;
+execute(_Ctx, mnesia, <<"dumpTable">>, #{<<"path">> := Path, <<"table">> := Table}) ->
+    case mnesia_api:dump_table(binary_to_list(Path), binary_to_list(Table)) of
+        {ok, _} -> {ok, "Mnesia table successfully dumped"};
+        {error, Error} -> make_error(Error, #{path => Path, table => Table})
+    end;
 execute(_Ctx, mnesia, <<"installFallback">>, #{<<"path">> := Path}) ->
     case mnesia_api:install_fallback_mnesia(Path) of
         {ok, _} -> {ok, "Fallback installed"};
