@@ -1,15 +1,15 @@
 """
 Allow user to manage last activity.
 """
-type LastUserQuery @protected{
+type LastUserQuery @use(modules: ["mod_last"]) @protected{
   "Get the user's last activity information"
-  getLast(user: JID): LastActivity
+  getLast(user: JID): LastActivity @use
 }
 
 """
 Allow user to get information about last activity.
 """
-type LastUserMutation @protected{
+type LastUserMutation @use(modules: ["mod_last"]) @protected{
   "Set user's last activity information"
-  setLast(timestamp: DateTime, status: String!): LastActivity
+  setLast(timestamp: DateTime, status: String!): LastActivity @use
 }

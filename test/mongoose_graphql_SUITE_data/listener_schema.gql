@@ -12,11 +12,15 @@ enum ProtectionType{
   DEFAULT
 }
 
+directive @use(modules: [String!] = [], services: [String!] = [], arg: String)
+  on FIELD_DEFINITION | OBJECT
+
 """
 Contains all available queries.
 """
 type Query @protected{
   field: String
+  command: String @use(modules: ["mod_x"], services: ["service_a"])
   fieldDP(argA: String): String
     @protected(type: DOMAIN, args: ["argA"])
   fieldGlobal(argA: String): String

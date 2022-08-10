@@ -1,0 +1,24 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
+directive @protected (type: ProtectionType = DEFAULT, args: [String!] = [])
+  on FIELD_DEFINITION | OBJECT | INTERFACE
+
+enum ProtectionType{
+  DOMAIN
+  GLOBAL
+  DEFAULT
+}
+
+directive @use (modules: [String!] = [], services: [String!] = []) on FIELD_DEFINITION | OBJECT
+
+type UserQuery @use{
+  field: String
+}
+
+type UserMutation @protected{
+  field: String
+}
+
