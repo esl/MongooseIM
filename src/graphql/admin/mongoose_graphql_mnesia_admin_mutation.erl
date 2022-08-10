@@ -17,7 +17,7 @@ execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
         {error, Reason} -> make_error({error, Reason}, #{node => Node})
     end;
 execute(_Ctx, mnesia, <<"dump">>, #{<<"path">> := Path}) ->
-    case mnesia_api:dump_mnesia(Path) of
+    case mnesia_api:dump_mnesia(binary_to_list(Path)) of
         {ok, _} -> {ok, "Mnesia successfully dumped"};
         {error, Error} -> make_error(Error, #{path => Path})
     end;

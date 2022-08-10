@@ -17,14 +17,16 @@ all() ->
      {group, admin_mnesia_http}].
 
 groups() ->
-    [{admin_mnesia_http, [], admin_mnesia_tests()},
-     {admin_mnesia_cli, [], admin_mnesia_tests()}].
+    [{admin_mnesia_http, [sequence], admin_mnesia_tests()},
+     {admin_mnesia_cli, [sequence], admin_mnesia_tests()}].
 
 admin_mnesia_tests() ->
     [get_info_test,
      dump_mnesia_table_test,
      dump_mnesia_table_file_error_test,
      dump_mnesia_table_no_table_error_test,
+     dump_mnesia_test,
+     dump_mnesia_file_error_test,
      install_fallback_error_test,
      install_fallback_test,
      set_master_test].
@@ -53,19 +55,12 @@ end_per_group(_, _Config) ->
 
 dump_mnesia_table_test(Config) ->
     Filename = <<"dump_mnesia_table_test">>,
-    Path  = list_to_binary(get_mim_cwd() ++ "/"),
-    FullPath = <<Path/binary, Filename/binary>>,
-    rpc_call(mnesia, delete_table, [mnesia_table_test]),
-    {atomic, ok} = rpc_call(mnesia, create_table,
-        [mnesia_table_test, [{attributes, record_info(fields, mnesia_table_test)}]]),
-    rpc_call(mnesia, dirty_write,
-        [mnesia_table_test, #mnesia_table_test{key = 1, name = <<"TEST">>}]),
+    create_mnesia_table_and_write([{attributes, record_info(fields, mnesia_table_test)}]),
     Res = dump_mnesia_table(Filename, <<"mnesia_table_test">>, Config),
-    get_ok_value([data, mnesia, dumpTable], Res),
-    {atomic, ok} = rpc_call(mnesia, delete_table, [mnesia_table_test]),
-    {ok, FileInsides} = file:read_file(FullPath),
-    ?assertMatch({_,_}, binary:match(FileInsides, <<"{mnesia_table_test,1,<<\"TEST\">>}">>)),
-    file:delete(FullPath).
+    ParsedRes = get_ok_value([data, mnesia, dumpTable], Res),
+    ?assertEqual(<<"Mnesia table successfully dumped">>, ParsedRes),
+    delete_mnesia_table(),
+    check_created_file(create_full_filename(Filename), <<"{mnesia_table_test,1,<<\"TEST\">>}">>).
 
 dump_mnesia_table_file_error_test(Config) ->
     Res = dump_mnesia_table(<<"">>, <<"vcard">>, Config),
@@ -74,6 +69,20 @@ dump_mnesia_table_file_error_test(Config) ->
 dump_mnesia_table_no_table_error_test(Config) ->
     Res = dump_mnesia_table(<<"AA">>, <<"NON_EXISTING">>, Config),
     ?assertEqual(<<"table_does_not_exist">>, get_err_code(Res)).
+
+dump_mnesia_test(Config) ->
+    Filename = <<"dump_mnesia_test">>,
+    create_mnesia_table_and_write([{disc_copies, [maps:get(node, mim())]},
+                                   {attributes, record_info(fields, mnesia_table_test)}]),
+    Res = dump_mnesia(Filename, Config),
+    ParsedRes = get_ok_value([data, mnesia, dump], Res),
+    ?assertEqual(<<"Mnesia successfully dumped">>, ParsedRes),
+    delete_mnesia_table(),
+    check_created_file(create_full_filename(Filename), <<"{mnesia_table_test,1,<<\"TEST\">>}">>).
+
+dump_mnesia_file_error_test(Config) ->
+    Res = dump_mnesia(<<"">>, Config),
+    ?assertEqual(<<"file_error">>, get_err_code(Res)).
 
 get_info_test(Config) ->
     Res = get_info(mnesia_info_keys(), Config),
@@ -132,6 +141,24 @@ dump_mnesia_table(Path, Table, Config) ->
 
 set_master(Node, Config) ->
     execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
+
+create_mnesia_table_and_write(Attrs) ->
+    rpc_call(mnesia, delete_table, [mnesia_table_test]),
+    {atomic, ok} = rpc_call(mnesia, create_table, [mnesia_table_test, Attrs]),
+    rpc_call(mnesia, dirty_write,
+        [mnesia_table_test, #mnesia_table_test{key = 1, name = <<"TEST">>}]).
+
+create_full_filename(Filename) ->
+    Path  = list_to_binary(get_mim_cwd() ++ "/"),
+    <<Path/binary, Filename/binary>>.
+
+delete_mnesia_table() ->
+    {atomic, ok} = rpc_call(mnesia, delete_table, [mnesia_table_test]).
+
+check_created_file(FullPath, ExpectedInsides) ->
+    {ok, FileInsides} = file:read_file(FullPath),
+    ?assertMatch({_,_}, binary:match(FileInsides, ExpectedInsides)),
+    file:delete(FullPath).
 
 mnesia_info_keys() ->
     [<<"all">>,

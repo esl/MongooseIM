@@ -83,7 +83,7 @@ dump_tables(File, Tabs) ->
             case Reason of
                 mnesia_not_running ->
                     {error, {cannot_dump, String}};
-                table_not_exists ->
+                table_does_not_exist ->
                     {error, {table_does_not_exist, String}};
                 _ ->
                     {error, {cannot_dump, String}}
@@ -204,7 +204,7 @@ dump_to_textfile(yes, Tabs, {ok, F}) ->
         lists:foreach(fun(T) -> dump_tab(F, T) end, Tabs),
         file:close(F)
     catch _:_ ->
-        {error, table_not_exists}
+        {error, table_does_not_exist}
     end;
 dump_to_textfile(_, _, {ok, F}) ->
     file:close(F),
