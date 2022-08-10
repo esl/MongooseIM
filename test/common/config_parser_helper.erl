@@ -343,7 +343,7 @@ options("outgoing_pools") ->
                           max_worker_queue_len => 100}},
          #{type => rdbms,
            opts => #{workers => 5},
-           conn_opts => #{keepalive_interval => 30,
+           conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
                           driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
                           username => "ejabberd", password => "mongooseim_secret",
                           tls => #{required => true,
@@ -836,7 +836,7 @@ default_pool_conn_opts(redis) ->
       database => 0,
       password => ""};
 default_pool_conn_opts(rdbms) ->
-    #{max_start_interval => 30};
+    #{query_timeout => 5000, max_start_interval => 30};
 default_pool_conn_opts(_Type) ->
     #{}.
 

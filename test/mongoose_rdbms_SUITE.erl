@@ -60,13 +60,13 @@ init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_connection_error(DbType),
     meck_rand(),
     ServerOpts = server_opts(DbType),
-    [{db_opts, ServerOpts#{keepalive_interval => 2, max_start_interval => 10}} | Config];
+    [{db_opts, ServerOpts#{query_timeout => 5000, keepalive_interval => 2, max_start_interval => 10}} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
     set_opts(),
     meck_db(DbType),
     ServerOpts = server_opts(DbType),
-    [{db_opts, ServerOpts#{keepalive_interval => ?KEEPALIVE_INTERVAL,
+    [{db_opts, ServerOpts#{query_timeout => 5000, keepalive_interval => ?KEEPALIVE_INTERVAL,
                            max_start_interval => ?MAX_INTERVAL}} | Config].
 
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
