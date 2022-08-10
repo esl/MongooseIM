@@ -948,8 +948,10 @@ test_pool_rdbms_connection_sql_opts(P, T, Required, Expected) ->
     ?err(T(Required#{<<"password">> => <<>>})).
 
 test_pool_rdbms_connection_common_opts(P, T, Required) ->
+    ?cfg(P ++ [query_timeout], 100, T(Required#{<<"query_timeout">> => 100})),
     ?cfg(P ++ [keepalive_interval], 100, T(Required#{<<"keepalive_interval">> => 100})),
     ?cfg(P ++ [max_start_interval], 200, T(Required#{<<"max_start_interval">> => 200})),
+    ?err(T(Required#{<<"query_timeout">> => -1})),
     ?err(T(Required#{<<"keepalive_interval">> => 0})),
     ?err(T(Required#{<<"max_start_interval">> => 0})),
     [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)].

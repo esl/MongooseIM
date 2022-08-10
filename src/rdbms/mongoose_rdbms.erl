@@ -139,7 +139,8 @@
 
 -record(state, {db_ref,
                 prepared = #{} :: #{binary() => term()},
-                keepalive_interval :: undefined | pos_integer()
+                keepalive_interval :: undefined | pos_integer(),
+                query_timeout :: pos_integer()
                }).
 -type state() :: #state{}.
 
@@ -147,7 +148,6 @@
 -define(MAX_TRANSACTION_RESTARTS, 10).
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
--define(QUERY_TIMEOUT, 5000).
 %% The value is arbitrary; supervisor will restart the connection once
 %% the retry counter runs out. We just attempt to reduce log pollution.
 -define(CONNECT_RETRIES, 5).
@@ -170,6 +170,7 @@
 
 -type options() :: #{driver := pgsql | mysql | odbc,
                      max_start_interval := pos_integer(),
+                     query_timeout := pos_integer(),
                      atom() => any()}.
 
 -export_type([options/0]).
@@ -594,7 +595,7 @@ to_bool(_) -> false.
 %%% Callback functions from gen_server
 %%%----------------------------------------------------------------------
 -spec init(options()) -> {ok, state()}.
-init(Opts = #{max_start_interval := MaxStartInterval}) ->
+init(Opts = #{query_timeout := QueryTimeout, max_start_interval := MaxStartInterval}) ->
     process_flag(trap_exit, true),
     KeepaliveInterval = maps:get(keepalive_interval, Opts, undefined),
     % retries are delayed exponentially, max_start_interval limits the delay
@@ -602,7 +603,9 @@ init(Opts = #{max_start_interval := MaxStartInterval}) ->
     case connect(Opts, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
             schedule_keepalive(KeepaliveInterval),
-            {ok, #state{db_ref = DbRef, keepalive_interval = KeepaliveInterval}};
+            {ok, #state{db_ref = DbRef,
+                        keepalive_interval = KeepaliveInterval,
+                        query_timeout = QueryTimeout}};
         Error ->
             {stop, Error}
     end.
@@ -762,8 +765,8 @@ apply_transaction_function(F) ->
             {{'EXIT', Reason}, StackTrace}
     end.
 
-sql_query_internal(Query, #state{db_ref = DBRef}) ->
-    case mongoose_rdbms_backend:query(DBRef, Query, ?QUERY_TIMEOUT) of
+sql_query_internal(Query, #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
+    case mongoose_rdbms_backend:query(DBRef, Query, QueryTimeout) of
         {error, "No SQL-driver information available."} ->
             {updated, 0}; %% workaround for odbc bug
         Result ->
@@ -783,9 +786,9 @@ sql_dirty_internal(F, State) ->
     {Result, erase_state()}.
 
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
-sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
+sql_execute(Name, Params, State = #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
-    Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
+    Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, QueryTimeout)
           catch Class:Reason:StackTrace ->
             ?LOG_ERROR(#{what => rdbms_sql_execute_failed, statement_name => Name,
                 class => Class, reason => Reason, params => Params,
@@ -837,8 +840,8 @@ db_type() ->
 
 -spec connect(options(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
-connect(Options, Retry, RetryAfter, MaxRetryDelay) ->
-    case mongoose_rdbms_backend:connect(Options, ?QUERY_TIMEOUT) of
+connect(#{query_timeout := QueryTimeout} = Options, Retry, RetryAfter, MaxRetryDelay) ->
+    case mongoose_rdbms_backend:connect(Options, QueryTimeout) of
         {ok, _} = Ok ->
             Ok;
         Error when Retry =:= 0 ->
