@@ -71,7 +71,6 @@ domain_admin_tests() ->
      domain_admin_subscribe_all_to_all_one_user_not_from_admin_domain,
      domain_admin_subscribe_all_to_all].
 
-
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
     Config2 = escalus:init_per_suite(Config1),

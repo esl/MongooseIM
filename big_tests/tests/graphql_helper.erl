@@ -90,10 +90,15 @@ init_user(Config) ->
 
 init_domain_admin_handler(Config) ->
     Domain = domain_helper:domain(),
-    Password = base16:encode(crypto:strong_rand_bytes(8)),
-    Creds = {<<"admin@", Domain/binary>>, Password},
-    ok = domain_helper:set_domain_password(mim(), Domain, Password),
-    add_specs([{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config]).
+    case (not ct_helper:is_ct_running())
+            orelse mongoose_helper:is_rdbms_enabled(Domain) of
+        true ->
+            Password = base16:encode(crypto:strong_rand_bytes(8)),
+            Creds = {<<"admin@", Domain/binary>>, Password},
+            ok = domain_helper:set_domain_password(mim(), Domain, Password),
+            add_specs([{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config]);
+        false -> {skip, require_rdbms}
+    end.
 
 add_specs(Config) ->
     EpName = ?config(schema_endpoint, Config),
