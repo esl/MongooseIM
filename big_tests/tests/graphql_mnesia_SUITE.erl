@@ -11,6 +11,7 @@
                          get_ok_value/2, get_err_code/1, get_err_value/2]).
 
 -record(mnesia_table_test, {key :: integer(), name :: binary()}).
+-record(vcard, {us, vcard}).
 
 all() ->
     [{group, admin_mnesia_cli},
@@ -27,6 +28,10 @@ admin_mnesia_tests() ->
      dump_mnesia_table_no_table_error_test,
      dump_mnesia_test,
      dump_mnesia_file_error_test,
+     backup_and_restore_test,
+     backup_wrong_filename_test,
+     restore_no_file_test,
+     restore_wrong_file_format_test,
      install_fallback_error_test,
      install_fallback_test,
      set_master_test].
@@ -84,6 +89,39 @@ dump_mnesia_file_error_test(Config) ->
     Res = dump_mnesia(<<"">>, Config),
     ?assertEqual(<<"file_error">>, get_err_code(Res)).
 
+backup_and_restore_test(Config) ->
+    Filename = <<"backup_restore_mnesia_test">>,
+    create_vcard_table(),
+    write_to_vcard(),
+    ?assert(is_record_in_a_vcard_table()),
+    Res = backup_mnesia(Filename, Config),
+    ParsedRes = get_ok_value([data, mnesia, backup], Res),
+    ?assertEqual(<<"Mnesia was successfully backuped">>, ParsedRes),
+    delete_record_from_table(),
+    ?assertEqual(false, is_record_in_a_vcard_table()),
+    Res2 = restore_mnesia(Filename, Config),
+    ParsedRes2 = get_ok_value([data, mnesia, restore], Res2),
+    ?assertEqual(<<"Mnesia was successfully restored">>, ParsedRes2),
+    ?assert(is_record_in_a_vcard_table()),
+    delete_record_from_table(),
+    delete_file(create_full_filename(Filename)).
+
+backup_wrong_filename_test(Config) ->
+    Res = backup_mnesia(<<"">>, Config),
+    ?assertEqual(<<"wrong_filename">>, get_err_code(Res)).
+
+restore_no_file_test(Config) ->
+    Res = restore_mnesia(<<"">>, Config),
+    ?assertEqual(<<"file_not_found">>, get_err_code(Res)).
+
+restore_wrong_file_format_test(Config) ->
+    Filename = <<"restore_error">>,
+    FileFullPath = create_full_filename(Filename),
+    create_file(FileFullPath),
+    Res = restore_mnesia(Filename, Config),
+    delete_file(Filename),
+    ?assertEqual(<<"not_a_log_file_error">>, get_err_code(Res)).
+
 get_info_test(Config) ->
     Res = get_info(mnesia_info_keys(), Config),
     ?assertEqual(<<"bad_key_error">>, get_err_code(Res)),
@@ -136,6 +174,12 @@ install_fallback(Node, Config) ->
 dump_mnesia(Path, Config) ->
     execute_command(<<"mnesia">>, <<"dump">>, #{path => Path}, Config).
 
+backup_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"backup">>, #{path => Path}, Config).
+
+restore_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"restore">>, #{path => Path}, Config).
+
 dump_mnesia_table(Path, Table, Config) ->
     execute_command(<<"mnesia">>, <<"dumpTable">>, #{path => Path, table => Table}, Config).
 
@@ -148,6 +192,27 @@ create_mnesia_table_and_write(Attrs) ->
     rpc_call(mnesia, dirty_write,
         [mnesia_table_test, #mnesia_table_test{key = 1, name = <<"TEST">>}]).
 
+create_vcard_table() ->
+    rpc_call(mnesia, delete_table, [vcard]),
+    rpc_call(mnesia, create_table, [vcard, [{disc_copies, [maps:get(node, mim())]},
+                                            {attributes, record_info(fields, vcard)}]]).
+
+write_to_vcard() ->
+    rpc_call(mnesia, dirty_write, [vcard, #vcard{us = 1, vcard = <<"TEST">>}]).
+
+is_record_in_a_table() ->
+    Expected = [#mnesia_table_test{key = 1, name = <<"TEST">>}],
+    Record = rpc_call(mnesia, dirty_read, [mnesia_table_test, 1]),
+    Expected == Record.
+
+is_record_in_a_vcard_table() ->
+    Expected = [#vcard{us = 1, vcard = <<"TEST">>}],
+    Record = rpc_call(mnesia, dirty_read, [vcard, 1]),
+    Expected == Record.
+
+delete_record_from_table() ->
+    ok = rpc_call(mnesia, dirty_delete, [vcard, 1]).
+
 create_full_filename(Filename) ->
     Path  = list_to_binary(get_mim_cwd() ++ "/"),
     <<Path/binary, Filename/binary>>.
@@ -158,6 +223,13 @@ delete_mnesia_table() ->
 check_created_file(FullPath, ExpectedInsides) ->
     {ok, FileInsides} = file:read_file(FullPath),
     ?assertMatch({_,_}, binary:match(FileInsides, ExpectedInsides)),
+    delete_file(FullPath).
+
+create_file(FullPath) ->
+    file:open(FullPath, [write]),
+    file:close(FullPath).
+
+delete_file(FullPath) ->
     file:delete(FullPath).
 
 mnesia_info_keys() ->

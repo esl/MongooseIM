@@ -9,7 +9,7 @@
 
 -type info_result() :: #{binary() => binary() | [binary()] | integer()}.
 -type info_error() :: {{internal_server_error | bad_key_error, binary()}, #{key => binary()}}.
--type dump_error() :: mnesia_not_running | table_does_not_exist | file_error | cannot_dump.
+-type dump_error() :: table_does_not_exist | file_error | cannot_dump.
 
 -spec mnesia_info(Keys::[binary()]) -> [info_result() | info_error()].
 mnesia_info(Keys) ->
@@ -38,15 +38,54 @@ mnesia_info(Keys) ->
             end
     end, [], Keys).
 
--spec dump_mnesia(file:name()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+-spec dump_mnesia(file:name()) -> {error, {dump_error(), io_lib:chars()}} | {ok, []}.
 dump_mnesia(Path) ->
     Tabs = get_local_tables(),
     dump_tables(Path, Tabs).
 
--spec dump_table(file:name(), string()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+-spec dump_table(file:name(), string()) -> {error, {dump_error(), io_lib:chars()}} | {ok, []}.
 dump_table(Path, STable) ->
     Table = list_to_atom(STable),
     dump_tables(Path, [Table]).
+
+-spec backup_mnesia(file:name()) ->
+    {error, {wrong_filename | cannot_backup, io_lib:chars()}} | {ok, []}.
+backup_mnesia(Path) ->
+    case mnesia:backup(Path) of
+        ok ->
+            {ok, ""};
+        {error, {'EXIT', {error, enoent}}} ->
+            {error, {wrong_filename, io_lib:format("Wrong filename: ~p", [Path])}};
+        {error, Reason} ->
+            String = io_lib:format("Can't store backup in ~p at node ~p: ~p",
+                                   [filename:absname(Path), node(), Reason]),
+            {error, {cannot_backup, String}}
+    end.
+
+-spec restore_mnesia(file:name()) -> {error, {cannot_restore, io_lib:chars()}}
+                                   | {error, {file_not_found, io_lib:chars()}}
+                                   | {error, {not_a_log_file_error, io_lib:chars()}}
+                                   | {ok, []}
+                                   | {error, {table_does_not_exist, io_lib:chars()}}.
+restore_mnesia(Path) ->
+    ErrorString=lists:flatten( io_lib:format("Can't restore backup from ~p at node ~p: ",
+                                             [filename:absname(Path), node()])),
+    case mnesia_api:restore(Path) of
+        {atomic, _} ->
+            {ok, ""};
+        {aborted, {no_exists, Table}} ->
+            String = io_lib:format("~sTable ~p does not exist.", [ErrorString, Table]),
+            {error, {table_does_not_exist, String}};
+        {aborted, enoent} ->
+            String = ErrorString ++ "File not found.",
+            {error, {file_not_found, String}};
+        {aborted, {not_a_log_file, Filename}} ->
+            String = "Wrong file " ++ Filename ++ " structure",
+            {error, {not_a_log_file_error, String}};
+        {aborted, Reason} ->
+            String = io_lib:format("~s~p", [ErrorString, Reason]),
+            {error, {cannot_restore, String}}
+    end.
 
 %---------------------------------------------------------------------------------------------------
 %                                              Helpers
@@ -68,7 +107,7 @@ convert_value(Value) when is_list(Value) ->
 convert_value(Value) ->
     list_to_binary(io_lib:format("~p", [Value])).
 
--spec dump_tables(file:name(), list()) -> {error, {dump_error(), io_lib:chars()}} | {'ok', []}.
+-spec dump_tables(file:name(), list()) -> {error, {dump_error(), io_lib:chars()}} | {ok, []}.
 dump_tables(File, Tabs) ->
     case dump_to_textfile(mnesia:system_info(is_running), Tabs, file:open(File, [write])) of
         ok ->
@@ -81,8 +120,6 @@ dump_tables(File, Tabs) ->
             String = io_lib:format("Can't store dump in ~p at node ~p: ~p",
                                    [filename:absname(File), node(), Reason]),
             case Reason of
-                mnesia_not_running ->
-                    {error, {cannot_dump, String}};
                 table_does_not_exist ->
                     {error, {table_does_not_exist, String}};
                 _ ->
@@ -90,7 +127,7 @@ dump_tables(File, Tabs) ->
             end
     end.
 
--spec set_master(Node :: atom() | string()) -> {'error', io_lib:chars()} | {'ok', []}.
+-spec set_master(Node :: atom() | string()) -> {error, io_lib:chars()} | {ok, []}.
 set_master("self") ->
     set_master(node());
 set_master(NodeString) when is_list(NodeString) ->
@@ -105,38 +142,6 @@ set_master(Node) when is_atom(Node) ->
             String = io_lib:format("Can't set master node ~p at node ~p:~n~p",
                                    [Node, node(), Reason]),
             {error, String}
-    end.
-
--spec backup_mnesia(file:name()) -> {'cannot_backup', io_lib:chars()} | {'ok', []}.
-backup_mnesia(Path) ->
-    case mnesia:backup(Path) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't store backup in ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_backup, String}
-    end.
-
--spec restore_mnesia(file:name()) -> {'cannot_restore', io_lib:chars()}
-                                   | {'file_not_found', io_lib:chars()}
-                                   | {'ok', []}
-                                   | {'table_not_exists', io_lib:chars()}.
-restore_mnesia(Path) ->
-    ErrorString=lists:flatten( io_lib:format("Can't restore backup from ~p at node ~p: ",
-                                             [filename:absname(Path), node()])),
-    case mnesia_api:restore(Path) of
-        {atomic, _} ->
-            {ok, ""};
-        {aborted, {no_exists, Table}} ->
-            String = io_lib:format("~sTable ~p does not exist.", [ErrorString, Table]),
-            {table_not_exists, String};
-        {aborted, enoent} ->
-            String = ErrorString ++ "File not found.",
-            {file_not_found, String};
-        {aborted, Reason} ->
-            String = io_lib:format("~s~p", [ErrorString, Reason]),
-            {cannot_restore, String}
     end.
 
 %% @doc Mnesia database restore
@@ -191,8 +196,8 @@ get_local_tables() ->
     Tabs.
 
 -spec dump_to_textfile(any(), any(),
-                      {'error', atom()} | {'ok', pid() | {'file_descriptor', atom() | tuple(), _}}
-                      ) -> 'ok' | {'error', atom()} | {file_error, atom()}.
+                      {error, atom()} | {ok, pid() | {file_descriptor, atom() | tuple(), _}}
+                      ) -> ok | {error, atom()} | {file_error, atom()}.
 dump_to_textfile(yes, Tabs, {ok, F}) ->
     try
         Defs = lists:map(
@@ -206,13 +211,10 @@ dump_to_textfile(yes, Tabs, {ok, F}) ->
     catch _:_ ->
         {error, table_does_not_exist}
     end;
-dump_to_textfile(_, _, {ok, F}) ->
-    file:close(F),
-    {error, mnesia_not_running};
 dump_to_textfile(_, _, {error, Reason}) ->
     {file_error, Reason}.
 
--spec dump_tab(pid(), atom()) -> 'ok'.
+-spec dump_tab(pid(), atom()) -> ok.
 dump_tab(F, T) ->
     W = mnesia:table_info(T, wild_pattern),
     {atomic, All} = mnesia:transaction(
@@ -220,7 +222,7 @@ dump_tab(F, T) ->
     lists:foreach(
       fun(Term) -> io:format(F, "~p.~n", [setelement(1, Term, T)]) end, All).
 
--spec load_mnesia(file:name()) -> {'cannot_load', io_lib:chars()} | {'ok', []}.
+-spec load_mnesia(file:name()) -> {cannot_load, io_lib:chars()} | {ok, []}.
 load_mnesia(Path) ->
     case mnesia:load_textfile(Path) of
         {atomic, ok} ->
@@ -232,7 +234,7 @@ load_mnesia(Path) ->
     end.
 
 -spec install_fallback_mnesia(file:name()) ->
-                        {'cannot_fallback', io_lib:chars()} | {'ok', []}.
+                        {cannot_fallback, io_lib:chars()} | {ok, []}.
 install_fallback_mnesia(Path) ->
     case mnesia:install_fallback(Path) of
         ok ->

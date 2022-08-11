@@ -26,6 +26,16 @@ execute(_Ctx, mnesia, <<"dumpTable">>, #{<<"path">> := Path, <<"table">> := Tabl
         {ok, _} -> {ok, "Mnesia table successfully dumped"};
         {error, Error} -> make_error(Error, #{path => Path, table => Table})
     end;
+execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
+    case mnesia_api:backup_mnesia(binary_to_list(Path)) of
+        {ok, _} -> {ok, "Mnesia was successfully backuped"};
+        {error, Error} -> make_error(Error, #{path => Path})
+    end;
+execute(_Ctx, mnesia, <<"restore">>, #{<<"path">> := Path}) ->
+    case mnesia_api:restore_mnesia(binary_to_list(Path)) of
+        {ok, _} -> {ok, "Mnesia was successfully restored"};
+        {error, Error} -> make_error(Error, #{path => Path})
+    end;
 execute(_Ctx, mnesia, <<"installFallback">>, #{<<"path">> := Path}) ->
     case mnesia_api:install_fallback_mnesia(Path) of
         {ok, _} -> {ok, "Fallback installed"};
