@@ -29,10 +29,16 @@ execute_command(Category, Command, Args, Config) ->
     Protocol = ?config(protocol, Config),
     execute_command(Category, Command, Args, Config, Protocol).
 
+execute_domain_admin_command(Category, Command, Args, Config) ->
+    execute_command(Category, Command, Args, Config, domain).
+
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Category, Command, Args, Config, http) ->
     #{Category := #{Command := #{doc := Doc}}} = get_specs(),
     execute_auth(#{query => Doc, variables => Args}, Config);
+execute_command(Category, Command, Args, Config, domain) ->
+    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    execute_domain_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
     VarsJSON = iolist_to_binary(jiffy:encode(Args)),
     {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command, VarsJSON], Config),
@@ -116,6 +122,11 @@ get_err_code(Resp) ->
 get_err_msg(Resp) ->
     get_err_msg(1, Resp).
 
+get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
+    [#{<<"extensions">> := #{<<"code">> := ErrorCode}}] = Errors,
+    assert_response_code(unauthorized, Code),
+    ?assertEqual(<<"no_permissions">>, ErrorCode).
+
 get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
     assert_response_code(bad_request, Code),
     ?assertEqual(<<"input_coercion">>, get_value([extensions, code], Error)),
@@ -138,6 +149,7 @@ get_ok_value(Path, {Code, Data}) ->
     get_value(Path, Data).
 
 assert_response_code(bad_request, {<<"400">>, <<"Bad Request">>}) -> ok;
+assert_response_code(unauthorized, {<<"401">>, <<"Unauthorized">>}) -> ok;
 assert_response_code(error, {<<"200">>, <<"OK">>}) -> ok;
 assert_response_code(ok, {<<"200">>, <<"OK">>}) -> ok;
 assert_response_code(bad_request, {exit_status, 1}) -> ok;
