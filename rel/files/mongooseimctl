@@ -46,8 +46,8 @@ if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
-FORCE_FLAG1='"--force"'
-FORCE_FLAG2='"-f"'
+FORCE_FLAG1='--force'
+FORCE_FLAG2='-f'
 
 NAME_TYPE="${NODENAME_ARG% *}"
 NODENAME="${NODENAME_ARG#* }"
@@ -79,19 +79,21 @@ remove_from_cluster()
 
 manage_cluster()
 {
-        case $QUOTED_ARGS in
-            *$FORCE_FLAG1*|*$FORCE_FLAG2*)
-                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG1//")
-                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG2//")
-                ctl $QUOTED_ARGS;;
-             *)
+        case "$ARGS" in
+            *$FORCE_FLAG1*)
+                ARGS_ARRAY=( ${ARGS_ARRAY[@]/$FORCE_FLAG1} )
+                ctl;;
+            *$FORCE_FLAG2*)
+                ARGS_ARRAY=( ${ARGS_ARRAY[@]/$FORCE_FLAG2} )
+                ctl;;
+            *)
                 GUARD="unknown"
                 until [ "$GUARD" = "yes" ] || [ "$GUARD" = "no" ] ; do
                     echo $1
                     read GUARD
                     if [ "$GUARD" =  "yes" ]; then
                         echo $2
-                        ctl $QUOTED_ARGS
+                        ctl
                     elif [ "$GUARD" = "no" ]; then
                         echo "Operation discarded by user"
                         exit 1
@@ -188,8 +190,6 @@ help ()
 # common control function
 ctl ()
 {
-    COMMAND=$@
-
     # Control number of connections identifiers
     # using flock if available. Expects a linux-style
     # flock that can lock a file descriptor.
@@ -202,13 +202,13 @@ ctl ()
 	if [ ! -x "$JOT" ] ; then
 	    # no flock or jot, simply invoke ctlexec()
 	    CTL_CONN="ctl-${NODENAME}"
-	    ctlexec $CTL_CONN $COMMAND
+	    ctlexec $CTL_CONN
 	    result=$?
 	else
 	    # no flock, but at least there is jot
 	    RAND=`jot -r 1 0 $MAXCONNID`
 	    CTL_CONN="ctl-${RAND}-${NODENAME}"
-	    ctlexec $CTL_CONN $COMMAND
+	    ctlexec $CTL_CONN
 	    result=$?
 	fi
     else
@@ -223,7 +223,7 @@ ctl ()
 	    (
 		exec 8>"$CTL_LOCKFILE"
 		if flock --nb 8; then
-		    ctlexec $CTL_CONN $COMMAND
+		    ctlexec $CTL_CONN
                     ssresult=$?
                     # segregate from possible flock exit(1)
 		    ssresult=$(expr $ssresult \* 10)
@@ -266,7 +266,6 @@ ctlexec ()
 {
     export BINDIR=$ERTS_PATH
     CONN_NAME=$1; shift
-    COMMAND=$@
     $ERTS_PATH/erlexec \
       -boot "$MIM_DIR/releases/$APP_VSN/start_clean" \
       $NAME_TYPE ${CONN_NAME} \
@@ -275,7 +274,7 @@ ctlexec ()
       $COOKIE_ARG \
       -args_file "$RUNNER_ETC_DIR"/vm.dist.args \
       -pa "$MIM_DIR"/lib/mongooseim-*/ebin/ \
-      -s ejabberd_ctl -extra $NODENAME $COMMAND
+      -s ejabberd_ctl -extra $NODENAME "${ARGS_ARRAY[@]}"
 }
 
 # display ctl usage
@@ -376,18 +375,9 @@ function is_started_status_file
     [ "$status" = "started" ]
 }
 
-# parse command line parameters
-ARGS=""; QUOTED_ARGS=""
-for PARAM in "$@"
-do
-    case $PARAM in
-        --)
-	    break ;;
-         *)
-	    ARGS="$ARGS$PARAM"; ARGS="$ARGS ";
-	    QUOTED_ARGS=$QUOTED_ARGS'"'$PARAM'"'; QUOTED_ARGS=$QUOTED_ARGS" " ;;
-    esac
-done
+# parse command line arguments
+ARGS="$@"
+ARGS_ARRAY=( "$@" )
 
 case $1 in
     'bootstrap') bootstrap;;
@@ -404,5 +394,5 @@ case $1 in
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     'print_install_dir') print_install_dir;;
     'escript') run_escript $@;;
-    *) ctl $QUOTED_ARGS;;
+    *) ctl;;
 esac

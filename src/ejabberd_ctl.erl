@@ -75,8 +75,7 @@
 -spec start() -> none().
 start() ->
     case init:get_plain_arguments() of
-        [SNode | Args0] ->
-        Args = args_join_xml(args_join_strings(Args0)),
+        [SNode | Args] ->
             SNode1 = case string:tokens(SNode, "@") of
                          [_Node, _Server] ->
                              SNode;
@@ -374,60 +373,6 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 %%-----------------------------
 %% Format arguments
 %%-----------------------------
-
-%% @private
--spec args_join_xml([string()]) -> [string()].
-args_join_xml([]) ->
-    [];
-args_join_xml([ [ $< | _ ] = Arg | RArgs ]) ->
-    case bal(Arg, $<, $>) of
-        true ->
-            [Arg | args_join_xml(RArgs)];
-        false ->
-            [NextArg | RArgs1] = RArgs,
-            args_join_xml([Arg ++ " " ++ NextArg | RArgs1])
-    end;
-args_join_xml([ Arg | RArgs ]) ->
-    [ Arg | args_join_xml(RArgs) ].
-
-
-%% @private
--spec args_join_strings([string()]) -> [string()].
-args_join_strings([]) ->
-    [];
-args_join_strings([ "\"", NextArg | RArgs ]) ->
-    args_join_strings([ "\"" ++ NextArg | RArgs ]);
-args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
-    case lists:nthtail(length(Arg)-2, Arg) of
-        [C1, $"] when C1 /= ?ASCII_SPACE_CHARACTER ->
-            [ string:substr(Arg, 2, length(Arg)-2) | args_join_strings(RArgs) ];
-        _ ->
-            [NextArg | RArgs1] = RArgs,
-            args_join_strings([Arg ++ " " ++ NextArg | RArgs1])
-    end;
-args_join_strings([ Arg | RArgs ]) ->
-    [ Arg | args_join_strings(RArgs) ].
-
-
-%% @private
--spec bal(string(), char(), char()) -> boolean().
-bal(String, Left, Right) ->
-    bal(String, Left, Right, 0).
-
-
-%% @private
--spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
-bal([], _Left, _Right, Bal) ->
-    Bal == 0;
-bal([?ASCII_SPACE_CHARACTER, _NextChar | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal);
-bal([Left | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal-1);
-bal([Right | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal+1);
-bal([_C | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal).
-
 
 %% @private
 -spec format_args(Args :: [any()],
