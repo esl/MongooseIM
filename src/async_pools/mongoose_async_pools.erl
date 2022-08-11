@@ -132,7 +132,7 @@ process_pool_opts(HostType, PoolId, #{pool_size := NumWorkers} = Opts) ->
     Worker = {WorkerModule, WorkerOpts},
     [{worker, Worker},
      {workers, NumWorkers},
-     {worker_opt, [{message_queue_data, off_heap}]},
+     {worker_opt, [{spawn_opt, [{message_queue_data, off_heap}]}]},
      {worker_shutdown, 10000}].
 
 select_worker_module(HostType, PoolId, #{pool_type := batch}) ->
