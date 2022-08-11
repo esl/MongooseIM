@@ -46,12 +46,6 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
--export([user_send_packet/3,
-         user_send_message/3,
-         user_send_iq/3,
-         user_send_presence/3,
-         user_send_non_stanza/3]).
-
 -export([c2s_broadcast_recipients/4,
          c2s_filter_packet/4,
          c2s_preprocessing_hook/3,
@@ -517,46 +511,6 @@ user_sent_keep_alive(HostType, JID) ->
 user_send_packet(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
-
--spec user_send_packet(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: mongoose_acc:t().
-user_send_packet(HostType, Acc, Params) ->
-    run_fold(user_send_packet, HostType, Acc, Params).
-
--spec user_send_message(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: mongoose_acc:t().
-user_send_message(HostType, Acc, Params) ->
-    run_fold(user_send_message, HostType, Acc, Params).
-
--spec user_send_iq(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: mongoose_acc:t().
-user_send_iq(HostType, Acc, Params) ->
-    run_fold(user_send_iq, HostType, Acc, Params).
-
--spec user_send_presence(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: mongoose_acc:t().
-user_send_presence(HostType, Acc, Params) ->
-    run_fold(user_send_presence, HostType, Acc, Params).
-
--spec user_send_non_stanza(HostType, Acc, Params) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s:handler_params(),
-    Result :: mongoose_acc:t().
-user_send_non_stanza(HostType, Acc, Params) ->
-    run_fold(user_send_non_stanza, HostType, Acc, Params).
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.

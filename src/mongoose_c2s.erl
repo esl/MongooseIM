@@ -12,7 +12,14 @@
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
--export([get_sid/1, get_jid/1, filter_mechanism/1]).
+-export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1, get_handler/2, filter_mechanism/1]).
+
+-type handler_res() :: #{handlers => #{module() => term()},
+                         actions => [gen_statem:action()],
+                         fsm_state => fsm_state(),
+                         stop => Reason :: term()}.
+-type handler_fn() :: fun( (atom(), state()) -> handler_res()).
+-export_type([handler_res/0, handler_fn/0]).
 
 -record(state, {
           host_type = <<>> :: mongooseim:host_type(),
@@ -25,13 +32,18 @@
           socket :: ranch_transport:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
-          listener_opts :: mongoose_listener:options()
+          listener_opts :: mongoose_listener:options(),
+          handlers = #{} :: #{ module() => term() }
          }).
 -type state() :: #state{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(fsm_state(), state()).
--type handler_params() :: #{c2s := mongoose_c2s:state()}.
--type handler_fn() :: fun( (mongoose_acc:t(), handler_params(), map() ) -> mongoose_acc:t()).
+
+%% C2S hooks
+-type hook_params() :: #{c2s_data := state(), c2s_state := fsm_state()}.
+-type hook_fn() :: fun((mongoose_acc:t(), hook_params(), gen_hook:hook_extra()) ->
+                            {ok | stop, mongoose_acc:t()}).
+-export_type([hook_params/0, hook_fn/0]).
 
 -type retries() :: 0..64.
 -type stream_state() :: stream_start | authenticated.
@@ -43,7 +55,7 @@
                    | session_established
                    | resume_session.
 
--export_type([state/0, handler_params/0, handler_fn/0]).
+-export_type([state/0, fsm_state/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -75,8 +87,11 @@ handle_event(cast, connect, connecting,
     {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout()};
 
 %% TODO in any state? probably only during session_established
-handle_event(info, {route, From, To, Acc}, _, StateData) ->
-    handle_incoming_stanza(StateData, Acc, From, To),
+handle_event(info, {route, Acc}, _, StateData) ->
+    handle_incoming_stanza(StateData, Acc),
+    keep_state_and_data;
+handle_event(info, {route, _From, _To, Acc}, _, StateData) ->
+    handle_incoming_stanza(StateData, Acc),
     keep_state_and_data;
 
 handle_event(info, {TcpOrSSl, Socket, Input}, _FsmState, StateData = #state{socket = Socket})
@@ -154,6 +169,9 @@ handle_event({timeout, replaced_wait_timeout}, ReplacedPids, FsmState, StateData
                              replaced_pid => Pid, state_name => FsmState, c2s_state => StateData})
       end || Pid <- ReplacedPids ],
     keep_state_and_data;
+handle_event({timeout, Name}, Handler, _, StateData) when is_atom(Name), is_function(Handler, 2) ->
+    Acc = Handler(Name, StateData),
+    handle_state(StateData, Acc);
 
 handle_event(info, {Closed, Socket}, _, _StateData = #state{socket = Socket})
   when Closed =:= tcp_closed; Closed =:= ssl_closed ->
@@ -402,43 +420,82 @@ verify_from(El, StateJid) ->
             jid:are_equal(jid:from_binary(SJid), StateJid)
     end.
 
+-spec handle_c2s_packet(state(), exml:element()) -> fsm_res().
 handle_c2s_packet(StateData = #state{host_type = HostType}, El) ->
     Acc0 = element_to_origin_accum(StateData, El),
     Acc1 = mongoose_hooks:c2s_preprocessing_hook(HostType, Acc0, StateData),
     case mongoose_acc:get(hook, result, undefined, Acc1) of
         drop -> {next_state, session_established, StateData};
-        _ ->
-            Acc2 = mongoose_hooks:user_send_packet(HostType, Acc1, #{c2s => StateData}),
-            process_outgoing_stanza(StateData, Acc2, mongoose_acc:stanza_name(Acc2)),
-            {keep_state, StateData}
+        _ -> do_handle_c2s_packet(StateData, Acc1)
+    end.
+
+-spec do_handle_c2s_packet(state(), mongoose_acc:t()) -> fsm_res().
+do_handle_c2s_packet(StateData = #state{host_type = HostType}, Acc) ->
+    case user_send_packet(HostType, Acc, hook_arg(StateData)) of
+        {ok, Acc1} ->
+            Acc2 = process_outgoing_stanza(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
+            handle_state_after_packet(StateData, Acc2);
+        {stop, Acc1} ->
+            handle_state_after_packet(StateData, Acc1)
     end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP connection)
 -spec process_outgoing_stanza(state(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"message">>) ->
     TS0 = mongoose_acc:timestamp(Acc),
-    Acc1 = mongoose_hooks:user_send_message(HostType, Acc, #{c2s => StateData}),
-    Acc2 = route(Acc1),
+    Acc1 = user_send_message(HostType, Acc, hook_arg(StateData)),
+    Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
     mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
     Acc2;
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"iq">>) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
-    Acc2 = mongoose_hooks:user_send_iq(HostType, Acc1, #{c2s => StateData}),
-    route(Acc2);
+    Acc2 = user_send_iq(HostType, Acc1, hook_arg(StateData)),
+    maybe_route(Acc2);
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, <<"presence">>) ->
-    mongoose_hooks:user_send_presence(HostType, Acc, #{c2s => StateData});
+    user_send_presence(HostType, Acc, hook_arg(StateData)),
+    Acc;
 process_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, _) ->
-    mongoose_hooks:user_send_non_stanza(HostType, Acc, #{c2s => StateData}).
+    user_send_non_stanza(HostType, Acc, hook_arg(StateData)).
 
-handle_incoming_stanza(StateData, Acc, _From, _To) ->
+-spec handle_state_after_packet(state(), mongoose_acc:t()) -> fsm_res().
+handle_state_after_packet(StateData, Acc) ->
+    Res = maps:from_list(mongoose_acc:get(c2s, Acc)),
+    handle_state(StateData, Res).
+
+-type statem_actions() :: #{handlers => #{atom() => {module(), atom(), term()}},
+                            actions => [gen_statem:action()],
+                            stop => atom()}.
+
+-spec handle_state(state(), statem_actions()) -> fsm_res().
+handle_state(StateData, #{stop := Reason}) ->
+    {stop, {shutdown, Reason}, StateData};
+handle_state(StateData = #state{handlers = StateHandlers},
+             #{handlers := Handlers, actions := Actions}) ->
+    {keep_state, StateData#state{handlers = maps:merge(StateHandlers, Handlers)}, Actions};
+handle_state(StateData = #state{handlers = StateHandlers}, #{handlers := Handlers}) ->
+    {keep_state, StateData#state{handlers = maps:merge(StateHandlers, Handlers)}};
+handle_state(StateData, #{actions := Actions}) ->
+    {keep_state, StateData, Actions};
+handle_state(StateData, #{}) ->
+    {keep_state, StateData}.
+
+-spec hook_arg(state()) -> handler_params().
+hook_arg(StateData) ->
+    #{c2s => StateData, handlers => #{}}.
+
+-spec handle_incoming_stanza(state(), mongoose_acc:t()) -> maybe_ok().
+handle_incoming_stanza(StateData, Acc) ->
     El = mongoose_acc:element(Acc),
     send_element(StateData, El, Acc).
 
--spec route(mongoose_acc:t()) -> mongoose_acc:t().
-route(Acc) ->
+-spec maybe_route({ok | stop, mongoose_acc:t()}) -> mongoose_acc:t().
+maybe_route({ok, Acc}) ->
     {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
-    ejabberd_router:route(FromJid, ToJid, Acc, El).
+    ejabberd_router:route(FromJid, ToJid, Acc, El),
+    Acc;
+maybe_route({stop, Acc}) ->
+    Acc.
 
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(state(), exml:element()) -> mongoose_acc:t().
@@ -453,7 +510,7 @@ element_to_origin_accum(StateData = #state{sid = SID, jid = Jid}, El) ->
                  _ToBin -> BaseParams
              end,
     Acc = mongoose_acc:new(Params),
-    mongoose_acc:set_permanent(c2s, [{origin_sid, SID}, {origin_jid, Jid}], Acc).
+    mongoose_acc:set_permanent(c2s, [{module, ?MODULE}, {origin_sid, SID}, {origin_jid, Jid}], Acc).
 
 -spec stream_start_error(state(), exml:element()) -> fsm_res().
 stream_start_error(StateData, Error) ->
@@ -589,6 +646,14 @@ filter_mechanism(<<"SCRAM-SHA-1-PLUS">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) -> false;
 filter_mechanism(_) -> true.
 
+-spec get_host_type(state()) -> mongooseim:host_type().
+get_host_type(#state{host_type = HostType}) ->
+    HostType.
+
+-spec get_lserver(state()) -> jid:lserver().
+get_lserver(#state{lserver = LServer}) ->
+    LServer.
+
 -spec get_sid(state()) -> ejabberd_sm:sid().
 get_sid(#state{sid = Sid}) ->
     Sid.
@@ -597,9 +662,56 @@ get_sid(#state{sid = Sid}) ->
 get_jid(#state{jid = Jid}) ->
     Jid.
 
+-spec get_handler(state(), atom()) -> term().
+get_handler(#state{handlers = Handlers}, HandlerName) ->
+    maps:get(HandlerName, Handlers, {error, not_found}).
+
 new_stream_id() ->
     mongoose_bin:gen_from_crypto().
 
 -spec generate_random_resource() -> jid:lresource().
 generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-",(mongoose_bin:gen_from_crypto())/binary>>.
+
+-spec user_send_packet(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s:handler_params(),
+    Result :: {ok | stop, mongoose_acc:t()}.
+user_send_packet(HostType, Acc, Params) ->
+    {From, To, El} = mongoose_acc:packet(Acc),
+    Args = [From, To, El],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    gen_hook:run_fold(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
+
+-spec user_send_message(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s:handler_params(),
+    Result :: {ok | stop, mongoose_acc:t()}.
+user_send_message(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_send_message, HostType, Acc, Params).
+
+-spec user_send_iq(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s:handler_params(),
+    Result :: {ok | stop, mongoose_acc:t()}.
+user_send_iq(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_send_iq, HostType, Acc, Params).
+
+-spec user_send_presence(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s:handler_params(),
+    Result :: {ok | stop, mongoose_acc:t()}.
+user_send_presence(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_send_presence, HostType, Acc, Params).
+
+-spec user_send_non_stanza(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s:handler_params(),
+    Result :: {ok | stop, mongoose_acc:t()}.
+user_send_non_stanza(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_send_non_stanza, HostType, Acc, Params).
