@@ -2,7 +2,6 @@
 
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_logger.hrl").
--include("mongoose_config_spec.hrl").
 
 -behavior(gen_mod).
 
@@ -39,6 +38,7 @@
          user_terminate/3,
          foreign_event/3
         ]).
+-export([get/2]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
@@ -618,3 +618,20 @@ specifically_visible_to(FromJid, #presences_state{pres_invis = Invisible} = Pres
     Invisible
     andalso gb_sets:is_element(FromJid, Presences#presences_state.pres_f)
     andalso gb_sets:is_element(FromJid, Presences#presences_state.pres_a).
+
+-spec get(presences_state(), s_to) -> jid_set();
+         (presences_state(), s_from) -> jid_set();
+         (presences_state(), s_available) -> jid_set();
+         (presences_state(), s_invisible) -> jid_set();
+         (presences_state(), priority) -> priority();
+         (presences_state(), last) -> undefined | exml:element();
+         (presences_state(), timestamp) -> undefined | integer();
+         (presences_state(), invisible) -> boolean().
+get(#presences_state{pres_t = Value}, s_to) -> Value;
+get(#presences_state{pres_f = Value}, s_from) -> Value;
+get(#presences_state{pres_a = Value}, s_available) -> Value;
+get(#presences_state{pres_i = Value}, s_invisible) -> Value;
+get(#presences_state{pres_pri = Value}, priority) -> Value;
+get(#presences_state{pres_last = Value}, last) -> Value;
+get(#presences_state{pres_timestamp = Value}, timestamp) -> Value;
+get(#presences_state{pres_invis = Value}, invisible) -> Value.

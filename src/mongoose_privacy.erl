@@ -16,10 +16,10 @@
 %% API
 -export([privacy_check_packet/5, privacy_check_packet/6]).
 
--type userlist() :: #userlist{}.
+-type direction() :: in | out.
 -type decision() :: allow | deny | block.
--export_type([userlist/0]).
--export_type([decision/0]).
+-type userlist() :: #userlist{}.
+-export_type([direction/0, decision/0, userlist/0]).
 
 %%% API %%%
 
@@ -31,7 +31,7 @@
                            JID :: jid:jid(),
                            PrivacyList :: userlist(),
                            To :: jid:jid(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), decision()}.
+                           Dir :: direction()) -> {decision(), mongoose_acc:t()}.
 privacy_check_packet(Acc0, JID, PrivacyList, To, Dir) ->
     Acc1 = case Acc0 of
            {Acc, #xmlel{}} -> Acc;
@@ -48,7 +48,7 @@ privacy_check_packet(Acc0, JID, PrivacyList, To, Dir) ->
                            PrivacyList :: userlist(),
                            From :: jid:jid(),
                            To :: jid:jid(),
-                           Dir :: 'in' | 'out') -> {mongoose_acc:t(), decision()}.
+                           Dir :: direction()) -> {decision(), mongoose_acc:t()}.
 privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
                      PrivacyList, From, To, Dir) ->
     % see if we have just Acc or also stanza to check - may have different name/type
@@ -66,7 +66,7 @@ privacy_check_packet(Acc0, #jid{luser = LUser, lserver = LServer} = JID,
             Acc1 = mongoose_hooks:privacy_check_packet(Acc, JID, PrivacyList,
                                                        {From, To, Name, Type}, Dir),
             Res = mongoose_acc:get(hook, result, Acc1),
-            {mongoose_acc:set(privacy, Key, Res, Acc1), Res};
+            {Res, mongoose_acc:set(privacy, Key, Res, Acc1)};
         Res ->
-            {Acc, Res}
+            {Res, Acc}
     end.
