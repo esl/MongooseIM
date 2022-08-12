@@ -16,6 +16,16 @@ execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
         {ok, _} -> {ok, "Master node set"};
         {error, Reason} -> make_error({error, Reason}, #{node => Node})
     end;
+execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
+    case mnesia_api:backup_mnesia(binary_to_list(Path)) of
+        {ok, _} -> {ok, "Mnesia was successfully backuped"};
+        {error, Error} -> make_error(Error, #{path => Path})
+    end;
+execute(_Ctx, mnesia, <<"restore">>, #{<<"path">> := Path}) ->
+    case mnesia_api:restore_mnesia(binary_to_list(Path)) of
+        {ok, _} -> {ok, "Mnesia was successfully restored"};
+        {error, Error} -> make_error(Error, #{path => Path})
+    end;
 execute(_Ctx, mnesia, <<"dump">>, #{<<"path">> := Path}) ->
     case mnesia_api:dump_mnesia(binary_to_list(Path)) of
         {ok, _} -> {ok, "Mnesia successfully dumped"};
@@ -26,14 +36,9 @@ execute(_Ctx, mnesia, <<"dumpTable">>, #{<<"path">> := Path, <<"table">> := Tabl
         {ok, _} -> {ok, "Mnesia table successfully dumped"};
         {error, Error} -> make_error(Error, #{path => Path, table => Table})
     end;
-execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
-    case mnesia_api:backup_mnesia(binary_to_list(Path)) of
-        {ok, _} -> {ok, "Mnesia was successfully backuped"};
-        {error, Error} -> make_error(Error, #{path => Path})
-    end;
-execute(_Ctx, mnesia, <<"restore">>, #{<<"path">> := Path}) ->
-    case mnesia_api:restore_mnesia(binary_to_list(Path)) of
-        {ok, _} -> {ok, "Mnesia was successfully restored"};
+execute(_Ctx, mnesia, <<"load">>, #{<<"path">> := Path}) ->
+    case mnesia_api:load_mnesia(binary_to_list(Path)) of
+        {ok, _} -> {ok, "Mnesia was successfully loaded"};
         {error, Error} -> make_error(Error, #{path => Path})
     end;
 execute(_Ctx, mnesia, <<"installFallback">>, #{<<"path">> := Path}) ->

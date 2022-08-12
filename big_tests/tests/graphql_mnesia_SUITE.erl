@@ -22,8 +22,7 @@ groups() ->
      {admin_mnesia_cli, [sequence], admin_mnesia_tests()}].
 
 admin_mnesia_tests() ->
-    [get_info_test,
-     dump_mnesia_table_test,
+    [dump_mnesia_table_test,
      dump_mnesia_table_file_error_test,
      dump_mnesia_table_no_table_error_test,
      dump_mnesia_test,
@@ -32,6 +31,11 @@ admin_mnesia_tests() ->
      backup_wrong_filename_test,
      restore_no_file_test,
      restore_wrong_file_format_test,
+     load_mnesia_test,
+     load_mnesia_no_file_test,
+     load_mnesia_bad_file_test,
+     load_mnesia_bad_file2_test,
+     get_info_test,
      install_fallback_error_test,
      install_fallback_test,
      set_master_test].
@@ -122,6 +126,32 @@ restore_wrong_file_format_test(Config) ->
     delete_file(Filename),
     ?assertEqual(<<"not_a_log_file_error">>, get_err_code(Res)).
 
+load_mnesia_test(Config) ->
+    Filename = <<"load_mnesia_test">>,
+    create_mnesia_table_and_write([{disc_copies, [maps:get(node, mim())]},
+                                   {attributes, record_info(fields, mnesia_table_test)}]),
+    Res = dump_mnesia(Filename, Config),
+    ParsedRes = get_ok_value([data, mnesia, dump], Res),
+    ?assertEqual(<<"Mnesia successfully dumped">>, ParsedRes),
+    delete_mnesia_table(),
+    check_if_response_contains(load_mnesia(Filename, Config), <<"Mnesia was successfully loaded">>),
+    ?assert(is_record_in_a_table()),
+    delete_mnesia_table().
+
+load_mnesia_bad_file_test(Config) ->
+    Filename = <<"EXISTING_BUT_EMPTY">>,
+    create_file(create_full_filename(Filename)),
+    check_if_response_contains(load_mnesia(Filename, Config), <<"bad_file_format">>).
+
+load_mnesia_bad_file2_test(Config) ->
+    Filename = <<"EXISTING_FILE">>,
+    create_and_write_file(create_full_filename(Filename)),
+    check_if_response_contains(load_mnesia(Filename, Config), <<"bad_file_format">>).
+
+load_mnesia_no_file_test(Config) ->
+    Filename = <<"NON_EXISTING">>,
+    check_if_response_contains(load_mnesia(Filename, Config), <<"file_not_found">>).
+
 get_info_test(Config) ->
     Res = get_info(mnesia_info_keys(), Config),
     ?assertEqual(<<"bad_key_error">>, get_err_code(Res)),
@@ -165,26 +195,9 @@ set_master_test(Config) ->
 %    set_master(#{<<"node">> => <<"self">>}, Config),
 %    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
 
-get_info(Keys, Config) ->
-    execute_command(<<"mnesia">>, <<"info">>, #{keys => Keys}, Config).
-
-install_fallback(Node, Config) ->
-    execute_command(<<"mnesia">>, <<"installFallback">>, Node, Config).
-
-dump_mnesia(Path, Config) ->
-    execute_command(<<"mnesia">>, <<"dump">>, #{path => Path}, Config).
-
-backup_mnesia(Path, Config) ->
-    execute_command(<<"mnesia">>, <<"backup">>, #{path => Path}, Config).
-
-restore_mnesia(Path, Config) ->
-    execute_command(<<"mnesia">>, <<"restore">>, #{path => Path}, Config).
-
-dump_mnesia_table(Path, Table, Config) ->
-    execute_command(<<"mnesia">>, <<"dumpTable">>, #{path => Path, table => Table}, Config).
-
-set_master(Node, Config) ->
-    execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
+%--------------------------------------------------------------------------------------------------
+%                                         Helpers
+%--------------------------------------------------------------------------------------------------
 
 create_mnesia_table_and_write(Attrs) ->
     rpc_call(mnesia, delete_table, [mnesia_table_test]),
@@ -229,8 +242,41 @@ create_file(FullPath) ->
     file:open(FullPath, [write]),
     file:close(FullPath).
 
+create_and_write_file(FullPath) ->
+    {ok, File} = file:open(FullPath, [write]),
+    io:format(File, "~s~n", ["TEST"]),
+    file:close(FullPath).
+
+check_if_response_contains(Response, String) ->
+    ParsedLoadRes = io_lib:format("~p", [Response]),
+    ?assertMatch({_,_}, binary:match(list_to_binary(ParsedLoadRes), String)).
+
 delete_file(FullPath) ->
     file:delete(FullPath).
+
+get_info(Keys, Config) ->
+    execute_command(<<"mnesia">>, <<"info">>, #{keys => Keys}, Config).
+
+install_fallback(Node, Config) ->
+    execute_command(<<"mnesia">>, <<"installFallback">>, Node, Config).
+
+dump_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"dump">>, #{path => Path}, Config).
+
+backup_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"backup">>, #{path => Path}, Config).
+
+restore_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"restore">>, #{path => Path}, Config).
+
+dump_mnesia_table(Path, Table, Config) ->
+    execute_command(<<"mnesia">>, <<"dumpTable">>, #{path => Path, table => Table}, Config).
+
+load_mnesia(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"load">>, #{path => Path}, Config).
+
+set_master(Node, Config) ->
+    execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
 
 mnesia_info_keys() ->
     [<<"all">>,

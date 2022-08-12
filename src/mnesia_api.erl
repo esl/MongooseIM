@@ -87,6 +87,24 @@ restore_mnesia(Path) ->
             {error, {cannot_restore, String}}
     end.
 
+-spec load_mnesia(file:name()) ->
+    {error, {cannot_load | bad_file_format | file_not_found, io_lib:chars()}} | {ok, []}.
+load_mnesia(Path) ->
+    case mnesia:load_textfile(Path) of
+        {atomic, ok} ->
+            {ok, ""};
+        {error, bad_header} ->
+            {error, {bad_file_format, "File has wrong format"}};
+        {error, read} ->
+            {error, {bad_file_format, "File has wrong format"}};
+        {error, open} ->
+            {error, {file_not_found, "File was not found"}};
+        {error, Reason} ->
+            String = io_lib:format("Can't load dump in ~p at node ~p: ~p",
+                                   [filename:absname(Path), node(), Reason]),
+            {error, {cannot_load, String}}
+    end.
+
 %---------------------------------------------------------------------------------------------------
 %                                              Helpers
 %---------------------------------------------------------------------------------------------------
@@ -221,17 +239,6 @@ dump_tab(F, T) ->
                      fun() -> mnesia:match_object(T, W, read) end),
     lists:foreach(
       fun(Term) -> io:format(F, "~p.~n", [setelement(1, Term, T)]) end, All).
-
--spec load_mnesia(file:name()) -> {cannot_load, io_lib:chars()} | {ok, []}.
-load_mnesia(Path) ->
-    case mnesia:load_textfile(Path) of
-        {atomic, ok} ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't load dump in ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_load, String}
-    end.
 
 -spec install_fallback_mnesia(file:name()) ->
                         {cannot_fallback, io_lib:chars()} | {ok, []}.
