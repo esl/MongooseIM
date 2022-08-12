@@ -419,7 +419,8 @@ iq_to_lookup_params(HostType, IQ) ->
     Max = mod_mam_params:max_result_limit(?MODULE, HostType),
     Def = mod_mam_params:default_result_limit(?MODULE, HostType),
     Ext = mod_mam_params:extra_params_module(?MODULE, HostType),
-    mam_iq:form_to_lookup_params(IQ, Max, Def, Ext).
+    Sim = mod_mam_params:enforce_simple_queries(?MODULE, HostType),
+    mam_iq:form_to_lookup_params(IQ, Max, Def, Ext, Sim).
 
 forward_messages(HostType, From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
     %% Forward messages

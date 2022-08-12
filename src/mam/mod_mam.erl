@@ -115,7 +115,8 @@ config_spec() ->
                     <<"full_text_search">> => true,
                     <<"cache_users">> => true,
                     <<"default_result_limit">> => 50,
-                    <<"max_result_limit">> => 50},
+                    <<"max_result_limit">> => 50,
+                    <<"enforce_simple_queries">> => false},
        process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
@@ -160,6 +161,7 @@ common_config_items() ->
       %% Low-level options
       <<"default_result_limit">> => #option{type = integer,
                                             validate = non_negative},
+      <<"enforce_simple_queries">> => #option{type = boolean},
       <<"max_result_limit">> => #option{type = integer,
                                         validate = non_negative},
       <<"db_jid_format">> => #option{type = atom,
@@ -262,6 +264,7 @@ common_opts() ->
      message_retraction,
      default_result_limit,
      max_result_limit,
+     enforce_simple_queries,
      no_stanzaid_element].
 
 -spec add_prefs_store_module(mam_backend(), mam_type(), module_opts(), module_map()) -> module_map().
