@@ -37,6 +37,7 @@
          easy_archive_request/1,
          easy_archive_request_for_the_receiver/1,
          text_search_query_fails_if_disabled/1,
+         pagination_simple_enforced/1,
          text_search_is_not_available/1,
          easy_text_search_request/1,
          long_text_search_request/1,
@@ -282,6 +283,7 @@ basic_group_names() ->
      prefs_cases,
      impl_specific,
      disabled_text_search,
+     disabled_complex_queries,
      disabled_retraction
     ].
 
@@ -349,6 +351,8 @@ basic_groups() ->
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
          [{mam04, [], disabled_text_search_cases()}]},
+     {disabled_complex_queries, [],
+         [{mam04, [], disabled_complex_queries_cases()}]},
      {chat_markers, [parallel],
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
@@ -390,6 +394,11 @@ disabled_text_search_cases() ->
     [
      text_search_is_not_available,
      text_search_query_fails_if_disabled
+    ].
+
+disabled_complex_queries_cases() ->
+    [
+     pagination_simple_enforced
     ].
 
 muc_text_search_cases() ->
@@ -707,6 +716,8 @@ muc_domain(Config) ->
 
 mam_opts_for_base_group(disabled_text_search) ->
     #{full_text_search => false};
+mam_opts_for_base_group(disabled_complex_queries) ->
+    #{enforce_simple_queries => true};
 mam_opts_for_base_group(BG) when BG =:= disabled_retraction;
                                  BG =:= muc_disabled_retraction ->
     #{message_retraction => false};
@@ -844,6 +855,9 @@ init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
+init_per_testcase(C=pagination_simple_enforced, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
@@ -1224,6 +1238,42 @@ text_search_query_fails_if_disabled(Config) ->
         escalus:assert(is_iq_error, Res)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+pagination_simple_enforced(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [_, _, StartMsg, StopMsg | _] = Msgs,
+        {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
+        {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {StopMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StopMsgId]),
+        StartTime = make_iso_time(StartMicro),
+        StopTime = make_iso_time(StopMicro),
+        %% Send
+        %% <iq type='get'>
+        %%   <query xmlns='urn:xmpp:mam:tmp'>
+        %%     <start>StartTime</start>
+        %%     <end>StopTime</end>
+        %%   </query>
+        %% </iq>
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty(P, StartTime, StopTime)),
+        %% Receive two messages and IQ
+        Result = wait_archive_respond(Alice),
+        IQ = respond_iq(Result),
+        [M1, M2|_] = respond_messages(Result),
+        escalus:assert(is_iq_result, IQ),
+        SetEl = exml_query:path(IQ, [{element, <<"fin">>}, {element, <<"set">>}]),
+        ?assert_equal(true, undefined =/= SetEl),
+        ?assert_equal(undefined, exml_query:path(SetEl, [{element, <<"count">>}])),
+        ?assert_equal(undefined, exml_query:path(SetEl, [{element, <<"first">>}, {attr, <<"index">>}])),
+        #forwarded_message{delay_stamp = Stamp1} = parse_forwarded_message(M1),
+        #forwarded_message{delay_stamp = Stamp2} = parse_forwarded_message(M2),
+        ?assert_equal(list_to_binary(StartTime), Stamp1),
+        ?assert_equal(list_to_binary(StopTime), Stamp2)
+        end,
+    %% Made fresh in init_per_testcase
+    escalus:story(Config, [{alice, 1}], F).
 
 text_search_is_available(Config) ->
     P = ?config(props, Config),
