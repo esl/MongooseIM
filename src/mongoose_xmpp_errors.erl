@@ -1,13 +1,4 @@
-%%%-------------------------------------------------------------------
-%%% @author Alex
-%%% @doc
-%%% The functions in this module were previously defined as macros in jlib.hrl
-%%% @end
-%%% Created : 10. Jan 2018
-%%%-------------------------------------------------------------------
 -module(mongoose_xmpp_errors).
--author("Alex").
-
 
 -compile([export_all, nowarn_export_all]).
 -include("mongoose_ns.hrl").
@@ -15,6 +6,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Stanza Errors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-type stanza_error() ::
+    bad_request | conflict | feature_not_implemented | forbidden | gone
+    | internal_server_error | item_not_found | jid_malformed | not_acceptable
+    | not_acceptable_cancel | not_acceptable_blocked | not_allowed | not_authorized
+    | payment_required | recipient_unavailable | redirect | registration_required
+    | remote_server_not_found | remote_server_timeout | resource_constraint
+    | service_unavailable | service_unavailable_wait | subscription_required
+    | unexpected_request | unexpected_request_cancel.
+
+-export_type([stanza_error/0]).
 
 bad_request() ->
     jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>).

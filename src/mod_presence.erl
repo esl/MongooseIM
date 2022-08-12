@@ -39,6 +39,7 @@
          user_terminate/3,
          foreign_event/3
         ]).
+-export([get/2]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
@@ -609,3 +610,20 @@ specifically_visible_to(FromJid, #presences{pres_invis = Invisible} = Handler) -
     Invisible
     andalso gb_sets:is_element(FromJid, Handler#presences.pres_f)
     andalso gb_sets:is_element(FromJid, Handler#presences.pres_a).
+
+-spec get(presences(), s_to) -> jid_set();
+         (presences(), s_from) -> jid_set();
+         (presences(), s_available) -> jid_set();
+         (presences(), s_invisible) -> jid_set();
+         (presences(), priority) -> priority();
+         (presences(), last) -> undefined | exml:element();
+         (presences(), timestamp) -> undefined | integer();
+         (presences(), invisible) -> boolean().
+get(#presences{pres_t = Value}, s_to) -> Value;
+get(#presences{pres_f = Value}, s_from) -> Value;
+get(#presences{pres_a = Value}, s_available) -> Value;
+get(#presences{pres_i = Value}, s_invisible) -> Value;
+get(#presences{pres_pri = Value}, priority) -> Value;
+get(#presences{pres_last = Value}, last) -> Value;
+get(#presences{pres_timestamp = Value}, timestamp) -> Value;
+get(#presences{pres_invis = Value}, invisible) -> Value.
