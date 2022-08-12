@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, domain/0, secondary_domain/0]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2,
                          execute_domain_admin_command/4, get_unauthorized/1]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
@@ -116,7 +116,7 @@ domain_admin_stats_domain_test(Config) ->
     ?assertEqual(0, OnlineUsers).
 
 domain_admin_stats_domain_no_permission_test(Config) ->
-    get_unauthorized(domain_admin_get_domain_stats(<<"AA">>, Config)).
+    get_unauthorized(domain_admin_get_domain_stats(secondary_domain(), Config)).
 
 % Commands
 

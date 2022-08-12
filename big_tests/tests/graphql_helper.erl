@@ -30,15 +30,13 @@ execute_command(Category, Command, Args, Config) ->
     execute_command(Category, Command, Args, Config, Protocol).
 
 execute_domain_admin_command(Category, Command, Args, Config) ->
-    execute_command(Category, Command, Args, Config, domain).
+    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    execute_domain_auth(#{query => Doc, variables => Args}, Config).
 
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Category, Command, Args, Config, http) ->
     #{Category := #{Command := #{doc := Doc}}} = get_specs(),
     execute_auth(#{query => Doc, variables => Args}, Config);
-execute_command(Category, Command, Args, Config, domain) ->
-    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
-    execute_domain_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
     VarsJSON = iolist_to_binary(jiffy:encode(Args)),
     {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command, VarsJSON], Config),
@@ -90,8 +88,7 @@ init_user(Config) ->
 
 init_domain_admin_handler(Config) ->
     Domain = domain_helper:domain(),
-    case (not ct_helper:is_ct_running())
-            orelse mongoose_helper:is_rdbms_enabled(Domain) of
+    case mongoose_helper:is_rdbms_enabled(Domain) of
         true ->
             Password = base16:encode(crypto:strong_rand_bytes(8)),
             Creds = {<<"admin@", Domain/binary>>, Password},

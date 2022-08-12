@@ -68,7 +68,6 @@ domain_admin_tests() ->
     [domain_admin_subscribe_to_all_no_permission,
      domain_admin_subscribe_to_all,
      domain_admin_subscribe_all_to_all_no_permission,
-     domain_admin_subscribe_all_to_all_one_user_not_from_admin_domain,
      domain_admin_subscribe_all_to_all].
 
 init_per_suite(Config) ->
@@ -501,8 +500,11 @@ user_get_nonexistent_contact_story(Config, Alice) ->
 % Domain admin test cases
 
 domain_admin_subscribe_to_all_no_permission(Config) ->
-    Contact = #{jid => <<"NONEXISTING@AAA">>, name => <<"NAME">>, groups => ?DEFAULT_GROUPS},
-    get_unauthorized(domain_admin_subscribe_to_all(Contact, [], Config)).
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_subscribe_to_all_no_permission/2).
+
+domain_admin_subscribe_to_all_no_permission(Config, Alice) ->
+    get_unauthorized(domain_admin_subscribe_to_all(make_contact(Alice), [], Config)).
 
 domain_admin_subscribe_to_all(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -517,17 +519,11 @@ domain_admin_subscribe_to_all_story(Config, Alice, Bob, Kate) ->
     check_contacts([Alice], Kate).
 
 domain_admin_subscribe_all_to_all_no_permission(Config) ->
-    Contacts = [#{jid => <<"NONEXISTING@AAA">>, name => <<"NAME">>, groups => ?DEFAULT_GROUPS},
-                #{jid => <<"NONEXISTING1@AAA">>, name => <<"NAME">>, groups => ?DEFAULT_GROUPS}],
-    get_unauthorized(domain_admin_subscribe_all_to_all(Contacts, Config)).
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}, {kate, 1}],
+        fun domain_admin_subscribe_all_to_all_no_permission/4).
 
-domain_admin_subscribe_all_to_all_one_user_not_from_admin_domain(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-        fun domain_admin_subscribe_all_to_all_one_user_not_from_admin_domain_story/4).
-
-domain_admin_subscribe_all_to_all_one_user_not_from_admin_domain_story(Config, Alice, Bob, Kate) ->
-    Contact = #{jid => <<"NONEXISTING@AAA">>, name => <<"NAME">>, groups => ?DEFAULT_GROUPS},
-    Res = domain_admin_subscribe_all_to_all(make_contacts([Alice, Bob, Kate]) ++ [Contact], Config),
+domain_admin_subscribe_all_to_all_no_permission(Config, Alice, Bob, Kate) ->
+    Res = domain_admin_subscribe_all_to_all(make_contacts([Alice, Bob, Kate]), Config),
     get_unauthorized(Res).
 
 domain_admin_subscribe_all_to_all(Config) ->
@@ -541,7 +537,6 @@ domain_admin_subscribe_all_to_all_story(Config, Alice, Bob, Kate) ->
     check_contacts([Bob, Kate], Alice),
     check_contacts([Alice, Kate], Bob),
     check_contacts([Alice, Bob], Kate).
-
 
 % Helpers
 
