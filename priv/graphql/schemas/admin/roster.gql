@@ -22,7 +22,7 @@ type RosterAdminMutation @protected{
     @protected(type: DOMAIN, args: ["userA", "userB"])
   "Set mutual subscriptions between the user and each of the given contacts"
   subscribeToAll(user: ContactInput!, contacts: [ContactInput!]!): [String]!
-    @protected(type: DOMAIN, args: ["user"])
+    @protected(type: DOMAIN, args: ["user.jid"])
   "Set mutual subscriptions between all of the given contacts"
   subscribeAllToAll(contacts: [ContactInput!]): [String]!
     @protected(type: DOMAIN, args: ["contacts.jid"])
@@ -33,7 +33,7 @@ Allow admin to get information about user roster/contacts.
 """
 type RosterAdminQuery @protected{
   "Get the user's roster/contacts"
-  listContacts(user: JID!): [Contact!] 
+  listContacts(user: JID!): [Contact!]
     @protected(type: DOMAIN, args: ["user"])
   "Get the user's contact"
   getContact(user: JID!, contact: JID!): Contact

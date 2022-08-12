@@ -13,6 +13,7 @@
          host_type/1,
          domain_to_host_type/2,
          domain/0,
+         secondary_domain/0,
          domain/1,
          secondary_host_type/0,
          secondary_host_type/1]).
@@ -30,6 +31,9 @@ host_type() ->
 
 domain() ->
     domain(mim).
+
+secondary_domain() ->
+    get_or_fail({hosts, mim, secondary_domain}).
 
 host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, host_type}).
