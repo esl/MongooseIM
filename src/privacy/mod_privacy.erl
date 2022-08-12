@@ -54,6 +54,9 @@
          foreign_event/3
         ]).
 
+%% to be used by mod_blocking only
+-export([do_user_send_iq/4]).
+
 -export([config_metrics/1]).
 
 -ignore_xref([
@@ -350,9 +353,15 @@ send_back_error(Acc, _, _) ->
 -spec get_handler(mongoose_c2s:c2s_data()) -> mongoose_privacy:userlist() | {error, not_found}.
 get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
-        {error, not_found} -> #userlist{};
+        {error, not_found} -> get_privacy_list(StateData);
         Handler -> Handler
     end.
+
+-spec get_privacy_list(mongoose_c2s:c2s_data()) -> mongoose_privacy:userlist().
+get_privacy_list(StateData) ->
+    Jid = mongoose_c2s:get_jid(StateData),
+    HostType = mongoose_c2s:get_host_type(StateData),
+    mongoose_hooks:privacy_get_user_list(HostType, Jid).
 
 -spec privacy_list_push_iq(binary()) -> jlib:iq().
 privacy_list_push_iq(PrivListName) ->

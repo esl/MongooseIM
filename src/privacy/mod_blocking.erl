@@ -17,19 +17,26 @@
          disco_local_features/1
         ]).
 
+-export([user_send_iq/3,
+         foreign_event/3
+        ]).
+
 -ignore_xref([disco_local_features/1, process_iq_get/5, process_iq_set/4]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
+-type blocking_type() :: block | unblock.
 -type listitem() :: #listitem{}.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(c2s_hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
+    gen_hook:delete_handlers(c2s_hooks(HostType)),
     ejabberd_hooks:delete(hooks(HostType)).
 
 deps(_HostType, Opts) ->
@@ -46,6 +53,74 @@ hooks(HostType) ->
     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50}].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+c2s_hooks(HostType) ->
+    [
+     {user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
+     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
+    ].
+
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
+    case mongoose_iq:info(Acc) of
+        {#iq{xmlns = ?NS_BLOCKING, type = Type} = IQ, Acc1} when Type == get; Type == set ->
+            mod_privacy:do_user_send_iq(Acc1, StateData, HostType, IQ);
+        _ ->
+            {ok, Acc}
+    end.
+
+-spec foreign_event(Acc, Params, Extra) -> Result when
+      Acc :: mongoose_acc:t(),
+      Params :: mongoose_c2s:hook_params(),
+      Extra :: gen_hook:extra(),
+      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := info,
+                     event_content := {broadcast, {blocking, UserList, Action, Changed}}}, _Extra) ->
+    {stop, handle_new_blocking_command(Acc, StateData, UserList, Action, Changed)};
+foreign_event(Acc, _Params, _Extra) ->
+    {ok, Acc}.
+
+handle_new_blocking_command(Acc, StateData, UserList, Action, JIDs) ->
+    blocking_push_to_resources(Action, JIDs, StateData),
+    blocking_presence_to_contacts(Action, JIDs, StateData),
+    ToAcc = [{state_mod, {mod_privacy, UserList}}],
+    mongoose_c2s_acc:to_acc_many(Acc, ToAcc).
+
+-spec blocking_push_to_resources(blocking_type(), [binary()], mongoose_c2s:c2s_data()) -> ok.
+blocking_push_to_resources(Action, JIDs, StateData) ->
+    SubEl = case Action of
+                block -> blocking_stanza(JIDs, <<"block">>);
+                unblock -> blocking_stanza(JIDs, <<"unblock">>)
+            end,
+    PrivPushIQ = blocking_iq(SubEl),
+    T = mongoose_c2s:get_jid(StateData),
+    F = jid:to_bare(T),
+    PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
+    ejabberd_router:route(F, T, PrivPushEl),
+    ok.
+
+-spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:c2s_data()) -> ok.
+blocking_presence_to_contacts(_Action, [], _StateData) -> ok;
+blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
+    Presences = mongoose_c2s:get_mod_state(StateData, mod_presence),
+    Pres = case Action of
+               block ->
+                   mod_presence:presence_unavailable_stanza();
+               unblock ->
+                   mod_presence:get(Presences, last)
+           end,
+    T = jid:from_binary(Jid),
+    case mod_presence:is_subscribed_to_my_presence(T, jid:to_bare(T), Presences) of
+        true ->
+            F = jid:to_bare(mongoose_c2s:get_jid(StateData)),
+            ejabberd_router:route(F, T, Pres);
+        false ->
+            ok
+    end,
+    blocking_presence_to_contacts(Action, JIDs, StateData).
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->
@@ -224,9 +299,23 @@ broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
     Bcast = {blocking, UserList, Type, Changed},
     ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast}).
 
+-spec blocking_query_response([mod_privacy:list_name()]) -> exml:element().
 blocking_query_response(Lst) ->
     #xmlel{
         name = <<"blocklist">>,
         attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
         children = [#xmlel{name= <<"item">>,
                            attrs = [{<<"jid">>, jid:to_binary(J#listitem.value)}]} || J <- Lst]}.
+
+-spec blocking_stanza([binary()], binary()) -> exml:element().
+blocking_stanza(JIDs, Name) ->
+    #xmlel{name = Name,
+           attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
+           children = lists:map(
+                        fun(JID) ->
+                                #xmlel{name = <<"item">>, attrs = [{<<"jid">>, JID}]}
+                        end, JIDs)}.
+
+-spec blocking_iq(exml:element()) -> jlib:iq().
+blocking_iq(SubEl) ->
+    #iq{type = set, xmlns = ?NS_BLOCKING, id = <<"push">>, sub_el = [SubEl]}.

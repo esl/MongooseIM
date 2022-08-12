@@ -38,7 +38,7 @@
          user_terminate/3,
          foreign_event/3
         ]).
--export([get/2]).
+-export([get/2, is_subscribed_to_my_presence/3, presence_unavailable_stanza/0]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
