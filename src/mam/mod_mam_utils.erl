@@ -42,8 +42,6 @@
          result_prefs/4,
          make_fin_element/7,
          parse_prefs/1,
-         borders_decode/1,
-         decode_optimizations/1,
          form_borders_decode/1,
          form_decode_optimizations/1,
          is_mam_result_message/1,
@@ -630,14 +628,6 @@ binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
 skip_bad_jids(MaybeJids) ->
     [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
--spec borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
-borders_decode(QueryEl) ->
-    AfterID  = tag_id(QueryEl, <<"after_id">>),
-    BeforeID = tag_id(QueryEl, <<"before_id">>),
-    FromID   = tag_id(QueryEl, <<"from_id">>),
-    ToID     = tag_id(QueryEl, <<"to_id">>),
-    borders(AfterID, BeforeID, FromID, ToID).
-
 -spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(QueryEl) ->
     AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
@@ -662,20 +652,10 @@ borders(AfterID, BeforeID, FromID, ToID) ->
         to_id     = ToID
     }.
 
-
--spec tag_id(exml:element(), binary()) -> 'undefined' | integer().
-tag_id(QueryEl, Name) ->
-    BExtMessID = exml_query:attr(QueryEl, Name, <<>>),
-    maybe_external_binary_to_mess_id(BExtMessID).
-
 -spec form_field_mess_id(exml:element(), binary()) -> 'undefined' | integer().
 form_field_mess_id(QueryEl, Name) ->
     BExtMessID = form_field_value_s(QueryEl, Name),
     maybe_external_binary_to_mess_id(BExtMessID).
-
--spec decode_optimizations(exml:element()) -> boolean().
-decode_optimizations(QueryEl) ->
-    exml_query:path(QueryEl, [{element, <<"simple">>}, cdata]) =:= <<"true">>.
 
 -spec form_decode_optimizations(exml:element()) -> boolean().
 form_decode_optimizations(QueryEl) ->
