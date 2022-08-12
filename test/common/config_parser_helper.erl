@@ -1295,6 +1295,7 @@ common_mam_config() ->
       full_text_search => true,
       default_result_limit => 50,
       max_result_limit => 50,
+      enforce_simple_queries => false,
       async_writer => default_config([modules, mod_mam, async_writer])}.
 
 mod_event_pusher_http_handler() ->

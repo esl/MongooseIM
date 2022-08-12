@@ -387,7 +387,8 @@ handle_set_message_form(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
     ResLimit = mod_mam_params:max_result_limit(?MODULE, HostType),
     DefLimit = mod_mam_params:default_result_limit(?MODULE, HostType),
     ExtMod = mod_mam_params:extra_params_module(?MODULE, HostType),
-    try mam_iq:form_to_lookup_params(IQ, ResLimit, DefLimit, ExtMod) of
+    Sim = mod_mam_params:enforce_simple_queries(?MODULE, HostType),
+    try mam_iq:form_to_lookup_params(IQ, ResLimit, DefLimit, ExtMod, Sim) of
         Params0 ->
             do_handle_set_message_form(HostType, From, ArcID, ArcJID, IQ, Params0)
     catch _C:R:S ->

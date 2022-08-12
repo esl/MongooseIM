@@ -2,7 +2,7 @@
 
 -export([action/1]).
 -export([action_type/1]).
--export([form_to_lookup_params/4]).
+-export([form_to_lookup_params/5]).
 -export([lookup_params_with_archive_details/4]).
 
 -import(mod_mam_utils,
@@ -121,9 +121,9 @@ maybe_jid(<<>>) ->
 maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
--spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) ->
+-spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module(), boolean()) ->
     lookup_params().
-form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
+form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module, EnforceSimple) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params = Params0#{
                %% Filtering by date.
@@ -144,7 +144,7 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                %% - true - do not count records (useful during pagination, when we already
                %%          know how many messages we have from a previous query);
                %% - false - count messages (slow, according XEP-0313);
-               is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)},
+               is_simple => maybe_enforce_simple(QueryEl, EnforceSimple)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
 -spec common_lookup_params(exml:element(), non_neg_integer(), non_neg_integer()) ->
@@ -175,3 +175,7 @@ maybe_add_extra_lookup_params(undefined, Params, _) ->
 maybe_add_extra_lookup_params(Module, Params, IQ) ->
     Module:extra_lookup_params(IQ, Params).
 
+maybe_enforce_simple(_, true) ->
+    true;
+maybe_enforce_simple(QueryEl, _) ->
+    mod_mam_utils:form_decode_optimizations(QueryEl).
