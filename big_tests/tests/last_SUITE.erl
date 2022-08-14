@@ -28,9 +28,8 @@ all() ->
      {group, invalid_queries}].
 
 groups() ->
-    G = [{valid_queries, [sequence], valid_test_cases()},
-         {invalid_queries, invalid_test_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{valid_queries, [sequence], valid_test_cases()},
+     {invalid_queries, invalid_test_cases()}].
 
 valid_test_cases() -> [last_online_user,
                        last_offline_user,
