@@ -46,6 +46,7 @@
          session_cleanup/5,
          remove_domain/3,
          remove_unused_backend_opts/1]).
+-export([user_received_iq/3]).
 
 %% API
 -export([store_last_info/5,
@@ -74,18 +75,18 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
-
     mod_last_backend:init(HostType, Opts),
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(c2s_hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
         {Component, _Fn} <- iq_handlers()],
-    ok.
+    gen_hook:delete_handlers(c2s_hooks(HostType)),
+    ejabberd_hooks:delete(hooks(HostType)).
 
 iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
@@ -97,6 +98,12 @@ hooks(HostType) ->
      {unset_presence_hook, HostType, ?MODULE, on_presence_update, 50},
      {session_cleanup, HostType, ?MODULE, session_cleanup, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50}].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+c2s_hooks(HostType) ->
+    [
+     {user_received_iq, HostType, fun ?MODULE:user_received_iq/3, #{}, 50}
+    ].
 
 %%%
 %%% config_spec
@@ -168,21 +175,21 @@ process_sm_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq(Acc, From, To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    {Subscription, _Groups} = mongoose_hooks:roster_get_jid_info(HostType, To, From),
-    MutualSubscription = Subscription == both,
-    RequesterSubscribedToTarget = Subscription == from,
-    QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
-                            (From#jid.lserver == To#jid.lserver),
-    case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
+    case can_respond(HostType, From, To) of
         true ->
-            UserListRecord = mongoose_hooks:privacy_get_user_list(HostType, To),
-            {Res, Acc1} = mongoose_privacy:privacy_check_packet(Acc, To,
-                                                                UserListRecord, To, From,
-                                                                out),
+            UserList = mongoose_hooks:privacy_get_user_list(HostType, To),
+            {Res, Acc1} = mongoose_privacy:privacy_check_packet(Acc, To, UserList, To, From, out),
             {Acc1, make_response(HostType, IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
+
+can_respond(HostType, From, To) ->
+    {Subscription, _Groups} = mongoose_hooks:roster_get_jid_info(HostType, To, From),
+    MutualSubscription = Subscription =:= both,
+    RequesterSubscribedToTarget = Subscription =:= from,
+    QueryingSameUsersLast = jid:are_bare_equal(From, To),
+    MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast.
 
 -spec make_response(mongooseim:host_type(), jlib:iq(), SubEl :: 'undefined' | [exml:element()],
                     jid:jid(), allow | deny) -> jlib:iq().
@@ -243,6 +250,30 @@ remove_user(Acc, User, Server) ->
 remove_domain(Acc, HostType, Domain) ->
     mod_last_backend:remove_domain(HostType, Domain),
     Acc.
+
+-spec user_received_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_received_iq(Acc, _Params, _Extra) ->
+    case mongoose_iq:info(Acc) of
+        {#iq{type = get, xmlns = ?NS_LAST}, Acc1} ->
+            maybe_respond_last(Acc1);
+        {_, Acc1} ->
+            {ok, Acc1}
+    end.
+
+maybe_respond_last(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    {From, To, _} = mongoose_acc:packet(Acc),
+    case {To#jid.lresource, can_respond(HostType, From, To)} of
+        {<<>>, _} ->
+            {ok, Acc};
+        {_, true} ->
+            {ok, Acc};
+        {_, false} ->
+            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden()),
+            ejabberd_router:route(To, From, Acc1, Err),
+            {stop, Acc}
+    end.
 
 -spec on_presence_update(mongoose_acc:t(), jid:luser(), jid:lserver(), jid:lresource(), status()) ->
           mongoose_acc:t().
