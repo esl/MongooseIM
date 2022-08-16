@@ -693,11 +693,15 @@ handle_outgoing_stanza(StateData = #state{host_type = HostType}, Acc, _) ->
 
 -spec handle_incoming_stanza(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
 handle_incoming_stanza(StateData = #state{host_type = HostType}, C2SState, Acc) ->
-    case mongoose_c2s_hooks:user_receive_packet(HostType, Acc, hook_arg(StateData)) of
-        {ok, Acc1} ->
-            Res = process_incoming_stanza(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
-            Acc2 = maybe_deliver(StateData, Res),
-            handle_state_after_packet(StateData, C2SState, Acc2);
+    {From, To, El} = mongoose_acc:packet(Acc),
+    FinalEl = jlib:replace_from_to(From, To, El),
+    ParamsAcc = #{from_jid => From, to_jid => To, element => FinalEl},
+    Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
+    case mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, hook_arg(StateData)) of
+        {ok, Acc2} ->
+            Res = process_incoming_stanza(StateData, Acc2, mongoose_acc:stanza_name(Acc2)),
+            Acc3 = maybe_deliver(StateData, Res),
+            handle_state_after_packet(StateData, C2SState, Acc3);
         {stop, _Acc1} ->
             keep_state_and_data
     end.
@@ -753,9 +757,8 @@ maybe_send_xml(StateData, Acc, ToSend) ->
 
 -spec maybe_deliver(c2s_data(), gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
 maybe_deliver(StateData, {ok, Acc}) ->
-    {From, To, El} = mongoose_acc:packet(Acc),
-    FinalEl = jlib:replace_from_to(From, To, El),
-    send_element(StateData, FinalEl, Acc),
+    Element = mongoose_acc:element(Acc),
+    send_element(StateData, Element, Acc),
     Acc;
 maybe_deliver(_, {stop, Acc}) ->
     Acc.
