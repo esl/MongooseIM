@@ -4,7 +4,7 @@ type DomainAdminQuery @protected{
     @protected(type: GLOBAL)
   "Get information about the domain"
   domainDetails(domain: String!): Domain
-    @protected(type: DOMAIN, args: ["user"])
+    @protected(type: DOMAIN, args: ["domain"])
 }
 
 type DomainAdminMutation @protected{

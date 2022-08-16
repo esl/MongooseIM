@@ -4,7 +4,7 @@ Allow admin to manage Multi-User Chat rooms.
 type MUCAdminMutation @protected{
   "Create a MUC room under the given XMPP hostname"
   createInstantRoom(mucDomain: String!, name: String!, owner: JID!, nick: String!): MUCRoomDesc
-    @protected(type: DOMAIN, args: ["mucDomain"])
+    @protected(type: DOMAIN, args: ["owner"])
   "Invite a user to a MUC room"
   inviteUser(room: JID!, sender: JID!, recipient: JID!, reason: String): String
     @protected(type: DOMAIN, args: ["sender"])
@@ -16,7 +16,7 @@ type MUCAdminMutation @protected{
     @protected(type: DOMAIN, args: ["from"])
   "Send a private message to a MUC room user"
   sendPrivateMessage(room: JID!, from: FullJID!, toNick: String!, body: String!): String
-    @protected(type: DOMAIN, args: ["room", "from"])
+    @protected(type: DOMAIN, args: ["from"])
   "Remove a MUC room"
   deleteRoom(room: JID!, reason: String): String
     @protected(type: DOMAIN, args: ["room"])
