@@ -89,8 +89,7 @@
 
 %% Other
 -import(mod_mam_utils,
-        [mess_id_to_external_binary/1,
-         is_complete_result_page/4]).
+        [mess_id_to_external_binary/1]).
 
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
@@ -406,7 +405,7 @@ handle_set_message_form(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
 do_handle_set_message_form(HostType, From, ArcID, ArcJID, IQ, Params0) ->
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    Result = lookup_messages(HostType, Params),
+    Result = mod_mam_utils:lookup(HostType, Params, fun lookup_messages/2),
     handle_lookup_result(Result, HostType, From, IQ, Params).
 
 -spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()},
@@ -421,16 +420,16 @@ handle_lookup_result(Result, HostType, From, IQ, #{owner_jid := ArcJID} = Params
             send_messages_and_iq_result(Res, HostType, From, IQ, Params)
     end.
 
-send_messages_and_iq_result({TotalCount, Offset, MessageRows}, HostType, From,
+send_messages_and_iq_result(#{total_count := TotalCount, offset := Offset,
+                              messages := MessageRows, is_complete := IsComplete},
+                            HostType, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
                             #{owner_jid := ArcJID} = Params) ->
     %% Forward messages
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
                                                  QueryID, MessageRows, true),
-
     %% Make fin iq
-    IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
     IsStable = true,
     ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
     ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),

@@ -397,7 +397,7 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
                            HostType) ->
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    case lookup_messages2(HostType, Params) of
+    case mod_mam_utils:lookup(HostType, Params, fun lookup_messages/2) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
@@ -559,20 +559,6 @@ get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
 remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_remove_archive(HostType, ArcID, ArcJID),
     ok.
-
-
--spec lookup_messages2(HostType :: host_type(), Params :: mam_iq:lookup_params()) ->
-    {ok, mod_mam:lookup_result_map()} | {error, Reason :: term()}.
-lookup_messages2(HostType, Params) ->
-    case lookup_messages(HostType, Params) of
-        {ok, {TotalCount, Offset, MessageRows}} ->
-            IsComplete = mod_mam_utils:is_complete_result_page(
-                    TotalCount, Offset, MessageRows, Params),
-            {ok, #{total_count => TotalCount, offset => Offset,
-                   messages => MessageRows, is_complete => IsComplete}};
-        Other ->
-            Other
-    end.
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}

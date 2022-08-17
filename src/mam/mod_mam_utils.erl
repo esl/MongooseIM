@@ -80,7 +80,6 @@
          calculate_msg_id_borders/3,
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
-         is_complete_result_page/4,
          wait_shaper/4,
          check_for_item_not_found/3]).
 
@@ -90,7 +89,8 @@
          is_jid_in_user_roster/3]).
 
 %% Shared logic
--export([check_result_for_policy_violation/2]).
+-export([check_result_for_policy_violation/2,
+         lookup/3]).
 
 -callback extra_fin_element(mongooseim:host_type(),
                             mam_iq:lookup_params(),
@@ -1170,4 +1170,19 @@ check_for_item_not_found(#rsm_in{direction = aft, id = ID},
             {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}
+    end.
+
+-spec lookup(HostType :: mongooseim:host_type(),
+             Params :: mam_iq:lookup_params(),
+             F :: fun()) ->
+    {ok, mod_mam:lookup_result_map()} | {error, Reason :: term()}.
+lookup(HostType, Params, F) ->
+    case F(HostType, Params) of
+        {ok, {TotalCount, Offset, MessageRows}} ->
+            IsComplete = is_complete_result_page(
+                    TotalCount, Offset, MessageRows, Params),
+            {ok, #{total_count => TotalCount, offset => Offset,
+                   messages => MessageRows, is_complete => IsComplete}};
+        Other ->
+            Other
     end.
