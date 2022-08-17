@@ -1156,18 +1156,17 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
       LookupResult :: mod_mam:lookup_result(),
       R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
-                         PageSize, {TotalCount, Offset, MessageRows}) ->
+                         _PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, Page}};
+        {ok, #{id := ID}} ->
+            {ok, {TotalCount, Offset, list_without_last(MessageRows)}};
         undefined ->
             {error, item_not_found}
     end;
 check_for_item_not_found(#rsm_in{direction = aft, id = ID},
                          _PageSize, {TotalCount, Offset, MessageRows0}) ->
     case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
+        [#{id := ID} | MessageRows] ->
             {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}

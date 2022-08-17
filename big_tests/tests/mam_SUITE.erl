@@ -2506,11 +2506,11 @@ pagination_simple_before10(Config) ->
 
 pagination_simple_before3(Config) ->
     RSM = #rsm_in{max = 5, direction = before, id = message_id(3, Config), simple = true},
-    pagination_test(before10, RSM, simple_range(1, 2, true), Config).
+    pagination_test(before3, RSM, simple_range(1, 2, true), Config).
 
 pagination_simple_before6(Config) ->
     RSM = #rsm_in{max = 5, direction = before, id = message_id(6, Config), simple = true},
-    pagination_test(before10, RSM, simple_range(1, 5, true), Config).
+    pagination_test(before6, RSM, simple_range(1, 5, true), Config).
 
 pagination_simple_before1_pagesize0(Config) ->
     %% No messages forwarded, but is_complete is set
