@@ -1181,6 +1181,8 @@ lookup(HostType, Params, F) ->
     F1 = patch_fun_to_make_result_as_map(F),
     process_lookup_with_complete_check(HostType, Params, F1).
 
+process_lookup_with_complete_check(HostType, Params = #{is_simple := true}, F) ->
+    process_simple_lookup_with_complete_check(HostType, Params, F);
 process_lookup_with_complete_check(HostType, Params, F) ->
     case F(HostType, Params) of
         {ok, Result} ->
@@ -1197,3 +1199,33 @@ result_to_map({ok, {TotalCount, Offset, MessageRows}}) ->
     {ok, #{total_count => TotalCount, offset => Offset, messages => MessageRows}};
 result_to_map(Other) ->
     Other.
+
+%% We query an extra message by changing page_size.
+%% After that we remove this message from the result set when returning.
+process_simple_lookup_with_complete_check(HostType, Params = #{page_size := PageSize}, F) ->
+    Params2 = Params#{page_size => PageSize + 1},
+    case F(HostType, Params2) of
+        {ok, Result} ->
+            {ok, set_complete_result_page_using_extra_message(PageSize, Params, Result)};
+        Other ->
+            Other
+    end.
+
+set_complete_result_page_using_extra_message(PageSize, Params, Result = #{messages := MessageRows}) ->
+    case length(MessageRows) =:= (PageSize + 1) of
+        true ->
+            Result#{is_complete => false, messages => remove_extra_message(Params, MessageRows)};
+        false ->
+            Result#{is_complete => true}
+    end.
+
+remove_extra_message(Params, Messages) ->
+    case maps:get(ordering_direction, Params, forward) of
+        forward ->
+            list_without_last(Messages);
+        backward ->
+            tl(Messages)
+    end.
+
+list_without_last(List) ->
+    lists:reverse(tl(lists:reverse(List))).

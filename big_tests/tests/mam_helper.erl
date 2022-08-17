@@ -84,9 +84,10 @@
          rsm_send/3,
          stanza_page_archive_request/3,
          wait_empty_rset/2,
+         wait_message_range/2,
          wait_message_range/3,
-         message_id/2,
          wait_message_range/5,
+         message_id/2,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -823,6 +824,12 @@ wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
 
 wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
+    wait_message_range(Client, #{total_count => TotalCount, offset => Offset,
+                                 from => FromN, to => ToN}).
+
+wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offset,
+                                      from := FromN, to := ToN}) ->
+    IsComplete = maps:get(is_complete, Params, undefined),
     Result = wait_archive_respond(Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
@@ -833,8 +840,13 @@ wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
         ?assert_equal(Offset, ParsedIQ#result_iq.first_index),
         %% Compare body of the messages.
-        ?assert_equal([generate_message_text(N) || N <- lists:seq(FromN, ToN)],
+        ?assert_equal([generate_message_text(N) || N <- maybe_seq(FromN, ToN)],
                       [B || #forwarded_message{message_body=B} <- ParsedMessages]),
+        case IsComplete of
+            true      -> ?assert_equal(<<"true">>, ParsedIQ#result_iq.complete);
+            false     -> ?assert_equal(<<"false">>, ParsedIQ#result_iq.complete);
+            undefined -> ok
+        end,
         ok
     catch Class:Reason:StackTrace ->
         ct:pal("IQ: ~p~n"
@@ -845,6 +857,8 @@ wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
         erlang:raise(Class, Reason, StackTrace)
     end.
 
+maybe_seq(undefined, undefined) -> [];
+maybe_seq(A, B) -> lists:seq(A, B).
 
 wait_empty_rset(Alice, TotalCount) ->
     Result = wait_archive_respond(Alice),
