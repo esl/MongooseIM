@@ -108,7 +108,7 @@
 -export([config_metrics/1]).
 
 %% Private export for wpool worker callbacks
--export([handle_msg/3]).
+-export([handle_msg/1]).
 
 -define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
 -ignore_xref([
@@ -128,8 +128,10 @@
     publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
     string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
     subscription_to_string/1, tree_action/3, unsubscribe_node/5,
-    handle_msg/3
+    handle_msg/1
 ]).
+
+-type plugin_name() :: binary().
 
 -export_type([
               host/0,
@@ -216,7 +218,7 @@
           max_subscriptions_node  = undefined,
           default_node_config     = [],
           nodetree                = ?STDTREE,
-          plugins                 = [?STDNODE]
+          plugins                 = [?STDNODE] :: [plugin_name()]
         }).
 
 -type(state() ::
@@ -466,7 +468,7 @@ delete_pep_iq_handlers(ServerHost) ->
 
 init_state(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
                          pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline,
-                         access_createnode := Access, plugins := Plugins}, Plugins) ->
+                         access_createnode := Access}, Plugins) ->
     HostType = host_to_host_type(ServerHost),
     NodeTree = tree(HostType),
     Host = host(HostType, ServerHost),
@@ -514,25 +516,16 @@ terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
     gen_pubsub_nodetree:terminate(TreePlugin, Host, ServerHost),
     ok.
 
+notify_worker(HostType, HashKey, Request) ->
+    mongoose_wpool:cast(generic, HostType, pubsub_notify, HashKey,
+                        {?MODULE, handle_msg, [Request]}).
 
-%% Currently HostType = ServerHost always (pubsub does not support dynamic domains yet)
-notify_worker(HostType, ServerHost, LUser, Request) ->
-    %% Signature: mongoose_wpool:cast(PoolType, HostType, Tag, HashKey, Request).
-    mongoose_wpool:cast(generic, HostType, pubsub_notify, LUser,
-                        {?MODULE, handle_msg, [HostType, ServerHost, Request]}).
-
-handle_msg(HostType, ServerHost, {send_last_pubsub_items, Recipient}) ->
-    %% Get subdomain
-    Host = host(HostType, ServerHost),
-    Plugins = gen_mod:get_module_opt(HostType, ?MODULE, plugins),
+handle_msg({send_last_pubsub_items, Host, Recipient, Plugins}) ->
     send_last_pubsub_items(Host, Recipient, Plugins);
-handle_msg(HostType, ServerHost, {send_last_pep_items, RecipientJID, RecipientPid}) ->
-    Host = host(HostType, ServerHost),
-    IgnorePepFromOffline = gen_mod:get_module_opt(HostType, ?MODULE, ignore_pep_from_offline),
+handle_msg({send_last_pep_items, Host, IgnorePepFromOffline, RecipientJID, RecipientPid}) ->
     send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid);
-handle_msg(HostType, ServerHost, {send_last_items_from_owner, NodeOwner, RecipientJID}) ->
-    Host = host(HostType, ServerHost),
-    send_last_items_from_owner(Host, NodeOwner, RecipientJID).
+handle_msg({send_last_items_from_owner, Host, NodeOwner, RecipientInfo}) ->
+    send_last_items_from_owner(Host, NodeOwner, RecipientInfo).
 
 send_last_pubsub_items(Host, Recipient, Plugins) ->
     lists:foreach(fun(PluginType) ->
@@ -784,11 +777,16 @@ handle_remote_hook(HandlerState, _, _, _) ->
 %%
 
 caps_recognised(Acc, #jid{ luser = U, lserver = S } = JID, Pid, _Features) ->
-    notify_worker(S, S, U, {send_last_pep_items, JID, Pid}),
+    Host = host(S, S),
+    IgnorePepFromOffline = gen_mod:get_module_opt(S, ?MODULE, ignore_pep_from_offline),
+    notify_worker(S, U, {send_last_pep_items, Host, IgnorePepFromOffline, JID, Pid}),
     Acc.
 
 presence_probe(Acc, #jid{luser = U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
-    notify_worker(S, S, U, {send_last_pubsub_items, _Recipient = JID}),
+    %% Get subdomain
+    Host = host(S, S),
+    Plugins = plugins(S),
+    notify_worker(S, U, {send_last_pubsub_items, Host, _Recipient = JID, Plugins}),
     Acc;
 presence_probe(Acc, _Host, _JID, _Pid) ->
     Acc.
@@ -808,7 +806,8 @@ out_subscription(Acc, #jid{lserver = LServer, luser = LUser} = FromJID, ToJID, s
                      <<>> -> user_resources(PUser, PServer);
                      _ -> [PResource]
                  end,
-    notify_worker(LServer, LServer, LUser, {send_last_items_from_owner, FromJID, {PUser, PServer, PResources}}),
+    Host = host(LServer, LServer),
+    notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID, {PUser, PServer, PResources}}),
     Acc;
 out_subscription(Acc, _, _, _) ->
     Acc.
@@ -4114,11 +4113,11 @@ tree_mod(<<"virtual">>) ->
 tree_mod(Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
--spec plugin(Name :: binary()) -> module().
+-spec plugin(Name :: plugin_name()) -> module().
 plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
--spec plugins(ServerHost :: mongooseim:domain_name()) -> list().
+-spec plugins(ServerHost :: mongooseim:domain_name()) -> [plugin_name()].
 plugins(ServerHost) ->
     Proc = gen_mod:get_module_proc(ServerHost, ?PROCNAME),
     gen_server:call(Proc, plugins).
