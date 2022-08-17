@@ -43,6 +43,11 @@
                           Offset :: non_neg_integer() | undefined,
                           MessageRows :: [message_row()]}.
 
+-type lookup_result_map() :: #{total_count := TotalCount :: non_neg_integer() | undefined,
+                               offset := Offset :: non_neg_integer() | undefined,
+                               messages := MessageRows :: [message_row()],
+                               is_complete := boolean()}.
+
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
 -type rewriter_fun() :: fun((JID :: jid:literal_jid())
@@ -73,6 +78,7 @@
               unix_timestamp/0,
               archive_id/0,
               lookup_result/0,
+              lookup_result_map/0,
               message_row/0,
               message_id/0,
               restore_option/0,

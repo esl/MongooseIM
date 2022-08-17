@@ -757,5 +757,5 @@ db_message_format(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, db_message_format).
 
 -spec pool_name(HostType :: host_type()) -> mongoose_wpool:pool_name().
-pool_name(HostType) ->
+pool_name(_HostType) ->
     default.

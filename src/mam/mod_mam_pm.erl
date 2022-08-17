@@ -95,8 +95,7 @@
 
 %% Other
 -import(mod_mam_utils,
-        [mess_id_to_external_binary/1,
-         is_complete_result_page/4]).
+        [mess_id_to_external_binary/1]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -398,16 +397,16 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
                            HostType) ->
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    case lookup_messages(HostType, Params) of
+    case lookup_messages2(HostType, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} ->
+        {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
+               is_complete := IsComplete}} ->
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
                                                          QueryID, MessageRows, true),
             %% Make fin iq
-            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
@@ -560,6 +559,20 @@ get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
 remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_remove_archive(HostType, ArcID, ArcJID),
     ok.
+
+
+-spec lookup_messages2(HostType :: host_type(), Params :: mam_iq:lookup_params()) ->
+    {ok, mod_mam:lookup_result_map()} | {error, Reason :: term()}.
+lookup_messages2(HostType, Params) ->
+    case lookup_messages(HostType, Params) of
+        {ok, {TotalCount, Offset, MessageRows}} ->
+            IsComplete = mod_mam_utils:is_complete_result_page(
+                    TotalCount, Offset, MessageRows, Params),
+            {ok, #{total_count => TotalCount, offset => Offset,
+                   messages => MessageRows, is_complete => IsComplete}};
+        Other ->
+            Other
+    end.
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
