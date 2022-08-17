@@ -95,8 +95,7 @@
 
 %% Other
 -import(mod_mam_utils,
-        [mess_id_to_external_binary/1,
-         is_complete_result_page/4]).
+        [mess_id_to_external_binary/1]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -398,16 +397,16 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
                            HostType) ->
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    case lookup_messages(HostType, Params) of
+    case mod_mam_utils:lookup(HostType, Params, fun lookup_messages/2) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} ->
+        {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
+               is_complete := IsComplete}} ->
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
                                                          QueryID, MessageRows, true),
             %% Make fin iq
-            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),

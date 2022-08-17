@@ -71,6 +71,13 @@
          pagination_before10/1,
          pagination_after10/1,
          pagination_simple_before10/1,
+         pagination_simple_before3/1,
+         pagination_simple_before6/1,
+         pagination_simple_before1_pagesize0/1,
+         pagination_simple_before2_pagesize0/1,
+         pagination_simple_after5/1,
+         pagination_simple_after10/1,
+         pagination_simple_after12/1,
          pagination_last_after_id5/1,
          pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
@@ -178,9 +185,10 @@
          rsm_send/3,
          stanza_page_archive_request/3,
          wait_empty_rset/2,
+         wait_message_range/2,
          wait_message_range/3,
-         message_id/2,
          wait_message_range/5,
+         message_id/2,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -498,6 +506,13 @@ rsm_cases() ->
        pagination_last_page_after_id4,
        %% Simple cases
        pagination_simple_before10,
+       pagination_simple_before3,
+       pagination_simple_before6,
+       pagination_simple_before1_pagesize0,
+       pagination_simple_before2_pagesize0,
+       pagination_simple_after5,
+       pagination_simple_after10,
+       pagination_simple_after12,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
        server_returns_item_not_found_for_after_filter_with_nonexistent_id,
@@ -2477,7 +2492,6 @@ pagination_offset5_max0(Config) ->
 pagination_before10(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"before10">>, RSM)),
@@ -2487,17 +2501,37 @@ pagination_before10(Config) ->
     parallel_story(Config, [{alice, 1}], F).
 
 pagination_simple_before10(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"before10">>, RSM)),
-     %% wait_message_range(Client, TotalCount,    Offset, FromN, ToN),
-        wait_message_range(Alice,   undefined, undefined,     5,   9),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(10, Config), simple = true},
+    pagination_test(before10, RSM, simple_range(5, 9, false), Config).
+
+pagination_simple_before3(Config) ->
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(3, Config), simple = true},
+    pagination_test(before3, RSM, simple_range(1, 2, true), Config).
+
+pagination_simple_before6(Config) ->
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(6, Config), simple = true},
+    pagination_test(before6, RSM, simple_range(1, 5, true), Config).
+
+pagination_simple_before1_pagesize0(Config) ->
+    %% No messages forwarded, but is_complete is set
+    RSM = #rsm_in{max = 0, direction = before, id = message_id(1, Config), simple = true},
+    pagination_test(before1, RSM, simple_range(undefined, undefined, true), Config).
+
+pagination_simple_before2_pagesize0(Config) ->
+    RSM = #rsm_in{max = 0, direction = before, id = message_id(2, Config), simple = true},
+    pagination_test(before2, RSM, simple_range(undefined, undefined, false), Config).
+
+pagination_simple_after5(Config) ->
+    RSM = #rsm_in{max = 3, direction = 'after', id = message_id(5, Config), simple = true},
+    pagination_test(after5, RSM, simple_range(6, 8, false), Config).
+
+pagination_simple_after10(Config) ->
+    RSM = #rsm_in{max = 5, direction = 'after', id = message_id(10, Config), simple = true},
+    pagination_test(after10, RSM, simple_range(11, 15, true), Config).
+
+pagination_simple_after12(Config) ->
+    RSM = #rsm_in{max = 5, direction = 'after', id = message_id(12, Config), simple = true},
+    pagination_test(after12, RSM, simple_range(13, 15, true), Config).
 
 pagination_after10(Config) ->
     P = ?config(props, Config),
@@ -3134,3 +3168,15 @@ retract_element(stanza_id) ->
 
 origin_id() ->
     <<"orig-id-1">>.
+
+simple_range(From, To, IsComplete) ->
+    #{total_count => undefined, offset => undefined,
+      from => From, to => To, is_complete => IsComplete}.
+
+pagination_test(Name, RSM, Range, Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        rsm_send(Config, Alice, stanza_page_archive_request(P, atom_to_binary(Name), RSM)),
+        wait_message_range(Alice, Range)
+        end,
+    parallel_story(Config, [{alice, 1}], F).
