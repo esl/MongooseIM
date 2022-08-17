@@ -26,10 +26,11 @@ stream_header(Server, Version, Lang, StreamId) ->
 stream_features(Features) ->
     #xmlel{name = <<"stream:features">>, children = Features}.
 
--spec stream_features_before_auth(mongooseim:host_type(), jid:lserver(), mongoose_listener:options()) ->
+-spec stream_features_before_auth(
+        mongooseim:host_type(), jid:lserver(), mongoose_listener:options(), mongoose_c2s:c2s_data()) ->
     exml:element().
-stream_features_before_auth(HostType, LServer, LOpts) ->
-    Features = determine_features(HostType, LServer, LOpts),
+stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
+    Features = determine_features(HostType, LServer, LOpts, StateData),
     stream_features(Features).
 
 %% From RFC 6120, section 5.3.1:
@@ -42,22 +43,22 @@ stream_features_before_auth(HostType, LServer, LOpts) ->
 %% receiving entity will likely depend on whether TLS has been negotiated).
 %%
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
-determine_features(_, _, #{tls := #{mode := starttls_required}}) ->
+determine_features(_, _, #{tls := #{mode := starttls_required}}, _StateData) ->
     [starttls_stanza(required)];
-determine_features(HostType, LServer, #{tls := #{mode := tls}}) ->
-    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType);
-determine_features(HostType, LServer, _) ->
+determine_features(HostType, LServer, #{tls := #{mode := tls}}, StateData) ->
+    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType, StateData);
+determine_features(HostType, LServer, _, StateData) ->
     [starttls_stanza(optional)
-     | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType)].
+     | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType, StateData)].
 
-maybe_sasl_mechanisms(HostType) ->
+maybe_sasl_mechanisms(HostType, StateData) ->
     case cyrsasl:listmech(HostType) of
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
                     children = [ mechanism(M)
-                                 || M <- Mechanisms, mongoose_c2s:filter_mechanism(M) ]}]
+                                 || M <- Mechanisms, mongoose_c2s:filter_mechanism(StateData, M) ]}]
     end.
 
 -spec mechanism(binary()) -> exml:element().

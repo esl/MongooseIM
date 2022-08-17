@@ -15,7 +15,7 @@
 -export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_handler/2, remove_handler/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
--export([filter_mechanism/1, c2s_stream_error/2, maybe_retry_state/1,
+-export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
          reroute/2, stop/2, merge_states/2]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
@@ -27,16 +27,12 @@
           sid = ejabberd_sm:make_new_sid() :: ejabberd_sm:sid(),
           streamid = new_stream_id() :: binary(),
           jid :: undefined | jid:jid(),
-          ip :: undefined | {inet:ip_address(), inet:port_number()},
-          ranch_ref :: ranch:ref(),
-          transport :: transport(),
           socket :: ranch_transport:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
           listener_opts :: mongoose_listener:options(),
           handlers = #{} :: #{module() => term()}
          }).
--type transport() :: ranch_tcp | ranch_ssl | fast_tls.
 -type c2s_data() :: #state{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(c2s_state(), c2s_data()).
@@ -70,11 +66,11 @@ stop(Pid, Reason) ->
 callback_mode() ->
     handle_event_function.
 
--spec init({ranch:ref(), transport(), mongoose_listener:options()}) ->
+-spec init({ranch:ref(), ranch_tcp, mongoose_listener:options()}) ->
     gen_statem:init_result(c2s_state(), c2s_data()).
-init({Ref, Transport, Opts}) ->
-    StateData = #state{ranch_ref = Ref, transport = Transport, listener_opts = Opts},
-    ConnectEvent = {next_event, internal, connect},
+init({RanchRef, ranch_tcp, Opts}) ->
+    StateData = #state{listener_opts = Opts},
+    ConnectEvent = {next_event, internal, {connect, RanchRef}},
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), c2s_state(), c2s_data()) -> fsm_res().
@@ -82,9 +78,8 @@ handle_event(info, {route, Acc}, C2SState, StateData) ->
     handle_incoming_stanza(StateData, C2SState, Acc);
 handle_event(info, {route, _From, _To, Acc}, C2SState, StateData) ->
     handle_incoming_stanza(StateData, C2SState, Acc);
-handle_event(info, {TcpOrSSl, _Socket, Packet} = SocketData, _FsmState, StateData)
+handle_event(info, {TcpOrSSl, _Socket, _Packet} = SocketData, _FsmState, StateData)
   when TcpOrSSl =:= tcp orelse TcpOrSSl =:= ssl ->
-    ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Packet, c2s_pid => self()}),
     handle_socket_data(StateData, SocketData);
 handle_event(info, {Closed, _Socket} = SocketData, C2SState, StateData)
   when Closed =:= tcp_closed; Closed =:= ssl_closed ->
@@ -105,14 +100,14 @@ handle_event(info, {exit, Reason}, _, StateData) ->
 handle_event(info, {stop, Reason}, C2SState, StateData) ->
     handle_stop_request(StateData, C2SState, Reason);
 
-handle_event(internal, connect, connect,
+handle_event(internal, {connect, RanchRef}, connect,
              StateData = #state{listener_opts = #{shaper := ShaperName,
-                                                  max_stanza_size := MaxStanzaSize}}) ->
+                                                  max_stanza_size := MaxStanzaSize} = Opts}) ->
     {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
     Shaper = shaper:new(ShaperName),
-    StateData1 = handle_socket_proxy_ip_blacklist_ssl(StateData),
-    StateData2 = StateData1#state{parser = Parser, shaper = Shaper},
-    {next_state, {wait_for_stream, stream_start}, StateData2, state_timeout()};
+    C2SSocket = mongoose_c2s_socket:new_socket(RanchRef, Opts),
+    StateData1 = StateData#state{socket = C2SSocket, parser = Parser, shaper = Shaper},
+    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout()};
 
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
@@ -223,85 +218,18 @@ terminate(Reason, C2SState, #state{host_type = HostType, lserver = LServer} = St
 %%% socket helpers
 %%%----------------------------------------------------------------------
 
--spec handle_socket_proxy_ip_blacklist_ssl(c2s_data()) -> c2s_data().
-handle_socket_proxy_ip_blacklist_ssl(StateData = #state{ranch_ref = Ref,
-                                                        listener_opts = #{proxy_protocol := true}}) ->
-    {ok, #{src_address := PeerIp, src_port := PeerPort}} = ranch:recv_proxy_header(Ref, 1000),
-    verify_ip_is_not_blacklisted(PeerIp),
-    {ok, Socket} = ranch:handshake(Ref),
-    NewStateData = StateData#state{ip = {PeerIp, PeerPort}},
-    handle_socket_and_ssl_config(NewStateData, Socket);
-handle_socket_proxy_ip_blacklist_ssl(StateData = #state{ranch_ref = Ref,
-                                                        listener_opts = #{proxy_protocol := false}}) ->
-    {ok, Socket} = ranch:handshake(Ref),
-    {ok, {PeerIp, _PeerPort} = IP} = ranch_tcp:peername(Socket),
-    verify_ip_is_not_blacklisted(PeerIp),
-    NewStateData = StateData#state{ip = IP},
-    handle_socket_and_ssl_config(NewStateData, Socket).
-
--spec handle_socket_and_ssl_config(c2s_data(), ranch_transport:socket()) -> c2s_data().
-handle_socket_and_ssl_config(
-  StateData = #state{listener_opts = #{tls := #{mode := tls, module := TlsMod, opts := TlsOpts}}},
-  TcpSocket) ->
-    case tcp_to_tls(TlsMod, TcpSocket, TlsOpts) of
-        {ok, TlsSocket} ->
-            NewStateData = StateData#state{transport = TlsMod, socket = TlsSocket},
-            activate_socket(NewStateData),
-            NewStateData;
-        {error, closed} ->
-            throw({stop, {shutdown, tls_closed}});
-        {error, timeout} ->
-            throw({stop, {shutdown, tls_timeout}});
-        {error, {tls_alert, TlsAlert}} ->
-            throw({stop, TlsAlert})
-    end;
-handle_socket_and_ssl_config(StateData, Socket) ->
-    StateData1 = StateData#state{socket = Socket},
-    activate_socket(StateData1),
-    StateData1.
-
--spec tcp_to_tls(fast_tls | just_tls, ranch_transport:socket(), list()) ->
-    {ok, ranch_transport:socket()} | {error, _}.
-tcp_to_tls(fast_tls, TcpSocket, TlsOpts) ->
-    case fast_tls:tcp_to_tls(TcpSocket, TlsOpts) of
-        {ok, TlsSocket} ->
-            fast_tls:recv_data(TlsSocket, <<>>),
-            {ok, TlsSocket};
-        Other -> Other
-    end;
-tcp_to_tls(just_tls, TcpSocket, TlsOpts) ->
-    case ranch_ssl:handshake(TcpSocket, TlsOpts, 1000) of
-        {ok, TlsSocket, _} -> {ok, TlsSocket};
-        Other -> Other
-    end.
-
--spec verify_ip_is_not_blacklisted(inet:ip_address()) -> ok | no_return().
-verify_ip_is_not_blacklisted(PeerIp) ->
-    case mongoose_hooks:check_bl_c2s(PeerIp) of
-        true ->
-            ?LOG_INFO(#{what => c2s_blacklisted_ip, ip => PeerIp,
-                        text => <<"Connection attempt from blacklisted IP">>}),
-            throw({stop, {shutdown, ip_blacklisted}});
-        false ->
-            ok
-    end.
-
 -spec handle_socket_data(c2s_data(), {_, _, iodata()}) -> fsm_res().
-handle_socket_data(StateData = #state{transport = fast_tls, socket = TlsSocket}, {tcp, _Socket, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
-    case fast_tls:recv_data(TlsSocket, Data) of
-        {ok, DecryptedData} ->
-            handle_socket_packet(StateData, DecryptedData);
+handle_socket_data(StateData = #state{socket = Socket}, Payload) ->
+    case mongoose_c2s_socket:handle_socket_data(Socket, Payload) of
         {error, _Reason} ->
-            {stop, {shutdown, socket_error}, StateData}
-    end;
-handle_socket_data(StateData = #state{transport = ranch_tcp}, {tcp, _Socket, Data}) ->
-    handle_socket_packet(StateData, Data);
-handle_socket_data(StateData = #state{transport = ranch_ssl}, {ssl, _Socket, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
-    handle_socket_packet(StateData, Data).
+            {stop, {shutdown, socket_error}, StateData};
+        Data ->
+            handle_socket_packet(StateData, Data)
+    end.
 
+-spec handle_socket_packet(c2s_data(), iodata()) -> fsm_res().
 handle_socket_packet(StateData = #state{parser = Parser, shaper = Shaper}, Packet) ->
+    ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Packet, c2s_pid => self()}),
     case exml_stream:parse(Parser, Packet) of
         {error, Reason} ->
             NextEvent = {next_event, internal, #xmlstreamerror{name = iolist_to_binary(Reason)}},
@@ -316,43 +244,34 @@ handle_socket_packet(StateData = #state{parser = Parser, shaper = Shaper}, Packe
             {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}
     end.
 
--spec activate_socket(c2s_data()) -> any().
-activate_socket(#state{socket = Socket, transport = fast_tls}) ->
-    fast_tls:setopts(Socket, [{active, once}]);
-activate_socket(#state{socket = Socket, transport = ranch_tcp}) ->
-    ranch_tcp:setopts(Socket, [{active, once}]);
-activate_socket(#state{socket = Socket, transport = ranch_ssl}) ->
-    ranch_ssl:setopts(Socket, [{active, once}]).
-
 -spec maybe_pause(c2s_data(), integer()) -> any().
 maybe_pause(_StateData, Pause) when Pause > 0 ->
     [{{timeout, activate_socket}, Pause, activate_socket}];
-maybe_pause(StateData, _) ->
-    activate_socket(StateData),
+maybe_pause(#state{socket = Socket}, _) ->
+    mongoose_c2s_socket:activate_socket(Socket),
     [].
 
--spec close_socket(c2s_data()) -> term().
-close_socket(#state{socket = Socket, transport = fast_tls}) when Socket =/= undefined ->
-    fast_tls:close(Socket);
-close_socket(#state{socket = Socket, transport = ranch_tcp}) when Socket =/= undefined ->
-    ranch_tcp:close(Socket);
-close_socket(#state{socket = Socket, transport = ranch_ssl}) when Socket =/= undefined ->
-    ranch_ssl:close(Socket);
-close_socket(_) ->
-    ok.
+-spec close_socket(c2s_data()) -> ok | {error, term()}.
+close_socket(#state{socket = Socket}) ->
+    mongoose_c2s_socket:close_socket(Socket).
 
--spec send_text(c2s_data(), iodata()) -> maybe_ok().
-send_text(StateData = #state{socket = Socket, transport = Transport}, Text) ->
-    ?LOG_DEBUG(#{what => c2s_send_text, text => <<"Send XML to the socket">>,
-                 send_text => Text, c2s_state => StateData}),
-    send_text(Socket, Text, Transport).
+-spec activate_socket(c2s_data()) -> ok | {error, term()}.
+activate_socket(#state{socket = Socket}) ->
+    mongoose_c2s_socket:activate_socket(Socket).
 
-send_text(Socket, Text, ranch_tcp) ->
-    ranch_tcp:send(Socket, Text);
-send_text(Socket, Text, fast_tls) ->
-    fast_tls:send(Socket, Text);
-send_text(Socket, Text, ranch_ssl) ->
-    ranch_ssl:send(Socket, Text).
+-spec send_text(c2s_data(), iodata()) -> ok | {error, term()}.
+send_text(#state{socket = Socket}, Text) ->
+    mongoose_c2s_socket:send_text(Socket, Text).
+
+-spec filter_mechanism(c2s_data(), binary()) -> boolean().
+filter_mechanism(#state{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
+    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+filter_mechanism(#state{socket = Socket}, <<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) ->
+    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+filter_mechanism(#state{socket = Socket, listener_opts = Opts}, <<"EXTERNAL">>) ->
+    mongoose_c2s_socket:has_peer_cert(Socket, Opts);
+filter_mechanism(_, _) ->
+    true.
 
 %%%----------------------------------------------------------------------
 %%% error handler helpers
@@ -448,38 +367,35 @@ get_xml_lang(StreamStart) ->
     end.
 
 -spec handle_starttls(c2s_data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
-handle_starttls(StateData = #state{transport = ranch_tcp,
-                                   socket = TcpSocket,
+handle_starttls(StateData = #state{socket = TcpSocket,
                                    parser = Parser,
-                                   listener_opts = #{tls := #{module := TlsMod, opts := TlsOpts}}},
-                _, _, _) ->
-    ranch_tcp:setopts(TcpSocket, [{active, false}]),
+                                   listener_opts = Opts}, El, SaslState, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    case tcp_to_tls(TlsMod, TcpSocket, TlsOpts) of
+    case mongoose_c2s_socket:tcp_to_tls(TcpSocket, Opts) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
-            NewStateData = StateData#state{transport = TlsMod,
-                                           socket = TlsSocket,
+            NewStateData = StateData#state{socket = TlsSocket,
                                            parser = NewParser,
                                            streamid = new_stream_id()},
             activate_socket(NewStateData),
             {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout()};
+        {error, already_tls_connection} ->
+            ErrorStanza = mongoose_xmpp_errors:bad_request(StateData#state.lang, <<"bad_config">>),
+            Err = jlib:make_error_reply(El, ErrorStanza),
+            send_element_from_server_jid(StateData, Err),
+            maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries});
         {error, closed} ->
             {stop, {shutdown, tls_closed}};
         {error, timeout} ->
             {stop, {shutdown, tls_timeout}};
         {error, {tls_alert, TlsAlert}} ->
             {stop, TlsAlert}
-    end;
-handle_starttls(StateData, El, SaslState, Retries) ->
-    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request(StateData#state.lang, <<"bad_config">>)),
-    send_element_from_server_jid(StateData, Err),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries}).
+    end.
 
 -spec handle_auth_start(c2s_data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_auth_start(StateData, El, SaslState, Retries) ->
-    case {StateData#state.transport, StateData#state.listener_opts} of
-        {ranch_tcp, #{tls := #{mode := starttls_required}}} ->
+    case {mongoose_c2s_socket:is_ssl(StateData#state.socket), StateData#state.listener_opts} of
+        {false, #{tls := #{mode := starttls_required}}} ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#state.lang, <<"Use of STARTTLS required">>));
         _ ->
             do_handle_auth_start(StateData, El, SaslState, Retries)
@@ -490,7 +406,7 @@ do_handle_auth_start(StateData, El, SaslState, Retries) ->
     Mech = exml_query:attr(El, <<"mechanism">>),
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
     HostType = StateData#state.host_type,
-    AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(M)],
+    AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)],
     SocketData = #{socket => StateData#state.socket, auth_mech => AuthMech},
     StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
     handle_sasl_step(StateData, StepResult, SaslState, Retries).
@@ -540,7 +456,7 @@ stream_start_features_before_auth(#state{host_type = HostType, lserver = LServer
     CredOpts = mongoose_credentials:make_opts(LOpts),
     Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts, S),
     send_element_from_server_jid(S, StreamFeatures),
     {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout()}.
 
@@ -902,11 +818,6 @@ state_timeout() ->
     Timeout = mongoose_config:get_opt(c2s_state_timeout),
     {state_timeout, Timeout, state_timeout_termination}.
 
-filter_mechanism(<<"EXTERNAL">>) -> false;
-filter_mechanism(<<"SCRAM-SHA-1-PLUS">>) -> false;
-filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) -> false;
-filter_mechanism(_) -> true.
-
 -spec replace_resource(c2s_data(), binary()) -> c2s_data().
 replace_resource(StateData, <<>>) ->
     replace_resource(StateData, generate_random_resource());
@@ -946,8 +857,8 @@ get_sid(#state{sid = Sid}) ->
     Sid.
 
 -spec get_ip(c2s_data()) -> term().
-get_ip(#state{ip = Ip}) ->
-    Ip.
+get_ip(#state{socket = Socket}) ->
+    mongoose_c2s_socket:get_ip(Socket).
 
 -spec get_socket(c2s_data()) -> term().
 get_socket(#state{socket = Socket}) ->
