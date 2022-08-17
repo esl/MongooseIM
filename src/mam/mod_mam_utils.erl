@@ -1039,14 +1039,15 @@ maybe_previous_id(X) ->
 %%      It's the most efficient way to query archive, if the client side does
 %%      not care about the total number of messages and if it's stateless
 %%      (i.e. web interface).
--spec is_complete_result_page(TotalCount, Offset, MessageRows, Params) ->
+%% Handles case when we have TotalCount and Offset as integers
+-spec is_complete_result_page_using_offset(Params, Result) ->
     boolean() when
-    TotalCount  :: non_neg_integer()|undefined,
-    Offset      :: non_neg_integer()|undefined,
-    MessageRows :: list(),
-    Params      :: mam_iq:lookup_params().
-is_complete_result_page(TotalCount, Offset, MessageRows,
-                        #{page_size := PageSize} = Params) ->
+    Params      :: mam_iq:lookup_params(),
+    Result      :: mod_mam:lookup_result_map().
+is_complete_result_page_using_offset(#{page_size := PageSize} = Params,
+                                     #{total_count := TotalCount, offset := Offset,
+                                       messages := MessageRows})
+    when is_integer(TotalCount), is_integer(Offset) ->
     case maps:get(ordering_direction, Params, forward) of
         forward ->
             is_most_recent_page(PageSize, TotalCount, Offset, MessageRows);
@@ -1177,12 +1178,22 @@ check_for_item_not_found(#rsm_in{direction = aft, id = ID},
              F :: fun()) ->
     {ok, mod_mam:lookup_result_map()} | {error, Reason :: term()}.
 lookup(HostType, Params, F) ->
+    F1 = patch_fun_to_make_result_as_map(F),
+    process_lookup_with_complete_check(HostType, Params, F1).
+
+process_lookup_with_complete_check(HostType, Params, F) ->
     case F(HostType, Params) of
-        {ok, {TotalCount, Offset, MessageRows}} ->
-            IsComplete = is_complete_result_page(
-                    TotalCount, Offset, MessageRows, Params),
-            {ok, #{total_count => TotalCount, offset => Offset,
-                   messages => MessageRows, is_complete => IsComplete}};
+        {ok, Result} ->
+            IsComplete = is_complete_result_page_using_offset(Params, Result),
+            {ok, Result#{is_complete => IsComplete}};
         Other ->
             Other
     end.
+
+patch_fun_to_make_result_as_map(F) ->
+    fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.
+
+result_to_map({ok, {TotalCount, Offset, MessageRows}}) ->
+    {ok, #{total_count => TotalCount, offset => Offset, messages => MessageRows}};
+result_to_map(Other) ->
+    Other.
