@@ -156,14 +156,14 @@ handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_respon
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_auth, Retries} = C2SState, StateData) ->
+handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_auth, _} = C2SState, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND} = IQ ->
-            handle_bind_resource(StateData, C2SState, IQ, El, Retries);
+            handle_bind_resource(StateData, C2SState, El, IQ);
         _ ->
             Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
             send_element_from_server_jid(StateData, Err),
-            maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries})
+            maybe_retry_state(StateData, C2SState)
     end;
 handle_event(internal, #xmlel{} = El, session_established, StateData) ->
     case verify_from(El, StateData#state.jid) of
@@ -434,6 +434,19 @@ handle_stream_start(S0, StreamStart, StreamState) ->
             stream_start_error(S0, mongoose_xmpp_errors:invalid_namespace())
     end.
 
+%% As stated in BCP47, 4.4.1:
+%% Protocols or specifications that specify limited buffer sizes for
+%% language tags MUST allow for language tags of at least 35 characters.
+%% Do not store long language tag to avoid possible DoS/flood attacks
+-spec get_xml_lang(exml:element()) -> <<_:8, _:_*8>>.
+get_xml_lang(StreamStart) ->
+    case exml_query:attr(StreamStart, <<"xml:lang">>) of
+        Lang when is_binary(Lang), 0 < byte_size(Lang), byte_size(Lang) =< 35 ->
+            Lang;
+        _ ->
+            ?MYLANG
+    end.
+
 -spec handle_starttls(c2s_data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_starttls(StateData = #state{transport = ranch_tcp,
                                    socket = TcpSocket,
@@ -538,34 +551,32 @@ stream_start_features_after_auth(#state{host_type = HostType, lserver = LServer,
     send_element_from_server_jid(S, StreamFeatures),
     {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout()}.
 
--spec handle_bind_resource(c2s_data(), c2s_state(), jlib:iq(), exml:element(), retries()) -> fsm_res().
-handle_bind_resource(StateData, C2SState, #iq{sub_el = SubEl} = IQ, El, Retries) ->
-    R1 = exml_query:path(SubEl, [{element, <<"resource">>}, cdata]),
-    R2 = jid:resourceprep(R1),
-    handle_bind_resource(StateData, C2SState, IQ, R2, El, Retries).
+-spec handle_bind_resource(c2s_data(), c2s_state(), exml:element(), jlib:iq()) -> fsm_res().
+handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
+    case jid:resourceprep(exml_query:path(SubEl, [{element, <<"resource">>}, cdata])) of
+        error ->
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
+            send_element_from_server_jid(StateData, Err),
+            maybe_retry_state(StateData, C2SState);
+        Resource ->
+            NewStateData = replace_resource(StateData, Resource),
+            Acc = element_to_origin_accum(NewStateData, El),
+            verify_user_allowed(NewStateData, C2SState, Acc, El, IQ)
+    end.
 
--spec handle_bind_resource(c2s_data(), c2s_state(), jlib:iq(), jid:lresource() | error, exml:element(), retries()) ->
-    fsm_res().
-handle_bind_resource(StateData, _, _, error, El, Retries) ->
-    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
-    send_element_from_server_jid(StateData, Err),
-    maybe_retry_state(StateData, {wait_for_feature_after_auth, Retries});
-handle_bind_resource(StateData, C2SState, IQ, <<>>, _, _) ->
-    do_bind_resource(StateData, C2SState, IQ, generate_random_resource());
-handle_bind_resource(StateData, C2SState, IQ, Res, _, _) ->
-    do_bind_resource(StateData, C2SState, IQ, Res).
-
-%% As stated in BCP47, 4.4.1:
-%% Protocols or specifications that specify limited buffer sizes for
-%% language tags MUST allow for language tags of at least 35 characters.
-%% Do not store long language tag to avoid possible DoS/flood attacks
--spec get_xml_lang(exml:element()) -> <<_:8, _:_*8>>.
-get_xml_lang(StreamStart) ->
-    case exml_query:attr(StreamStart, <<"xml:lang">>) of
-        Lang when is_binary(Lang), 0 < byte_size(Lang), byte_size(Lang) =< 35 ->
-            Lang;
-        _ ->
-            ?MYLANG
+-spec verify_user_allowed(c2s_data(), c2s_state(), mongoose_acc:t(), exml:element(), jlib:iq()) -> fsm_res().
+verify_user_allowed(#state{host_type = HostType, jid = Jid} = StateData, C2SState, Acc, El, IQ) ->
+    case mongoose_c2s_hooks:user_open_session(HostType, Acc, (hook_arg(StateData, C2SState))) of
+        {ok, Acc1} ->
+            ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
+            do_open_session(StateData, C2SState, Acc1, IQ);
+        {stop, Acc1} ->
+            Acc2 = mongoose_hooks:forbidden_session_hook(HostType, Acc1, Jid),
+            ?LOG_INFO(#{what => forbidden_session, text => <<"User not allowed to open session">>,
+                        acc => Acc2, c2s_state => StateData}),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
+            send_element_from_server_jid(StateData, Err),
+            maybe_retry_state(StateData, C2SState)
     end.
 
 %% Note that RFC 3921 said:
@@ -578,41 +589,23 @@ get_xml_lang(StreamStart) ->
 %%  backward compatibility an implementation MAY still offer that
 %%  feature.  This enables older software to connect while letting
 %%  newer software save a round trip.
--spec do_bind_resource(c2s_data(), c2s_state(), jlib:iq(), jid:lresource()) -> fsm_res().
-do_bind_resource(StateData, C2SState, IQ, Res) ->
-    Jid = jid:replace_resource(StateData#state.jid, Res),
-    open_session(StateData#state{jid = Jid}, C2SState, IQ, Jid).
-
 %% Note that RFC 3921 said:
 %% > If no priority is provided, a server SHOULD consider the priority to be zero.
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
--spec open_session(c2s_data(), c2s_state(), jlib:iq(), jid:jid()) -> fsm_res().
-open_session(#state{host_type = HostType, lserver = LServer} = StateData, C2SState, IQ, Jid) ->
+-spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t(), jlib:iq()) -> fsm_res().
+do_open_session(#state{host_type = HostType, sid = SID, jid = Jid} = StateData, C2SState, Acc, IQ) ->
     BindResult = mongoose_c2s_stanzas:successful_resource_binding(IQ, Jid),
     MAcc = mongoose_c2s_acc:new(#{c2s_state => session_established, socket_send => [BindResult]}),
-    AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION, statem_acc => MAcc},
-    Acc0 = mongoose_acc:new(AccParams),
-    Params = (hook_arg(StateData, C2SState)),
-    ?LOG_INFO(#{what => c2s_opened_session, text => <<"Opened session">>, c2s_state => StateData}),
-    case mongoose_c2s_hooks:user_open_session(HostType, Acc0, Params) of
-        {ok, Acc1} ->
-            do_open_session(StateData, C2SState, Acc1);
-        {stop, _Acc1} ->
-            c2s_stream_error(StateData, mongoose_xmpp_errors:stream_not_authorized()),
-            {stop, StateData}
-    end.
-
--spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-do_open_session(#state{host_type = HostType, sid = SID, jid = Jid} = StateData, C2SState, Acc) ->
+    Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc),
     FsmActions = case ejabberd_sm:open_session(HostType, SID, Jid, 0, #{}) of
                      [] -> [];
                      ReplacedPids ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
                          [{{timeout, replaced_wait_timeout}, Timeout, ReplacedPids}]
                  end,
-    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, FsmActions),
-    handle_state_after_packet(StateData, C2SState, Acc1).
+    Acc2 = mongoose_c2s_acc:to_acc(Acc1, actions, FsmActions),
+    handle_state_after_packet(StateData, C2SState, Acc2).
 
 -spec maybe_retry_state(c2s_data(), c2s_state()) -> fsm_res().
 maybe_retry_state(StateData, C2SState) ->
@@ -910,6 +903,12 @@ filter_mechanism(<<"EXTERNAL">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-1-PLUS">>) -> false;
 filter_mechanism(<<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) -> false;
 filter_mechanism(_) -> true.
+
+-spec replace_resource(c2s_data(), binary()) -> c2s_data().
+replace_resource(StateData, <<>>) ->
+    replace_resource(StateData, generate_random_resource());
+replace_resource(#state{jid = OldJid} = StateData, NewResource) ->
+    StateData#state{jid = jid:replace_resource(OldJid, NewResource)}.
 
 -spec new_stream_id() -> binary().
 new_stream_id() ->

@@ -14,6 +14,8 @@
 -export([start_link/1, init/1]).
 -ignore_xref([start_link/1]).
 
+%% Hooks
+-export([user_open_session/3]).
 %% backwards compatibility, process iq-session
 -export([process_iq/5]).
 
@@ -32,6 +34,22 @@ start_listener(Opts) ->
     mongoose_listener_sup:start_child(ChildSpec),
     ok.
 
+%% Hooks and handlers
+-spec user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
+    mongoose_c2s_hooks:hook_result().
+user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType, access := Access}) ->
+    Jid = mongoose_c2s:get_jid(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    case acl:match_rule(HostType, LServer, Access, Jid) of
+        allow ->
+            case mongoose_hooks:session_opening_allowed_for_user(HostType, Jid) of
+                allow -> {ok, Acc};
+                _ -> {stop, Acc}
+            end;
+        deny ->
+            {stop, Acc}
+    end.
+
 process_iq(Acc, _From, _To, #iq{type = set, sub_el = #xmlel{name = <<"session">>}} = IQ, _) ->
     {Acc, IQ#iq{type = result}}.
 
@@ -46,14 +64,26 @@ start_link(Opts) ->
 
 -spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(#{module := Module} = Opts) ->
-    [ gen_iq_handler:add_iq_handler_for_domain(
-        HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
-      || HostType <- ?ALL_HOST_TYPES],
+    HostTypes = ?ALL_HOST_TYPES,
+    acc_session_iq_handler(HostTypes),
+    maybe_add_access_check(HostTypes, Opts),
     TransportOpts = prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
     OptsWithTlsConfig = process_tls_opts(Opts),
     Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, OptsWithTlsConfig),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
+
+acc_session_iq_handler(HostTypes) ->
+    [ gen_iq_handler:add_iq_handler_for_domain(
+        HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
+      || HostType <- HostTypes].
+
+maybe_add_access_check(_, #{access := all}) ->
+    ok;
+maybe_add_access_check(HostTypes, #{access := Access}) ->
+    AclHooks = [ {user_open_session, HostType, fun ?MODULE:user_open_session/3, #{access => Access}, 10}
+                 || HostType <- HostTypes ],
+    gen_hook:add_handlers(AclHooks).
 
 process_tls_opts(Opts = #{tls := TlsOpts}) ->
     ReadyTlsOpts = just_tls:make_ssl_opts(TlsOpts),
