@@ -219,7 +219,7 @@ maybe_pause(#c2s_data{socket = Socket}, _) ->
 
 -spec close_socket(c2s_data()) -> ok | {error, term()}.
 close_socket(#c2s_data{socket = Socket}) ->
-    mongoose_c2s_socket:close_socket(Socket).
+    mongoose_c2s_socket:close(Socket).
 
 -spec activate_socket(c2s_data()) -> ok | {error, term()}.
 activate_socket(#c2s_data{socket = Socket}) ->
