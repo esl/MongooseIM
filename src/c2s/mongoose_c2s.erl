@@ -451,7 +451,7 @@ verify_user_allowed(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SS
             Acc2 = mongoose_hooks:forbidden_session_hook(HostType, Acc1, Jid),
             ?LOG_INFO(#{what => forbidden_session, text => <<"User not allowed to open session">>,
                         acc => Acc2, c2s_state => StateData}),
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
+            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_allowed()),
             send_element_from_server_jid(StateData, Err),
             maybe_retry_state(StateData, C2SState)
     end.
@@ -575,6 +575,7 @@ verify_from(El, StateJid) ->
 
 -spec handle_foreign_packet(c2s_data(), c2s_state(), exml:element()) -> fsm_res().
 handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, El) ->
+    ?LOG_DEBUG(#{what => packet_before_session_established_sent, packet => El, c2s_pid => self()}),
     ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION,
                   element => El, from_jid => ServerJid, to_jid => ServerJid},
