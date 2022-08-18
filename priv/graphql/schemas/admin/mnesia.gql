@@ -2,35 +2,44 @@
 Allow admin to manage mnesia database
 """
 
-type MnesiaAdminQuery {
-    info(keys: [String!]!): [MnesiaInfo]
+type MnesiaAdminQuery @protected{
+  info(keys: [String!]!): [MnesiaInfo]
+    @protected(type: GLOBAL)
 }
 
-type MnesiaAdminMutation {
-    setMaster(node: String!): String
-    changeNodename(fromString: String!, toString: String!,
-                         source: String!, target: String!): String
-    backup(path: String!): String
-    restore(path: String!): String
-    dump(path: String!): String
-    dumpTable(path: String!, table: String!): String
-    load(path: String!): String
-    installFallback(path: String!): String
+type MnesiaAdminMutation @protected{
+  setMaster(node: String!): String
+    @protected(type: GLOBAL)
+  changeNodename(fromString: String!, toString: String!,
+                       source: String!, target: String!): String
+    @protected(type: GLOBAL)
+  backup(path: String!): String
+    @protected(type: GLOBAL)
+  restore(path: String!): String
+    @protected(type: GLOBAL)
+  dump(path: String!): String
+    @protected(type: GLOBAL)
+  dumpTable(path: String!, table: String!): String
+    @protected(type: GLOBAL)
+  load(path: String!): String
+    @protected(type: GLOBAL)
+  installFallback(path: String!): String
+    @protected(type: GLOBAL)
 }
 
 union MnesiaInfo =  MnesiaStringResponse | MnesiaListResponse | MnesiaIntResponse
 
 type MnesiaStringResponse {
-    result: String
-    key: String
+  result: String
+  key: String
 }
 
 type MnesiaListResponse {
-    result: [String]
-    key: String
+  result: [String]
+  key: String
 }
 
 type MnesiaIntResponse {
-    result: Int
-    key: String
+  result: Int
+  key: String
 }
