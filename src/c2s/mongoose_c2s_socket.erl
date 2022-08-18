@@ -6,7 +6,7 @@
          tcp_to_tls/2,
          handle_socket_data/2,
          activate_socket/1,
-         close_socket/1,
+         close/1,
          send_text/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
@@ -126,14 +126,14 @@ activate_socket(#c2s_socket{transport = ranch_ssl, socket = Socket}) ->
 activate_socket(#c2s_socket{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
 
--spec close_socket(socket()) -> ok.
-close_socket(#c2s_socket{transport = fast_tls, socket = Socket}) when Socket =/= undefined ->
+-spec close(socket()) -> ok.
+close(#c2s_socket{transport = fast_tls, socket = Socket}) when Socket =/= undefined ->
     fast_tls:close(Socket);
-close_socket(#c2s_socket{transport = ranch_ssl, socket = Socket}) when Socket =/= undefined ->
+close(#c2s_socket{transport = ranch_ssl, socket = Socket}) when Socket =/= undefined ->
     ranch_ssl:close(Socket);
-close_socket(#c2s_socket{transport = ranch_tcp, socket = Socket}) when Socket =/= undefined ->
+close(#c2s_socket{transport = ranch_tcp, socket = Socket}) when Socket =/= undefined ->
     ranch_tcp:close(Socket);
-close_socket(_) ->
+close(_) ->
     ok.
 
 -spec send_text(socket(), iodata()) -> ok | {error, term()}.
