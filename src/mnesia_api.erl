@@ -105,6 +105,95 @@ load_mnesia(Path) ->
             {error, {cannot_load, String}}
     end.
 
+-spec mnesia_change_nodename(string(), string(), _, _) -> {ok, _} | {error, _}.
+mnesia_change_nodename(FromString, ToString, Source, Target) ->
+    From = list_to_atom(FromString),
+    To = list_to_atom(ToString),
+    Switch =
+        fun
+            (Node) when Node == From ->
+                io:format("     - Replacing nodename: '~p' with: '~p'~n", [From, To]),
+                To;
+            (Node) when Node == To ->
+                %% throw({error, already_exists});
+                io:format("     - Node: '~p' will not be modified (it is already '~p')~n", [Node, To]),
+                Node;
+            (Node) ->
+                io:format("     - Node: '~p' will not be modified (it is not '~p')~n", [Node, From]),
+                Node
+        end,
+    Convert =
+        fun
+            ({schema, db_nodes, Nodes}, Acc) ->
+                io:format(" +++ db_nodes ~p~n", [Nodes]),
+                {[{schema, db_nodes, lists:map(Switch, Nodes)}], Acc};
+            ({schema, version, Version}, Acc) ->
+                io:format(" +++ version: ~p~n", [Version]),
+                {[{schema, version, Version}], Acc};
+            ({schema, cookie, Cookie}, Acc) ->
+                io:format(" +++ cookie: ~p~n", [Cookie]),
+                {[{schema, cookie, Cookie}], Acc};
+            ({schema, Tab, CreateList}, Acc) ->
+                io:format("~n * Checking table: '~p'~n", [Tab]),
+                Keys = [ram_copies, disc_copies, disc_only_copies],
+                OptSwitch =
+                    fun({Key, Val}) ->
+                            case lists:member(Key, Keys) of
+                                true ->
+                                    io:format("   + Checking key: '~p'~n", [Key]),
+                                    {Key, lists:map(Switch, Val)};
+                                false-> {Key, Val}
+                            end
+                    end,
+                Res = {[{schema, Tab, lists:map(OptSwitch, CreateList)}], Acc},
+                Res;
+            (Other, Acc) ->
+                {[Other], Acc}
+        end,
+    case mnesia:traverse_backup(Source, Target, Convert, switched) of
+        {ok, _} = Result -> Result;
+        {error, Reason} ->
+            String = io_lib:format("Error while changing node's name ~p:~n~p",
+                                   [node(), Reason]),
+            case Reason of
+                {_, enoent} ->
+                    {error, {file_not_found, String}};
+                {_, {not_a_log_file, _}} ->
+                    {error, {bad_file_format, String}};
+                _ ->
+                    {error, {error, String}}
+            end
+    end.
+
+-spec install_fallback_mnesia(file:name()) ->
+                        {cannot_fallback, io_lib:chars()} | {ok, []}.
+install_fallback_mnesia(Path) ->
+    case mnesia:install_fallback(Path) of
+        ok ->
+            {ok, ""};
+        {error, Reason} ->
+            String = io_lib:format("Can't install fallback from ~p at node ~p: ~p",
+                                   [filename:absname(Path), node(), Reason]),
+            {cannot_fallback, String}
+    end.
+
+-spec set_master(Node :: atom() | string()) -> {error, io_lib:chars()} | {ok, []}.
+set_master("self") ->
+    set_master(node());
+set_master(NodeString) when is_list(NodeString) ->
+    set_master(list_to_atom(NodeString));
+set_master(NodeString) when is_binary(NodeString) ->
+    set_master(binary_to_atom(NodeString));
+set_master(Node) when is_atom(Node) ->
+    case mnesia:set_master_nodes([Node]) of
+        ok ->
+            {ok, ""};
+        {error, Reason} ->
+            String = io_lib:format("Can't set master node ~p at node ~p:~n~p",
+                                   [Node, node(), Reason]),
+            {error, String}
+    end.
+
 %---------------------------------------------------------------------------------------------------
 %                                              Helpers
 %---------------------------------------------------------------------------------------------------
@@ -143,23 +232,6 @@ dump_tables(File, Tabs) ->
                 _ ->
                     {error, {cannot_dump, String}}
             end
-    end.
-
--spec set_master(Node :: atom() | string()) -> {error, io_lib:chars()} | {ok, []}.
-set_master("self") ->
-    set_master(node());
-set_master(NodeString) when is_list(NodeString) ->
-    set_master(list_to_atom(NodeString));
-set_master(NodeString) when is_binary(NodeString) ->
-    set_master(binary_to_atom(NodeString));
-set_master(Node) when is_atom(Node) ->
-    case mnesia:set_master_nodes([Node]) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't set master node ~p at node ~p:~n~p",
-                                   [Node, node(), Reason]),
-            {error, String}
     end.
 
 %% @doc Mnesia database restore
@@ -239,62 +311,3 @@ dump_tab(F, T) ->
                      fun() -> mnesia:match_object(T, W, read) end),
     lists:foreach(
       fun(Term) -> io:format(F, "~p.~n", [setelement(1, Term, T)]) end, All).
-
--spec install_fallback_mnesia(file:name()) ->
-                        {cannot_fallback, io_lib:chars()} | {ok, []}.
-install_fallback_mnesia(Path) ->
-    case mnesia:install_fallback(Path) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't install fallback from ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_fallback, String}
-    end.
-
--spec mnesia_change_nodename(string(), string(), _, _) -> {ok, _} | {error, _}.
-mnesia_change_nodename(FromString, ToString, Source, Target) ->
-    From = list_to_atom(FromString),
-    To = list_to_atom(ToString),
-    Switch =
-        fun
-            (Node) when Node == From ->
-                io:format("     - Replacing nodename: '~p' with: '~p'~n", [From, To]),
-                To;
-            (Node) when Node == To ->
-                %% throw({error, already_exists});
-                io:format("     - Node: '~p' will not be modified (it is already '~p')~n", [Node, To]),
-                Node;
-            (Node) ->
-                io:format("     - Node: '~p' will not be modified (it is not '~p')~n", [Node, From]),
-                Node
-        end,
-    Convert =
-        fun
-            ({schema, db_nodes, Nodes}, Acc) ->
-                io:format(" +++ db_nodes ~p~n", [Nodes]),
-                {[{schema, db_nodes, lists:map(Switch, Nodes)}], Acc};
-            ({schema, version, Version}, Acc) ->
-                io:format(" +++ version: ~p~n", [Version]),
-                {[{schema, version, Version}], Acc};
-            ({schema, cookie, Cookie}, Acc) ->
-                io:format(" +++ cookie: ~p~n", [Cookie]),
-                {[{schema, cookie, Cookie}], Acc};
-            ({schema, Tab, CreateList}, Acc) ->
-                io:format("~n * Checking table: '~p'~n", [Tab]),
-                Keys = [ram_copies, disc_copies, disc_only_copies],
-                OptSwitch =
-                    fun({Key, Val}) ->
-                            case lists:member(Key, Keys) of
-                                true ->
-                                    io:format("   + Checking key: '~p'~n", [Key]),
-                                    {Key, lists:map(Switch, Val)};
-                                false-> {Key, Val}
-                            end
-                    end,
-                Res = {[{schema, Tab, lists:map(OptSwitch, CreateList)}], Acc},
-                Res;
-            (Other, Acc) ->
-                {[Other], Acc}
-        end,
-    mnesia:traverse_backup(Source, Target, Convert, switched).

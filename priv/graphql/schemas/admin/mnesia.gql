@@ -8,7 +8,7 @@ type MnesiaAdminQuery {
 
 type MnesiaAdminMutation {
     setMaster(node: String!): String
-    mnesiaChangeNodename(fromString: String!, toString: String!,
+    changeNodename(fromString: String!, toString: String!,
                          source: String!, target: String!): String
     backup(path: String!): String
     restore(path: String!): String

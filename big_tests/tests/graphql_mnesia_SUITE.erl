@@ -35,9 +35,11 @@ admin_mnesia_tests() ->
      load_mnesia_no_file_test,
      load_mnesia_bad_file_test,
      load_mnesia_bad_file2_test,
+     change_nodename_test,
+     change_nodename_no_file_error_test,
+     change_nodename_bad_file_error_test,
      get_info_test,
      install_fallback_error_test,
-     install_fallback_test,
      set_master_test].
 
 init_per_suite(Config) ->
@@ -152,6 +154,37 @@ load_mnesia_no_file_test(Config) ->
     Filename = <<"NON_EXISTING">>,
     check_if_response_contains(load_mnesia(Filename, Config), <<"file_not_found">>).
 
+change_nodename_test(Config) ->
+    Filename1 = <<"change_nodename_mnesia_test">>,
+    Filename2 = <<"change_nodename2_mnesia_test">>,
+    create_vcard_table(),
+    write_to_vcard(),
+    ?assert(is_record_in_a_vcard_table()),
+    Res = backup_mnesia(Filename1, Config),
+    ParsedRes = get_ok_value([data, mnesia, backup], Res),
+    ?assertEqual(<<"Mnesia was successfully backuped">>, ParsedRes),
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"change_nodename_test@localhost">>,
+    Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
+    check_if_response_contains(Value, <<"Name of the node was successfully changed">>).
+
+change_nodename_no_file_error_test(Config) ->
+    Filename1 = <<"non_existing">>,
+    Filename2 = <<"change_nodename2_mnesia_test">>,
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"change_nodename_test@localhost">>,
+    Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
+    ?assertEqual(<<"file_not_found">>, get_err_code(Value)).
+
+change_nodename_bad_file_error_test(Config) ->
+    Filename1 = <<"existing_but_having_wrong_structure">>,
+    Filename2 = <<"change_nodename2_mnesia_test">>,
+    create_and_write_file(create_full_filename(Filename1)),
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"change_nodename_test@localhost">>,
+    Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
+    ?assertEqual(<<"bad_file_format">>, get_err_code(Value)).
+
 get_info_test(Config) ->
     Res = get_info(mnesia_info_keys(), Config),
     ?assertEqual(<<"bad_key_error">>, get_err_code(Res)),
@@ -166,34 +199,12 @@ get_info_test(Config) ->
     end, ParsedRes).
 
 install_fallback_error_test(Config) ->
-    Res = install_fallback(#{<<"path">> => <<"AAAA">>}, Config),
+    Res = install_fallback(<<"AAAA">>, Config),
     ?assertEqual(<<"cannot_fallback">>, get_err_code(Res)).
 
-install_fallback_test(Config) ->
-    ok.
-%    {ok, Path} = file:get_cwd(),
-%    io:format("SDFSDFDSFDSFSDFDSFSDF"),
-%    io:format(Path),
-%    Res = install_fallback(#{<<"path">> => list_to_binary(Path)}, Config),
-%    ParsedRes = get_ok_value([data, mnesia, installFallback], Res),
-%    ?assertEqual(<<"FallbackInstalled">>, ParsedRes).
-
 set_master_test(Config) ->
-    ok.
-%    catch distributed_helper:rpc(mim(), ejabberd_auth_internal, start, [host_type(mim1)]),
-%    catch distributed_helper:rpc(mim2(), ejabberd_auth_internal, start, [host_type(mim2)]),
-%
-%    TableName = passwd,
-%    NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
-%    set_master(#{<<"node">> => <<"self">>}, Config),
-%    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-%    true = lists:member(MasterNode, NodeList),
-%    RestNodesList = lists:delete(MasterNode, NodeList),
-%    OtherNode = hd(RestNodesList),
-%    set_master(#{<<"node">> => atom_to_binary(OtherNode)}, Config),
-%    [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-%    set_master(#{<<"node">> => <<"self">>}, Config),
-%    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
+    ParsedRes = get_ok_value([data, mnesia, setMaster], set_master(mim(), Config)),
+    ?assertEqual(<<"Master node set">>, ParsedRes).
 
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
@@ -257,8 +268,8 @@ delete_file(FullPath) ->
 get_info(Keys, Config) ->
     execute_command(<<"mnesia">>, <<"info">>, #{keys => Keys}, Config).
 
-install_fallback(Node, Config) ->
-    execute_command(<<"mnesia">>, <<"installFallback">>, Node, Config).
+install_fallback(Path, Config) ->
+    execute_command(<<"mnesia">>, <<"installFallback">>, #{path => Path}, Config).
 
 dump_mnesia(Path, Config) ->
     execute_command(<<"mnesia">>, <<"dump">>, #{path => Path}, Config).
@@ -274,6 +285,11 @@ dump_mnesia_table(Path, Table, Config) ->
 
 load_mnesia(Path, Config) ->
     execute_command(<<"mnesia">>, <<"load">>, #{path => Path}, Config).
+
+change_nodename(ChangeFrom, ChangeTo, Source, Target, Config) ->
+    Vars = #{<<"fromString">> => ChangeFrom, <<"toString">> => ChangeTo,
+             <<"source">> => Source, <<"target">> => Target},
+    execute_command(<<"mnesia">>, <<"changeNodename">>, Vars, Config).
 
 set_master(Node, Config) ->
     execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).

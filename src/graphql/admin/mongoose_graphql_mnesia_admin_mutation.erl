@@ -21,6 +21,14 @@ execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
         {ok, _} -> {ok, "Mnesia was successfully backuped"};
         {error, Error} -> make_error(Error, #{path => Path})
     end;
+execute(_Ctx, mnesia, <<"changeNodename">>, #{<<"fromString">> := FromString,
+    <<"toString">> := ToString, <<"source">> := Source, <<"target">> := Target}) ->
+    case mnesia_api:mnesia_change_nodename(binary_to_list(FromString), binary_to_list(ToString),
+                                           binary_to_list(Source), binary_to_list(Target)) of
+        {ok, _} -> {ok, "Name of the node was successfully changed"};
+        {error, Error} -> make_error(Error, #{fromString => FromString, toString => ToString,
+                                              source => Source, target => Target})
+    end;
 execute(_Ctx, mnesia, <<"restore">>, #{<<"path">> := Path}) ->
     case mnesia_api:restore_mnesia(binary_to_list(Path)) of
         {ok, _} -> {ok, "Mnesia was successfully restored"};
@@ -42,7 +50,7 @@ execute(_Ctx, mnesia, <<"load">>, #{<<"path">> := Path}) ->
         {error, Error} -> make_error(Error, #{path => Path})
     end;
 execute(_Ctx, mnesia, <<"installFallback">>, #{<<"path">> := Path}) ->
-    case mnesia_api:install_fallback_mnesia(Path) of
+    case mnesia_api:install_fallback_mnesia(binary_to_list(Path)) of
         {ok, _} -> {ok, "Fallback installed"};
         Error -> make_error(Error, #{path => Path})
     end.
