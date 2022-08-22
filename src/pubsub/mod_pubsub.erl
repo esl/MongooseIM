@@ -466,6 +466,8 @@ delete_pep_iq_handlers(ServerHost) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
 
+%% Plugins is a subset of configured plugins which are able to start
+%% TODO Evaluate if we should just use plugins from the config instead
 init_state(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
                          pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline,
                          access_createnode := Access}, Plugins) ->
@@ -528,9 +530,8 @@ handle_msg({send_last_items_from_owner, Host, NodeOwner, RecipientInfo}) ->
     send_last_items_from_owner(Host, NodeOwner, RecipientInfo).
 
 send_last_pubsub_items(Host, Recipient, Plugins) ->
-    lists:foreach(fun(PluginType) ->
-          send_last_pubsub_items_for_plugin(Host, PluginType, Recipient)
-      end, Plugins).
+    F = fun(PluginType) -> send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) end,
+    lists:foreach(F, Plugins).
 
 send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
     JIDs = [Recipient, jid:to_lower(Recipient), jid:to_bare(Recipient)],
@@ -4120,6 +4121,7 @@ plugin(Name) ->
 -spec plugins(ServerHost :: mongooseim:domain_name()) -> [plugin_name()].
 plugins(ServerHost) ->
     Proc = gen_mod:get_module_proc(ServerHost, ?PROCNAME),
+    %% TODO This call could be replaced with persistent terms
     gen_server:call(Proc, plugins).
 
 config(ServerHost, Key) ->
