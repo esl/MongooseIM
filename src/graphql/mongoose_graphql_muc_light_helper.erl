@@ -12,10 +12,10 @@ page_size_or_max_limit(PageSize, _MaxLimit) ->
     PageSize.
 
 -spec make_room(mod_muc_light_api:room()) -> map().
-make_room(#{jid := JID, name := Name, subject := Subject, aff_users := Users}) ->
+make_room(#{jid := JID, name := Name, subject := Subject, aff_users := Users, options := Options}) ->
     Participants = lists:map(fun make_ok_user/1, Users),
     #{<<"jid">> => JID, <<"name">> => Name, <<"subject">> => Subject,
-      <<"participants">> => Participants}.
+      <<"participants">> => Participants, <<"options">> => make_options(Options)}.
 
 make_ok_user({JID, Aff}) ->
     {ok, #{<<"jid">> => JID, <<"affiliation">> => Aff}}.
@@ -26,3 +26,6 @@ prepare_blocking_items(Items) ->
 
 blocking_item_to_map({What, Action, Who}) ->
     {ok, #{<<"entityType">> => What, <<"action">> => Action, <<"entity">> => Who}}.
+
+make_options(Options) ->
+    [{ok, #{<<"key">> => K, <<"value">> => V}} || {K, V} <- lists:sort(maps:to_list(Options))].

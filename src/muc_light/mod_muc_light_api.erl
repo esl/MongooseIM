@@ -4,7 +4,7 @@
 -export([create_room/4,
          create_room/5,
          invite_to_room/3,
-         change_room_config/4,
+         change_room_config/3,
          change_affiliation/4,
          remove_user_from_room/3,
          send_message/3,
@@ -80,21 +80,20 @@ invite_to_room(#jid{lserver = MUCServer} = RoomJID, SenderJID, RecipientJID) ->
     end.
 
 
--spec change_room_config(jid:jid(), jid:jid(), binary(), binary()) ->
+-spec change_room_config(jid:jid(), jid:jid(), map()) ->
     {ok, room()} | {not_room_member | not_allowed | room_not_found |
                     validation_error | muc_server_not_found, iolist()}.
 change_room_config(#jid{luser = RoomID, lserver = MUCServer} = RoomJID,
-                   UserJID, RoomName, Subject) ->
+                   UserJID, Config) ->
     case mongoose_domain_api:get_subdomain_info(MUCServer) of
         {ok, #{host_type := HostType, parent_domain := LServer}} ->
             UserUS = jid:to_bare(UserJID),
-            ConfigReq = #config{ raw_config =
-                                 [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
+            ConfigReq = #config{ raw_config = maps:to_list(Config) },
             Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => LServer,
                                      host_type => HostType}),
             case mod_muc_light:change_room_config(UserUS, RoomID, MUCServer, ConfigReq, Acc) of
-                {ok, RoomJID, _}  ->
-                    {ok, make_room(RoomJID, RoomName, Subject, [])};
+                {ok, RoomJID, KV}  ->
+                    {ok, make_room(RoomJID, KV, [])};
                 {error, item_not_found} ->
                     ?USER_NOT_ROOM_MEMBER_RESULT;
                 {error, not_allowed} ->
@@ -255,8 +254,8 @@ get_room_info(#jid{lserver = MUCServer} = RoomJID) ->
     case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
         {ok, HostType} ->
             case mod_muc_light_db_backend:get_info(HostType, jid:to_lus(RoomJID)) of
-                {ok, [{roomname, Name}, {subject, Subject}], AffUsers, _Version} ->
-                    {ok, make_room(jid:to_binary(RoomJID), Name, Subject, AffUsers)};
+                {ok, Conf, AffUsers, _Version} ->
+                    {ok, make_room(jid:to_binary(RoomJID), Conf, AffUsers)};
                 {error, not_exists} ->
                     ?ROOM_NOT_FOUND_RESULT
             end;
@@ -335,8 +334,8 @@ set_blocking(#jid{lserver = LServer} = User, Items) ->
 create_room_raw(InRoomJID, CreatorJID, RoomTitle, Subject) ->
     Config = make_room_config(RoomTitle, Subject),
     try mod_muc_light:try_to_create_room(CreatorJID, InRoomJID, Config) of
-        {ok, RoomJID, #create{aff_users = AffUsers}} ->
-            {ok, make_room(RoomJID, RoomTitle, Subject, AffUsers)};
+        {ok, RoomJID, #create{aff_users = AffUsers, raw_config = Conf}} ->
+            {ok, make_room(RoomJID, Conf, AffUsers)};
         {error, exists} ->
             {already_exist, "Room already exists"};
         {error, max_occupants_reached} ->
@@ -390,8 +389,19 @@ is_user_room_member(HostType, UserUS, {_, MUCServer} = RoomLUS) ->
             lists:any(fun(LUS) -> LUS =:= RoomLUS end, RoomJIDs)
     end.
 
-make_room(JID, Name, Subject, AffUsers) ->
-    #{jid => JID, name => Name, subject => Subject, aff_users => AffUsers}.
+
+make_room(JID, #config{ raw_config = Options}, AffUsers) ->
+    make_room(JID, Options, AffUsers);
+make_room(JID, Options, AffUsers) when is_list(Options) ->
+    make_room(JID, maps:from_list(ensure_keys_are_binaries(Options)), AffUsers);
+make_room(JID, Options, AffUsers) when is_map(Options) ->
+    #{<<"roomname">> := Name, <<"subject">> := Subject} = Options,
+    #{jid => JID, name => Name, subject => Subject, aff_users => AffUsers, options => Options}.
+
+ensure_keys_are_binaries([{K, _}|_] = Conf) when is_binary(K) ->
+    Conf;
+ensure_keys_are_binaries(Conf) ->
+    [{atom_to_binary(K), V} || {K, V} <- Conf].
 
 iq(To, From, Type, Children) ->
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
