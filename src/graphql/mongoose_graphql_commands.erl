@@ -5,6 +5,9 @@
 %% API
 -export([start/0, stop/0, process/1]).
 
+%% Internal API
+-export([wrap_type/2]).
+
 %% Only for tests
 -export([build_specs/1, get_specs/0]).
 
@@ -18,26 +21,33 @@
 
 -type context() :: #{args := [string()],
                      category => category(),
-                     cat_spec => category_spec(),
+                     commands => command_map(),
                      command => command(),
+                     args_spec => [arg_spec()],
                      doc => doc(),
                      vars => json_map(),
-                     reason => atom()}.
+                     reason => atom() | tuple(),
+                     result => result(),
+                     status => executed | error | usage}.
 -type result() :: {ok, #{atom() => graphql:json()}} | {error, any()}.
 -type specs() :: #{category() => category_spec()}.
 -type category() :: binary().
--type category_spec() :: #{command() => command_spec()}.
+-type category_spec() :: #{desc := binary(), commands := command_map()}.
+-type command_map() :: #{command() => command_spec()}.
 -type command() :: binary().
--type command_spec() :: #{op_type := op_type(),
+-type command_spec() :: #{desc := binary(),
+                          op_type := op_type(),
                           args := [arg_spec()],
                           fields := [field_spec()],
                           doc := doc()}.
--type arg_spec() :: #{name := binary(), type := binary(), wrap := [list | required]}.
+-type arg_spec() :: #{name := binary(), type := binary(), kind := binary(), wrap := [list | required]}.
 -type field_spec() :: #{name | on := binary(), fields => [field_spec()]}.
 -type op_type() :: binary().
 -type doc() :: binary().
 -type ep() :: graphql:endpoint_context().
 -type json_map() :: #{binary() => graphql:json()}.
+
+-export_type([category/0, command/0, command_map/0, arg_spec/0, context/0]).
 
 %% API
 
@@ -51,13 +61,15 @@ stop() ->
     persistent_term:erase(?MODULE),
     ok.
 
--spec process([string()]) -> result().
+%% The returned context has 'status' with the following values:
+%%   - 'executed' means that a GraphQL command was called, and 'result' contains the returned value
+%%   - 'error' means that the arguments were incorrect, and 'reason' contains more information
+%%   - 'usage' means that help needs to be displayed
+-spec process([string()]) -> context().
 process(Args) ->
-    lists:foldl(fun(_, {error, _} = Error) -> Error;
+    lists:foldl(fun(_, #{status := _} = Ctx) -> Ctx;
                    (StepF, Ctx) -> StepF(Ctx)
-                end,
-                #{args => Args},
-                [fun find_category/1, fun find_command/1, fun parse_vars/1, fun execute/1]).
+                end, #{args => Args}, steps()).
 
 %% Internal API
 
@@ -75,85 +87,139 @@ get_specs() ->
 
 %% Internals
 
--spec find_category(context()) -> context() | {error, context()}.
+steps() ->
+    [fun find_category/1, fun find_command/1, fun parse_args/1, fun check_args/1, fun execute/1].
+
+-spec find_category(context()) -> context().
 find_category(CtxIn = #{args := [CategoryStr | Args]}) ->
     Category = list_to_binary(CategoryStr),
     Ctx = CtxIn#{category => Category, args => Args},
     case get_specs() of
-        #{Category := CatSpec} ->
-            Ctx#{cat_spec => CatSpec};
+        #{Category := #{commands := Commands}} ->
+            Ctx#{commands => Commands};
         #{} ->
-            {error, Ctx#{reason => unknown_category}}
+            Ctx#{status => error, reason => unknown_category}
     end;
 find_category(Ctx = #{args := []}) ->
-    {error, Ctx#{reason => no_args}}.
+    Ctx#{status => error, reason => no_args}.
 
--spec find_command(context()) -> context() | {error, context()}.
+-spec find_command(context()) -> context().
 find_command(CtxIn = #{args := [CommandStr | Args]}) ->
     Command = list_to_binary(CommandStr),
-    Ctx = #{cat_spec := CatSpec} = CtxIn#{command => Command, args => Args},
-    case CatSpec of
+    Ctx = #{commands := Commands} = CtxIn#{command => Command, args => Args},
+    case Commands of
         #{Command := CommandSpec} ->
-            #{doc := Doc} = CommandSpec,
-            Ctx#{doc => Doc};
+            #{doc := Doc, args := ArgSpec} = CommandSpec,
+            Ctx#{doc => Doc, args_spec => ArgSpec};
         #{} ->
-            {error, Ctx#{reason => unknown_command}}
+            Ctx#{status => error, reason => unknown_command}
     end;
 find_command(Ctx) ->
-    {error, Ctx#{reason => no_command}}.
+    Ctx#{status => usage}.
 
--spec parse_vars(context()) -> context() | {error, context()}.
-parse_vars(Ctx = #{args := [VarsStr]}) ->
-    try jiffy:decode(VarsStr, [return_maps]) of
-        Vars ->
-            Ctx#{vars => Vars}
-    catch _:_ ->
-            {error, Ctx#{reason => invalid_vars}}
+-spec parse_args(context()) -> context().
+parse_args(Ctx = #{args := ["--help"]}) ->
+    Ctx#{status => usage};
+parse_args(Ctx) ->
+    parse_args_loop(Ctx#{vars => #{}}).
+
+parse_args_loop(Ctx = #{vars := Vars,
+                        args_spec := ArgsSpec,
+                        args := ["--" ++ ArgNameStr, ArgValueStr | Rest]}) ->
+    ArgName = list_to_binary(ArgNameStr),
+    case lists:filter(fun(#{name := Name}) -> Name =:= ArgName end, ArgsSpec) of
+        [] ->
+            Ctx#{status => error, reason => {unknown_arg, ArgName}};
+        [ArgSpec] ->
+            ArgValue = list_to_binary(ArgValueStr),
+            try parse_arg(ArgValue, ArgSpec) of
+                ParsedValue ->
+                    NewVars = Vars#{ArgName => ParsedValue},
+                    parse_args_loop(Ctx#{vars := NewVars, args := Rest})
+            catch _:_ ->
+                    Ctx#{status => error, reason => {invalid_arg_value, ArgName, ArgValue}}
+            end
     end;
-parse_vars(Ctx = #{args := []}) ->
-    {error, Ctx#{reason => no_vars}};
-parse_vars(Ctx = #{args := [_|_]}) ->
-    {error, Ctx#{reason => too_many_args}}.
+parse_args_loop(Ctx = #{args := []}) ->
+    Ctx;
+parse_args_loop(Ctx) ->
+    Ctx#{status => error, reason => invalid_args}.
 
--spec execute(context()) -> result().
-execute(#{doc := Doc, vars := Vars}) ->
-    execute(mongoose_graphql:get_endpoint(admin), Doc, Vars).
+-spec parse_arg(binary(), arg_spec()) -> jiffy:json_value().
+parse_arg(Value, ArgSpec = #{type := Type}) ->
+    case is_json_arg(ArgSpec) of
+        true ->
+            jiffy:decode(Value, [return_maps]);
+        false ->
+            convert_input_type(Type, Value)
+    end.
 
-%% Internals
+%% Used input types that are not parsed from binaries should be handled here
+convert_input_type(<<"Int">>, Value) -> binary_to_integer(Value);
+convert_input_type(<<"PosInt">>, Value) -> binary_to_integer(Value);
+convert_input_type(_, Value) -> Value.
+
+%% Complex argument values should be provided in JSON
+-spec is_json_arg(arg_spec()) -> boolean().
+is_json_arg(#{kind := <<"INPUT_OBJECT">>}) -> true;
+is_json_arg(#{kind := Kind, wrap := Wrap}) when Kind =:= <<"SCALAR">>;
+                                                Kind =:= <<"ENUM">> ->
+    lists:member(list, Wrap).
+
+-spec check_args(context()) -> context().
+check_args(Ctx = #{args_spec := ArgsSpec, vars := Vars}) ->
+    MissingArgs = [Name || #{name := Name, wrap := [required|_]} <- ArgsSpec,
+                           not maps:is_key(Name, Vars)],
+    case MissingArgs of
+        [] -> Ctx;
+        _ -> Ctx#{status => error, reason => {missing_args, MissingArgs}}
+    end.
+
+-spec execute(context()) -> context().
+execute(#{doc := Doc, vars := Vars} = Ctx) ->
+    Ctx#{status => executed, result => execute(mongoose_graphql:get_endpoint(admin), Doc, Vars)}.
 
 -spec get_category_specs(ep()) -> [{category(), category_spec()}].
 get_category_specs(Ep) ->
-    {ok, #{data := #{<<"__schema">> := Schema}}} =
-        mongoose_graphql:execute(
-          Ep, undefined,
-          <<"{ __schema { queryType {name fields {name type {name fields {name}}}} "
-            "             mutationType {name fields {name type {name fields {name}}}} } }">>),
+    CSQuery = category_spec_query(),
+    Doc = iolist_to_binary(["{ __schema { queryType ", CSQuery, " mutationType ", CSQuery, " } }"]),
+    {ok, #{data := #{<<"__schema">> := Schema}}} = mongoose_graphql:execute(Ep, undefined, Doc),
     #{<<"queryType">> := #{<<"fields">> := Queries},
       <<"mutationType">> := #{<<"fields">> := Mutations}} = Schema,
     get_category_specs(Ep, <<"query">>, Queries) ++ get_category_specs(Ep, <<"mutation">>, Mutations).
 
 -spec get_category_specs(ep(), op_type(), [json_map()]) -> [{category(), category_spec()}].
 get_category_specs(Ep, OpType, Categories) ->
-    [get_category_spec(Ep, OpType, Category) || Category <- Categories].
+    [get_category_spec(Ep, OpType, Category) || Category <- Categories, is_category(Category)].
+
+is_category(#{<<"name">> := <<"checkAuth">>}) ->
+    false;
+is_category(#{}) ->
+    true.
 
 -spec get_category_spec(ep(), op_type(), json_map()) -> {category(), category_spec()}.
-get_category_spec(Ep, OpType, #{<<"name">> := Category,
+get_category_spec(Ep, OpType, #{<<"name">> := Category, <<"description">> := Desc,
                                 <<"type">> := #{<<"name">> := CategoryType}}) ->
     Doc = iolist_to_binary(
             ["query ($type: String!) { __type(name: $type) "
-             "{name fields {name args {name type ", arg_type_query(), "} type ",
+             "{name fields {name description args {name type ", arg_type_query(), "} type ",
              field_type_query(), "}}}"]),
     Vars = #{<<"type">> => CategoryType},
     {ok, #{data := #{<<"__type">> := #{<<"fields">> := Commands}}}} = execute(Ep, Doc, Vars),
     CommandSpecs = [get_command_spec(Ep, Category, OpType, Command) || Command <- Commands],
-    {Category, maps:from_list(CommandSpecs)}.
+    {Category, #{desc => Desc, commands => maps:from_list(CommandSpecs)}}.
 
 -spec get_command_spec(ep(), category(), op_type(), json_map()) -> {command(), command_spec()}.
 get_command_spec(Ep, Category, OpType,
-                 #{<<"name">> := Name, <<"args">> := Args, <<"type">> := TypeMap}) ->
+                 #{<<"name">> := Name, <<"args">> := Args, <<"type">> := TypeMap} = Map) ->
     Spec = #{op_type => OpType, args => get_args(Args), fields => get_fields(Ep, TypeMap, [])},
     Doc = prepare_doc(Category, Name, Spec),
-    {Name, Spec#{doc => Doc}}.
+    {Name, add_description(Spec#{doc => Doc}, Map)}.
+
+add_description(Spec, #{<<"description">> := Desc}) ->
+    Spec#{desc => Desc};
+add_description(Spec, #{}) ->
+    Spec.
 
 -spec get_args([json_map()]) -> [arg_spec()].
 get_args(Args) ->
@@ -170,7 +236,7 @@ get_arg_type(#{<<"kind">> := <<"LIST">>, <<"ofType">> := TypeMap}, Wrap) ->
 get_arg_type(#{<<"name">> := Type, <<"kind">> := Kind}, Wrap) when Kind =:= <<"SCALAR">>;
                                                                    Kind =:= <<"ENUM">>;
                                                                    Kind =:= <<"INPUT_OBJECT">> ->
-    #{type => Type, wrap => lists:reverse(Wrap)}.
+    #{type => Type, kind => Kind, wrap => lists:reverse(Wrap)}.
 
 -spec get_fields(ep(), json_map(), [binary()]) -> [field_spec()].
 get_fields(_Ep, #{<<"kind">> := Kind}, _Path)
@@ -211,14 +277,18 @@ get_object_fields(Ep, ObjectType) ->
     Fields.
 
 -spec insert_category(category(), category_spec(), specs()) -> specs().
-insert_category(Category, NewCatSpec, Specs) ->
+insert_category(Category, NewCatSpec = #{commands := NewCommands}, Specs) ->
     case Specs of
-        #{Category := OldCatSpec} ->
-            case maps:with(maps:keys(OldCatSpec), NewCatSpec) of
+        #{Category := #{desc := OldDesc, commands := OldCommands}} ->
+            case maps:with(maps:keys(OldCommands), NewCommands) of
                 Common when Common =:= #{} ->
-                    Specs#{Category := maps:merge(OldCatSpec, NewCatSpec)};
+                    Specs#{Category := #{desc => OldDesc,
+                                         commands => maps:merge(OldCommands, NewCommands)}};
                 Common ->
-                    error(#{what => overlapping_commands, commands => maps:keys(Common)})
+                    error(#{what => overlapping_graphql_commands,
+                            text => <<"GraphQL query and mutation names are not unique">>,
+                            category => Category,
+                            commands => maps:keys(Common)})
             end;
         _ ->
             Specs#{Category => NewCatSpec}
@@ -244,7 +314,7 @@ wrap_type([required | Wrap], Type) ->
 wrap_type([list | Wrap], Type) ->
     [$[, wrap_type(Wrap, Type), $]];
 wrap_type([], Type) ->
-    Type.
+    [Type].
 
 -spec use_variables([arg_spec()]) -> iolist().
 use_variables([]) -> "";
@@ -285,3 +355,6 @@ arg_type_query() ->
 nested_type_query(BasicQuery) ->
     lists:foldl(fun(_, QueryAcc) -> ["{ ", BasicQuery, " ofType ", QueryAcc, " }"] end,
                 ["{ ", BasicQuery, " }"], lists:seq(1, ?MAX_INTROSPECTION_DEPTH)).
+
+category_spec_query() ->
+    "{name fields {name description type {name fields {name}}}}".

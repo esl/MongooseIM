@@ -22,7 +22,7 @@ execute(EpName, Body, Creds) ->
     rest_helper:make_request(Request).
 
 execute_user_command(Category, Command, User, Args, Config) ->
-    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
     execute_user(#{query => Doc, variables => Args}, User, Config).
 
 execute_command(Category, Command, Args, Config) ->
@@ -35,12 +35,28 @@ execute_domain_admin_command(Category, Command, Args, Config) ->
 
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Category, Command, Args, Config, http) ->
-    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
     execute_auth(#{query => Doc, variables => Args}, Config);
 execute_command(Category, Command, Args, Config, cli) ->
-    VarsJSON = iolist_to_binary(jiffy:encode(Args)),
-    {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command, VarsJSON], Config),
+    CLIArgs = encode_cli_args(Args),
+    {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command | CLIArgs], Config),
     {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
+
+encode_cli_args(Args) ->
+    lists:flatmap(fun({Name, Value}) -> encode_cli_arg(Name, Value) end, maps:to_list(Args)).
+
+encode_cli_arg(_Name, null) ->
+    [];
+encode_cli_arg(Name, Value) ->
+    [<<"--", (arg_name_to_binary(Name))/binary>>, arg_value_to_binary(Value)].
+
+arg_name_to_binary(Name) when is_atom(Name) -> atom_to_binary(Name);
+arg_name_to_binary(Name) when is_binary(Name) -> Name.
+
+arg_value_to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
+arg_value_to_binary(Value) when is_binary(Value) -> Value;
+arg_value_to_binary(Value) when is_list(Value);
+                                is_map(Value) -> iolist_to_binary(jiffy:encode(Value)).
 
 execute_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
