@@ -1,28 +1,39 @@
 """
-Allow admin to manage mnesia database
+Allow admin to acquire information about mnesia database
 """
-
 type MnesiaAdminQuery @protected{
+  "Allow to acquire information about mnesia database"
   info(keys: [String!]!): [MnesiaInfo]
     @protected(type: GLOBAL)
 }
 
+"""
+Allow admin to backup, dump, load, restore and modify mnesia database
+"""
 type MnesiaAdminMutation @protected{
+  "Set mnesia's master node"
   setMaster(node: String!): String
     @protected(type: GLOBAL)
+  "Change nodename from 'fromString' to 'toString' in 'source' backup file and create new 'target' backup file"
   changeNodename(fromString: String!, toString: String!,
-                       source: String!, target: String!): String
+                 source: String!, target: String!): String
     @protected(type: GLOBAL)
+  "Save mnesia backup to file 'path'"
   backup(path: String!): String
     @protected(type: GLOBAL)
+  "Restore mnesia backup from file 'path'"
   restore(path: String!): String
     @protected(type: GLOBAL)
+  "Dump mnesia to file 'path'"
   dump(path: String!): String
     @protected(type: GLOBAL)
+  "Dump mnesia table 'table' to file 'path'"
   dumpTable(path: String!, table: String!): String
     @protected(type: GLOBAL)
+  "Load mnesia from file 'path' that was previously dumped"
   load(path: String!): String
     @protected(type: GLOBAL)
+  "Install mnesia fallback"
   installFallback(path: String!): String
     @protected(type: GLOBAL)
 }

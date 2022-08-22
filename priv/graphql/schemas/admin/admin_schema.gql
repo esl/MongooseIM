@@ -36,7 +36,7 @@ type AdminQuery{
   stat: StatsAdminQuery
   "Personal data management according to GDPR"
   gdpr: GdprAdminQuery
-  "Mnesia management"
+  "Mnesia internal database management"
   mnesia: MnesiaAdminQuery
 }
 
@@ -73,6 +73,6 @@ type AdminMutation @protected{
   offline: OfflineAdminMutation
   "OAUTH token management"
   token: TokenAdminMutation
-  "Mnesia management"
+  "Mnesia internal database management"
   mnesia: MnesiaAdminMutation
 }

@@ -13,9 +13,7 @@
 
 execute(_Ctx, mnesia, <<"info">>, #{<<"keys">> := Keys}) ->
     ResultList = mnesia_api:mnesia_info(Keys),
-    {ok, lists:foldl(fun
-        ({ok, _} = Result, Acc) ->
-            Acc ++ [Result];
-        ({Error, Map}, Acc) ->
-            Acc ++ [make_error(Error, Map)]
-    end, [], ResultList)}.
+    {ok, lists:map(fun process_result/1, ResultList)}.
+
+process_result({ok, _} = Result) -> Result;
+process_result({Error, Map}) -> make_error(Error, Map).

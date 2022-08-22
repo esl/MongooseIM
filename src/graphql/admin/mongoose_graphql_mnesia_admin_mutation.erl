@@ -12,20 +12,20 @@
 -include("jlib.hrl").
 
 execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
-    case mnesia_api:set_master(Node) of
+    case mnesia_api:set_master(binary_to_list(Node)) of
         {ok, _} -> {ok, "Master node set"};
         {error, Reason} -> make_error({error, Reason}, #{node => Node})
     end;
 execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
     case mnesia_api:backup_mnesia(binary_to_list(Path)) of
-        {ok, _} -> {ok, "Mnesia was successfully backuped"};
+        {ok, _} -> {ok, "Mnesia backup was successfully created"};
         {error, Error} -> make_error(Error, #{path => Path})
     end;
 execute(_Ctx, mnesia, <<"changeNodename">>, #{<<"fromString">> := FromString,
     <<"toString">> := ToString, <<"source">> := Source, <<"target">> := Target}) ->
     case mnesia_api:mnesia_change_nodename(binary_to_list(FromString), binary_to_list(ToString),
                                            binary_to_list(Source), binary_to_list(Target)) of
-        {ok, _} -> {ok, "Name of the node was successfully changed"};
+        {ok, _} -> {ok, "Name of the node in the backup was successfully changed"};
         {error, Error} -> make_error(Error, #{fromString => FromString, toString => ToString,
                                               source => Source, target => Target})
     end;

@@ -12,19 +12,16 @@
 -type dump_error() :: table_does_not_exist | file_error | cannot_dump.
 
 -spec mnesia_info(Keys::[binary()]) -> [info_result() | info_error()].
+mnesia_info([]) ->
+    Value = mnesia:system_info(all),
+    lists:foldl(fun({Key, Result}, AllAcc) ->
+        AllAcc ++ [{ok, #{<<"result">> => convert_value(Result), <<"key">> => Key}}]
+    end, [], Value);
 mnesia_info(Keys) ->
     lists:foldl(fun
         (<<"all">>, Acc) ->
-            try mnesia:system_info(all) of
-                Value ->
-                    Acc ++ lists:foldl(fun({Key, Result}, AllAcc) ->
-                        AllAcc ++ [{ok, #{<<"result">> => convert_value(Result), <<"key">> => Key}}]
-                    end, [], Value)
-            catch
-                _:_ ->
-                    Acc ++ [{{internal_server_error, <<"Internal server error">>},
-                            #{key => <<"all">>}}]
-            end;
+            Acc ++ [{{bad_key_error, <<"Key \"all\" does not exist">>},
+                    #{key => <<"all">>}}];
         (Key, Acc) ->
             try mnesia:system_info(binary_to_atom(Key)) of
                 Value ->
@@ -142,7 +139,7 @@ mnesia_change_nodename(FromString, ToString, Source, Target) ->
                                 true ->
                                     io:format("   + Checking key: '~p'~n", [Key]),
                                     {Key, lists:map(Switch, Val)};
-                                false-> {Key, Val}
+                                false -> {Key, Val}
                             end
                     end,
                 Res = {[{schema, Tab, lists:map(OptSwitch, CreateList)}], Acc},
@@ -182,8 +179,6 @@ set_master("self") ->
     set_master(node());
 set_master(NodeString) when is_list(NodeString) ->
     set_master(list_to_atom(NodeString));
-set_master(NodeString) when is_binary(NodeString) ->
-    set_master(binary_to_atom(NodeString));
 set_master(Node) when is_atom(Node) ->
     case mnesia:set_master_nodes([Node]) of
         ok ->
@@ -208,15 +203,13 @@ convert_value(Value) when is_atom(Value) ->
 convert_value([Head | _] = Value) when is_integer(Head) ->
     list_to_binary(Value);
 convert_value(Value) when is_list(Value) ->
-    lists:foldl(fun(Val, Acc) ->
-        Acc ++ [{ok, convert_value(Val)}]
-    end, [], Value);
+    [{ok, convert_value(Item)} || Item <- Value];
 convert_value(Value) ->
     list_to_binary(io_lib:format("~p", [Value])).
 
 -spec dump_tables(file:name(), list()) -> {error, {dump_error(), io_lib:chars()}} | {ok, []}.
 dump_tables(File, Tabs) ->
-    case dump_to_textfile(mnesia:system_info(is_running), Tabs, file:open(File, [write])) of
+    case dump_to_textfile(Tabs, file:open(File, [write])) of
         ok ->
             {ok, ""};
         {file_error, Reason} ->
@@ -235,15 +228,13 @@ dump_tables(File, Tabs) ->
     end.
 
 %% @doc Mnesia database restore
-%% This function is called from ejabberd_ctl, ejabberd_web_admin and
-%% mod_configure/adhoc
 restore(Path) ->
     mnesia:restore(Path, [{keep_tables, keep_tables()},
                           {default_op, skip_tables}]).
 
-%% @doc This function return a list of tables that should be kept from a
+%% @doc This function returns a list of tables that should be kept from a
 %% previous version backup.
-%% Obsolete tables or tables created by module who are no longer used are not
+%% Obsolete tables or tables created by modules which are no longer used are not
 %% restored and are ignored.
 -spec keep_tables() -> [atom()].
 keep_tables() ->
@@ -285,24 +276,32 @@ get_local_tables() ->
              end, Tabs1),
     Tabs.
 
--spec dump_to_textfile(any(), any(),
+-spec dump_to_textfile(any(),
                       {error, atom()} | {ok, pid() | {file_descriptor, atom() | tuple(), _}}
                       ) -> ok | {error, atom()} | {file_error, atom()}.
-dump_to_textfile(yes, Tabs, {ok, F}) ->
+dump_to_textfile(Tabs, {ok, F}) ->
+    case get_info_about_tables(Tabs, F) of
+        ok ->
+            lists:foreach(fun(T) -> dump_tab(F, T) end, Tabs),
+            file:close(F);
+        {error, _} = Error ->
+            Error
+    end;
+dump_to_textfile(_, {error, Reason}) ->
+    {file_error, Reason}.
+
+-spec get_info_about_tables(any(), pid()) -> ok | {error, atom()}.
+get_info_about_tables(Tabs, File) ->
     try
         Defs = lists:map(
                  fun(T) -> {T, [{record_name, mnesia:table_info(T, record_name)},
                                 {attributes, mnesia:table_info(T, attributes)}]}
                  end,
                  Tabs),
-        io:format(F, "~p.~n", [{tables, Defs}]),
-        lists:foreach(fun(T) -> dump_tab(F, T) end, Tabs),
-        file:close(F)
+        io:format(File, "~p.~n", [{tables, Defs}])
     catch _:_ ->
         {error, table_does_not_exist}
-    end;
-dump_to_textfile(_, _, {error, Reason}) ->
-    {file_error, Reason}.
+    end.
 
 -spec dump_tab(pid(), atom()) -> ok.
 dump_tab(F, T) ->

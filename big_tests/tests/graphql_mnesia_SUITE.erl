@@ -42,6 +42,7 @@ admin_mnesia_tests() ->
      change_nodename_no_file_error_test,
      change_nodename_bad_file_error_test,
      get_info_test,
+     get_all_info_test,
      install_fallback_error_test,
      set_master_test].
 
@@ -90,7 +91,7 @@ dump_mnesia_table_test(Config) ->
     check_created_file(create_full_filename(Filename), <<"{mnesia_table_test,1,<<\"TEST\">>}">>).
 
 dump_mnesia_table_file_error_test(Config) ->
-    Res = dump_mnesia_table(<<"">>, <<"vcard">>, Config),
+    Res = dump_mnesia_table(<<>>, <<"vcard">>, Config),
     ?assertEqual(<<"file_error">>, get_err_code(Res)).
 
 dump_mnesia_table_no_table_error_test(Config) ->
@@ -108,32 +109,32 @@ dump_mnesia_test(Config) ->
     check_created_file(create_full_filename(Filename), <<"{mnesia_table_test,1,<<\"TEST\">>}">>).
 
 dump_mnesia_file_error_test(Config) ->
-    Res = dump_mnesia(<<"">>, Config),
+    Res = dump_mnesia(<<>>, Config),
     ?assertEqual(<<"file_error">>, get_err_code(Res)).
 
 backup_and_restore_test(Config) ->
     Filename = <<"backup_restore_mnesia_test">>,
     create_vcard_table(),
     write_to_vcard(),
-    ?assert(is_record_in_a_vcard_table()),
+    ?assert(is_record_in_vcard_table()),
     Res = backup_mnesia(Filename, Config),
     ParsedRes = get_ok_value([data, mnesia, backup], Res),
-    ?assertEqual(<<"Mnesia was successfully backuped">>, ParsedRes),
+    ?assertEqual(<<"Mnesia backup was successfully created">>, ParsedRes),
     delete_record_from_table(),
-    ?assertEqual(false, is_record_in_a_vcard_table()),
+    ?assertEqual(false, is_record_in_vcard_table()),
     Res2 = restore_mnesia(Filename, Config),
     ParsedRes2 = get_ok_value([data, mnesia, restore], Res2),
     ?assertEqual(<<"Mnesia was successfully restored">>, ParsedRes2),
-    ?assert(is_record_in_a_vcard_table()),
+    ?assert(is_record_in_vcard_table()),
     delete_record_from_table(),
     delete_file(create_full_filename(Filename)).
 
 backup_wrong_filename_test(Config) ->
-    Res = backup_mnesia(<<"">>, Config),
+    Res = backup_mnesia(<<>>, Config),
     ?assertEqual(<<"wrong_filename">>, get_err_code(Res)).
 
 restore_no_file_test(Config) ->
-    Res = restore_mnesia(<<"">>, Config),
+    Res = restore_mnesia(<<>>, Config),
     ?assertEqual(<<"file_not_found">>, get_err_code(Res)).
 
 restore_wrong_file_format_test(Config) ->
@@ -153,7 +154,7 @@ load_mnesia_test(Config) ->
     ?assertEqual(<<"Mnesia successfully dumped">>, ParsedRes),
     delete_mnesia_table(),
     check_if_response_contains(load_mnesia(Filename, Config), <<"Mnesia was successfully loaded">>),
-    ?assert(is_record_in_a_table()),
+    ?assert(is_record_in_table()),
     delete_mnesia_table().
 
 load_mnesia_bad_file_test(Config) ->
@@ -175,14 +176,15 @@ change_nodename_test(Config) ->
     Filename2 = <<"change_nodename2_mnesia_test">>,
     create_vcard_table(),
     write_to_vcard(),
-    ?assert(is_record_in_a_vcard_table()),
+    ?assert(is_record_in_vcard_table()),
     Res = backup_mnesia(Filename1, Config),
     ParsedRes = get_ok_value([data, mnesia, backup], Res),
-    ?assertEqual(<<"Mnesia was successfully backuped">>, ParsedRes),
+    ?assertEqual(<<"Mnesia backup was successfully created">>, ParsedRes),
     ChangeFrom = <<"mongooseim@localhost">>,
     ChangeTo = <<"change_nodename_test@localhost">>,
     Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
-    check_if_response_contains(Value, <<"Name of the node was successfully changed">>).
+    check_if_response_contains(Value,
+        <<"Name of the node in the backup was successfully changed">>).
 
 change_nodename_no_file_error_test(Config) ->
     Filename1 = <<"non_existing">>,
@@ -202,7 +204,7 @@ change_nodename_bad_file_error_test(Config) ->
     ?assertEqual(<<"bad_file_format">>, get_err_code(Value)).
 
 get_info_test(Config) ->
-    Res = get_info(mnesia_info_keys(), Config),
+    Res = get_info(maps:keys(mnesia_info_check()) ++ [<<"AAA">>], Config),
     ?assertEqual(<<"bad_key_error">>, get_err_code(Res)),
     ParsedRes = get_err_value([data, mnesia, info], Res),
     Map = mnesia_info_check(),
@@ -212,6 +214,15 @@ get_info_test(Config) ->
             ?assertEqual({true, Element, Key, Fun}, {?MODULE:Fun(Element), Element, Key, Fun});
         (null) ->
             ok
+    end, ParsedRes).
+
+get_all_info_test(Config) ->
+    Res = get_info([], Config),
+    ParsedRes = get_ok_value([data, mnesia, info], Res),
+    Map = mnesia_info_check(),
+    lists:foreach(fun (#{<<"result">> := Element, <<"key">> := Key}) ->
+        Fun = maps:get(Key, Map),
+        ?assertEqual({true, Element, Key, Fun}, {?MODULE:Fun(Element), Element, Key, Fun})
     end, ParsedRes).
 
 install_fallback_error_test(Config) ->
@@ -270,12 +281,12 @@ create_vcard_table() ->
 write_to_vcard() ->
     rpc_call(mnesia, dirty_write, [vcard, #vcard{us = 1, vcard = <<"TEST">>}]).
 
-is_record_in_a_table() ->
+is_record_in_table() ->
     Expected = [#mnesia_table_test{key = 1, name = <<"TEST">>}],
     Record = rpc_call(mnesia, dirty_read, [mnesia_table_test, 1]),
     Expected == Record.
 
-is_record_in_a_vcard_table() ->
+is_record_in_vcard_table() ->
     Expected = [#vcard{us = 1, vcard = <<"TEST">>}],
     Record = rpc_call(mnesia, dirty_read, [vcard, 1]),
     Expected == Record.
@@ -290,9 +301,9 @@ create_full_filename(Filename) ->
 delete_mnesia_table() ->
     {atomic, ok} = rpc_call(mnesia, delete_table, [mnesia_table_test]).
 
-check_created_file(FullPath, ExpectedInsides) ->
+check_created_file(FullPath, ExpectedContent) ->
     {ok, FileInsides} = file:read_file(FullPath),
-    ?assertMatch({_,_}, binary:match(FileInsides, ExpectedInsides)),
+    ?assertMatch({_,_}, binary:match(FileInsides, ExpectedContent)),
     delete_file(FullPath).
 
 create_file(FullPath) ->
@@ -370,54 +381,6 @@ domain_admin_change_nodename(ChangeFrom, ChangeTo, Source, Target, Config) ->
 domain_admin_set_master(Node, Config) ->
     execute_domain_admin_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
 
-mnesia_info_keys() ->
-    [<<"all">>,
-     <<"AAAA">>,
-     <<"access_module">>,
-     <<"auto_repair">>,
-     <<"backend_types">>,
-     <<"backup_module">>,
-     <<"checkpoints">>,
-     <<"db_nodes">>,
-     <<"debug">>,
-     <<"directory">>,
-     <<"dump_log_load_regulation">>,
-     <<"dump_log_time_threshold">>,
-     <<"dump_log_update_in_place">>,
-     <<"dump_log_write_threshold">>,
-     <<"event_module">>,
-     <<"extra_db_nodes">>,
-     <<"fallback_activated">>,
-     <<"held_locks">>,
-     <<"ignore_fallback_at_startup">>,
-     <<"fallback_error_function">>,
-     <<"is_running">>,
-     <<"local_tables">>,
-     <<"lock_queue">>,
-     <<"log_version">>,
-     <<"master_node_tables">>,
-     <<"max_wait_for_decision">>,
-     <<"protocol_version">>,
-     <<"running_db_nodes">>,
-     <<"schema_location">>,
-     <<"schema_version">>,
-     <<"subscribers">>,
-     <<"tables">>,
-     <<"transaction_commits">>,
-     <<"transaction_failures">>,
-     <<"transaction_log_writes">>,
-     <<"transaction_restarts">>,
-     <<"transactions">>,
-     <<"use_dir">>,
-     <<"core_dir">>,
-     <<"no_table_loaders">>,
-     <<"dc_dump_limit">>,
-     <<"send_compressed">>,
-     <<"max_transfer_size">>,
-     <<"version">>,
-     <<"db_nodes">>,
-     <<"running_db_nodes">>].
-
 mnesia_info_check() ->
     #{<<"access_module">> => check_binary,
       <<"auto_repair">> => check_binary,
@@ -464,15 +427,12 @@ mnesia_info_check() ->
       <<"db_nodes">> => check_list,
       <<"running_db_nodes">> => check_list}.
 
-check_list([]) -> true;
-check_list([Head | Tail]) when is_binary(Head) -> check_list(Tail);
-check_list(_) -> false.
+check_list(L) ->
+    lists:all(fun(Item) -> is_binary(Item) end, L).
 
-check_binary(Value) when is_binary(Value) -> true;
-check_binary(_) -> false.
+check_binary(Value) -> is_binary(Value).
 
-check_integer(Value) when is_integer(Value) -> true;
-check_integer(_) -> false.
+check_integer(Value) -> is_integer(Value).
 
 get_mim_cwd() ->
     {ok, Cwd} = rpc(mim(), file, get_cwd, []),
