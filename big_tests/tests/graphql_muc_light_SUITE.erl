@@ -430,6 +430,7 @@ user_get_room_config_story(Config, Alice, Bob) ->
     Res = user_get_room_config(Alice, jid:to_binary(RoomJID), Config),
     % Owner can get a config
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
+                    <<"options">> => null,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value(?GET_ROOM_CONFIG_PATH, Res)),
@@ -446,6 +447,7 @@ user_get_room_config_story(Config, Alice, Bob) ->
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     Res5 = user_get_room_config(Bob, jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
+                    <<"options">> => null,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>},
                                            #{<<"jid">> => BobLower,
@@ -803,6 +805,7 @@ admin_get_room_config_story(Config, Alice) ->
     RoomJIDBin = jid:to_binary(RoomJID),
     Res = get_room_config(jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
+                    <<"options">> => null,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value([data, muc_light, getRoomConfig], Res)),

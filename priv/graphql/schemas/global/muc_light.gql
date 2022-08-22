@@ -26,11 +26,26 @@ enum BlockedEntityType{
   ROOM
 }
 
+input RoomConfigDictEntryInput{
+  "The name of the config option"
+  key: String!
+  "Config option value"
+  value: String!
+}
+
+type RoomConfigDictEntry{
+  "The name of the config option"
+  key: String!
+  "Config option value"
+  value: String!
+}
+
 type Room{
   jid: JID!
   name: String!
   subject: String!
   participants: [RoomUser!]!
+  options: [RoomConfigDictEntry]
 }
 
 type RoomUser{
