@@ -82,10 +82,10 @@ manage_cluster()
         case "$ARGS" in
             *$FORCE_FLAG1*)
                 ARGS_ARRAY=( ${ARGS_ARRAY[@]/$FORCE_FLAG1} )
-                ctl;;
+                ctl "${ARGS_ARRAY[@]}";;
             *$FORCE_FLAG2*)
                 ARGS_ARRAY=( ${ARGS_ARRAY[@]/$FORCE_FLAG2} )
-                ctl;;
+                ctl "${ARGS_ARRAY[@]}";;
             *)
                 GUARD="unknown"
                 until [ "$GUARD" = "yes" ] || [ "$GUARD" = "no" ] ; do
@@ -93,7 +93,7 @@ manage_cluster()
                     read GUARD
                     if [ "$GUARD" =  "yes" ]; then
                         echo $2
-                        ctl
+                        ctl "${ARGS_ARRAY[@]}"
                     elif [ "$GUARD" = "no" ]; then
                         echo "Operation discarded by user"
                         exit 1
@@ -202,13 +202,13 @@ ctl ()
 	if [ ! -x "$JOT" ] ; then
 	    # no flock or jot, simply invoke ctlexec()
 	    CTL_CONN="ctl-${NODENAME}"
-	    ctlexec $CTL_CONN
+	    ctlexec $CTL_CONN "$@"
 	    result=$?
 	else
 	    # no flock, but at least there is jot
 	    RAND=`jot -r 1 0 $MAXCONNID`
 	    CTL_CONN="ctl-${RAND}-${NODENAME}"
-	    ctlexec $CTL_CONN
+	    ctlexec $CTL_CONN "$@"
 	    result=$?
 	fi
     else
@@ -223,7 +223,7 @@ ctl ()
 	    (
 		exec 8>"$CTL_LOCKFILE"
 		if flock --nb 8; then
-		    ctlexec $CTL_CONN
+		    ctlexec $CTL_CONN "$@"
                     ssresult=$?
                     # segregate from possible flock exit(1)
 		    ssresult=$(expr $ssresult \* 10)
@@ -274,7 +274,7 @@ ctlexec ()
       $COOKIE_ARG \
       -args_file "$RUNNER_ETC_DIR"/vm.dist.args \
       -pa "$MIM_DIR"/lib/mongooseim-*/ebin/ \
-      -s ejabberd_ctl -extra $NODENAME "${ARGS_ARRAY[@]}"
+      -s ejabberd_ctl -extra $NODENAME "$@"
 }
 
 # display ctl usage
@@ -393,6 +393,6 @@ case $1 in
     'started') wait_for_status_file started 60 1 || true; wait_for_status 0 30 2;; # wait 30x2s before timeout
     'stopped') is_started_status_file && wait_for_status_file stopped 30 1 || true; wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     'print_install_dir') print_install_dir;;
-    'escript') run_escript $@;;
-    *) ctl;;
+    'escript') run_escript "$@";;
+    *) ctl "$@";;
 esac
