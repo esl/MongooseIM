@@ -30,7 +30,7 @@ execute_command(Category, Command, Args, Config) ->
     execute_command(Category, Command, Args, Config, Protocol).
 
 execute_domain_admin_command(Category, Command, Args, Config) ->
-    #{Category := #{Command := #{doc := Doc}}} = get_specs(),
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
     execute_domain_auth(#{query => Doc, variables => Args}, Config).
 
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
@@ -54,6 +54,7 @@ arg_name_to_binary(Name) when is_atom(Name) -> atom_to_binary(Name);
 arg_name_to_binary(Name) when is_binary(Name) -> Name.
 
 arg_value_to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
+arg_value_to_binary(Value) when is_atom(Value) -> atom_to_binary(Value);
 arg_value_to_binary(Value) when is_binary(Value) -> Value;
 arg_value_to_binary(Value) when is_list(Value);
                                 is_map(Value) -> iolist_to_binary(jiffy:encode(Value)).

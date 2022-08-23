@@ -5,6 +5,9 @@
 
 -include("mongoose_logger.hrl").
 
+execute(#{<<"result">> := Result}) when is_binary(Result) -> {ok, <<"MnesiaStringResponse">>};
+execute(#{<<"result">> := Result}) when is_list(Result) -> {ok, <<"MnesiaListResponse">>};
+execute(#{<<"result">> := Result}) when is_integer(Result) -> {ok, <<"MnesiaIntResponse">>};
 execute(#{<<"type">> := _, <<"binValue">> := _}) -> {ok, <<"ImageData">>};
 execute(#{<<"extValue">> := _}) -> {ok, <<"External">>};
 execute(#{<<"phonetic">> := _}) -> {ok, <<"Phonetic">>};
