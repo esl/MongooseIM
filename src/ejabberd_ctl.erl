@@ -169,12 +169,6 @@ process(["mnesia"]) ->
 process(["mnesia", "info"]) ->
     mnesia:info(),
     ?STATUS_SUCCESS;
-process(["mnesia", Arg]) when is_list(Arg) ->
-    case catch mnesia:system_info(list_to_atom(Arg)) of
-        {'EXIT', Error} -> ?PRINT("Error: ~p~n", [Error]);
-        Return -> ?PRINT("~p~n", [Return])
-    end,
-    ?STATUS_SUCCESS;
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),

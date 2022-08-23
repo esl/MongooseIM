@@ -12,7 +12,7 @@
 -type dump_error() :: table_does_not_exist | file_error | cannot_dump.
 
 -spec mnesia_info(Keys::[binary()]) -> [info_result() | info_error()].
-mnesia_info([]) ->
+mnesia_info(null) ->
     Value = mnesia:system_info(all),
     lists:foldl(fun({Key, Result}, AllAcc) ->
         AllAcc ++ [{ok, #{<<"result">> => convert_value(Result), <<"key">> => Key}}]

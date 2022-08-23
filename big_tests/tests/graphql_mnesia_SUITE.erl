@@ -206,7 +206,7 @@ change_nodename_bad_file_error_test(Config) ->
 get_info_test(Config) ->
     Res = get_info(maps:keys(mnesia_info_check()) ++ [<<"AAA">>], Config),
     ?assertEqual(<<"bad_key_error">>, get_err_code(Res)),
-    ParsedRes = get_err_value([data, mnesia, info], Res),
+    ParsedRes = get_err_value([data, mnesia, systemInfo], Res),
     Map = mnesia_info_check(),
     lists:foreach(fun
         (#{<<"result">> := Element, <<"key">> := Key}) ->
@@ -217,8 +217,8 @@ get_info_test(Config) ->
     end, ParsedRes).
 
 get_all_info_test(Config) ->
-    Res = get_info([], Config),
-    ParsedRes = get_ok_value([data, mnesia, info], Res),
+    Res = get_info(null, Config),
+    ParsedRes = get_ok_value([data, mnesia, systemInfo], Res),
     Map = mnesia_info_check(),
     lists:foreach(fun (#{<<"result">> := Element, <<"key">> := Key}) ->
         Fun = maps:get(Key, Map),
@@ -261,7 +261,7 @@ domain_admin_set_master_test(Config) ->
     get_unauthorized(domain_admin_set_master(mim(), Config)).
 
 domain_admin_get_info_test(Config) ->
-    get_unauthorized(domain_admin_get_info([<<"all">>], Config)).
+    get_unauthorized(domain_admin_get_info([<<"running_db_nodes">>], Config)).
 
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
@@ -322,8 +322,10 @@ check_if_response_contains(Response, String) ->
 delete_file(FullPath) ->
     file:delete(FullPath).
 
+get_info(null, Config) ->
+    execute_command(<<"mnesia">>, <<"systemInfo">>, #{}, Config);
 get_info(Keys, Config) ->
-    execute_command(<<"mnesia">>, <<"info">>, #{keys => Keys}, Config).
+    execute_command(<<"mnesia">>, <<"systemInfo">>, #{keys => Keys}, Config).
 
 install_fallback(Path, Config) ->
     execute_command(<<"mnesia">>, <<"installFallback">>, #{path => Path}, Config).
@@ -352,7 +354,7 @@ set_master(Node, Config) ->
     execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
 
 domain_admin_get_info(Keys, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"info">>, #{keys => Keys}, Config).
+    execute_domain_admin_command(<<"mnesia">>, <<"systemInfo">>, #{keys => Keys}, Config).
 
 domain_admin_install_fallback(Path, Config) ->
     execute_domain_admin_command(<<"mnesia">>, <<"installFallback">>, #{path => Path}, Config).

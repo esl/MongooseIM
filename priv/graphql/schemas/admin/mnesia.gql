@@ -3,7 +3,7 @@ Allow admin to acquire information about mnesia database
 """
 type MnesiaAdminQuery @protected{
   "Allow to acquire information about mnesia database"
-  info(keys: [String!]!): [MnesiaInfo]
+  systemInfo(keys: [String!]): [MnesiaInfo]
     @protected(type: GLOBAL)
 }
 
