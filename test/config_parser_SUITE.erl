@@ -2469,6 +2469,7 @@ mod_pubsub(_Config) ->
           T(#{<<"item_publisher">> => true})),
     ?cfgh(P ++ [sync_broadcast], false,
           T(#{<<"sync_broadcast">> => false})),
+    test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
     ?errh(T(#{<<"host">> => <<"">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),

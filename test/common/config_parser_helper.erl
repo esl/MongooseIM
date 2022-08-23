@@ -469,7 +469,8 @@ all_modules() ->
                                    last_item_cache => mnesia,
                                    max_items_node => 1000,
                                    pep_mapping => #{<<"urn:xmpp:microblog:0">> => <<"mb">>},
-                                   plugins => [<<"flat">>, <<"pep">>]}),
+                                   plugins => [<<"flat">>, <<"pep">>],
+                                   wpool => default_config([modules, mod_pubsub, wpool])}),
       mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
@@ -986,7 +987,8 @@ default_mod_config(mod_pubsub) ->
     #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
       last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
-      default_node_config => [], item_publisher => false, sync_broadcast => false};
+      default_node_config => [], item_publisher => false, sync_broadcast => false,
+      wpool => default_config([modules, mod_pubsub, wpool])};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
 default_mod_config(mod_register) ->
@@ -1133,6 +1135,8 @@ default_config([modules, mod_event_pusher, push]) ->
       virtual_pubsub_hosts => []};
 default_config([modules, mod_event_pusher, push, wpool]) ->
     (default_wpool_opts())#{strategy := available_worker};
+default_config([modules, mod_pubsub, wpool]) ->
+    default_wpool_opts();
 default_config([modules, mod_event_pusher, rabbit] = P) ->
     #{presence_exchange => default_config(P ++ [presence_exchange]),
       chat_msg_exchange => default_config(P ++ [chat_msg_exchange]),
