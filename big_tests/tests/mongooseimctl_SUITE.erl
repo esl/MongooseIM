@@ -103,7 +103,8 @@ all() ->
      {group, basic},
      {group, upload},
      {group, graphql},
-     {group, help}
+     {group, help},
+     {group, server}
     ].
 
 groups() ->
@@ -121,7 +122,8 @@ groups() ->
      {upload_with_acl, [], upload_enabled()},
      {upload_without_acl, [], upload_enabled()},
      {graphql, [], graphql()},
-     {help, [], help()}].
+     {help, [], help()},
+     {server, [], server()}].
 
 basic() ->
     [simple_register,
@@ -194,6 +196,10 @@ graphql() ->
 help() ->
     [default_help,
      old_help].
+
+server() ->
+    [server_status,
+     server_is_started].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -1243,6 +1249,20 @@ old_help(Config) ->
     ?assertMatch({match, _}, re:run(Res, "Usage")),
     ?assertMatch(nomatch, re:run(Res, "account\s+Account management")),
     ?assertMatch({match, _}, re:run(Res, "add_rosteritem")).
+
+%%-----------------------------------------------------------------
+%% Server management tests
+%%-----------------------------------------------------------------
+
+server_status(Config) ->
+    {Res, 0} = mongooseimctl("status", [], Config),
+    ?assertMatch({match, _}, re:run(Res, "Erlang VM status: started")).
+
+server_is_started(Config) ->
+    %% Wait for the server to start, but it is already running
+    {Res, 0} = mongooseimctl("started", [], Config),
+    %% Expect only whitespace
+    ?assertMatch(nomatch, re:run(Res, "\S")).
 
 %%-----------------------------------------------------------------
 %% Improve coverage
