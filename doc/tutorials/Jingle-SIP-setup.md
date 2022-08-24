@@ -115,18 +115,17 @@ and in [Modules configuration](../configuration/Modules.md)
 
 Now we are registering both users in MongooseIM by calling the following commands:
 
-    bin/mongooseimctl register_identified xmpp.user xmpp.example test_pass
-    bin/mongooseimctl register_identified sip.user sip.example test_pass
+    mongooseimctl account registerUser --username xmpp.user --domain xmpp.example --password test_pass
+    mongooseimctl account registerUser --username sip.user --domain sip.example --password test_pass
 
 Yes, we need to have the `sip.user@sip.example` registered in MongooseIM.
 This is needed because a Jingle call can be initiated by a regular XMPP client only when the app knows the other user's full JID.
 The easiest way to achieve that is to exchange presence information between these 2 users.
 This can happen automatically if 2 xmpp users have each other in the roster.
 
-The roster can be set by us with the following commands:
+The roster can be set up with the following command:
 
-    bin/mongooseimctl add_rosteritem sip.user sip.example xmpp.user xmpp.example xmpp.user none both
-    bin/mongooseimctl add_rosteritem xmpp.user xmpp.example sip.user sip.example sip.user none both
+    mongooseimctl roster setMutualSubscription --userA xmpp.user@xmpp.example --userB sip.user@sip.example --action CONNECT
 
 ## Adding users to Jitsi
 

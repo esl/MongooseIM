@@ -76,76 +76,157 @@ The default XMPP domain served by MongooseIM right after installation is `localh
 
 You can register (create) users with the `mongooseimctl` utility.
 
-This command registers the user `user@domain` using password `password`.
+This command registers the user `user@localhost` using password `secret`.
 ```bash
-mongooseimctl register_identified user domain password
+mongooseimctl account registerUser --username user --domain localhost --password secret
 ```
 Examples:
 ```bash
-mongooseimctl register_identified alice localhost qwerty
-mongooseimctl register_identified bob localhost 12345678
-mongooseimctl register_identified carol localhost abc123
-mongooseimctl register_identified dan localhost dan
+mongooseimctl account registerUser --username alice --domain localhost --password qwerty
+mongooseimctl account registerUser --username bob --domain localhost --password 12345678
+mongooseimctl account registerUser --username carol --domain localhost --password abc123
+mongooseimctl account registerUser --username dan --domain localhost --password dan
 ```
 !!! Warning
     The password is entered manually in the command line and history is accessible to the command line users.
     This method is not recommended for production use, you may prefer for example [LDAP](../authentication-methods/ldap.md).
 
-You can check that it has correctly been created:
+You can check that the user account has been created:
 ```bash
-mongooseimctl check_account user host
-```
-Example:
-```bash
-mongooseimctl check_account alice localhost
-mongooseimctl check_account bob localhost
-mongooseimctl check_account carol localhost
-mongooseimctl check_account dan localhost
+mongooseimctl account checkUser --user alice@localhost
+{
+  "data" : {
+    "account" : {
+      "checkUser" : {
+        "message" : "User alice@localhost exists",
+        "exist" : true
+      }
+    }
+  }
+}
 ```
 
 Now you can list all registered users in your host:
 ```bash
-mongooseimctl registered_users host
-```
-Example:
-```bash
-mongooseimctl registered_users localhost
+mongooseimctl account listUsers --domain localhost
+{
+  "data" : {
+    "account" : {
+      "listUsers" : [
+        "alice@localhost",
+        "bob@localhost",
+        "carol@localhost",
+        "dan@localhost"
+      ]
+    }
+  }
+}
 ```
 
-If you want delete users in your host:
+If you want to delete users in your host:
 ```bash
-mongooseimctl  unregister user host
-```
-Example:
-```bash
-mongooseimctl  unregister dan localhost
+mongooseimctl account removeUser --user dan@localhost
+{
+  "data" : {
+    "account" : {
+      "removeUser" : {
+        "message" : "User dan@localhost successfully unregistered",
+        "jid" : "dan@localhost"
+      }
+    }
+  }
+}
 ```
 
 ### Populate the contact lists (rosters)
 
-For a given user (`localuser` and `localserver`), add a contact (`user` and `server`):
+As an example, let's add `bob@localhost` as a contact of `alice@localhost`:
+
 ```bash
-mongooseimctl add_rosteritem localuser localserver user server nick group subs
-```
-Examples:
-```bash
-mongooseimctl add_rosteritem alice localhost bob localhost bob friends both
-mongooseimctl add_rosteritem bob localhost alice localhost alice friends both
+mongooseimctl roster addContact --user alice@localhost --contact bob@localhost --groups '["friends"]' --name Bobby
+{
+  "data" : {
+    "roster" : {
+      "addContact" : "Contact added successfully"
+    }
+  }
+}
 ```
 
-!!! Note
-    The `subs` parameter is the "subscription" to a user's presence. Possible values are: `none`, `from`, `to`, or `both`. A subscription in `both` direction means each user will receive each other's presence.
+You need to quote `["friends"]` because it is a list of strings - JSON syntax is required for such complex types. The single quotes are there to prevent `bash` from interpreting special characters like `"`.
+If you want `alice@locahost` to receive presences from `bob@localhost`, you need to firstly request the subscription:
+
+```bash
+mongooseimctl roster subscription --user alice@localhost --contact bob@localhost --action INVITE
+{
+  "data" : {
+    "roster" : {
+      "subscription" : "Subscription stanza with type subscribe sent successfully"
+    }
+  }
+}
+```
+
+Then, accept the subscription request:
+
+```bash
+mongooseimctl roster subscription --user bob@localhost --contact alice@localhost --action ACCEPT
+{
+  "data" : {
+    "roster" : {
+      "subscription" : "Subscription stanza with type subscribed sent successfully"
+    }
+  }
+}
+```
 
 Verify the contact list:
+
 ```bash
-mongooseimctl get_roster user host
+mongooseimctl roster listContacts --user alice@localhost
+{
+  "data" : {
+    "roster" : {
+      "listContacts" : [
+        {
+          "subscription" : "TO",
+          "name" : "Bobby",
+          "jid" : "bob@localhost",
+          "groups" : [
+            "friends"
+          ],
+          "ask" : "NONE"
+        }
+      ]
+    }
+  }
+}
 ```
-Examples:
+
+Note that `bob@localhost` has `alice@localhost` in his contacts as well, but he is not subscribed to her presences - the subscriptions are unidirectional.
+
 ```bash
-mongooseimctl get_roster alice localhost
-mongooseimctl get_roster bob localhost
-mongooseimctl get_roster carol localhost
+mongooseimctl roster listContacts --user bob@localhost
+{
+  "data" : {
+    "roster" : {
+      "listContacts" : [
+        {
+          "subscription" : "FROM",
+          "name" : "",
+          "jid" : "alice@localhost",
+          "groups" : [
+
+          ],
+          "ask" : "NONE"
+        }
+      ]
+    }
+  }
+}
 ```
+
+To quickly set up mutual subscriptions between users, you can use `mongooseimctl roster setMutualSubscription`.
 
 ## Basic MongooseIM configuration
 
@@ -240,24 +321,42 @@ Gajim is available on Ubuntu, CentOS & Windows.
 
 Add your three created users: `alice`, `bob`, and `carol`.
 
-Check what users are currently connected:
+Check what users are currently connected.
 ```bash
-mongooseimctl connected_users_info
+mongooseimctl session listSessions
+{
+  "data" : {
+    "session" : {
+      "listSessions" : [
+        {
+          "user" : "bob@localhost/BobsComputer,
+          "uptime" : 12,
+          "priority" : 50,
+          "port" : 56267,
+          "node" : "mongooseim@localhost",
+          "ip" : "127.0.0.1",
+          "connection" : "c2s_tls"
+        }
+      ]
+    }
+  }
+}
 ```
+
+The result shows that Bob is currently connected.
 
 ### Chat with another person
 
 Use `alice`'s account to send messages directly to `bob` and use `bob`'s account to reply directly to `alice`.
 
-From the MongooseIM command line:
+It is possible to send a message from the command line:
+
 ```bash
-mongooseimctl send_message_chat from to body
+mongooseimctl stanza sendMessage --from alice@localhost --to bob@localhost --body 'Hi Bob!'
 ```
-Examples:
-```bash
-mongooseimctl send_message_chat carol@localhost alice@localhost hello
-mongooseimctl send_message_chat carol@localhost bob@localhost hi
-```
+
+You need to quote `Hi Bob!`, because it contains a space.
+If you do it while Bob is connected, he should receive the message in the XMPP client.
 
 ### Group chats
 
@@ -268,14 +367,9 @@ Use `alice`'s account to create a groupchat `channel` on your `muc.localhost` se
 Use `carol`'s account to add `alice` and `bob` to her contact list. Use `alice`'s and `bob`'s accounts accept those additions.
 
 Verify on the MongooseIM server:
-```
-mongooseimctl get_roster user host
-```
-Examples:
-```
-mongooseimctl get_roster alice localhost
-mongooseimctl get_roster bob localhost
-mongooseimctl get_roster carol localhost
+```bash
+mongooseimctl roster listContacts --user alice@localhost
+mongooseimctl roster listContacts --user bob@localhost
 ```
 
 ### Profile (vCard)
@@ -284,7 +378,28 @@ Edit `alice`'s profile (vCard) in Gajim: **Modify Account...**, then **Profile**
 
 Verify on the MongooseIM server:
 ```bash
-mongooseimctl get_vcard alice localhost FN
+mongooseimctl vcard getVcard --user alice@localhost
+{
+  "data" : {
+    "vcard" : {
+      "getVcard" : {
+        (...)
+        "telephone" : [
+          {
+            "tags" : [
+              "HOME",
+              "VOICE"
+            ],
+            "number" : "123456789"
+          }
+        ],
+        (...)
+        "formattedName" : "Alice",
+        (...)
+      }
+    }
+  }
+}
 ```
 
 ## Summary
@@ -293,14 +408,20 @@ Now you have the minimum knowledge: you know how to deploy MongooseIM, configure
 
 ### Summary: command line
 
-You know `mongooseimctl`, with commands such as:
+You know `mongooseimctl`, with basic server management commands such as:
 
 * `start`, `restart`, `stop`, `status`, `live`, `foreground`
 * `get_loglevel`
-* `register_identified`, `check_account`, `registered_users`, `unregister`
-* `add_rosteritem`, `get_roster`
 
-You can even run `mongooseimctl` without arguments for a list of available commands.
+Other commands shown above correspond to the [GraphQL Admin API](../../graphql-api/Admin-GraphQL/) operations, and they are grouped into the following categories:
+
+* `account` contains `registerUser`, `checkUser`, `listUsers`, `removeUser`
+* `roster` contains `addContact`, `subscription`, `listContacts`, `setMutualSubscription`
+* `session` contains `listSessions`
+* `stanza` contains `sendMessage`
+* `vcard` contains `getVcard`
+
+There are more categories and commands. For a list of categories, use `mongooseimctl` without any arguments. To get a list of commands in a particular category, call `mongooseimctl `*`category`*. You can also get more information about a particular command with `mongooseimctl `*`category command`*` --help`.
 
 ### Summary: files
 

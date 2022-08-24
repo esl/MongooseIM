@@ -90,6 +90,11 @@ When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optim
 User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
 
 ### `general.mongooseimctl_access_commands`
+
+!!! Warning
+    This option is deprecated. The commands are still supported, but they **will be removed** soon.
+    You should use the new GraphQL-based command line interface instead.
+
 * **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
     * `commands`: optional, a list of strings representing the allowed commands. When not specified, all commands are allowed.
     * `argument_restrictions`: optional, a table whose keys are the argument names, and the values are strings representing the allowed values. When not specified, there are no restrictions.

@@ -60,7 +60,7 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 ### Configuration
 
 You can find MongooseIM installation instructions on [this page](../getting-started/Quick-setup.md).
-Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.toml` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.toml`, where `$REPO` is a top-level directory of the cloned repo).
+Once you have it installed, you need to modify the [`mongooseim.toml`](../../configuration/configuration-files/#mongooseimtoml) config file:
 ```toml
 [general]
   hosts = ["localhost", "myxmpp.com"]
@@ -68,7 +68,7 @@ Once you have cloned the repository and compiled the project, you need to modify
 This sets the virtual hostname of the XMPP server, so that you can register users in this domain.
 After that, you can start MongooseIM with
 ```bash
-$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl start
+mongooseimctl start
 ```
 
 ### Users
@@ -78,8 +78,8 @@ For this demo we need two users: *movie@myxmpp.com* and *phone@myxmpp.com*, for 
 In order to do that, type:
 
 ```bash
-$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register_identified phone myxmpp.com xmpp_password
-$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register_identified movie myxmpp.com xmpp_password
+mongooseimctl account registerUser --username movie --domain myxmpp.com --password xmpp_password
+mongooseimctl account registerUser --username phone --domain myxmpp.com --password xmpp_password
 ```
 
 on the machine that has [MongooseIM] installed.
