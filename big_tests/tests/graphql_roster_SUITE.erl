@@ -5,8 +5,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_value/2, get_err_msg/1,
-                         get_err_msg/2, user_to_jid/1, user_to_bin/1,
-                         execute_domain_admin_command/4, get_unauthorized/1]).
+                         get_err_msg/2, user_to_jid/1, user_to_bin/1, get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/mod_roster.hrl").
@@ -66,9 +65,9 @@ admin_roster_tests() ->
 
 domain_admin_tests() ->
     [domain_admin_subscribe_to_all_no_permission,
-     domain_admin_subscribe_to_all,
+     admin_subscribe_to_all,
      domain_admin_subscribe_all_to_all_no_permission,
-     domain_admin_subscribe_all_to_all].
+     admin_subscribe_all_to_all].
 
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
@@ -504,39 +503,15 @@ domain_admin_subscribe_to_all_no_permission(Config) ->
                                     fun domain_admin_subscribe_to_all_no_permission/2).
 
 domain_admin_subscribe_to_all_no_permission(Config, Alice) ->
-    get_unauthorized(domain_admin_subscribe_to_all(make_contact(Alice), [], Config)).
-
-domain_admin_subscribe_to_all(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-                                    fun domain_admin_subscribe_to_all_story/4).
-
-domain_admin_subscribe_to_all_story(Config, Alice, Bob, Kate) ->
-    Res = domain_admin_subscribe_to_all(make_contact(Alice), [Bob, Kate], Config),
-    check_if_created_succ(?SUBSCRIBE_TO_ALL_PATH, Res),
-
-    check_contacts([Bob, Kate], Alice),
-    check_contacts([Alice], Bob),
-    check_contacts([Alice], Kate).
+    get_unauthorized(admin_subscribe_to_all(Alice, [], Config)).
 
 domain_admin_subscribe_all_to_all_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}, {kate, 1}],
         fun domain_admin_subscribe_all_to_all_no_permission/4).
 
 domain_admin_subscribe_all_to_all_no_permission(Config, Alice, Bob, Kate) ->
-    Res = domain_admin_subscribe_all_to_all(make_contacts([Alice, Bob, Kate]), Config),
+    Res = admin_subscribe_all_to_all([Alice, Bob, Kate], Config),
     get_unauthorized(Res).
-
-domain_admin_subscribe_all_to_all(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-                                    fun domain_admin_subscribe_all_to_all_story/4).
-
-domain_admin_subscribe_all_to_all_story(Config, Alice, Bob, Kate) ->
-    Res = domain_admin_subscribe_all_to_all(make_contacts([Alice, Bob, Kate]), Config),
-    check_if_created_succ(?SUBSCRIBE_ALL_TO_ALL_PATH, Res),
-
-    check_contacts([Bob, Kate], Alice),
-    check_contacts([Alice, Kate], Bob),
-    check_contacts([Alice, Bob], Kate).
 
 % Helpers
 
@@ -622,17 +597,9 @@ admin_subscribe_to_all(User, Contacts, Config) ->
     Vars = #{user => make_contact(User), contacts => make_contacts(Contacts)},
     execute_command(<<"roster">>, <<"subscribeToAll">>, Vars, Config).
 
-domain_admin_subscribe_to_all(User, Contacts, Config) ->
-    Vars = #{user => User, contacts => make_contacts(Contacts)},
-    execute_domain_admin_command(<<"roster">>, <<"subscribeToAll">>, Vars, Config).
-
 admin_subscribe_all_to_all(Users, Config) ->
     Vars = #{contacts => make_contacts(Users)},
     execute_command(<<"roster">>, <<"subscribeAllToAll">>, Vars, Config).
-
-domain_admin_subscribe_all_to_all(Users, Config) ->
-    Vars = #{contacts => Users},
-    execute_domain_admin_command(<<"roster">>, <<"subscribeAllToAll">>, Vars, Config).
 
 admin_list_contacts(User, Config) ->
     Vars = #{user => user_to_bin(User)},

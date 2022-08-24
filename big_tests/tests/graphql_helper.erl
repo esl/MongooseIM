@@ -29,10 +29,6 @@ execute_command(Category, Command, Args, Config) ->
     Protocol = ?config(protocol, Config),
     execute_command(Category, Command, Args, Config, Protocol).
 
-execute_domain_admin_command(Category, Command, Args, Config) ->
-    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
-    execute_domain_auth(#{query => Doc, variables => Args}, Config).
-
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Category, Command, Args, Config, http) ->
     #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
@@ -60,14 +56,14 @@ arg_value_to_binary(Value) when is_list(Value);
                                 is_map(Value) -> iolist_to_binary(jiffy:encode(Value)).
 
 execute_auth(Body, Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    #{username := Username, password := Password} = get_listener_opts(Ep),
-    execute(Ep, Body, {Username, Password}).
-
-execute_domain_auth(Body, Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Creds = ?config(domain_admin, Config),
-    execute(Ep, Body, Creds).
+    case Ep = ?config(schema_endpoint, Config) of
+        admin ->
+            #{username := Username, password := Password} = get_listener_opts(Ep),
+            execute(Ep, Body, {Username, Password});
+        domain_admin ->
+            Creds = ?config(domain_admin, Config),
+            execute(Ep, Body, Creds)
+    end.
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -110,7 +106,8 @@ init_domain_admin_handler(Config) ->
             Password = base16:encode(crypto:strong_rand_bytes(8)),
             Creds = {<<"admin@", Domain/binary>>, Password},
             ok = domain_helper:set_domain_password(mim(), Domain, Password),
-            add_specs([{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config]);
+            add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin} 
+                      | Config]);
         false -> {skip, require_rdbms}
     end.
 
