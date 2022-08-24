@@ -54,7 +54,7 @@
          acc_room_affiliations/2,
          room_exists/3,
          can_access_identity/4]).
--export([get_room_affiliations_from_acc/1]).
+-export([get_acc_room_affiliations/2]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -77,6 +77,7 @@
 
 -type muc_server() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
+-type versioned_affs() :: {ok, aff_users(), binary()}.
 
 %%====================================================================
 %% API
@@ -149,7 +150,7 @@ try_to_create_room(CreatorJid, RoomJID, #create{raw_config = RawConfig} = Creati
     | {error, validation_error() | bad_request | not_allowed | not_exists | item_not_found}.
 change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq, Acc1) ->
     RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
-    {Acc2, AffUsersRes} = get_room_affiliations_from_acc(Acc1, RoomJID),
+    {Acc2, AffUsersRes} = get_acc_room_affiliations(Acc1, RoomJID),
     case mod_muc_light_room:process_request(UserJid, RoomJID, {set, ConfigReq},
                                             AffUsersRes, Acc2) of
         {set, ConfigResp, _} ->
@@ -516,15 +517,15 @@ can_access_room(_, Acc, Room, User) ->
     none =/= get_affiliation(Acc, Room, User).
 
 -spec acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
-acc_room_affiliations(Acc1, Room) ->
-    case mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc1) of
+acc_room_affiliations(Acc1, RoomJid) ->
+    case get_room_affs_from_acc(Acc1, RoomJid) of
         {error, _} ->
             HostType = mongoose_acc:host_type(Acc1),
-            case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(Room)) of
+            case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJid)) of
                 {error, not_exists} ->
                     Acc1;
                 {ok, _Affs, _Version} = Res ->
-                    mongoose_acc:set(?MODULE, affiliations, Res, Acc1)
+                    set_room_affs_from_acc(Acc1, RoomJid, Res)
             end;
         _Affs ->
             Acc1
@@ -534,16 +535,24 @@ acc_room_affiliations(Acc1, Room) ->
 room_exists(_, HostType, RoomJid) ->
     mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid)).
 
--spec get_room_affiliations_from_acc(mongoose_acc:t()) ->
-    {ok, aff_users(), binary()} | {error, not_exists}.
-get_room_affiliations_from_acc(Acc) ->
-    mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc).
+-spec get_acc_room_affiliations(mongoose_acc:t(), jid:jid()) ->
+    {mongoose_acc:t(), versioned_affs() | {error, not_exists}}.
+get_acc_room_affiliations(Acc1, RoomJid) ->
+    case get_room_affs_from_acc(Acc1, RoomJid) of
+        {error, not_exists} ->
+            Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, RoomJid),
+            {Acc2, get_room_affs_from_acc(Acc2, RoomJid)};
+        Res ->
+            {Acc1, Res}
+    end.
 
--spec get_room_affiliations_from_acc(mongoose_acc:t(), jid:jid()) ->
-    {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
-get_room_affiliations_from_acc(Acc1, RoomJid) ->
-    Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, RoomJid),
-    {Acc2, mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc2)}.
+-spec get_room_affs_from_acc(mongoose_acc:t(), jid:jid()) -> versioned_affs() | {error, not_exists}.
+get_room_affs_from_acc(Acc, RoomJid) ->
+    mongoose_acc:get(?MODULE, {affiliations, RoomJid}, {error, not_exists}, Acc).
+
+-spec set_room_affs_from_acc(mongoose_acc:t(), jid:jid(), versioned_affs()) -> mongoose_acc:t().
+set_room_affs_from_acc(Acc, RoomJid, Affs) ->
+    mongoose_acc:set(?MODULE, {affiliations, RoomJid}, Affs, Acc).
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
                           Room :: jid:jid(), User :: jid:jid()) ->
@@ -580,7 +589,7 @@ max_occupants(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, max_occupants).
 
 get_affiliation(Acc, Room, User) ->
-    case get_room_affiliations_from_acc(Acc, Room) of
+    case get_acc_room_affiliations(Acc, Room) of
         {_, {ok, AffUsers, _}} ->
             case lists:keyfind(jid:to_lus(User), 1, AffUsers) of
                 {_, Aff} -> Aff;
