@@ -47,15 +47,15 @@
                                          [Key, Reason])}).
 
 -spec create_room(jid:lserver(), jid:jid(), binary(), binary()) -> create_room_result().
-    create_room(MUCLightDomain, CreatorJID, RoomTitle, Subject) ->
-    RoomJID = jid:make_bare(<<>>, MUCLightDomain),
-    create_room_raw(RoomJID, CreatorJID, RoomTitle, Subject).
+create_room(MUCLightDomain, CreatorJID, RoomTitle, Subject) ->
+    create_room(MUCLightDomain, <<>>, CreatorJID, RoomTitle, Subject).
 
 -spec create_room(jid:lserver(), jid:luser(), jid:jid(), binary(), binary()) ->
     create_room_result().
 create_room(MUCLightDomain, RoomID, CreatorJID, RoomTitle, Subject) ->
     RoomJID = jid:make_bare(RoomID, MUCLightDomain),
-    create_room_raw(RoomJID, CreatorJID, RoomTitle, Subject).
+    Options = #{<<"roomname">> => RoomTitle, <<"subject">> => Subject},
+    create_room_raw(RoomJID, CreatorJID, Options).
 
 -spec invite_to_room(jid:jid(), jid:jid(), jid:jid()) ->
     {ok | not_room_member | muc_server_not_found, iolist()}.
@@ -330,9 +330,9 @@ set_blocking(#jid{lserver = LServer} = User, Items) ->
 
  %% Internal
 
--spec create_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> create_room_result().
-create_room_raw(InRoomJID, CreatorJID, RoomTitle, Subject) ->
-    Config = make_room_config(RoomTitle, Subject),
+-spec create_room_raw(jid:jid(), jid:jid(), map()) -> create_room_result().
+create_room_raw(InRoomJID, CreatorJID, Options) ->
+    Config = make_room_config(Options),
     try mod_muc_light:try_to_create_room(CreatorJID, InRoomJID, Config) of
         {ok, RoomJID, #create{aff_users = AffUsers, raw_config = Conf}} ->
             {ok, make_room(RoomJID, Conf, AffUsers)};
@@ -354,11 +354,9 @@ blocking_item({What, Action, Who}) ->
            children = [#xmlcdata{ content = jid:to_binary(Who)}]
           }.
 
--spec make_room_config(binary(), binary()) -> create_req_props().
-make_room_config(Name, Subject) ->
-    #create{raw_config = [{<<"roomname">>, Name},
-                          {<<"subject">>, Subject}]
-           }.
+-spec make_room_config(map()) -> create_req_props().
+make_room_config(Options) ->
+    #create{raw_config = maps:to_list(Options)}.
 
 -spec get_room_user_aff(mongooseim:host_type(), jid:jid(), jid:jid()) ->
     {ok, aff()} | {error, room_not_found}.

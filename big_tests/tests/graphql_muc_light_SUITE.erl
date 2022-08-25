@@ -100,8 +100,17 @@ init_modules(Config) ->
     Config2.
 
 required_modules(_) ->
-    MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true}),
+    MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true,
+                                               config_schema => custom_schema()}),
     [{mod_muc_light, MucLightOpts}].
+
+custom_schema() ->
+    %% Should be sorted
+    [{<<"background">>, <<>>, background, binary},
+     {<<"music">>, <<>>, music, binary},
+     %% Default fields
+     {<<"roomname">>, <<>>, roomname, binary},
+     {<<"subject">>, <<>>, subject, binary}].
 
 init_per_group(admin_muc_light_http, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -430,7 +439,9 @@ user_get_room_config_story(Config, Alice, Bob) ->
     Res = user_get_room_config(Alice, jid:to_binary(RoomJID), Config),
     % Owner can get a config
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
-                    <<"options">> => [#{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
+                    <<"options">> => [#{<<"key">> => <<"background">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"music">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
                                       #{<<"key">> => <<"subject">>, <<"value">> => RoomSubject}],
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
@@ -448,7 +459,9 @@ user_get_room_config_story(Config, Alice, Bob) ->
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     Res5 = user_get_room_config(Bob, jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
-                    <<"options">> => [#{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
+                    <<"options">> => [#{<<"key">> => <<"background">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"music">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
                                       #{<<"key">> => <<"subject">>, <<"value">> => RoomSubject}],
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>},
@@ -807,7 +820,9 @@ admin_get_room_config_story(Config, Alice) ->
     RoomJIDBin = jid:to_binary(RoomJID),
     Res = get_room_config(jid:to_binary(RoomJID), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
-                    <<"options">> => [#{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
+                    <<"options">> => [#{<<"key">> => <<"background">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"music">>, <<"value">> => <<>>},
+                                      #{<<"key">> => <<"roomname">>, <<"value">> => RoomName},
                                       #{<<"key">> => <<"subject">>, <<"value">> => RoomSubject}],
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
