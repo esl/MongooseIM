@@ -42,8 +42,6 @@
          result_prefs/4,
          make_fin_element/7,
          parse_prefs/1,
-         borders_decode/1,
-         decode_optimizations/1,
          form_borders_decode/1,
          form_decode_optimizations/1,
          is_mam_result_message/1,
@@ -82,7 +80,6 @@
          calculate_msg_id_borders/3,
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
-         is_complete_result_page/4,
          wait_shaper/4,
          check_for_item_not_found/3]).
 
@@ -92,7 +89,8 @@
          is_jid_in_user_roster/3]).
 
 %% Shared logic
--export([check_result_for_policy_violation/2]).
+-export([check_result_for_policy_violation/2,
+         lookup/3]).
 
 -callback extra_fin_element(mongooseim:host_type(),
                             mam_iq:lookup_params(),
@@ -630,14 +628,6 @@ binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
 skip_bad_jids(MaybeJids) ->
     [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
--spec borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
-borders_decode(QueryEl) ->
-    AfterID  = tag_id(QueryEl, <<"after_id">>),
-    BeforeID = tag_id(QueryEl, <<"before_id">>),
-    FromID   = tag_id(QueryEl, <<"from_id">>),
-    ToID     = tag_id(QueryEl, <<"to_id">>),
-    borders(AfterID, BeforeID, FromID, ToID).
-
 -spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(QueryEl) ->
     AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
@@ -662,20 +652,10 @@ borders(AfterID, BeforeID, FromID, ToID) ->
         to_id     = ToID
     }.
 
-
--spec tag_id(exml:element(), binary()) -> 'undefined' | integer().
-tag_id(QueryEl, Name) ->
-    BExtMessID = exml_query:attr(QueryEl, Name, <<>>),
-    maybe_external_binary_to_mess_id(BExtMessID).
-
 -spec form_field_mess_id(exml:element(), binary()) -> 'undefined' | integer().
 form_field_mess_id(QueryEl, Name) ->
     BExtMessID = form_field_value_s(QueryEl, Name),
     maybe_external_binary_to_mess_id(BExtMessID).
-
--spec decode_optimizations(exml:element()) -> boolean().
-decode_optimizations(QueryEl) ->
-    exml_query:path(QueryEl, [{element, <<"simple">>}, cdata]) =:= <<"true">>.
 
 -spec form_decode_optimizations(exml:element()) -> boolean().
 form_decode_optimizations(QueryEl) ->
@@ -1059,14 +1039,15 @@ maybe_previous_id(X) ->
 %%      It's the most efficient way to query archive, if the client side does
 %%      not care about the total number of messages and if it's stateless
 %%      (i.e. web interface).
--spec is_complete_result_page(TotalCount, Offset, MessageRows, Params) ->
+%% Handles case when we have TotalCount and Offset as integers
+-spec is_complete_result_page_using_offset(Params, Result) ->
     boolean() when
-    TotalCount  :: non_neg_integer()|undefined,
-    Offset      :: non_neg_integer()|undefined,
-    MessageRows :: list(),
-    Params      :: mam_iq:lookup_params().
-is_complete_result_page(TotalCount, Offset, MessageRows,
-                        #{page_size := PageSize} = Params) ->
+    Params      :: mam_iq:lookup_params(),
+    Result      :: mod_mam:lookup_result_map().
+is_complete_result_page_using_offset(#{page_size := PageSize} = Params,
+                                     #{total_count := TotalCount, offset := Offset,
+                                       messages := MessageRows})
+    when is_integer(TotalCount), is_integer(Offset) ->
     case maps:get(ordering_direction, Params, forward) of
         forward ->
             is_most_recent_page(PageSize, TotalCount, Offset, MessageRows);
@@ -1175,19 +1156,75 @@ is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
       LookupResult :: mod_mam:lookup_result(),
       R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
 check_for_item_not_found(#rsm_in{direction = before, id = ID},
-                         PageSize, {TotalCount, Offset, MessageRows}) ->
+                         _PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, Page}};
+        {ok, #{id := ID}} ->
+            {ok, {TotalCount, Offset, list_without_last(MessageRows)}};
         undefined ->
             {error, item_not_found}
     end;
 check_for_item_not_found(#rsm_in{direction = aft, id = ID},
                          _PageSize, {TotalCount, Offset, MessageRows0}) ->
     case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
+        [#{id := ID} | MessageRows] ->
             {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}
     end.
+
+-spec lookup(HostType :: mongooseim:host_type(),
+             Params :: mam_iq:lookup_params(),
+             F :: fun()) ->
+    {ok, mod_mam:lookup_result_map()} | {error, Reason :: term()}.
+lookup(HostType, Params, F) ->
+    F1 = patch_fun_to_make_result_as_map(F),
+    process_lookup_with_complete_check(HostType, Params, F1).
+
+process_lookup_with_complete_check(HostType, Params = #{is_simple := true}, F) ->
+    process_simple_lookup_with_complete_check(HostType, Params, F);
+process_lookup_with_complete_check(HostType, Params, F) ->
+    case F(HostType, Params) of
+        {ok, Result} ->
+            IsComplete = is_complete_result_page_using_offset(Params, Result),
+            {ok, Result#{is_complete => IsComplete}};
+        Other ->
+            Other
+    end.
+
+patch_fun_to_make_result_as_map(F) ->
+    fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.
+
+result_to_map({ok, {TotalCount, Offset, MessageRows}}) ->
+    {ok, #{total_count => TotalCount, offset => Offset, messages => MessageRows}};
+result_to_map(Other) ->
+    Other.
+
+%% We query an extra message by changing page_size.
+%% After that we remove this message from the result set when returning.
+process_simple_lookup_with_complete_check(HostType, Params = #{page_size := PageSize}, F) ->
+    Params2 = Params#{page_size => PageSize + 1},
+    case F(HostType, Params2) of
+        {ok, Result} ->
+            {ok, set_complete_result_page_using_extra_message(PageSize, Params, Result)};
+        Other ->
+            Other
+    end.
+
+set_complete_result_page_using_extra_message(PageSize, Params, Result = #{messages := MessageRows}) ->
+    case length(MessageRows) =:= (PageSize + 1) of
+        true ->
+            Result#{is_complete => false, messages => remove_extra_message(Params, MessageRows)};
+        false ->
+            Result#{is_complete => true}
+    end.
+
+remove_extra_message(Params, Messages) ->
+    case maps:get(ordering_direction, Params, forward) of
+        forward ->
+            list_without_last(Messages);
+        backward ->
+            tl(Messages)
+    end.
+
+list_without_last(List) ->
+    lists:reverse(tl(lists:reverse(List))).

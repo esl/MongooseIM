@@ -20,7 +20,8 @@
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
          has_full_text_search/2, is_archivable_message_module/2, send_message_mod/2,
-         archive_chat_markers/2, add_stanzaid_element/2, extra_fin_element_module/2]).
+         archive_chat_markers/2, add_stanzaid_element/2, extra_fin_element_module/2,
+         enforce_simple_queries/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -38,6 +39,9 @@ max_result_limit(Module, HostType) ->
 default_result_limit(Module, HostType) ->
     gen_mod:get_module_opt(HostType, Module, default_result_limit).
 
+-spec enforce_simple_queries(mam_module(), mongooseim:host_type()) -> module() | undefined.
+enforce_simple_queries(Module, HostType) ->
+    gen_mod:get_module_opt(HostType, Module, enforce_simple_queries, false).
 
 -spec has_full_text_search(Module :: mod_mam_pm | mod_mam_muc, mongooseim:host_type()) -> boolean().
 has_full_text_search(Module, HostType) ->

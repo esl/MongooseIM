@@ -1288,13 +1288,13 @@ remove_domain(Acc, HostType, Domain) ->
 
 -spec acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 acc_room_affiliations(Acc1, Room) ->
-    case mongoose_acc:get(?MODULE, affiliations, {error, not_found}, Acc1) of
+    case mongoose_acc:get(?MODULE, {affiliations, Room}, {error, not_found}, Acc1) of
         {error, _} ->
             case mod_muc_room:get_room_users(Room) of
                 {error, not_found} ->
                     Acc1;
                 {ok, _Affs} = Res ->
-                    mongoose_acc:set(?MODULE, affiliations, Res, Acc1)
+                    mongoose_acc:set(?MODULE, {affiliations, Room}, Res, Acc1)
             end;
         _Affs ->
             Acc1

@@ -1,14 +1,11 @@
 -module(graphql_helper).
 
+-compile([export_all, nowarn_export_all]).
+
 -import(distributed_helper, [mim/0, rpc/4]).
 
--export([execute/3, execute_auth/2, execute_domain_auth/2, execute_user/3]).
--export([init_admin_handler/1, init_domain_admin_handler/1, end_domain_admin_handler/1]).
--export([get_listener_port/1, get_listener_config/1]).
--export([get_ok_value/2, get_err_msg/1, get_err_msg/2, get_err_code/1, make_creds/1,
-         user_to_bin/1, user_to_full_bin/1, user_to_jid/1, user_to_lower_jid/1]).
-
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
 -spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
@@ -23,6 +20,44 @@ execute(EpName, Body, Creds) ->
         path => "/graphql",
         body => Body},
     rest_helper:make_request(Request).
+
+execute_user_command(Category, Command, User, Args, Config) ->
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    execute_user(#{query => Doc, variables => Args}, User, Config).
+
+execute_command(Category, Command, Args, Config) ->
+    Protocol = ?config(protocol, Config),
+    execute_command(Category, Command, Args, Config, Protocol).
+
+execute_domain_admin_command(Category, Command, Args, Config) ->
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    execute_domain_auth(#{query => Doc, variables => Args}, Config).
+
+%% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
+execute_command(Category, Command, Args, Config, http) ->
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    execute_auth(#{query => Doc, variables => Args}, Config);
+execute_command(Category, Command, Args, Config, cli) ->
+    CLIArgs = encode_cli_args(Args),
+    {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command | CLIArgs], Config),
+    {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
+
+encode_cli_args(Args) ->
+    lists:flatmap(fun({Name, Value}) -> encode_cli_arg(Name, Value) end, maps:to_list(Args)).
+
+encode_cli_arg(_Name, null) ->
+    [];
+encode_cli_arg(Name, Value) ->
+    [<<"--", (arg_name_to_binary(Name))/binary>>, arg_value_to_binary(Value)].
+
+arg_name_to_binary(Name) when is_atom(Name) -> atom_to_binary(Name);
+arg_name_to_binary(Name) when is_binary(Name) -> Name.
+
+arg_value_to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
+arg_value_to_binary(Value) when is_atom(Value) -> atom_to_binary(Value);
+arg_value_to_binary(Value) when is_binary(Value) -> Value;
+arg_value_to_binary(Value) when is_list(Value);
+                                is_map(Value) -> iolist_to_binary(jiffy:encode(Value)).
 
 execute_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -56,17 +91,40 @@ init_admin_handler(Config) ->
     Opts = get_listener_opts(Endpoint),
     case maps:is_key(username, Opts) of
         true ->
-            [{schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
+            add_specs([{protocol, http}, {schema_endpoint, Endpoint}, {listener_opts, Opts}
+                      | Config]);
         false ->
             ct:fail(<<"Admin credentials are not defined in config">>)
     end.
 
+init_admin_cli(Config) ->
+    add_specs([{protocol, cli}, {schema_endpoint, admin} | Config]).
+
+init_user(Config) ->
+    add_specs([{schema_endpoint, user} | Config]).
+
 init_domain_admin_handler(Config) ->
     Domain = domain_helper:domain(),
-    Password = base16:encode(crypto:strong_rand_bytes(8)),
-    Creds = {<<"admin@", Domain/binary>>, Password},
-    ok = domain_helper:set_domain_password(mim(), Domain, Password),
-    [{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config].
+    case mongoose_helper:is_rdbms_enabled(Domain) of
+        true ->
+            Password = base16:encode(crypto:strong_rand_bytes(8)),
+            Creds = {<<"admin@", Domain/binary>>, Password},
+            ok = domain_helper:set_domain_password(mim(), Domain, Password),
+            add_specs([{domain_admin, Creds}, {schema_endpoint, domain_admin} | Config]);
+        false -> {skip, require_rdbms}
+    end.
+
+add_specs(Config) ->
+    EpName = ?config(schema_endpoint, Config),
+    Specs = rpc(mim(), mongoose_graphql_commands, build_specs, [EpName]),
+    persistent_term:put(graphql_specs, Specs),
+    Config.
+
+get_specs() ->
+    persistent_term:get(graphql_specs).
+
+clean() ->
+    persistent_term:erase(graphql_specs).
 
 end_domain_admin_handler(Config) ->
     {JID, _} = ?config(domain_admin, Config),
@@ -78,21 +136,54 @@ get_listener_opts(EpName) ->
     Opts.
 
 get_err_code(Resp) ->
-    get_ok_value([errors, 1, extensions, code], Resp).
+    get_value([extensions, code], get_error(1, Resp)).
 
--spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(Resp) ->
-    get_ok_value([errors, 1, message], Resp).
+    get_err_msg(1, Resp).
 
--spec get_err_msg(pos_integer(), #{errors := [#{message := binary()}]}) -> binary().
+get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
+    [#{<<"extensions">> := #{<<"code">> := ErrorCode}}] = Errors,
+    assert_response_code(unauthorized, Code),
+    ?assertEqual(<<"no_permissions">>, ErrorCode).
+
+get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
+    assert_response_code(bad_request, Code),
+    ?assertEqual(<<"input_coercion">>, get_value([extensions, code], Error)),
+    get_value([message], Error).
+
 get_err_msg(N, Resp) ->
-    get_ok_value([errors, N, message], Resp).
+    get_value([message], get_error(N, Resp)).
 
--spec get_ok_value([atom()], {tuple(), map()}) -> binary().
-get_ok_value([errors, N | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
-    get_value(Path, lists:nth(N, Errors));
-get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
+get_error(N, {Code, #{<<"errors">> := Errors}}) ->
+    assert_response_code(error, Code),
+    lists:nth(N, Errors).
+
+%% Expect both errors and successful responses
+get_err_value(Path, {Code, Data}) ->
+    assert_response_code(error, Code),
     get_value(Path, Data).
+
+get_ok_value(Path, {Code, Data}) ->
+    assert_response_code(ok, Code),
+    get_value(Path, Data).
+
+assert_response_code(bad_request, {<<"400">>, <<"Bad Request">>}) -> ok;
+assert_response_code(unauthorized, {<<"401">>, <<"Unauthorized">>}) -> ok;
+assert_response_code(error, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(ok, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(bad_request, {exit_status, 1}) -> ok;
+assert_response_code(error, {exit_status, 1}) -> ok;
+assert_response_code(ok, {exit_status, 0}) -> ok;
+assert_response_code(Type, Code) ->
+    error(#{what => invalid_response_code, expected_type => Type, response_code => Code}).
+
+skip_null_fields(M) when is_map(M) ->
+    M1 = maps:filter(fun(_K, V) -> V =/= null end, M),
+    maps:map(fun(_K, V) -> skip_null_fields(V) end, M1);
+skip_null_fields(L) when is_list(L) ->
+    [skip_null_fields(Item) || Item <- L];
+skip_null_fields(V) ->
+    V.
 
 make_creds(#client{props = Props} = Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),

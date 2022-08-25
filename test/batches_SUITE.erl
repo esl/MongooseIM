@@ -49,7 +49,7 @@ end_per_group(_, _Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    pg:start_link(),
+    pg:start_link(mim_scope),
     mim_ct_sup:start_link(ejabberd_sup),
     meck:new(gen_mod, [passthrough]),
     Config.

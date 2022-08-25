@@ -57,7 +57,6 @@
 
 -include("ejabberd_ctl.hrl").
 -include("ejabberd_commands.hrl").
--include("mongoose.hrl").
 
 -type format() :: integer | string | binary | {list, format()}.
 -type format_type() :: binary() | string() | char().
@@ -75,8 +74,7 @@
 -spec start() -> none().
 start() ->
     case init:get_plain_arguments() of
-        [SNode | Args0] ->
-        Args = args_join_xml(args_join_strings(Args0)),
+        [SNode | Args] ->
             SNode1 = case string:tokens(SNode, "@") of
                          [_Node, _Server] ->
                              SNode;
@@ -171,23 +169,11 @@ process(["mnesia"]) ->
 process(["mnesia", "info"]) ->
     mnesia:info(),
     ?STATUS_SUCCESS;
-process(["mnesia", Arg]) when is_list(Arg) ->
-    case catch mnesia:system_info(list_to_atom(Arg)) of
-        {'EXIT', Error} -> ?PRINT("Error: ~p~n", [Error]);
-        Return -> ?PRINT("~p~n", [Return])
-    end,
-    ?STATUS_SUCCESS;
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),
-    case mongoose_graphql:execute(Ep, undefined, Doc) of
-        {ok, Result} ->
-            PrettyResult = jiffy:encode(Result, [pretty]),
-            ?PRINT("~s\n", [PrettyResult]);
-        {error, _} = Err ->
-            ?PRINT("~p\n", [Err])
-    end,
-    ?STATUS_SUCCESS;
+    Result = mongoose_graphql:execute(Ep, undefined, Doc),
+    handle_graphql_result(Result);
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
     ?STATUS_ERROR;
@@ -198,13 +184,13 @@ process(["help" | Mode]) ->
     {MaxC, ShCode} = get_shell_info(),
     case Mode of
         [] ->
-            print_usage(dual, MaxC, ShCode),
+            print_usage_old(dual, MaxC, ShCode),
             ?STATUS_USAGE;
         ["--dual"] ->
-            print_usage(dual, MaxC, ShCode),
+            print_usage_old(dual, MaxC, ShCode),
             ?STATUS_USAGE;
         ["--long"] ->
-            print_usage(long, MaxC, ShCode),
+            print_usage_old(long, MaxC, ShCode),
             ?STATUS_USAGE;
         ["--tags"] ->
             print_usage_tags(MaxC, ShCode),
@@ -221,6 +207,55 @@ process(["help" | Mode]) ->
             ?STATUS_SUCCESS
     end;
 process(Args) ->
+    case mongoose_graphql_commands:process(Args) of
+        #{status := executed, result := Result} ->
+            handle_graphql_result(Result);
+        #{status := error, reason := Reason} when Reason =:= no_args;
+                                                  Reason =:= unknown_category ->
+            run_command(Args); % Fallback to the old commands
+        #{status := error} = Ctx ->
+            ?PRINT(error_message(Ctx) ++ "\n\n", []),
+            print_usage(Ctx),
+            ?STATUS_ERROR;
+        #{status := usage} = Ctx ->
+            print_usage(Ctx),
+            ?STATUS_SUCCESS % not STATUS_USAGE, as that would tell the script to print general help
+    end.
+
+-spec error_message(mongoose_graphql_commands:context()) -> iolist().
+error_message(#{reason := unknown_command, command := Command}) ->
+    io_lib:format("Unknown command '~s'", [Command]);
+error_message(#{reason := invalid_args}) ->
+    "Could not parse the command arguments";
+error_message(#{reason := {unknown_arg, ArgName}, command := Command}) ->
+    io_lib:format("Unknown argument '~s' for command '~s'", [ArgName, Command]);
+error_message(#{reason := {invalid_arg_value, ArgName, ArgValue}, command := Command}) ->
+    io_lib:format("Invalid value '~s' of argument '~s' for command '~s'",
+                  [ArgValue, ArgName, Command]);
+error_message(#{reason := {missing_args, MissingArgs}, command := Command}) ->
+    io_lib:format("Missing mandatory arguments for command '~s': ~s",
+                  [Command, ["'", lists:join("', '", MissingArgs), "'"]]).
+
+-spec print_usage(mongoose_graphql_commands:context()) -> any().
+print_usage(#{category := Category, command := Command, args_spec := ArgsSpec}) ->
+    print_usage_command(Category, Command, ArgsSpec);
+print_usage(#{category := Category, commands := Commands}) ->
+    print_usage_category(Category, Commands).
+
+handle_graphql_result({ok, Result}) ->
+    JSONResult = mongoose_graphql_response:term_to_pretty_json(Result),
+    ?PRINT("~s\n", [JSONResult]),
+    case Result of
+        #{errors := _} -> ?STATUS_ERROR;
+        _ -> ?STATUS_SUCCESS
+    end;
+handle_graphql_result({error, Reason}) ->
+    {_Code, Error} = mongoose_graphql_errors:format_error(Reason),
+    JSONResult = jiffy:encode(#{errors => [Error]}, [pretty]),
+    ?PRINT("~s\n", [JSONResult]),
+    ?STATUS_ERROR.
+
+run_command(Args) ->
     AccessCommands = get_accesscommands(),
     {String, Code} = process2(Args, AccessCommands),
     case String of
@@ -229,7 +264,6 @@ process(Args) ->
             io:format("~s~n", [String])
     end,
     Code.
-
 
 -spec process2(Args :: [string()],  AccessCommands :: ejabberd_commands:access_commands()) ->
           {String::string(), Code::integer()}.
@@ -340,60 +374,6 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 %%-----------------------------
 %% Format arguments
 %%-----------------------------
-
-%% @private
--spec args_join_xml([string()]) -> [string()].
-args_join_xml([]) ->
-    [];
-args_join_xml([ [ $< | _ ] = Arg | RArgs ]) ->
-    case bal(Arg, $<, $>) of
-        true ->
-            [Arg | args_join_xml(RArgs)];
-        false ->
-            [NextArg | RArgs1] = RArgs,
-            args_join_xml([Arg ++ " " ++ NextArg | RArgs1])
-    end;
-args_join_xml([ Arg | RArgs ]) ->
-    [ Arg | args_join_xml(RArgs) ].
-
-
-%% @private
--spec args_join_strings([string()]) -> [string()].
-args_join_strings([]) ->
-    [];
-args_join_strings([ "\"", NextArg | RArgs ]) ->
-    args_join_strings([ "\"" ++ NextArg | RArgs ]);
-args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
-    case lists:nthtail(length(Arg)-2, Arg) of
-        [C1, $"] when C1 /= ?ASCII_SPACE_CHARACTER ->
-            [ string:substr(Arg, 2, length(Arg)-2) | args_join_strings(RArgs) ];
-        _ ->
-            [NextArg | RArgs1] = RArgs,
-            args_join_strings([Arg ++ " " ++ NextArg | RArgs1])
-    end;
-args_join_strings([ Arg | RArgs ]) ->
-    [ Arg | args_join_strings(RArgs) ].
-
-
-%% @private
--spec bal(string(), char(), char()) -> boolean().
-bal(String, Left, Right) ->
-    bal(String, Left, Right, 0).
-
-
-%% @private
--spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
-bal([], _Left, _Right, Bal) ->
-    Bal == 0;
-bal([?ASCII_SPACE_CHARACTER, _NextChar | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal);
-bal([Left | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal-1);
-bal([Right | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal+1);
-bal([_C | T], Left, Right, Bal) ->
-    bal(T, Left, Right, Bal).
-
 
 %% @private
 -spec format_args(Args :: [any()],
@@ -515,14 +495,6 @@ tuple_command_help({Name, Args, Desc}) ->
     CallString = atom_to_list(Name),
     {CallString, Arguments, Desc}.
 
-
--spec get_list_ctls() -> [cmd()].
-get_list_ctls() ->
-    case catch ets:tab2list(ejabberd_ctl_cmds) of
-        {'EXIT', _} -> [];
-        Cs -> [{NameArgs, [], Desc} || {NameArgs, Desc} <- Cs]
-    end.
-
 format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
                {mongoose_status, MS}, {os_pid, OSPid}, {uptime, UptimeHMS},
                {dist_proto, DistProto}, {logs, LogFiles}]) ->
@@ -559,21 +531,22 @@ print_usage() ->
     print_usage(dual, MaxC, ShCode).
 
 
--spec print_usage('dual' | 'long'
-                , MaxC :: integer()
-                , ShCode :: boolean()) -> 'ok'.
+-spec print_usage(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_usage(HelpMode, MaxC, ShCode) ->
-    AllCommands =
-        [
-         {"status", [], "Get MongooseIM status"},
-         {"stop", [], "Stop MongooseIM"},
-         {"restart", [], "Restart MongooseIM"},
-         {"help", ["[--tags [tag] | com?*]"], "Show help (try: mongooseimctl help help)"},
-         {"mnesia", ["[info]"], "show information of Mnesia system"},
-         {"graphql", ["query"], "Execute graphql query or mutation"}] ++
-        get_list_commands() ++
-        get_list_ctls(),
+    ?PRINT(["Usage: ", ?B("mongooseimctl"), " [", ?U("category"), "] ", ?U("command"),
+            " [", ?U("arguments"), "]\n\n"
+            "Most MongooseIM commands are grouped into the following categories:\n"], []),
+    print_categories(HelpMode, MaxC, ShCode),
+    ?PRINT(["\nTo list the commands in a particular category:\n  mongooseimctl ", ?U("category"),
+            "\n"], []),
+    ?PRINT(["\nThe following basic system management commands do not have a category:\n"], []),
+    print_usage_commands(HelpMode, MaxC, ShCode, basic_commands()).
 
+-spec print_usage_old(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
+print_usage_old(HelpMode, MaxC, ShCode) ->
+    ?PRINT(["The following commands are deprecated and ", ?B("will be removed"), " soon.\n"
+            "To learn about the new commands, run 'mongooseimctl' without any arguments.\n\n"], []),
+    AllCommands = basic_commands() ++ get_list_commands(),
     ?PRINT(
        ["Usage: ", ?B("mongooseimctl"), " [--node ", ?U("nodename"), "] [--auth ",
         ?U("user"), " ", ?U("host"), " ", ?U("password"), "] ",
@@ -588,6 +561,52 @@ print_usage(HelpMode, MaxC, ShCode) ->
         "  mongooseimctl --node mongooseim@host restart\n"],
        []).
 
+-spec basic_commands() -> [cmd()].
+basic_commands() ->
+    [{"status", [], "Get MongooseIM status"},
+     {"stop", [], "Stop MongooseIM"},
+     {"restart", [], "Restart MongooseIM"},
+     {"help", ["[--tags [tag] | com?*]"], "Show help for the deprecated commands"},
+     {"mnesia", ["[info]"], "show information of Mnesia system"},
+     {"graphql", ["query"], "Execute graphql query or mutation"}].
+
+-spec print_categories(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
+print_categories(HelpMode, MaxC, ShCode) ->
+    SortedSpecs = lists:sort(maps:to_list(mongoose_graphql_commands:get_specs())),
+    Categories = [{binary_to_list(Category), [], binary_to_list(Desc)}
+                  || {Category, #{desc := Desc}} <- SortedSpecs],
+    print_usage_commands(HelpMode, MaxC, ShCode, Categories).
+
+-spec print_usage_category(mongoose_graphql_commands:category(),
+                           mongoose_graphql_commands:command_map()) -> ok.
+print_usage_category(Category, Commands) ->
+    {MaxC, ShCode} = get_shell_info(),
+    ?PRINT(["Usage: ", ?B("mongooseimctl"), " ", Category, " ", ?U("command"), " ", ?U("arguments"), "\n"
+            "\n"
+            "The following commands are available in the category '", Category, "':\n"], []),
+    CmdSpec = [{binary_to_list(Command), [], binary_to_list(Desc)}
+               || {Command, #{desc := Desc}} <- maps:to_list(Commands)],
+    print_usage_commands(dual, MaxC, ShCode, CmdSpec),
+    ?PRINT(["\nTo list the arguments for a particular command:\n"
+            "  mongooseimctl ", Category, " ", ?U("command"), " --help", "\n"], []).
+
+-spec print_usage_command(mongoose_graphql_commands:category(),
+                          mongoose_graphql_commands:command(),
+                          [mongoose_graphql_commands:arg_spec()]) -> ok.
+print_usage_command(Category, Command, ArgsSpec) ->
+    {MaxC, ShCode} = get_shell_info(),
+    ?PRINT(["Usage: ", ?B("mongooseimctl"), " ", Category, " ", Command, " ", ?U("arguments"), "\n"
+            "\n",
+            "Each argument has the format: --", ?U("name"), " ", ?U("value"), "\n",
+            "Available arguments are listed below with the corresponding GraphQL types:\n"], []),
+    %% Reuse the function initially designed for printing commands for now
+    %% This will be replaced with new logic when old commands are dropped
+    Args = [{binary_to_list(Name), [], mongoose_graphql_commands:wrap_type(Wrap, Type)}
+            || #{name := Name, type := Type, wrap := Wrap} <- ArgsSpec],
+    print_usage_commands(dual, MaxC, ShCode, Args),
+    ?PRINT(["\nScalar values do not need quoting unless they contain special characters or spaces.\n"
+            "Complex input types are passed as JSON maps or lists, depending on the type.\n"
+            "When a type is followed by '!', the corresponding argument is required.\n"], []).
 
 -spec print_usage_commands(HelpMode :: 'dual' | 'long',
                            MaxC :: integer(),
@@ -619,9 +638,7 @@ print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
     %% For each command in the list of commands
     %% Convert its definition to a line
     FmtCmdDescs = format_command_lines(CmdArgsLenDescsSorted, MaxCmdLen, MaxC, ShCode, HelpMode),
-
     ?PRINT([FmtCmdDescs], []).
-
 
 %% @doc Get some info about the shell: how many columns of width and guess if
 %% it supports text formatting codes.
@@ -632,15 +649,13 @@ get_shell_info() ->
         {error, enotsup} -> {78, false}
     end.
 
-
 %% @doc Split this command description in several lines of proper length
 -spec prepare_description(DescInit :: non_neg_integer(),
                           MaxC :: integer(),
                           Desc :: string()) -> [[[any()]], ...].
 prepare_description(DescInit, MaxC, Desc) ->
-    Words = string:tokens(Desc, " "),
+    Words = string:tokens(Desc, " \n"),
     prepare_long_line(DescInit, MaxC, Words).
-
 
 -spec prepare_long_line(DescInit :: non_neg_integer(),
                         MaxC :: integer(),
@@ -653,7 +668,6 @@ prepare_long_line(DescInit, MaxC, Words) ->
     MoreSegmentsMixed = mix_desc_segments(MarginString, MoreSegments),
     [FirstSegment | MoreSegmentsMixed].
 
-
 -spec mix_desc_segments(MarginStr :: [any()],
                         Segments :: [[[any(), ...]]]) -> [[[any()], ...]].
 mix_desc_segments(MarginString, Segments) ->
@@ -661,7 +675,6 @@ mix_desc_segments(MarginString, Segments) ->
 
 split_desc_segments(MaxL, Words) ->
     join(MaxL, Words).
-
 
 %% @doc Join words in a segment, but stop adding to a segment if adding this
 %% word would pass L
@@ -694,7 +707,6 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
             join(L, Words, LWord, [" ", Word], [lists:reverse(LastSeg) | ResSeg])
     end.
 
-
 -spec format_command_lines(CALD :: [{[any()], [any()], number(), _}, ...],
                            MaxCmdLen :: integer(),
                            MaxC :: integer(),
@@ -718,7 +730,6 @@ format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
               ["\n  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], "\n", "        ",
                DescFmt, "\n"]
       end, CALD).
-
 
 %%-----------------------------
 %% Print Tags
@@ -816,7 +827,7 @@ print_usage_commands2(Cmds, MaxC, ShCode) ->
     %% Then for each one print it
     lists:mapfoldl(
       fun(Cmd, Remaining) ->
-              print_usage_command(Cmd, MaxC, ShCode),
+              print_usage_command_old(Cmd, MaxC, ShCode),
               case Remaining > 1 of
                   true -> ?PRINT([" ", lists:duplicate(MaxC, 126), " \n"], []);
                   false -> ok
@@ -848,8 +859,8 @@ filter_commands_regexp(All, Glob) ->
       All).
 
 
--spec print_usage_command(Cmd :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
-print_usage_command(Cmd, MaxC, ShCode) ->
+-spec print_usage_command_old(Cmd :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
+print_usage_command_old(Cmd, MaxC, ShCode) ->
     Name = list_to_atom(Cmd),
     case ejabberd_commands:get_command_definition(Name) of
         command_not_found ->
@@ -940,4 +951,3 @@ get_dist_proto() ->
         {ok, [Proto]} -> Proto;
         _ -> "inet_tcp"
     end.
-

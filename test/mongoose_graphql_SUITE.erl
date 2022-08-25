@@ -14,14 +14,14 @@
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
                      check_permissions(Config, false, Doc))).
 -define(assertPermissionsSuccess(Config, Doc),
-        ?assertMatch(ok, check_permissions(Config, false, Doc))).
+        ?assertMatch(#document{}, check_permissions(Config, false, Doc))).
 
 -define(assertDomainPermissionsFailed(Config, Domain, Args, Doc),
-        ?assertThrow({error, #{error_term := {no_permissions, _,#{type := domain,
-                                                                  invalid_args := Args}}}},
+        ?assertThrow({error, #{error_term := {no_permissions, _, #{type := domain,
+                                                                   invalid_args := Args}}}},
                      check_domain_permissions(Config, Domain, Doc))).
 -define(assertPermissionsSuccess(Config, Domain, Doc),
-        ?assertMatch(ok, check_domain_permissions(Config, Domain, Doc))).
+        ?assertMatch(#document{}, check_domain_permissions(Config, Domain, Doc))).
 
 -define(assertErrMsg(Code, MsgContains, ErrorMsg),
         assert_err_msg(Code, MsgContains, ErrorMsg)).
@@ -37,6 +37,7 @@ all() ->
      {group, error_formatting},
      {group, permissions},
      {group, domain_permissions},
+     {group, use_directive},
      {group, user_listener},
      {group, admin_listener},
      {group, domain_admin_listener}].
@@ -48,6 +49,7 @@ groups() ->
      {error_formatting, [parallel], error_formatting()},
      {permissions, [parallel], permissions()},
      {domain_permissions, [parallel], domain_permissions()},
+     {use_directive, [parallel], use_directive()},
      {admin_listener, [parallel], admin_listener()},
      {domain_admin_listener, [parallel], domain_admin_listener()},
      {user_listener, [parallel], user_listener()}].
@@ -56,8 +58,7 @@ protected_graphql() ->
     [auth_can_execute_protected_query,
      auth_can_execute_protected_mutation,
      unauth_cannot_execute_protected_query,
-     unauth_cannot_execute_protected_mutation,
-     unauth_can_access_introspection].
+     unauth_cannot_execute_protected_mutation].
 
 unprotected_graphql() ->
     [can_execute_query_with_vars,
@@ -107,8 +108,22 @@ domain_permissions() ->
      check_interface_field_domain_permissions
     ].
 
+use_directive() ->
+    [use_dir_module_not_loaded,
+     use_dir_all_modules_loaded,
+     use_dir_all_modules_and_services_loaded,
+     use_dir_module_and_service_not_loaded,
+     use_dir_object_module_and_service_not_loaded,
+     use_dir_object_all_modules_and_services_loaded,
+     use_dir_auth_admin_all_modules_and_services_loaded,
+     use_dir_auth_user_all_modules_and_services_loaded,
+     use_dir_auth_admin_module_and_service_not_loaded,
+     use_dir_auth_user_module_and_service_not_loaded
+    ].
+
 user_listener() ->
-    [auth_user_can_access_protected_types | common_tests()].
+    [auth_user_can_access_protected_types,
+     use_directive_can_use_auth_user_domain | common_tests()].
 
 admin_listener() ->
     [no_creds_defined_admin_can_access_protected,
@@ -120,7 +135,8 @@ domain_admin_listener() ->
      auth_domain_admin_nonexistent_domain_error,
      auth_domain_admin_cannot_access_other_domain,
      auth_domain_admin_cannot_access_global,
-     auth_domain_admin_can_access_owned_domain
+     auth_domain_admin_can_access_owned_domain,
+     use_directive_can_use_auth_domain_admin_domain
      | common_tests()].
 
 common_tests() ->
@@ -137,6 +153,8 @@ common_tests() ->
      listener_can_execute_query_with_variables].
 
 init_per_suite(Config) ->
+    %% Register atoms for `binary_to_existing_atom`
+    [mod_x, mod_z, service_x, service_d],
     application:ensure_all_started(cowboy),
     application:ensure_all_started(jid),
     Config.
@@ -145,6 +163,8 @@ end_per_suite(_Config) ->
     ok.
 
 init_per_group(user_listener, Config) ->
+    Config1 = meck_module_and_service_checking(Config),
+    Config2 = meck_domain_api(Config1),
     meck:new(mongoose_api_common, [no_link]),
     meck:expect(mongoose_api_common, check_password,
                 fun
@@ -152,24 +172,23 @@ init_per_group(user_listener, Config) ->
                     (_, _) -> false
                 end),
     ListenerOpts = #{schema_endpoint => user},
-    init_ep_listener(5557, user_schema_ep, ListenerOpts, Config);
+    init_ep_listener(5557, user_schema_ep, ListenerOpts, Config2);
 init_per_group(admin_listener, Config) ->
     ListenerOpts = #{username => <<"admin">>,
                      password => <<"secret">>,
                      schema_endpoint => admin},
     init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
 init_per_group(domain_admin_listener, Config) ->
-    meck:new(mongoose_domain_api, [no_link]),
+    Config1 = meck_module_and_service_checking(Config),
+    Config2 = meck_domain_api(Config1),
     meck:expect(mongoose_domain_api, check_domain_password,
                 fun
                     (<<"localhost">>, <<"makota">>) -> ok;
                     (<<"localhost">>, _) -> {error, wrong_password};
                     (_, _) -> {error, not_found}
                 end),
-    meck:expect(mongoose_domain_api, get_subdomain_info,
-                fun (_) -> {error, not_found} end),
     ListenerOpts = #{schema_endpoint => domain_admin},
-    init_ep_listener(5560, domain_admin_schema_ep, ListenerOpts, Config);
+    init_ep_listener(5560, domain_admin_schema_ep, ListenerOpts, Config2);
 init_per_group(domain_permissions, Config) ->
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_subdomain_info,
@@ -184,30 +203,37 @@ init_per_group(domain_permissions, Config) ->
     Domains = [{<<"subdomain.test-domain.com">>, <<"test-domain.com">>},
                {<<"subdomain.test-domain2.com">>, <<"test-domain2.com">>}],
     [{domains, Domains} | Config];
+init_per_group(use_directive, Config) ->
+    Config1 = meck_domain_api(Config),
+    meck_module_and_service_checking(Config1);
 init_per_group(_G, Config) ->
     Config.
 
 end_per_group(user_listener, Config) ->
-    meck:unload(mongoose_api_common),
+    unmeck_module_and_service_checking(Config),
+    unmeck_domain_api(Config),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(admin_listener, Config) ->
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(domain_admin_listener, Config) ->
-    meck:unload(mongoose_domain_api),
+    unmeck_module_and_service_checking(Config),
+    unmeck_domain_api(Config),
     ?config(test_process, Config) ! stop,
     Config;
 end_per_group(domain_permissions, _Config) ->
     meck:unload(mongoose_domain_api);
+end_per_group(use_directive, Config) ->
+    unmeck_domain_api(Config),
+    unmeck_module_and_service_checking(Config);
 end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= auth_can_execute_protected_mutation;
                                   C =:= unauth_cannot_execute_protected_query;
-                                  C =:= unauth_cannot_execute_protected_mutation;
-                                  C =:= unauth_can_access_introspection ->
+                                  C =:= unauth_cannot_execute_protected_mutation ->
     {Mapping, Pattern} = example_schema_protected_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -244,6 +270,20 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
                                   C =:= check_child_object_field_domain_permissions;
                                   C =:= check_interface_field_domain_permissions ->
     {Mapping, Pattern} = example_permissions_schema_data(Config),
+    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
+    Ep = mongoose_graphql:get_endpoint(C),
+    [{endpoint, Ep} | Config];
+init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
+                                  C =:= use_dir_all_modules_loaded;
+                                  C =:= use_dir_module_and_service_not_loaded;
+                                  C =:= use_dir_all_modules_and_services_loaded;
+                                  C =:= use_dir_object_module_and_service_not_loaded;
+                                  C =:= use_dir_object_all_modules_and_services_loaded;
+                                  C =:= use_dir_auth_user_all_modules_and_services_loaded;
+                                  C =:= use_dir_auth_admin_all_modules_and_services_loaded;
+                                  C =:= use_dir_auth_user_module_and_service_not_loaded;
+                                  C =:= use_dir_auth_admin_module_and_service_not_loaded ->
+    {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
     [{endpoint, Ep} | Config];
@@ -320,26 +360,6 @@ unauth_cannot_execute_protected_mutation(Config) ->
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
     ?assertMatch({error, #{error_term := {no_permissions, <<"ROOT">>}}}, Res).
-
-unauth_can_access_introspection(Config) ->
-    Ep = ?config(endpoint, Config),
-    Doc = <<"{ __schema { queryType { name } } __type(name: \"UserQuery\") { name } }">>,
-    Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    Expected =
-        {ok,
-            #{data =>
-                #{<<"__schema">> =>
-                    #{<<"queryType">> =>
-                        #{<<"name">> => <<"UserQuery">>}
-                },
-                <<"__type">> =>
-                    #{<<"name">> =>
-                        <<"UserQuery">>
-                     }
-                 }
-             }
-        },
-    ?assertEqual(Expected, Res).
 
 %% Unprotected graphql
 
@@ -566,7 +586,7 @@ check_field_subdomain_permissions(Config) ->
 check_field_global_permissions(Config) ->
     Domain = <<"my-domain.com">>,
     Doc = <<"{ protectedField onlyForGlobalAdmin }">>,
-    ?assertMatch(ok, check_permissions(Config, true, Doc)),
+    ?assertMatch(#document{}, check_permissions(Config, true, Doc)),
     ?assertThrow({error, #{error_term := {no_permissions, _, #{type := global}}}},
                  check_domain_permissions(Config, Domain, Doc)).
 
@@ -654,6 +674,17 @@ auth_user_can_access_protected_types(Config) ->
     {Status, Data} = execute(Ep, Body, {<<"alice@localhost">>, <<"makota">>}),
     assert_access_granted(Status, Data).
 
+use_directive_can_use_auth_user_domain(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ command }"},
+    {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}} =
+        execute(Ep, Body, {<<"alice@localhost">>, <<"makota">>}),
+    #{<<"extensions">> :=
+        #{<<"code">> := <<"deps_not_loaded">>,
+          <<"not_loaded_modules">> := [<<"mod_x">>],
+          <<"not_loaded_services">> := []}
+     } = Error.
+
 no_creds_defined_admin_can_access_protected(_Config) ->
     Port = 5559,
     Ep = "http://localhost:" ++ integer_to_list(Port),
@@ -673,6 +704,17 @@ auth_domain_admin_can_access_protected_types(Config) ->
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
     assert_access_granted(Status, Data).
+
+use_directive_can_use_auth_domain_admin_domain(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ command }"},
+    {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}} =
+        execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
+    #{<<"extensions">> :=
+        #{<<"code">> := <<"deps_not_loaded">>,
+          <<"not_loaded_modules">> := [<<"mod_x">>],
+          <<"not_loaded_services">> := []}
+     } = Error.
 
 auth_domain_admin_wrong_password_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
@@ -721,40 +763,40 @@ invalid_json_body_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     Body = <<"">>,
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(invalid_json_body, Data).
 
 no_query_supplied_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     Body = #{},
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(no_query_supplied, Data).
 
 variables_invalid_json_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(variables_invalid_json, Data).
 
 listener_reply_with_parsing_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     Body = #{<<"query">> => <<"{ field ">>},
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(parser_error, Data),
 
     BodyScanner = #{<<"query">> => <<"mutation { id(value: \"asdfsad) } ">>},
     {StatusScanner, DataScanner} = execute(Ep, BodyScanner, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, StatusScanner),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, StatusScanner),
     assert_code(scanner_error, DataScanner).
 
 listener_reply_with_type_check_error(Config) ->
     Ep = ?config(endpoint_addr, Config),
     Body = #{<<"query">> => <<"mutation { id(value: 12) }">>},
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(input_coercion, Data).
 
 listener_reply_with_validation_error(Config) ->
@@ -762,7 +804,7 @@ listener_reply_with_validation_error(Config) ->
     Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>,
              <<"operationName">> => <<"Q1">>},
     {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertEqual({<<"400">>, <<"Bad Request">>}, Status),
     assert_code(not_unique, Data).
 
 listener_can_execute_query_with_variables(Config) ->
@@ -788,6 +830,113 @@ listener_unauth_can_access_unprotected_types(Config) ->
     {Status, Data} = execute(Ep, Body, undefined),
     assert_access_granted(Status, Data).
 
+%% Use Directive
+
+use_dir_all_modules_loaded(Config) ->
+    Doc = <<"{catA { command(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catA">> => #{<<"command">> => <<"command">>}}}, Res).
+
+use_dir_module_not_loaded(Config) ->
+    Doc = <<"{catA { command(domain: \"test-domain.com\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_b">>],
+          not_loaded_services := []
+         },
+      message := <<"Some of required modules or services are not loaded">>,
+      path := [<<"catA">>, <<"command">>]
+     } = Error.
+
+use_dir_all_modules_and_services_loaded(Config) ->
+    Doc = <<"{catA { command2(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catA">> => #{<<"command2">> => <<"command2">>}}}, Res).
+
+use_dir_module_and_service_not_loaded(Config) ->
+    Doc = <<"{catA { command3(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_z">>],
+          not_loaded_services := [<<"service_d">>]
+         },
+      message := <<"Some of required modules or services are not loaded">>,
+      path := [<<"catA">>, <<"command3">>]
+     } = Error.
+
+use_dir_object_all_modules_and_services_loaded(Config) ->
+    Doc = <<"{ catC { command(domain: \"localhost\") } }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catC">> => #{<<"command">> => <<"command">>}}}, Res).
+
+use_dir_object_module_and_service_not_loaded(Config) ->
+    Doc = <<"{ catB { command(domain: \"localhost\") } }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_services := [<<"service_x">>]
+         },
+      message := <<"Some of required modules or services are not loaded">>,
+      path := [<<"catB">>, <<"command">>]
+     } = Error.
+
+use_dir_auth_user_all_modules_and_services_loaded(Config) ->
+    Doc = <<"{ catC { command2 } }">>,
+    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
+
+use_dir_auth_admin_all_modules_and_services_loaded(Config) ->
+    Doc = <<"{ catC { command2 } }">>,
+    Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
+
+use_dir_auth_user_module_and_service_not_loaded(Config) ->
+    Doc = <<"{ catB { command2 } }">>,
+    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_services := [<<"service_x">>]
+         },
+      message := <<"Some of required modules or services are not loaded">>,
+      path := [<<"catB">>, <<"command2">>]
+     } = Error.
+
+use_dir_auth_admin_module_and_service_not_loaded(Config) ->
+    Doc = <<"{ catB { command2 } }">>,
+    Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_services := [<<"service_x">>]
+         },
+      message := <<"Some of required modules or services are not loaded">>,
+      path := [<<"catB">>, <<"command2">>]
+     } = Error.
+
 %% Helpers
 
 assert_code(Code, Data) ->
@@ -795,11 +944,11 @@ assert_code(Code, Data) ->
     ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
 
 assert_no_permissions(ExpectedCode, Status, Data) ->
-    ?assertEqual({<<"401">>,<<"Unauthorized">>}, Status),
+    ?assertEqual({<<"401">>, <<"Unauthorized">>}, Status),
     assert_code(ExpectedCode, Data).
 
 assert_access_granted(Status, Data) ->
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
     % access was granted, no error was returned
     ?assertNotMatch(#{<<"errors">> := _}, Data).
 
@@ -813,6 +962,20 @@ make_error(Phase, Term) ->
 make_error(Path, Phase, Term) ->
     #{path => Path, phase => Phase, error_term => Term}.
 
+check_directives(Config, Ctx, Doc) ->
+    Ep = ?config(endpoint, Config),
+    {ok, Ast} = graphql:parse(Doc),
+    {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
+    ok = graphql:validate(Ast2),
+    Default = #{operation_name => undefined, params => #{}, authorized => true,
+                error_module => mongoose_graphql_errors},
+    Ctx2 = maps:merge(Default, Ctx),
+    {mongoose_graphql_directive:process_directives(Ctx2, Ast2), Ctx2}.
+
+execute_ast(Config, Ctx, Ast) ->
+    Ep = ?config(endpoint, Config),
+    graphql:execute(Ep, Ctx, Ast).
+
 check_permissions(Config, Auth, Doc) ->
     Ep = ?config(endpoint, Config),
     Op = proplists:get_value(op, Config, undefined),
@@ -820,7 +983,7 @@ check_permissions(Config, Auth, Doc) ->
     {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
     ok = graphql:validate(Ast2),
     Ctx = #{operation_name => Op, authorized => Auth, params => #{}},
-    ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
+    #document{} = mongoose_graphql_directive:process_directives(Ctx, Ast2).
 
 check_domain_permissions(Config, Domain, Doc) ->
     Ep = ?config(endpoint, Config),
@@ -833,7 +996,7 @@ check_domain_permissions(Config, Domain, Doc) ->
     Admin = jid:make_bare(<<"admin">>, Domain),
     Ctx = #{operation_name => Op, authorized => true, authorized_as => domain_admin,
             admin => Admin, params => Coerced},
-    ok = mongoose_graphql_permissions:check_permissions(Ctx, Ast2).
+    #document{} = mongoose_graphql_directive:process_directives(Ctx, Ast2).
 
 request(Doc, Authorized) ->
     request(undefined, Doc, Authorized).
@@ -875,6 +1038,19 @@ example_schema_data(Config) ->
 
 example_permissions_schema_data(Config) ->
     Pattern = filename:join([proplists:get_value(data_dir, Config), "permissions_schema.gql"]),
+    Mapping =
+        #{objects =>
+              #{'UserQuery' => mongoose_graphql_default_resolver,
+                'UserMutation' => mongoose_graphql_default_resolver,
+                default => mongoose_graphql_default_resolver},
+          enums => #{default => mongoose_graphql_default_resolver},
+          scalars => #{default => mongoose_graphql_scalar},
+          interfaces => #{default => mongoose_graphql_default_resolver},
+          unions => #{default => mongoose_graphql_default_resolver}},
+    {Mapping, Pattern}.
+
+example_directives_schema_data(Config) ->
+    Pattern = filename:join([proplists:get_value(data_dir, Config), "directives_schema.gql"]),
     Mapping =
         #{objects =>
               #{'UserQuery' => mongoose_graphql_default_resolver,
@@ -943,3 +1119,38 @@ post_request(Ep, HeadersIn, Body) ->
 
 random_request_id() ->
     base16:encode(crypto:strong_rand_bytes(8)).
+
+meck_domain_api(Config) ->
+    Hosts = [<<"test-domain.com">>, <<"localhost">>],
+    % mongoose_domain_api
+    meck:new(mongoose_domain_api, [no_link]),
+    meck:expect(mongoose_domain_api, get_host_type,
+        fun (Host) ->
+                case lists:member(Host, Hosts) of
+                    true -> {ok, Host};
+                    false -> {error, not_found}
+                end
+        end),
+    meck:expect(mongoose_domain_api, get_subdomain_info, fun (_) -> {error, not_found} end),
+    [{hosts, Hosts} | Config].
+
+unmeck_domain_api(_Config) ->
+    meck:unload(mongoose_domain_api).
+
+meck_module_and_service_checking(Config) ->
+    LoadedModules = #{<<"test-domain.com">> => [mod_a, mod_d],
+                      <<"localhost">> => [mod_a, mod_b, mod_c]},
+    LoadedServices = [service_a, service_b],
+    % gen_mod
+    meck:new(gen_mod, [no_link]),
+    meck:expect(gen_mod, is_loaded,
+                fun (Domain, M) -> lists:member(M, maps:get(Domain, LoadedModules, [])) end),
+    % mongoose_service
+    meck:new(mongoose_service, [no_link]),
+    meck:expect(mongoose_service, is_loaded, fun (M) -> lists:member(M, LoadedServices) end),
+    [{loaded_services, LoadedServices},
+     {loaded_modules, LoadedModules} | Config].
+
+unmeck_module_and_service_checking(_Config) ->
+    meck:unload(gen_mod),
+    meck:unload(mongoose_service).

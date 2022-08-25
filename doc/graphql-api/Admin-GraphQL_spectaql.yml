@@ -1,0 +1,25 @@
+# Config file needed to generate static documentation from GraphQL using SpectaQL
+
+spectaql:
+  themeDir: default
+
+introspection:
+  schemaFile: 
+    - priv/graphql/schemas/admin/**/*.gql
+    - priv/graphql/schemas/global/**/*.gql
+
+info:
+  title: MongooseIM GraphQL API Reference
+  description: A static documentation of the MongooseIM GraphQL Admin API
+  contact:
+    name: API Support
+    url: https://github.com/esl/MongooseIM
+    email: mongoose-im@erlang-solutions.com
+  license:
+    name: GPL-2.0
+    url: https://github.com/esl/MongooseIM/blob/master/COPYING
+
+servers:
+  - url: http://localhost:5551/api/graphql
+    description: Dev mim1
+    production: false

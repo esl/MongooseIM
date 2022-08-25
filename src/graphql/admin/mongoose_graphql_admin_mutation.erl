@@ -7,7 +7,7 @@
 
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
-execute(_Ctx, _Obj, <<"domains">>, _Args) ->
+execute(_Ctx, _Obj, <<"domain">>, _Args) ->
     {ok, admin};
 execute(_Ctx, _Obj, <<"httpUpload">>, _Args) ->
     {ok, httpUpload};
@@ -30,4 +30,8 @@ execute(_Ctx, _Obj, <<"session">>, _Args) ->
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, stanza};
 execute(_Ctx, _Obj, <<"vcard">>, _Args) ->
-    {ok, vcard}.
+    {ok, vcard};
+execute(_Ctx, _Obj, <<"token">>, _Args) ->
+    {ok, token};
+execute(_Ctx, _Obj, <<"mnesia">>, _Args) ->
+    {ok, mnesia}.

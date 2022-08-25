@@ -555,6 +555,8 @@ outgoing_pool_connection(<<"rdbms">>) ->
                                          validate = {enum, [odbc, pgsql, mysql]}},
                  <<"keepalive_interval">> => #option{type = integer,
                                                      validate = positive},
+                 <<"query_timeout">> => #option{type = integer,
+                                                validate = non_negative},
                  <<"max_start_interval">> => #option{type = integer,
                                                      validate = positive},
 
@@ -575,7 +577,8 @@ outgoing_pool_connection(<<"rdbms">>) ->
                  <<"tls">> => sql_tls()
                 },
        required = [<<"driver">>],
-       defaults = #{<<"max_start_interval">> => 30},
+       defaults = #{<<"query_timeout">> => 5000,
+                    <<"max_start_interval">> => 30},
        process = fun mongoose_rdbms:process_options/1
       };
 outgoing_pool_connection(<<"redis">>) ->

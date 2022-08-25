@@ -37,6 +37,7 @@
          easy_archive_request/1,
          easy_archive_request_for_the_receiver/1,
          text_search_query_fails_if_disabled/1,
+         pagination_simple_enforced/1,
          text_search_is_not_available/1,
          easy_text_search_request/1,
          long_text_search_request/1,
@@ -70,6 +71,13 @@
          pagination_before10/1,
          pagination_after10/1,
          pagination_simple_before10/1,
+         pagination_simple_before3/1,
+         pagination_simple_before6/1,
+         pagination_simple_before1_pagesize0/1,
+         pagination_simple_before2_pagesize0/1,
+         pagination_simple_after5/1,
+         pagination_simple_after10/1,
+         pagination_simple_after12/1,
          pagination_last_after_id5/1,
          pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
@@ -177,9 +185,10 @@
          rsm_send/3,
          stanza_page_archive_request/3,
          wait_empty_rset/2,
+         wait_message_range/2,
          wait_message_range/3,
-         message_id/2,
          wait_message_range/5,
+         message_id/2,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -282,6 +291,7 @@ basic_group_names() ->
      prefs_cases,
      impl_specific,
      disabled_text_search,
+     disabled_complex_queries,
      disabled_retraction
     ].
 
@@ -349,6 +359,8 @@ basic_groups() ->
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
          [{mam04, [], disabled_text_search_cases()}]},
+     {disabled_complex_queries, [],
+         [{mam04, [], disabled_complex_queries_cases()}]},
      {chat_markers, [parallel],
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
@@ -390,6 +402,11 @@ disabled_text_search_cases() ->
     [
      text_search_is_not_available,
      text_search_query_fails_if_disabled
+    ].
+
+disabled_complex_queries_cases() ->
+    [
+     pagination_simple_enforced
     ].
 
 muc_text_search_cases() ->
@@ -489,6 +506,13 @@ rsm_cases() ->
        pagination_last_page_after_id4,
        %% Simple cases
        pagination_simple_before10,
+       pagination_simple_before3,
+       pagination_simple_before6,
+       pagination_simple_before1_pagesize0,
+       pagination_simple_before2_pagesize0,
+       pagination_simple_after5,
+       pagination_simple_after10,
+       pagination_simple_after12,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
        server_returns_item_not_found_for_after_filter_with_nonexistent_id,
@@ -707,6 +731,8 @@ muc_domain(Config) ->
 
 mam_opts_for_base_group(disabled_text_search) ->
     #{full_text_search => false};
+mam_opts_for_base_group(disabled_complex_queries) ->
+    #{enforce_simple_queries => true};
 mam_opts_for_base_group(BG) when BG =:= disabled_retraction;
                                  BG =:= muc_disabled_retraction ->
     #{message_retraction => false};
@@ -844,6 +870,9 @@ init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
+init_per_testcase(C=pagination_simple_enforced, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
@@ -1224,6 +1253,42 @@ text_search_query_fails_if_disabled(Config) ->
         escalus:assert(is_iq_error, Res)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+pagination_simple_enforced(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [_, _, StartMsg, StopMsg | _] = Msgs,
+        {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
+        {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {StopMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StopMsgId]),
+        StartTime = make_iso_time(StartMicro),
+        StopTime = make_iso_time(StopMicro),
+        %% Send
+        %% <iq type='get'>
+        %%   <query xmlns='urn:xmpp:mam:tmp'>
+        %%     <start>StartTime</start>
+        %%     <end>StopTime</end>
+        %%   </query>
+        %% </iq>
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty(P, StartTime, StopTime)),
+        %% Receive two messages and IQ
+        Result = wait_archive_respond(Alice),
+        IQ = respond_iq(Result),
+        [M1, M2|_] = respond_messages(Result),
+        escalus:assert(is_iq_result, IQ),
+        SetEl = exml_query:path(IQ, [{element, <<"fin">>}, {element, <<"set">>}]),
+        ?assert_equal(true, undefined =/= SetEl),
+        ?assert_equal(undefined, exml_query:path(SetEl, [{element, <<"count">>}])),
+        ?assert_equal(undefined, exml_query:path(SetEl, [{element, <<"first">>}, {attr, <<"index">>}])),
+        #forwarded_message{delay_stamp = Stamp1} = parse_forwarded_message(M1),
+        #forwarded_message{delay_stamp = Stamp2} = parse_forwarded_message(M2),
+        ?assert_equal(list_to_binary(StartTime), Stamp1),
+        ?assert_equal(list_to_binary(StopTime), Stamp2)
+        end,
+    %% Made fresh in init_per_testcase
+    escalus:story(Config, [{alice, 1}], F).
 
 text_search_is_available(Config) ->
     P = ?config(props, Config),
@@ -2427,7 +2492,6 @@ pagination_offset5_max0(Config) ->
 pagination_before10(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"before10">>, RSM)),
@@ -2437,17 +2501,37 @@ pagination_before10(Config) ->
     parallel_story(Config, [{alice, 1}], F).
 
 pagination_simple_before10(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice) ->
-        %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"before10">>, RSM)),
-     %% wait_message_range(Client, TotalCount,    Offset, FromN, ToN),
-        wait_message_range(Alice,   undefined, undefined,     5,   9),
-        ok
-        end,
-    parallel_story(Config, [{alice, 1}], F).
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(10, Config), simple = true},
+    pagination_test(before10, RSM, simple_range(5, 9, false), Config).
+
+pagination_simple_before3(Config) ->
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(3, Config), simple = true},
+    pagination_test(before3, RSM, simple_range(1, 2, true), Config).
+
+pagination_simple_before6(Config) ->
+    RSM = #rsm_in{max = 5, direction = before, id = message_id(6, Config), simple = true},
+    pagination_test(before6, RSM, simple_range(1, 5, true), Config).
+
+pagination_simple_before1_pagesize0(Config) ->
+    %% No messages forwarded, but is_complete is set
+    RSM = #rsm_in{max = 0, direction = before, id = message_id(1, Config), simple = true},
+    pagination_test(before1, RSM, simple_range(undefined, undefined, true), Config).
+
+pagination_simple_before2_pagesize0(Config) ->
+    RSM = #rsm_in{max = 0, direction = before, id = message_id(2, Config), simple = true},
+    pagination_test(before2, RSM, simple_range(undefined, undefined, false), Config).
+
+pagination_simple_after5(Config) ->
+    RSM = #rsm_in{max = 3, direction = 'after', id = message_id(5, Config), simple = true},
+    pagination_test(after5, RSM, simple_range(6, 8, false), Config).
+
+pagination_simple_after10(Config) ->
+    RSM = #rsm_in{max = 5, direction = 'after', id = message_id(10, Config), simple = true},
+    pagination_test(after10, RSM, simple_range(11, 15, true), Config).
+
+pagination_simple_after12(Config) ->
+    RSM = #rsm_in{max = 5, direction = 'after', id = message_id(12, Config), simple = true},
+    pagination_test(after12, RSM, simple_range(13, 15, true), Config).
 
 pagination_after10(Config) ->
     P = ?config(props, Config),
@@ -3084,3 +3168,15 @@ retract_element(stanza_id) ->
 
 origin_id() ->
     <<"orig-id-1">>.
+
+simple_range(From, To, IsComplete) ->
+    #{total_count => undefined, offset => undefined,
+      from => From, to => To, is_complete => IsComplete}.
+
+pagination_test(Name, RSM, Range, Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        rsm_send(Config, Alice, stanza_page_archive_request(P, atom_to_binary(Name), RSM)),
+        wait_message_range(Alice, Range)
+        end,
+    parallel_story(Config, [{alice, 1}], F).

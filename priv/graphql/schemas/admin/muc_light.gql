@@ -4,13 +4,13 @@ Allow admin to manage Multi-User Chat Light rooms.
 type MUCLightAdminMutation @protected{
   "Create a MUC light room under the given XMPP hostname"
   createRoom(mucDomain: String!, name: String!, owner: JID!, subject: String!, id: NonEmptyString): Room
-    @protected(type: DOMAIN, args: ["mucDomain"])
+    @protected(type: DOMAIN, args: ["owner"])
   "Change configuration of a MUC Light room"
   changeRoomConfiguration(room: JID!, owner: JID!, name: String!, subject: String!): Room
-    @protected(type: DOMAIN, args: ["room", "owner"])
+    @protected(type: DOMAIN, args: ["room"])
   "Invite a user to a MUC Light room"
   inviteUser(room: JID!, sender: JID!, recipient: JID!): String
-    @protected(type: DOMAIN, args: ["room", "sender"])
+    @protected(type: DOMAIN, args: ["sender"])
   "Remove a MUC Light room"
   deleteRoom(room: JID!): String
     @protected(type: DOMAIN, args: ["room"])
@@ -19,7 +19,7 @@ type MUCLightAdminMutation @protected{
     @protected(type: DOMAIN, args: ["room"])
   "Send a message to a MUC Light room"
   sendMessageToRoom(room: JID!, from: JID!, body: String!): String
-    @protected(type: DOMAIN, args: ["room", "from"])
+    @protected(type: DOMAIN, args: ["from"])
   "Set the user blocking list"
   setBlockingList(user: JID!, items: [BlockingInput!]!): String
     @protected(type: DOMAIN, args: ["user"])

@@ -95,8 +95,7 @@
 
 %% Other
 -import(mod_mam_utils,
-        [mess_id_to_external_binary/1,
-         is_complete_result_page/4]).
+        [mess_id_to_external_binary/1]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -398,16 +397,16 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
                            HostType) ->
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    case lookup_messages(HostType, Params) of
+    case mod_mam_utils:lookup(HostType, Params, fun lookup_messages/2) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} ->
+        {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
+               is_complete := IsComplete}} ->
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
                                                          QueryID, MessageRows, true),
             %% Make fin iq
-            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
@@ -419,7 +418,8 @@ iq_to_lookup_params(HostType, IQ) ->
     Max = mod_mam_params:max_result_limit(?MODULE, HostType),
     Def = mod_mam_params:default_result_limit(?MODULE, HostType),
     Ext = mod_mam_params:extra_params_module(?MODULE, HostType),
-    mam_iq:form_to_lookup_params(IQ, Max, Def, Ext).
+    Sim = mod_mam_params:enforce_simple_queries(?MODULE, HostType),
+    mam_iq:form_to_lookup_params(IQ, Max, Def, Ext, Sim).
 
 forward_messages(HostType, From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
     %% Forward messages

@@ -1,34 +1,34 @@
 """
 Allow admin to manage last activity.
 """
-type LastAdminQuery @protected{
+type LastAdminQuery @use(modules: ["mod_last"]) @protected{
   "Get the user's last activity information"
   getLast(user: JID!): LastActivity
-    @protected(type: DOMAIN, args: ["user"])
+    @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
   "Get the number of users active from the given timestamp"
   countActiveUsers(domain: String!, timestamp: DateTime): Int
-    @protected(type: DOMAIN, args: ["domain"])
+    @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
   """
   List users that didn't log in the last days or have never logged in.
   Globally or for a specified domain
   """
   listOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
-    @protected(type: DOMAIN, args: ["domain"])
+   @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 }
 
 """
 Allow admin to get information about last activity.
 """
-type LastAdminMutation @protected{
+type LastAdminMutation @use(modules: ["mod_last"]) @protected{
   "Set user's last activity information"
   setLast(user: JID!, timestamp: DateTime, status: String!): LastActivity
-    @protected(type: DOMAIN, args: ["user"])
+    @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
   """
   Delete users that didn't log in the last days or have never logged in.
   Globally or for a specified domain. Please use listOldUsers to check which users will be deleted
   """
   removeOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
-    @protected(type: DOMAIN, args: ["domain"])
+    @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 }
 
 """

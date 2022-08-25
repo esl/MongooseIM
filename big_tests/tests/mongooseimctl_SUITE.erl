@@ -102,7 +102,8 @@ all() ->
      {group, stats},
      {group, basic},
      {group, upload},
-     {group, graphql}
+     {group, graphql},
+     {group, help}
     ].
 
 groups() ->
@@ -119,7 +120,8 @@ groups() ->
      {upload, [], upload()},
      {upload_with_acl, [], upload_enabled()},
      {upload_without_acl, [], upload_enabled()},
-     {graphql, [], graphql()}].
+     {graphql, [], graphql()},
+     {help, [], help()}].
 
 basic() ->
     [simple_register,
@@ -177,7 +179,21 @@ upload_enabled() ->
 graphql() ->
     [graphql_wrong_arguments_number,
      can_execute_admin_queries_with_permissions,
-     can_handle_execution_error].
+     can_handle_execution_error,
+     graphql_error_unknown_command_with_args,
+     graphql_error_unknown_command_without_args,
+     graphql_no_command,
+     graphql_error_invalid_args,
+     graphql_error_invalid_arg_value,
+     graphql_error_no_arg_value,
+     graphql_error_missing_args,
+     graphql_error_unknown_arg,
+     graphql_arg_help,
+     graphql_command].
+
+help() ->
+    [default_help,
+     old_help].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -1131,7 +1147,7 @@ can_execute_admin_queries_with_permissions(Config) ->
 can_handle_execution_error(Config) ->
     Query = "{}",
     Res = mongooseimctl("graphql", [Query], Config),
-    ?assertMatch({_, 0}, Res),
+    ?assertMatch({_, 1}, Res),
     Data = element(1, Res),
     ?assertNotEqual(nomatch, string:find(Data, "parser_error")).
 
@@ -1146,6 +1162,87 @@ graphql_wrong_arguments_number(Config) ->
     ?assertMatch({_, 1}, ResTooManyArgs),
     Data2 = element(1, ResTooManyArgs),
     ?assertNotEqual(nomatch, string:find(Data2, ExpectedFragment)).
+
+%% Generic GraphQL command tests
+%% Specific commands are tested in graphql_*_SUITE
+
+graphql_error_unknown_command_with_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["makeCoffee", "--strength", "medium"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Unknown command")),
+    expect_existing_commands(Res).
+
+graphql_error_unknown_command_without_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["makeCoffee"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Unknown command")),
+    expect_existing_commands(Res).
+
+graphql_no_command(Config) ->
+    %% Not an error - lists commands in the given category
+    {Res, 0} = mongooseimctl("account", [], Config),
+    expect_existing_commands(Res).
+
+graphql_error_invalid_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers", "now"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Could not parse")),
+    expect_command_arguments(Res).
+
+graphql_error_invalid_arg_value(Config) ->
+    {Res, 1} = mongooseimctl("vcard", ["setVcard", "--user", "user@host", "--vcard", "x"], Config),
+    %% vCard should be provided in JSON
+    ?assertMatch({match, _}, re:run(Res, "Invalid value 'x' of argument 'vcard'")),
+    ?assertMatch({match, _}, re:run(Res, "vcard\s+VcardInput!")).
+
+graphql_error_no_arg_value(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers", "--domain"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Could not parse")),
+    expect_command_arguments(Res).
+
+graphql_error_missing_args(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Missing mandatory arguments")),
+    expect_command_arguments(Res).
+
+graphql_error_unknown_arg(Config) ->
+    {Res, 1} = mongooseimctl("account", ["countUsers", "--domain", "localhost",
+                                         "--x", "y"], Config),
+    ?assertMatch({match, _}, re:run(Res, "Unknown argument")),
+    expect_command_arguments(Res).
+
+graphql_arg_help(Config) ->
+    {Res, 0} = mongooseimctl("account", ["countUsers", "--help"], Config),
+    expect_command_arguments(Res).
+
+graphql_command(Config) ->
+    {ResJSON, 0} = mongooseimctl("account", ["countUsers", "--domain", "localhost"], Config),
+    #{<<"data">> := Data} = rest_helper:decode(ResJSON, #{return_maps => true}),
+    ?assertMatch(#{<<"account">> := #{<<"countUsers">> := _}}, Data).
+
+expect_existing_commands(Res) ->
+    ?assertMatch({match, _}, re:run(Res, "countUsers")).
+
+expect_command_arguments(Res) ->
+    ?assertMatch({match, _}, re:run(Res, "domain\s+String!")).
+
+%%-----------------------------------------------------------------
+%% Help tests
+%%-----------------------------------------------------------------
+
+default_help(Config) ->
+    #{node := Node} = mim(),
+    CtlCmd = distributed_helper:ctl_path(Node, Config),
+    {Res, 2} = mongooseimctl_helper:run(CtlCmd, []),
+    %% Expect category list and no deprecated command list
+    ?assertMatch({match, _}, re:run(Res, "Usage")),
+    ?assertMatch({match, _}, re:run(Res, "account\s+Account management")),
+    ?assertMatch(nomatch, re:run(Res, "add_rosteritem\s+Add an item")).
+
+old_help(Config) ->
+    {Res, 2} = mongooseimctl("help", [], Config),
+    %% Expect deprecated command list and no category list
+    ?assertMatch({match, _}, re:run(Res, "The following commands are deprecated")),
+    ?assertMatch({match, _}, re:run(Res, "Usage")),
+    ?assertMatch(nomatch, re:run(Res, "account\s+Account management")),
+    ?assertMatch({match, _}, re:run(Res, "add_rosteritem")).
 
 %%-----------------------------------------------------------------
 %% Improve coverage

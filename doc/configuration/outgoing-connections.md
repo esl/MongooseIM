@@ -87,6 +87,13 @@ Selects the driver for RDBMS connection. The choice of a driver impacts the set 
 
 When enabled, MongooseIM will send `SELECT 1 `query through every DB connection at given interval to keep them open. This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections). Currently, not every network-related error returned from a database driver to a regular query will imply a connection restart.
 
+#### `outgoing_pools.rdbms.*.connection.query_timeout`
+* **Syntax:** positive integer, in milliseconds
+* **Default:** 5000
+* **Example:** `query_timeout = 5000`
+
+How long MongooseIM will wait for the database to answer for a query.
+
 #### `outgoing_pools.rdbms.*.connection.max_start_interval`
 * **Syntax:** positive integer
 * **Default:** 30

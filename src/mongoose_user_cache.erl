@@ -65,7 +65,8 @@ start_new_cache(HostType, Module, Opts) ->
 
 do_start_new_cache(HostType, Module, Opts) ->
     CacheName = gen_mod:get_module_proc(HostType, Module),
-    CacheOpts = #{merger_fun => fun maps:merge/2,
+    CacheOpts = #{scope => mim_scope,
+                  merger_fun => fun maps:merge/2,
                   segment_num => gen_mod:get_opt(number_of_segments, Opts),
                   strategy => gen_mod:get_opt(strategy, Opts),
                   ttl => gen_mod:get_opt(time_to_live, Opts)},
@@ -78,15 +79,15 @@ do_start_new_cache(HostType, Module, Opts) ->
 
 create_metrics(HostType, Module, CacheName) ->
     telemetry:attach(CacheName,
-                     [segmented_cache, request],
+                     [CacheName, request],
                      fun ?MODULE:handle_telemetry_event/4,
-                     #{host_type => HostType, module => Module}),
+                     #{host_type => HostType, cache_name => CacheName, module => Module}),
     mongoose_metrics:ensure_metric(HostType, [Module, hit], counter),
     mongoose_metrics:ensure_metric(HostType, [Module, miss], counter),
     mongoose_metrics:ensure_metric(HostType, [Module, latency], histogram).
 
-handle_telemetry_event([segmented_cache, request], #{hit := Hit, time := Latency},
-                       _, #{host_type := HostType, module := Module}) ->
+handle_telemetry_event([CacheName, request], #{hit := Hit, time := Latency},
+                       _, #{host_type := HostType, cache_name := CacheName, module := Module}) ->
     case Hit of
         true -> mongoose_metrics:update(HostType, [Module, hit], 1);
         false -> mongoose_metrics:update(HostType, [Module, miss], 1)

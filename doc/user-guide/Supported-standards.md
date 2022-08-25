@@ -81,6 +81,7 @@
 |0279|[Server IP Check](http://xmpp.org/extensions/xep-0279.html)|[`mod_sic`](../modules/mod_sic.md)|
 |0280|[Message Carbons](http://xmpp.org/extensions/xep-0280.html)|[`mod_carboncopy`](../modules/mod_carboncopy.md)|
 |0313|[Message Archive Management](http://xmpp.org/extensions/xep-0313.html)|[`mod_mam`](../modules/mod_mam.md)|
+|0333|[Chat Markers](https://xmpp.org/extensions/xep-0333.html)||
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|[`mod_csi`](../modules/mod_csi.md)|
 |0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|[`mod_event_pusher_push`](../modules/mod_event_pusher_push.md)|
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|[`mod_http_upload`](../modules/mod_http_upload.md)|

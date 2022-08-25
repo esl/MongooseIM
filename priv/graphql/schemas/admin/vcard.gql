@@ -13,4 +13,5 @@ Allow admin to get user's vcard
 type VcardAdminQuery @protected{
     "Get user's vcard"
     getVcard(user: JID!): Vcard
+      @protected(type: DOMAIN, args: ["user"])
 }

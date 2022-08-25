@@ -352,6 +352,14 @@ This sets the default page size of returned results.
 
 This sets the maximum page size of returned results.
 
+#### `modules.mod_mam.enforce_simple_queries`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam.enforce_simple_queries = true`
+
+This enforces all mam lookups to be "simple", i.e., they skip the RSM count.
+See [Message Archive Management extensions](../open-extensions/mam.md).
+
 #### `modules.mod_mam.db_jid_format`
 
 * **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_rfc_trust"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour

@@ -1,14 +1,14 @@
 """
 Allow admin to flush the inbox bin".
 """
-type InboxAdminMutation @protected{
+type InboxAdminMutation @use(modules: ["mod_inbox"]) @protected{
   "Flush the user's bin and return the number of deleted rows"
   flushUserBin(
     "User to clear a bin"
     user: JID!,
     "Remove older than given days or all if null"
     days: PosInt
-  ): Int @protected(type: DOMAIN, args: ["user"])
+  ): Int @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
 
   "Flush the whole domain bin and return the number of deleted rows"
   flushDomainBin(
@@ -16,13 +16,13 @@ type InboxAdminMutation @protected{
     domain: String!,
     "Remove older than given days or all if null"
     days: PosInt
-  ): Int @protected(type: Domain, args: ["domain"])
+  ): Int @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 
   "Flush the global bin and return the number of deleted rows"
   flushGlobalBin(
     "Required to identify the DB backend"
     hostType: String!,
-    "Remove older than given days or all if null"
+    "Remove older than given days or all if null. Only for global admin"
     days: PosInt
-  ): Int @protected(type: GLOBAL)
+  ): Int @use(arg: "hostType") @protected(type: GLOBAL)
 }

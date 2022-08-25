@@ -43,6 +43,11 @@
                           Offset :: non_neg_integer() | undefined,
                           MessageRows :: [message_row()]}.
 
+-type lookup_result_map() :: #{total_count := TotalCount :: non_neg_integer() | undefined,
+                               offset := Offset :: non_neg_integer() | undefined,
+                               messages := MessageRows :: [message_row()],
+                               is_complete => boolean()}.
+
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
 -type rewriter_fun() :: fun((JID :: jid:literal_jid())
@@ -73,6 +78,7 @@
               unix_timestamp/0,
               archive_id/0,
               lookup_result/0,
+              lookup_result_map/0,
               message_row/0,
               message_id/0,
               restore_option/0,
@@ -115,7 +121,8 @@ config_spec() ->
                     <<"full_text_search">> => true,
                     <<"cache_users">> => true,
                     <<"default_result_limit">> => 50,
-                    <<"max_result_limit">> => 50},
+                    <<"max_result_limit">> => 50,
+                    <<"enforce_simple_queries">> => false},
        process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
@@ -160,6 +167,7 @@ common_config_items() ->
       %% Low-level options
       <<"default_result_limit">> => #option{type = integer,
                                             validate = non_negative},
+      <<"enforce_simple_queries">> => #option{type = boolean},
       <<"max_result_limit">> => #option{type = integer,
                                         validate = non_negative},
       <<"db_jid_format">> => #option{type = atom,
@@ -262,6 +270,7 @@ common_opts() ->
      message_retraction,
      default_result_limit,
      max_result_limit,
+     enforce_simple_queries,
      no_stanzaid_element].
 
 -spec add_prefs_store_module(mam_backend(), mam_type(), module_opts(), module_map()) -> module_map().

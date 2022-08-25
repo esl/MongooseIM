@@ -13,7 +13,7 @@ type AdminQuery{
   "Account management"
   account: AccountAdminQuery
   "Domain management"
-  domains: DomainAdminQuery
+  domain: DomainAdminQuery
   "Last activity management"
   last: LastAdminQuery
   "MUC room management"
@@ -32,6 +32,12 @@ type AdminQuery{
   private: PrivateAdminQuery
   "Metrics management"
   metric: MetricAdminQuery
+  "Statistics"
+  stat: StatsAdminQuery
+  "Personal data management according to GDPR"
+  gdpr: GdprAdminQuery
+  "Mnesia internal database management"
+  mnesia: MnesiaAdminQuery
 }
 
 """
@@ -42,7 +48,7 @@ type AdminMutation @protected{
   "Account management"
   account: AccountAdminMutation
   "Domain management"
-  domains: DomainAdminMutation
+  domain: DomainAdminMutation
   "Inbox bin management"
   inbox: InboxAdminMutation
   "Last activity management"
@@ -65,4 +71,8 @@ type AdminMutation @protected{
   httpUpload: HttpUploadAdminMutation
   "Offline deleting old messages"
   offline: OfflineAdminMutation
+  "OAUTH token management"
+  token: TokenAdminMutation
+  "Mnesia internal database management"
+  mnesia: MnesiaAdminMutation
 }

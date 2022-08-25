@@ -138,7 +138,9 @@ remove_connection(SID, LUser, LServer) ->
                           JID :: jid:jid(),
                           Info :: ejabberd_sm:info()) -> Acc when Acc :: any().
 register_connection(Acc, HostType, SID, #jid{luser = LUser, lserver = LServer},
-                    #{auth_module := cyrsasl_anonymous}) ->
+                    #{auth_module := AuthModule})
+  when AuthModule =:= ejabberd_auth_anonymous; % login_anon
+       AuthModule =:= cyrsasl_anonymous -> % sasl_anon
     mongoose_hooks:register_user(HostType, LServer, LUser),
     US = {LUser, LServer},
     mnesia:sync_dirty(fun() -> mnesia:write(#anonymous{us = US, sid = SID}) end),
@@ -156,7 +158,6 @@ unregister_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
                LUser, LServer),
     remove_connection(SID, LUser, LServer),
     Acc.
-
 
 %% @doc Launch the hook to purge user data only for anonymous users.
 -spec purge_hook(boolean(), mongooseim:host_type(), jid:luser(), jid:lserver()) -> 'ok'.

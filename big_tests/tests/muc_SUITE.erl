@@ -112,7 +112,7 @@ all() -> [
         ].
 
 groups() ->
-    G = [
+    [
          {hibernation, [parallel], [room_is_hibernated,
                                     room_with_participants_is_hibernated,
                                     hibernation_metrics_are_updated,
@@ -256,7 +256,8 @@ groups() ->
                               cancel_iq_sent_to_unlocked_room_has_no_effect
                              ]},
          {owner_no_parallel, [], [
-                                  room_creation_not_allowed
+                                  room_creation_not_allowed,
+                                  create_instant_persistent_room
                                  ]},
          {room_management, [], [
                                 create_and_destroy_room,
@@ -281,8 +282,7 @@ groups() ->
                                                 ]},
          {register, [parallel], register_cases()},
          {register_over_s2s, [parallel], register_cases()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 register_cases() ->
     [user_asks_for_registration_form,
@@ -348,27 +348,23 @@ init_per_group(G, Config) when G =:= disco ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]);
-
 init_per_group(G, Config) when G =:= disco_with_mam ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     Config2 = dynamic_modules:save_modules(host_type(), Config1),
     setup_mam(mam_helper:backend()),
     [Alice | _] = ?config(escalus_users, Config2),
     start_room(Config2, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]);
-
 init_per_group(disco_rsm, Config) ->
     mongoose_helper:ensure_muc_clean(),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
-
 init_per_group(disco_rsm_with_offline, Config) ->
     mongoose_helper:ensure_muc_clean(),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     ok = rpc(mim(), mod_muc, store_room, [host_type(), muc_host(), <<"persistentroom">>, []]),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
-
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
     PoolOpts = #{strategy => available_worker, workers => 5},
@@ -394,22 +390,20 @@ init_per_group(register_over_s2s, Config) ->
     [{_,AliceSpec2}|Others] = escalus:get_users([alice2, bob, kate]),
     Users = [{alice,AliceSpec2}|Others],
     escalus:create_users(Config2, Users);
-init_per_group(owner_no_parallel, Config) ->
-    Config1 = backup_and_set_config_option(Config, [{access, host_type()}, muc_create],
-                                           [#{acl => all, value => deny}]),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate]));
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 required_modules(http_auth) ->
-    MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    DefRoomOpts = config_parser_helper:default_room_opts(),
-    Opts = #{host => subhost_pattern(MucHostPattern),
-             access => muc,
-             access_create => muc_create,
-             http_auth_pool => muc_http_auth_test,
-             default_room => DefRoomOpts#{password_protected => true}},
-    [{mod_muc, muc_helper:make_opts(Opts)}].
+    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
+    #{default_room := DefRoomOpts} = OrigOpts,
+    Opts = OrigOpts#{http_auth_pool => muc_http_auth_test,
+                     default_room => DefRoomOpts#{password_protected => true}},
+    [{mod_muc, Opts}];
+required_modules(persistent_by_default) ->
+    #{mod_muc := OrigOpts} = dynamic_modules:get_current_modules(host_type()),
+    #{default_room := DefRoomOpts} = OrigOpts,
+    Opts = OrigOpts#{default_room => DefRoomOpts#{persistent => true}},
+    [{mod_muc, Opts}].
 
 handle_http_auth(Req) ->
     Qs = cowboy_req:parse_qs(Req),
@@ -455,8 +449,6 @@ end_per_group(hibernation, Config) ->
 end_per_group(register_over_s2s, Config) ->
     s2s_helper:end_s2s(Config),
     escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
-end_per_group(owner_no_parallel, Config) ->
-    restore_config_option(Config, [{access, host_type()}, muc_create]);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -475,40 +467,31 @@ init_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
     meck_room_route(),
     escalus:init_per_testcase(CaseName, Config);
 
-init_per_testcase(CaseName =send_non_anonymous_history, Config) ->
+init_per_testcase(CaseName = send_non_anonymous_history, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, [{anonymous, false}]),
     escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName =limit_history_chars, Config) ->
+init_per_testcase(CaseName = limit_history_chars, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName =limit_history_messages, Config) ->
+init_per_testcase(CaseName = limit_history_messages, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName =recent_history, Config) ->
+init_per_testcase(CaseName = recent_history, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName =no_history, Config) ->
+init_per_testcase(CaseName = no_history, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
-%init_per_testcase(CaseName =deny_entry_locked_room, Config) ->
-%    escalus:init_per_testcase(CaseName, Config);
-
-init_per_testcase(CaseName =registration_request, Config) ->
+init_per_testcase(CaseName = registration_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName =reserved_nickname_request, Config) ->
+init_per_testcase(CaseName = reserved_nickname_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
@@ -522,6 +505,14 @@ init_per_testcase(CN, Config) when CN =:= hibernated_room_can_be_queried_for_arc
         _Backend ->
             escalus:init_per_testcase(CN, Config)
     end;
+init_per_testcase(CaseName = room_creation_not_allowed, Config) ->
+    Config1 = backup_and_set_config_option(Config, [{access, host_type()}, muc_create],
+                                           [#{acl => all, value => deny}]),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(CaseName = create_instant_persistent_room, Config) ->
+    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules(persistent_by_default)),
+    escalus:init_per_testcase(CaseName, ConfigWithModules);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -553,10 +544,6 @@ meck_room_route() ->
             TestCasePid ! Pid
         end]).
 
-%end_per_testcase(CaseName =deny_entry_locked_room, Config) ->
-%    destroy_room(Config),
-%    escalus:end_per_testcase(CaseName, Config);
-
 end_per_testcase(CaseName = create_already_registered_room, Config) ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
@@ -566,35 +553,33 @@ end_per_testcase(CaseName = check_presence_route_to_offline_room, Config) ->
 end_per_testcase(CaseName = check_message_route_to_offline_room, Config) ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =send_non_anonymous_history, Config) ->
+end_per_testcase(CaseName = send_non_anonymous_history, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =limit_history_chars, Config) ->
+end_per_testcase(CaseName = limit_history_chars, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =limit_history_messages, Config) ->
+end_per_testcase(CaseName = limit_history_messages, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =recent_history, Config) ->
+end_per_testcase(CaseName = recent_history, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =no_history, Config) ->
+end_per_testcase(CaseName = no_history, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =registration_request, Config) ->
+end_per_testcase(CaseName = registration_request, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName =reserved_nickname_request, Config) ->
+end_per_testcase(CaseName = reserved_nickname_request, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
-
+end_per_testcase(CaseName = room_creation_not_allowed, Config) ->
+    restore_config_option(Config, [{access, host_type()}, muc_create]),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName = create_instant_persistent_room, Config) ->
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -3039,6 +3024,27 @@ create_instant_room(Config) ->
         escalus_assert:has_no_stanzas(Alice)
     end).
 
+create_instant_persistent_room(Config) ->
+    RoomName = fresh_room_name(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun(Alice, Bob) ->
+                                create_instant_persistent_room(Alice, Bob, RoomName)
+                        end),
+    destroy_room(muc_host(), RoomName),
+    forget_room(host_type(), muc_host(), RoomName).
+
+create_instant_persistent_room(Alice, Bob, RoomName) ->
+    {ok, _, Pid} = given_fresh_room_is_hibernated(Alice, RoomName, [{instant, true}]),
+    leave_room(RoomName, Alice),
+    true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
+
+    escalus:send(Bob, stanza_muc_enter_room(RoomName, <<"bob">>)),
+    Presence = escalus:wait_for_stanza(Bob),
+    true = is_presence_with_affiliation(Presence, <<"none">>),
+    true = is_presence_with_role(Presence, <<"participant">>), % Alice is the owner
+    escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+    escalus_assert:has_no_stanzas(Bob).
+
 destroy_locked_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         RoomName = fresh_room_name(),
@@ -4297,10 +4303,15 @@ given_fresh_room_for_user(Owner, RoomName, Opts) ->
 maybe_configure(_, _, []) ->
     ok;
 maybe_configure(Owner, RoomName, Opts) ->
-    Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
-    Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
-
-    Result = escalus:send_iq_and_wait_for_result(Owner, Form),
+    Request =
+        case proplists:get_value(instant, Opts, false) of
+            true ->
+                stanza_instant_room(RoomName);
+            false ->
+                Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
+                stanza_configuration_form(RoomName, lists:flatten(Cfg))
+        end,
+    Result = escalus:send_iq_and_wait_for_result(Owner, Request),
     escalus:assert(is_stanza_from, [room_address(RoomName)], Result),
     maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName).
 

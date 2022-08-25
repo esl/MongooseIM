@@ -341,7 +341,7 @@ options("outgoing_pools") ->
                           max_worker_queue_len => 100}},
          #{type => rdbms,
            opts => #{workers => 5},
-           conn_opts => #{keepalive_interval => 30,
+           conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
                           driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
                           username => "ejabberd", password => "mongooseim_secret",
                           tls => #{required => true,
@@ -467,7 +467,8 @@ all_modules() ->
                                    last_item_cache => mnesia,
                                    max_items_node => 1000,
                                    pep_mapping => #{<<"urn:xmpp:microblog:0">> => <<"mb">>},
-                                   plugins => [<<"flat">>, <<"pep">>]}),
+                                   plugins => [<<"flat">>, <<"pep">>],
+                                   wpool => default_config([modules, mod_pubsub, wpool])}),
       mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
@@ -708,7 +709,7 @@ extra_auth() ->
       external => #{instances => 1,
                     program => "/usr/bin/authenticator"},
       jwt => #{algorithm => <<"RS256">>,
-               secret => {value, "secret123"},
+               secret => {value, <<"secret123">>},
                username_key => user},
       ldap => #{base => <<"ou=Users,dc=esl,dc=com">>,
                 bind_pool_tag => bind,
@@ -834,7 +835,7 @@ default_pool_conn_opts(redis) ->
       database => 0,
       password => ""};
 default_pool_conn_opts(rdbms) ->
-    #{max_start_interval => 30};
+    #{query_timeout => 5000, max_start_interval => 30};
 default_pool_conn_opts(_Type) ->
     #{}.
 
@@ -984,7 +985,8 @@ default_mod_config(mod_pubsub) ->
     #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access_createnode => all,
       max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
       last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
-      default_node_config => [], item_publisher => false, sync_broadcast => false};
+      default_node_config => [], item_publisher => false, sync_broadcast => false,
+      wpool => default_config([modules, mod_pubsub, wpool])};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
 default_mod_config(mod_register) ->
@@ -1131,6 +1133,8 @@ default_config([modules, mod_event_pusher, push]) ->
       virtual_pubsub_hosts => []};
 default_config([modules, mod_event_pusher, push, wpool]) ->
     (default_wpool_opts())#{strategy := available_worker};
+default_config([modules, mod_pubsub, wpool]) ->
+    default_wpool_opts();
 default_config([modules, mod_event_pusher, rabbit] = P) ->
     #{presence_exchange => default_config(P ++ [presence_exchange]),
       chat_msg_exchange => default_config(P ++ [chat_msg_exchange]),
@@ -1293,6 +1297,7 @@ common_mam_config() ->
       full_text_search => true,
       default_result_limit => 50,
       max_result_limit => 50,
+      enforce_simple_queries => false,
       async_writer => default_config([modules, mod_mam, async_writer])}.
 
 mod_event_pusher_http_handler() ->

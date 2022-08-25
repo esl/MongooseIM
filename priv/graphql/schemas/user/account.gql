@@ -2,7 +2,7 @@
 Allow user to get information about account.
 """
 type AccountUserQuery @protected{
-  field: Bool
+  field: Boolean
 }
 
 """

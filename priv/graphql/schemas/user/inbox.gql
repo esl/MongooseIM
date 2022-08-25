@@ -1,10 +1,10 @@
 """
 Allow user to flush own inbox bin".
 """
-type InboxUserMutation @protected{
+type InboxUserMutation @use(modules: ["mod_inbox"]) @protected{
   "Flush the user's bin and return the number of deleted rows"
   flushBin(
     "Remove older than given days or all if null"
     days: PosInt
-  ): Int 
+  ): Int @use
 }

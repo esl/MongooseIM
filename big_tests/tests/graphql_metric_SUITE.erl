@@ -1,13 +1,11 @@
 -module(graphql_metric_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_auth/2, init_admin_handler/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -16,19 +14,21 @@ suite() ->
     require_rpc_nodes([mim, mim2]) ++ escalus:suite().
 
 all() ->
-     [{group, metrics}].
+     [{group, metrics_http},
+      {group, metrics_cli}].
 
 groups() ->
-     [{metrics, [], metrics_handler()}].
+     [{metrics_http, [], metrics_tests()},
+      {metrics_cli, [], metrics_tests()}].
 
-metrics_handler() ->
+metrics_tests() ->
     [get_all_metrics,
      get_all_metrics_check_by_type,
      get_by_name_global_erlang_metrics,
      get_process_queue_length,
      get_inet_stats,
      get_vm_stats_memory,
-     get_metrics_as_dicts,
+     get_all_metrics_as_dicts,
      get_by_name_metrics_as_dicts,
      get_metrics_as_dicts_with_key_one,
      get_cluster_metrics,
@@ -36,11 +36,20 @@ metrics_handler() ->
      get_mim2_cluster_metrics].
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(init_admin_handler(Config)).
+    Config1 = ejabberd_node_utils:init(mim(), Config),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
+
+init_per_group(metrics_http, Config) ->
+    graphql_helper:init_admin_handler(Config);
+init_per_group(metrics_cli, Config) ->
+    graphql_helper:init_admin_cli(Config).
+
+end_per_group(_GroupName, _Config) ->
+    graphql_helper:clean().
 
 init_per_testcase(CaseName, Config) ->
      escalus:init_per_testcase(CaseName, Config).
@@ -49,10 +58,8 @@ end_per_testcase(CaseName, Config) ->
      escalus:end_per_testcase(CaseName, Config).
 
 get_all_metrics(Config) ->
-    %% Get all metrics
-    Result = execute_auth(#{query => get_all_metrics_call(),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics(Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
     Reads = maps:get(ReadsKey, Map),
@@ -62,10 +69,8 @@ get_all_metrics(Config) ->
     #{<<"type">> := <<"histogram">>} = Reads.
 
 get_all_metrics_check_by_type(Config) ->
-    %% Get all metrics
-    Result = execute_auth(#{query => get_all_metrics_call(),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics(Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     lists:foreach(fun check_metric_by_type/1, ParsedResult).
 
 check_metric_by_type(#{<<"type">> := Type} = Map) ->
@@ -97,9 +102,8 @@ type_to_keys(<<"probe_queues">>) ->
 
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
-    Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\", \"erlang\"])">>),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics([<<"global">>, <<"erlang">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Info = maps:get([<<"global">>, <<"erlang">>, <<"system_info">>], Map),
     %% VMSystemInfoMetric type
@@ -110,10 +114,8 @@ get_by_name_global_erlang_metrics(Config) ->
     undef = maps:get(ReadsKey, Map, undef).
 
 get_process_queue_length(Config) ->
-    Result = execute_auth(#{query => get_metrics_call_with_args(
-                                       <<"(name: [\"global\", \"processQueueLengths\"])">>),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics([<<"global">>, <<"processQueueLengths">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Lens = maps:get([<<"global">>, <<"processQueueLengths">>], Map),
     %% ProbeQueuesMetric type
@@ -121,10 +123,8 @@ get_process_queue_length(Config) ->
     check_metric_by_type(Lens).
 
 get_inet_stats(Config) ->
-    Result = execute_auth(#{query => get_metrics_call_with_args(
-                                       <<"(name: [\"global\", \"data\", \"dist\"])">>),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics([<<"global">>, <<"data">>, <<"dist">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Stats = maps:get([<<"global">>, <<"data">>, <<"dist">>], Map),
     %% MergedInetStatsMetric type
@@ -132,26 +132,22 @@ get_inet_stats(Config) ->
     check_metric_by_type(Stats).
 
 get_vm_stats_memory(Config) ->
-    Result = execute_auth(#{query => get_metrics_call_with_args(<<"(name: [\"global\"])">>),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetrics">>, Result),
+    Result = get_metrics([<<"global">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
     Mem = maps:get([<<"global">>, <<"erlang">>, <<"memory">>], Map),
     %% VMStatsMemoryMetric type
     #{<<"type">> := <<"vm_stats_memory">>} = Mem,
     check_metric_by_type(Mem).
 
-get_metrics_as_dicts(Config) ->
-    Result = execute_auth(#{query => get_all_metrics_as_dicts_call(), variables => #{},
-                            operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
+get_all_metrics_as_dicts(Config) ->
+    Result = get_metrics_as_dicts(Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     check_node_result_is_valid(ParsedResult, false).
 
 get_by_name_metrics_as_dicts(Config) ->
-    Args = <<"(name: [\"_\", \"xmppStanzaSent\"])">>,
-    Result = execute_auth(#{query => get_by_args_metrics_as_dicts_call(Args),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
+    Result = get_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     [_|_] = ParsedResult,
     %% Only xmppStanzaSent type
     lists:foreach(fun(#{<<"dict">> := Dict, <<"name">> := [_, <<"xmppStanzaSent">>]}) ->
@@ -159,10 +155,8 @@ get_by_name_metrics_as_dicts(Config) ->
             end, ParsedResult).
 
 get_metrics_as_dicts_with_key_one(Config) ->
-    Result = execute_auth(#{query => get_all_metrics_as_dicts_with_key_one_call(),
-                            variables => #{},
-                            operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getMetricsAsDicts">>, Result),
+    Result = get_metrics_as_dicts_with_keys([<<"one">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
     SentName = [metric_host_type(), <<"xmppStanzaSent">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
@@ -172,19 +166,15 @@ get_cluster_metrics(Config) ->
     %% We will have at least these two nodes
     Node1 = atom_to_binary(maps:get(node, distributed_helper:mim())),
     Node2 = atom_to_binary(maps:get(node, distributed_helper:mim2())),
-    Result = execute_auth(#{query => get_all_cluster_metrics_as_dicts_call(),
-                            variables => #{},
-                            operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getClusterMetricsAsDicts">>, Result),
+    Result = get_cluster_metrics_as_dicts(Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     #{Node1 := Res1, Node2 := Res2} = node_objects_to_map(ParsedResult),
     check_node_result_is_valid(Res1, false),
     check_node_result_is_valid(Res2, true).
 
 get_by_name_cluster_metrics_as_dicts(Config) ->
-    Args = <<"(name: [\"_\", \"xmppStanzaSent\"])">>,
-    Result = execute_auth(#{query => get_by_args_cluster_metrics_as_dicts_call(Args),
-                            variables => #{}, operationName => <<"Q1">>}, Config),
-    NodeResult = ok_result(<<"metric">>, <<"getClusterMetricsAsDicts">>, Result),
+    Result = get_cluster_metrics_as_dicts_by_name([<<"_">>, <<"xmppStanzaSent">>], Config),
+    NodeResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     Map = node_objects_to_map(NodeResult),
     %% Contains data for at least two nodes
     true = maps:size(Map) > 1,
@@ -197,10 +187,8 @@ get_by_name_cluster_metrics_as_dicts(Config) ->
 
 get_mim2_cluster_metrics(Config) ->
     Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
-    Result = execute_auth(#{query => get_node_cluster_metrics_as_dicts_call(Node),
-                            variables => #{},
-                            operationName => <<"Q1">>}, Config),
-    ParsedResult = ok_result(<<"metric">>, <<"getClusterMetricsAsDicts">>, Result),
+    Result = get_cluster_metrics_as_dicts_for_nodes([Node], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
     check_node_result_is_valid(ResList, true).
 
@@ -240,68 +228,38 @@ kv_objects_to_map(List) ->
     KV = [{Key, Value} || #{<<"key">> := Key, <<"value">> := Value} <- List],
     maps:from_list(KV).
 
-get_all_metrics_call() ->
-    get_metrics_call_with_args(<<>>).
+%% Admin commands
 
-get_metrics_call_with_args(Args) ->
-    <<"query Q1
-           {metric
-               {getMetrics", Args/binary, " {
-                     ... on HistogramMetric
-                     { name type n mean min max median p50 p75 p90 p95 p99 p999 }
-                     ... on CounterMetric
-                     { name type value ms_since_reset }
-                     ... on SpiralMetric
-                     { name type one count }
-                     ... on GaugeMetric
-                     { name type value }
-                     ... on MergedInetStatsMetric
-                     { name type connections recv_cnt recv_max recv_oct
-                       send_cnt send_max send_oct send_pend }
-                     ... on RDBMSStatsMetric
-                     { name type workers recv_cnt recv_max recv_oct
-                       send_cnt send_max send_oct send_pend }
-                     ... on VMStatsMemoryMetric
-                     { name type total processes_used atom_used binary ets system }
-                     ... on VMSystemInfoMetric
-                     { name type port_count port_limit process_count process_limit ets_limit }
-                     ... on ProbeQueuesMetric
-                     { name type fsm regular total }
-                 }
-               }
-           }">>.
+get_metrics(Config) ->
+    execute_command(<<"metric">>, <<"getMetrics">>, #{}, Config).
 
-get_all_metrics_as_dicts_call() ->
-    get_by_args_metrics_as_dicts_call(<<>>).
+get_metrics(Name, Config) ->
+    Vars = #{<<"name">> => Name},
+    execute_command(<<"metric">>, <<"getMetrics">>, Vars, Config).
 
-get_by_args_metrics_as_dicts_call(Args) ->
-    <<"query Q1
-           {metric
-               {getMetricsAsDicts", Args/binary, " { name dict { key value }}}}">>.
+get_metrics_as_dicts(Config) ->
+    execute_command(<<"metric">>, <<"getMetricsAsDicts">>, #{}, Config).
 
-get_all_metrics_as_dicts_with_key_one_call() ->
-    <<"query Q1
-           {metric
-               {getMetricsAsDicts(keys: [\"one\"]) { name dict { key value }}}}">>.
+get_metrics_as_dicts_by_name(Name, Config) ->
+    Vars = #{<<"name">> => Name},
+    execute_command(<<"metric">>, <<"getMetricsAsDicts">>, Vars, Config).
 
-get_all_cluster_metrics_as_dicts_call() ->
-    get_by_args_cluster_metrics_as_dicts_call(<<>>).
+get_metrics_as_dicts_with_keys(Keys, Config) ->
+    Vars = #{<<"keys">> => Keys},
+    execute_command(<<"metric">>, <<"getMetricsAsDicts">>, Vars, Config).
 
-get_by_args_cluster_metrics_as_dicts_call(Args) ->
-    <<"query Q1
-           {metric
-               {getClusterMetricsAsDicts", Args/binary,
-               " {node result { name dict { key value }}}}}">>.
+get_cluster_metrics_as_dicts(Config) ->
+    execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, #{}, Config).
 
-get_node_cluster_metrics_as_dicts_call(NodeBin) ->
-    get_by_args_cluster_metrics_as_dicts_call(<<"(nodes: [\"", NodeBin/binary, "\"])">>).
+get_cluster_metrics_as_dicts_by_name(Name, Config) ->
+    Vars = #{<<"name">> => Name},
+    execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
+
+get_cluster_metrics_as_dicts_for_nodes(Nodes, Config) ->
+    Vars = #{<<"nodes">> => Nodes},
+    execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
 
 %% Helpers
-ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
-    maps:get(What2, maps:get(What1, Data)).
-
-error_result(ErrorNumber, {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
-    lists:nth(ErrorNumber, Errors).
 
 check_spiral_dict(Dict) ->
     [#{<<"key">> := <<"count">>, <<"value">> := Count},

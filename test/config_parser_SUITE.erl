@@ -835,12 +835,12 @@ auth_jwt(_Config) ->
              <<"algorithm">> => <<"HS512">>,
              <<"username_key">> => <<"user">>}, % tested together as all options are required
     Config = #{algorithm => <<"HS512">>,
-               secret => {value, "secret123"},
+               secret => {value, <<"secret123">>},
                username_key => user},
     ?cfgh([auth, jwt], Config,
           auth_raw(<<"jwt">>, Opts)),
-    ?cfgh([auth, jwt, secret], {file, "/home/user/jwt_secret"},
-          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}})),
+    ?cfgh([auth, jwt, secret], {file, "priv/jwt_secret"},
+          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"priv/jwt_secret">>}})),
     ?cfgh([auth, jwt, secret], {env, "SECRET"},
           auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
@@ -944,8 +944,10 @@ test_pool_rdbms_connection_sql_opts(P, T, Required, Expected) ->
     ?err(T(Required#{<<"password">> => <<>>})).
 
 test_pool_rdbms_connection_common_opts(P, T, Required) ->
+    ?cfg(P ++ [query_timeout], 100, T(Required#{<<"query_timeout">> => 100})),
     ?cfg(P ++ [keepalive_interval], 100, T(Required#{<<"keepalive_interval">> => 100})),
     ?cfg(P ++ [max_start_interval], 200, T(Required#{<<"max_start_interval">> => 200})),
+    ?err(T(Required#{<<"query_timeout">> => -1})),
     ?err(T(Required#{<<"keepalive_interval">> => 0})),
     ?err(T(Required#{<<"max_start_interval">> => 0})),
     [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)].
@@ -2043,6 +2045,8 @@ test_mod_mam(P, T) ->
           T(#{<<"default_result_limit">> => 100})),
     ?cfgh(P ++ [max_result_limit], 1000,
           T(#{<<"max_result_limit">> => 1000})),
+    ?cfgh(P ++ [enforce_simple_queries], true,
+          T(#{<<"enforce_simple_queries">> => true})),
     ?cfgh(P ++ [db_jid_format], mam_jid_rfc,
           T(#{<<"db_jid_format">> => <<"mam_jid_rfc">>})),
     ?cfgh(P ++ [db_message_format], mam_message_xml,
@@ -2061,6 +2065,7 @@ test_mod_mam(P, T) ->
     ?errh(T(#{<<"cache_users">> => []})),
     ?errh(T(#{<<"default_result_limit">> => -1})),
     ?errh(T(#{<<"max_result_limit">> => -2})),
+    ?errh(T(#{<<"enforce_simple_queries">> => -2})),
     ?errh(T(#{<<"db_jid_format">> => <<"not_a_module">>})),
     ?errh(T(#{<<"db_message_format">> => <<"not_a_module">>})),
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
@@ -2460,6 +2465,7 @@ mod_pubsub(_Config) ->
           T(#{<<"item_publisher">> => true})),
     ?cfgh(P ++ [sync_broadcast], false,
           T(#{<<"sync_broadcast">> => false})),
+    test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
     ?errh(T(#{<<"host">> => <<"">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
@@ -3161,6 +3167,7 @@ create_files(Config) ->
     [ensure_copied(filename:join(Root, From), To) || {From, To} <- files_to_copy()],
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
+    ok = file:write_file("priv/jwt_secret", "secret123"),
     ok = filelib:ensure_dir("www/muc/dummy").
 
 ensure_copied(From, To) ->
