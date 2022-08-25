@@ -123,7 +123,7 @@ mongooseimctl account listUsers --domain localhost
 }
 ```
 
-If you want to delete users in your host:
+If you want to delete a user from your host:
 ```bash
 mongooseimctl account removeUser --user dan@localhost
 {
