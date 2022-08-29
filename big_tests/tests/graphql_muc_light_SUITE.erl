@@ -66,6 +66,7 @@ user_muc_light_tests() ->
 
 admin_muc_light_tests() ->
     [admin_create_room,
+     admin_create_room_with_custom_fields,
      admin_create_identified_room,
      admin_change_room_config,
      admin_change_room_config_errors,
@@ -566,6 +567,25 @@ admin_create_room_story(Config, Alice) ->
     Res2 = create_room(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
+admin_create_room_with_custom_fields(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_create_room_with_custom_fields_story/2).
+
+admin_create_room_with_custom_fields_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    AliceBinLower = escalus_utils:jid_to_lower(AliceBin),
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Options = #{<<"background">> => <<"red">>},
+    Opts = [#{<<"key">> => <<"background">>, <<"value">> => <<"red">>},
+            #{<<"key">> => <<"roomname">>, <<"value">> => Name},
+            #{<<"key">> => <<"subject">>, <<"value">> => Subject}],
+    Res = create_room_with_custom_fields(MucServer, Name, AliceBin, Subject, null, Config, Options),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
+      <<"participants">> := Participants, <<"options">> := Opts} = get_ok_value(?CREATE_ROOM_PATH, Res),
+    ?assertMatch(#jid{lserver = MucServer}, jid:from_binary(JID)),
+    ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants).
+
 admin_create_identified_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_create_identified_room_story/2).
 
@@ -893,6 +913,13 @@ prepare_blocking_items_for_query(Items) ->
 create_room(MUCDomain, Name, Owner, Subject, Id, Config) ->
     Vars = #{<<"mucDomain">> => MUCDomain, <<"name">> => Name, <<"owner">> => Owner,
              <<"subject">> => Subject, <<"id">> => Id},
+    execute_command(<<"muc_light">>, <<"createRoom">>, Vars, Config).
+
+create_room_with_custom_fields(MUCDomain, Name, Owner, Subject,
+                               Id, Config, CustomFields) ->
+    Vars = #{<<"mucDomain">> => MUCDomain, <<"name">> => Name, <<"owner">> => Owner,
+             <<"subject">> => Subject, <<"id">> => Id,
+             <<"options">> => format_options(CustomFields)},
     execute_command(<<"muc_light">>, <<"createRoom">>, Vars, Config).
 
 change_room_configuration(RoomJID, OwnerJID, Name, Subject, Config) ->
