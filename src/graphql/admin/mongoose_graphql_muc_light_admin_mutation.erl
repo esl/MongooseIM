@@ -9,7 +9,8 @@
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 -import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
-                                            prepare_blocking_items/1]).
+                                            prepare_blocking_items/1,
+                                            null_to_default/2, options_to_map/1]).
 
 execute(_Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Args);
@@ -27,17 +28,10 @@ execute(_Ctx, _Obj, <<"setBlockingList">>, Args) ->
     set_blocking_list(Args).
 
 -spec create_room(map()) -> {ok, map()} | {error, resolver_error()}.
-create_room(#{<<"id">> := null, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
-              <<"owner">> := CreatorJID, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, CreatorJID, RoomName, Subject) of
-        {ok, Room} ->
-            {ok, make_room(Room)};
-        Err ->
-            make_error(Err, #{mucDomain => MUCDomain, creator => CreatorJID})
-    end;
 create_room(#{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
-              <<"owner">> := CreatorJID, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, RoomID, CreatorJID, RoomName, Subject) of
+              <<"owner">> := CreatorJID, <<"subject">> := Subject, <<"options">> := Options}) ->
+    case mod_muc_light_api:create_room(MUCDomain, null_to_default(RoomID, <<>>), CreatorJID,
+                                       RoomName, Subject, options_to_map(Options)) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->

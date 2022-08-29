@@ -3,6 +3,7 @@
 
 -export([create_room/4,
          create_room/5,
+         create_room/6,
          invite_to_room/3,
          change_room_config/3,
          change_affiliation/4,
@@ -53,9 +54,12 @@ create_room(MUCLightDomain, CreatorJID, RoomTitle, Subject) ->
 -spec create_room(jid:lserver(), jid:luser(), jid:jid(), binary(), binary()) ->
     create_room_result().
 create_room(MUCLightDomain, RoomID, CreatorJID, RoomTitle, Subject) ->
+    create_room(MUCLightDomain, RoomID, CreatorJID, RoomTitle, Subject, #{}).
+
+create_room(MUCLightDomain, RoomID, CreatorJID, RoomTitle, Subject, Options) ->
     RoomJID = jid:make_bare(RoomID, MUCLightDomain),
-    Options = #{<<"roomname">> => RoomTitle, <<"subject">> => Subject},
-    create_room_raw(RoomJID, CreatorJID, Options).
+    Options1 = Options#{<<"roomname">> => RoomTitle, <<"subject">> => Subject},
+    create_room_raw(RoomJID, CreatorJID, Options1).
 
 -spec invite_to_room(jid:jid(), jid:jid(), jid:jid()) ->
     {ok | not_room_member | muc_server_not_found, iolist()}.
