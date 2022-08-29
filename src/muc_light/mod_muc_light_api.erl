@@ -34,7 +34,8 @@
 -type room() :: #{jid := jid:jid(),
                   name := binary(),
                   subject := binary(),
-                  aff_users := aff_users()}.
+                  aff_users := aff_users(),
+                  options := map()}.
 
 -export_type([room/0]).
 
