@@ -40,8 +40,9 @@ create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDoma
 
 -spec change_room_config(map(), map()) -> {ok, map()} | {error, resolver_error()}.
 change_room_config(#{user := UserJID}, #{<<"room">> := RoomJID, <<"name">> := RoomName,
-                                         <<"subject">> := Subject}) ->
-    Config = #{<<"roomname">> => RoomName, <<"subject">> => Subject},
+                                         <<"subject">> := Subject, <<"options">> := Options}) ->
+    OptMap = options_to_map(Options),
+    Config = OptMap#{<<"roomname">> => RoomName, <<"subject">> => Subject},
     case mod_muc_light_api:change_room_config(RoomJID, UserJID, Config) of
         {ok, Room} ->
             {ok, make_room(Room)};

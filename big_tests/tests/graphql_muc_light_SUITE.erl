@@ -69,6 +69,7 @@ admin_muc_light_tests() ->
      admin_create_room_with_custom_fields,
      admin_create_identified_room,
      admin_change_room_config,
+     admin_change_room_config_with_custom_fields,
      admin_change_room_config_errors,
      admin_invite_user,
      admin_invite_user_errors,
@@ -203,6 +204,24 @@ user_change_room_config_story(Config, Alice) ->
     Subject2 = <<"not testing">>,
     Res = user_change_room_configuration(Alice, jid:to_binary(RoomJID), Name2, Subject2, Config),
     ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2}, get_ok_value(?CHANGE_CONFIG_PATH, Res)).
+
+user_change_room_config_with_custom_fields(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_room_config_with_custom_fields_story/2).
+
+user_change_room_config_with_custom_fields_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    MUCServer = ?config(muc_light_host, Config),
+    % Create a new room
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"ornithology">>, <<"birds">>, AliceBin),
+    % Try to change the room configuration
+    Name2 = <<"changed room">>,
+    Subject2 = <<"not testing">>,
+    Opts2 = #{<<"music">> => <<"sad">>},
+    Res = user_change_room_configuration_with_custom_fields(Alice, jid:to_binary(RoomJID), Name2, Subject2, Config, Opts2),
+    Opts3 = [#{<<"key">> => <<"music">>, <<"value">> => <<"sad">>},
+             #{<<"key">> => <<"roomname">>, <<"value">> => Name2},
+             #{<<"key">> => <<"subject">>, <<"value">> => Subject2}],
+    ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2, <<"options">> := Opts3}, get_ok_value(?CHANGE_CONFIG_PATH, Res)).
 
 user_change_room_config_errors(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -626,6 +645,31 @@ admin_change_room_config_story(Config, Alice) ->
     ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2},
                  get_ok_value(?CHANGE_CONFIG_PATH, Res)).
 
+admin_change_room_config_with_custom_fields(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_change_room_config_with_custom_fields_story/2).
+
+admin_change_room_config_with_custom_fields_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    MUCServer = ?config(muc_light_host, Config),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Opts = #{<<"background">> => <<"red">>},
+    % Create a new room
+    Res = create_room_with_custom_fields(MUCServer, Name, AliceBin, Subject, null, Config, Opts),
+    #{<<"jid">> := RoomJID} = get_ok_value(?CREATE_ROOM_PATH, Res),
+    % Try to change the room configuration
+    Name2 = <<"changed room">>,
+    Subject2 = <<"not testing">>,
+    Opts2 = #{<<"music">> => <<"sad">>},
+    Res2 = change_room_configuration_with_custom_fields(jid:to_binary(RoomJID), AliceBin, Name2, Subject2, Config, Opts2),
+    %% It overwrites old config for all fields
+    Opts3 = [% #{<<"key">> => <<"background">>, <<"value">> => <<"red">>},
+             #{<<"key">> => <<"music">>, <<"value">> => <<"sad">>},
+             #{<<"key">> => <<"roomname">>, <<"value">> => Name2},
+             #{<<"key">> => <<"subject">>, <<"value">> => Subject2}],
+    ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2, <<"options">> := Opts3},
+                 get_ok_value(?CHANGE_CONFIG_PATH, Res2)).
+
 admin_change_room_config_errors(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_change_room_config_errors_story/3).
@@ -927,6 +971,11 @@ change_room_configuration(RoomJID, OwnerJID, Name, Subject, Config) ->
              <<"subject">> => Subject},
     execute_command(<<"muc_light">>, <<"changeRoomConfiguration">>, Vars, Config).
 
+change_room_configuration_with_custom_fields(RoomJID, OwnerJID, Name, Subject, Config, Opts) ->
+    Vars = #{<<"room">> => RoomJID, <<"name">> => Name, <<"owner">> => OwnerJID,
+             <<"subject">> => Subject, <<"options">> => format_options(Opts)},
+    execute_command(<<"muc_light">>, <<"changeRoomConfiguration">>, Vars, Config).
+
 invite_user(RoomJID, Sender, Recipient, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"sender">> => Sender, <<"recipient">> => Recipient},
     execute_command(<<"muc_light">>, <<"inviteUser">>, Vars, Config).
@@ -979,6 +1028,11 @@ user_create_room_with_options(User, MUCDomain, Name, Subject, Id, CustomFields, 
 
 user_change_room_configuration(User, RoomJID, Name, Subject, Config) ->
     Vars = #{<<"room">> => RoomJID, <<"name">> => Name, <<"subject">> => Subject},
+    execute_user_command(<<"muc_light">>, <<"changeRoomConfiguration">>, User, Vars, Config).
+
+user_change_room_configuration_with_custom_fields(User, RoomJID, Name, Subject, Config, Options) ->
+    Vars = #{<<"room">> => RoomJID, <<"name">> => Name, <<"subject">> => Subject,
+             <<"options">> => format_options(Options)},
     execute_user_command(<<"muc_light">>, <<"changeRoomConfiguration">>, User, Vars, Config).
 
 format_options(Map) ->
