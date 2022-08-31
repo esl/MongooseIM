@@ -67,4 +67,5 @@ handle_request_by_method(<<"PUT">>,
                          Req, State) ->
     mongoose_client_api_rooms:assert_room_id_set(Req, State),
     #{jid := UserJID, room := #{jid := RoomJID}} = State,
-    mod_muc_light_api:change_room_config(RoomJID, UserJID, RoomName, Subject).
+    Config = #{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    mod_muc_light_api:change_room_config(RoomJID, UserJID, Config).

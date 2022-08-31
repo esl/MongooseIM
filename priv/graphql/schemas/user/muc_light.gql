@@ -3,9 +3,9 @@ Allow user to manage Multi-User Chat Light rooms.
 """
 type MUCLightUserMutation @protected{
   "Create a MUC light room under the given XMPP hostname"
-  createRoom(mucDomain: String!, name: String!, subject: String!, id: NonEmptyString): Room
+  createRoom(mucDomain: String!, name: String!, subject: String!, id: NonEmptyString, options: [RoomConfigDictEntryInput!]): Room
   "Change configuration of a MUC Light room"
-  changeRoomConfiguration(room: JID!, name: String!, subject: String!): Room
+  changeRoomConfiguration(room: JID!, name: String!, subject: String!, options: [RoomConfigDictEntryInput!]): Room
   "Invite a user to a MUC Light room"
   inviteUser(room: JID!, recipient: JID!): String
   "Remove a MUC Light room"
