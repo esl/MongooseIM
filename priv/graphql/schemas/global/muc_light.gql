@@ -45,7 +45,7 @@ type Room{
   name: String!
   subject: String!
   participants: [RoomUser!]!
-  options: [RoomConfigDictEntry]
+  options: [RoomConfigDictEntry!]!
 }
 
 type RoomUser{
