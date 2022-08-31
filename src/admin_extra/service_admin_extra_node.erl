@@ -27,7 +27,6 @@
 -author('badlop@process-one.net').
 
 -export([commands/0,
-         get_cookie/0,
          remove_node/1]).
 
 -ignore_xref([
@@ -45,7 +44,7 @@ commands() ->
     [
         #ejabberd_commands{name = get_cookie, tags = [erlang],
                            desc = "Get the Erlang cookie of this node",
-                           module = ?MODULE, function = get_cookie,
+                           module = server_api, function = get_cookie,
                            args = [],
                            result = {cookie, string}},
         #ejabberd_commands{name = remove_node, tags = [erlang],
@@ -59,11 +58,6 @@ commands() ->
 %%%
 %%% Node
 %%%
-
-
--spec get_cookie() -> string().
-get_cookie() ->
-    atom_to_list(erlang:get_cookie()).
 
 
 -spec remove_node(string()) -> 'ok'.

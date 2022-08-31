@@ -69,4 +69,5 @@ output(<<"AddressTags">>, Name) -> {ok, Name};
 output(<<"EmailTags">>, Name) -> {ok, Name};
 output(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 output(<<"TelephoneTags">>, Name) -> {ok, Name};
-output(<<"MetricType">>, Type) -> {ok, Type}.
+output(<<"MetricType">>, Type) -> {ok, Type};
+output(<<"StatusCode">>, Code) -> {ok, Code}.

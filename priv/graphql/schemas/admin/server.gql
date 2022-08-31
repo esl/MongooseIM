@@ -1,0 +1,31 @@
+"""
+Allow admin to acquire data about the node
+"""
+type ServerAdminQuery @protected{
+  status: Status
+    @protected(type: GLOBAL)
+  getLoglevel: String
+    @protected(type: GLOBAL)
+  getCookie: String
+    @protected(type: GLOBAL)
+}
+
+type ServerAdminMutation @protected{
+  joinCluster(cluster: String!): String
+  leaveCluster: String
+  removeFromCluster: String
+  restart: String
+  stop: String
+  setLoglevel: String
+  removeNode: String
+}
+
+type Status {
+  statusCode: StatusCode
+  message: String
+}
+
+enum StatusCode {
+  RUNNING
+  NOT_RUNNING
+}

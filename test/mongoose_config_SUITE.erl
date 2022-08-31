@@ -244,7 +244,7 @@ code_paths() ->
     [filename:absname(Path) || Path <- code:get_path()].
 
 maybe_join_cluster(SlaveNode) ->
-    Result = rpc:call(SlaveNode, ejabberd_admin, join_cluster,
+    Result = rpc:call(SlaveNode, server_api, join_cluster,
                       [atom_to_list(node())]),
     case Result of
         {ok, _} ->
