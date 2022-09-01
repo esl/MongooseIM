@@ -80,32 +80,6 @@ init({RanchRef, ranch_tcp, Opts}) ->
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), c2s_state(), c2s_data()) -> fsm_res().
-handle_event(info, {route, Acc}, C2SState, StateData) ->
-    handle_incoming_stanza(StateData, C2SState, Acc);
-handle_event(info, {route, _From, _To, Acc}, C2SState, StateData) ->
-    handle_incoming_stanza(StateData, C2SState, Acc);
-handle_event(info, {TcpOrSSl, _Socket, _Packet} = SocketData, _FsmState, StateData)
-  when TcpOrSSl =:= tcp orelse TcpOrSSl =:= ssl ->
-    handle_socket_data(StateData, SocketData);
-handle_event(info, {Closed, _Socket} = SocketData, C2SState, StateData)
-  when Closed =:= tcp_closed; Closed =:= ssl_closed ->
-    handle_socket_closed(StateData, C2SState, SocketData);
-handle_event(info, {Error, _Socket} = SocketData, C2SState, StateData)
-  when Error =:= tcp_error; Error =:= ssl_error ->
-    handle_socket_error(StateData, C2SState, SocketData);
-handle_event(info, replaced, _FsmState, StateData) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
-    send_element_from_server_jid(StateData, StreamConflict),
-    send_trailer(StateData),
-    {stop, {shutdown, replaced}};
-handle_event(info, {exit, Reason}, _, StateData) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
-    send_element_from_server_jid(StateData, StreamConflict),
-    send_trailer(StateData),
-    {stop, {shutdown, Reason}};
-handle_event(info, {stop, Reason}, C2SState, StateData) ->
-    handle_stop_request(StateData, C2SState, Reason);
-
 handle_event(internal, {connect, RanchRef}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
                                                      max_stanza_size := MaxStanzaSize} = Opts}) ->
@@ -179,25 +153,11 @@ handle_event(internal, #xmlel{} = El, session_established, StateData) ->
 handle_event(internal, #xmlel{} = El, C2SState, StateData) ->
     handle_foreign_packet(StateData, C2SState, El);
 
-handle_event(internal, {Name, Handler}, C2SState, StateData) when is_atom(Name), is_function(Handler, 2) ->
-    C2sAcc = Handler(Name, StateData),
-    handle_state_result(StateData, C2SState, undefined, C2sAcc);
+handle_event(info, Info, FsmState, StateData) ->
+    handle_info(StateData, FsmState, Info);
 
-handle_event({timeout, activate_socket}, activate_socket, _, StateData) ->
-    activate_socket(StateData),
-    keep_state_and_data;
-handle_event({timeout, replaced_wait_timeout}, ReplacedPids, C2SState, StateData) ->
-    [ case erlang:is_process_alive(Pid) of
-          false -> ok;
-          true ->
-              ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
-                             text => <<"Some processes are not responding when handling replace messages">>,
-                             replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
-      end || Pid <- ReplacedPids ],
-    keep_state_and_data;
-handle_event({timeout, Name}, Handler, C2SState, StateData) when is_atom(Name), is_function(Handler, 2) ->
-    C2sAcc = Handler(Name, StateData),
-    handle_state_result(StateData, C2SState, undefined, C2sAcc);
+handle_event({timeout, Name}, Payload, C2SState, StateData) ->
+    handle_timeout(StateData, C2SState, Name, Payload);
 
 handle_event(state_timeout, state_timeout_termination, _FsmState, StateData) ->
     StreamConflict = mongoose_xmpp_errors:connection_timeout(),
@@ -537,6 +497,59 @@ maybe_retry_state(StateData, C2SState) ->
         NextFsmState ->
             {next_state, NextFsmState, StateData, state_timeout()}
     end.
+
+-spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
+handle_info(StateData, C2SState, {route, Acc}) ->
+    handle_incoming_stanza(StateData, C2SState, Acc);
+handle_info(StateData, C2SState, {route, _From, _To, Acc}) ->
+    handle_incoming_stanza(StateData, C2SState, Acc);
+handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
+  when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
+    handle_socket_data(StateData, SocketData);
+handle_info(StateData, C2SState, {Closed, _Socket} = SocketData)
+  when Closed =:= tcp_closed; Closed =:= ssl_closed ->
+    handle_socket_closed(StateData, C2SState, SocketData);
+handle_info(StateData, C2SState, {Error, _Socket} = SocketData)
+  when Error =:= tcp_error; Error =:= ssl_error ->
+    handle_socket_error(StateData, C2SState, SocketData);
+handle_info(StateData, _C2SState, replaced) ->
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, replaced}};
+handle_info(StateData, _C2SState, {exit, Reason}) ->
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, Reason}};
+handle_info(StateData, C2SState, {stop, Reason}) ->
+    handle_stop_request(StateData, C2SState, Reason);
+handle_info(StateData, C2SState, Info) ->
+    handle_foreign_event(StateData, C2SState, info, Info).
+
+-spec handle_timeout(c2s_data(), c2s_state(), atom(), term()) -> fsm_res().
+handle_timeout(StateData, _C2SState, activate_socket, activate_socket) ->
+    activate_socket(StateData),
+    keep_state_and_data;
+handle_timeout(StateData, C2SState, replaced_wait_timeout, ReplacedPids) ->
+    [ case erlang:is_process_alive(Pid) of
+          false -> ok;
+          true ->
+              ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
+                             text => <<"Some processes are not responding when handling replace messages">>,
+                             replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
+      end || Pid <- ReplacedPids ],
+    keep_state_and_data;
+handle_timeout(StateData, C2SState, Name, Handler) when is_atom(Name), is_function(Handler, 2) ->
+    C2sAcc = Handler(Name, StateData),
+    handle_state_result(StateData, C2SState, undefined, C2sAcc);
+
+handle_timeout(StateData, _C2SState, state_timeout, state_timeout_termination) ->
+    StreamConflict = mongoose_xmpp_errors:connection_timeout(),
+    send_element_from_server_jid(StateData, StreamConflict),
+    send_trailer(StateData),
+    {stop, {shutdown, state_timeout}}.
+
 
 -spec maybe_retry_state(c2s_state()) -> c2s_state() | {stop, term()}.
 maybe_retry_state(connect) -> connect;
