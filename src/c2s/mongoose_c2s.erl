@@ -9,6 +9,7 @@
 -define(BIND_RETRIES, 5).
 
 %% gen_statem callbacks
+-export([start_link/2]).
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
@@ -65,6 +66,11 @@ stop(Pid, Reason) ->
 -spec callback_mode() -> gen_statem:callback_mode_result().
 callback_mode() ->
     handle_event_function.
+
+-spec start_link({ranch:ref(), ranch_tcp, mongoose_listener:options()}, [gen_statem:start_opt()]) ->
+    gen_statem:start_ret().
+start_link(Params, ProcOpts) ->
+	gen_statem:start_link(?MODULE, Params, ProcOpts).
 
 -spec init({ranch:ref(), ranch_tcp, mongoose_listener:options()}) ->
     gen_statem:init_result(c2s_state(), c2s_data()).

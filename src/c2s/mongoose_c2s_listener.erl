@@ -55,7 +55,7 @@ process_iq(Acc, _From, _To, #iq{type = set, sub_el = #xmlel{name = <<"session">>
 
 %% ranch_protocol
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
-	gen_statem:start_link(mongoose_c2s, {Ref, Transport, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
+    mongoose_c2s:start_link({Ref, Transport, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
 
 %% supervisor
 -spec start_link(options()) -> any().
