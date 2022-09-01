@@ -8,7 +8,7 @@
 %% - `actions': a list of valid `gen_statem:action()' to request the `mongoose_c2s' engine.
 %% - `c2s_state': a new state is requested for the state machine.
 %% - `c2s_data': a new state data is requested for the state machine.
-%% - `stop': an action of type `{internal, {stop, Reason}}' is to be triggered.
+%% - `stop': an action of type `{info, {stop, Reason}}' is to be triggered.
 %% - `hard_stop': no other request is allowed, the state machine is immediatly triggered to stop.
 %% - `socket_send': xml elements to send on the socket to the user.
 -module(mongoose_c2s_acc).
