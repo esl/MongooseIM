@@ -755,6 +755,7 @@ configurable_modules() ->
      mod_offline,
      mod_offline_chatmarkers,
      mod_ping,
+     mod_presence,
      mod_privacy,
      mod_private,
      mod_pubsub,
