@@ -14,7 +14,7 @@
 
 %% utils
 -export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
-         get_handler/2, remove_handler/2,
+         get_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
          reroute/2, stop/2, merge_states/2]).
@@ -32,17 +32,12 @@
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
           listener_opts :: mongoose_listener:options(),
-          handlers = #{} :: #{module() => term()}
+          state_mod = #{} :: #{module() => term()}
          }).
 -type c2s_data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(c2s_state(), c2s_data()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
-
-%% C2S hooks and handlers
--type takeover_fn() :: fun( (c2s_data(), c2s_state()) -> fsm_res()).
--type handler_fn() :: fun( (atom(), c2s_data()) -> mongoose_c2s_acc:t()).
--export_type([handler_fn/0, takeover_fn/0]).
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
@@ -664,7 +659,7 @@ handle_state_after_packet(StateData, C2SState, Acc) ->
 handle_state_result(StateData, _, _, #{hard_stop := Reason}) when Reason =/= undefined ->
     {stop, {shutdown, Reason}, StateData};
 handle_state_result(StateData0, C2SState, MaybeAcc,
-                    #{handlers := MaybeHandlers, actions := MaybeActions,
+                    #{state_mod := MaybeHandlers, actions := MaybeActions,
                       c2s_state := MaybeNewFsmState, c2s_data := MaybeNewFsmData,
                       socket_send := MaybeSocketSend}) ->
     NextFsmState = case MaybeNewFsmState of
@@ -677,7 +672,7 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
                  end,
     StateData2 = case map_size(MaybeHandlers) of
                      0 -> StateData1;
-                     _ -> merge_handlers(StateData1, MaybeHandlers)
+                     _ -> merge_mod_state(StateData1, MaybeHandlers)
                  end,
     maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
     {next_state, NextFsmState, StateData2, MaybeActions}.
@@ -895,17 +890,17 @@ get_lang(#c2s_data{lang = Lang}) ->
 get_stream_id(#c2s_data{streamid = StreamId}) ->
     StreamId.
 
--spec get_handler(c2s_data(), atom()) -> term() | {error, not_found}.
-get_handler(#c2s_data{handlers = Handlers}, HandlerName) ->
+-spec get_mod_state(c2s_data(), atom()) -> term() | {error, not_found}.
+get_mod_state(#c2s_data{state_mod = Handlers}, HandlerName) ->
     maps:get(HandlerName, Handlers, {error, not_found}).
 
--spec merge_handlers(c2s_data(), map()) -> c2s_data().
-merge_handlers(StateData = #c2s_data{handlers = StateHandlers}, MoreHandlers) ->
-    StateData#c2s_data{handlers = maps:merge(StateHandlers, MoreHandlers)}.
+-spec merge_mod_state(c2s_data(), map()) -> c2s_data().
+merge_mod_state(StateData = #c2s_data{state_mod = StateHandlers}, MoreHandlers) ->
+    StateData#c2s_data{state_mod = maps:merge(StateHandlers, MoreHandlers)}.
 
--spec remove_handler(c2s_data(), atom()) -> c2s_data().
-remove_handler(StateData = #c2s_data{handlers = Handlers}, HandlerName) ->
-    StateData#c2s_data{handlers = maps:remove(HandlerName, Handlers)}.
+-spec remove_mod_state(c2s_data(), atom()) -> c2s_data().
+remove_mod_state(StateData = #c2s_data{state_mod = Handlers}, HandlerName) ->
+    StateData#c2s_data{state_mod = maps:remove(HandlerName, Handlers)}.
 
 -spec merge_states(c2s_data(), c2s_data()) -> c2s_data().
 merge_states(S0 = #c2s_data{},
@@ -914,5 +909,5 @@ merge_states(S0 = #c2s_data{},
       host_type = S0#c2s_data.host_type,
       lserver = S0#c2s_data.lserver,
       jid = S0#c2s_data.jid,
-      handlers = S0#c2s_data.handlers
+      state_mod = S0#c2s_data.state_mod
      }.
