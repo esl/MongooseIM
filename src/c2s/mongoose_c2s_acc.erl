@@ -4,7 +4,7 @@
 %% by different modules. These will be acted upon in the same order they were inserted in the
 %% hook list, according to their priority.
 %% The following keys are defined:
-%% - `handlers': key-value pairs of gen_mod module names and their desired state.
+%% - `state_mod': key-value pairs of gen_mod module names and their desired state.
 %% - `actions': a list of valid `gen_statem:action()' to request the `mongoose_c2s' engine.
 %% - `c2s_state': a new state is requested for the state machine.
 %% - `c2s_data': a new state data is requested for the state machine.
@@ -19,8 +19,8 @@
          to_acc/3, to_acc_many/2
         ]).
 
--type key() :: handlers | actions | c2s_state | c2s_data | stop | hard_stop | socket_send.
--type pairs() :: {handlers, {module(), term()}}
+-type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | socket_send.
+-type pairs() :: {state_mod, {module(), term()}}
                | {actions, gen_statem:action()}
                | {c2s_state, mongoose_c2s:c2s_state()}
                | {c2s_data, mongoose_c2s:c2s_data()}
@@ -29,7 +29,7 @@
                | {socket_send, exml:element()}.
 
 -type t() :: #{
-        handlers := #{module() => term()},
+        state_mod := #{module() => term()},
         actions := [gen_statem:action()],
         c2s_state := undefined | mongoose_c2s:c2s_state(),
         c2s_data := undefined | mongoose_c2s:c2s_data(),
@@ -38,7 +38,7 @@
        }.
 
 -type params() :: #{
-        handlers => #{module() => term()},
+        state_mod => #{module() => term()},
         actions => [gen_statem:action()],
         c2s_state => mongoose_c2s:c2s_state(),
         c2s_data => mongoose_c2s:c2s_data(),
@@ -56,7 +56,7 @@
 -spec new() -> t().
 new() ->
     #{
-      handlers => #{},
+      state_mod => #{},
       actions => [],
       c2s_state => undefined,
       c2s_data => undefined,
@@ -86,7 +86,7 @@ from_mongoose_acc(Acc, Key) ->
     #{Key := Value} = mongoose_acc:get_statem_acc(Acc),
     Value.
 
--spec to_acc(mongoose_acc:t(), handlers, {atom(), term()}) -> mongoose_acc:t();
+-spec to_acc(mongoose_acc:t(), state_mod, {atom(), term()}) -> mongoose_acc:t();
             (mongoose_acc:t(), actions, [gen_statem:action()]) -> mongoose_acc:t();
             (mongoose_acc:t(), actions, gen_statem:action()) -> mongoose_acc:t();
             (mongoose_acc:t(), c2s_state, term()) -> mongoose_acc:t();
@@ -94,9 +94,9 @@ from_mongoose_acc(Acc, Key) ->
             (mongoose_acc:t(), hard_stop, atom()) -> mongoose_acc:t();
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
             (mongoose_acc:t(), socket_send, exml:element()) -> mongoose_acc:t().
-to_acc(Acc, handlers, {Name, Handler}) ->
+to_acc(Acc, state_mod, {Name, Handler}) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, handlers, {Name, Handler}),
+    C2SAcc1 = to_cacc(C2SAcc, state_mod, {Name, Handler}),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, actions, Actions) when is_list(Actions) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
@@ -127,7 +127,7 @@ to_acc_many(Acc, CAcc, [{Key, Value} | Rest]) ->
     NewCAcc = to_cacc(CAcc, Key, Value),
     to_acc_many(Acc, NewCAcc, Rest).
 
--spec to_cacc(mongoose_c2s_acc:t(), handlers, {atom(), term()}) -> mongoose_c2s_acc:t();
+-spec to_cacc(mongoose_c2s_acc:t(), state_mod, {atom(), term()}) -> mongoose_c2s_acc:t();
              (mongoose_c2s_acc:t(), actions, [gen_statem:action()]) -> mongoose_c2s_acc:t();
              (mongoose_c2s_acc:t(), actions, gen_statem:action()) -> mongoose_c2s_acc:t();
              (mongoose_c2s_acc:t(), c2s_state, term()) -> mongoose_c2s_acc:t();
@@ -135,8 +135,8 @@ to_acc_many(Acc, CAcc, [{Key, Value} | Rest]) ->
              (mongoose_c2s_acc:t(), hard_stop, atom()) -> mongoose_c2s_acc:t();
              (mongoose_c2s_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_c2s_acc:t();
              (mongoose_c2s_acc:t(), socket_send, exml:element()) -> mongoose_c2s_acc:t().
-to_cacc(CAcc = #{handlers := Handlers}, handlers, {Name, Handler}) ->
-    CAcc#{handlers := Handlers#{Name => Handler}};
+to_cacc(CAcc = #{state_mod := Handlers}, state_mod, {Name, Handler}) ->
+    CAcc#{state_mod := Handlers#{Name => Handler}};
 to_cacc(CAcc = #{actions := Actions}, actions, NewActions) when is_list(NewActions) ->
     CAcc#{actions := NewActions ++ Actions};
 to_cacc(CAcc = #{actions := Actions}, actions, Action) ->
