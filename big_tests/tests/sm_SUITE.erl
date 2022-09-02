@@ -942,13 +942,14 @@ resume_session_kills_old_C2S_gracefully(Config) ->
 
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->
     Alice = connect_spec(AliceSpec, sr_presence, manual),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     %% Bobs sends some messages to Alice.
     sm_helper:send_messages(Bob, Alice, Texts),
     %% Alice receives them, but doesn't ack.
     sm_helper:wait_for_messages(Alice, Texts),
     %% Alice's connection is violently terminated.
     escalus_client:kill_connection(Config, Alice),
-    C2SPid = mongoose_helper:get_session_pid(Alice),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
     SMID = sm_helper:client_to_smid(Alice),
     {C2SPid, SMID}.
 
