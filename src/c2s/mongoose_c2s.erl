@@ -788,31 +788,15 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(StateData, session_established, Acc, Reason) ->
-    Status = close_session_status(Reason),
-    PresenceUnavailable = mongoose_c2s_stanzas:presence_unavailable(Status),
-    Acc1 = mongoose_acc:update_stanza(#{from_jid => StateData#c2s_data.jid,
-                                        to_jid => jid:to_bare(StateData#c2s_data.jid),
-                                        element => PresenceUnavailable}, Acc),
-    ejabberd_sm:close_session_unset_presence(
-      Acc1, StateData#c2s_data.sid, StateData#c2s_data.jid, Status, sm_unset_reason(Reason));
+-spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> ok.
+close_session(#c2s_data{jid = Jid, sid = Sid}, session_established, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)),
+    ok;
 close_session(_, _, Acc, _) ->
     Acc.
 
-close_session_status({shutdown, retries}) ->
-    <<"Too many attempts">>;
-close_session_status({shutdown, replaced}) ->
-    <<"Replaced by new connection">>;
-close_session_status(normal) ->
-    <<>>;
-close_session_status(_) ->
-    <<"Unknown condition">>.
-
-sm_unset_reason({shutdown, retries}) ->
-    retries;
-sm_unset_reason({shutdown, replaced}) ->
-    replaced;
+sm_unset_reason({shutdown, Reason}) ->
+    Reason;
 sm_unset_reason(normal) ->
     normal;
 sm_unset_reason(_) ->
