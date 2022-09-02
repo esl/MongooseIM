@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5,
-                         user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1]).
+                         user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1,
+                         get_unauthorized/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -14,11 +15,13 @@ suite() ->
 
 all() ->
     [{group, user_vcard},
+     {group, domain_admin_vcard},
      {group, admin_vcard_http},
      {group, admin_vcard_cli}].
 
 groups() ->
     [{user_vcard, [], user_vcard_tests()},
+     {domain_admin_vcard, [], domain_admin_vcard_tests()},
      {admin_vcard_http, [], admin_vcard_tests()},
      {admin_vcard_cli, [], admin_vcard_tests()}].
 
@@ -30,6 +33,16 @@ user_vcard_tests() ->
      user_get_others_vcard_no_user,
      user_get_others_vcard_no_vcard].
 
+domain_admin_vcard_tests() ->
+    [admin_set_vcard,
+     admin_set_vcard_incomplete_fields,
+     domain_admin_set_vcard_no_permission,
+     domain_admin_set_vcard_no_user,
+     admin_get_vcard,
+     admin_get_vcard_no_vcard,
+     domain_admin_get_vcard_no_user,
+     domain_admin_get_vcard_no_permission].
+    
 admin_vcard_tests() ->
     [admin_set_vcard,
      admin_set_vcard_incomplete_fields,
@@ -56,6 +69,8 @@ init_per_group(admin_vcard_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_vcard_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_vcard, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_vcard, Config) ->
     graphql_helper:init_user(Config).
 
@@ -140,6 +155,32 @@ user_get_others_vcard_no_user(Config) ->
 user_get_others_vcard_no_user(Config, Alice) ->
     Result = user_get_vcard(Alice, <<"AAAAA">>, Config),
     ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
+
+%% Domain admin test cases
+
+domain_admin_set_vcard_no_user(Config) ->
+    Vcard = complete_vcard_input(),
+    get_unauthorized(set_vcard(Vcard, <<"AAAAA">>, Config)).
+
+domain_admin_get_vcard_no_user(Config) ->
+    get_unauthorized(get_vcard(<<"AAAAA">>, Config)).
+
+domain_admin_get_vcard_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_get_vcard_no_permission/2).
+
+domain_admin_get_vcard_no_permission(Config, AliceBis) ->
+    Result = get_vcard(user_to_bin(AliceBis), Config),
+    get_unauthorized(Result).
+
+domain_admin_set_vcard_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_set_vcard_no_permission/2).
+
+domain_admin_set_vcard_no_permission(Config, Alice) ->
+    Vcard = complete_vcard_input(),
+    Result = set_vcard(Vcard, user_to_bin(Alice), Config),
+    get_unauthorized(Result).
 
 %% Admin test cases
 

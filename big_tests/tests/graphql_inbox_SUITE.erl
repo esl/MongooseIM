@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, user_to_bin/1,
-                         get_ok_value/2, get_err_msg/1, get_err_code/1]).
+                         get_ok_value/2, get_err_msg/1, get_err_code/1, get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("inbox.hrl").
@@ -21,12 +21,14 @@ all() ->
 tests() ->
     [{group, user_inbox},
      {group, admin_inbox_http},
-     {group, admin_inbox_cli}].
+     {group, admin_inbox_cli},
+     {group, domain_admin_inbox}].
 
 groups() ->
     [{user_inbox, [], user_inbox_tests()},
      {admin_inbox_http, [], admin_inbox_tests()},
-     {admin_inbox_cli, [], admin_inbox_tests()}].
+     {admin_inbox_cli, [], admin_inbox_tests()},
+     {domain_admin_inbox, [], domain_admin_inbox_tests()}].
 
 user_inbox_tests() ->
     [user_flush_own_bin].
@@ -39,6 +41,14 @@ admin_inbox_tests() ->
      admin_flush_global_bin,
      admin_flush_global_bin_after_days,
      admin_try_flush_nonexistent_host_type_bin].
+
+domain_admin_inbox_tests() ->
+    [admin_flush_user_bin,
+     domain_admin_try_flush_nonexistent_user_bin,
+     admin_flush_domain_bin,
+     domain_admin_try_flush_domain_bin_no_permission,
+     domain_admin_flush_global_bin_no_permission,
+     domain_admin_try_flush_nonexistent_host_type_bin].
 
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
@@ -58,6 +68,8 @@ init_per_group(admin_inbox_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_inbox_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_inbox, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_inbox, Config) ->
     graphql_helper:init_user(Config).
 
@@ -145,6 +157,32 @@ admin_try_flush_nonexistent_host_type_bin(Config) ->
     Res = flush_global_bin(<<"nonexistent host type">>, null, Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, host_type_not_found).
+
+%% Domain admin test cases
+
+domain_admin_try_flush_nonexistent_user_bin(Config) ->
+    %% Check nonexistent domain error
+    get_unauthorized(flush_user_bin(<<"user@user.com">>, Config)),
+    %% Check nonexistent user error
+    User = <<"nonexistent-user@", (domain_helper:domain())/binary>>,
+    Res2 = flush_user_bin(User, Config),
+    ?assertErrMsg(Res2, <<"does not exist">>),
+    ?assertErrCode(Res2, user_does_not_exist).
+
+domain_admin_try_flush_domain_bin_no_permission(Config) ->
+    get_unauthorized(flush_domain_bin(<<"external-domain">>, Config)).
+
+domain_admin_flush_global_bin_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
+                                    fun domain_admin_flush_global_bin_no_permission/4).
+
+domain_admin_flush_global_bin_no_permission(Config, Alice, AliceBis, Kate) ->
+    SecHostType = domain_helper:host_type(),
+    create_room_and_make_users_leave(Alice, AliceBis, Kate),
+    get_unauthorized(flush_global_bin(SecHostType, null, Config)).
+
+domain_admin_try_flush_nonexistent_host_type_bin(Config) ->
+    get_unauthorized(flush_global_bin(<<"nonexistent host type">>, null, Config)).
 
 %% User test cases
 

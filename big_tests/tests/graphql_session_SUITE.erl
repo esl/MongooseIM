@@ -6,20 +6,22 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,  get_listener_port/1,
-                         get_listener_config/1, get_ok_value/2, get_err_msg/1]).
+                         get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
     [{group, user_session},
-     {group, admin_session}].
+     {group, admin_session},
+     {group, domain_admin_session}].
 
 groups() ->
     [{user_session, [parallel], user_session_tests()},
      {admin_session, [], [{group, admin_session_http}, {group, admin_session_cli}]},
      {admin_session_http, [], admin_session_tests()},
-     {admin_session_cli, [], admin_session_tests()}].
+     {admin_session_cli, [], admin_session_tests()},
+     {domain_admin_session, [], domain_admin_session_tests()}].
 
 user_session_tests() ->
     [user_list_resources,
@@ -34,6 +36,19 @@ admin_session_tests() ->
      admin_get_user_resource,
      admin_list_users_with_status,
      admin_count_users_with_status,
+     admin_kick_session,
+     admin_set_presence,
+     admin_set_presence_away,
+     admin_set_presence_unavailable].
+
+domain_admin_session_tests() ->
+    [domain_admin_list_sessions,
+     domain_admin_count_sessions,
+     admin_list_user_sessions,
+     admin_count_user_resources,
+     admin_get_user_resource,
+     domain_admin_list_users_with_status,
+     domain_admin_count_users_with_status,
      admin_kick_session,
      admin_set_presence,
      admin_set_presence_away,
@@ -54,11 +69,23 @@ init_per_group(admin_session_cli, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_session_http, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_session, Config) ->
+    Config1 = graphql_helper:init_domain_admin_handler(Config),
+    case Config1 of
+        {skip, require_rdbms} ->
+            Config1;
+        _ ->
+            escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob]))
+    end;
 init_per_group(user_session, Config) ->
     graphql_helper:init_user(Config).
 
 end_per_group(admin_session, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob]));
+end_per_group(domain_admin_session, Config) ->
+    escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob])),
+    escalus_fresh:clean(),
+    graphql_helper:clean();
 end_per_group(_GroupName, _Config) ->
     escalus_fresh:clean(),
     graphql_helper:clean().
@@ -96,6 +123,100 @@ user_sessions_info_story(Config, Alice) ->
     ExpectedUser = escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
     Path = [data, session, listSessions],
     ?assertMatch([#{<<"user">> := ExpectedUser}], get_ok_value(Path, Result)).
+
+
+domain_admin_list_sessions(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_list_sessions_story/4).
+
+domain_admin_list_sessions_story(Config, Alice, AliceB, _Bob) ->
+    Domain = escalus_client:server(Alice),
+    BisDomain = escalus_client:server(AliceB),
+    Path = [data, session, listSessions],
+    % List all sessions
+    Res = list_sessions(null, Config),
+    get_unauthorized(Res),
+    % List sessions for an external domain
+    Res2 = list_sessions(BisDomain, Config),
+    get_unauthorized(Res2),
+    % List sessions for local domain
+    Res3 = list_sessions(Domain, Config),
+    Sessions = get_ok_value(Path, Res3),
+    ?assertEqual(2, length(Sessions)).
+
+domain_admin_count_sessions(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_count_sessions_story/4).
+
+domain_admin_count_sessions_story(Config, Alice, AliceB, _Bob) ->
+    Domain = escalus_client:server(Alice),
+    BisDomain = escalus_client:server(AliceB),
+    Path = [data, session, countSessions],
+    % Count all sessions
+    Res = count_sessions(null, Config),
+    get_unauthorized(Res),
+    % Count sessions for an external domain
+    Res2 = count_sessions(BisDomain, Config),
+    get_unauthorized(Res2),
+    % Count sessions for local domain
+    Res3 = count_sessions(Domain, Config),
+    Number = get_ok_value(Path, Res3),
+    ?assertEqual(2, Number).
+
+domain_admin_list_users_with_status(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
+                                    fun domain_admin_list_users_with_status_story/3).
+
+domain_admin_list_users_with_status_story(Config, Alice, _AliceB) ->
+    AliceJID = escalus_client:full_jid(Alice),
+    Path = [data, session, listUsersWithStatus],
+    AwayStatus = <<"away">>,
+    AwayPresence = escalus_stanza:presence_show(AwayStatus),
+    DndStatus = <<"dnd">>,
+    DndPresence = escalus_stanza:presence_show(DndStatus),
+    % List users with away status globally
+    escalus_client:send(Alice, AwayPresence),
+    Res = list_users_with_status(null, AwayStatus, Config),
+    get_unauthorized(Res),
+    % List users with away status for a domain
+    Res2 = list_users_with_status(domain_helper:domain(), AwayStatus, Config),
+    StatusUsers = get_ok_value(Path, Res2),
+    ?assertEqual(1, length(StatusUsers)),
+    check_users([AliceJID], StatusUsers),
+    % List users with dnd status globally
+    escalus_client:send(Alice, DndPresence),
+    Res3 = list_users_with_status(null, DndStatus, Config),
+    get_unauthorized(Res3),
+    % List users with dnd status for a domain
+    Res4 = list_users_with_status(domain_helper:domain(), DndStatus, Config),
+    StatusUsers2 = get_ok_value(Path, Res4),
+    ?assertEqual(1, length(StatusUsers2)),
+    check_users([AliceJID], StatusUsers2).
+
+domain_admin_count_users_with_status(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
+                                    fun domain_admin_count_users_with_status_story/3).
+
+domain_admin_count_users_with_status_story(Config, Alice, _AliceB) ->
+    Path = [data, session, countUsersWithStatus],
+    AwayStatus = <<"away">>,
+    AwayPresence = escalus_stanza:presence_show(AwayStatus),
+    DndStatus = <<"dnd">>,
+    DndPresence = escalus_stanza:presence_show(DndStatus),
+    % Count users with away status globally
+    escalus_client:send(Alice, AwayPresence),
+    Res = count_users_with_status(null, AwayStatus, Config),
+    get_unauthorized(Res),
+    % Count users with away status for a domain
+    Res2 = count_users_with_status(domain_helper:domain(), AwayStatus, Config),
+    ?assertEqual(1, get_ok_value(Path, Res2)),
+    % Count users with dnd status globally
+    escalus_client:send(Alice, DndPresence),
+    Res3 = count_users_with_status(null, DndStatus, Config),
+    get_unauthorized(Res3),
+    % Count users with dnd status for a domain
+    Res4 = count_users_with_status(domain_helper:domain(), DndStatus, Config),
+    ?assertEqual(1, get_ok_value(Path, Res4)).
 
 admin_list_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],

@@ -100,7 +100,9 @@ init_user(Config) ->
     add_specs([{schema_endpoint, user} | Config]).
 
 init_domain_admin_handler(Config) ->
-    Domain = domain_helper:domain(),
+    init_domain_admin_handler(Config, domain_helper:domain()).
+
+init_domain_admin_handler(Config, Domain) ->
     case mongoose_helper:is_rdbms_enabled(Domain) of
         true ->
             Password = base16:encode(crypto:strong_rand_bytes(8)),
@@ -139,9 +141,8 @@ get_err_msg(Resp) ->
     get_err_msg(1, Resp).
 
 get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
-    [#{<<"extensions">> := #{<<"code">> := ErrorCode}}] = Errors,
-    assert_response_code(unauthorized, Code),
-    ?assertEqual(<<"no_permissions">>, ErrorCode).
+    [#{<<"extensions">> := #{<<"code">> := _ErrorCode}}] = Errors,
+    assert_response_code(unauthorized, Code).
 
 get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
     assert_response_code(bad_request, Code),

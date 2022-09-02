@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
-                         get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1]).
+                         get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1,
+                         get_unauthorized/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -16,12 +17,14 @@ suite() ->
 all() ->
     [{group, user_muc},
      {group, admin_muc_http},
-     {group, admin_muc_cli}].
+     {group, admin_muc_cli},
+     {group, domain_admin_muc}].
 
 groups() ->
     [{user_muc, [parallel], user_muc_tests()},
      {admin_muc_http, [parallel], admin_muc_tests()},
-     {admin_muc_cli, [], admin_muc_tests()}].
+     {admin_muc_cli, [], admin_muc_tests()},
+     {domain_admin_muc, [], domain_admin_muc_tests()}].
 
 user_muc_tests() ->
     [user_create_and_delete_room,
@@ -101,6 +104,44 @@ admin_muc_tests() ->
      admin_try_list_nonexistent_room_affiliations
     ].
 
+domain_admin_muc_tests() ->
+    [admin_create_and_delete_room,
+     admin_try_create_instant_room_with_nonexistent_domain,
+     domain_admin_try_create_instant_room_with_nonexistent_user,
+     admin_try_delete_nonexistent_room,
+     domain_admin_try_delete_room_with_nonexistent_domain,
+     admin_list_rooms,
+     admin_list_room_users,
+     domain_admin_try_list_users_from_nonexistent_room,
+     admin_change_room_config,
+     domain_admin_try_change_nonexistent_room_config,
+     admin_get_room_config,
+     domain_admin_try_get_nonexistent_room_config,
+     admin_invite_user,
+     admin_invite_user_with_password,
+     admin_try_invite_user_to_nonexistent_room,
+     admin_kick_user,
+     domain_admin_try_kick_user_from_nonexistent_room,
+     admin_try_kick_user_from_room_without_moderators,
+     admin_send_message_to_room,
+     admin_send_private_message,
+     admin_get_room_messages,
+     domain_admin_try_get_nonexistent_room_messages,
+     admin_set_user_affiliation,
+     domain_admin_try_set_nonexistent_room_user_affiliation,
+     admin_set_user_role,
+     domain_admin_try_set_nonexistent_room_user_role,
+     admin_try_set_nonexistent_nick_role,
+     admin_try_set_user_role_in_room_without_moderators,
+     admin_make_user_enter_room,
+     admin_make_user_enter_room_with_password,
+     admin_make_user_enter_room_bare_jid,
+     admin_make_user_exit_room,
+     admin_make_user_exit_room_bare_jid,
+     admin_list_room_affiliations,
+     domain_admin_try_list_nonexistent_room_affiliations
+    ].
+
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
     Config2 = escalus:init_per_suite(Config),
@@ -124,6 +165,8 @@ init_per_group(admin_muc_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_muc_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_muc, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_muc, Config) ->
     graphql_helper:init_user(Config).
 
@@ -581,6 +624,55 @@ admin_list_room_affiliations(Config, Alice, Bob) ->
 admin_try_list_nonexistent_room_affiliations(Config) ->
     Res = list_room_affiliations(?NONEXISTENT_ROOM, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+
+%% Domain admin test cases
+
+domain_admin_try_delete_room_with_nonexistent_domain(Config) ->
+    RoomJID = jid:make_bare(<<"unknown">>, <<"unknown">>),
+    get_unauthorized(delete_room(RoomJID, null, Config)).
+
+domain_admin_try_create_instant_room_with_nonexistent_user(Config) ->
+    Name = rand_name(),
+    LocalDomain = domain_helper:domain(),
+    ExternalDomain = <<"external">>,
+    MUCServer = muc_helper:muc_host(),
+    
+    LocalJID = <<(rand_name())/binary, "@", LocalDomain/binary>>,
+    Res1 = create_instant_room(MUCServer, Name, LocalJID, <<"Ali">>, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res1), <<"not found">>)),
+
+    ExternalJID = <<(rand_name())/binary, "@", ExternalDomain/binary>>,
+    Res2 = create_instant_room(MUCServer, Name, ExternalJID, <<"Ali">>, Config),
+    get_unauthorized(Res2).
+
+domain_admin_try_list_users_from_nonexistent_room(Config) ->
+    get_unauthorized(list_room_users(?NONEXISTENT_ROOM, Config)).
+
+domain_admin_try_change_nonexistent_room_config(Config) ->
+    RoomConfig = #{title => <<"NewTitle">>},
+    get_unauthorized(change_room_config(?NONEXISTENT_ROOM, RoomConfig, Config)).
+
+domain_admin_try_get_nonexistent_room_config(Config) ->
+    get_unauthorized(get_room_config(?NONEXISTENT_ROOM, Config)).
+
+domain_admin_try_kick_user_from_nonexistent_room(Config) ->
+    get_unauthorized(kick_user(?NONEXISTENT_ROOM, <<"ali">>, null, Config)).
+
+domain_admin_try_get_nonexistent_room_messages(Config) ->
+    get_unauthorized(get_room_messages(?NONEXISTENT_ROOM, null, null, Config)).
+
+domain_admin_try_set_nonexistent_room_user_affiliation(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun domain_admin_try_set_nonexistent_room_user_affiliation/2).
+
+domain_admin_try_set_nonexistent_room_user_affiliation(Config, Alice) ->
+    get_unauthorized(set_user_affiliation(?NONEXISTENT_ROOM, Alice, admin, Config)).
+
+domain_admin_try_set_nonexistent_room_user_role(Config) ->
+    get_unauthorized(set_user_role(?NONEXISTENT_ROOM, <<"Alice">>, moderator, Config)).
+
+domain_admin_try_list_nonexistent_room_affiliations(Config) ->
+    get_unauthorized(list_room_affiliations(?NONEXISTENT_ROOM, null, Config)).
 
 %% User test cases
 

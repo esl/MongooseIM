@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
-                         get_ok_value/2, get_err_code/1]).
+                         get_ok_value/2, get_err_code/1, get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -13,11 +13,13 @@ suite() ->
 
 all() ->
     [{group, user},
+     {group, domain_admin},
      {group, admin_http},
      {group, admin_cli}].
 
 groups() ->
     [{user, [], user_tests()},
+     {domain_admin, domain_admin_tests()},
      {admin_http, [], admin_tests()},
      {admin_cli, [], admin_tests()}].
 
@@ -25,6 +27,13 @@ user_tests() ->
     [user_request_token_test,
      user_revoke_token_no_token_before_test,
      user_revoke_token_test].
+
+domain_admin_tests() ->
+    [admin_request_token_test,
+     domain_admin_request_token_no_user_test,
+     domain_admin_revoke_token_no_user_test,
+     admin_revoke_token_no_token_test,
+     admin_revoke_token_test].
 
 admin_tests() ->
     [admin_request_token_test,
@@ -65,6 +74,8 @@ init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config).
 
@@ -105,6 +116,14 @@ user_revoke_token_test(Config, Alice) ->
     Res2 = user_revoke_token(Alice, Config),
     ParsedRes = get_ok_value([data, token, revokeToken], Res2),
     ?assertEqual(<<"Revoked.">>, ParsedRes).
+
+% Domain admin tests
+
+domain_admin_request_token_no_user_test(Config) ->
+    get_unauthorized(admin_request_token(<<"AAAAA">>, Config)).
+
+domain_admin_revoke_token_no_user_test(Config) ->
+    get_unauthorized(admin_revoke_token(<<"AAAAA">>, Config)).
 
 % Admin tests
 
