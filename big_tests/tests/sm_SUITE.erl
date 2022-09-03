@@ -52,43 +52,50 @@ all() ->
     ct_helper:groups_to_all(groups()).
 
 groups() ->
-    P = [parallel],
-    [{parallel, P, parallel_cases()},
-     {parallel_manual_ack_freq_1, P, parallel_manual_ack_freq_1_cases()},
+    [
+     {parallel, [parallel], parallel_cases()},
+     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, P, parallel_unacknowledged_message_hook_cases()}].
+     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
+    ].
 
 parallel_cases() ->
-    [server_announces_sm,
+    [
+     server_announces_sm,
      server_enables_sm_before_session,
      server_enables_sm_after_session,
      server_returns_failed_after_start,
      server_returns_failed_after_auth,
      server_enables_resumption,
      client_enables_sm_twice_fails_with_correct_error_stanza,
-     session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza,
-     session_resumed_and_old_session_dead_doesnt_route_error_to_new_session,
      basic_ack,
      h_ok_before_session,
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
      h_non_given_closes_stream_gracefully,
-     resend_unacked_on_reconnection,
+     resume_session_with_wrong_namespace_is_a_noop,
      session_established,
-     wait_for_resumption,
      resume_session,
+     session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza,
+     session_resumed_and_old_session_dead_doesnt_route_error_to_new_session,
+     wait_for_resumption,
+
+     resend_unacked_on_reconnection,
+     subscription_requests_are_buffered_properly,
+
      resume_session_with_wrong_h_does_not_leak_sessions,
      resume_session_with_wrong_sid_returns_item_not_found,
-     resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
      resume_session_kills_old_C2S_gracefully,
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
-     subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption,
-     messages_are_properly_flushed_during_resumption_p1_fsm_old].
+
+     messages_are_properly_flushed_during_resumption
+     % messages_are_properly_flushed_during_resumption_p1_fsm_old
+
+    ].
 
 parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
@@ -1112,40 +1119,40 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus:assert(is_chat_message, [MsgBody], RecvMsg)
       end).
 
-messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
-    %% the same as messages_are_properly_flushed_during_resumption,
-    %% but tests that buffered by p1_fsm_old messages are delivered
-    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        Alice = connect_fresh(Config, alice, sr_presence),
-        SMH = escalus_connection:get_sm_h(Alice),
-        escalus_client:kill_connection(Config, Alice),
-        C2SPid = mongoose_helper:get_session_pid(Alice),
-        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
-        ok = rpc(mim(), sys, suspend, [C2SPid]),
+% messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
+%     %% the same as messages_are_properly_flushed_during_resumption,
+%     %% but tests that buffered by p1_fsm_old messages are delivered
+%     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+%         Alice = connect_fresh(Config, alice, sr_presence),
+%         SMH = escalus_connection:get_sm_h(Alice),
+%         escalus_client:kill_connection(Config, Alice),
+%         C2SPid = mongoose_helper:get_session_pid(Alice),
+%         mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+%         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
-        %% send some dummy event. ignored by c2s but ensures that
-        %% p1_old_fsm buffers the messages, sent after this one
-        rpc(mim(), p1_fsm_old, send_all_state_event, [C2SPid, dummy_event]),
+%         %% send some dummy event. ignored by c2s but ensures that
+%         %% p1_old_fsm buffers the messages, sent after this one
+%         rpc(mim(), p1_fsm_old, send_all_state_event, [C2SPid, dummy_event]),
 
-        MsgBody = <<"flush-regression">>,
-        spawn_link(fun() ->
-                    sm_helper:wait_for_queue_length(C2SPid, 2),
+%         MsgBody = <<"flush-regression">>,
+%         spawn_link(fun() ->
+%                     sm_helper:wait_for_queue_length(C2SPid, 2),
 
-                    % Bob sends a message...
-                    escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
+%                     % Bob sends a message...
+%                     escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
 
-                    % ...we ensure that a message is enqueued in Alice's session...
-                    % (2 messages = resume request + Bob's message)
-                    sm_helper:wait_for_queue_length(C2SPid, 3),
+%                     % ...we ensure that a message is enqueued in Alice's session...
+%                     % (2 messages = resume request + Bob's message)
+%                     sm_helper:wait_for_queue_length(C2SPid, 3),
 
-                    % ...and old process is resumed.
-                    ok = rpc(mim(), sys, resume, [C2SPid])
-              end),
-        Alice2 = connect_resume(Alice, SMH),
-        % THEN Alice's new session receives Bob's message
-        RecvMsg = escalus:wait_for_stanza(Alice2),
-        escalus:assert(is_chat_message, [MsgBody], RecvMsg)
-      end).
+%                     % ...and old process is resumed.
+%                     ok = rpc(mim(), sys, resume, [C2SPid])
+%               end),
+%         Alice2 = connect_resume(Alice, SMH),
+%         % THEN Alice's new session receives Bob's message
+%         RecvMsg = escalus:wait_for_stanza(Alice2),
+%         escalus:assert(is_chat_message, [MsgBody], RecvMsg)
+%       end).
 
 no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt(Config) ->
     Alice = connect_fresh(Config, alice, session, manual),

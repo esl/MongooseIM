@@ -305,8 +305,6 @@ xmpp_listener_extra(c2s) ->
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"zlib">> => #option{type = integer,
-                                             validate = positive},
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
                        <<"reuseport">> => #option{type = boolean},

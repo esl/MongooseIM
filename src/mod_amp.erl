@@ -12,7 +12,8 @@
 -export([run_initial_check/2,
          check_packet/2,
          disco_local_features/1,
-         c2s_stream_features/3
+         c2s_stream_features/3,
+         xmpp_send_element/2
         ]).
 
 -ignore_xref([c2s_stream_features/3, disco_local_features/1, run_initial_check/2]).
@@ -20,7 +21,6 @@
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_c2s.hrl").
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
@@ -44,6 +44,7 @@ hooks(HostType) ->
      {c2s_preprocessing_hook, HostType, ?MODULE, run_initial_check, 10},
      {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
+     {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 50},
      {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10}].
 
 %% API
@@ -56,6 +57,11 @@ run_initial_check(Acc, _C2SState) ->
         <<"message">> -> run_initial_check(Acc);
         _ -> Acc
     end.
+
+-spec xmpp_send_element(Acc :: mongoose_acc:t(), Server :: jid:server()) -> mongoose_acc:t().
+xmpp_send_element(Acc, _El) ->
+    AmpEvent = result_to_amp_event(Acc),
+    check_packet(Acc, AmpEvent).
 
 -spec check_packet(mongoose_acc:t(), amp_event()) -> mongoose_acc:t().
 check_packet(Acc, Event) ->
@@ -78,11 +84,16 @@ c2s_stream_features(Acc, _HostType, _Lserver) ->
 
 %% Internal
 
+-spec result_to_amp_event(mongoose_acc:t()) -> amp_event().
+result_to_amp_event(Acc) ->
+    case mongoose_acc:get(c2s, send_result, ok, Acc) of
+        ok -> delivered;
+        _ -> delivery_failed
+    end.
+
 -spec run_initial_check(mongoose_acc:t()) -> mongoose_acc:t().
 run_initial_check(Acc) ->
-    Packet = mongoose_acc:element(Acc),
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     Result = case amp:extract_requested_rules(Packet) of
                  none -> nothing_to_do;
                  {rules, Rules} -> validate_and_process_rules(Packet, From, Rules, Acc);

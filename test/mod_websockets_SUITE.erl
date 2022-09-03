@@ -230,9 +230,8 @@ get_child_by_mod(Sup, Mod) ->
     end.
 
 get_ranch_connections() ->
-    LSup = get_child_by_mod(ranch_sup, ranch_listener_sup),
-    CSup = get_child_by_mod(LSup, ranch_conns_sup),
-    [ {Mod, Pid} || {_, Pid, _, [Mod]} <- supervisor:which_children(CSup) ].
+    Value = ranch:info(),
+    [ {Mod, Pid} || {_, #{pid := Pid, protocol := Mod}} <- maps:to_list(ranch:info()) ].
 
 wait_for_no_ranch_connections(Times) ->
     case get_ranch_connections() of

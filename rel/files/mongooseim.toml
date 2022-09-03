@@ -130,9 +130,6 @@
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
-  {{#zlib}}
-  zlib = {{{zlib}}}
-  {{/zlib}}
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
@@ -214,6 +211,7 @@
 [modules.mod_amp]
 {{{mod_amp}}}
 {{/mod_amp}}
+[modules.mod_presence]
 [modules.mod_disco]
   users_can_see_hidden_services = false
 

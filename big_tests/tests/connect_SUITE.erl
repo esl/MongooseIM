@@ -95,10 +95,12 @@ groups() ->
     ].
 
 tls_groups()->
-    [{group, starttls},
+    [
+     {group, starttls},
      {group, c2s_noproc},
      {group, feature_order},
-     {group, tls}].
+     {group, tls}
+    ].
 
 auth_bind_pipelined_cases() ->
     [
@@ -339,90 +341,69 @@ reset_stream_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
-
-    [C2sPid] = get_connection_pids(),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
+    [C2SPid] = get_connection_pids(),
+    MonRef = erlang:monitor(process, C2SPid),
+    ok = rpc(mim(), sys, suspend, [C2SPid]),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
-    %% Sim client disconnection
-    simulate_socket_disconnection(C2sPid),
-
-    %% ...c2s process receives close and DOWN messages...
-    %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
-    receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
-            ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
-            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
+    verify_process_termination(Conn, C2SPid, MonRef).
 
 starttls_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = get_connection_pids(),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
+    [C2SPid] = get_connection_pids(),
+    MonRef = erlang:monitor(process, C2SPid),
+    ok = rpc(mim(), sys, suspend, [C2SPid]),
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
-    %% Sim client disconnection
-    simulate_socket_disconnection(C2sPid),
-    %% ...c2s process receives close and DOWN messages...
-    %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
-    receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
-            ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
-            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
+    verify_process_termination(Conn, C2SPid, MonRef).
 
 compress_noproc(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = get_connection_pids(),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
+    [C2SPid] = get_connection_pids(),
+    MonRef = erlang:monitor(process, C2SPid),
+    ok = rpc(mim(), sys, suspend, [C2SPid]),
     %% Add compress element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, compressed},
                  escalus_session:compress(Conn#client{props = [{compression, <<"zlib">>}|Props]})),
+    verify_process_termination(Conn, C2SPid, MonRef).
+
+verify_process_termination(Conn, C2SPid, MonRef) ->
     %% Sim client disconnection
-    simulate_socket_disconnection(C2sPid),
-    %% ...c2s process receives close and DOWN messages...
+    escalus_connection:kill(Conn),
     %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
+    ok = rpc(mim(), sys, resume, [C2SPid]),
+    %% ...c2s process receives close and DOWN messages...
     receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
+        {'DOWN', MonRef, process, C2SPid, {shutdown, socket_closed}} ->
             ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
+        {'DOWN', MonRef, process, C2SPid, Reason} ->
+              print_all_msgs(),
             ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
+    after 5000 ->
+              print_all_msgs(),
+              ct:fail("c2s_monitor_timeout", [])
+    end.
+
+print_all_msgs() ->
+    receive
+        Value ->
+            ct:pal("Value ~p~n", [Value]),
+            print_all_msgs()
+    after 0 -> ok
+    end.
 
 get_connection_pids() ->
     Ref = {5222, {0,0,0,0}, tcp},
     rpc(mim(), ranch, procs, [Ref, connections]).
-
-simulate_socket_disconnection(C2sPid) ->
-    StateData = mongoose_helper:get_c2s_state_data(C2sPid),
-    C2sSocket = rpc(mim(), mongoose_c2s, get_socket, [StateData]),
-    ok = rpc(mim(), gen_tcp, close, [C2sSocket]).
 
 %% Tests features advertisement
 stream_features_test(Config) ->

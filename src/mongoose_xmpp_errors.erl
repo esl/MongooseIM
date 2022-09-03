@@ -18,6 +18,14 @@
 
 -export_type([stanza_error/0]).
 
+-spec stanza_error(stanza_error()) -> exml:element().
+stanza_error(StanzaError) ->
+    ?MODULE:StanzaError().
+
+-spec stanza_error(stanza_error(), ejabberd:lang(), binary()) -> exml:element().
+stanza_error(StanzaError, Lang, Text) ->
+    ?MODULE:StanzaError(Lang, Text).
+
 bad_request() ->
     jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>).
 

@@ -236,8 +236,8 @@ handle_register_iq_handler_for_domain(HostType, Namespace, Component, IQHandler)
     IQ = {IQKey, NewIQHandler},
     case ets:insert_new(?IQ_TABLE, IQ) of
         false ->
-            ?LOG_WARNING(#{what => iq_already_registered, host_type => HostType,
-                           namespace => Namespace, component => Component}),
+            % ?LOG_WARNING(#{what => iq_already_registered, host_type => HostType,
+            %                namespace => Namespace, component => Component}),
             {error, already_registered};
         true ->
             Domains = ets:match_object(?ROUTING_TABLE, {'_', HostType}),

@@ -124,8 +124,8 @@ amp_test_helper_code() ->
     "-module(amp_test_helper).\n"
     "-compile([export_all, nowarn_export_all]).\n"
     "setup_meck() ->\n"
-    "  meck:expect(ejabberd_socket, send, fun ejabberd_socket_send/2).\n"
-    "ejabberd_socket_send(Socket, Data) ->\n"
+    "  meck:expect(mongoose_c2s_socket, send_text, fun mongoose_c2s_socket_sent/2).\n"
+    "mongoose_c2s_socket_sent(Socket, Data) ->\n"
     "  case catch binary:match(Data, <<\"Recipient connection breaks\">>) of\n"
     "    {N, _} when is_integer(N) -> {error, simulated};\n"
     "    _ -> meck:passthrough([Socket, Data])\n"
@@ -149,7 +149,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, Config1).
 
 setup_meck(suite) ->
-    ok = rpc(mim(), meck, new, [ejabberd_socket, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, new, [mongoose_c2s_socket, [passthrough, no_link]]),
     ok = rpc(mim(), amp_test_helper, setup_meck, []);
 setup_meck(mam_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {error, simulated}]);
@@ -340,7 +340,7 @@ notify_deliver_to_online_user_broken_connection_test(Config) ->
                                    _ -> none
                                end, notify},
               Rules = rules(Config, [Rule]),
-              %% This special message is matched by the ejabberd_socket mock
+              %% This special message is matched by the mongoose_c2s_socket mock
               %% (see amp_test_helper_code/0)
               Msg = amp_message_to(Bob, Rules, <<"Recipient connection breaks">>),
 

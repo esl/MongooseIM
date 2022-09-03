@@ -108,9 +108,8 @@ handle_user_terminate(Acc, StateData, Handler) ->
     PresenceUnavailable = presence_unavailable_stanza(Status),
     ParamsAcc = #{from_jid => Jid, to_jid => jid:to_bare(Jid), element => PresenceUnavailable},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
-    presence_broadcast(Acc1, Handler#presences.pres_a),
-    presence_broadcast(Acc1, Handler#presences.pres_i),
-    mongoose_hooks:unset_presence_hook(Acc1, Jid, Status),
+    Acc2 = maybe_broadcast_unavailable(Acc1, Handler, Reason),
+    mongoose_hooks:unset_presence_hook(Acc2, Jid, Status),
     {ok, Acc}.
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
@@ -526,8 +525,19 @@ close_session_status({shutdown, retries}) ->
     <<"Too many attempts">>;
 close_session_status({shutdown, replaced}) ->
     <<"Replaced by new connection">>;
+close_session_status({shutdown, resumed}) ->
+    <<"Connection resumed">>;
+close_session_status({shutdown, _}) ->
+    <<>>;
 close_session_status(_) ->
     <<"Unknown condition">>.
+
+maybe_broadcast_unavailable(Acc, _, {shutdown, replaced}) -> Acc;
+maybe_broadcast_unavailable(Acc, _, {shutdown, resumed}) -> Acc;
+maybe_broadcast_unavailable(Acc, Handler, _) ->
+    % ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', packet => mongoose_acc:packet(Acc)}),
+    presence_broadcast(Acc, Handler#presences.pres_a),
+    presence_broadcast(Acc, Handler#presences.pres_i).
 
 -spec maybe_get_handler(mongoose_c2s:c2s_data()) -> presences().
 maybe_get_handler(StateData) ->

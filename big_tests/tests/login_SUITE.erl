@@ -350,10 +350,10 @@ blocked_user(Config) ->
     [{_, Spec}] = escalus_users:get_users([alice]),
     Config1 = set_acl_for_blocking(Config, Spec),
     try
-        {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
+        {ok, _Alice, _Spec2} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
     catch
-        error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
+        error:{assertion_failed, assert, is_bind_result, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
     after
         unset_acl_for_blocking(Config1)

@@ -653,6 +653,7 @@ block_jid_iq(Config) ->
         %% activate it
         Stanza = escalus_stanza:privacy_activate(<<"deny_server_iq">>),
         escalus_client:send(Alice, Stanza),
+        % escalus:assert(is_iq_result, [Stanza], escalus:wait_for_stanza(Alice)),
         timer:sleep(500), %% we must let it sink in
 
         %% bob queries for version and gets an error, Alice doesn't receive the query

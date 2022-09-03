@@ -62,7 +62,7 @@
 
 -export([do_route/4]).
 
--ignore_xref([disco_local_features/1, do_route/4, get_iq_callback/1,
+-ignore_xref([route_iq/6, disco_local_features/1, do_route/4, get_iq_callback/1,
               process_iq_reply/4, start_link/0]).
 
 -include("mongoose.hrl").
@@ -277,7 +277,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({unregister_host, Host}, _From, State) ->
     Node = node(),
-    [ejabberd_c2s:stop(Pid)
+    [mongoose_c2s:stop(Pid, unregister_host)
      || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host),
         node(Pid) =:= Node],
     do_unregister_host(Host),

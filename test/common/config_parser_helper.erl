@@ -980,7 +980,8 @@ default_mod_config(mod_offline_chatmarkers) ->
     #{backend => rdbms,
       store_groupchat_messages => false};
 default_mod_config(mod_privacy) ->
-    #{backend => mnesia};
+    #{backend => mnesia,
+      iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->

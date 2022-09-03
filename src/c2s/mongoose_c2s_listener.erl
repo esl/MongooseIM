@@ -64,6 +64,7 @@ start_link(Opts) ->
 
 -spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(#{module := Module} = Opts) ->
+    % ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', opts => Opts}),
     HostTypes = ?ALL_HOST_TYPES,
     acc_session_iq_handler(HostTypes),
     maybe_add_access_check(HostTypes, Opts),

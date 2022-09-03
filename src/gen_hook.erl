@@ -149,8 +149,8 @@ handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
                 [{_, Ls}] ->
                     case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
                         {value, _} ->
-                            ?LOG_WARNING(#{what => duplicated_handler,
-                                           key => Key, handler => HookHandler}),
+                            % ?LOG_WARNING(#{what => duplicated_handler,
+                            %                key => Key, handler => HookHandler}),
                             ok;
                         false ->
                             %% NOTE: sort *only* on the priority,

@@ -469,7 +469,16 @@ wait_for_pid_to_die(Pid) ->
         {'DOWN', MonitorRef, _, _, _} ->
             ok
         after 10000 ->
+            print_all_msgs(),
             ct:fail({wait_for_pid_to_die_failed, Pid})
+    end.
+
+print_all_msgs() ->
+    receive
+        Value ->
+            ct:pal("Value ~p~n", [Value]),
+            print_all_msgs()
+    after 0 -> ok
     end.
 
 supports_sasl_module(Module) ->

@@ -24,12 +24,13 @@
          get_resume_timeout/1,
          register_smid/3]).
 
--export([user_send_packet/3,
-         user_receive_packet/3,
+-export([user_send_stanza/3,
+         user_received_stanza/3,
          user_send_xmlel/3,
          foreign_event/3,
          handle_user_stop/3,
-         user_terminate/3
+         user_terminate/3,
+         filter_user_receive_packet/3
         ]).
 
 %% gen_statem callbacks
@@ -48,7 +49,7 @@
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 -define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
--define(STREAM_MGMT_SHUTDOWN, {shutdown, stream_management}).
+-define(STREAM_MGMT_RESUMED, {shutdown, resumed}).
 
 -record(sm_handler, {
           buffer = [] :: [mongoose_acc:t()],
@@ -56,7 +57,8 @@
           counter_in = 0 :: short(),
           counter_out = 0 :: short(),
           buffer_max = 100 :: buffer_max(),
-          ack_freq = 1 :: ack_freq()
+          ack_freq = 1 :: ack_freq(),
+          resumed_from :: undefined | ejabberd_sm:sid()
          }).
 
 -type sm_handler() :: #sm_handler{}.
@@ -100,8 +102,13 @@ hooks(HostType) ->
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
     [
-     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 100},
-     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 100},
+     {user_send_message, HostType, fun ?MODULE:user_send_stanza/3, #{}, 100},
+     {user_send_presence, HostType, fun ?MODULE:user_send_stanza/3, #{}, 100},
+     {user_send_iq, HostType, fun ?MODULE:user_send_stanza/3, #{}, 100},
+     {user_receive_packet, HostType, fun ?MODULE:filter_user_receive_packet/3, #{}, 5},
+     {user_received_message, HostType, fun ?MODULE:user_received_stanza/3, #{}, 100},
+     {user_received_presence, HostType, fun ?MODULE:user_received_stanza/3, #{}, 100},
+     {user_received_iq, HostType, fun ?MODULE:user_received_stanza/3, #{}, 100},
      {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 100},
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 100},
      {user_stop_request, HostType, fun ?MODULE:handle_user_stop/3, #{}, 100},
@@ -168,9 +175,9 @@ stale_h_config_spec() ->
 %% hooks handlers
 %%
 
--spec user_send_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+-spec user_send_stanza(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
+user_send_stanza(Acc, #{c2s_data := StateData}, _Extra) ->
     case get_handler(StateData) of
         {error, not_found} ->
             {ok, Acc};
@@ -179,9 +186,9 @@ user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
             {ok, mongoose_c2s_acc:to_acc(Acc, handlers, {?MODULE, NewSmHandler})}
     end.
 
--spec user_receive_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+-spec user_received_stanza(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-user_receive_packet(Acc, #{c2s_data := StateData}, _Extra) ->
+user_received_stanza(Acc, #{c2s_data := StateData}, _Extra) ->
     case get_handler(StateData) of
         {error, not_found} ->
             {ok, Acc};
@@ -191,9 +198,37 @@ user_receive_packet(Acc, #{c2s_data := StateData}, _Extra) ->
             handle_buffer_and_ack(Acc, StateData, SmHandler)
     end.
 
+-spec filter_user_receive_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+filter_user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extra) ->
+    Check1 = check_incoming_accum_for_conflicts(Acc, StateData),
+    Check2 = check_receiver_sid_conflict(Acc, StateData),
+    case {Check1, Check2} of
+        {true, _} -> %% A race condition detected: same jid, but different sids
+            C2SSid = mongoose_c2s:get_sid(StateData),
+            OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+            ?LOG_WARNING(#{what => conflict_check_failed,
+                           text => <<"Drop Acc that is addressed to another connection "
+                                     "(origin SID check failed)">>,
+                           c2s_sid => C2SSid, origin_sid => OriginSid,
+                           acc => Acc, state_name => C2SState, c2s_state => StateData}),
+            {stop, Acc};
+        {_, true} ->
+            C2SSid = mongoose_c2s:get_sid(StateData),
+            ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
+            ?LOG_WARNING(#{what => conflict_check_failed,
+                           text => <<"Drop Acc that is addressed to another connection "
+                                     "(receiver SID check failed)">>,
+                           c2s_sid => C2SSid, receiver_sid => ReceiverSID,
+                           acc => Acc, state_name => C2SState, c2s_state => StateData}),
+            {stop, Acc};
+        _ -> %% Continue processing
+            {ok, Acc}
+    end.
+
 handle_buffer_and_ack(Acc, StateData,
-        #sm_handler{buffer = Buffer, buffer_max = BufferMax,
-                    buffer_size = BufferSize} = SmHandler) ->
+                      #sm_handler{buffer = Buffer, buffer_max = BufferMax,
+                                  buffer_size = BufferSize} = SmHandler) ->
     case is_buffer_full(BufferSize, BufferMax) of
         true ->
             Lang = mongoose_c2s:get_lang(StateData),
@@ -234,10 +269,13 @@ maybe_send_ack_request(Acc, _) ->
 user_terminate(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case {get_handler(StateData), mongoose_acc:get(c2s, terminate, normal, Acc)} of
         {{error, not_found}, _} ->
+            % ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => stuff}),
             {ok, Acc};
-        {_, ?STREAM_MGMT_SHUTDOWN} ->
+        {_, ?STREAM_MGMT_RESUMED} ->
+            % ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => stuff}),
             {ok, Acc};
         {SmHandler, _} ->
+            % ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => stuff}),
             NewSmHandler = handle_user_terminate(SmHandler, StateData, HostType),
             {ok, mongoose_c2s_acc:to_acc(Acc, handlers, {?MODULE, NewSmHandler})}
     end.
@@ -278,6 +316,7 @@ handle_user_terminate(SmHandler = #sm_handler{buffer = Buffer}, StateData, HostT
     Jid = mongoose_c2s:get_jid(StateData),
     OrderedBuffer = lists:reverse(Buffer),
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => [mongoose_acc:element(A) || A <- FilteredBuffer]}),
     [mongoose_c2s:reroute(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer],
     SmHandler#sm_handler{buffer = [], buffer_size = 0}.
 
@@ -344,6 +383,7 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
 do_handle_ack(Acc, StateData, SmHandler = #sm_handler{counter_out = OldAcked,
                                                       buffer_size = BufferSize,
                                                       buffer = Buffer}, Acked) ->
+    ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => [mongoose_acc:element(A) || A <- Buffer]}),
     ToDrop = calc_to_drop(Acked, OldAcked),
     case BufferSize < ToDrop of
         true ->
@@ -504,6 +544,49 @@ maybe_add_timestamp(Packet, <<"message">>, _, TS, FromServer) ->
 maybe_add_timestamp(Packet, _StanzaName, _StanzaType, _TS, _FromServer) ->
     Packet.
 
+%% If jid is the same, but sid is not, then we have a conflict.
+%% jid example is alice@localhost/res1.
+%% sid example is `{now(), pid()}'.
+%% The conflict can happen, when actions with an accumulator were initiated by
+%% one process but the resulting stanzas were routed to another process with
+%% the same JID but different SID.
+%% The conflict usually happens when an user is reconnecting.
+%% Both origin_sid and origin_jid props should be defined.
+%% But we don't force developers to set both of them, so we should correctly
+%% process stanzas, that have only one properly set.
+%% "Incoming" means that stanza is coming from ejabberd_router.
+-spec check_incoming_accum_for_conflicts(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
+check_incoming_accum_for_conflicts(Acc, StateData) ->
+    OriginJid = mongoose_acc:get(c2s, origin_jid, undefined, Acc),
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    AreOriginsDefined = OriginJid =/= undefined andalso OriginSid =/= undefined,
+    case AreOriginsDefined of
+        false ->
+            false;
+        true ->
+            StateJid = mongoose_c2s:get_jid(StateData),
+            SameJid = jid:are_equal(OriginJid, StateJid),
+            StateSid = mongoose_c2s:get_sid(StateData),
+            SameSid = OriginSid =:= StateSid,
+            % possible to receive response addressed to process which we resumed from - still valid!
+            MaybeResumedFrom = maybe_get_resumed_from(get_handler(StateData)),
+            SameOldSession = OriginSid =:= MaybeResumedFrom,
+            SameJid andalso not (SameSid or SameOldSession)
+    end.
+
+-spec maybe_get_resumed_from(sm_handler()) -> ejabberd_sm:sid();
+                            ({error, not_found}) -> undefined.
+maybe_get_resumed_from(#sm_handler{resumed_from = ResumedFrom}) ->
+    ResumedFrom;
+maybe_get_resumed_from(_) ->
+    undefined.
+
+-spec check_receiver_sid_conflict(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
+check_receiver_sid_conflict(Acc, StateData) ->
+    StateSid = mongoose_c2s:get_sid(StateData),
+    AccSid = mongoose_acc:get(c2s, receiver_sid, StateSid, Acc),
+    StateSid =/= AccSid.
+
 -spec bad_request(mongoose_acc:t()) ->
     {stop, mongoose_acc:t()}.
 bad_request(Acc) ->
@@ -635,20 +718,47 @@ handle_resume_call(StateData, Acc, From) ->
         #sm_handler{} ->
             Sid = mongoose_c2s:get_sid(StateData),
             Jid = mongoose_c2s:get_jid(StateData),
+            HostType = mongoose_c2s:get_host_type(StateData),
+            SmHandler = build_sm_handler(HostType),
+            WithResumedFrom = SmHandler#sm_handler{resumed_from = Sid},
             ejabberd_sm:close_session(Acc, Sid, Jid, resumed),
             mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()),
             ReplyAction = {reply, From, {ok, StateData}},
-            NewStateData = mongoose_c2s:remove_handler(StateData, ?MODULE),
-            {stop_and_reply, {shutdown, resumed}, ReplyAction, NewStateData}
+            NewSmHandler = recover_messages(WithResumedFrom),
+            NewStateData = mongoose_c2s:merge_handlers(StateData, #{?MODULE => NewSmHandler}),
+            {stop_and_reply, ?STREAM_MGMT_RESUMED, ReplyAction, NewStateData}
     end.
 
 terminate(Reason, C2SState, StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
-    mongoose_c2s:terminate(?STREAM_MGMT_SHUTDOWN, C2SState, StateData).
+    ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
+    mongoose_c2s:terminate(Reason, C2SState, StateData).
 
 %%
 %% API for `mongoose_c2s'
 %%
+
+-spec recover_messages(sm_handler()) -> sm_handler().
+recover_messages(SmHandler) ->
+    receive
+        {route, Acc} ->
+            recover_messages(maybe_buffer_acc(SmHandler, Acc, is_message(mongoose_acc:stanza_name(Acc))));
+        {route, _From, _To, Acc} ->
+            recover_messages(maybe_buffer_acc(SmHandler, Acc, is_message(mongoose_acc:stanza_name(Acc))))
+    after 0 ->
+              SmHandler
+    end.
+
+-spec maybe_buffer_acc(sm_handler(), mongoose_acc:t(), boolean()) -> sm_handler().
+maybe_buffer_acc(#sm_handler{buffer = Buffer, buffer_size = BufferSize} = SmHandler, Acc, true) ->
+    SmHandler#sm_handler{buffer = [Acc | Buffer], buffer_size = BufferSize + 1};
+maybe_buffer_acc(SmHandler, _Acc, false) ->
+    SmHandler.
+
+%% IQs and presences are allowed to come to the same SID only
+-spec is_message(binary()) -> boolean().
+is_message(<<"message">>) -> true;
+is_message(_) -> false.
 
 -spec make_smid() -> smid().
 make_smid() ->

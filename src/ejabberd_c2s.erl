@@ -1118,7 +1118,7 @@ handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, S
             fsm_next_state(StateName, StateData);
         {_, To} ->
             FinalPacket = jlib:replace_from_to(From, To, Packet),
-            case privacy_check_packet(FinalPacket, From, To, in, StateData) of
+            case p_privacy_check_packet(FinalPacket, From, To, in, StateData) of
                 allow ->
                     {Act, _, NStateData} = send_and_maybe_buffer_stanza(Acc,
                                                                         {From, To, FinalPacket},
@@ -1281,7 +1281,7 @@ handle_routed(<<"presence">>, From, To, Acc, StateData) ->
 handle_routed(<<"iq">>, From, To, Acc, StateData) ->
     handle_routed_iq(From, To, Acc, StateData);
 handle_routed(<<"message">>, _From, To, Acc, StateData) ->
-    {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+    {Res, Acc1} = s_privacy_check_packet(Acc, To, in, StateData),
     case Res of
         allow ->
             {allow, Acc1, StateData};
@@ -1311,14 +1311,14 @@ handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData
     % we could make iq handlers handle full jids as well, but wouldn't it be an overkill?
     {Acc, HasFromSub} = case is_subscribed_to_my_presence(From, StateData) of
                              true ->
-                                 {A, R} = privacy_check_packet(Acc0, To, out, StateData),
+                                 {R, A} = s_privacy_check_packet(Acc0, To, out, StateData),
                                  {A, R == 'allow'};
                              false ->
                                  {Acc0, false}
                          end,
     case HasFromSub of
         true ->
-            {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+            {Res, Acc1} = s_privacy_check_packet(Acc, To, in, StateData),
             case Res of
                 allow ->
                     {allow, Acc1, StateData};
@@ -1329,7 +1329,7 @@ handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData
             {forbidden, Acc, StateData}
     end;
 handle_routed_iq(_From, To, Acc, #iq{}, StateData) ->
-    {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
+    {Res, Acc1} = s_privacy_check_packet(Acc, To, in, StateData),
     case Res of
         allow ->
             {allow, Acc1, StateData};
@@ -1410,16 +1410,16 @@ handle_routed_presence(From, To, Acc, StateData) ->
             NEl = Packet#xmlel{attrs = Attrs2},
             {allow, Acc, NEl, State};
         <<"subscribe">> ->
-            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1} = s_privacy_check_packet(Acc, To, in, State),
             {SRes, Acc1, State};
         <<"subscribed">> ->
-            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1} = s_privacy_check_packet(Acc, To, in, State),
             {SRes, Acc1, State};
         <<"unsubscribe">> ->
-            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1} = s_privacy_check_packet(Acc, To, in, State),
             {SRes, Acc1, State};
         <<"unsubscribed">> ->
-            {Acc1, SRes} = privacy_check_packet(Acc, To, in, State),
+            {SRes, Acc1} = s_privacy_check_packet(Acc, To, in, State),
             {SRes, Acc1, State};
         _ ->
             handle_routed_available_presence(State, From, To, Acc)
@@ -1430,7 +1430,7 @@ handle_routed_presence(From, To, Acc, StateData) ->
                                        To :: jid:jid(),
                                        Acc :: mongoose_acc:t()) -> routing_result().
 handle_routed_available_presence(State, From, To, Acc) ->
-    {Acc1, Res} = privacy_check_packet(Acc, To, in, State),
+    {Res, Acc1} = s_privacy_check_packet(Acc, To, in, State),
     case Res of
         allow ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
@@ -1794,7 +1794,7 @@ process_presence_probe(From, To, Acc, StateData) ->
                                     Acc :: mongoose_acc:t(),
                                     Packet :: exml:element()) -> mongoose_acc:t().
 check_privacy_and_route_probe(StateData, From, To, Acc, Packet) ->
-    {Acc1, Res} = privacy_check_packet(Acc, Packet, To, From, out, StateData),
+    {Res, Acc1} = d_privacy_check_packet(Acc, Packet, To, From, out, StateData),
     case Res of
         allow ->
             Pid = element(2, StateData#state.sid),
@@ -2040,7 +2040,7 @@ check_privacy_and_route(Acc, StateData) ->
 check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:from_jid(Acc),
     To = mongoose_acc:to_jid(Acc),
-    {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
+    {Res, Acc1} = s_privacy_check_packet(Acc, To, out, StateData),
     Packet = mongoose_acc:element(Acc1),
     case Res of
        deny ->
@@ -2055,38 +2055,38 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
    end.
 
 
--spec privacy_check_packet(Packet :: exml:element(),
+-spec p_privacy_check_packet(Packet :: exml:element(),
                            From :: jid:jid(),
                            To :: jid:jid(),
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> allow|deny|block.
-privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
+p_privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
     % in some cases we need an accumulator-less privacy check
     Acc = new_acc(StateData, #{location => ?LOCATION,
                                from_jid => From,
                                to_jid => To,
                                element => Packet}),
-    {_, Res} = privacy_check_packet(Acc, To, Dir, StateData),
+    {Res, _} = s_privacy_check_packet(Acc, To, Dir, StateData),
     Res.
 
--spec privacy_check_packet(Acc :: mongoose_acc:t(),
+-spec s_privacy_check_packet(Acc :: mongoose_acc:t(),
                            To :: jid:jid(),
                            Dir :: 'in' | 'out',
-                           StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
-privacy_check_packet(Acc, To, Dir, StateData) ->
+                           StateData :: state()) -> {allow|deny|block, mongoose_acc:t()}.
+s_privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
                                           To,
                                           Dir).
 
--spec privacy_check_packet(Acc :: mongoose_acc:t(),
+-spec d_privacy_check_packet(Acc :: mongoose_acc:t(),
                            Packet :: exml:element(),
                            From :: jid:jid(),
                            To :: jid:jid(),
                            Dir :: 'in' | 'out',
-                           StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
-privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
+                           StateData :: state()) -> {allow|deny|block, mongoose_acc:t()}.
+d_privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet({Acc, Packet},
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
@@ -2101,7 +2101,7 @@ presence_broadcast(Acc, JIDSet, StateData) ->
     From = mongoose_acc:from_jid(Acc),
     lists:foldl(fun(JID, A) ->
                           FJID = jid:make(JID),
-                          {A1, Res} = privacy_check_packet(A, FJID, out, StateData),
+                          {Res, A1} = s_privacy_check_packet(A, FJID, out, StateData),
                           case Res of
                               allow ->
                                   ejabberd_router:route(From, FJID, A1);
@@ -2330,7 +2330,7 @@ resend_offline_message(Acc0, StateData, From, To, Acc, in) ->
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
-    {Acc2, Res} = privacy_check_packet(Acc, Packet, From, To, Dir, StateData),
+    {Res, Acc2} = d_privacy_check_packet(Acc, Packet, From, To, Dir, StateData),
     case Res of
         allow -> ejabberd_router:route(From, To, Acc2, Packet);
         _ -> Acc2
@@ -2551,8 +2551,8 @@ send_unavail_if_newly_blocked(Acc, StateData = #state{jid = JID},
                     attrs = [{<<"type">>, <<"unavailable">>}]},
     %% WARNING: we can not use accumulator to cache privacy check result - this is
     %% the only place where the list to check against changes
-    OldResult = privacy_check_packet(Packet, JID, ContactJID, out, StateData),
-    NewResult = privacy_check_packet(Packet, JID, ContactJID, out,
+    OldResult = p_privacy_check_packet(Packet, JID, ContactJID, out, StateData),
+    NewResult = p_privacy_check_packet(Packet, JID, ContactJID, out,
                                      StateData#state{privacy_list = NewList}),
     send_unavail_if_newly_blocked(Acc, OldResult, NewResult, JID,
                                   ContactJID, Packet).

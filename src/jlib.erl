@@ -232,6 +232,8 @@ make_voice_approval_form(From, Nick, Role) ->
         ]}.
 
 
+%% @TODO: this can be optimise by taking the full jid
+%% and doing to_binay only when needed
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
                             [binary_pair()]) -> [binary_pair()].

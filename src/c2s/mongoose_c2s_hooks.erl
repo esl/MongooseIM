@@ -160,7 +160,7 @@ user_open_session(HostType, Acc, Params) ->
     gen_hook:run_fold(user_open_session, HostType, Acc, Params).
 
 %% @doc Triggered when the user session is irrevocably terminating.
-%% This is ran _before_ removing the user from the session table and closing his socket.
+%% This is ran _after_ removing the user from the session table but _before_ closing his socket.
 -spec user_terminate(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
