@@ -291,9 +291,9 @@ xmpp_listener_common() ->
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},
                        <<"num_acceptors">> => #option{type = integer,
-                                               validate = positive}
+                                                      validate = positive}
                       },
-             defaults = #{<<"backlog">> => 100,
+             defaults = #{<<"backlog">> => 1024,
                           <<"proxy_protocol">> => false,
                           <<"hibernate_after">> => 0,
                           <<"max_stanza_size">> => infinity,
@@ -307,15 +307,18 @@ xmpp_listener_extra(c2s) ->
                                                validate = non_empty},
                        <<"zlib">> => #option{type = integer,
                                              validate = positive},
-                       <<"max_fsm_queue">> => #option{type = integer,
-                                                      validate = positive},
+                       <<"max_connections">> => #option{type = int_or_infinity,
+                                                        validate = non_negative},
+                       <<"reuseport">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
                        <<"tls">> => c2s_tls()},
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none}
+                          <<"shaper">> => none,
+                          <<"max_connections">> => infinity,
+                          <<"reuseport">> => false}
             };
 xmpp_listener_extra(s2s) ->
     TLSSection = tls([server], [fast_tls]),
@@ -1029,7 +1032,7 @@ process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type)}).
 
 listener_module(<<"http">>) -> ejabberd_cowboy;
-listener_module(<<"c2s">>) -> ejabberd_c2s;
+listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
 listener_module(<<"service">>) -> ejabberd_service.
 
