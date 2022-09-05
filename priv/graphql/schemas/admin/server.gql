@@ -11,7 +11,7 @@ type ServerAdminQuery @protected{
 }
 
 type ServerAdminMutation @protected{
-  joinCluster(cluster: String!): String
+  joinCluster(node: String!): String
   leaveCluster: String
   removeFromCluster: String
   restart: String

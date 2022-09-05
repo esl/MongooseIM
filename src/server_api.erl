@@ -1,6 +1,6 @@
 -module(server_api).
 
--export([get_loglevel/0, status/0, get_cookie/0, join_cluster/1]).
+-export([get_loglevel/0, status/0, get_cookie/0, join_cluster/1, leave_cluster/0]).
 
 -spec get_loglevel() -> {ok, string()}.
 get_loglevel() ->
@@ -54,4 +54,26 @@ do_join_cluster(Node) ->
             {mnesia_error, String};
         E:R:S ->
             {error, {E, R, S}}
+    end.
+
+-spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
+leave_cluster() ->
+    NodeList = mnesia:system_info(running_db_nodes),
+    ThisNode = node(),
+    case NodeList of
+        [ThisNode] ->
+            String = io_lib:format("The node ~p is not in the cluster~n", [node()]),
+            {not_in_cluster, String};
+        _ ->
+            do_leave_cluster()
+    end.
+
+do_leave_cluster() ->
+    try mongoose_cluster:leave() of
+        ok ->
+            String = io_lib:format("The node ~p has successfully left the cluster~n", [node()]),
+            {ok, String}
+    catch
+        E:R ->
+            {error, {E, R}}
     end.

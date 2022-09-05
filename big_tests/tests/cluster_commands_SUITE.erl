@@ -332,7 +332,7 @@ leave_using_rpc(Config) ->
     add_node_to_cluster(Node2, Config),
     %% when
     Result = distributed_helper:rpc(Node1#{timeout => timer:seconds(30)},
-                                    ejabberd_admin, leave_cluster, []),
+                                    server_api, leave_cluster, []),
     ct:pal("leave_using_rpc result ~p~n", [Result]),
     %% then
     distributed_helper:verify_result(Node2, remove),

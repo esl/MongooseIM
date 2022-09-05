@@ -15,8 +15,8 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, admin_http},
-     {group, admin_cli}].
+    [{group, admin_cli},
+     {group, admin_http}].
 
 groups() ->
     [{admin_http, [], admin_groups()},
@@ -31,11 +31,14 @@ admin_groups() ->
 admin_tests() ->
     [get_cookie_test,
      get_loglevel_test,
-     get_status_test,
-     set_loglevel_test].
+     get_status_test].
 
 clustering_tests() ->
-    [get_status_test, join_successful_prompt].
+    [join_successful,
+     leave_successful,
+     join_unsuccessful,
+     leave_but_no_cluster,
+     join_twice].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
@@ -95,46 +98,33 @@ get_status_test(Config) ->
     ?assertEqual(<<"RUNNING">>, maps:get(<<"statusCode">>, Result)),
     ?assert(is_binary(maps:get(<<"message">>, Result))).
 
-join_successful_prompt(Config) ->
+join_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
+    leave_cluster(Config),
     join_cluster(atom_to_binary(Node2), Config),
     distributed_helper:verify_result(RPCSpec2, add).
 
-%leave_successful_prompt(Config) ->
-%    Node2 = mim2(),
-%    add_node_to_cluster(Node2, Config),
-%    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
-%    distributed_helper:verify_result(Node2, remove),
-%    ?eq(0, OpCode).
-%
-%join_unsuccessful(Config) ->
-%    Node2 = mim2(),
-%    {_, OpCode} = mongooseimctl_interactive("join_cluster", [], "no\n", Config),
-%    distributed_helper:verify_result(Node2, remove),
-%    ?ne(0, OpCode).
-%
-%leave_unsuccessful(Config) ->
-%    Node2 = mim(),
-%    add_node_to_cluster(Node2, Config),
-%    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "no\n", Config),
-%    distributed_helper:verify_result(Node2, add),
-%    ?ne(0, OpCode).
-%
-%leave_but_no_cluster(Config) ->
-%    Node2 = mim2(),
-%    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
-%    distributed_helper:verify_result(Node2, remove),
-%    ?ne(0, OpCode).
-%
-%join_twice(Config) ->
-%    #{node := Node2} = RPCSpec2 = mim2(),
-%    {_, OpCode1} = mongooseimctl_interactive("join_cluster",
-%                                             [atom_to_list(Node2)], "yes\n", Config),
-%    {_, OpCode2} = mongooseimctl_interactive("join_cluster",
-%                                             [atom_to_list(Node2)], "yes\n", Config),
-%    distributed_helper:verify_result(RPCSpec2, add),
-%    ?eq(0, OpCode1),
-%    ?ne(0, OpCode2).
+leave_successful(Config) ->
+    #{node := Node2} = RPCSpec2 = mim2(),
+    join_cluster(atom_to_binary(Node2), Config),
+    leave_cluster(Config),
+    distributed_helper:verify_result(RPCSpec2, remove).
+
+join_unsuccessful(Config) ->
+    Node2 = mim2(),
+    join_cluster(<<>>, Config),
+    distributed_helper:verify_result(Node2, remove).
+
+leave_but_no_cluster(Config) ->
+    Node2 = mim2(),
+    leave_cluster(Config),
+    distributed_helper:verify_result(Node2, remove).
+
+join_twice(Config) ->
+    #{node := Node2} = RPCSpec2 = mim2(),
+    join_cluster(atom_to_binary(Node2), Config),
+    join_cluster(atom_to_binary(Node2), Config),
+    distributed_helper:verify_result(RPCSpec2, add).
 
 get_cookie(Config) ->
     execute_command(<<"server">>, <<"getCookie">>, #{}, Config).
@@ -145,5 +135,8 @@ get_loglevel(Config) ->
 get_status(Config) ->
     execute_command(<<"server">>, <<"status">>, #{}, Config).
 
-join_cluster(Cluster, Config) ->
-    execute_command(<<"server">>, <<"joinCluster">>, #{<<"cluster">> => Cluster}, Config).
+join_cluster(Node, Config) ->
+    execute_command(<<"server">>, <<"joinCluster">>, #{<<"node">> => Node}, Config).
+
+leave_cluster(Config) ->
+    execute_command(<<"server">>, <<"leaveCluster">>, #{}, Config).

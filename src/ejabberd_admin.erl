@@ -36,7 +36,6 @@
          import_users/1,
          %% Purge DB
          delete_expired_messages/1, delete_old_messages/2,
-         leave_cluster/0,
          remove_from_cluster/1]).
 
 -export([registrator_proc/1]).
@@ -44,8 +43,8 @@
 -ignore_xref([
     backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
     dump_mnesia/1, dump_table/2,
-    get_loglevel/0, import_users/1, install_fallback_mnesia/1,
-    join_cluster/1, leave_cluster/0, load_mnesia/1, mnesia_change_nodename/4,
+    import_users/1, install_fallback_mnesia/1,
+    load_mnesia/1, mnesia_change_nodename/4,
     register/2, register/3, registered_users/1, remove_from_cluster/1,
     restore_mnesia/1, status/0,
     stop/0, unregister/2]).
@@ -163,7 +162,7 @@ commands() ->
      #ejabberd_commands{name = leave_cluster, tags = [server],
                         desc = "Leave a cluster. Call it from the node that is going to leave.
                                 Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
-                        module = ?MODULE, function = leave_cluster,
+                        module = server_api, function = leave_cluster,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = remove_from_cluster, tags = [server],
@@ -219,27 +218,6 @@ remove_rpc_alive_node(AliveNode) ->
             {rpc_error, String}
     end.
 
--spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
-leave_cluster() ->
-    NodeList = mnesia:system_info(running_db_nodes),
-    ThisNode = node(),
-    case NodeList of
-        [ThisNode] ->
-            String = io_lib:format("The node ~p is not in the cluster~n", [node()]),
-            {not_in_cluster, String};
-        _ ->
-            do_leave_cluster()
-    end.
-
-do_leave_cluster() ->
-    try mongoose_cluster:leave() of
-        ok ->
-            String = io_lib:format("The node ~p has successfully left the cluster~n", [node()]),
-            {ok, String}
-    catch
-        E:R ->
-            {error, {E, R}}
-    end.
 
 %%%
 %%% Account management
