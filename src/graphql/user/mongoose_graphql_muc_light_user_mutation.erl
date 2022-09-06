@@ -8,7 +8,8 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1, prepare_blocking_items/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1, prepare_blocking_items/1,
+                                            null_to_default/2, options_to_map/1]).
 
 execute(Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Ctx, Args);
@@ -26,17 +27,11 @@ execute(Ctx, _Obj, <<"setBlockingList">>, Args) ->
     set_blocking_list(Ctx, Args).
 
 -spec create_room(map(), map()) -> {ok, map()} | {error, resolver_error()}.
-create_room(#{user := UserJID}, #{<<"id">> := null, <<"mucDomain">> := MUCDomain,
-                                  <<"name">> := RoomName, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, UserJID, RoomName, Subject) of
-        {ok, Room} ->
-            {ok, make_room(Room)};
-        Err ->
-            make_error(Err, #{mucDomain => MUCDomain})
-    end;
 create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain,
-                                  <<"name">> := RoomName, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, RoomID, UserJID, RoomName, Subject) of
+                                  <<"name">> := RoomName, <<"subject">> := Subject,
+                                  <<"options">> := Options}) ->
+    case mod_muc_light_api:create_room(MUCDomain, null_to_default(RoomID, <<>>), UserJID,
+                                       RoomName, Subject, options_to_map(Options)) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
@@ -45,8 +40,10 @@ create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDoma
 
 -spec change_room_config(map(), map()) -> {ok, map()} | {error, resolver_error()}.
 change_room_config(#{user := UserJID}, #{<<"room">> := RoomJID, <<"name">> := RoomName,
-                                         <<"subject">> := Subject}) ->
-    case mod_muc_light_api:change_room_config(RoomJID, UserJID, RoomName, Subject) of
+                                         <<"subject">> := Subject, <<"options">> := Options}) ->
+    OptMap = options_to_map(Options),
+    Config = OptMap#{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    case mod_muc_light_api:change_room_config(RoomJID, UserJID, Config) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
@@ -80,10 +77,3 @@ set_blocking_list(#{user := UserJID}, #{<<"items">> := Items}) ->
     Items2 = prepare_blocking_items(Items),
     Result = mod_muc_light_api:set_blocking(UserJID, Items2),
     format_result(Result, #{user => jid:to_binary(UserJID)}).
-
-%% Helpers
-
-null_to_default(null, Default) ->
-    Default;
-null_to_default(Value, _Default) ->
-    Value.

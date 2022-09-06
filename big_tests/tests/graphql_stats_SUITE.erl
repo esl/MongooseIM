@@ -4,8 +4,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0, domain/0, secondary_domain/0]).
--import(graphql_helper, [execute_command/4, get_ok_value/2,
-                         execute_domain_admin_command/4, get_unauthorized/1]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -106,33 +105,26 @@ admin_stats_domain_with_users_test(Config, _Alice) ->
 % Domain admin test cases
 
 domain_admin_stats_global_test(Config) ->
-    get_unauthorized(domain_admin_get_stats(Config)).
+    get_unauthorized(get_stats(Config)).
 
 domain_admin_stats_domain_test(Config) ->
     Result = get_ok_value([data, stat, domainStats],
-                          domain_admin_get_domain_stats(domain(), Config)),
+                          get_domain_stats(domain(), Config)),
     #{<<"registeredUsers">> := RegisteredUsers, <<"onlineUsers">> := OnlineUsers} = Result,
     ?assertEqual(0, RegisteredUsers),
     ?assertEqual(0, OnlineUsers).
 
 domain_admin_stats_domain_no_permission_test(Config) ->
-    get_unauthorized(domain_admin_get_domain_stats(secondary_domain(), Config)).
+    get_unauthorized(get_domain_stats(secondary_domain(), Config)).
 
 % Commands
 
 get_stats(Config) ->
     execute_command(<<"stat">>, <<"globalStats">>, #{}, Config).
 
-domain_admin_get_stats(Config) ->
-    execute_domain_admin_command(<<"stat">>, <<"globalStats">>, #{}, Config).
-
 get_domain_stats(Domain, Config) ->
     Vars = #{domain => Domain},
     execute_command(<<"stat">>, <<"domainStats">>, Vars, Config).
-
-domain_admin_get_domain_stats(Domain, Config) ->
-    Vars = #{domain => Domain},
-    execute_domain_admin_command(<<"stat">>, <<"domainStats">>, Vars, Config).
 
 % Helpers
 

@@ -192,7 +192,8 @@ invite_to_room(MUCServer, RoomID, Sender, Recipient) ->
 change_room_config(MUCServer, RoomID, RoomName, User, Subject) ->
     UserJID = jid:from_binary(User),
     RoomJID = jid:make_bare(RoomID, MUCServer),
-    Result = mod_muc_light_api:change_room_config(RoomJID, UserJID, RoomName, Subject),
+    Config = #{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    Result = mod_muc_light_api:change_room_config(RoomJID, UserJID, Config),
     format_result_no_msg(Result).
 
 -spec send_message(jid:server(), jid:user(), jid:literal_jid(), jid:literal_jid()) ->

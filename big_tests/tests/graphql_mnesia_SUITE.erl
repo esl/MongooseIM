@@ -8,8 +8,7 @@
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
-                         get_ok_value/2, get_err_code/1, get_err_value/2,
-                         execute_domain_admin_command/4, get_unauthorized/1]).
+                         get_ok_value/2, get_err_code/1, get_err_value/2, get_unauthorized/1]).
 
 -record(mnesia_table_test, {key :: integer(), name :: binary()}).
 -record(vcard, {us, vcard}).
@@ -236,32 +235,31 @@ set_master_test(Config) ->
 % Domain admin tests
 
 domain_admin_dump_mnesia_table_test(Config) ->
-    get_unauthorized(domain_admin_dump_mnesia_table(<<"File">>, <<"mnesia_table_test">>, Config)).
+    get_unauthorized(dump_mnesia_table(<<"File">>, <<"mnesia_table_test">>, Config)).
 
 domain_admin_dump_mnesia_test(Config) ->
-    get_unauthorized(domain_admin_dump_mnesia(<<"File">>, Config)).
+    get_unauthorized(dump_mnesia(<<"File">>, Config)).
 
 domain_admin_backup_test(Config) ->
-    get_unauthorized(domain_admin_backup_mnesia(<<"Path">>, Config)).
+    get_unauthorized(backup_mnesia(<<"Path">>, Config)).
 
 domain_admin_restore_test(Config) ->
-    get_unauthorized(domain_admin_restore_mnesia(<<"Path">>, Config)).
+    get_unauthorized(restore_mnesia(<<"Path">>, Config)).
 
 domain_admin_load_mnesia_test(Config) ->
-    get_unauthorized(domain_admin_load_mnesia(<<"Path">>, Config)).
+    get_unauthorized(load_mnesia(<<"Path">>, Config)).
 
 domain_admin_change_nodename_test(Config) ->
-    get_unauthorized(domain_admin_change_nodename(<<"From">>, <<"To">>, <<"file1">>,
-                                                  <<"file2">>, Config)).
+    get_unauthorized(change_nodename(<<"From">>, <<"To">>, <<"file1">>, <<"file2">>, Config)).
 
 domain_admin_install_fallback_test(Config) ->
-    get_unauthorized(domain_admin_install_fallback(<<"Path">>, Config)).
+    get_unauthorized(install_fallback(<<"Path">>, Config)).
 
 domain_admin_set_master_test(Config) ->
-    get_unauthorized(domain_admin_set_master(mim(), Config)).
+    get_unauthorized(set_master(mim(), Config)).
 
 domain_admin_get_info_test(Config) ->
-    get_unauthorized(domain_admin_get_info([<<"running_db_nodes">>], Config)).
+    get_unauthorized(get_info([<<"running_db_nodes">>], Config)).
 
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
@@ -352,36 +350,6 @@ change_nodename(ChangeFrom, ChangeTo, Source, Target, Config) ->
 
 set_master(Node, Config) ->
     execute_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
-
-domain_admin_get_info(Keys, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"systemInfo">>, #{keys => Keys}, Config).
-
-domain_admin_install_fallback(Path, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"installFallback">>, #{path => Path}, Config).
-
-domain_admin_dump_mnesia(Path, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"dump">>, #{path => Path}, Config).
-
-domain_admin_backup_mnesia(Path, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"backup">>, #{path => Path}, Config).
-
-domain_admin_restore_mnesia(Path, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"restore">>, #{path => Path}, Config).
-
-domain_admin_dump_mnesia_table(Path, Table, Config) ->
-    Vars = #{path => Path, table => Table},
-    execute_domain_admin_command(<<"mnesia">>, <<"dumpTable">>, Vars, Config).
-
-domain_admin_load_mnesia(Path, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"load">>, #{path => Path}, Config).
-
-domain_admin_change_nodename(ChangeFrom, ChangeTo, Source, Target, Config) ->
-    Vars = #{<<"fromString">> => ChangeFrom, <<"toString">> => ChangeTo,
-             <<"source">> => Source, <<"target">> => Target},
-    execute_domain_admin_command(<<"mnesia">>, <<"changeNodename">>, Vars, Config).
-
-domain_admin_set_master(Node, Config) ->
-    execute_domain_admin_command(<<"mnesia">>, <<"setMaster">>, Node, Config).
 
 mnesia_info_check() ->
     #{<<"access_module">> => check_binary,

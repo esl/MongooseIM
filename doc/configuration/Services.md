@@ -18,14 +18,20 @@ Typical services are already specified in the example configuration file.
 
 ## service_admin_extra
 
+This service provides additional commands to the mongooseimctl script.
+
+!!! Warning
+    This service is deprecated.
+    The commands are still supported, but they **will be removed** soon.
+    You should use the new GraphQL-based command line interface instead.
+
 ### `services.service_admin_extra.submods`
 * **Syntax:** Array of strings representing function groups added by `service_admin_extra`.
 * **Default:** All submodules: `["node", "account", "sessions", "vcard", "gdpr",
  "upload", "roster", "last", "private", "stanza", "stats", "domain"]`
 * **Example:** `submods = ["stats", "gdpr"]`
 
-This service provides additional commands to the mongooseimctl script.
-They are bundled in the following groups:
+The commands are bundled in the following groups:
 
 * `accounts`: Adds `change_password`, `check_password_hash`, `delete_old_users`,
  `delete_old_users_vhost`, `ban_account`, `num_active_users`, `check_account`,

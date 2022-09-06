@@ -7,7 +7,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, execute_domain_auth/2, execute_user/3]).
+-import(graphql_helper, [execute/3, execute_auth/2, execute_user/3]).
 
 -define(assertAdminAuth(Domain, Type, Auth, Data),
         assert_auth(#{<<"domain">> => Domain,
@@ -133,7 +133,7 @@ domain_admin_checks_auth(Config) ->
 auth_domain_admin_checks_auth(Config) ->
     {Username, _} = ?config(domain_admin, Config),
     Domain = escalus_utils:get_server(Username),
-    Res = execute_domain_auth(admin_check_auth_body(), Config),
+    Res = execute_auth(admin_check_auth_body(), Config),
     ?assertAdminAuth(Domain, 'DOMAIN_ADMIN', 'AUTHORIZED', Res).
 
 %% Helpers

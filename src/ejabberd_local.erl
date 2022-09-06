@@ -161,7 +161,8 @@ process_packet(Acc, From, To, El, _Extra) ->
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => routing_error, acc => Acc,
-                         class => Class, reason => Reason, stacktrace => Stacktrace})
+                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+            Acc
     end.
 
 -spec route_iq(From :: jid:jid(),

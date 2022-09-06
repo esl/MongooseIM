@@ -121,15 +121,13 @@ The [AWS region][aws-region] to use for requests.
 
 Since there is no direct connection between MongooseIM and an [S3][s3] bucket,
 it is not possible to verify the provided [S3][s3] credentials during startup.
-However, the testing can be done manually. MongooseIM provides a dedicated
-`mongooseimctl http_upload` command for the manual URLs generation, it accepts
-the following parameters:
+However, the testing can be done manually. MongooseIM provides a dedicated `mongooseimctl httpUpload getUrl` command for the manual URLs generation. It requires the following arguments:
 
-* **Host** - XMPP host name.
-* **FileName** - The name of the file.
-* **FileSize** - The size of the file (positive integer).
-* **ContentType** - [Content-Type][Content-Type], optional parameter. If not provided, must be an empty string `""`.
-* **ExpirationTime** - Duration (in seconds, positive integer) after which the generated `PUT` URL will become invalid. This parameter shadows the **expiration_time** configuration.
+* **domain** - XMPP host name.
+* **filename** - Name of the file.
+* **size** - Size of the file in bytes (positive integer).
+* **contentType** - [Content-Type][Content-Type].
+* **timeout** - Duration (in seconds, positive integer) after which the generated `PUT` URL will become invalid. This argument shadows the **expiration_time** configuration.
 
 The generated URLs can be used to upload/download a file using the `curl` utility:
 
@@ -144,7 +142,7 @@ filesize="$(wc -c tmp.txt | awk '{print $1}')"
 content_type="text/plain"
 
 # Generate upload/download URLs
-urls="$(./mongooseimctl http_upload localhost test.txt "$filesize" "$content_type" 600)"
+urls="$(./mongooseimctl httpUpload getUrl --domain localhost --filename test.txt --size "$filesize" --contentType "$content_type" --timeout 600)"
 put_url="$(echo "$urls" | awk '/PutURL:/ {print $2}')"
 get_url="$(echo "$urls" | awk '/GetURL:/ {print $2}')"
 

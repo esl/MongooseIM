@@ -6,7 +6,6 @@ This is a basic set of administration and client commands.
 Our goal is to provide a consistent, easy to use API for MongooseIM.
 Both backend and client commands provide enough information to allow auto-generating access methods.
 We currently use it in our admin and client REST API interface.
-In the future it may replace the current `mongooseimctl` implementation.
 
 ## Configuration
 

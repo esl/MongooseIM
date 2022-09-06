@@ -100,7 +100,7 @@ We use `id` field to sort records when paginating.
 
 ### Domain removal
 
-You cannot delete domains with unknown host-type. 
+You cannot delete domains with unknown host-type.
 Configure host-type first to delete such domains.
 
 Modules which store data in RDBMS and support dynamic domains will remove **all** persistent data associated with a domain when its removal is requested.
@@ -189,36 +189,28 @@ Result codes:
 
 ## Command Line Interface
 
-Implemented by `service_admin_extra_domain` module.
+Domain management commands are grouped into the `domain` category.
 
-### Configuration example:
-
-```toml
-[services.service_admin_extra]
-  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats", "domain"]
-```
- 
 ### Add domain:
 
 ```
-./mongooseimctl insert_domain domain host_type
+./mongooseimctl domain addDomain --domain example.com --hostType type1
 ```
 
 ### Delete domain:
 
 ```
-./mongooseimctl delete_domain domain host_type
+./mongooseimctl domain removeDomain --domain example.com --hostType type1
 ```
 
 ### Disable domain:
 
 ```
-./mongooseimctl disable_domain domain
+./mongooseimctl domain disableDomain --domain example.com
 ```
 
 ### Enable domain:
 
 ```
-./mongooseimctl enable_domain domain
+./mongooseimctl domain enableDomain --domain example.com
 ```
