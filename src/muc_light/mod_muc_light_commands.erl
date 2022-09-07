@@ -196,7 +196,7 @@ change_room_config(MUCServer, RoomID, RoomName, User, Subject) ->
     Result = mod_muc_light_api:change_room_config(RoomJID, UserJID, Config),
     format_result_no_msg(Result).
 
--spec send_message(jid:server(), jid:user(), jid:literal_jid(), jid:literal_jid()) ->
+-spec send_message(jid:server(), jid:user(), jid:literal_jid(), binary()) ->
     ok | {error, not_found | denied, iolist()}.
 send_message(MUCServer, RoomID, Sender, Message) ->
     SenderJID = jid:from_binary(Sender),
