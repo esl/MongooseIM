@@ -72,14 +72,15 @@ handle_get(Req, State) ->
 handle_post(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),
     Args = parse_body(Req),
-    {UserName, Password} = get_credentials(Args),
+    UserName = get_user_name(Args),
+    Password = get_password(Args),
     case mongoose_account_api:register_user(UserName, Domain, Password) of
         {exists, Reason} ->
             throw_error(denied, Reason);
         {invalid_jid, Reason} ->
             throw_error(bad_request, Reason);
         {cannot_register, Reason} ->
-            throw_error(internal, Reason);
+            throw_error(denied, Reason);
         {ok, Result} ->
             Path = [cowboy_req:uri(Req), "/", UserName],
             resource_created(Req, State, Path, Result)
@@ -116,8 +117,8 @@ handle_delete(Req, State) ->
 get_user_name(#{username := UserName}) -> UserName;
 get_user_name(#{}) -> throw_error(bad_request, <<"Missing user name">>).
 
-get_new_password(#{newpass := Password}) -> Password;
-get_new_password(#{}) -> throw_error(bad_request, <<"Missing password">>).
+get_password(#{password := Password}) -> Password;
+get_password(#{}) -> throw_error(bad_request, <<"Missing password">>).
 
-get_credentials(#{username := UserName, password := Password}) -> {UserName, Password};
-get_credentials(#{}) -> throw_error(bad_request, <<"Missing credentials">>).
+get_new_password(#{newpass := Password}) -> Password;
+get_new_password(#{}) -> throw_error(bad_request, <<"Missing new password">>).
