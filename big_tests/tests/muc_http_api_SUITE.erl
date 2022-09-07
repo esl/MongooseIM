@@ -37,9 +37,8 @@ all() ->
      {group, negative}].
 
 groups() ->
-    G = [{positive, [parallel], success_response() ++ complex()},
-         {negative, [parallel], failure_response()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{positive, [parallel], success_response() ++ complex()},
+     {negative, [parallel], failure_response()}].
 
 success_response() ->
     [
@@ -279,27 +278,24 @@ failed_invites(Config) ->
         Name = set_up_room(Config, Alice),
         BAlice = escalus_client:short_jid(Alice),
         BBob = escalus_client:short_jid(Bob),
-        % non-existing room
+        % Invite to a non-existent room
         {{<<"404">>, _}, <<"Room not found">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
-        % invite with bad jid
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
+        % Invite with a bad jid
+        {{<<"400">>, _}, <<"Invalid recipient JID">>} = send_invite(Name, BAlice, <<"@badjid">>),
+        {{<<"400">>, _}, <<"Invalid sender JID">>} = send_invite(Name, <<"@badjid">>, BBob),
         ok
     end).
 
 failed_messages(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Name = set_up_room(Config, Alice),
-        % non-existing room
+        % Message to a non-existent room succeeds in the current implementation
         BAlice = escalus_client:short_jid(Alice),
-        BBob = escalus_client:short_jid(Bob),
-        {{<<"404">>, _}, <<"Room not found">>} = send_invite(<<"thisroomdoesnotexist">>, BAlice, BBob),
-        % invite with bad jid
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, BAlice, <<"@badjid">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_invite(Name, <<"@badjid">>, BBob),
+        {{<<"204">>, _}, <<>>} = send_message(<<"thisroomdoesnotexist">>, BAlice),
+        % Message from a bad jid
+        {{<<"400">>, _}, <<"Invalid sender JID", _/binary>>} = send_message(Name, <<"@badjid">>),
         ok
     end).
-
 
 %%--------------------------------------------------------------------
 %% Ancillary (adapted from the MUC suite)
@@ -322,6 +318,13 @@ send_invite(RoomName, BinFrom, BinTo) ->
     Body = #{sender => BinFrom,
              recipient => BinTo,
              reason => Reason},
+    rest_helper:post(admin, Path, Body).
+
+send_message(RoomName, BinFrom) ->
+    Path = path([RoomName, "messages"]),
+    Message = <<"Greetings!">>,
+    Body = #{from => BinFrom,
+             body => Message},
     rest_helper:post(admin, Path, Body).
 
 make_distinct_name(Prefix) ->

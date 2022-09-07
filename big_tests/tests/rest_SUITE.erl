@@ -18,7 +18,6 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -38,7 +37,6 @@
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
 -define(NOCONTENT, {<<"204">>, <<"No Content">>}).
--define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_AUTHORIZED, {<<"401">>, _}).
 -define(FORBIDDEN, {<<"403">>, _}).
@@ -48,13 +46,9 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
--define(REGISTRATION_TIMEOUT, 2).  %% seconds
--define(ATOMS, [name, desc, category, action, security_policy, args, result, sender]).
-
 all() ->
     [
      {group, admin},
-     {group, dynamic_module},
      {group, auth},
      {group, blank_auth},
      {group, roster}
@@ -67,8 +61,8 @@ groups() ->
      {roster, [parallel], [list_contacts,
                            befriend_and_alienate,
                            befriend_and_alienate_auto,
-                           invalid_roster_operations]},
-     {dynamic_module, [], [stop_start_command_module]}].
+                           invalid_roster_operations]}
+    ].
 
 auth_test_cases() ->
     [auth_passes_correct_creds,
@@ -78,8 +72,7 @@ blank_auth_testcases() ->
     [auth_always_passes_blank_creds].
 
 test_cases() ->
-    [commands_are_listed,
-     non_existent_command_returns404,
+    [non_existent_command_returns404,
      existent_command_with_missing_arguments_returns404,
      user_can_be_registered_and_removed,
      sessions_are_listed,
@@ -89,8 +82,7 @@ test_cases() ->
      stanzas_are_sent_and_received,
      messages_are_archived,
      messages_can_be_paginated,
-     password_can_be_changed,
-     types_are_checked_separately_for_args_and_return
+     password_can_be_changed
     ].
 
 suite() ->
@@ -125,60 +117,15 @@ end_per_group(auth, _Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
-init_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
-    {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
-    rpc(code, load_binary, [Mod, "mod_commands_test.erl", Code]),
-    Config1 = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(host_type(), [{mod_commands_test, []}]),
-    escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
-end_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
-    dynamic_modules:restore_modules(Config),
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 rpc(M, F, A) ->
     distributed_helper:rpc(distributed_helper:mim(), M, F, A).
-
-custom_module_code() ->
-    "-module(mod_commands_test).
-     -export([start/0, stop/0, start/2, stop/1, test_arg/1, test_return/1, supported_features/0]).
-     start() -> mongoose_commands:register(commands()).
-     stop() -> mongoose_commands:unregister(commands()).
-     start(_,_) -> start().
-     stop(_) -> stop().
-     supported_features() -> [dynamic_domains].
-     commands() ->
-         [
-          [
-           {name, test_arg},
-           {category, <<\"test_arg\">>},
-           {desc, <<\"List test_arg\">>},
-           {module, mod_commands_test},
-           {function, test_arg},
-           {action, create},
-           {args, [{arg, boolean}]},
-           {result, [{msg, binary}]}
-          ],
-          [
-           {name, test_return},
-           {category, <<\"test_return\">>},
-           {desc, <<\"List test_return\">>},
-           {module, mod_commands_test},
-           {function, test_return},
-           {action, create},
-           {args, [{arg, boolean}]},
-           {result, {msg, binary}}
-          ]
-         ].
-     test_arg(_) -> <<\"bleble\">>.
-     test_return(_) -> ok.
-     "
-.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -187,37 +134,19 @@ custom_module_code() ->
 % Authorization
 auth_passes_correct_creds(_Config) ->
     % try to login with the same creds
-    {?OK, _Lcmds} = gett(admin, <<"/commands">>, {<<"ala">>, <<"makota">>}).
+    {?OK, _Users} = gett(admin, path("users", [domain()]), {<<"ala">>, <<"makota">>}).
 
 auth_fails_incorrect_creds(_Config) ->
     % try to login with different creds
-    {?NOT_AUTHORIZED, _} = gett(admin, <<"/commands">>, {<<"ola">>, <<"mapsa">>}).
+    {?NOT_AUTHORIZED, _} = gett(admin, path("users", [domain()]), {<<"ola">>, <<"mapsa">>}).
 
 auth_always_passes_blank_creds(_Config) ->
     % we set control creds for blank
     rest_helper:change_admin_creds(any),
     % try with any auth
-    {?OK, Lcmds} = gett(admin, <<"/commands">>, {<<"aaaa">>, <<"bbbb">>}),
+    {?OK, Users} = gett(admin, path("users", [domain()]), {<<"aaaa">>, <<"bbbb">>}),
     % try with no auth
-    {?OK, Lcmds} = gett(admin, <<"/commands">>).
-
-commands_are_listed(_C) ->
-    {?OK, Lcmds} = gett(admin, <<"/commands">>),
-    DecCmds = decode_maplist(Lcmds),
-    ListCmd = #{action => <<"read">>, method => <<"GET">>, args => #{},
-                category => <<"commands">>,
-                desc => <<"List commands">>,
-                name => <<"list_methods">>,
-                path => <<"/commands">>},
-    %% Check that path and args are listed using a command with args
-    RosterCmd = #{action => <<"read">>, method => <<"GET">>,
-                  args => #{caller => <<"string">>},
-                  category => <<"contacts">>,
-                  desc => <<"Get roster">>,
-                  name => <<"list_contacts">>,
-                  path => <<"/contacts/:caller">>},
-    ?assertEqual([ListCmd], assert_inlist(#{name => <<"list_methods">>}, DecCmds)),
-    ?assertEqual([RosterCmd], assert_inlist(#{name => <<"list_contacts">>}, DecCmds)).
+    {?OK, Users} = gett(admin, path("users", [domain()])).
 
 non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/isitthereornot">>).
@@ -286,8 +215,8 @@ messages_error_handling(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(AliceJID, <<"@noway">>),
-        {{<<"400">>, _}, <<"Invalid jid:", _/binary>>} = send_message_bin(<<"@noway">>, BobJID),
+        {{<<"400">>, _}, <<"Invalid recipient JID">>} = send_message_bin(AliceJID, <<"@noway">>),
+        {{<<"400">>, _}, <<"Invalid sender JID">>} = send_message_bin(<<"@noway">>, BobJID),
         ok
     end).
 
@@ -299,9 +228,9 @@ stanzas_are_sent_and_received(Config) ->
         ?assertEqual(<<"attribute">>, exml_query:attr(Res, <<"extra">>)),
         ?assertEqual(<<"inside the sibling">>, exml_query:path(Res, [{element, <<"sibling">>}, cdata])),
         Res1 = send_flawed_stanza(missing_attribute, Alice, Bob),
-        {?BAD_REQUEST, <<"both from and to are required">>} = Res1,
+        {?BAD_REQUEST, <<"Missing recipient JID">>} = Res1,
         Res2 = send_flawed_stanza(malformed_xml, Alice, Bob),
-        {?BAD_REQUEST, <<"Malformed stanza: \"expected >\"">>} = Res2,
+        {?BAD_REQUEST, <<"Malformed stanza">>} = Res2,
         ok
     end).
 
@@ -537,50 +466,38 @@ invalid_roster_operations(Config) ->
             BobS = binary_to_list(BobJID),
             AlicePath = lists:flatten(["/contacts/", AliceS]),
             % adds them to rosters
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, AlicePath, #{jid => <<"@invalidjid">>}),
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = post(admin, "/contacts/@invalid_jid", #{jid => BobJID}),
+            {?BAD_REQUEST, <<"Invalid JID">>} = post(admin, AlicePath, #{jid => <<"@invalidjid">>}),
+            {?BAD_REQUEST, <<"Invalid user JID">>} = post(admin, "/contacts/@invalid_jid", #{jid => BobJID}),
             % it is idempotent
             {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
             {?NOCONTENT, _} = post(admin, AlicePath, #{jid => BobJID}),
             PutPathA = lists:flatten([AlicePath, "/@invalid_jid"]),
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathA, #{action => <<"subscribe">>}),
+            {?BAD_REQUEST, <<"Invalid contact JID">>} = putt(admin, PutPathA, #{action => <<"subscribe">>}),
             PutPathB = lists:flatten(["/contacts/@invalid_jid/", BobS]),
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
+            {?BAD_REQUEST, <<"Invalid user JID">>} = putt(admin, PutPathB, #{action => <<"subscribe">>}),
             PutPathC = lists:flatten([AlicePath, "/", BobS]),
-            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, PutPathC, #{action => <<"something stupid">>}),
+            {?BAD_REQUEST, <<"Invalid action">>} = putt(admin, PutPathC, #{action => <<"something stupid">>}),
             ManagePath = lists:flatten(["/contacts/",
                                         AliceS,
                                         "/",
                                         BobS,
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"invalid action">>} = putt(admin, ManagePath, #{action => <<"off with his head">>}),
+            {?BAD_REQUEST, <<"Invalid action">>} = putt(admin, ManagePath, #{action => <<"off with his head">>}),
             MangePathA = lists:flatten(["/contacts/",
                                         "@invalid",
                                         "/",
                                         BobS,
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathA, #{action => <<"connect">>}),
+            {?BAD_REQUEST, <<"Invalid user JID">>} = putt(admin, MangePathA, #{action => <<"connect">>}),
             MangePathB = lists:flatten(["/contacts/",
                                         AliceS,
                                         "/",
                                         "@bzzz",
                                         "/manage"
                                        ]),
-            {?BAD_REQUEST, <<"Invalid jid", _/binary>>} = putt(admin, MangePathB, #{action => <<"connect">>}),
-            ok
-        end
-    ).
-
-types_are_checked_separately_for_args_and_return(Config) ->
-    escalus:story(
-        Config, [{alice, 1}],
-        fun(_Alice) ->
-            % argument doesn't pass typecheck
-            {?BAD_REQUEST, _} = post(admin, "/test_arg", #{arg => 1}),
-            % return value doesn't pass typecheck
-            {?ERROR, _} = post(admin, "/test_return", #{arg => true}),
+            {?BAD_REQUEST, <<"Invalid contact JID">>} = putt(admin, MangePathB, #{action => <<"connect">>}),
             ok
         end
     ).
@@ -664,20 +581,6 @@ get_messages(Me, Other, Before, Count) ->
                              "&limit=", integer_to_list(Count)]),
     {?OK, Msgs} = gett(admin, GetPath),
     Msgs.
-
-stop_start_command_module(_) ->
-    %% Precondition: module responsible for resource is started. If we
-    %% stop the module responsible for this resource then the same
-    %% test will fail. If we start the module responsible for this
-    %% resource then the same test will succeed. With the precondition
-    %% described above we test both transition from `started' to
-    %% `stopped' and from `stopped' to `started'.
-    {?OK, _} = gett(admin, <<"/commands">>),
-    {stopped, _} = dynamic_modules:stop(host_type(), mod_commands),
-    {?NOT_FOUND, _} = gett(admin, <<"/commands">>),
-    {started, _} = dynamic_modules:start(host_type(), mod_commands, []),
-    timer:sleep(200), %% give the server some time to build the paths again
-    {?OK, _} = gett(admin, <<"/commands">>).
 
 to_list(V) when is_binary(V) ->
     binary_to_list(V);
