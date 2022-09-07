@@ -168,7 +168,7 @@ commands() ->
      #ejabberd_commands{name = remove_from_cluster, tags = [server],
                         desc = "Remove dead node from the cluster. Call it from the member of the cluster.
                                 Use `-f` or `--force` flag to avoid question prompt and force remove the node",
-                        module = ?MODULE, function = remove_from_cluster,
+                        module = server_api, function = remove_from_cluster,
                         args = [{node, string}],
                         result = {res, restuple}}
     ].

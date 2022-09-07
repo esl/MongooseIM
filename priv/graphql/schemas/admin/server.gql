@@ -13,11 +13,12 @@ type ServerAdminQuery @protected{
 type ServerAdminMutation @protected{
   joinCluster(node: String!): String
   leaveCluster: String
-  removeFromCluster: String
+  removeFromCluster(node: String): String
   restart: String
   stop: String
-  setLoglevel: String
+
   removeNode: String
+  setLoglevel: String
 }
 
 type Status {

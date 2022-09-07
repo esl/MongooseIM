@@ -395,7 +395,7 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
-    distributed_helper:stop_node(Node3, Config),
+    distributed_helper:stop_node(Node3Nodename, Config),
     {_, OpCode1} = mongooseimctl_interactive(Node1, "remove_from_cluster",
                                              [atom_to_list(Node3Nodename)], "yes\n", Config),
     %% then
@@ -405,7 +405,7 @@ remove_dead_from_cluster(Config) ->
     have_node_in_mnesia(Node1, Node3, false),
     have_node_in_mnesia(Node2, Node3, false),
     % after node awakening nodes are clustered again
-    distributed_helper:start_node(Node3, Config),
+    distributed_helper:start_node(Node3Nodename, Config),
     have_node_in_mnesia(Node1, Node3, true),
     have_node_in_mnesia(Node2, Node3, true).
 

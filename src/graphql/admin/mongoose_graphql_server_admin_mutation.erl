@@ -19,6 +19,13 @@ execute(_Ctx, server, <<"joinCluster">>, #{<<"node">> := Node}) ->
         {_, String} ->
             {ok, String}
     end;
+execute(_Ctx, server, <<"removeFromCluster">>, #{<<"node">> := Node}) ->
+    case server_api:remove_from_cluster(binary_to_list(Node)) of
+        {ok, _} = Result ->
+            Result;
+        Error ->
+            make_error(Error, #{node => Node})
+    end;
 execute(_Ctx, server, <<"leaveCluster">>, #{}) ->
     case server_api:leave_cluster() of
         {error, _} = Error ->
@@ -27,4 +34,10 @@ execute(_Ctx, server, <<"leaveCluster">>, #{}) ->
             make_error({not_in_cluster_error, String}, #{});
         {_, String} ->
             {ok, String}
-    end.
+    end;
+execute(_Ctx, server, <<"stop">>, #{}) ->
+    spawn(server_api, stop, []),
+    {ok, "Stop scheduled"};
+execute(_Ctx, server, <<"restart">>, #{}) ->
+    spawn(server_api, restart, []),
+    {ok, "Restart scheduled"}.

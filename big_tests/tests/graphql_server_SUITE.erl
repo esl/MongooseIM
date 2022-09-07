@@ -4,10 +4,11 @@
 
 -import(distributed_helper, [is_sm_distributed/0,
                              mim/0, mim2/0, mim3/0,
-                             require_rpc_nodes/1]).
+                             remove_node_from_cluster/2,
+                             require_rpc_nodes/1, rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2,
-                         get_err_msg/1, get_err_code/1]).
+                         get_err_msg/1, get_err_code/1, execute_command/5]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -15,18 +16,18 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, admin_cli},
-     {group, admin_http}].
+    [{group, admin_http},
+     {group, admin_cli}].
 
 groups() ->
     [{admin_http, [], admin_groups()},
      {admin_cli, [], admin_groups()},
      {server_tests, [], admin_tests()},
-     {clustering_two_tests, [], clustering_tests()}].
+     {clustering_tests, [], clustering_tests()}].
 
 admin_groups() ->
     [{group, server_tests},
-     {group, clustering_two_tests}].
+     {group, clustering_tests}].
 
 admin_tests() ->
     [get_cookie_test,
@@ -38,7 +39,10 @@ clustering_tests() ->
      leave_successful,
      join_unsuccessful,
      leave_but_no_cluster,
-     join_twice].
+     join_twice,
+     remove_dead_from_cluster,
+     remove_alive_from_cluster,
+     stop_node_test].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
@@ -54,7 +58,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite([{ctl_path_atom(Node1), NodeCtlPath},
                             {ctl_path_atom(Node2), Node2CtlPath},
                             {ctl_path_atom(Node3), Node3CtlPath}]
-                           ++ Config3).
+                           ++ Config4).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
@@ -68,7 +72,7 @@ init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
-init_per_group(clustering_two_tests, Config) ->
+init_per_group(clustering_tests, Config) ->
     case is_sm_distributed() of
         true ->
             Config;
@@ -84,6 +88,25 @@ end_per_group(Group, _Config) when Group =:= admin_http;
     graphql_helper:clean();
 end_per_group(_, _Config) ->
     escalus_fresh:clean().
+
+init_per_testcase(CaseName, Config) ->
+    escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName, Config) when CaseName == join_successful
+                                   orelse CaseName == leave_unsuccessful
+                                   orelse CaseName == join_twice ->
+    Node2 = mim2(),
+    remove_node_from_cluster(Node2, Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
+                                   orelse CaseName == remove_dead_from_cluster->
+    Node3 = mim3(),
+    Node2 = mim2(),
+    remove_node_from_cluster(Node3, Config),
+    remove_node_from_cluster(Node2, Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(CaseName, Config) ->
+    escalus:end_per_testcase(CaseName, Config).
 
 get_cookie_test(Config) ->
     Result = get_ok_value([data, server, getCookie], get_cookie(Config)),
@@ -101,13 +124,13 @@ get_status_test(Config) ->
 join_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     leave_cluster(Config),
-    join_cluster(atom_to_binary(Node2), Config),
+    get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
     distributed_helper:verify_result(RPCSpec2, add).
 
 leave_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     join_cluster(atom_to_binary(Node2), Config),
-    leave_cluster(Config),
+    get_ok_value([], leave_cluster(Config)),
     distributed_helper:verify_result(RPCSpec2, remove).
 
 join_unsuccessful(Config) ->
@@ -117,14 +140,69 @@ join_unsuccessful(Config) ->
 
 leave_but_no_cluster(Config) ->
     Node2 = mim2(),
-    leave_cluster(Config),
+    get_err_code(leave_cluster(Config)),
     distributed_helper:verify_result(Node2, remove).
 
 join_twice(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
-    join_cluster(atom_to_binary(Node2), Config),
-    join_cluster(atom_to_binary(Node2), Config),
+    get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
+    get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
     distributed_helper:verify_result(RPCSpec2, add).
+
+remove_dead_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    #{node := Node1Nodename} = Node1 = mim(),
+    #{node := _Node2Nodename} = Node2 = mim2(),
+    #{node := Node3Nodename} = Node3 = mim3(),
+    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
+    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
+    %% when
+    distributed_helper:stop_node(Node3Nodename, Config),
+    get_ok_value([data, server, removeFromCluster],
+                  remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
+    %% then
+    % node is down hence its not in mnesia cluster
+    have_node_in_mnesia(Node1, Node2, true),
+    have_node_in_mnesia(Node1, Node3, false),
+    have_node_in_mnesia(Node2, Node3, false),
+    % after node awakening nodes are clustered again
+    distributed_helper:start_node(Node3Nodename, Config),
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node2, Node3, true).
+
+remove_alive_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    #{node := Node1Name} = Node1 = mim(),
+    #{node := Node2Name} = Node2 = mim2(),
+    Node3 = mim3(),
+    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
+    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
+    %% when
+    %% Node2 is still running
+    %% then
+    get_ok_value([], remove_from_cluster(atom_to_binary(Node2Name), Config)),
+    % node is down hence its not in mnesia cluster
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node1, Node2, false),
+    have_node_in_mnesia(Node3, Node2, false).
+
+stop_node_test(Config) ->
+    #{node := Node1Name} = mim(),
+    #{node := Node3Nodename} = Node3 = mim3(),
+    get_ok_value([data, server, stop], stop_node(Node3Nodename, Config)),
+    Timeout = timer:seconds(3),
+    {badrpc, nodedown} = rpc:call(Node3Nodename, mongoose_cluster, join, [Node1Name], Timeout),
+    distributed_helper:start_node(Node3Nodename, Config).
+
+%-----------------------------------------------------------------------
+%                                Helpers
+%-----------------------------------------------------------------------
+
+have_node_in_mnesia(Node1, #{node := Node2}, ShouldBe) ->
+    DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
+    ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
 
 get_cookie(Config) ->
     execute_command(<<"server">>, <<"getCookie">>, #{}, Config).
@@ -140,3 +218,12 @@ join_cluster(Node, Config) ->
 
 leave_cluster(Config) ->
     execute_command(<<"server">>, <<"leaveCluster">>, #{}, Config).
+
+remove_from_cluster(Node, Config) ->
+    execute_command(<<"server">>, <<"removeFromCluster">>, #{<<"node">> => Node}, Config).
+
+stop_node(Node, Config) ->
+    execute_command(Node, <<"server">>, <<"stop">>, #{}, Config).
+
+restart_node(Node, Config) ->
+    execute_command(Node, <<"server">>, <<"restart">>, #{}, Config).
