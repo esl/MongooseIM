@@ -51,6 +51,7 @@ dirty_sync_never_returns_if_remote_node_restarts(Config) ->
     [] = rpc:call(Node2, ets, tab2list, [tab]),
     %% Don't allow the process to read db_nodes list yet
     true = rpc:block_call(Node1, erlang, suspend_process, [Inserter]),
+    {reductions, Reds} = rpc:call(Node1, erlang, process_info, [Inserter, reductions]),
 
     %% Simulate the node crash
     rpc:call(Node2, erlang, exit, [TM2, kill]),
@@ -69,8 +70,10 @@ dirty_sync_never_returns_if_remote_node_restarts(Config) ->
 
     %% Enough time for inserter to exit
     timer:sleep(1000),
-    {current_stacktrace, Trace} = rpc:call(Node1, erlang, process_info, [Inserter, current_stacktrace]),
-    ct:pal("Process ~p is still running, but should not ~p", [Inserter, Trace]).
+    [_|_] = LastInfo = rpc:call(Node1, erlang, process_info, [Inserter, [current_stacktrace, reductions]]),
+    %% The process is doing something, but not what it has to do - to exit.
+    true = proplists:get_value(reductions, LastInfo) > Reds,
+    ct:pal("Process ~p is still running, but should not ~p ~p", [Inserter, Reds, LastInfo]).
 
 
 %% Helpers
