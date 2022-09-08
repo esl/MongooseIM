@@ -123,7 +123,9 @@ groups() ->
       [
        timeout_cleaner_flush_all,
        rest_api_bin_flush_all,
+       rest_api_bin_flush_all_errors,
        rest_api_bin_flush_user,
+       rest_api_bin_flush_user_errors,
        xmpp_bin_flush,
        bin_is_not_included_by_default
       ]},
@@ -1325,6 +1327,19 @@ rest_api_bin_flush_user(Config) ->
         check_inbox(Bob, [], #{box => bin})
     end).
 
+rest_api_bin_flush_user_errors(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    User = escalus_users:get_username(Config1, alice),
+    Domain = escalus_users:get_server(Config1, alice),
+    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
+        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/", User/binary, "/x/bin">>),
+    {{<<"400">>, <<"Bad Request">>}, <<"Invalid JID">>} =
+        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/@/0/bin">>),
+    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
+        rest_helper:delete(admin, <<"/inbox/baddomain/", User/binary, "/0/bin">>),
+    {{<<"404">>, <<"Not Found">>}, <<"User baduser@", _/binary>>} =
+        rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/baduser/0/bin">>).
+
 rest_api_bin_flush_all(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
@@ -1336,6 +1351,13 @@ rest_api_bin_flush_all(Config) ->
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
     end).
+
+rest_api_bin_flush_all_errors(_Config) ->
+    HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
+    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
+        rest_helper:delete(admin, <<"/inbox/", HostTypePath/binary, "/x/bin">>),
+    {{<<"404">>, <<"Not Found">>}, <<"Host type not found">>} =
+        rest_helper:delete(admin, <<"/inbox/bad_host_type/0/bin">>).
 
 timeout_cleaner_flush_all(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
