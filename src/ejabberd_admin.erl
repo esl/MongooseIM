@@ -69,7 +69,7 @@ commands() ->
      %% They are defined here so that other interfaces can use them too
      #ejabberd_commands{name = status, tags = [server],
                         desc = "Get status of the ejabberd server",
-                        module = server_api, function = status,
+                        module = mongoose_server_api, function = status,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = restart, tags = [server],
                         desc = "Restart ejabberd gracefully",
@@ -77,7 +77,7 @@ commands() ->
                         args = [], result = {res, rescode}},
      #ejabberd_commands{name = get_loglevel, tags = [logs, server],
                         desc = "Get the current loglevel",
-                        module = server_api, function = get_loglevel,
+                        module = mongoose_server_api, function = get_loglevel,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
@@ -156,19 +156,19 @@ commands() ->
      #ejabberd_commands{name = join_cluster, tags = [server],
                         desc = "Join the node to a cluster. Call it from the joining node.
                                 Use `-f` or `--force` flag to avoid question prompt and force join the node",
-                        module = server_api, function = join_cluster,
+                        module = mongoose_server_api, function = join_cluster,
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
                         desc = "Leave a cluster. Call it from the node that is going to leave.
                                 Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
-                        module = server_api, function = leave_cluster,
+                        module = mongoose_server_api, function = leave_cluster,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = remove_from_cluster, tags = [server],
                         desc = "Remove dead node from the cluster. Call it from the member of the cluster.
                                 Use `-f` or `--force` flag to avoid question prompt and force remove the node",
-                        module = server_api, function = remove_from_cluster,
+                        module = mongoose_server_api, function = remove_from_cluster,
                         args = [{node, string}],
                         result = {res, restuple}}
     ].

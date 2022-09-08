@@ -8,6 +8,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
+-spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
+    {Status :: tuple(), Data :: map()}.
+execute(EpName, Body, Creds) ->
+    #{node := Node} = mim(),
+    execute(Node, EpName, Body, Creds).
+
 -spec execute(node(), atom(), binary(), {binary(), binary()} | undefined) ->
     {Status :: tuple(), Data :: map()}.
 execute(Node, EpName, Body, Creds) ->
@@ -79,6 +85,11 @@ execute_user(Body, User, Config) ->
     Creds = make_creds(User),
     #{node := Node} = mim(),
     execute(Node, Ep, Body, Creds).
+
+-spec get_listener_port(binary()) -> integer().
+get_listener_port(EpName) ->
+    #{node := Node} = mim(),
+    get_listener_port(Node, EpName).
 
 -spec get_listener_port(node(), binary()) -> integer().
 get_listener_port(Node, EpName) ->

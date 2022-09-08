@@ -26,12 +26,9 @@
 -module(service_admin_extra_node).
 -author('badlop@process-one.net').
 
--export([commands/0,
-         remove_node/1]).
+-export([commands/0]).
 
--ignore_xref([
-    commands/0, load_config/1, get_cookie/0, remove_node/1
-]).
+-ignore_xref([commands/0, load_config/1]).
 
 -include("ejabberd_commands.hrl").
 
@@ -44,24 +41,12 @@ commands() ->
     [
         #ejabberd_commands{name = get_cookie, tags = [erlang],
                            desc = "Get the Erlang cookie of this node",
-                           module = server_api, function = get_cookie,
+                           module = mongoose_server_api, function = get_cookie,
                            args = [],
                            result = {cookie, string}},
         #ejabberd_commands{name = remove_node, tags = [erlang],
                            desc = "Remove a MongooseIM node from Mnesia clustering config",
-                           module = ?MODULE, function = remove_node,
+                           module = mongoose_server_api, function = remove_node,
                            args = [{node, string}],
                            result = {res, rescode}}
         ].
-
-
-%%%
-%%% Node
-%%%
-
-
--spec remove_node(string()) -> 'ok'.
-remove_node(Node) ->
-    mnesia:del_table_copy(schema, list_to_atom(Node)),
-    ok.
-

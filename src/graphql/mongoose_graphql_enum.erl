@@ -33,6 +33,7 @@ input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
 input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner};
 input(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
 input(<<"TelephoneTags">>, Name) -> {ok, Name};
+input(<<"LogLevel">>, Name) -> {ok, list_to_atom(string:to_lower(binary_to_list(Name)))};
 input(<<"MetricType">>, Name) -> {ok, Name}.
 
 output(<<"PresenceShow">>, Show) ->
@@ -68,6 +69,7 @@ output(<<"MUCAffiliation">>, Aff) ->
 output(<<"AddressTags">>, Name) -> {ok, Name};
 output(<<"EmailTags">>, Name) -> {ok, Name};
 output(<<"PrivacyClassificationTags">>, Name) -> {ok, Name};
+output(<<"LogLevel">>, Name) -> {ok, list_to_binary(string:to_upper(atom_to_list(Name)))};
 output(<<"TelephoneTags">>, Name) -> {ok, Name};
 output(<<"MetricType">>, Type) -> {ok, Type};
 output(<<"StatusCode">>, Code) -> {ok, Code}.

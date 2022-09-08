@@ -8,13 +8,13 @@
 -include("../mongoose_graphql_types.hrl").
 
 execute(_Ctx, server, <<"status">>, _) ->
-    case server_api:status() of
+    case mongoose_server_api:status() of
         {ok, String} ->
             {ok, #{<<"statusCode">> => <<"RUNNING">>, <<"message">> => String}};
         {_, String} ->
             {ok, #{<<"statusCode">> => <<"NOT_RUNNING">>, <<"message">> => String}}
     end;
 execute(_Ctx, server, <<"getLoglevel">>, _) ->
-    server_api:get_loglevel();
+    mongoose_server_api:graphql_get_loglevel();
 execute(_Ctx, server, <<"getCookie">>, _) ->
-    {ok, server_api:get_cookie()}.
+    {ok, mongoose_server_api:get_cookie()}.

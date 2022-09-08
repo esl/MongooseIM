@@ -16,7 +16,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, admin_http},
+    [%{group, admin_http},
      {group, admin_cli}].
 
 groups() ->
@@ -31,7 +31,7 @@ admin_groups() ->
 
 admin_tests() ->
     [get_cookie_test,
-     get_loglevel_test,
+     set_and_get_loglevel_test,
      get_status_test].
 
 clustering_tests() ->
@@ -42,6 +42,7 @@ clustering_tests() ->
      join_twice,
      remove_dead_from_cluster,
      remove_alive_from_cluster,
+     remove_node_test,
      stop_node_test].
 
 init_per_suite(Config) ->
@@ -99,7 +100,7 @@ end_per_testcase(CaseName, Config) when CaseName == join_successful
     remove_node_from_cluster(Node2, Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
-                                   orelse CaseName == remove_dead_from_cluster->
+                                   orelse CaseName == remove_dead_from_cluster ->
     Node3 = mim3(),
     Node2 = mim2(),
     remove_node_from_cluster(Node3, Config),
@@ -112,9 +113,24 @@ get_cookie_test(Config) ->
     Result = get_ok_value([data, server, getCookie], get_cookie(Config)),
     ?assert(is_binary(Result)).
 
-get_loglevel_test(Config) ->
-    Result = get_ok_value([data, server, getLoglevel], get_loglevel(Config)),
-    ?assert(is_binary(Result)).
+set_and_get_loglevel_test(Config) ->
+    LogLevels = [<<"NONE">>,
+                 <<"EMERGENCY">>,
+                 <<"ALERT">>,
+                 <<"CRITICAL">>,
+                 <<"ERROR">>,
+                 <<"WARNING">>,
+                 <<"NOTICE">>,
+                 <<"INFO">>,
+                 <<"DEBUG">>,
+                 <<"ALL">>],
+    lists:foreach(fun(LogLevel) ->
+        Value = get_ok_value([data, server, setLoglevel], set_loglevel(LogLevel, Config)),
+        ?assertEqual(<<"Log level successfully set">>, Value),
+        Value1 = get_ok_value([data, server, getLoglevel], get_loglevel(Config)),
+        ?assertEqual(LogLevel, Value1)
+    end, LogLevels),
+    ?assertEqual(<<"unknown_enum">>, get_err_code(set_loglevel(<<"AAAA">>, Config))).
 
 get_status_test(Config) ->
     Result = get_ok_value([data, server, status], get_status(Config)),
@@ -168,6 +184,7 @@ remove_dead_from_cluster(Config) ->
     have_node_in_mnesia(Node2, Node3, false),
     % after node awakening nodes are clustered again
     distributed_helper:start_node(Node3Nodename, Config),
+    timer:sleep(1000),
     have_node_in_mnesia(Node1, Node3, true),
     have_node_in_mnesia(Node2, Node3, true).
 
@@ -183,15 +200,20 @@ remove_alive_from_cluster(Config) ->
     %% Node2 is still running
     %% then
     get_ok_value([], remove_from_cluster(atom_to_binary(Node2Name), Config)),
-    % node is down hence its not in mnesia cluster
     have_node_in_mnesia(Node1, Node3, true),
     have_node_in_mnesia(Node1, Node2, false),
     have_node_in_mnesia(Node3, Node2, false).
 
+remove_node_test(Config) ->
+    #{node := NodeName} = mim3(),
+    Value = get_ok_value([data, server, removeNode], remove_node(NodeName, Config)),
+    ?assertEqual(<<"Node deleted">>, Value).
+
 stop_node_test(Config) ->
     #{node := Node1Name} = mim(),
-    #{node := Node3Nodename} = Node3 = mim3(),
+    #{node := Node3Nodename} = mim3(),
     get_ok_value([data, server, stop], stop_node(Node3Nodename, Config)),
+    timer:sleep(1000),
     Timeout = timer:seconds(3),
     {badrpc, nodedown} = rpc:call(Node3Nodename, mongoose_cluster, join, [Node1Name], Timeout),
     distributed_helper:start_node(Node3Nodename, Config).
@@ -210,6 +232,9 @@ get_cookie(Config) ->
 get_loglevel(Config) ->
     execute_command(<<"server">>, <<"getLoglevel">>, #{}, Config).
 
+set_loglevel(LogLevel, Config) ->
+    execute_command(<<"server">>, <<"setLoglevel">>, #{<<"level">> => LogLevel}, Config).
+
 get_status(Config) ->
     execute_command(<<"server">>, <<"status">>, #{}, Config).
 
@@ -225,5 +250,5 @@ remove_from_cluster(Node, Config) ->
 stop_node(Node, Config) ->
     execute_command(Node, <<"server">>, <<"stop">>, #{}, Config).
 
-restart_node(Node, Config) ->
-    execute_command(Node, <<"server">>, <<"restart">>, #{}, Config).
+remove_node(Node, Config) ->
+    execute_command(Node, <<"server">>, <<"removeNode">>, #{<<"node">> => Node}, Config).

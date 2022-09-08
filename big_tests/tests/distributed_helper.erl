@@ -168,8 +168,6 @@ get_or_fail(Key) ->
 
 start_node(Node, Config) ->
     {_, 0} = mongooseimctl_helper:mongooseimctl(Node, "start", [], Config),
-    %{_, 0} = mongooseimctl_helper:mongooseimctl(Node, "started", [], Config),
-    %% TODO Looks like "started" run by mongooseimctl fun is not really synchronous
     timer:sleep(3000).
 
 stop_node(Node, Config) ->

@@ -1,14 +1,32 @@
--module(server_api).
+-module(mongoose_server_api).
 
 -export([get_loglevel/0, status/0, get_cookie/0, join_cluster/1, leave_cluster/0,
-         remove_from_cluster/1, stop/0, restart/0]).
+         remove_from_cluster/1, stop/0, restart/0, remove_node/1, set_loglevel/1,
+         graphql_get_loglevel/0]).
 
--spec get_loglevel() -> {ok, string()}.
+-ignore_xref([get_loglevel/0]).
+
+-spec get_loglevel() -> {ok, iodata()}.
 get_loglevel() ->
     Level = mongoose_logs:get_global_loglevel(),
     Number = mongoose_logs:loglevel_keyword_to_number(Level),
     String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
     {ok, String}.
+
+-spec graphql_get_loglevel() -> {ok, mongoose_logs:atom_log_level()}.
+graphql_get_loglevel() ->
+    {ok, mongoose_logs:get_global_loglevel()}.
+
+
+-spec set_loglevel(mongoose_logs:atom_log_level()) ->
+    {ok, iodata()} | {invalid_level, iodata()}.
+set_loglevel(Level) ->
+    case mongoose_logs:set_global_loglevel(Level) of
+        ok ->
+            {ok, "Log level successfully set"};
+        {error, _} ->
+            {invalid_level, io_lib:format("Log level ~p does not exist", [Level])}
+    end.
 
 -spec status() -> {'mongooseim_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
 status() ->
@@ -27,7 +45,7 @@ get_cookie() ->
     atom_to_list(erlang:get_cookie()).
 
 -spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {already_joined, string()} |
-                                {mnesia_error, string()} | {error, string()}.
+                                {mnesia_error, string()} | {error, any()}.
 join_cluster(NodeString) ->
     NodeAtom = list_to_atom(NodeString),
     NodeList = mnesia:system_info(db_nodes),
@@ -96,7 +114,8 @@ remove_from_cluster(NodeString) ->
 remove_dead_node(DeadNode) ->
     try mongoose_cluster:remove_from_cluster(DeadNode) of
         ok ->
-            String = io_lib:format("The dead node ~p has been removed from the cluster~n", [DeadNode]),
+            String =
+                io_lib:format("The dead node ~p has been removed from the cluster~n", [DeadNode]),
             {ok, String}
     catch
         error:{node_is_alive, DeadNode} ->
@@ -110,7 +129,8 @@ remove_dead_node(DeadNode) ->
 remove_rpc_alive_node(AliveNode) ->
     case rpc:call(AliveNode, mongoose_cluster, leave, []) of
         {badrpc, Reason} ->
-            String = io_lib:format("Cannot remove the node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
+            String =
+                io_lib:format("Cannot remove the node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
             {rpc_error, String};
         ok ->
             String = io_lib:format("The node ~p has been removed from the cluster~n", [AliveNode]),
@@ -120,10 +140,17 @@ remove_rpc_alive_node(AliveNode) ->
             {rpc_error, String}
     end.
 
+-spec stop() -> ok.
 stop() ->
     timer:sleep(500),
     init:stop().
 
+-spec restart() -> ok.
 restart() ->
     timer:sleep(500),
     init:restart().
+
+-spec remove_node(string()) -> {ok, string()}.
+remove_node(Node) ->
+    mnesia:del_table_copy(schema, list_to_atom(Node)),
+    {ok, "Node deleted"}.
