@@ -8,8 +8,8 @@
 
 % API
 -export([start_pool/3, stop_pool/2]).
--export([put_task/3, put_task/4]).
--ignore_xref([put_task/3]).
+-export([put_task/3, put_task/4, broadcast/3, broadcast_task/4]).
+-ignore_xref([put_task/3, broadcast/3, broadcast_task/4]).
 -export([sync/2]).
 
 -type task() :: term().
@@ -54,6 +54,16 @@ put_task(HostType, PoolId, Task) ->
 put_task(HostType, PoolId, Key, Task) ->
     PoolName = pool_name(HostType, PoolId),
     wpool:cast(PoolName, {task, Key, Task}, {hash_worker, Key}).
+
+-spec broadcast(mongooseim:host_type(), pool_id(), term()) -> ok.
+broadcast(HostType, PoolId, Task) ->
+    PoolName = pool_name(HostType, PoolId),
+    wpool:broadcast(PoolName, {broadcast, Task}).
+
+-spec broadcast_task(mongooseim:host_type(), pool_id(), term(), term()) -> ok.
+broadcast_task(HostType, PoolId, Key, Task) ->
+    PoolName = pool_name(HostType, PoolId),
+    wpool:broadcast(PoolName, {task, Key, Task}).
 
 %%% API functions
 -spec start_pool(mongooseim:host_type(), pool_id(), pool_opts()) ->
