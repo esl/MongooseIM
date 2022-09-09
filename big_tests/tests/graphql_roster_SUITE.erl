@@ -64,10 +64,33 @@ admin_roster_tests() ->
     ].
 
 domain_admin_tests() ->
-    [domain_admin_subscribe_to_all_no_permission,
+    [admin_add_and_delete_contact,
+     admin_try_add_nonexistent_contact,
+     admin_try_add_contact_to_nonexistent_user,
+     domain_admin_try_add_contact_with_unknown_domain,
+     domain_admin_try_add_contact_no_permission,
+     admin_add_contacts,
+     admin_try_delete_nonexistent_contact,
+     domain_admin_try_delete_contact_with_unknown_domain,
+     domain_admin_try_delete_contact_no_permission,
+     admin_set_mutual_subscription,
+     domain_admin_set_mutual_subscription_try_connect_nonexistent_users,
+     domain_admin_set_mutual_subscription_try_connect_users_no_permission,
+     domain_admin_set_mutual_subscription_try_disconnect_nonexistent_users,
+     domain_admin_set_mutual_subscription_try_disconnect_users_no_permission,
+     domain_admin_subscribe_to_all_no_permission,
      admin_subscribe_to_all,
+     domain_admin_subscribe_to_all_with_wrong_user,
      domain_admin_subscribe_all_to_all_no_permission,
-     admin_subscribe_all_to_all].
+     admin_subscribe_all_to_all,
+     domain_admin_subscribe_all_to_all_with_wrong_user,
+     admin_list_contacts,
+     domain_admin_list_contacts_wrong_user,
+     domain_admin_list_contacts_no_permission,
+     admin_get_contact,
+     domain_admin_get_contact_wrong_user,
+     domain_admin_get_contacts_no_permission
+    ].
 
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
@@ -498,6 +521,61 @@ user_get_nonexistent_contact_story(Config, Alice) ->
 
 % Domain admin test cases
 
+domain_admin_try_add_contact_with_unknown_domain(Config) ->
+    User = ?NONEXISTENT_DOMAIN_USER,
+    Contact = ?NONEXISTENT_USER2,
+    Res = admin_add_contact(User, Contact, Config),
+    get_unauthorized(Res).
+
+domain_admin_try_add_contact_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_try_add_contact_no_permission_story/3).
+
+domain_admin_try_add_contact_no_permission_story(Config, Alice, Bob) ->
+    Res = admin_add_contact(Alice, Bob, Config),
+    get_unauthorized(Res).
+
+domain_admin_try_delete_contact_with_unknown_domain(Config) ->
+    User = ?NONEXISTENT_DOMAIN_USER,
+    Res = admin_delete_contact(User, User, Config),
+    get_unauthorized(Res).
+
+domain_admin_try_delete_contact_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_try_delete_contact_no_permission_story/3).
+
+domain_admin_try_delete_contact_no_permission_story(Config, Alice, Bob) ->
+    Res = admin_delete_contact(Alice, Bob, Config),
+    get_unauthorized(Res).
+
+domain_admin_set_mutual_subscription_try_connect_nonexistent_users(Config) ->
+    Alice = ?NONEXISTENT_DOMAIN_USER,
+    Bob = ?NONEXISTENT_USER,
+    Res = admin_mutual_subscription(Alice, Bob, <<"CONNECT">>, Config),
+    get_unauthorized(Res).
+
+domain_admin_set_mutual_subscription_try_connect_users_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+        fun domain_admin_set_mutual_subscription_try_connect_users_no_permission_story/3).
+
+domain_admin_set_mutual_subscription_try_connect_users_no_permission_story(Config, Alice, Bob) ->
+    Res = admin_mutual_subscription(Alice, Bob, <<"CONNECT">>, Config),
+    get_unauthorized(Res).
+
+domain_admin_set_mutual_subscription_try_disconnect_nonexistent_users(Config) ->
+    Alice = ?NONEXISTENT_DOMAIN_USER,
+    Bob = ?NONEXISTENT_USER,
+    Res = admin_mutual_subscription(Alice, Bob, <<"DISCONNECT">>, Config),
+    get_unauthorized(Res).
+
+domain_admin_set_mutual_subscription_try_disconnect_users_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+        fun domain_admin_set_mutual_subscription_try_disconnect_users_no_permission_story/3).
+
+domain_admin_set_mutual_subscription_try_disconnect_users_no_permission_story(Config, Alice, Bob) ->
+    Res = admin_mutual_subscription(Alice, Bob, <<"DISCONNECT">>, Config),
+    get_unauthorized(Res).
+
 domain_admin_subscribe_to_all_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
                                     fun domain_admin_subscribe_to_all_no_permission/2).
@@ -511,6 +589,59 @@ domain_admin_subscribe_all_to_all_no_permission(Config) ->
 
 domain_admin_subscribe_all_to_all_no_permission(Config, Alice, Bob, Kate) ->
     Res = admin_subscribe_all_to_all([Alice, Bob, Kate], Config),
+    get_unauthorized(Res).
+
+domain_admin_subscribe_all_to_all_with_wrong_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun domain_admin_subscribe_all_to_all_with_wrong_user_story/3).
+
+domain_admin_subscribe_all_to_all_with_wrong_user_story(Config, Alice, Bob) ->
+    Kate = ?NONEXISTENT_DOMAIN_USER,
+    Res = admin_subscribe_all_to_all([Alice, Bob, Kate], Config),
+    get_unauthorized(Res).
+
+domain_admin_subscribe_to_all_with_wrong_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun domain_admin_subscribe_to_all_with_wrong_user_story/3).
+
+domain_admin_subscribe_to_all_with_wrong_user_story(Config, Alice, Bob) ->
+    Kate = ?NONEXISTENT_DOMAIN_USER,
+    Res = admin_subscribe_to_all(Alice, [Bob, Kate], Config),
+    check_if_created_succ(?SUBSCRIBE_TO_ALL_PATH, Res, [true, false]),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)),
+    check_contacts([Bob], Alice),
+    check_contacts([Alice], Bob).
+
+domain_admin_list_contacts_wrong_user(Config) ->
+    % User with a non-existent domain
+    Res = admin_list_contacts(?NONEXISTENT_DOMAIN_USER, Config),
+    get_unauthorized(Res),
+    % Non-existent user with existent domain
+    Res2 = admin_list_contacts(?NONEXISTENT_USER, Config),
+    ?assertEqual([], get_ok_value(?LIST_CONTACTS_PATH, Res2)).
+
+domain_admin_list_contacts_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_list_contacts_no_permission_story/2).
+
+domain_admin_list_contacts_no_permission_story(Config, Alice) ->
+    Res = admin_list_contacts(Alice, Config),
+    get_unauthorized(Res).
+
+domain_admin_get_contact_wrong_user(Config) ->
+    % User with a non-existent domain
+    Res = admin_get_contact(?NONEXISTENT_DOMAIN_USER, ?NONEXISTENT_USER, Config),
+    get_unauthorized(Res),
+    % Non-existent user with existent domain
+    Res2 = admin_get_contact(?NONEXISTENT_USER, ?NONEXISTENT_USER, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not exist">>)).
+
+domain_admin_get_contacts_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_get_contacts_no_permission_story/3).
+
+domain_admin_get_contacts_no_permission_story(Config, Alice, Bob) ->
+    Res = admin_get_contact(Alice, Bob, Config),
     get_unauthorized(Res).
 
 % Helpers
