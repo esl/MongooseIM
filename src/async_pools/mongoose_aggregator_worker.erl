@@ -82,6 +82,8 @@ handle_call(Msg, From, State) ->
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast({task, Key, Value}, State) ->
     {noreply, handle_task(Key, Value, State)};
+handle_cast({broadcast, Broadcast}, State) ->
+    {noreply, handle_broadcast(Broadcast, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
@@ -147,6 +149,24 @@ handle_task(Key, NewValue, #state{aggregate_callback = Aggregator,
             State#state{flush_elems = Acc#{Key => NewValue},
                         flush_queue = queue:in(Key, Queue)}
     end.
+
+% If we don't have any request pending, it means that it is the first task submitted,
+% so aggregation is not needed.
+handle_broadcast(Task, #state{async_request = no_request_pending} = State) ->
+    State#state{async_request = make_async_request(Task, State)};
+handle_broadcast(Task, #state{aggregate_callback = Aggregator,
+                              flush_elems = Acc,
+                              flush_extra = Extra} = State) ->
+    Map = fun(_Key, OldValue) ->
+                  case Aggregator(OldValue, Task, Extra) of
+                      {ok, FinalValue} ->
+                          FinalValue;
+                      {error, Reason} ->
+                          ?LOG_ERROR(log_fields(State, #{what => aggregation_failed, reason => Reason})),
+                          OldValue
+                  end
+          end,
+    State#state{flush_elems = maps:map(Map, Acc)}.
 
 maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
     case queue:out(Queue) of
