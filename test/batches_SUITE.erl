@@ -32,6 +32,7 @@ groups() ->
        sync_flushes_down_everything,
        sync_aggregates_down_everything,
        aggregating_error_is_handled,
+       aggregation_might_produce_noop_requests,
        async_request
       ]}
     ].
@@ -108,6 +109,21 @@ shared_cache_inserts_in_shared_table(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     mongoose_user_cache:merge_entry(host_type(), ?mod(2), some_jid(), #{}),
     ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
+
+aggregation_might_produce_noop_requests(_) ->
+    {ok, Server} = gen_server:start_link(?MODULE, [], []),
+    Requestor = fun(0, _) -> timer:sleep(1), gen_server:send_request(Server, 0);
+                   (_, _) -> drop end,
+    Aggregator = fun(T1, T2, _) -> {ok, T1 + T2} end,
+    WPoolOpts = #{pool_type => aggregate,
+                  pool_size => 10,
+                  request_callback => Requestor,
+                  aggregate_callback => Aggregator,
+                  verify_callback => fun(ok, _T, _) -> ok end},
+    {ok, _} = mongoose_async_pools:start_pool(host_type(), ?FUNCTION_NAME, WPoolOpts),
+    mongoose_async_pools:broadcast_task(host_type(), ?FUNCTION_NAME, key, 1),
+    async_helper:wait_until(
+      fun() -> gen_server:call(Server, get_acc) end, 0).
 
 broadcast_reaches_all_workers(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),

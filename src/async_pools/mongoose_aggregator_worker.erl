@@ -179,7 +179,7 @@ maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
     end.
 
 make_async_request(Request, #state{host_type = HostType, pool_id = PoolId,
-                                 request_callback = Requestor, flush_extra = Extra} = State) ->
+                                   request_callback = Requestor, flush_extra = Extra} = State) ->
     case Requestor(Request, Extra) of
         drop ->
             State;
