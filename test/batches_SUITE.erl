@@ -31,7 +31,7 @@ groups() ->
        prepare_task_works,
        sync_flushes_down_everything,
        sync_aggregates_down_everything,
-       aggregating_error_is_handled,
+       aggregating_error_is_handled_and_can_continue,
        aggregation_might_produce_noop_requests,
        async_request
       ]}
@@ -241,15 +241,20 @@ sync_aggregates_down_everything(_) ->
     ?assertEqual(ok, gen_server:call(Pid, sync)),
     ?assertEqual(500500, gen_server:call(Server, get_acc)).
 
-aggregating_error_is_handled(_) ->
+aggregating_error_is_handled_and_can_continue(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
     Requestor = fun(Task, _) -> timer:sleep(1), gen_server:send_request(Server, Task) end,
     Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME,
                                               request_callback => Requestor},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
-    gen_server:cast(Pid, {task, key, 0}),
-    async_helper:wait_until(
-      fun() -> gen_server:call(Server, get_acc) end, 0).
+    [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 10) ],
+    gen_server:cast(Pid, {task, return_error, return_error}),
+    ct:sleep(100),
+    [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(11, 100) ],
+    %% We don't call sync here because sync is force flushing,
+    %% we want to test that it flushes alone
+    ct:sleep(100),
+    ?assert(55 < gen_server:call(Server, get_acc)).
 
 async_request(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
