@@ -96,10 +96,10 @@ handle_info(Msg, #state{async_request = {AsyncRequest, ReqTask}} = State) ->
     case gen_server:check_response(Msg, AsyncRequest) of
         {error, {Reason, _Ref}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State};
+            {noreply, State#state{async_request = no_request_pending}};
         {reply, {error, Reason}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State};
+            {noreply, State#state{async_request = no_request_pending}};
         {reply, Reply} ->
             maybe_verify_reply(Reply, ReqTask, State),
             {noreply, maybe_request_next(State)};
@@ -172,8 +172,13 @@ maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
     case queue:out(Queue) of
         {{value, Key}, NewQueue} ->
             {Value, NewAcc} = maps:take(Key, Acc),
-            NewState = make_async_request(Value, State),
-            NewState#state{flush_elems = NewAcc, flush_queue = NewQueue};
+            NewState1 = State#state{flush_elems = NewAcc, flush_queue = NewQueue},
+            case make_async_request(Value, NewState1) of
+                NewState2 = #state{async_request = no_request_pending} ->
+                    maybe_request_next(NewState2);
+                NewState2 ->
+                    NewState2
+            end;
         {empty, _} ->
             State#state{async_request = no_request_pending}
     end.
