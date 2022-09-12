@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1, user_to_jid/1,
-                         get_ok_value/2, get_err_msg/1, get_err_code/1, get_unauthorized/1]).
+                         get_ok_value/2, get_err_msg/1, get_err_code/1, get_unauthorized/1,
+                         get_not_loaded/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -25,16 +26,28 @@ all() ->
      {group, domain_admin}].
 
 groups() ->
-    [{user, [parallel], user_tests()},
+    [{user, [], user_groups()},
+     {user_last, [parallel], user_tests()},
      {admin_http, [], admin_groups()},
      {admin_cli, [], admin_groups()},
      {domain_admin, [], domain_admin_groups()},
      {admin_last, [], admin_last_tests()},
      {domain_admin_last, [], domain_admin_last_tests()},
      {admin_old_users, [], admin_old_users_tests()},
-     {domain_admin_old_users, [], domain_admin_old_users_tests()}].
+     {domain_admin_old_users, [], domain_admin_old_users_tests()},
+     {admin_last_not_configured, [], admin_last_not_configured()},
+     {admin_last_configured, [], admin_last_configured()},
+     {user_last_not_configured, [], user_last_not_configured()}].
+
+user_groups() ->
+    [{group, user_last},
+     {group, user_last_not_configured}].
 
 admin_groups() ->
+    [{group, admin_last_configured},
+     {group, admin_last_not_configured}].
+
+admin_last_configured() ->
     [{group, admin_last},
      {group, admin_old_users}].
 
@@ -46,6 +59,10 @@ user_tests() ->
     [user_set_last,
      user_get_last,
      user_get_other_user_last].
+
+user_last_not_configured() ->
+    [user_set_last_not_configured,
+     user_get_last_not_configured].
 
 admin_last_tests() ->
     [admin_set_last,
@@ -85,16 +102,21 @@ domain_admin_old_users_tests() ->
      domain_admin_user_without_last_info_is_old_user,
      domain_admin_logged_user_is_not_old_user].
 
+admin_last_not_configured() ->
+    [admin_set_last_not_configured,
+     admin_get_last_not_configured,
+     admin_count_active_users_last_not_configured,
+     admin_remove_old_users_domain_last_not_configured,
+     admin_remove_old_users_global_last_not_configured,
+     admin_list_old_users_domain_last_not_configured,
+     admin_list_old_users_global_last_not_configured].
+
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
     SecHostType = domain_helper:secondary_host_type(),
     Config1 = escalus:init_per_suite(Config),
     Config2 = dynamic_modules:save_modules([HostType, SecHostType], Config1),
     Config3 = ejabberd_node_utils:init(mim(), Config2),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    SecBackend = mongoose_helper:get_backend_mnesia_rdbms_riak(SecHostType),
-    dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
-    dynamic_modules:ensure_modules(SecHostType, required_modules(SecBackend)),
     escalus:init_per_suite(Config3).
 
 end_per_suite(Config) ->
@@ -108,11 +130,20 @@ init_per_group(admin_http, Config) ->
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin, Config) ->
+    configure_last(Config),
     graphql_helper:init_domain_admin_handler(Config);
-init_per_group(admin_last, Config) ->
-    Config;
 init_per_group(domain_admin_last, Config) ->
     Config;
+init_per_group(user_last, Config) ->
+    configure_last(Config);
+init_per_group(user_last_not_configured, Config) ->
+    stop_last(Config);
+init_per_group(admin_last, Config) ->
+    Config;
+init_per_group(admin_last_configured, Config) ->
+    configure_last(Config);
+init_per_group(admin_last_not_configured, Config) ->
+    stop_last(Config);
 init_per_group(admin_old_users, Config) ->
     AuthMods = mongoose_helper:auth_modules(),
     case lists:member(ejabberd_auth_ldap, AuthMods) of
@@ -125,6 +156,22 @@ init_per_group(domain_admin_old_users, Config) ->
         true -> {skip, not_fully_supported_with_ldap};
         false -> Config
     end.
+
+configure_last(Config) ->
+    HostType = domain_helper:host_type(),
+    SecHostType = domain_helper:secondary_host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    SecBackend = mongoose_helper:get_backend_mnesia_rdbms_riak(SecHostType),
+    dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
+    dynamic_modules:ensure_modules(SecHostType, required_modules(SecBackend)),
+    Config.
+
+stop_last(Config) ->
+    HostType = domain_helper:host_type(),
+    SecHostType = domain_helper:secondary_host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_last, stopped}]),
+    dynamic_modules:ensure_modules(SecHostType, [{mod_last, stopped}]),
+    Config.
 
 end_per_group(GroupName, _Config) when GroupName =:= admin_http;
                                        GroupName =:= admin_cli ->
@@ -444,6 +491,63 @@ user_get_other_user_last_story(Config, Alice, Bob) ->
     Res = user_get_last(Alice, Bob, Config),
     #{<<"user">> := JID, <<"status">> := Status, <<"timestamp">> := ?DEFAULT_DT} =
         get_ok_value(p(getLast), Res).
+
+
+admin_set_last_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_set_last_not_configured_story/2).
+
+admin_set_last_not_configured_story(Config, Alice) ->
+    Status = <<"First status">>,
+    Res = admin_set_last(Alice, Status, ?DEFAULT_DT, Config),
+    get_not_loaded(Res).
+
+admin_get_last_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_get_last_not_configured_story/2).
+
+admin_get_last_not_configured_story(Config, Alice) ->
+    Res = admin_get_last(Alice, Config),
+    get_not_loaded(Res).
+
+admin_count_active_users_last_not_configured(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_count_active_users(Domain, null, Config),
+    get_not_loaded(Res).
+
+admin_remove_old_users_domain_last_not_configured(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_remove_old_users(Domain, now_dt_with_offset(150), Config),
+    get_not_loaded(Res).
+
+admin_remove_old_users_global_last_not_configured(Config) ->
+    Res = admin_remove_old_users(null, now_dt_with_offset(150), Config),
+    get_ok_value([], Res).
+
+admin_list_old_users_domain_last_not_configured(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_list_old_users(Domain, now_dt_with_offset(150), Config),
+    get_not_loaded(Res).
+
+admin_list_old_users_global_last_not_configured(Config) ->
+    Res = admin_list_old_users(null, now_dt_with_offset(150), Config),
+    get_ok_value([], Res).
+
+user_set_last_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_set_last_not_configured_story/2).
+
+user_set_last_not_configured_story(Config, Alice) ->
+    Status = <<"My first status">>,
+    Res = user_set_last(Alice, Status, ?DEFAULT_DT, Config),
+    get_not_loaded(Res).
+
+user_get_last_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_last_not_configured_story/2).
+user_get_last_not_configured_story(Config, Alice) ->
+    Res = user_get_last(Alice, Alice, Config),
+    get_not_loaded(Res).
 
 %% Helpers
 
