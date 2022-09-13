@@ -46,7 +46,7 @@
 -export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
--export([disco_local_features/1,
+-export([disco_local_features/3,
          process_mam_iq/5,
          user_send_packet/4,
          remove_user/3,
@@ -64,7 +64,7 @@
 
 -ignore_xref([archive_message_from_ct/1,
               archive_size/2, archive_size_with_host_type/3, delete_archive/2,
-              determine_amp_strategy/5, disco_local_features/1, filter_packet/1,
+              determine_amp_strategy/5, disco_local_features/3, filter_packet/1,
               get_personal_data/3, remove_user/3, sm_filter_offline_message/4,
               user_send_packet/4]).
 
@@ -154,14 +154,16 @@ archive_id(Server, User)
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
 
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
 
@@ -202,11 +204,13 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{host_type := HostType, node := <<>>}) ->
-    mongoose_disco:add_features(features(?MODULE, HostType), Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features(features(?MODULE, HostType), Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 %% @doc Handle an outgoing message.
 %%
@@ -679,10 +683,9 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
-    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
-     {user_send_packet, HostType, ?MODULE, user_send_packet, 60},
+-spec legacy_hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
+legacy_hooks(HostType) ->
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {filter_local_packet, HostType, ?MODULE, filter_packet, 60},
      {remove_user, HostType, ?MODULE, remove_user, 50},
@@ -691,6 +694,9 @@ hooks(HostType) ->
      {sm_filter_offline_message, HostType, ?MODULE, sm_filter_offline_message, 50},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
 
 add_iq_handlers(HostType, Opts) ->
     Component = ejabberd_sm,

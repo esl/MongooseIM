@@ -47,10 +47,10 @@
          disco_sm_identity/1,
          disco_local_items/1,
          disco_sm_items/1,
-         disco_local_features/1,
+         disco_local_features/3,
          disco_info/1]).
 
--ignore_xref([disco_info/1, disco_local_features/1, disco_local_identity/1,
+-ignore_xref([disco_info/1, disco_local_features/3, disco_local_identity/1,
               disco_local_items/1, disco_sm_identity/1, disco_sm_items/1]).
 
 -include("mongoose.hrl").
@@ -64,22 +64,26 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, NS, Component, Handler, #{}, IQDisc) ||
         {Component, NS, Handler} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, NS, Component) ||
         {Component, NS, _Handler} <- iq_handlers()],
     ok.
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [{disco_local_items, HostType, ?MODULE, disco_local_items, 100},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 100},
      {disco_local_identity, HostType, ?MODULE, disco_local_identity, 100},
      {disco_sm_items, HostType, ?MODULE, disco_sm_items, 100},
      {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 100},
      {disco_info, HostType, ?MODULE, disco_info, 100}].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 100}].
 
 iq_handlers() ->
     [{ejabberd_local, ?NS_DISCO_ITEMS, fun ?MODULE:process_local_iq_items/5},
@@ -227,11 +231,13 @@ disco_sm_items(Acc = #{to_jid := To, node := <<>>}) ->
 disco_sm_items(Acc) ->
     Acc.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 %% @doc Support for: XEP-0157 Contact Addresses for XMPP Services
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().

@@ -17,7 +17,7 @@
 
 %% Hook handlers
 -export([clean_tokens/3,
-         disco_local_features/1]).
+         disco_local_features/3]).
 
 %% gen_iq_handler handlers
 -export([process_iq/5]).
@@ -50,7 +50,7 @@
 
 -ignore_xref([
     behaviour_info/1, clean_tokens/3, datetime_to_seconds/1, deserialize/1,
-    disco_local_features/1, expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
+    disco_local_features/3, expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
     revoke/2, revoke_token_command/1, seconds_to_datetime/1, serialize/1, token/3,
     token_with_mac/2
 ]).
@@ -78,7 +78,8 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_auth_token_backend:start(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
       fun ?MODULE:process_iq/5, #{}, IQDisc),
@@ -88,12 +89,15 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm),
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
+legacy_hooks(HostType) ->
+    [{remove_user, HostType, ?MODULE, clean_tokens, 50}].
+
 hooks(HostType) ->
-    [{remove_user, HostType, ?MODULE, clean_tokens, 50},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 90}].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 90}].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -446,8 +450,10 @@ clean_tokens(Acc, User, Server) ->
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
