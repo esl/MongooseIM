@@ -6,7 +6,7 @@
 
 -ignore_xref([get_loglevel/0]).
 
--spec get_loglevel() -> {ok, iodata()}.
+-spec get_loglevel() -> {ok, string()}.
 get_loglevel() ->
     Level = mongoose_logs:get_global_loglevel(),
     Number = mongoose_logs:loglevel_keyword_to_number(Level),
@@ -17,9 +17,8 @@ get_loglevel() ->
 graphql_get_loglevel() ->
     {ok, mongoose_logs:get_global_loglevel()}.
 
-
 -spec set_loglevel(mongoose_logs:atom_log_level()) ->
-    {ok, iodata()} | {invalid_level, iodata()}.
+    {ok, string()} | {invalid_level, string()}.
 set_loglevel(Level) ->
     case mongoose_logs:set_global_loglevel(Level) of
         ok ->
@@ -28,7 +27,7 @@ set_loglevel(Level) ->
             {invalid_level, io_lib:format("Log level ~p does not exist", [Level])}
     end.
 
--spec status() -> {'mongooseim_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
+-spec status() -> {'mongooseim_not_running', string()} | {'ok', string()}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     String1 = io_lib:format("The node ~p is ~p. Status: ~p",
@@ -153,4 +152,4 @@ restart() ->
 -spec remove_node(string()) -> {ok, string()}.
 remove_node(Node) ->
     mnesia:del_table_copy(schema, list_to_atom(Node)),
-    {ok, "Node deleted"}.
+    {ok, "Node removed from the Mnesia schema"}.

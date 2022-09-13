@@ -16,7 +16,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [%{group, admin_http},
+    [%{group, admin_http}, % http is not supported for the server category
      {group, admin_cli}].
 
 groups() ->
@@ -47,19 +47,12 @@ clustering_tests() ->
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
-    #{node := Node1} = RPCNode1 = mim(),
-    #{node := Node2} = RPCNode2 = mim2(),
-    #{node := Node3} = RPCNode3 = mim3(),
-    Config2 = ejabberd_node_utils:init(RPCNode1, Config1),
-    Config3 = ejabberd_node_utils:init(RPCNode2, Config2),
-    Config4 = ejabberd_node_utils:init(RPCNode3, Config3),
-    NodeCtlPath = distributed_helper:ctl_path(Node1, Config4),
-    Node2CtlPath = distributed_helper:ctl_path(Node2, Config4),
-    Node3CtlPath = distributed_helper:ctl_path(Node3, Config4),
-    escalus:init_per_suite([{ctl_path_atom(Node1), NodeCtlPath},
-                            {ctl_path_atom(Node2), Node2CtlPath},
-                            {ctl_path_atom(Node3), Node3CtlPath}]
-                           ++ Config4).
+    Config2 = lists:foldl(fun(#{node := Node} = RPCNode, ConfigAcc) ->
+        ConfigAcc1 = ejabberd_node_utils:init(RPCNode, ConfigAcc),
+        NodeCtlPath = distributed_helper:ctl_path(Node, ConfigAcc1),
+        ConfigAcc1 ++ [{ctl_path_atom(Node), NodeCtlPath}]
+    end, Config1, [mim(), mim2(), mim3()]),
+    escalus:init_per_suite(Config2).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
@@ -114,16 +107,7 @@ get_cookie_test(Config) ->
     ?assert(is_binary(Result)).
 
 set_and_get_loglevel_test(Config) ->
-    LogLevels = [<<"NONE">>,
-                 <<"EMERGENCY">>,
-                 <<"ALERT">>,
-                 <<"CRITICAL">>,
-                 <<"ERROR">>,
-                 <<"WARNING">>,
-                 <<"NOTICE">>,
-                 <<"INFO">>,
-                 <<"DEBUG">>,
-                 <<"ALL">>],
+    LogLevels = all_log_levels(),
     lists:foreach(fun(LogLevel) ->
         Value = get_ok_value([data, server, setLoglevel], set_loglevel(LogLevel, Config)),
         ?assertEqual(<<"Log level successfully set">>, Value),
@@ -207,7 +191,7 @@ remove_alive_from_cluster(Config) ->
 remove_node_test(Config) ->
     #{node := NodeName} = mim3(),
     Value = get_ok_value([data, server, removeNode], remove_node(NodeName, Config)),
-    ?assertEqual(<<"Node deleted">>, Value).
+    ?assertEqual(<<"Node removed from the Mnesia schema">>, Value).
 
 stop_node_test(Config) ->
     #{node := Node1Name} = mim(),
@@ -221,6 +205,18 @@ stop_node_test(Config) ->
 %-----------------------------------------------------------------------
 %                                Helpers
 %-----------------------------------------------------------------------
+
+all_log_levels() ->
+    [<<"NONE">>,
+     <<"EMERGENCY">>,
+     <<"ALERT">>,
+     <<"CRITICAL">>,
+     <<"ERROR">>,
+     <<"WARNING">>,
+     <<"NOTICE">>,
+     <<"INFO">>,
+     <<"DEBUG">>,
+     <<"ALL">>].
 
 have_node_in_mnesia(Node1, #{node := Node2}, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
@@ -237,6 +233,9 @@ set_loglevel(LogLevel, Config) ->
 
 get_status(Config) ->
     execute_command(<<"server">>, <<"status">>, #{}, Config).
+
+get_status(Node, Config) ->
+    execute_command(Node, <<"server">>, <<"status">>, #{}, Config).
 
 join_cluster(Node, Config) ->
     execute_command(<<"server">>, <<"joinCluster">>, #{<<"node">> => Node}, Config).
