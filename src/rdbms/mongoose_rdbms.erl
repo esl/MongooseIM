@@ -288,7 +288,7 @@ sql_transaction(HostType, F) when is_function(F) ->
     sql_call(HostType, {sql_transaction, F}).
 
 %% @doc SQL transaction based on a list of queries
--spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> transaction_result().
+-spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> gen_server:request_id().
 sql_transaction_request(HostType, Queries) when is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction_request(HostType, F);
