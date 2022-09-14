@@ -5,7 +5,8 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_value/2, get_err_msg/1,
-                         get_err_msg/2, user_to_jid/1, user_to_bin/1, get_unauthorized/1]).
+                         get_err_msg/2, get_bad_request/1, user_to_jid/1, user_to_bin/1,
+                         get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/mod_roster.hrl").
@@ -55,8 +56,12 @@ admin_roster_tests() ->
      admin_set_mutual_subscription_try_disconnect_nonexistent_users,
      admin_subscribe_to_all,
      admin_subscribe_to_all_with_wrong_user,
+     admin_subscribe_to_all_no_groups,
+     admin_subscribe_to_all_without_arguments,
      admin_subscribe_all_to_all,
      admin_subscribe_all_to_all_with_wrong_user,
+     admin_subscribe_all_to_all_no_groups,
+     admin_subscribe_all_to_all_without_arguments,
      admin_list_contacts,
      admin_list_contacts_wrong_user,
      admin_get_contact,
@@ -81,9 +86,13 @@ domain_admin_tests() ->
      domain_admin_subscribe_to_all_no_permission,
      admin_subscribe_to_all,
      domain_admin_subscribe_to_all_with_wrong_user,
+     admin_subscribe_to_all_no_groups,
+     admin_subscribe_to_all_without_arguments,
      domain_admin_subscribe_all_to_all_no_permission,
      admin_subscribe_all_to_all,
      domain_admin_subscribe_all_to_all_with_wrong_user,
+     admin_subscribe_all_to_all_no_groups,
+     admin_subscribe_all_to_all_without_arguments,
      admin_list_contacts,
      domain_admin_list_contacts_wrong_user,
      domain_admin_list_contacts_no_permission,
@@ -314,6 +323,23 @@ admin_subscribe_to_all_with_wrong_user_story(Config, Alice, Bob) ->
     check_contacts([Bob], Alice),
     check_contacts([Alice], Bob).
 
+admin_subscribe_to_all_no_groups(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+                                    fun admin_subscribe_to_all_no_groups_story/4).
+
+admin_subscribe_to_all_no_groups_story(Config, Alice, Bob, Kate) ->
+    EmptyGroups = [],
+    Res = admin_subscribe_to_all(Alice, [Bob, Kate], null, Config),
+    check_if_created_succ(?SUBSCRIBE_TO_ALL_PATH, Res),
+
+    check_contacts([Bob, Kate], Alice, EmptyGroups),
+    check_contacts([Alice], Bob, EmptyGroups),
+    check_contacts([Alice], Kate, EmptyGroups).
+
+admin_subscribe_to_all_without_arguments(Config) ->
+    Res = admin_subscribe_to_all_no_args(Config),
+    get_bad_request(Res).
+
 admin_subscribe_all_to_all(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
                                     fun admin_subscribe_all_to_all_story/4).
@@ -339,6 +365,23 @@ admin_subscribe_all_to_all_with_wrong_user_story(Config, Alice, Bob) ->
 
     check_contacts([Bob], Alice),
     check_contacts([Alice], Bob).
+
+admin_subscribe_all_to_all_no_groups(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+                                    fun admin_subscribe_all_to_all_no_groups_story/4).
+
+admin_subscribe_all_to_all_no_groups_story(Config, Alice, Bob, Kate) ->
+    EmptyGroups = [],
+    Res = admin_subscribe_all_to_all([Alice, Bob, Kate], null, Config),
+    check_if_created_succ(?SUBSCRIBE_ALL_TO_ALL_PATH, Res),
+
+    check_contacts([Bob, Kate], Alice, EmptyGroups),
+    check_contacts([Alice, Kate], Bob, EmptyGroups),
+    check_contacts([Alice, Bob], Kate, EmptyGroups).
+
+admin_subscribe_all_to_all_without_arguments(Config) ->
+    Res = admin_subscribe_all_to_all_no_args(Config),
+    get_bad_request(Res).
 
 admin_list_contacts(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -655,6 +698,9 @@ user_add_contact(User, Contact, Config) ->
     user_add_contact(User, Contact, Name, ?DEFAULT_GROUPS, Config).
 
 check_contacts(ContactClients, User) ->
+    check_contacts(ContactClients, User, ?DEFAULT_GROUPS).
+
+check_contacts(ContactClients, User, ContactGroups) ->
     Expected = [escalus_utils:jid_to_lower(escalus_client:short_jid(Client))
                 || Client <- ContactClients],
     ExpectedNames = [escalus_client:username(Client) || Client <- ContactClients],
@@ -663,7 +709,7 @@ check_contacts(ContactClients, User) ->
     ActualNames = [ Name || #roster{name = Name} <- ActualContacts],
     ?assertEqual(lists:sort(Expected), lists:sort(Actual)),
     ?assertEqual(lists:sort(ExpectedNames), lists:sort(ActualNames)),
-    [?assertEqual(?DEFAULT_GROUPS, Groups) || #roster{groups = Groups} <- ActualContacts].
+    [?assertEqual(ContactGroups, Groups) || #roster{groups = Groups} <- ActualContacts].
 
 check_if_created_succ(Path, Res) ->
     OkList = get_ok_value(Path, Res),
@@ -692,10 +738,16 @@ get_roster(User, Contact) ->
          full]).
 
 make_contacts(Users) ->
-    [make_contact(U) || U <- Users].
+    make_contacts(Users, ?DEFAULT_GROUPS).
+
+make_contacts(Users, Groups) ->
+    [make_contact(U, Groups) || U <- Users].
 
 make_contact(U) ->
-    #{jid => user_to_bin(U), name => escalus_utils:get_username(U), groups => ?DEFAULT_GROUPS}.
+    make_contact(U, ?DEFAULT_GROUPS).
+
+make_contact(U, Groups) ->
+    #{jid => user_to_bin(U), name => escalus_utils:get_username(U), groups => Groups}.
 
 %% Commands
 
@@ -725,12 +777,24 @@ admin_mutual_subscription(User, Contact, Action, Config) ->
     execute_command(<<"roster">>, <<"setMutualSubscription">>, Vars, Config).
 
 admin_subscribe_to_all(User, Contacts, Config) ->
-    Vars = #{user => make_contact(User), contacts => make_contacts(Contacts)},
+    admin_subscribe_to_all(User, Contacts, ?DEFAULT_GROUPS, Config).
+
+admin_subscribe_to_all(User, Contacts, Groups, Config) ->
+    Vars = #{user => make_contact(User, Groups), contacts => make_contacts(Contacts, Groups)},
     execute_command(<<"roster">>, <<"subscribeToAll">>, Vars, Config).
 
+admin_subscribe_to_all_no_args(Config) ->
+    execute_command(<<"roster">>, <<"subscribeToAll">>, #{}, Config).
+
 admin_subscribe_all_to_all(Users, Config) ->
-    Vars = #{contacts => make_contacts(Users)},
+    admin_subscribe_all_to_all(Users, ?DEFAULT_GROUPS, Config).
+
+admin_subscribe_all_to_all(Users, Groups, Config) ->
+    Vars = #{contacts => make_contacts(Users, Groups)},
     execute_command(<<"roster">>, <<"subscribeAllToAll">>, Vars, Config).
+
+admin_subscribe_all_to_all_no_args(Config) ->
+    execute_command(<<"roster">>, <<"subscribeAllToAll">>, #{}, Config).
 
 admin_list_contacts(User, Config) ->
     Vars = #{user => user_to_bin(User)},

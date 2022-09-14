@@ -106,7 +106,7 @@ init_domain_admin_handler(Config) ->
             Password = base16:encode(crypto:strong_rand_bytes(8)),
             Creds = {<<"admin@", Domain/binary>>, Password},
             ok = domain_helper:set_domain_password(mim(), Domain, Password),
-            add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin} 
+            add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin}
                       | Config]);
         false -> {skip, require_rdbms}
     end.
@@ -142,6 +142,9 @@ get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
     [#{<<"extensions">> := #{<<"code">> := ErrorCode}}] = Errors,
     assert_response_code(unauthorized, Code),
     ?assertEqual(<<"no_permissions">>, ErrorCode).
+
+get_bad_request({Code, _Msg}) ->
+    assert_response_code(bad_request, Code).
 
 get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
     assert_response_code(bad_request, Code),
