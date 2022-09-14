@@ -120,7 +120,7 @@
     {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
     {?MOD_PUBSUB_DB_BACKEND, stop, 0},
     affiliation_to_string/1, caps_recognised/4, create_node/7, default_host/0,
-    delete_item/4, delete_node/3, disco_local_features/3, disco_sm_features/1,
+    delete_item/4, delete_node/3, disco_sm_features/1,
     disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
     get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
     handle_remote_hook/4, host/2, in_subscription/5, iq_sm/4, node_action/4, node_call/4,

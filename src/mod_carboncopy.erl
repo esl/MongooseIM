@@ -49,7 +49,7 @@
 %% Tests
 -export([should_forward/3]).
 
--ignore_xref([disco_local_features/3, is_carbon_copy/1, remove_connection/5,
+-ignore_xref([is_carbon_copy/1, remove_connection/5,
               should_forward/3, user_receive_packet/5, user_send_packet/4]).
 
 -define(CC_KEY, 'cc').

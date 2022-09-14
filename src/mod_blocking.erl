@@ -17,7 +17,7 @@
          disco_local_features/3
         ]).
 
--ignore_xref([disco_local_features/3, process_iq_get/5, process_iq_set/4]).
+-ignore_xref([process_iq_get/5, process_iq_set/4]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").

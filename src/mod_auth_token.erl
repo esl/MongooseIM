@@ -50,7 +50,7 @@
 
 -ignore_xref([
     behaviour_info/1, clean_tokens/3, datetime_to_seconds/1, deserialize/1,
-    disco_local_features/3, expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
+    expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
     revoke/2, revoke_token_command/1, seconds_to_datetime/1, serialize/1, token/3,
     token_with_mac/2
 ]).

@@ -50,8 +50,8 @@
          disco_local_features/3,
          disco_info/1]).
 
--ignore_xref([disco_info/1, disco_local_features/3, disco_local_identity/1,
-              disco_local_items/1, disco_sm_identity/1, disco_sm_items/1]).
+-ignore_xref([disco_info/1, disco_local_identity/1, disco_local_items/1,
+              disco_sm_identity/1, disco_sm_items/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

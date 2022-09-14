@@ -53,7 +53,7 @@
 -export([delete_caps/1, make_disco_hash/2]).
 
 -ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, c2s_presence_in/4,
-              caps_stream_features/3, delete_caps/1, disco_info/1, disco_local_features/3,
+              caps_stream_features/3, delete_caps/1, disco_info/1,
               disco_local_identity/1, make_disco_hash/2, read_caps/1, start_link/2,
               user_receive_packet/5, user_send_packet/4]).
 

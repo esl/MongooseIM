@@ -52,7 +52,7 @@
 -ignore_xref([
     behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
     process_iq_set/4, remove_user/3, updated_list/3,
-    remove_user/3, remove_domain/3, disco_local_features/3]).
+    remove_user/3, remove_domain/3]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").

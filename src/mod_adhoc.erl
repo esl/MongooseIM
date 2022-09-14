@@ -48,7 +48,7 @@
          disco_sm_features/1,
          ping_command/4]).
 
--ignore_xref([disco_local_features/3, disco_local_identity/1, disco_local_items/1,
+-ignore_xref([disco_local_identity/1, disco_local_items/1,
               disco_sm_features/1, disco_sm_identity/1, disco_sm_items/1,
               ping_command/4, process_local_iq/5, process_sm_iq/5]).
 

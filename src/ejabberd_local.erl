@@ -62,7 +62,7 @@
 
 -export([do_route/4]).
 
--ignore_xref([disco_local_features/3, do_route/4, get_iq_callback/1,
+-ignore_xref([do_route/4, get_iq_callback/1,
               process_iq_reply/4, start_link/0]).
 
 -include("mongoose.hrl").
