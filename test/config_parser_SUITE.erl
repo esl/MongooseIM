@@ -97,8 +97,8 @@ groups() ->
                            listen_http_handlers_bosh,
                            listen_http_handlers_websockets,
                            listen_http_handlers_client_api,
+                           listen_http_handlers_admin_api,
                            listen_http_handlers_api,
-                           listen_http_handlers_api_admin,
                            listen_http_handlers_domain,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
@@ -603,15 +603,15 @@ listen_http_handlers_client_api(_Config) ->
     ?err(T(#{<<"handlers">> => [not_a_module]})),
     ?err(T(#{<<"docs">> => <<"maybe">>})).
 
+listen_http_handlers_admin_api(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_admin_api),
+    test_listen_http_handler_creds(P, T).
+
 listen_http_handlers_api(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_api),
     ?cfg(P ++ [handlers], [mongoose_api_metrics],
          T(#{<<"handlers">> => [<<"mongoose_api_metrics">>]})),
     ?err(T(#{<<"handlers">> => [not_a_module]})).
-
-listen_http_handlers_api_admin(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_api_admin),
-    test_listen_http_handler_creds(P, T).
 
 listen_http_handlers_domain(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_domain_handler),

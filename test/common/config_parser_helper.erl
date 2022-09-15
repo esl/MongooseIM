@@ -170,7 +170,7 @@ options("mongooseim-pgsql") ->
                      config([listen, http, handlers, mod_websockets],
                             #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
                               ping_rate => 120000, timeout => infinity}),
-                     config([listen, http, handlers, mongoose_api_admin],
+                     config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api",
                               username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
@@ -183,7 +183,7 @@ options("mongooseim-pgsql") ->
                 port => 8088,
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 handlers =>
-                    [config([listen, http, handlers, mongoose_api_admin],
+                    [config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api"})]
                }),
        config([listen, http],
@@ -680,10 +680,9 @@ pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
       mod_amp => #{}, mod_blocking => default_mod_config(mod_blocking),
       mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => #{},
+      mod_carboncopy => default_mod_config(mod_carboncopy),
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
-      mod_muc_commands => #{}, mod_muc_light_commands => #{},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),

@@ -51,7 +51,6 @@ start(normal, _Args) ->
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
-    mongoose_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
     mongoose_router:start(),

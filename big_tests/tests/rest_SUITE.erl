@@ -71,6 +71,7 @@ blank_auth_testcases() ->
 test_cases() ->
     [non_existent_command_returns404,
      existent_command_with_missing_arguments_returns404,
+     invalid_query_string,
      invalid_request_body,
      user_can_be_registered_and_removed,
      user_registration_errors,
@@ -165,6 +166,13 @@ non_existent_command_returns404(_C) ->
 
 existent_command_with_missing_arguments_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/contacts/">>).
+
+invalid_query_string(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    BobJid = escalus_users:get_jid(Config1, bob),
+    {?BAD_REQUEST, <<"Invalid query string">>} =
+        gett(admin, <<"/messages/", AliceJid/binary, "/", BobJid/binary, "?kukurydza">>).
 
 invalid_request_body(_Config) ->
     {?BAD_REQUEST, <<"Invalid request body">>} = post(admin, path("users"), <<"kukurydza">>).

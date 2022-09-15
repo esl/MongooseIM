@@ -217,16 +217,10 @@
 [modules.mod_disco]
   users_can_see_hidden_services = false
 
-[modules.mod_commands]
-
 {{#mod_cache_users}}
 [modules.mod_cache_users]
 {{{mod_cache_users}}}
 {{/mod_cache_users}}
-[modules.mod_muc_commands]
-
-[modules.mod_muc_light_commands]
-
 {{#mod_last}}
 [modules.mod_last]
 {{{mod_last}}}
