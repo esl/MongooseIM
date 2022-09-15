@@ -527,13 +527,7 @@ handle_timeout(StateData, _C2SState, activate_socket, activate_socket) ->
     activate_socket(StateData),
     keep_state_and_data;
 handle_timeout(StateData, C2SState, replaced_wait_timeout, ReplacedPids) ->
-    [ case erlang:is_process_alive(Pid) of
-          false -> ok;
-          true ->
-              ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
-                             text => <<"Some processes are not responding when handling replace messages">>,
-                             replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
-      end || Pid <- ReplacedPids ],
+    [ verify_process_alive(StateData, C2SState, Pid) || Pid <- ReplacedPids],
     keep_state_and_data;
 handle_timeout(StateData, C2SState, Name, Handler) when is_atom(Name), is_function(Handler, 2) ->
     C2sAcc = Handler(Name, StateData),
@@ -545,6 +539,18 @@ handle_timeout(StateData, _C2SState, state_timeout, state_timeout_termination) -
     send_trailer(StateData),
     {stop, {shutdown, state_timeout}}.
 
+verify_process_alive(StateData, C2SState, Pid) ->
+    IsAlive = case node(Pid) =:= node() of
+                  true -> erlang:is_process_alive(Pid);
+                  false -> erlang:process_info(Pid) =:= undefined
+              end,
+    case IsAlive of
+        false -> ok;
+        true ->
+            ?LOG_WARNING(#{what => c2s_replaced_wait_timeout,
+                           text => <<"Some processes are not responding when handling replace messages">>,
+                           replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
+    end.
 
 -spec maybe_retry_state(c2s_state()) -> c2s_state() | {stop, term()}.
 maybe_retry_state(connect) -> connect;
