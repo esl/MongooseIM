@@ -126,7 +126,7 @@ get_api() ->
     [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
 
 filter_unknown_api(ApiList) ->
-    AllowedToReport = [mongoose_api, mongoose_client_api, mongoose_api_admin,
+    AllowedToReport = [mongoose_api, mongoose_client_api, mongoose_admin_api,
                        mongoose_domain_handler, mod_bosh, mod_websockets],
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
