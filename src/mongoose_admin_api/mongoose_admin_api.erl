@@ -18,12 +18,14 @@
          resource_created/4,
          respond/3]).
 
+-include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
 -type handler_options() :: #{path := string(), username => binary(), password => binary(),
                              atom() => any()}.
 -type req() :: cowboy_req:req().
 -type state() :: map().
+-type error_type() :: bad_request | denied | not_found | internal.
 
 %% mongoose_http_handler callbacks
 
@@ -102,28 +104,37 @@ authorize(#{username := Username, password := Password}, AuthDetails) ->
 authorize(#{}, _) ->
     true. % no credentials required
 
--spec parse_body(req()) -> jiffy:json_value().
+-spec parse_body(req()) -> #{atom() => jiffy:json_value()}.
 parse_body(Req) ->
     try
-        {Params, _} = mongoose_api_common:parse_request_body(Req),
-        maps:from_list(Params)
-    catch _:_ ->
+        {ok, Body, _Req2} = cowboy_req:read_body(Req),
+        {DecodedBody} = jiffy:decode(Body),
+        maps:from_list([{binary_to_existing_atom(K), V} || {K, V} <- DecodedBody])
+    catch Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => parse_body_failed,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
             throw_error(bad_request, <<"Invalid request body">>)
     end.
 
--spec parse_qs(req()) -> #{atom() => binary()}.
+-spec parse_qs(req()) -> #{atom() => binary() | true}.
 parse_qs(Req) ->
-    maps:from_list([{binary_to_existing_atom(K), V} || {K, V} <- cowboy_req:parse_qs(Req)]).
+    try
+        maps:from_list([{binary_to_existing_atom(K), V} || {K, V} <- cowboy_req:parse_qs(Req)])
+    catch Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => parse_qs_failed,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            throw_error(bad_request, <<"Invalid query string">>)
+    end.
 
 -spec try_handle_request(req(), state(), fun((req(), state()) -> Result)) -> Result.
 try_handle_request(Req, State, F) ->
     try
         F(Req, State)
     catch throw:#{error_type := ErrorType, message := Msg} ->
-            mongoose_api_common:error_response(ErrorType, Msg, Req, State)
+            error_response(ErrorType, Msg, Req, State)
     end.
 
--spec throw_error(atom(), iodata()) -> no_return().
+-spec throw_error(error_type(), iodata()) -> no_return().
 throw_error(ErrorType, Msg) ->
     throw(#{error_type => ErrorType, message => Msg}).
 
@@ -140,3 +151,25 @@ respond(Req, State, Response) ->
     Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
     Req3 = cowboy_req:reply(200, Req2),
     {stop, Req3, State}.
+
+-spec error_response(error_type(), iodata(), req(), state()) -> {stop, req(), state()}.
+error_response(ErrorType, Message, Req, State) ->
+    BinMessage = iolist_to_binary(Message),
+    ?LOG(log_level(ErrorType), #{what => mongoose_admin_api_error_response,
+                                 error_type => ErrorType,
+                                 message => BinMessage,
+                                 req => Req}),
+    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, BinMessage, Req),
+    {stop, Req1, State}.
+
+-spec error_code(error_type()) -> non_neg_integer().
+error_code(bad_request) -> 400;
+error_code(denied) -> 403;
+error_code(not_found) -> 404;
+error_code(internal) -> 500.
+
+-spec log_level(error_type()) -> logger:level().
+log_level(bad_request) -> warning;
+log_level(denied) -> warning;
+log_level(not_found) -> warning;
+log_level(internal) -> error.
