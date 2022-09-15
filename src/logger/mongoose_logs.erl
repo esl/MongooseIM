@@ -8,6 +8,8 @@
 -export([dir/0]).
 -export([loglevel_keyword_to_number/1]).
 
+-export_type([atom_log_level/0]).
+
 -ignore_xref([clear_module_loglevel/1, set_module_loglevel/2]).
 
 -type atom_log_level() :: none | logger:level() | all.
