@@ -4,6 +4,7 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
+%% TODO fix error handling, do not crash for non-existing users
 %% Before is in microseconds
 -spec lookup_recent_messages(
         ArcJID :: jid:jid(),
@@ -13,10 +14,6 @@
     [mod_mam:message_row()].
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), With, Before, Limit);
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     #jid{luser = LUser, lserver = LServer} = ArcJID,
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
