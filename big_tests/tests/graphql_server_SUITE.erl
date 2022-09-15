@@ -89,15 +89,12 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) when CaseName == join_successful
                                    orelse CaseName == leave_unsuccessful
                                    orelse CaseName == join_twice ->
-    Node2 = mim2(),
-    remove_node_from_cluster(Node2, Config),
+    remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
                                    orelse CaseName == remove_dead_from_cluster ->
-    Node3 = mim3(),
-    Node2 = mim2(),
-    remove_node_from_cluster(Node3, Config),
-    remove_node_from_cluster(Node2, Config),
+    remove_node_from_cluster(mim3(), Config),
+    remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -110,7 +107,7 @@ set_and_get_loglevel_test(Config) ->
     LogLevels = all_log_levels(),
     lists:foreach(fun(LogLevel) ->
         Value = get_ok_value([data, server, setLoglevel], set_loglevel(LogLevel, Config)),
-        ?assertEqual(<<"Log level successfully set">>, Value),
+        ?assertEqual(<<"Log level successfully set.">>, Value),
         Value1 = get_ok_value([data, server, getLoglevel], get_loglevel(Config)),
         ?assertEqual(LogLevel, Value1)
     end, LogLevels),
@@ -191,15 +188,14 @@ remove_alive_from_cluster(Config) ->
 remove_node_test(Config) ->
     #{node := NodeName} = mim3(),
     Value = get_ok_value([data, server, removeNode], remove_node(NodeName, Config)),
-    ?assertEqual(<<"Node removed from the Mnesia schema">>, Value).
+    ?assertEqual(<<"MongooseIM node removed from the Mnesia schema">>, Value).
 
 stop_node_test(Config) ->
-    #{node := Node1Name} = mim(),
     #{node := Node3Nodename} = mim3(),
     get_ok_value([data, server, stop], stop_node(Node3Nodename, Config)),
-    timer:sleep(1000),
     Timeout = timer:seconds(3),
-    {badrpc, nodedown} = rpc:call(Node3Nodename, mongoose_cluster, join, [Node1Name], Timeout),
+    F = fun() -> rpc:call(Node3Nodename, application, which_applications, [], Timeout) end,
+    mongoose_helper:wait_until(F, {badrpc, nodedown}, #{sleep_time => 1000, name => stop_node}),
     distributed_helper:start_node(Node3Nodename, Config).
 
 %-----------------------------------------------------------------------

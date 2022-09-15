@@ -17,25 +17,25 @@ type ServerAdminQuery @protected{
 Allow admin to manage the node
 """
 type ServerAdminMutation @protected{
-  "Join the node to a cluster. Call it on the joining node"
+  "Join the MongooseIM node to a cluster. Call it on the joining node"
   joinCluster(node: String!): String
     @protected(type: GLOBAL)
   "Leave a cluster. Call it on the node that is going to leave"
   leaveCluster: String
     @protected(type: GLOBAL)
-  "Remove node from the cluster. Call it from the member of the cluster"
+  "Remove a MongooseIM node from the cluster. Call it from the member of the cluster"
   removeFromCluster(node: String!): String
     @protected(type: GLOBAL)
-  "Restart mongooseim node"
+  "Restart MongooseIM node"
   restart: String
     @protected(type: GLOBAL)
-  "Stop mongooseim node"
+  "Stop MongooseIM node"
   stop: String
     @protected(type: GLOBAL)
   "Remove a MongooseIM node from Mnesia clustering config"
   removeNode(node: String!): String
     @protected(type: GLOBAL)
-  "Set Node's loglevel"
+  "Set MongooseIM Node's loglevel"
   setLoglevel(level: LogLevel!): String
     @protected(type: GLOBAL)
 }

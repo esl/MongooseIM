@@ -22,21 +22,21 @@ graphql_get_loglevel() ->
 set_loglevel(Level) ->
     case mongoose_logs:set_global_loglevel(Level) of
         ok ->
-            {ok, "Log level successfully set"};
+            {ok, "Log level successfully set."};
         {error, _} ->
-            {invalid_level, io_lib:format("Log level ~p does not exist", [Level])}
+            {invalid_level, io_lib:format("Log level ~p does not exist.", [Level])}
     end.
 
 -spec status() -> {'mongooseim_not_running', string()} | {'ok', string()}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
-    String1 = io_lib:format("The node ~p is ~p. Status: ~p",
+    String1 = io_lib:format("The node ~p is ~p. Status: ~p.",
                             [node(), InternalStatus, ProvidedStatus]),
     case lists:keysearch(mongooseim, 1, application:which_applications()) of
         false ->
-            {mongooseim_not_running, String1 ++ "mongooseim is not running in that node."};
+            {mongooseim_not_running, String1 ++ " MongooseIM is not running in that node."};
         {value, {_, _, Version}} ->
-            {ok, String1 ++ io_lib:format("mongooseim ~s is running in that node", [Version])}
+            {ok, String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version])}
     end.
 
 -spec get_cookie() -> string().
@@ -50,7 +50,8 @@ join_cluster(NodeString) ->
     NodeList = mnesia:system_info(db_nodes),
     case lists:member(NodeAtom, NodeList) of
         true ->
-            String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
+            String = io_lib:format(
+                "The MongooseIM node ~s has already joined the cluster~n.", [NodeString]),
             {already_joined, String};
         _ ->
             do_join_cluster(NodeAtom)
@@ -59,12 +60,13 @@ join_cluster(NodeString) ->
 do_join_cluster(Node) ->
     try mongoose_cluster:join(Node) of
         ok ->
-            String = io_lib:format("You have successfully joined the node"
-                ++ " ~p to the cluster with node member ~p~n", [node(), Node]),
+            String = io_lib:format("You have successfully added the MongooseIM node"
+                ++ " ~p to the cluster with node member ~p~n.", [node(), Node]),
             {ok, String}
     catch
         error:pang ->
-            String = io_lib:format("Timeout while attempting to connect to node ~s~n", [Node]),
+            String = io_lib:format(
+                "Timeout while attempting to connect to a MongooseIM node ~s~n", [Node]),
             {pang, String};
         error:{cant_get_storage_type, {T, E, R}} ->
             String =
@@ -80,7 +82,7 @@ leave_cluster() ->
     ThisNode = node(),
     case NodeList of
         [ThisNode] ->
-            String = io_lib:format("The node ~p is not in the cluster~n", [node()]),
+            String = io_lib:format("The MongooseIM node ~p is not in the cluster~n", [node()]),
             {not_in_cluster, String};
         _ ->
             do_leave_cluster()
@@ -89,7 +91,8 @@ leave_cluster() ->
 do_leave_cluster() ->
     try mongoose_cluster:leave() of
         ok ->
-            String = io_lib:format("The node ~p has successfully left the cluster~n", [node()]),
+            String = io_lib:format(
+                "The MongooseIM node ~p has successfully left the cluster~n", [node()]),
             {ok, String}
     catch
         E:R ->
@@ -114,11 +117,13 @@ remove_dead_node(DeadNode) ->
     try mongoose_cluster:remove_from_cluster(DeadNode) of
         ok ->
             String =
-                io_lib:format("The dead node ~p has been removed from the cluster~n", [DeadNode]),
+                io_lib:format(
+                    "The dead MongooseIM node ~p has been removed from the cluster~n", [DeadNode]),
             {ok, String}
     catch
         error:{node_is_alive, DeadNode} ->
-            String = io_lib:format("The node ~p is alive but shoud not be.~n", [DeadNode]),
+            String = io_lib:format(
+                "The MongooseIM node ~p is alive but shoud not be.~n", [DeadNode]),
             {node_is_alive, String};
         error:{del_table_copy_schema, R} ->
             String = io_lib:format("Cannot delete table schema~n. Reason: ~p", [R]),
@@ -129,10 +134,12 @@ remove_rpc_alive_node(AliveNode) ->
     case rpc:call(AliveNode, mongoose_cluster, leave, []) of
         {badrpc, Reason} ->
             String =
-                io_lib:format("Cannot remove the node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
+                io_lib:format(
+                    "Cannot remove the MongooseIM node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
             {rpc_error, String};
         ok ->
-            String = io_lib:format("The node ~p has been removed from the cluster~n", [AliveNode]),
+            String = io_lib:format(
+                "The MongooseIM node ~p has been removed from the cluster~n", [AliveNode]),
             {ok, String};
         Unknown ->
             String = io_lib:format("Unknown error: ~p~n", [Unknown]),
@@ -152,4 +159,4 @@ restart() ->
 -spec remove_node(string()) -> {ok, string()}.
 remove_node(Node) ->
     mnesia:del_table_copy(schema, list_to_atom(Node)),
-    {ok, "Node removed from the Mnesia schema"}.
+    {ok, "MongooseIM node removed from the Mnesia schema"}.
