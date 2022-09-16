@@ -1,9 +1,18 @@
 -module(mongoose_c2s_stanzas).
--compile([export_all, nowarn_export_all]).
 
 -include("jlib.hrl").
--include("mongoose_ns.hrl").
--include_lib("exml/include/exml.hrl").
+
+-export([
+         stream_header/4,
+         stream_features_before_auth/4,
+         tls_proceed/0,
+         stream_features_after_auth/2,
+         sasl_success_stanza/1,
+         sasl_failure_stanza/1,
+         sasl_challenge_stanza/1,
+         successful_resource_binding/2,
+         presence_unavailable/1
+        ]).
 
 stream_header(Server, Version, Lang, StreamId) ->
     VersionStr = case Version of
