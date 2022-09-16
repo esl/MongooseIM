@@ -13,6 +13,7 @@
 
 -define(NONEXISTENT_JID, <<"user@user.com">>).
 -define(DEFAULT_DT, <<"2022-04-17T12:58:30.000000Z">>).
+-define(NONEXISTENT_DOMAIN, <<"nonexistent">>).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -67,9 +68,9 @@ admin_old_users_tests() ->
 
 domain_admin_last_tests() ->
     [admin_set_last,
-     domain_admin_try_set_nonexistent_user_last,
+     domain_admin_set_user_last_no_permission,
      admin_get_last,
-     domain_admin_get_nonexistent_user_last,
+     domain_admin_get_user_last_no_permission,
      admin_try_get_nonexistent_last,
      admin_count_active_users,
      domain_admin_try_count_external_domain_active_users].
@@ -258,7 +259,7 @@ admin_remove_old_users_domain_story(Config, Alice, AliceBis, Bob) ->
     ?assertMatch({ok, _}, check_account(AliceBis)).
 
 admin_try_remove_old_users_nonexistent_domain(Config) ->
-    Res = admin_remove_old_users(<<"nonexistent">>, now_dt_with_offset(0), Config),
+    Res = admin_remove_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
 
@@ -298,7 +299,7 @@ admin_list_old_users_domain_story(Config, Alice, Bob) ->
     ?assertEqual(dt_to_unit(OldDateTime, second), dt_to_unit(BobDateTime, second)).
 
 admin_try_list_old_users_nonexistent_domain(Config) ->
-    Res = admin_list_old_users(<<"nonexistent">>, now_dt_with_offset(0), Config),
+    Res = admin_list_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
 
@@ -335,22 +336,37 @@ admin_logged_user_is_not_old_user_story(Config, _Alice) ->
 
 %% Domain admin test cases
 
-domain_admin_try_set_nonexistent_user_last(Config) ->
-    get_unauthorized(admin_set_last(?NONEXISTENT_JID, <<"status">>, null, Config)).
+domain_admin_set_user_last_no_permission(Config) ->
+    get_unauthorized(admin_set_last(?NONEXISTENT_JID, <<"status">>, null, Config)),
+    escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
+        BinJID = escalus_client:full_jid(AliceBis),
+        Resp = admin_set_last(BinJID, <<"status">>, null, Config),
+        get_unauthorized(Resp)
+    end).
 
-domain_admin_get_nonexistent_user_last(Config) ->
-    get_unauthorized(admin_get_last(?NONEXISTENT_JID, Config)).
+domain_admin_get_user_last_no_permission(Config) ->
+    get_unauthorized(admin_get_last(?NONEXISTENT_JID, Config)),
+    escalus:fresh_story(Config, [{alice_bis, 1}], fun(AliceBis) ->
+        BinJID = escalus_client:full_jid(AliceBis),
+        Resp = admin_get_last(BinJID, Config),
+        get_unauthorized(Resp)
+    end).
 
 domain_admin_try_count_external_domain_active_users(Config) ->
-    get_unauthorized(admin_count_active_users(<<"external-domain.com">>, null, Config)).
+    get_unauthorized(admin_count_active_users(?NONEXISTENT_DOMAIN, null, Config)),
+    get_unauthorized(admin_count_active_users(domain_helper:secondary_domain(), null, Config)).
 
 %% Domain admin old users test cases
 
 domain_admin_try_list_old_users_external_domain(Config) ->
-    get_unauthorized(admin_list_old_users(<<"external">>, now_dt_with_offset(0), Config)).
+    ExternalDomain = domain_helper:secondary_domain(),
+    get_unauthorized(admin_list_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config)),
+    get_unauthorized(admin_list_old_users(ExternalDomain, now_dt_with_offset(0), Config)).
 
 domain_admin_try_remove_old_users_external_domain(Config) ->
-    get_unauthorized(admin_remove_old_users(<<"external">>, now_dt_with_offset(0), Config)).
+    ExternalDomain = domain_helper:secondary_domain(),
+    get_unauthorized(admin_remove_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config)),
+    get_unauthorized(admin_remove_old_users(ExternalDomain, now_dt_with_offset(0), Config)).
 
 domain_admin_list_old_users_global(Config) ->
     jids_with_config(Config, [alice, alice_bis, bob],

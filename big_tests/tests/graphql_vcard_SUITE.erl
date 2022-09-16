@@ -42,7 +42,7 @@ domain_admin_vcard_tests() ->
      admin_get_vcard_no_vcard,
      domain_admin_get_vcard_no_user,
      domain_admin_get_vcard_no_permission].
-    
+
 admin_vcard_tests() ->
     [admin_set_vcard,
      admin_set_vcard_incomplete_fields,
@@ -177,9 +177,9 @@ domain_admin_set_vcard_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
                                     fun domain_admin_set_vcard_no_permission/2).
 
-domain_admin_set_vcard_no_permission(Config, Alice) ->
+domain_admin_set_vcard_no_permission(Config, AliceBis) ->
     Vcard = complete_vcard_input(),
-    Result = set_vcard(Vcard, user_to_bin(Alice), Config),
+    Result = set_vcard(Vcard, user_to_bin(AliceBis), Config),
     get_unauthorized(Result).
 
 %% Admin test cases

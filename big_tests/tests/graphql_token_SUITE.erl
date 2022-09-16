@@ -30,8 +30,8 @@ user_tests() ->
 
 domain_admin_tests() ->
     [admin_request_token_test,
-     domain_admin_request_token_no_user_test,
-     domain_admin_revoke_token_no_user_test,
+     domain_admin_request_token_no_permission_test,
+     domain_admin_revoke_token_no_permission_test,
      admin_revoke_token_no_token_test,
      admin_revoke_token_test].
 
@@ -119,11 +119,28 @@ user_revoke_token_test(Config, Alice) ->
 
 % Domain admin tests
 
-domain_admin_request_token_no_user_test(Config) ->
-    get_unauthorized(admin_request_token(<<"AAAAA">>, Config)).
+domain_admin_request_token_no_permission_test(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_request_token_no_permission_test/2).
 
-domain_admin_revoke_token_no_user_test(Config) ->
-    get_unauthorized(admin_revoke_token(<<"AAAAA">>, Config)).
+domain_admin_request_token_no_permission_test(Config, AliceBis) ->
+    % External domain user
+    Res = admin_request_token(user_to_bin(AliceBis), Config),
+    get_unauthorized(Res),
+    % Non-existing user
+    Res2 = admin_request_token(<<"AAAAA">>, Config),
+    get_unauthorized(Res2).
+
+domain_admin_revoke_token_no_permission_test(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_revoke_token_no_permission_test/2).
+domain_admin_revoke_token_no_permission_test(Config, AliceBis) ->
+    % External domain user
+    Res = admin_revoke_token(user_to_bin(AliceBis), Config),
+    get_unauthorized(Res),
+    % Non-existing user
+    Res2 = admin_revoke_token(<<"AAAAA">>, Config),
+    get_unauthorized(Res2).
 
 % Admin tests
 

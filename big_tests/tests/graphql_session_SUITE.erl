@@ -45,14 +45,19 @@ domain_admin_session_tests() ->
     [domain_admin_list_sessions,
      domain_admin_count_sessions,
      admin_list_user_sessions,
+     domain_admin_list_user_sessions_no_permission,
      admin_count_user_resources,
+     domain_admin_count_user_resources_no_permission,
      admin_get_user_resource,
+     domain_admin_get_user_resource_no_permission,
      domain_admin_list_users_with_status,
      domain_admin_count_users_with_status,
      admin_kick_session,
+     domain_admin_kick_user_no_permission,
      admin_set_presence,
      admin_set_presence_away,
-     admin_set_presence_unavailable].
+     admin_set_presence_unavailable,
+     domain_admin_set_presence_no_permission].
 
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
@@ -163,6 +168,56 @@ domain_admin_count_sessions_story(Config, Alice, AliceB, _Bob) ->
     Number = get_ok_value(Path, Res3),
     ?assertEqual(2, Number).
 
+domain_admin_list_user_sessions_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_list_user_sessions_no_permission_story/2).
+
+domain_admin_list_user_sessions_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Res = list_user_sessions(AliceBisJID, Config),
+    get_unauthorized(Res).
+
+domain_admin_count_user_resources_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_count_user_resources_story_no_permission/2).
+
+domain_admin_count_user_resources_story_no_permission(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Res = count_user_resources(AliceBisJID, Config),
+    get_unauthorized(Res).
+
+domain_admin_get_user_resource_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_get_user_resource_story_no_permission_story/2).
+
+domain_admin_get_user_resource_story_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:short_jid(AliceBis),
+    Res = get_user_resource(AliceBisJID, 2, Config),
+    get_unauthorized(Res).
+
+domain_admin_kick_user_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_kick_user_no_permission_story/2).
+
+domain_admin_kick_user_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Reason = <<"Test kick">>,
+    Res = kick_user(AliceBisJID, Reason, Config),
+    get_unauthorized(Res).
+
+domain_admin_set_presence_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_set_presence_no_permission_story/2).
+
+domain_admin_set_presence_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Type = <<"AVAILABLE">>,
+    Show = <<"ONLINE">>,
+    Status = <<"Be right back">>,
+    Priority = 1,
+    Res = set_presence(AliceBisJID, Type, Show, Status, Priority, Config),
+    get_unauthorized(Res).
+
 domain_admin_list_users_with_status(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
                                     fun domain_admin_list_users_with_status_story/3).
@@ -183,15 +238,21 @@ domain_admin_list_users_with_status_story(Config, Alice, _AliceB) ->
     StatusUsers = get_ok_value(Path, Res2),
     ?assertEqual(1, length(StatusUsers)),
     check_users([AliceJID], StatusUsers),
+    % List users with away status for an external domain
+    Res3 = list_users_with_status(domain_helper:secondary_domain(), AwayStatus, Config),
+    get_unauthorized(Res3),
     % List users with dnd status globally
     escalus_client:send(Alice, DndPresence),
-    Res3 = list_users_with_status(null, DndStatus, Config),
-    get_unauthorized(Res3),
+    Res4 = list_users_with_status(null, DndStatus, Config),
+    get_unauthorized(Res4),
     % List users with dnd status for a domain
-    Res4 = list_users_with_status(domain_helper:domain(), DndStatus, Config),
-    StatusUsers2 = get_ok_value(Path, Res4),
+    Res5 = list_users_with_status(domain_helper:domain(), DndStatus, Config),
+    StatusUsers2 = get_ok_value(Path, Res5),
     ?assertEqual(1, length(StatusUsers2)),
-    check_users([AliceJID], StatusUsers2).
+    check_users([AliceJID], StatusUsers2),
+    % List users with dnd status for an external domain
+    Res6 = list_users_with_status(domain_helper:secondary_domain(), AwayStatus, Config),
+    get_unauthorized(Res6).
 
 domain_admin_count_users_with_status(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],

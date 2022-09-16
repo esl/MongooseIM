@@ -36,6 +36,7 @@ user_inbox_tests() ->
 admin_inbox_tests() ->
     [admin_flush_user_bin,
      admin_try_flush_nonexistent_user_bin,
+     admin_try_flush_user_bin_nonexistent_domain,
      admin_flush_domain_bin,
      admin_try_flush_nonexistent_domain_bin,
      admin_flush_global_bin,
@@ -44,11 +45,11 @@ admin_inbox_tests() ->
 
 domain_admin_inbox_tests() ->
     [admin_flush_user_bin,
-     domain_admin_try_flush_nonexistent_user_bin,
+     admin_try_flush_nonexistent_user_bin,
+     domain_admin_flush_user_bin_no_permission,
      admin_flush_domain_bin,
      domain_admin_try_flush_domain_bin_no_permission,
-     domain_admin_flush_global_bin_no_permission,
-     domain_admin_try_flush_nonexistent_host_type_bin].
+     domain_admin_flush_global_bin_no_permission].
 
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
@@ -98,6 +99,17 @@ admin_flush_user_bin(Config, Alice, Bob, Kate) ->
     inbox_helper:check_inbox(Bob, [], #{box => bin}),
     check_aff_msg_in_inbox_bin(Kate, RoomBinJID).
 
+admin_try_flush_nonexistent_user_bin(Config) ->
+    User = <<"nonexistent-user@", (domain_helper:domain())/binary>>,
+    Res2 = flush_user_bin(User, Config),
+    ?assertErrMsg(Res2, <<"does not exist">>),
+    ?assertErrCode(Res2, user_does_not_exist).
+
+admin_try_flush_user_bin_nonexistent_domain(Config) ->
+    Res = flush_user_bin(<<"user@user.com">>, Config),
+    ?assertErrMsg(Res, <<"not found">>),
+    ?assertErrCode(Res, domain_not_found).
+
 admin_flush_domain_bin(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
                                     fun admin_flush_domain_bin/4).
@@ -110,6 +122,11 @@ admin_flush_domain_bin(Config, Alice, AliceBis, Kate) ->
     ?assertEqual(1, NumOfRows),
     inbox_helper:check_inbox(Kate, [], #{box => bin}),
     check_aff_msg_in_inbox_bin(AliceBis, RoomBinJID).
+
+admin_try_flush_nonexistent_domain_bin(Config) ->
+    Res = flush_domain_bin(<<"unknown-domain">>, Config),
+    ?assertErrMsg(Res, <<"not found">>),
+    ?assertErrCode(Res, domain_not_found).
 
 admin_flush_global_bin(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
@@ -137,22 +154,6 @@ admin_flush_global_bin_after_days(Config, Alice, AliceBis, Kate) ->
     check_aff_msg_in_inbox_bin(AliceBis, RoomBinJID),
     check_aff_msg_in_inbox_bin(Kate, RoomBinJID).
 
-admin_try_flush_nonexistent_user_bin(Config) ->
-    %% Check nonexistent domain error
-    Res = flush_user_bin(<<"user@user.com">>, Config),
-    ?assertErrMsg(Res, <<"not found">>),
-    ?assertErrCode(Res, domain_not_found),
-    %% Check nonexistent user error
-    User = <<"nonexistent-user@", (domain_helper:domain())/binary>>,
-    Res2 = flush_user_bin(User, Config),
-    ?assertErrMsg(Res2, <<"does not exist">>),
-    ?assertErrCode(Res2, user_does_not_exist).
-
-admin_try_flush_nonexistent_domain_bin(Config) ->
-    Res = flush_domain_bin(<<"unknown-domain">>, Config),
-    ?assertErrMsg(Res, <<"not found">>),
-    ?assertErrCode(Res, domain_not_found).
-
 admin_try_flush_nonexistent_host_type_bin(Config) ->
     Res = flush_global_bin(<<"nonexistent host type">>, null, Config),
     ?assertErrMsg(Res, <<"not found">>),
@@ -160,29 +161,30 @@ admin_try_flush_nonexistent_host_type_bin(Config) ->
 
 %% Domain admin test cases
 
-domain_admin_try_flush_nonexistent_user_bin(Config) ->
-    %% Check nonexistent domain error
-    get_unauthorized(flush_user_bin(<<"user@user.com">>, Config)),
-    %% Check nonexistent user error
-    User = <<"nonexistent-user@", (domain_helper:domain())/binary>>,
-    Res2 = flush_user_bin(User, Config),
-    ?assertErrMsg(Res2, <<"does not exist">>),
-    ?assertErrCode(Res2, user_does_not_exist).
+domain_admin_flush_user_bin_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_flush_user_bin_no_permission/2).
+
+domain_admin_flush_user_bin_no_permission(Config, AliceBis) ->
+    Res = flush_user_bin(AliceBis, Config),
+    get_unauthorized(Res),
+    InvalidUser = <<"user@user.com">>,
+    Res2 = flush_user_bin(InvalidUser, Config),
+    get_unauthorized(Res2).
 
 domain_admin_try_flush_domain_bin_no_permission(Config) ->
-    get_unauthorized(flush_domain_bin(<<"external-domain">>, Config)).
+    get_unauthorized(flush_domain_bin(<<"external-domain">>, Config)),
+    get_unauthorized(flush_domain_bin(domain_helper:secondary_domain(), Config)).
 
 domain_admin_flush_global_bin_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
                                     fun domain_admin_flush_global_bin_no_permission/4).
 
 domain_admin_flush_global_bin_no_permission(Config, Alice, AliceBis, Kate) ->
+    get_unauthorized(flush_global_bin(<<"nonexistent host type">>, null, Config)),
     SecHostType = domain_helper:host_type(),
     create_room_and_make_users_leave(Alice, AliceBis, Kate),
     get_unauthorized(flush_global_bin(SecHostType, null, Config)).
-
-domain_admin_try_flush_nonexistent_host_type_bin(Config) ->
-    get_unauthorized(flush_global_bin(<<"nonexistent host type">>, null, Config)).
 
 %% User test cases
 

@@ -19,18 +19,18 @@ all() ->
      {group, domain_admin_gdpr}].
 
 groups() ->
-    [{admin_gdpr_http, [], admin_stats_tests()},
-     {admin_gdpr_cli, [], admin_stats_tests()},
-     {domain_admin_gdpr, [], domain_admin_stats_tests()}].
+    [{admin_gdpr_http, [], admin_gdpr_tests()},
+     {admin_gdpr_cli, [], admin_gdpr_tests()},
+     {domain_admin_gdpr, [], domain_admin_gdpr_tests()}].
 
-admin_stats_tests() ->
-    [admin_retrive_user_data,
+admin_gdpr_tests() ->
+    [admin_retrieve_user_data,
      admin_gdpr_no_user_test].
 
-domain_admin_stats_tests() ->
-    [admin_retrive_user_data,
+domain_admin_gdpr_tests() ->
+    [admin_retrieve_user_data,
      admin_gdpr_no_user_test,
-     domain_admin_retrive_user_data_no_permission].
+     domain_admin_retrieve_user_data_no_permission].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -59,10 +59,10 @@ end_per_testcase(CaseName, Config) ->
 
 % Admin test cases
 
-admin_retrive_user_data(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_retrive_user_data/2).
+admin_retrieve_user_data(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_retrieve_user_data/2).
 
-admin_retrive_user_data(Config, Alice) ->
+admin_retrieve_user_data(Config, Alice) ->
     Filename = random_filename(Config),
     Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
                                        list_to_binary(Filename), Config),
@@ -77,14 +77,14 @@ admin_gdpr_no_user_test(Config) ->
     Res = admin_retrieve_personal_data(<<"AAAA">>, domain(), <<"AAA">>, Config),
     ?assertEqual(<<"user_does_not_exist_error">>, get_err_code(Res)).
 
-domain_admin_retrive_user_data_no_permission(Config) ->
+domain_admin_retrieve_user_data_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
-                                    fun domain_admin_retrive_user_data_no_permission/2).
+                                    fun domain_admin_retrieve_user_data_no_permission/2).
 
-domain_admin_retrive_user_data_no_permission(Config, Alice) ->
+domain_admin_retrieve_user_data_no_permission(Config, Alice) ->
     Filename = random_filename(Config),
     Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
-                                        list_to_binary(Filename), Config),
+                                       list_to_binary(Filename), Config),
     get_unauthorized(Res).
 
 % Helpers

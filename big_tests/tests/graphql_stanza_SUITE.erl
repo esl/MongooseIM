@@ -7,7 +7,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,
-                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1, 
+                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1,
                          get_unauthorized/1]).
 
 suite() ->
@@ -47,20 +47,13 @@ domain_admin_stanza_cases() ->
     [admin_send_message,
      admin_send_message_to_unparsable_jid,
      admin_send_message_headline,
+     domain_admin_send_message_no_permission,
      domain_admin_send_stanza,
      admin_send_unparsable_stanza,
      domain_admin_send_stanza_from_unknown_user,
-     domain_admin_send_stanza_from_unknown_domain]
-    ++ domain_admin_get_last_messages_cases().
-
-domain_admin_get_last_messages_cases() ->
-    [admin_get_last_messages,
-     admin_get_last_messages_for_unknown_user,
-     admin_get_last_messages_with,
-     admin_get_last_messages_limit,
-     admin_get_last_messages_limit_enforced,
-     admin_get_last_messages_before,
-     domain_admin_get_last_messages_no_permission].
+     domain_admin_send_stanza_from_unknown_domain,
+     domain_admin_get_last_messages_no_permission]
+    ++ admin_get_last_messages_cases().
 
 user_stanza_cases() ->
     [user_send_message,
@@ -102,8 +95,7 @@ init_per_testcase(CaseName, Config) ->
     HasMam = proplists:get_value(has_mam, Config, false),
     MamOnly = lists:member(CaseName,
                            user_get_last_messages_cases()
-                           ++ admin_get_last_messages_cases()
-                           ++ domain_admin_get_last_messages_cases()),
+                           ++ admin_get_last_messages_cases()),
     case {HasMam, MamOnly} of
         {false, true} ->
             {skip, no_mam};
@@ -218,6 +210,16 @@ user_send_message_headline_with_spoofed_from_story(Config, Alice, Bob) ->
     To = From = escalus_client:short_jid(Bob),
     Res = user_send_message_headline(Alice, From, To, <<"Welcome">>, <<"Hi!">>, Config),
     spoofed_error(sendMessageHeadLine, Res).
+
+domain_admin_send_message_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_send_message_no_permission_story/3).
+
+domain_admin_send_message_no_permission_story(Config, AliceBis, Bob) ->
+    From = escalus_client:full_jid(AliceBis),
+    To = escalus_client:short_jid(Bob),
+    Res = send_message(From, To, <<"Hi!">>, Config),
+    get_unauthorized(Res).
 
 domain_admin_send_stanza(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],

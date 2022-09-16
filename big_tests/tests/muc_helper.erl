@@ -53,8 +53,10 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc() ->
+    load_muc(domain_helper:host_type()).
+
+load_muc(HostType) ->
     Backend = muc_backend(),
-    HostType = domain_helper:host_type(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
     Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,

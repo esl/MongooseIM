@@ -210,28 +210,36 @@ domain_admin_set_domain_password(Config) ->
     ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
 
 domain_admin_create_domain_no_permission(Config) ->
-    get_unauthorized(add_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
+    get_unauthorized(add_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)),
+    get_unauthorized(add_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
 
 domain_admin_disable_domain_no_permission(Config) ->
-    get_unauthorized(disable_domain(?EXAMPLE_DOMAIN, Config)).
+    get_unauthorized(disable_domain(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(disable_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
 
 domain_admin_enable_domain_no_permission(Config) ->
-    get_unauthorized(enable_domain(?EXAMPLE_DOMAIN, Config)).
+    get_unauthorized(enable_domain(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(enable_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
 
 domain_admin_get_domains_by_host_type_no_permission(Config) ->
-    get_unauthorized(get_domains_by_host_type(?HOST_TYPE, Config)).
+    get_unauthorized(get_domains_by_host_type(?HOST_TYPE, Config)),
+    get_unauthorized(get_domains_by_host_type(domain_helper:host_type(), Config)).
 
 domain_admin_get_domain_details_no_permission(Config) ->
+    get_unauthorized(get_domain_details(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)),
     get_unauthorized(get_domain_details(?EXAMPLE_DOMAIN, Config)).
 
 domain_admin_set_domain_password_no_permission(Config) ->
-    get_unauthorized(set_domain_password(<<"externalDomain">>, <<"secret">>, Config)).
+    get_unauthorized(set_domain_password(?EXAMPLE_DOMAIN, <<"secret">>, Config)),
+    get_unauthorized(set_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"secret">>, Config)).
 
 domain_admin_delete_domain_no_permission(Config) ->
-    get_unauthorized(remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
+    get_unauthorized(remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)),
+    get_unauthorized(remove_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
 
 domain_admin_delete_domain_password_no_permission(Config) ->
-    get_unauthorized(delete_domain_password(domain_helper:domain(), Config)).
+    get_unauthorized(delete_domain_password(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(delete_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
 
 %% Commands
 

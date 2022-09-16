@@ -3,7 +3,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, domain/0, secondary_domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2,
                          get_err_msg/1, get_err_code/1, get_unauthorized/1]).
 
@@ -222,8 +222,10 @@ admin_http_upload_not_configured(Config) ->
     ?assertEqual(<<"mod_http_upload is not loaded for this host">>, get_err_msg(Result)).
 
 domain_admin_get_url_no_permission(Config) ->
-    Result = admin_get_url(<<"AAAAA">>, <<"test">>, 123, <<"Test">>, 123, Config),
-    get_unauthorized(Result).
+    Result1 = admin_get_url(<<"AAAAA">>, <<"test">>, 123, <<"Test">>, 123, Config),
+    get_unauthorized(Result1),
+    Result2 = admin_get_url(secondary_domain(), <<"test">>, 123, <<"Test">>, 123, Config),
+    get_unauthorized(Result2).
 
 % Helpers
 

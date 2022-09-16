@@ -55,8 +55,8 @@ domain_admin_offline_tests() ->
      admin_delete_old_messages_test,
      admin_delete_expired_messages2_test,
      admin_delete_old_messages2_test,
-     domain_admin_delete_expired_messages_no_domain_test,
-     domain_admin_delete_old_messages_no_domain_test].
+     domain_admin_delete_expired_messages_no_permission_test,
+     domain_admin_delete_old_messages_no_permission_test].
 
 domain_admin_offline_not_configured_tests() ->
     [admin_delete_expired_messages_offline_not_configured_test,
@@ -84,13 +84,8 @@ init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin, Config) ->
     graphql_helper:init_domain_admin_handler(Config);
-init_per_group(admin_offline, Config) ->
-    HostType = host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
-    [{backend, Backend} | escalus:init_per_suite(Config)];
-init_per_group(domain_admin_offline, Config) ->
+init_per_group(GroupName, Config) when GroupName =:= admin_offline;
+                                       GroupName =:= domain_admin_offline ->
     HostType = host_type(),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
     ModConfig = create_config(Backend),
@@ -170,11 +165,13 @@ admin_delete_old_messages_offline_not_configured_test(Config) ->
 
 %% Domain admin test cases
 
-domain_admin_delete_expired_messages_no_domain_test(Config) ->
-    get_unauthorized(delete_expired_messages(<<"AAAA">>, Config)).
+domain_admin_delete_expired_messages_no_permission_test(Config) ->
+    get_unauthorized(delete_expired_messages(<<"AAAA">>, Config)),
+    get_unauthorized(delete_expired_messages(domain_helper:secondary_domain(), Config)).
 
-domain_admin_delete_old_messages_no_domain_test(Config) ->
-    get_unauthorized(delete_old_messages(<<"AAAA">>, 2, Config)).
+domain_admin_delete_old_messages_no_permission_test(Config) ->
+    get_unauthorized(delete_old_messages(<<"AAAA">>, 2, Config)),
+    get_unauthorized(delete_old_messages(domain_helper:secondary_domain(), 2, Config)).
 
 %% Commands
 
