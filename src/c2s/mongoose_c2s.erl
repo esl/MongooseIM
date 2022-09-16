@@ -34,7 +34,7 @@
           listener_opts :: mongoose_listener:options(),
           state_mod = #{} :: #{module() => term()}
          }).
--type c2s_data() :: #c2s_data{}.
+-type c2s_data() :: #c2s_data{} | ejabberd_c2s:state().
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(c2s_state(), c2s_data()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
