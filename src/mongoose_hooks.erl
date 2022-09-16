@@ -1315,7 +1315,7 @@ disco_sm_items(Acc = #{host_type := HostType}) ->
 %%% offered by the server.
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_features, HostType, Acc, #{}).
 
 %%% @doc `disco_sm_features' hook is called to get the features of the client
 %%% when a discovery IQ gets to session management.

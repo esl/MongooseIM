@@ -14,10 +14,10 @@
 -export([
          process_iq_get/5,
          process_iq_set/4,
-         disco_local_features/1
+         disco_local_features/3
         ]).
 
--ignore_xref([disco_local_features/1, process_iq_get/5, process_iq_set/4]).
+-ignore_xref([process_iq_get/5, process_iq_set/4]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
@@ -26,11 +26,13 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)).
 
 deps(_HostType, Opts) ->
     [{mod_privacy, Opts, hard}].
@@ -42,16 +44,20 @@ supported_features() ->
 config_spec() ->
     mod_privacy:config_spec().
 
-hooks(HostType) ->
-    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
-     {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
+legacy_hooks(HostType) ->
+    [{privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50}].
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_BLOCKING], Acc);
-disco_local_features(Acc) ->
-    Acc.
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
+
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_BLOCKING], Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->

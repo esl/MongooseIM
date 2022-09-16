@@ -43,7 +43,7 @@
          remove_user/3,
          remove_domain/3,
          updated_list/3,
-         disco_local_features/1,
+         disco_local_features/3,
          remove_unused_backend_opts/1
         ]).
 
@@ -52,7 +52,7 @@
 -ignore_xref([
     behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
     process_iq_set/4, remove_user/3, updated_list/3,
-    remove_user/3, remove_domain/3, disco_local_features/1]).
+    remove_user/3, remove_domain/3]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
@@ -73,11 +73,13 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
     mod_privacy_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)).
 
 config_spec() ->
     #section{
@@ -110,9 +112,8 @@ remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 supported_features() ->
     [dynamic_domains].
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 98},
      {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50},
      {privacy_get_user_list, HostType, ?MODULE, get_user_list, 50},
@@ -123,15 +124,20 @@ hooks(HostType) ->
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50}
     ].
 
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98}].
+
 %% ------------------------------------------------------------------
 %% Handlers
 %% ------------------------------------------------------------------
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_PRIVACY], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_PRIVACY], Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 process_iq_get(Acc,
                _From = #jid{luser = LUser, lserver = LServer},
