@@ -24,7 +24,7 @@ type RosterAdminMutation @protected{
   subscribeToAll(user: ContactInput!, contacts: [ContactInput!]!): [String]!
     @protected(type: DOMAIN, args: ["user.jid"])
   "Set mutual subscriptions between all of the given contacts"
-  subscribeAllToAll(contacts: [ContactInput!]): [String]!
+  subscribeAllToAll(contacts: [ContactInput!]!): [String]!
     @protected(type: DOMAIN, args: ["contacts.jid"])
 }
 

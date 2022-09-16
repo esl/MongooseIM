@@ -38,6 +38,8 @@ type AdminQuery{
   gdpr: GdprAdminQuery
   "Mnesia internal database management"
   mnesia: MnesiaAdminQuery
+  "Server management"
+  server: ServerAdminQuery
 }
 
 """
@@ -75,4 +77,6 @@ type AdminMutation @protected{
   token: TokenAdminMutation
   "Mnesia internal database management"
   mnesia: MnesiaAdminMutation
+  "Server management"
+  server: ServerAdminMutation
 }

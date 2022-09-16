@@ -63,6 +63,8 @@
 %% for mod_muc_light_codec_legacy
 -export([subdomain_pattern/1]).
 
+-export([get_room_affs_from_acc/2, set_room_affs_from_acc/3]).
+
 %% For tests
 -export([default_schema/0,
          force_clear_from_ct/1]).

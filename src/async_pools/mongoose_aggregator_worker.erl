@@ -21,7 +21,7 @@
                     mongoose_async_pools:pool_extra()) ->
     {ok, mongoose_async_pools:task()} | {error, term()}.
 -callback request(mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
-    gen_server:request_id().
+    gen_server:request_id() | drop.
 -callback verify(term(), mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
     term().
 -optional_callbacks([verify/3]).
@@ -55,16 +55,16 @@
 -spec init(map()) -> {ok, state()}.
 init(#{host_type := HostType,
        pool_id := PoolId,
-       request_callback := Requester,
+       request_callback := Requestor,
        aggregate_callback := Aggregator,
        flush_extra := FlushExtra} = Opts)
-  when is_function(Requester, 2),
+  when is_function(Requestor, 2),
        is_function(Aggregator, 3),
        is_map(FlushExtra) ->
     ?LOG_DEBUG(#{what => aggregator_worker_start, host_type => HostType, pool_id => PoolId}),
     {ok, #state{host_type = HostType,
                 pool_id = PoolId,
-                request_callback = Requester,
+                request_callback = Requestor,
                 aggregate_callback = Aggregator,
                 verify_callback = maps:get(verify_callback, Opts, undefined),
                 flush_extra = FlushExtra}}.
@@ -82,6 +82,8 @@ handle_call(Msg, From, State) ->
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast({task, Key, Value}, State) ->
     {noreply, handle_task(Key, Value, State)};
+handle_cast({broadcast, Broadcast}, State) ->
+    {noreply, handle_broadcast(Broadcast, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
@@ -94,10 +96,10 @@ handle_info(Msg, #state{async_request = {AsyncRequest, ReqTask}} = State) ->
     case gen_server:check_response(Msg, AsyncRequest) of
         {error, {Reason, _Ref}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State};
+            {noreply, State#state{async_request = no_request_pending}};
         {reply, {error, Reason}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State};
+            {noreply, State#state{async_request = no_request_pending}};
         {reply, Reply} ->
             maybe_verify_reply(Reply, ReqTask, State),
             {noreply, maybe_request_next(State)};
@@ -127,7 +129,7 @@ format_status(_Opt, [_PDict, State | _]) ->
 % If we don't have any request pending, it means that it is the first task submitted,
 % so aggregation is not needed.
 handle_task(_, Value, #state{async_request = no_request_pending} = State) ->
-    State#state{async_request = make_async_request(Value, State)};
+    make_async_request(Value, State);
 handle_task(Key, NewValue, #state{aggregate_callback = Aggregator,
                                   flush_elems = Acc,
                                   flush_queue = Queue,
@@ -148,20 +150,48 @@ handle_task(Key, NewValue, #state{aggregate_callback = Aggregator,
                         flush_queue = queue:in(Key, Queue)}
     end.
 
+% If we don't have any request pending, it means that it is the first task submitted,
+% so aggregation is not needed.
+handle_broadcast(Task, #state{async_request = no_request_pending} = State) ->
+    make_async_request(Task, State);
+handle_broadcast(Task, #state{aggregate_callback = Aggregator,
+                              flush_elems = Acc,
+                              flush_extra = Extra} = State) ->
+    Map = fun(_Key, OldValue) ->
+                  case Aggregator(OldValue, Task, Extra) of
+                      {ok, FinalValue} ->
+                          FinalValue;
+                      {error, Reason} ->
+                          ?LOG_ERROR(log_fields(State, #{what => aggregation_failed, reason => Reason})),
+                          OldValue
+                  end
+          end,
+    State#state{flush_elems = maps:map(Map, Acc)}.
+
 maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
     case queue:out(Queue) of
         {{value, Key}, NewQueue} ->
             {Value, NewAcc} = maps:take(Key, Acc),
-            State#state{async_request = make_async_request(Value, State),
-                        flush_elems = NewAcc, flush_queue = NewQueue};
+            NewState1 = State#state{flush_elems = NewAcc, flush_queue = NewQueue},
+            case make_async_request(Value, NewState1) of
+                NewState2 = #state{async_request = no_request_pending} ->
+                    maybe_request_next(NewState2);
+                NewState2 ->
+                    NewState2
+            end;
         {empty, _} ->
             State#state{async_request = no_request_pending}
     end.
 
-make_async_request(Value, #state{host_type = HostType, pool_id = PoolId,
-                                 request_callback = Requestor, flush_extra = Extra}) ->
-    mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, async_request], 1),
-    {Requestor(Value, Extra), Value}.
+make_async_request(Request, #state{host_type = HostType, pool_id = PoolId,
+                                   request_callback = Requestor, flush_extra = Extra} = State) ->
+    case Requestor(Request, Extra) of
+        drop ->
+            State;
+        ReqId ->
+            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, async_request], 1),
+            State#state{async_request = {ReqId, Request}}
+    end.
 
 maybe_verify_reply(_, _, #state{verify_callback = undefined}) ->
     ok;

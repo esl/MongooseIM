@@ -332,7 +332,7 @@ leave_using_rpc(Config) ->
     add_node_to_cluster(Node2, Config),
     %% when
     Result = distributed_helper:rpc(Node1#{timeout => timer:seconds(30)},
-                                    ejabberd_admin, leave_cluster, []),
+                                    mongoose_server_api, leave_cluster, []),
     ct:pal("leave_using_rpc result ~p~n", [Result]),
     %% then
     distributed_helper:verify_result(Node2, remove),
@@ -395,7 +395,7 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
-    distributed_helper:stop_node(Node3, Config),
+    distributed_helper:stop_node(Node3Nodename, Config),
     {_, OpCode1} = mongooseimctl_interactive(Node1, "remove_from_cluster",
                                              [atom_to_list(Node3Nodename)], "yes\n", Config),
     %% then
@@ -405,7 +405,7 @@ remove_dead_from_cluster(Config) ->
     have_node_in_mnesia(Node1, Node3, false),
     have_node_in_mnesia(Node2, Node3, false),
     % after node awakening nodes are clustered again
-    distributed_helper:start_node(Node3, Config),
+    distributed_helper:start_node(Node3Nodename, Config),
     have_node_in_mnesia(Node1, Node3, true),
     have_node_in_mnesia(Node2, Node3, true).
 

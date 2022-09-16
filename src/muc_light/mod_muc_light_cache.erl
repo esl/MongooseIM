@@ -3,7 +3,6 @@
 -include("mongoose_config_spec.hrl").
 
 -behaviour(gen_mod).
--define(FRONTEND, mod_muc_light).
 
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0, supported_features/0]).
@@ -55,12 +54,12 @@ hooks(HostType) ->
 -spec pre_acc_room_affiliations(mongoose_acc:t(), jid:jid()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
 pre_acc_room_affiliations(Acc, RoomJid) ->
-    case mongoose_acc:get(?FRONTEND, affiliations, {error, not_exists}, Acc) of
+    case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
             HostType = mongoose_acc:host_type(Acc),
             case mongoose_user_cache:get_entry(HostType, ?MODULE, RoomJid) of
                 #{affs := Res} ->
-                    mongoose_acc:set(?FRONTEND, affiliations, Res, Acc);
+                    mod_muc_light:set_room_affs_from_acc(Acc, RoomJid, Res);
                 _ ->
                     Acc
             end;
@@ -70,7 +69,7 @@ pre_acc_room_affiliations(Acc, RoomJid) ->
 
 -spec post_acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 post_acc_room_affiliations(Acc, RoomJid) ->
-    case mongoose_acc:get(?FRONTEND, affiliations, {error, not_exists}, Acc) of
+    case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
             Acc;
         Res ->

@@ -87,4 +87,5 @@ do_subscribe_all_to_all([User | Contacts]) ->
     do_subscribe_to_all(User, Contacts) ++ do_subscribe_all_to_all(Contacts).
 
 contact_input_map_to_tuple(#{<<"jid">> := JID, <<"name">> := Name, <<"groups">> := Groups}) ->
-    {JID, Name, Groups}.
+    Groups1 = null_to_default(Groups, []),
+    {JID, Name, Groups1}.
