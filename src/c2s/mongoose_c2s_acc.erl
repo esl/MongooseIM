@@ -76,10 +76,10 @@ new(T) ->
 
 -spec get_statem_result(mongoose_acc:t()) -> mongoose_c2s_acc:t().
 get_statem_result(Acc) ->
-    CAcc = #{actions := Actions,
-             socket_send := SocketSend} = mongoose_acc:get_statem_acc(Acc),
-    CAcc#{actions := lists:reverse(Actions),
-          socket_send := lists:reverse(SocketSend)}.
+    C2SAcc = #{actions := Actions,
+               socket_send := SocketSend} = mongoose_acc:get_statem_acc(Acc),
+    C2SAcc#{actions := lists:reverse(Actions),
+            socket_send := lists:reverse(SocketSend)}.
 
 -spec from_mongoose_acc(mongoose_acc:t(), key()) -> term().
 from_mongoose_acc(Acc, Key) ->
@@ -96,57 +96,57 @@ from_mongoose_acc(Acc, Key) ->
             (mongoose_acc:t(), socket_send, exml:element()) -> mongoose_acc:t().
 to_acc(Acc, state_mod, {Name, Handler}) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, state_mod, {Name, Handler}),
+    C2SAcc1 = to_c2s_acc(C2SAcc, state_mod, {Name, Handler}),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, actions, Actions) when is_list(Actions) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, actions, Actions),
+    C2SAcc1 = to_c2s_acc(C2SAcc, actions, Actions),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, socket_send, Stanza) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, socket_send, Stanza),
+    C2SAcc1 = to_c2s_acc(C2SAcc, socket_send, Stanza),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, stop, Reason) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, stop, Reason),
+    C2SAcc1 = to_c2s_acc(C2SAcc, stop, Reason),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, Key, NewValue) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_cacc(C2SAcc, Key, NewValue),
+    C2SAcc1 = to_c2s_acc(C2SAcc, Key, NewValue),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc).
 
 -spec to_acc_many(mongoose_acc:t(), [pairs()]) -> mongoose_acc:t().
 to_acc_many(Acc, Pairs) ->
-    CAcc = mongoose_acc:get_statem_acc(Acc),
-    to_acc_many(Acc, CAcc, Pairs).
+    C2SAcc = mongoose_acc:get_statem_acc(Acc),
+    to_acc_many(Acc, C2SAcc, Pairs).
 
 -spec to_acc_many(mongoose_acc:t(), mongoose_c2s_acc:t(), [pairs()]) -> mongoose_acc:t().
-to_acc_many(Acc, CAcc, []) ->
-    mongoose_acc:set_statem_acc(CAcc, Acc);
-to_acc_many(Acc, CAcc, [{Key, Value} | Rest]) ->
-    NewCAcc = to_cacc(CAcc, Key, Value),
+to_acc_many(Acc, C2SAcc, []) ->
+    mongoose_acc:set_statem_acc(C2SAcc, Acc);
+to_acc_many(Acc, C2SAcc, [{Key, Value} | Rest]) ->
+    NewCAcc = to_c2s_acc(C2SAcc, Key, Value),
     to_acc_many(Acc, NewCAcc, Rest).
 
--spec to_cacc(mongoose_c2s_acc:t(), state_mod, {atom(), term()}) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), actions, [gen_statem:action()]) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), actions, gen_statem:action()) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), c2s_state, term()) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), hard_stop, atom()) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_c2s_acc:t();
-             (mongoose_c2s_acc:t(), socket_send, exml:element()) -> mongoose_c2s_acc:t().
-to_cacc(CAcc = #{state_mod := Handlers}, state_mod, {Name, Handler}) ->
-    CAcc#{state_mod := Handlers#{Name => Handler}};
-to_cacc(CAcc = #{actions := Actions}, actions, NewActions) when is_list(NewActions) ->
-    CAcc#{actions := NewActions ++ Actions};
-to_cacc(CAcc = #{actions := Actions}, actions, Action) ->
-    CAcc#{actions := [Action | Actions]};
-to_cacc(CAcc = #{socket_send := Stanzas}, socket_send, []) ->
-    CAcc#{socket_send := Stanzas};
-to_cacc(CAcc = #{socket_send := Stanzas}, socket_send, Stanza) ->
-    CAcc#{socket_send := [Stanza | Stanzas]};
-to_cacc(CAcc = #{actions := Actions}, stop, Reason) ->
-    CAcc#{actions := [{next_event, info, {stop, Reason}} | Actions]};
-to_cacc(CAcc, Key, NewValue) ->
-    #{Key := _OldValue} = CAcc,
-    CAcc#{Key := NewValue}.
+-spec to_c2s_acc(mongoose_c2s_acc:t(), state_mod, {atom(), term()}) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), actions, [gen_statem:action()]) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), actions, gen_statem:action()) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), c2s_state, term()) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), hard_stop, atom()) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_c2s_acc:t();
+                (mongoose_c2s_acc:t(), socket_send, exml:element()) -> mongoose_c2s_acc:t().
+to_c2s_acc(C2SAcc = #{state_mod := Handlers}, state_mod, {Name, Handler}) ->
+    C2SAcc#{state_mod := Handlers#{Name => Handler}};
+to_c2s_acc(C2SAcc = #{actions := Actions}, actions, NewActions) when is_list(NewActions) ->
+    C2SAcc#{actions := NewActions ++ Actions};
+to_c2s_acc(C2SAcc = #{actions := Actions}, actions, Action) ->
+    C2SAcc#{actions := [Action | Actions]};
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, socket_send, []) ->
+    C2SAcc#{socket_send := Stanzas};
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, socket_send, Stanza) ->
+    C2SAcc#{socket_send := [Stanza | Stanzas]};
+to_c2s_acc(C2SAcc = #{actions := Actions}, stop, Reason) ->
+    C2SAcc#{actions := [{next_event, info, {stop, Reason}} | Actions]};
+to_c2s_acc(C2SAcc, Key, NewValue) ->
+    #{Key := _OldValue} = C2SAcc,
+    C2SAcc#{Key := NewValue}.
