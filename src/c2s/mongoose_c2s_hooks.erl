@@ -16,10 +16,10 @@
          user_send_iq/3,
          user_send_presence/3,
          user_send_xmlel/3,
-         user_received_message/3,
-         user_received_iq/3,
-         user_received_presence/3,
-         user_received_xmlel/3
+         user_receive_message/3,
+         user_receive_iq/3,
+         user_receive_presence/3,
+         user_receive_xmlel/3
         ]).
 
 %% General event handlers
@@ -98,42 +98,42 @@ user_send_xmlel(HostType, Acc, Params) ->
 
 
 %% @doc Triggered when the user received a stanza of type `message'
--spec user_received_message(HostType, Acc, Params) -> Result when
+-spec user_receive_message(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_received_message(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_received_message, HostType, Acc, Params).
+user_receive_message(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_receive_message, HostType, Acc, Params).
 
 %% @doc Triggered when the user received a stanza of type `iq'
--spec user_received_iq(HostType, Acc, Params) -> Result when
+-spec user_receive_iq(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_received_iq(HostType, Acc, Params) ->
+user_receive_iq(HostType, Acc, Params) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
-    gen_hook:run_fold(user_received_iq, HostType, Acc1, Params).
+    gen_hook:run_fold(user_receive_iq, HostType, Acc1, Params).
 
 %% @doc Triggered when the user received a stanza of type `presence'
--spec user_received_presence(HostType, Acc, Params) -> Result when
+-spec user_receive_presence(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_received_presence(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_received_presence, HostType, Acc, Params).
+user_receive_presence(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_receive_presence, HostType, Acc, Params).
 
 %% @doc Triggered when the user received a packet which is not a proper XMPP stanza, i.e.,
 %% it is not of types `message', `iq', nor `presence'.
--spec user_received_xmlel(HostType, Acc, Params) -> Result when
+-spec user_receive_xmlel(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_received_xmlel(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_received_xmlel, HostType, Acc, Params).
+user_receive_xmlel(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_receive_xmlel, HostType, Acc, Params).
 
 %% @doc Triggered when the c2s statem process receives any event it is not defined to handle.
 %% These events should not by default stop the process, and they are expected to

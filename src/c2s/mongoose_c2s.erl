@@ -647,13 +647,13 @@ handle_incoming_stanza(StateData = #c2s_data{host_type = HostType}, C2SState, Ac
 -spec process_incoming_stanza(c2s_data(), mongoose_acc:t(), binary()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"message">>) ->
-    mongoose_c2s_hooks:user_received_message(HostType, Acc, hook_arg(StateData));
+    mongoose_c2s_hooks:user_receive_message(HostType, Acc, hook_arg(StateData));
 process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"iq">>) ->
-    mongoose_c2s_hooks:user_received_iq(HostType, Acc, hook_arg(StateData));
+    mongoose_c2s_hooks:user_receive_iq(HostType, Acc, hook_arg(StateData));
 process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"presence">>) ->
-    mongoose_c2s_hooks:user_received_presence(HostType, Acc, hook_arg(StateData));
+    mongoose_c2s_hooks:user_receive_presence(HostType, Acc, hook_arg(StateData));
 process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, _) ->
-    mongoose_c2s_hooks:user_received_xmlel(HostType, Acc, hook_arg(StateData)).
+    mongoose_c2s_hooks:user_receive_xmlel(HostType, Acc, hook_arg(StateData)).
 
 -spec handle_state_after_packet(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
 handle_state_after_packet(StateData, C2SState, Acc) ->
