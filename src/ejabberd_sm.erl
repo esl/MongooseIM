@@ -40,9 +40,6 @@
          store_info/3,
          get_info/2,
          remove_info/2,
-         check_in_subscription/5,
-         bounce_offline_message/4,
-         disconnect_removed_user/3,
          get_user_resources/1,
          set_presence/6,
          unset_presence/5,
@@ -70,7 +67,11 @@
         ]).
 
 %% Hook handlers
--export([node_cleanup/2]).
+-export([node_cleanup/3,
+         check_in_subscription/3,
+         bounce_offline_message/3,
+         disconnect_removed_user/3
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -80,10 +81,8 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
-              do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
-              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2,
-              sm_backend/0]).
+-ignore_xref([do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
+              get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -294,40 +293,6 @@ remove_info(JID, Key) ->
             end
     end.
 
--spec check_in_subscription(Acc, ToJID, FromJID, Type, Reason) -> any() | {stop, false} when
-      Acc :: any(),
-      ToJID :: jid:jid(),
-      FromJID :: jid:jid(),
-      Type :: any(),
-      Reason :: any().
-check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
-    case ejabberd_auth:does_user_exist(ToJID) of
-        true ->
-            Acc;
-        false ->
-            {stop, mongoose_acc:set(hook, result, false, Acc)}
-    end.
-
--spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
-      Acc :: map(),
-      From :: jid:jid(),
-      To :: jid:jid(),
-      Packet :: exml:element().
-bounce_offline_message(Acc, From, To, Packet) ->
-    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
-    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
-    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
-    Acc3 = ejabberd_router:route(To, From, Acc2, Err),
-    {stop, Acc3}.
-
--spec disconnect_removed_user(mongoose_acc:t(), User :: jid:user(),
-                              Server :: jid:server()) -> mongoose_acc:t().
-disconnect_removed_user(Acc, User, Server) ->
-    lists:map(fun({_, Pid}) -> ejabberd_c2s:terminate_session(Pid, <<"User removed">>) end,
-              get_user_present_pids(User, Server)),
-    Acc.
-
-
 -spec get_user_resources(JID :: jid:jid()) -> [binary()].
 get_user_resources(JID) ->
     #jid{luser = LUser, lserver = LServer} = JID,
@@ -473,10 +438,46 @@ run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
 %% Hook handlers
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+-spec node_cleanup(Acc, Args, Extra) -> {ok, Acc} when 
+      Acc :: any(),
+      Args :: #{node := node()},
+      Extra :: map().
+node_cleanup(Acc, #{node := Node}, _) ->
     Timeout = timer:minutes(1),
     Res = gen_server:call(?MODULE, {node_cleanup, Node}, Timeout),
-    maps:put(?MODULE, Res, Acc).
+    {ok, maps:put(?MODULE, Res, Acc)}.
+
+-spec check_in_subscription(Acc, Args, Extra)-> {ok, Acc} | {stop, false} when
+      Acc :: any(),
+      Args :: #{to_jid := jid:jid()},
+      Extra :: map().
+check_in_subscription(Acc, #{to_jid := ToJID}, _) ->
+    case ejabberd_auth:does_user_exist(ToJID) of
+        true ->
+            {ok, Acc};
+        false ->
+            {stop, mongoose_acc:set(hook, result, false, Acc)}
+    end.
+
+-spec bounce_offline_message(Acc, Args, Extra) -> {stop, Acc} when
+      Acc :: map(),
+      Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
+      Extra :: map().
+bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
+    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
+    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
+    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
+    Acc3 = ejabberd_router:route(To, From, Acc2, Err),
+    {stop, Acc3}.
+
+-spec disconnect_removed_user(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{user := jid:user(), server := jid:server()},
+      Extra :: map().
+disconnect_removed_user(Acc, #{user := User, server := Server}, _) ->
+    lists:map(fun({_, Pid}) -> ejabberd_c2s:terminate_session(Pid, <<"User removed">>) end,
+              get_user_present_pids(User, Server)),
+    {ok, Acc}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -495,18 +496,19 @@ init([]) ->
     ejabberd_sm_backend:init(#{backend => Backend}),
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
-    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,
+    gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50),
+    lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
     ejabberd_commands:register_commands(commands()),
     {ok, #state{}}.
 
+-spec hooks(binary()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
     [
-     {roster_in_subscription, HostType, ejabberd_sm, check_in_subscription, 20},
-     {offline_message_hook, HostType, ejabberd_sm, bounce_offline_message, 100},
-     {offline_groupchat_message_hook, HostType, ejabberd_sm, bounce_offline_message, 100},
-     {remove_user, HostType, ejabberd_sm, disconnect_removed_user, 100}
+     {roster_in_subscription, HostType, fun ?MODULE:check_in_subscription/3, #{}, 20},
+     {offline_message_hook, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
+     {offline_groupchat_message_hook, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
+     {remove_user, HostType, fun ?MODULE:disconnect_removed_user/3, #{}, 100}
     ].
 
 %%--------------------------------------------------------------------
@@ -835,7 +837,7 @@ route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
     mongoose_hooks:offline_groupchat_message_hook(Acc, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
-    {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
+    {stop, Acc1} = bounce_offline_message(Acc, #{from => From, to => To, packet => Packet}, #{}),
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
