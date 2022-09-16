@@ -9,10 +9,10 @@
 -define(BIND_RETRIES, 5).
 
 %% gen_statem callbacks
--export([start_link/2]).
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
+-export([start_link/2]).
 -export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
@@ -54,18 +54,9 @@
 %%% gen_statem
 %%%----------------------------------------------------------------------
 
--spec stop(gen_statem:server_ref(), atom()) -> ok.
-stop(Pid, Reason) ->
-    gen_statem:cast(Pid, {stop, Reason}).
-
 -spec callback_mode() -> gen_statem:callback_mode_result().
 callback_mode() ->
     handle_event_function.
-
--spec start_link({ranch:ref(), ranch_tcp, mongoose_listener:options()}, [gen_statem:start_opt()]) ->
-    gen_statem:start_ret().
-start_link(Params, ProcOpts) ->
-	gen_statem:start_link(?MODULE, Params, ProcOpts).
 
 -spec init({ranch:ref(), ranch_tcp, mongoose_listener:options()}) ->
     gen_statem:init_result(c2s_state(), c2s_data()).
@@ -357,7 +348,9 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
 handle_auth_start(StateData, El, SaslState, Retries) ->
     case {mongoose_c2s_socket:is_ssl(StateData#c2s_data.socket), StateData#c2s_data.listener_opts} of
         {false, #{tls := #{mode := starttls_required}}} ->
-            c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#c2s_data.lang, <<"Use of STARTTLS required">>));
+            Error = mongoose_xmpp_errors:policy_violation(
+                      StateData#c2s_data.lang, <<"Use of STARTTLS required">>),
+            c2s_stream_error(StateData, Error);
         _ ->
             do_handle_auth_start(StateData, El, SaslState, Retries)
     end.
@@ -438,11 +431,12 @@ handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
         Resource ->
             NewStateData = replace_resource(StateData, Resource),
             Acc = element_to_origin_accum(NewStateData, El),
-            verify_user_allowed(NewStateData, C2SState, Acc, El, IQ)
+            verify_user_and_open_session(NewStateData, C2SState, Acc, El, IQ)
     end.
 
--spec verify_user_allowed(c2s_data(), c2s_state(), mongoose_acc:t(), exml:element(), jlib:iq()) -> fsm_res().
-verify_user_allowed(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState, Acc, El, IQ) ->
+-spec verify_user_and_open_session(c2s_data(), c2s_state(), mongoose_acc:t(), exml:element(), jlib:iq()) ->
+    fsm_res().
+verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState, Acc, El, IQ) ->
     case mongoose_c2s_hooks:user_open_session(HostType, Acc, (hook_arg(StateData, C2SState))) of
         {ok, Acc1} ->
             ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
@@ -527,12 +521,11 @@ handle_timeout(StateData, _C2SState, activate_socket, activate_socket) ->
     activate_socket(StateData),
     keep_state_and_data;
 handle_timeout(StateData, C2SState, replaced_wait_timeout, ReplacedPids) ->
-    [ verify_process_alive(StateData, C2SState, Pid) || Pid <- ReplacedPids],
+    [ verify_process_alive(StateData, C2SState, Pid) || Pid <- ReplacedPids ],
     keep_state_and_data;
 handle_timeout(StateData, C2SState, Name, Handler) when is_atom(Name), is_function(Handler, 2) ->
     C2sAcc = Handler(Name, StateData),
     handle_state_result(StateData, C2SState, undefined, C2sAcc);
-
 handle_timeout(StateData, _C2SState, state_timeout, state_timeout_termination) ->
     StreamConflict = mongoose_xmpp_errors:connection_timeout(),
     send_element_from_server_jid(StateData, StreamConflict),
@@ -666,7 +659,7 @@ handle_state_after_packet(StateData, C2SState, Acc) ->
 handle_state_result(StateData, _, _, #{hard_stop := Reason}) when Reason =/= undefined ->
     {stop, {shutdown, Reason}, StateData};
 handle_state_result(StateData0, C2SState, MaybeAcc,
-                    #{state_mod := MaybeHandlers, actions := MaybeActions,
+                    #{state_mod := ModuleStates, actions := MaybeActions,
                       c2s_state := MaybeNewFsmState, c2s_data := MaybeNewFsmData,
                       socket_send := MaybeSocketSend}) ->
     NextFsmState = case MaybeNewFsmState of
@@ -677,9 +670,9 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
                      undefined -> StateData0;
                      _ -> MaybeNewFsmData
                  end,
-    StateData2 = case map_size(MaybeHandlers) of
+    StateData2 = case map_size(ModuleStates) of
                      0 -> StateData1;
-                     _ -> merge_mod_state(StateData1, MaybeHandlers)
+                     _ -> merge_mod_state(StateData1, ModuleStates)
                  end,
     maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
     {next_state, NextFsmState, StateData2, MaybeActions}.
@@ -862,8 +855,17 @@ hook_arg(StateData, C2SState) ->
     #{c2s_data => StateData, c2s_state => C2SState}.
 
 %%%----------------------------------------------------------------------
-%%% state helpers
+%%% API
 %%%----------------------------------------------------------------------
+
+-spec start_link({ranch:ref(), ranch_tcp, mongoose_listener:options()}, [gen_statem:start_opt()]) ->
+    gen_statem:start_ret().
+start_link(Params, ProcOpts) ->
+	gen_statem:start_link(?MODULE, Params, ProcOpts).
+
+-spec stop(gen_statem:server_ref(), atom()) -> ok.
+stop(Pid, Reason) ->
+    gen_statem:cast(Pid, {stop, Reason}).
 
 -spec get_host_type(c2s_data()) -> mongooseim:host_type().
 get_host_type(#c2s_data{host_type = HostType}) ->

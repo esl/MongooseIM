@@ -34,7 +34,7 @@
         ]).
 % Stanza update
 -export([update_stanza/2]).
-% Statem accumulator
+% C2S accumulator
 -export([get_statem_acc/1, set_statem_acc/2]).
 % Access to namespaced fields
 -export([

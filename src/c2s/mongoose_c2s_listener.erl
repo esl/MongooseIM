@@ -14,7 +14,7 @@
 -export([start_link/1, init/1]).
 -ignore_xref([start_link/1]).
 
-%% Hooks
+%% Hook handlers
 -export([handle_user_open_session/3]).
 %% backwards compatibility, process iq-session
 -export([process_iq/5]).
@@ -76,7 +76,7 @@ init(#{module := Module} = Opts) ->
 acc_session_iq_handler(HostTypes) ->
     [ gen_iq_handler:add_iq_handler_for_domain(
         HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
-      || HostType <- HostTypes].
+      || HostType <- HostTypes ].
 
 maybe_add_access_check(_, #{access := all}) ->
     ok;

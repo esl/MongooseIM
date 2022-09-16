@@ -144,6 +144,7 @@ send_text(#c2s_socket{transport = ranch_ssl, socket = Socket}, Text) ->
 send_text(#c2s_socket{transport = ranch_tcp, socket = Socket}, Text) ->
     ranch_tcp:send(Socket, Text).
 
+%% 18 is OpenSSL's and fast_tls's error code for self-signed certs
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(#c2s_socket{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
     case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket), TlsOpts} of

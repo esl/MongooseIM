@@ -2,7 +2,7 @@
 -module(mongoose_c2s_hooks).
 
 -type hook_fn() :: fun((mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:hook_extra()) ->
-                            gen_hook:hook_fn_ret(mongoose_acc:t())).
+                            hook_result()).
 -type hook_params() :: #{c2s_data := mongoose_c2s:state(),
                          c2s_state := mongoose_c2s:c2s_state(),
                          atom() => _}.

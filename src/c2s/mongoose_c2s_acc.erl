@@ -20,13 +20,13 @@
         ]).
 
 -type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | socket_send.
--type pairs() :: {state_mod, {module(), term()}}
-               | {actions, gen_statem:action()}
-               | {c2s_state, mongoose_c2s:c2s_state()}
-               | {c2s_data, mongoose_c2s:c2s_data()}
-               | {stop, term() | {shutdown, atom()}}
-               | {hard_stop, term() | {shutdown, atom()}}
-               | {socket_send, exml:element()}.
+-type pair() :: {state_mod, {module(), term()}}
+              | {actions, gen_statem:action()}
+              | {c2s_state, mongoose_c2s:c2s_state()}
+              | {c2s_data, mongoose_c2s:c2s_data()}
+              | {stop, term() | {shutdown, atom()}}
+              | {hard_stop, term() | {shutdown, atom()}}
+              | {socket_send, exml:element()}.
 
 -type t() :: #{
         state_mod := #{module() => term()},
@@ -115,12 +115,12 @@ to_acc(Acc, Key, NewValue) ->
     C2SAcc1 = to_c2s_acc(C2SAcc, Key, NewValue),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc).
 
--spec to_acc_many(mongoose_acc:t(), [pairs()]) -> mongoose_acc:t().
+-spec to_acc_many(mongoose_acc:t(), [pair()]) -> mongoose_acc:t().
 to_acc_many(Acc, Pairs) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
     to_acc_many(Acc, C2SAcc, Pairs).
 
--spec to_acc_many(mongoose_acc:t(), mongoose_c2s_acc:t(), [pairs()]) -> mongoose_acc:t().
+-spec to_acc_many(mongoose_acc:t(), mongoose_c2s_acc:t(), [pair()]) -> mongoose_acc:t().
 to_acc_many(Acc, C2SAcc, []) ->
     mongoose_acc:set_statem_acc(C2SAcc, Acc);
 to_acc_many(Acc, C2SAcc, [{Key, Value} | Rest]) ->
