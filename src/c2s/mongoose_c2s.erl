@@ -378,7 +378,7 @@ handle_auth_continue(StateData, El, SaslState, Retries) ->
     StepResult = cyrsasl:server_step(SaslState, ClientIn),
     handle_sasl_step(StateData, StepResult, SaslState, Retries).
 
--spec handle_sasl_step(c2s_data(), term(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+-spec handle_sasl_step(c2s_data(), cyrsasl:sasl_result(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_sasl_step(StateData, {ok, Creds}, _, _) ->
     handle_sasl_success(StateData, Creds);
 handle_sasl_step(StateData, {continue, ServerOut, NewSaslState}, _, Retries) ->
