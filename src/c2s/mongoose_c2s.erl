@@ -22,7 +22,7 @@
 -ignore_xref([get_ip/1, get_socket/1]).
 
 -record(c2s_data, {
-          host_type = ?MYNAME :: mongooseim:host_type(),
+          host_type :: undefined | mongooseim:host_type(),
           lserver = ?MYNAME :: jid:lserver(),
           lang = ?MYLANG :: ejabberd:lang(),
           sid = ejabberd_sm:make_new_sid() :: ejabberd_sm:sid(),
