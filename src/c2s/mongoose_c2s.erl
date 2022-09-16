@@ -495,9 +495,9 @@ maybe_retry_state(StateData, C2SState) ->
 
 -spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
 handle_info(StateData, C2SState, {route, Acc}) ->
-    handle_incoming_stanza(StateData, C2SState, Acc);
+    handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, C2SState, {route, _From, _To, Acc}) ->
-    handle_incoming_stanza(StateData, C2SState, Acc);
+    handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
   when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
@@ -603,56 +603,56 @@ handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
 do_handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
     case mongoose_c2s_hooks:user_send_packet(HostType, Acc, hook_arg(StateData)) of
         {ok, Acc1} ->
-            Acc2 = handle_outgoing_stanza(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
+            Acc2 = handle_stanza_from_client(StateData, Acc1, mongoose_acc:stanza_name(Acc1)),
             handle_state_after_packet(StateData, C2SState, Acc2);
         {stop, Acc1} ->
             handle_state_after_packet(StateData, C2SState, Acc1)
     end.
 
 %% @doc Process packets sent by the user (coming from user on c2s XMPP connection)
--spec handle_outgoing_stanza(c2s_data(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
-handle_outgoing_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"message">>) ->
+-spec handle_stanza_from_client(c2s_data(), mongoose_acc:t(), binary()) -> mongoose_acc:t().
+handle_stanza_from_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"message">>) ->
     TS0 = mongoose_acc:timestamp(Acc),
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, hook_arg(StateData)),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
     mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
     Acc2;
-handle_outgoing_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"iq">>) ->
+handle_stanza_from_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, hook_arg(StateData)),
     maybe_route(Acc1);
-handle_outgoing_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"presence">>) ->
+handle_stanza_from_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"presence">>) ->
     {_, Acc1} = mongoose_c2s_hooks:user_send_presence(HostType, Acc, hook_arg(StateData)),
     Acc1;
-handle_outgoing_stanza(StateData = #c2s_data{host_type = HostType}, Acc, _) ->
+handle_stanza_from_client(StateData = #c2s_data{host_type = HostType}, Acc, _) ->
     {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc, hook_arg(StateData)),
     Acc1.
 
--spec handle_incoming_stanza(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-handle_incoming_stanza(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
+-spec handle_stanza_to_client(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
+handle_stanza_to_client(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
     {From, To, El} = mongoose_acc:packet(Acc),
     FinalEl = jlib:replace_from_to(From, To, El),
     ParamsAcc = #{from_jid => From, to_jid => To, element => FinalEl},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
     case mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, hook_arg(StateData)) of
         {ok, Acc2} ->
-            Res = process_incoming_stanza(StateData, Acc2, mongoose_acc:stanza_name(Acc2)),
+            Res = process_stanza_to_client(StateData, Acc2, mongoose_acc:stanza_name(Acc2)),
             Acc3 = maybe_deliver(StateData, Res),
             handle_state_after_packet(StateData, C2SState, Acc3);
         {stop, _Acc1} ->
             keep_state_and_data
     end.
 
-%% @doc Process packets sent to the user (coming from user on c2s XMPP connection)
--spec process_incoming_stanza(c2s_data(), mongoose_acc:t(), binary()) ->
+%% @doc Process packets sent to the user (coming to user on c2s XMPP connection)
+-spec process_stanza_to_client(c2s_data(), mongoose_acc:t(), binary()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"message">>) ->
+process_stanza_to_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"message">>) ->
     mongoose_c2s_hooks:user_receive_message(HostType, Acc, hook_arg(StateData));
-process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"iq">>) ->
+process_stanza_to_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"iq">>) ->
     mongoose_c2s_hooks:user_receive_iq(HostType, Acc, hook_arg(StateData));
-process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, <<"presence">>) ->
+process_stanza_to_client(StateData = #c2s_data{host_type = HostType}, Acc, <<"presence">>) ->
     mongoose_c2s_hooks:user_receive_presence(HostType, Acc, hook_arg(StateData));
-process_incoming_stanza(StateData = #c2s_data{host_type = HostType}, Acc, _) ->
+process_stanza_to_client(StateData = #c2s_data{host_type = HostType}, Acc, _) ->
     mongoose_c2s_hooks:user_receive_xmlel(HostType, Acc, hook_arg(StateData)).
 
 -spec handle_state_after_packet(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
