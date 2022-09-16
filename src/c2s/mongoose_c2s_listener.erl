@@ -15,7 +15,7 @@
 -ignore_xref([start_link/1]).
 
 %% Hooks
--export([user_open_session/3]).
+-export([handle_user_open_session/3]).
 %% backwards compatibility, process iq-session
 -export([process_iq/5]).
 
@@ -35,9 +35,9 @@ start_listener(Opts) ->
     ok.
 
 %% Hooks and handlers
--spec user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
+-spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
     mongoose_c2s_hooks:hook_result().
-user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType, access := Access}) ->
+handle_user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType, access := Access}) ->
     Jid = mongoose_c2s:get_jid(StateData),
     LServer = mongoose_c2s:get_lserver(StateData),
     case acl:match_rule(HostType, LServer, Access, Jid) of
@@ -81,7 +81,7 @@ acc_session_iq_handler(HostTypes) ->
 maybe_add_access_check(_, #{access := all}) ->
     ok;
 maybe_add_access_check(HostTypes, #{access := Access}) ->
-    AclHooks = [ {user_open_session, HostType, fun ?MODULE:user_open_session/3, #{access => Access}, 10}
+    AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3, #{access => Access}, 10}
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
 
