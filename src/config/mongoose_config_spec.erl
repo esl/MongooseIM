@@ -304,7 +304,7 @@ xmpp_listener_extra(c2s) ->
                        <<"zlib">> => #option{type = integer,
                                              validate = positive},
                        <<"max_connections">> => #option{type = int_or_infinity,
-                                                        validate = non_negative},
+                                                        validate = positive},
                        <<"c2s_state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative,
                                                           wrap = global_config},

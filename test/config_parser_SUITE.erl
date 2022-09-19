@@ -477,13 +477,15 @@ listen_c2s(_Config) ->
     ?cfg(P ++ [access], rule1, T(#{<<"access">> => <<"rule1">>})),
     ?cfg(P ++ [shaper], c2s_shaper, T(#{<<"shaper">> => <<"c2s_shaper">>})),
     ?cfg(P ++ [zlib], 1024, T(#{<<"zlib">> => 1024})),
-    ?cfg(P ++ [max_fsm_queue], 1000, T(#{<<"max_fsm_queue">> => 1000})),
+    ?cfg(P ++ [reuse_port], true, T(#{<<"reuse_port">> => true})),
+    ?cfg(P ++ [max_connections], 1000, T(#{<<"max_connections">> => 1000})),
     ?cfg(P ++ [allowed_auth_methods], [rdbms, http],
          T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"http">>]})),
     ?err(T(#{<<"access">> => <<>>})),
     ?err(T(#{<<"shaper">> => <<>>})),
     ?err(T(#{<<"zlib">> => 0})),
-    ?err(T(#{<<"max_fsm_queue">> => 0})),
+    ?err(T(#{<<"reuse_port">> => 0})),
+    ?err(T(#{<<"max_connections">> => 0})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"bad_method">>]})),
     ?err(T(#{<<"allowed_auth_methods">> => [<<"rdbms">>, <<"rdbms">>]})).
 
