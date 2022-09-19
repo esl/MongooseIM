@@ -1059,7 +1059,7 @@ common_xmpp_listener_config() ->
     (common_listener_config())#{backlog => 1024,
                                 proxy_protocol => false,
                                 hibernate_after => 0,
-                                max_stanza_size => infinity,
+                                max_stanza_size => 0,
                                 num_acceptors => 100}.
 
 common_listener_config() ->

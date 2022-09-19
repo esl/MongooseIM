@@ -26,7 +26,8 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_domain_cert/1]).
+         process_domain_cert/1,
+         process_infinity_as_zero/1]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -285,14 +286,15 @@ xmpp_listener_common() ->
                        <<"hibernate_after">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
-                                                        validate = positive},
+                                                        validate = positive,
+                                                        process = fun ?MODULE:process_infinity_as_zero/1},
                        <<"num_acceptors">> => #option{type = integer,
                                                       validate = positive}
                       },
              defaults = #{<<"backlog">> => 1024,
                           <<"proxy_protocol">> => false,
                           <<"hibernate_after">> => 0,
-                          <<"max_stanza_size">> => infinity,
+                          <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100}
             }.
 
@@ -1111,3 +1113,6 @@ process_s2s_address(M) ->
 
 process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
+
+process_infinity_as_zero(infinity) -> 0;
+process_infinity_as_zero(Num) -> Num.

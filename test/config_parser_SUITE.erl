@@ -682,6 +682,7 @@ test_listen_xmpp(P, T) ->
     ?cfg(P ++ [proxy_protocol], true, T(#{<<"proxy_protocol">> => true})),
     ?cfg(P ++ [hibernate_after], 10, T(#{<<"hibernate_after">> => 10})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
+    ?cfg(P ++ [max_stanza_size], 0, T(#{<<"max_stanza_size">> => <<"infinity">>})),
     ?cfg(P ++ [num_acceptors], 100, T(#{<<"num_acceptors">> => 100})),
     ?err(T(#{<<"backlog">> => -10})),
     ?err(T(#{<<"proxy_protocol">> => <<"awesome">>})),
