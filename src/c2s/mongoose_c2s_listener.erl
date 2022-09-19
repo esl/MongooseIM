@@ -105,7 +105,7 @@ prepare_socket_opts(#{port := Port,
                       backlog := Backlog,
                       num_acceptors := NumAcceptors,
                       max_connections := MaxConnections,
-                      reuseport := ReusePort}) ->
+                      reuse_port := ReusePort}) ->
     SocketOpts = [{nodelay, true},
                   {keepalive, true},
                   {ip, IPTuple},
