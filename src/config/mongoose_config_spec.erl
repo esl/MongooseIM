@@ -193,9 +193,6 @@ general() ->
                                                         wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
                                                     wrap = global_config},
-                 <<"c2s_state_timeout">> => #option{type = int_or_infinity,
-                                                    validate = non_negative,
-                                                    wrap = global_config},
                  <<"domain_certfile">> => #list{items = domain_cert(),
                                                 format_items = map,
                                                 wrap = global_config}
@@ -216,8 +213,7 @@ general_defaults() ->
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
-      <<"hide_service_name">> => false,
-      <<"c2s_state_timeout">> => 5000}.
+      <<"hide_service_name">> => false}.
 
 ctl_access_rule() ->
     #section{
@@ -310,6 +306,9 @@ xmpp_listener_extra(c2s) ->
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
                        <<"reuseport">> => #option{type = boolean},
+                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                                                          validate = non_negative,
+                                                          wrap = global_config},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
@@ -318,6 +317,7 @@ xmpp_listener_extra(c2s) ->
              defaults = #{<<"access">> => all,
                           <<"shaper">> => none,
                           <<"max_connections">> => infinity,
+                          <<"c2s_state_timeout">> => 5000,
                           <<"reuseport">> => false}
             };
 xmpp_listener_extra(s2s) ->

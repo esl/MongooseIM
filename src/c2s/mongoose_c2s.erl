@@ -60,20 +60,20 @@ callback_mode() ->
 
 -spec init({ranch:ref(), ranch_tcp, mongoose_listener:options()}) ->
     gen_statem:init_result(c2s_state(), c2s_data()).
-init({RanchRef, ranch_tcp, Opts}) ->
-    StateData = #c2s_data{listener_opts = Opts},
+init({RanchRef, ranch_tcp, LOpts}) ->
+    StateData = #c2s_data{listener_opts = LOpts},
     ConnectEvent = {next_event, internal, {connect, RanchRef}},
     {ok, connect, StateData, ConnectEvent}.
 
 -spec handle_event(gen_statem:event_type(), term(), c2s_state(), c2s_data()) -> fsm_res().
 handle_event(internal, {connect, RanchRef}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
-                                                     max_stanza_size := MaxStanzaSize} = Opts}) ->
+                                                     max_stanza_size := MaxStanzaSize} = LOpts}) ->
     {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
     Shaper = shaper:new(ShaperName),
-    C2SSocket = mongoose_c2s_socket:new_socket(RanchRef, Opts),
+    C2SSocket = mongoose_c2s_socket:new_socket(RanchRef, LOpts),
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
-    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout()};
+    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
@@ -220,8 +220,8 @@ filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
     mongoose_c2s_socket:is_channel_binding_supported(Socket);
 filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) ->
     mongoose_c2s_socket:is_channel_binding_supported(Socket);
-filter_mechanism(#c2s_data{socket = Socket, listener_opts = Opts}, <<"EXTERNAL">>) ->
-    mongoose_c2s_socket:has_peer_cert(Socket, Opts);
+filter_mechanism(#c2s_data{socket = Socket, listener_opts = LOpts}, <<"EXTERNAL">>) ->
+    mongoose_c2s_socket:has_peer_cert(Socket, LOpts);
 filter_mechanism(_, _) ->
     true.
 
@@ -321,16 +321,16 @@ get_xml_lang(StreamStart) ->
 -spec handle_starttls(c2s_data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                       parser = Parser,
-                                      listener_opts = Opts}, El, SaslState, Retries) ->
+                                      listener_opts = LOpts}, El, SaslState, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
-    case mongoose_c2s_socket:tcp_to_tls(TcpSocket, Opts) of
+    case mongoose_c2s_socket:tcp_to_tls(TcpSocket, LOpts) of
         {ok, TlsSocket} ->
             {ok, NewParser} = exml_stream:reset_parser(Parser),
             NewStateData = StateData#c2s_data{socket = TlsSocket,
                                               parser = NewParser,
                                               streamid = new_stream_id()},
             activate_socket(NewStateData),
-            {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout()};
+            {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout(LOpts)};
         {error, already_tls_connection} ->
             ErrorStanza = mongoose_xmpp_errors:bad_request(StateData#c2s_data.lang, <<"bad_config">>),
             Err = jlib:make_error_reply(El, ErrorStanza),
@@ -374,10 +374,10 @@ handle_auth_continue(StateData, El, SaslState, Retries) ->
 -spec handle_sasl_step(c2s_data(), cyrsasl:sasl_result(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_sasl_step(StateData, {ok, Creds}, _, _) ->
     handle_sasl_success(StateData, Creds);
-handle_sasl_step(StateData, {continue, ServerOut, NewSaslState}, _, Retries) ->
+handle_sasl_step(StateData = #c2s_data{listener_opts = LOpts}, {continue, ServerOut, NewSaslState}, _, Retries) ->
     Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
     send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_challenge_stanza(Challenge)),
-    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData, state_timeout()};
+    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData, state_timeout(LOpts)};
 handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
                  {error, Error, Username}, SaslState, Retries) ->
     ?LOG_INFO(#{what => auth_failed,
@@ -393,7 +393,7 @@ handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
     maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries}).
 
 -spec handle_sasl_success(c2s_data(), term()) -> fsm_res().
-handle_sasl_success(State, Creds) ->
+handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
     ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
     send_element_from_server_jid(State, mongoose_c2s_stanzas:sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
@@ -401,7 +401,7 @@ handle_sasl_success(State, Creds) ->
                               jid = jid:make_bare(User, State#c2s_data.lserver)},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
                 c2s_state => NewState}),
-    {next_state, {wait_for_stream, authenticated}, NewState, state_timeout()}.
+    {next_state, {wait_for_stream, authenticated}, NewState, state_timeout(LOpts)}.
 
 -spec stream_start_features_before_auth(c2s_data()) -> fsm_res().
 stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LServer,
@@ -412,14 +412,15 @@ stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LSer
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts, S),
     send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout()}.
+    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout(LOpts)}.
 
 -spec stream_start_features_after_auth(c2s_data()) -> fsm_res().
-stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer, lang = Lang} = S) ->
+stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
+                                           lang = Lang, listener_opts = LOpts} = S) ->
     send_header(S, LServer, <<"1.0">>, Lang),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer),
     send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout()}.
+    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout(LOpts)}.
 
 -spec handle_bind_resource(c2s_data(), c2s_state(), exml:element(), jlib:iq()) -> fsm_res().
 handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
@@ -479,12 +480,12 @@ do_open_session(#c2s_data{host_type = HostType, sid = SID, jid = Jid} = StateDat
     handle_state_after_packet(StateData, C2SState, Acc2).
 
 -spec maybe_retry_state(c2s_data(), c2s_state()) -> fsm_res().
-maybe_retry_state(StateData, C2SState) ->
+maybe_retry_state(StateData = #c2s_data{listener_opts = LOpts}, C2SState) ->
     case maybe_retry_state(C2SState) of
         {stop, Reason} ->
             {stop, Reason, StateData};
         NextFsmState ->
-            {next_state, NextFsmState, StateData, state_timeout()}
+            {next_state, NextFsmState, StateData, state_timeout(LOpts)}
     end.
 
 -spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
@@ -828,8 +829,7 @@ send_element(StateData = #c2s_data{host_type = HostType}, El, Acc) ->
 send_xml(StateData, Xml) ->
     send_text(StateData, exml:to_iolist(Xml)).
 
-state_timeout() ->
-    Timeout = mongoose_config:get_opt(c2s_state_timeout),
+state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
 
 -spec replace_resource(c2s_data(), binary()) -> c2s_data().
