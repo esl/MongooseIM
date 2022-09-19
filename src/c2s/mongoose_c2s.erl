@@ -587,10 +587,11 @@ handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LSer
 -spec handle_c2s_packet(c2s_data(), c2s_state(), exml:element()) -> fsm_res().
 handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
     Acc0 = element_to_origin_accum(StateData, El),
-    Acc1 = mongoose_hooks:c2s_preprocessing_hook(HostType, Acc0, StateData),
-    case mongoose_acc:get(hook, result, undefined, Acc1) of
-        drop -> {next_state, session_established, StateData};
-        _ -> do_handle_c2s_packet(StateData, C2SState, Acc1)
+    case mongoose_c2s_hooks:c2s_preprocessing_hook(HostType, Acc0, hook_arg(StateData)) of
+        {ok, Acc1} ->
+            do_handle_c2s_packet(StateData, C2SState, Acc1);
+        {stop, _Acc1} ->
+            {next_state, session_established, StateData}
     end.
 
 -spec do_handle_c2s_packet(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().

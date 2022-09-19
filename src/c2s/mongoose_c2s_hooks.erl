@@ -10,6 +10,7 @@
 -export_type([hook_fn/0, hook_params/0, hook_result/0]).
 
 %% XML handlers
+-export([c2s_preprocessing_hook/3]).
 -export([user_send_packet/3,
          user_receive_packet/3,
          user_send_message/3,
@@ -29,6 +30,22 @@
          user_stop_request/3,
          user_socket_closed/3,
          user_socket_error/3]).
+
+%%% @doc Event triggered after a user sends _any_ packet to the server.
+%%% The purpose is to modify, or reject, packets, before they are further processed.
+%%% TODO: this can really be merged into `user_send_packet' with early priority.
+-spec c2s_preprocessing_hook(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: hook_params(),
+    Result :: hook_result().
+c2s_preprocessing_hook(HostType, Acc, #{c2s_data := StateData} = Params) ->
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, [StateData]),
+    {Tag, Acc1} = gen_hook:run_fold(c2s_preprocessing_hook, HostType, Acc, ParamsWithLegacyArgs),
+    case mongoose_acc:get(hook, result, undefined, Acc1) of
+        drop -> {stop, Acc1};
+        _ -> {Tag, Acc1}
+    end.
 
 %%% @doc Event triggered after a user sends _any_ packet to the server.
 %%% Examples of handlers can be metrics, archives, and any other subsystem
