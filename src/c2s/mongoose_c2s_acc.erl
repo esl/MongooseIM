@@ -20,6 +20,7 @@
         ]).
 
 -type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | socket_send.
+-type pairs() :: [pair()].
 -type pair() :: {state_mod, {module(), term()}}
               | {actions, gen_statem:action()}
               | {c2s_state, mongoose_c2s:c2s_state()}
@@ -34,7 +35,7 @@
         c2s_state := undefined | mongoose_c2s:c2s_state(),
         c2s_data := undefined | mongoose_c2s:c2s_data(),
         hard_stop := undefined | Reason :: term(),
-        socket_send := exml:element() | [exml:element()]
+        socket_send := [exml:element()]
        }.
 
 -type params() :: #{
@@ -44,7 +45,7 @@
         c2s_data => mongoose_c2s:c2s_data(),
         stop => Reason :: term(),
         hard_stop => Reason :: term(),
-        socket_send => exml:element() | [exml:element()]
+        socket_send => [exml:element()]
        }.
 
 -export_type([t/0]).
@@ -86,67 +87,43 @@ from_mongoose_acc(Acc, Key) ->
     #{Key := Value} = mongoose_acc:get_statem_acc(Acc),
     Value.
 
--spec to_acc(mongoose_acc:t(), state_mod, {atom(), term()}) -> mongoose_acc:t();
-            (mongoose_acc:t(), actions, [gen_statem:action()]) -> mongoose_acc:t();
-            (mongoose_acc:t(), actions, gen_statem:action()) -> mongoose_acc:t();
+-spec to_acc(mongoose_acc:t(), state_mod, {module(), term()}) -> mongoose_acc:t();
+            (mongoose_acc:t(), actions, gen_statem:action() | [gen_statem:action()]) -> mongoose_acc:t();
             (mongoose_acc:t(), c2s_state, term()) -> mongoose_acc:t();
             (mongoose_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_acc:t();
             (mongoose_acc:t(), hard_stop, atom()) -> mongoose_acc:t();
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
             (mongoose_acc:t(), socket_send, exml:element()) -> mongoose_acc:t().
-to_acc(Acc, state_mod, {Name, Handler}) ->
-    C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_c2s_acc(C2SAcc, state_mod, {Name, Handler}),
-    mongoose_acc:set_statem_acc(C2SAcc1, Acc);
-to_acc(Acc, actions, Actions) when is_list(Actions) ->
-    C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_c2s_acc(C2SAcc, actions, Actions),
-    mongoose_acc:set_statem_acc(C2SAcc1, Acc);
-to_acc(Acc, socket_send, Stanza) ->
-    C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_c2s_acc(C2SAcc, socket_send, Stanza),
-    mongoose_acc:set_statem_acc(C2SAcc1, Acc);
-to_acc(Acc, stop, Reason) ->
-    C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_c2s_acc(C2SAcc, stop, Reason),
-    mongoose_acc:set_statem_acc(C2SAcc1, Acc);
 to_acc(Acc, Key, NewValue) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
-    C2SAcc1 = to_c2s_acc(C2SAcc, Key, NewValue),
+    C2SAcc1 = to_c2s_acc(C2SAcc, {Key, NewValue}),
     mongoose_acc:set_statem_acc(C2SAcc1, Acc).
 
--spec to_acc_many(mongoose_acc:t(), [pair()]) -> mongoose_acc:t().
+-spec to_acc_many(mongoose_acc:t(), pairs()) -> mongoose_acc:t().
 to_acc_many(Acc, Pairs) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
     to_acc_many(Acc, C2SAcc, Pairs).
 
--spec to_acc_many(mongoose_acc:t(), mongoose_c2s_acc:t(), [pair()]) -> mongoose_acc:t().
+-spec to_acc_many(mongoose_acc:t(), mongoose_c2s_acc:t(), pairs()) -> mongoose_acc:t().
 to_acc_many(Acc, C2SAcc, []) ->
     mongoose_acc:set_statem_acc(C2SAcc, Acc);
-to_acc_many(Acc, C2SAcc, [{Key, Value} | Rest]) ->
-    NewCAcc = to_c2s_acc(C2SAcc, Key, Value),
-    to_acc_many(Acc, NewCAcc, Rest).
+to_acc_many(Acc, C2SAcc, [Pair | Pairs]) ->
+    NewCAcc = to_c2s_acc(C2SAcc, Pair),
+    to_acc_many(Acc, NewCAcc, Pairs).
 
--spec to_c2s_acc(mongoose_c2s_acc:t(), state_mod, {atom(), term()}) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), actions, [gen_statem:action()]) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), actions, gen_statem:action()) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), c2s_state, term()) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), hard_stop, atom()) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_c2s_acc:t();
-                (mongoose_c2s_acc:t(), socket_send, exml:element()) -> mongoose_c2s_acc:t().
-to_c2s_acc(C2SAcc = #{state_mod := Handlers}, state_mod, {Name, Handler}) ->
+-spec to_c2s_acc(mongoose_c2s_acc:t(), pair()) -> mongoose_c2s_acc:t().
+to_c2s_acc(C2SAcc = #{state_mod := Handlers}, {state_mod, {Name, Handler}}) ->
     C2SAcc#{state_mod := Handlers#{Name => Handler}};
-to_c2s_acc(C2SAcc = #{actions := Actions}, actions, NewActions) when is_list(NewActions) ->
-    C2SAcc#{actions := NewActions ++ Actions};
-to_c2s_acc(C2SAcc = #{actions := Actions}, actions, Action) ->
+to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, NewActions}) when is_list(NewActions) ->
+    C2SAcc#{actions := lists:reverse(NewActions) ++ Actions};
+to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, Action}) ->
     C2SAcc#{actions := [Action | Actions]};
-to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, socket_send, []) ->
-    C2SAcc#{socket_send := Stanzas};
-to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, socket_send, Stanza) ->
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when is_list(NewStanzas) ->
+    C2SAcc#{socket_send := lists:reverse(NewStanzas) ++ Stanzas};
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->
     C2SAcc#{socket_send := [Stanza | Stanzas]};
-to_c2s_acc(C2SAcc = #{actions := Actions}, stop, Reason) ->
+to_c2s_acc(C2SAcc = #{actions := Actions}, {stop, Reason}) ->
     C2SAcc#{actions := [{next_event, info, {stop, Reason}} | Actions]};
-to_c2s_acc(C2SAcc, Key, NewValue) ->
+to_c2s_acc(C2SAcc, {Key, NewValue}) ->
     #{Key := _OldValue} = C2SAcc,
     C2SAcc#{Key := NewValue}.
