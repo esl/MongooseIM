@@ -60,7 +60,7 @@
 {suites, "tests", metrics_register_SUITE}.
 % {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
-% {suites, "tests", mod_blocking_SUITE}.
+{suites, "tests", mod_blocking_SUITE}.
 {suites, "tests", mod_event_pusher_http_SUITE}.
 {suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_event_pusher_sns_SUITE}.
@@ -83,7 +83,7 @@
 % {suites, "tests", pep_SUITE}.
 {suites, "tests", persistent_cluster_id_SUITE}.
 {suites, "tests", presence_SUITE}.
-% {suites, "tests", privacy_SUITE}.
+{suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 % {suites, "tests", pubsub_SUITE}.
 % {suites, "tests", pubsub_s2s_SUITE}.

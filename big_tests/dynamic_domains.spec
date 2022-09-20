@@ -86,7 +86,7 @@
 
 % {suites, "tests", metrics_api_SUITE}.
 
-% {suites, "tests", mod_blocking_SUITE}.
+{suites, "tests", mod_blocking_SUITE}.
 
 {suites, "tests", mod_http_upload_SUITE}.
 
@@ -122,7 +122,7 @@
 
 {suites, "tests", presence_SUITE}.
 
-% {suites, "tests", privacy_SUITE}.
+{suites, "tests", privacy_SUITE}.
 
 {suites, "tests", private_SUITE}.
 
