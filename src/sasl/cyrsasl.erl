@@ -51,8 +51,11 @@
 -type error() :: {error, binary() | {binary(), binary()}}
                | {error, binary() | {binary(), binary()}, jid:user()}.
 
--export_type([mechanism/0,
-              error/0]).
+-type sasl_result() :: {ok, mongoose_credentials:t()}
+                     | {continue, binary(), sasl_state()}
+                     | error().
+
+-export_type([mechanism/0, error/0, sasl_result/0]).
 
 -callback mechanism() -> mechanism().
 
@@ -100,9 +103,7 @@ server_new(Service, ServerFQDN, HostType, UserRealm, _SecFlags, Creds) ->
       Mech       :: mechanism(),
       ClientIn   :: binary(),
       SocketData :: map(),
-      Result     :: {ok, mongoose_credentials:t()}
-                  | {'continue', _, sasl_state()}
-                  | error().
+      Result     :: sasl_result().
 server_start(#sasl_state{myname = Host, host_type = HostType} = State,
              Mech, ClientIn, SocketData) ->
     case [M || M <- get_modules(HostType), M:mechanism() =:= Mech,
@@ -122,9 +123,7 @@ is_module_supported(HostType, Module) ->
     mongoose_fips:supports_sasl_module(Module) andalso ejabberd_auth:supports_sasl_module(HostType, Module).
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) -> Result when
-      Result :: {ok, mongoose_credentials:t()}
-              | {'continue', _, sasl_state()}
-              | error().
+      Result     :: sasl_result().
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,

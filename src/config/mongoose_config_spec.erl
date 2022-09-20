@@ -26,7 +26,8 @@
          process_acl_condition/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_domain_cert/1]).
+         process_domain_cert/1,
+         process_infinity_as_zero/1]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -282,17 +283,18 @@ xmpp_listener_common() ->
     #section{items = #{<<"backlog">> => #option{type = integer,
                                                 validate = non_negative},
                        <<"proxy_protocol">> => #option{type = boolean},
-                       <<"hibernate_after">> => #option{type = integer,
+                       <<"hibernate_after">> => #option{type = int_or_infinity,
                                                         validate = non_negative},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
-                                                        validate = positive},
+                                                        validate = positive,
+                                                        process = fun ?MODULE:process_infinity_as_zero/1},
                        <<"num_acceptors">> => #option{type = integer,
-                                               validate = positive}
+                                                      validate = positive}
                       },
-             defaults = #{<<"backlog">> => 100,
+             defaults = #{<<"backlog">> => 1024,
                           <<"proxy_protocol">> => false,
                           <<"hibernate_after">> => 0,
-                          <<"max_stanza_size">> => infinity,
+                          <<"max_stanza_size">> => 0,
                           <<"num_acceptors">> => 100}
             }.
 
@@ -303,15 +305,22 @@ xmpp_listener_extra(c2s) ->
                                                validate = non_empty},
                        <<"zlib">> => #option{type = integer,
                                              validate = positive},
-                       <<"max_fsm_queue">> => #option{type = integer,
-                                                      validate = positive},
+                       <<"max_connections">> => #option{type = int_or_infinity,
+                                                        validate = positive},
+                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                                                          validate = non_negative,
+                                                          wrap = global_config},
+                       <<"reuse_port">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
                        <<"tls">> => c2s_tls()},
              defaults = #{<<"access">> => all,
-                          <<"shaper">> => none}
+                          <<"shaper">> => none,
+                          <<"max_connections">> => infinity,
+                          <<"c2s_state_timeout">> => 5000,
+                          <<"reuse_port">> => false}
             };
 xmpp_listener_extra(s2s) ->
     TLSSection = tls([server], [fast_tls]),
@@ -1025,7 +1034,7 @@ process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type)}).
 
 listener_module(<<"http">>) -> ejabberd_cowboy;
-listener_module(<<"c2s">>) -> ejabberd_c2s;
+listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
 listener_module(<<"service">>) -> ejabberd_service.
 
@@ -1104,3 +1113,6 @@ process_s2s_address(M) ->
 
 process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
+
+process_infinity_as_zero(infinity) -> 0;
+process_infinity_as_zero(Num) -> Num.

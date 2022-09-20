@@ -199,7 +199,7 @@ route(From, To, Acc, El) ->
               Acc
     end.
 
--spec make_new_sid() -> ejabberd_sm:sid().
+-spec make_new_sid() -> sid().
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.
 
@@ -329,8 +329,7 @@ disconnect_removed_user(Acc, User, Server) ->
 
 
 -spec get_user_resources(JID :: jid:jid()) -> [binary()].
-get_user_resources(JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
+get_user_resources(#jid{luser = LUser, lserver = LServer}) ->
     Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
@@ -730,10 +729,11 @@ do_route_no_resource(<<"presence">>, From, To, Acc, El) ->
         true ->
             PResources = get_user_present_resources(To),
             lists:foldl(fun({_, R}, A) ->
-                            do_route(A, From, jid:replace_resource(To, R), El)
-                        end,
-                        Acc,
-                        PResources);
+                                NewTo = jid:replace_resource(To, R),
+                                NewAccParams = #{element => El, from_jid => From, to_jid => NewTo},
+                                A0 = mongoose_acc:update_stanza(NewAccParams, A),
+                                do_route(A0, From, NewTo, El)
+                        end, Acc, PResources);
         false ->
             Acc
     end;

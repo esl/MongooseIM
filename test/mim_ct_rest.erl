@@ -118,7 +118,7 @@ init([BasicAuth]) ->
         ]),
 
     {ok, _} = cowboy:start_clear(tests_listener,
-                                 [{port, 12000}, {num_acceptors, 5}],
+                                 #{socket_opts => [{port, 12000}], num_acceptors => 5},
                                  #{env => #{dispatch => DispatchEJD}}),
 
     {ok, #state{ basic_auth = list_to_binary(BasicAuth) }}.

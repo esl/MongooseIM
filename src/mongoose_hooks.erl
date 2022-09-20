@@ -570,7 +570,7 @@ c2s_filter_packet(State, Feature, To, Packet) ->
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    State :: ejabberd_c2s:state(),
+    State :: mongoose_c2s:c2s_data(),
     Result :: mongoose_acc:t().
 c2s_preprocessing_hook(HostType, Acc, State) ->
     run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).

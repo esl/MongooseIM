@@ -1056,10 +1056,10 @@ default_room_opts() ->
       subject_author => <<>>}.
 
 common_xmpp_listener_config() ->
-    (common_listener_config())#{backlog => 100,
+    (common_listener_config())#{backlog => 1024,
                                 proxy_protocol => false,
                                 hibernate_after => 0,
-                                max_stanza_size => infinity,
+                                max_stanza_size => 0,
                                 num_acceptors => 100}.
 
 common_listener_config() ->
@@ -1109,7 +1109,10 @@ default_config([listen, http, protocol]) ->
 default_config([listen, http, tls]) ->
     #{verify_mode => peer};
 default_config([listen, c2s]) ->
-    (common_xmpp_listener_config())#{module => ejabberd_c2s,
+    (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
+                                     max_connections => infinity,
+                                     c2s_state_timeout => 5000,
+                                     reuse_port => false,
                                      access => all,
                                      shaper => none};
 default_config([listen, c2s, tls]) ->
