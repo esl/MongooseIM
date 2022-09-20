@@ -368,7 +368,8 @@ register_user(HostType, LServer, LUser) ->
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
 remove_user(Acc, LServer, LUser) ->
-    Params = #{user => LUser, server => LServer},
+    Jid = jid:make_bare(LUser, LServer),
+    Params = #{jid => Jid},
     Args = [LUser, LServer],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),

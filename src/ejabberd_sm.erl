@@ -472,9 +472,9 @@ bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
 
 -spec disconnect_removed_user(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
-      Args :: #{user := jid:user(), server := jid:server()},
+      Args :: #{jid := jid:jid()},
       Extra :: map().
-disconnect_removed_user(Acc, #{user := User, server := Server}, _) ->
+disconnect_removed_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     lists:map(fun({_, Pid}) -> ejabberd_c2s:terminate_session(Pid, <<"User removed">>) end,
               get_user_present_pids(User, Server)),
     {ok, Acc}.
