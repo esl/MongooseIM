@@ -13,7 +13,7 @@
 
 {suites, "tests", acc_e2e_SUITE}.
 
-% {suites, "tests", accounts_SUITE}.
+{suites, "tests", accounts_SUITE}.
 
 {suites, "tests", adhoc_SUITE}.
 
@@ -78,7 +78,7 @@
 
 % {suites, "tests", metrics_c2s_SUITE}.
 
-% {suites, "tests", metrics_register_SUITE}.
+{suites, "tests", metrics_register_SUITE}.
 
 % {suites, "tests", metrics_roster_SUITE}.
 
