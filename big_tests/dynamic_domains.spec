@@ -90,7 +90,7 @@
 
 {suites, "tests", mod_http_upload_SUITE}.
 
-% {suites, "tests", mod_ping_SUITE}.
+{suites, "tests", mod_ping_SUITE}.
 
 % {suites, "tests", mod_time_SUITE}.
 
