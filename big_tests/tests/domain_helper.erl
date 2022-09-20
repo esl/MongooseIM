@@ -1,22 +1,6 @@
 -module(domain_helper).
 
--export([insert_configured_domains/0,
-         delete_configured_domains/0,
-         insert_domain/3,
-         delete_domain/2,
-         set_domain_password/3,
-         delete_domain_password/2,
-         make_metrics_prefix/1,
-         host_types/0,
-         host_types/1,
-         host_type/0,
-         host_type/1,
-         domain_to_host_type/2,
-         domain/0,
-         secondary_domain/0,
-         domain/1,
-         secondary_host_type/0,
-         secondary_host_type/1]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [get_or_fail/1, rpc/4, mim/0]).
 

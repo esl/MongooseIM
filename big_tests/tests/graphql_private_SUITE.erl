@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2, get_err_code/1,
-                         user_to_bin/1]).
+                         user_to_bin/1, get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -13,10 +13,14 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_private}, {group, admin_private_http}, {group, admin_private_cli}].
+    [{group, user_private},
+     {group, domain_admin_private},
+     {group, admin_private_http},
+     {group, admin_private_cli}].
 
 groups() ->
     [{user_private, [], user_private_tests()},
+     {domain_admin_private, [], domain_admin_private_tests()},
      {admin_private_http, [], admin_private_tests()},
      {admin_private_cli, [], admin_private_tests()}].
 
@@ -24,6 +28,12 @@ user_private_tests() ->
     [user_set_private,
      user_get_private,
      parse_xml_error].
+
+domain_admin_private_tests() ->
+    [admin_set_private,
+     admin_get_private,
+     domain_admin_user_set_private_no_permission,
+     domain_admin_user_get_private_no_permission].
 
 admin_private_tests() ->
     [admin_set_private,
@@ -55,6 +65,8 @@ init_per_group(admin_private_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_private_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_private, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_private, Config) ->
     graphql_helper:init_user(Config).
 
@@ -142,6 +154,29 @@ private_input() ->
     #xmlel{name = <<"my_element">>,
            attrs = [{<<"xmlns">>, "alice:private:ns"}],
            children = [{xmlcdata, <<"DATA">>}]}.
+
+%% Domain admin tests
+
+domain_admin_user_set_private_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_user_set_private_no_permission/2).
+domain_admin_user_set_private_no_permission(Config, AliceBis) ->
+    ElemStr = exml:to_binary(private_input()),
+    Result = admin_set_private(user_to_bin(AliceBis), ElemStr, Config),
+    get_unauthorized(Result),
+    Result2 = admin_set_private(<<"AAAAA">>, ElemStr, Config),
+    get_unauthorized(Result2).
+
+domain_admin_user_get_private_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_user_get_private_no_permission/2).
+
+domain_admin_user_get_private_no_permission(Config, AliceBis) ->
+    AliceBisBin = user_to_bin(AliceBis),
+    Result = admin_get_private(AliceBisBin, <<"my_element">>, <<"alice:private:ns">>, Config),
+    get_unauthorized(Result),
+    Result2 = admin_get_private(<<"AAAAA">>, <<"my_element">>, <<"alice:private:ns">>, Config),
+    get_unauthorized(Result2).
 
 %% Commands
 

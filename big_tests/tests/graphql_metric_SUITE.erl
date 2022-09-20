@@ -5,7 +5,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_command/4, get_ok_value/2]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -15,11 +15,13 @@ suite() ->
 
 all() ->
      [{group, metrics_http},
-      {group, metrics_cli}].
+      {group, metrics_cli},
+      {group, domain_admin_metrics}].
 
 groups() ->
      [{metrics_http, [], metrics_tests()},
-      {metrics_cli, [], metrics_tests()}].
+      {metrics_cli, [], metrics_tests()},
+      {domain_admin_metrics, [], domain_admin_metrics_tests()}].
 
 metrics_tests() ->
     [get_all_metrics,
@@ -35,6 +37,15 @@ metrics_tests() ->
      get_by_name_cluster_metrics_as_dicts,
      get_mim2_cluster_metrics].
 
+domain_admin_metrics_tests() ->
+    [domain_admin_get_metrics,
+     domain_admin_get_metrics_as_dicts,
+     domain_admin_get_metrics_as_dicts_by_name,
+     domain_admin_get_metrics_as_dicts_with_keys,
+     domain_admin_get_cluster_metrics_as_dicts,
+     domain_admin_get_cluster_metrics_as_dicts_by_name,
+     domain_admin_get_cluster_metrics_as_dicts_for_nodes].
+
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
     escalus:init_per_suite(Config1).
@@ -46,7 +57,9 @@ end_per_suite(Config) ->
 init_per_group(metrics_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(metrics_cli, Config) ->
-    graphql_helper:init_admin_cli(Config).
+    graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_metrics, Config) ->
+    graphql_helper:init_domain_admin_handler(Config).
 
 end_per_group(_GroupName, _Config) ->
     graphql_helper:clean().
@@ -227,6 +240,30 @@ node_objects_to_map(List) ->
 kv_objects_to_map(List) ->
     KV = [{Key, Value} || #{<<"key">> := Key, <<"value">> := Value} <- List],
     maps:from_list(KV).
+
+%% Domain admin test cases
+
+domain_admin_get_metrics(Config) ->
+    get_unauthorized(get_metrics(Config)).
+
+domain_admin_get_metrics_as_dicts(Config) ->
+    get_unauthorized(get_metrics_as_dicts(Config)).
+
+domain_admin_get_metrics_as_dicts_by_name(Config) ->
+    get_unauthorized(get_metrics_as_dicts_by_name([<<"_">>], Config)).
+
+domain_admin_get_metrics_as_dicts_with_keys(Config) ->
+    get_unauthorized(get_metrics_as_dicts_with_keys([<<"one">>], Config)).
+
+domain_admin_get_cluster_metrics_as_dicts(Config) ->
+    get_unauthorized(get_cluster_metrics_as_dicts(Config)).
+
+domain_admin_get_cluster_metrics_as_dicts_by_name(Config) ->
+    get_unauthorized(get_cluster_metrics_as_dicts_by_name([<<"_">>], Config)).
+
+domain_admin_get_cluster_metrics_as_dicts_for_nodes(Config) ->
+    Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
+    get_unauthorized(get_cluster_metrics_as_dicts_for_nodes([Node], Config)).
 
 %% Admin commands
 

@@ -5,21 +5,27 @@
  -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_msg/1, skip_null_fields/1]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_msg/1, skip_null_fields/1,
+                         execute_domain_admin_command/4, get_unauthorized/1]).
 
 -define(HOST_TYPE, <<"dummy auth">>).
 -define(SECOND_HOST_TYPE, <<"test type">>).
+-define(EXAMPLE_DOMAIN, <<"example.com">>).
+-define(SECOND_EXAMPLE_DOMAIN, <<"second.example.com">>).
+-define(DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"domain-admin.example.com">>).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
      [{group, domain_http},
-      {group, domain_cli}].
+      {group, domain_cli},
+      {group, domain_admin_tests}].
 
 groups() ->
      [{domain_http, [sequence], domain_tests()},
-      {domain_cli, [sequence], domain_tests()}].
+      {domain_cli, [sequence], domain_tests()},
+      {domain_admin_tests, [sequence], domain_admin_tests()}].
 
 domain_tests() ->
     [create_domain,
@@ -41,6 +47,19 @@ domain_tests() ->
      delete_domain_password
     ].
 
+domain_admin_tests() ->
+    [domain_admin_get_domain_details,
+     domain_admin_set_domain_password,
+     domain_admin_create_domain_no_permission,
+     domain_admin_disable_domain_no_permission,
+     domain_admin_enable_domain_no_permission,
+     domain_admin_get_domains_by_host_type_no_permission,
+     domain_admin_get_domain_details_no_permission,
+     domain_admin_delete_domain_no_permission,
+     domain_admin_set_domain_password_no_permission,
+     domain_admin_delete_domain_password_no_permission
+    ].
+
 init_per_suite(Config) ->
     case mongoose_helper:is_rdbms_enabled(?HOST_TYPE) of
         true ->
@@ -57,8 +76,15 @@ end_per_suite(Config) ->
 init_per_group(domain_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(domain_cli, Config) ->
-    graphql_helper:init_admin_cli(Config).
+    graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_tests, Config) ->
+    domain_helper:insert_persistent_domain(mim(), ?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE),
+    domain_helper:insert_domain(mim(), ?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE),
+    graphql_helper:init_domain_admin_handler(Config, ?DOMAIN_ADMIN_EXAMPLE_DOMAIN).
 
+end_per_group(domain_admin_tests, _Config) ->
+    domain_helper:delete_domain(mim(), ?DOMAIN_ADMIN_EXAMPLE_DOMAIN),
+    domain_helper:delete_persistent_domain(mim(), ?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE);
 end_per_group(_GroupName, _Config) ->
     graphql_helper:clean().
 
@@ -69,10 +95,10 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 create_domain(Config) ->
-    create_domain(Config, <<"exampleDomain">>),
-    create_domain(Config, <<"exampleDomain2">>).
+    create_domain(?EXAMPLE_DOMAIN, Config),
+    create_domain(?SECOND_EXAMPLE_DOMAIN, Config).
 
-create_domain(Config, DomainName) ->
+create_domain(DomainName, Config) ->
     Result = add_domain(DomainName, ?HOST_TYPE, Config),
     ParsedResult = get_ok_value([data, domain, addDomain], Result),
     ?assertEqual(#{<<"domain">> => DomainName,
@@ -80,7 +106,7 @@ create_domain(Config, DomainName) ->
         <<"enabled">> => null}, ParsedResult).
 
 unknown_host_type_error_formatting(Config) ->
-    DomainName = <<"exampleDomain">>,
+    DomainName = ?EXAMPLE_DOMAIN,
     HostType = <<"NonExistingHostType">>,
     Result = add_domain(DomainName, HostType, Config),
     ?assertEqual(<<"Unknown host type">>, get_err_msg(Result)).
@@ -91,7 +117,7 @@ static_domain_error_formatting(Config) ->
     ?assertEqual(<<"Domain static">>, get_err_msg(Result)).
 
 domain_duplicate_error_formatting(Config) ->
-    DomainName = <<"exampleDomain">>,
+    DomainName = ?EXAMPLE_DOMAIN,
     Result = add_domain(DomainName, ?SECOND_HOST_TYPE, Config),
     ?assertEqual(<<"Domain already exists">>, get_err_msg(Result)).
 
@@ -111,44 +137,44 @@ domain_not_found_error_formatting_after_query(Config) ->
     domain_not_found_error_formatting(Result).
 
 wrong_host_type_error_formatting(Config) ->
-    Result = remove_domain(<<"exampleDomain">>, ?SECOND_HOST_TYPE, Config),
+    Result = remove_domain(?EXAMPLE_DOMAIN, ?SECOND_HOST_TYPE, Config),
     ?assertEqual(<<"Wrong host type">>, get_err_msg(Result)).
 
 disable_domain(Config) ->
-    Result = disable_domain(<<"exampleDomain">>, Config),
+    Result = disable_domain(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, disableDomain], Result),
-    ?assertMatch(#{<<"domain">> := <<"exampleDomain">>, <<"enabled">> := false}, ParsedResult),
-    {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [<<"exampleDomain">>]),
+    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"enabled">> := false}, ParsedResult),
+    {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [?EXAMPLE_DOMAIN]),
     ?assertEqual(#{host_type => ?HOST_TYPE, enabled => false}, Domain).
 
 enable_domain(Config) ->
-    Result = enable_domain(<<"exampleDomain">>, Config),
+    Result = enable_domain(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, enableDomain], Result),
-    ?assertMatch(#{<<"domain">> := <<"exampleDomain">>, <<"enabled">> := true}, ParsedResult).
+    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"enabled">> := true}, ParsedResult).
 
 get_domains_by_host_type(Config) ->
     Result = get_domains_by_host_type(?HOST_TYPE, Config),
     ParsedResult = get_ok_value([data, domain, domainsByHostType], Result),
-    ?assertEqual(lists:sort([<<"exampleDomain">>, <<"exampleDomain2">>]),
+    ?assertEqual(lists:sort([?EXAMPLE_DOMAIN, ?SECOND_EXAMPLE_DOMAIN]),
                  lists:sort(ParsedResult)).
 
 get_domain_details(Config) ->
-    Result = get_domain_details(<<"exampleDomain">>, Config),
+    Result = get_domain_details(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, domainDetails], Result),
-    ?assertEqual(#{<<"domain">> => <<"exampleDomain">>,
+    ?assertEqual(#{<<"domain">> => ?EXAMPLE_DOMAIN,
                    <<"hostType">> => ?HOST_TYPE,
                    <<"enabled">> => true}, ParsedResult).
 
 delete_domain(Config) ->
-    Result1 = remove_domain(<<"exampleDomain">>, ?HOST_TYPE, Config),
+    Result1 = remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
     ParsedResult1 = get_ok_value([data, domain, removeDomain], Result1),
     ?assertMatch(#{<<"msg">> := <<"Domain removed!">>,
-                   <<"domain">> := #{<<"domain">> := <<"exampleDomain">>}},
+                   <<"domain">> := #{<<"domain">> := ?EXAMPLE_DOMAIN}},
                  ParsedResult1),
-    Result2 = remove_domain(<<"exampleDomain2">>, ?HOST_TYPE, Config),
+    Result2 = remove_domain(?SECOND_EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
     ParsedResult2 = get_ok_value([data, domain, removeDomain], Result2),
     ?assertMatch(#{<<"msg">> := <<"Domain removed!">>,
-                   <<"domain">> := #{<<"domain">> := <<"exampleDomain2">>}},
+                   <<"domain">> := #{<<"domain">> := ?SECOND_EXAMPLE_DOMAIN}},
                  ParsedResult2).
 
 get_domains_after_deletion(Config) ->
@@ -170,6 +196,50 @@ delete_domain_password(Config) ->
     Result = delete_domain_password(domain_helper:domain(), Config),
     ParsedResult = get_ok_value([data, domain, deleteDomainPassword], Result),
     ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
+
+domain_admin_get_domain_details(Config) ->
+    Result = get_domain_details(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config),
+    ParsedResult = get_ok_value([data, domain, domainDetails], Result),
+    ?assertEqual(#{<<"domain">> => ?DOMAIN_ADMIN_EXAMPLE_DOMAIN,
+                   <<"hostType">> => ?HOST_TYPE,
+                   <<"enabled">> => true}, ParsedResult).
+
+domain_admin_set_domain_password(Config) ->
+    Result = set_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"secret">>, Config),
+    ParsedResult = get_ok_value([data, domain, setDomainPassword], Result),
+    ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
+
+domain_admin_create_domain_no_permission(Config) ->
+    get_unauthorized(add_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)),
+    get_unauthorized(add_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
+
+domain_admin_disable_domain_no_permission(Config) ->
+    get_unauthorized(disable_domain(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(disable_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
+
+domain_admin_enable_domain_no_permission(Config) ->
+    get_unauthorized(enable_domain(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(enable_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
+
+domain_admin_get_domains_by_host_type_no_permission(Config) ->
+    get_unauthorized(get_domains_by_host_type(?HOST_TYPE, Config)),
+    get_unauthorized(get_domains_by_host_type(domain_helper:host_type(), Config)).
+
+domain_admin_get_domain_details_no_permission(Config) ->
+    get_unauthorized(get_domain_details(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(get_domain_details(?EXAMPLE_DOMAIN, Config)).
+
+domain_admin_set_domain_password_no_permission(Config) ->
+    get_unauthorized(set_domain_password(?EXAMPLE_DOMAIN, <<"secret">>, Config)),
+    get_unauthorized(set_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"secret">>, Config)).
+
+domain_admin_delete_domain_no_permission(Config) ->
+    get_unauthorized(remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config)),
+    get_unauthorized(remove_domain(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, ?HOST_TYPE, Config)).
+
+domain_admin_delete_domain_password_no_permission(Config) ->
+    get_unauthorized(delete_domain_password(?EXAMPLE_DOMAIN, Config)),
+    get_unauthorized(delete_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config)).
 
 %% Commands
 
