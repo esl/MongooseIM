@@ -50,7 +50,7 @@
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", inbox_extensions_SUITE}.
 % {suites, "tests", jingle_SUITE}.
-% {suites, "tests", last_SUITE}.
+{suites, "tests", last_SUITE}.
 % {suites, "tests", login_SUITE}.
 {suites, "tests", mam_SUITE}.
 {suites, "tests", mam_proper_SUITE}.
