@@ -1,47 +1,47 @@
 """
 Allow admin to manage Multi-User Chat Light rooms.
 """
-type MUCLightAdminMutation @protected{
+type MUCLightAdminMutation @protected @use(modules: ["mod_muc_light"]){
   "Create a MUC light room under the given XMPP hostname"
   createRoom(mucDomain: String!, name: String!, owner: JID!, subject: String!, id: NonEmptyString, options: [RoomConfigDictEntryInput!]): Room
-    @protected(type: DOMAIN, args: ["owner"])
+    @protected(type: DOMAIN, arg: "owner")
   "Change configuration of a MUC Light room"
   changeRoomConfiguration(room: JID!, owner: JID!, name: String!, subject: String!, options: [RoomConfigDictEntryInput!]): Room
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Invite a user to a MUC Light room"
   inviteUser(room: JID!, sender: JID!, recipient: JID!): String
-    @protected(type: DOMAIN, args: ["sender"])
+    @protected(type: DOMAIN, args: ["sender"]) @use(arg: "room")
   "Remove a MUC Light room"
   deleteRoom(room: JID!): String
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Kick a user from a MUC Light room"
   kickUser(room: JID!, user: JID!): String
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Send a message to a MUC Light room"
   sendMessageToRoom(room: JID!, from: JID!, body: String!): String
-    @protected(type: DOMAIN, args: ["from"])
+    @protected(type: DOMAIN, args: ["from"]) @use(arg: "room")
   "Set the user's list of blocked entities"
   setBlockingList(user: JID!, items: [BlockingInput!]!): String
-    @protected(type: DOMAIN, args: ["user"])
+    @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }
 
 """
 Allow admin to get information about Multi-User Chat Light rooms.
 """
-type MUCLightAdminQuery @protected{
+type MUCLightAdminQuery @protected @use(modules: ["mod_muc_light"]){
   "Get the MUC Light room archived messages"
   getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Get configuration of the MUC Light room"
   getRoomConfig(room: JID!): Room
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Get users list of given MUC Light room"
   listRoomUsers(room: JID!): [RoomUser!]
-    @protected(type: DOMAIN, args: ["room"])
+    @protected(type: DOMAIN, args: ["room"]) @use(arg: "room")
   "Get the list of MUC Light rooms that the user participates in"
   listUserRooms(user: JID!): [JID!]
-    @protected(type: DOMAIN, args: ["user"])
+    @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
   "Get the user's list of blocked entities"
   getBlockingList(user: JID!): [BlockingItem!]
-    @protected(type: DOMAIN, args: ["user"])
+    @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }

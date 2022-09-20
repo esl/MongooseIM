@@ -113,8 +113,13 @@ ensure_inbox_started() ->
     ok = dynamic_modules:ensure_modules(HostType, Modules),
     ok = dynamic_modules:ensure_modules(SecHostType, Modules).
 
-end_per_group(_, _) ->
-    graphql_helper:clean().
+end_per_group(Group, _Config) when Group =:= user;
+                                   Group =:= admin_http;
+                                   Group =:= domain_admin_inbox;
+                                   Group =:= admin_cli ->
+    graphql_helper:clean();
+end_per_group(_Group, _Config) ->
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
