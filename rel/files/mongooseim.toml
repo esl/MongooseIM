@@ -256,6 +256,8 @@
   ]
   access = "register"
 
+[modules.mod_presence]
+
 {{#mod_roster}}
 [modules.mod_roster]
 {{{mod_roster}}}
