@@ -361,7 +361,7 @@ store_session(Sid, Socket) ->
 
 -spec make_sid() -> binary().
 make_sid() ->
-    sha:sha1_hex(term_to_binary(make_ref())).
+    mongoose_bin:encode_crypto(term_to_binary(make_ref())).
 
 %%--------------------------------------------------------------------
 %% HTTP errors
