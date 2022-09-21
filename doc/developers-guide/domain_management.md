@@ -122,6 +122,22 @@ Configuration described in the [`listen` section](../configuration/listen.md#han
 REST API is documented using Swagger in [REST API for dynamic domains management](../rest-api/Dynamic-domains.md).
 Below are examples of how to use this API with the help of `curl`:
 
+### Get domain information
+
+You must provide the domain's host type inside the body:
+
+```bash
+curl -v -X GET "http://localhost:8088/api/domains/example.db" \
+    --user admin:secret \
+    -H 'content-type: application/json'
+```
+
+Result codes:
+
+* 200 - The request succeeded.
+* 404 - The domain is unknown.
+* 500 - Other errors.
+
 ### Add domain
 
 ```bash
@@ -161,6 +177,27 @@ curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
 Result codes:
 
 * 204 - The domain is removed or not found.
+* 403 - One of:
+    * the domain is static.
+    * the DB service is disabled.
+    * the host type is wrong (does not match the host type in the database).
+    * the host type is unknown.
+* 500 - Other errors.
+
+### Request to asynchronously remove a domain
+
+You must provide the domain's host type inside the body:
+
+```bash
+curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
+    --user admin:secret \
+    -H 'content-type: application/json' \
+    -d '{"host_type": "type1", "request": "true"}'
+```
+
+Result codes:
+
+* 202 - The request has been accepted.
 * 403 - One of:
     * the domain is static.
     * the DB service is disabled.
