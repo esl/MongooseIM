@@ -214,7 +214,7 @@ process_local_iq(Acc, From, To, #iq{type = Type} = IQ) ->
 roster_hash(Items) ->
     L = [R#roster{groups = lists:sort(Grs)} ||
          R = #roster{groups = Grs} <- Items],
-    sha:sha1_hex(term_to_binary(lists:sort(L))).
+    mongoose_bin:encode_crypto(term_to_binary(lists:sort(L))).
 
 -spec roster_versioning_enabled(mongooseim:host_type()) -> boolean().
 roster_versioning_enabled(HostType) ->
@@ -997,7 +997,7 @@ write_roster_version_t(HostType, LUser, LServer) ->
 -spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
                            transaction_state()) -> version().
 write_roster_version(HostType, LUser, LServer, TransactionState) ->
-    Ver = sha:sha1_hex(term_to_binary(os:timestamp())),
+    Ver = mongoose_bin:encode_crypto(term_to_binary(os:timestamp())),
     mod_roster_backend:write_roster_version(HostType, LUser, LServer, TransactionState, Ver),
     Ver.
 

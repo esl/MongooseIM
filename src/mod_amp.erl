@@ -11,11 +11,11 @@
 -export([start/2, stop/1, supported_features/0]).
 -export([run_initial_check/2,
          check_packet/2,
-         disco_local_features/1,
+         disco_local_features/3,
          c2s_stream_features/3
         ]).
 
--ignore_xref([c2s_stream_features/3, disco_local_features/1, run_initial_check/2]).
+-ignore_xref([c2s_stream_features/3, run_initial_check/2]).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
@@ -29,22 +29,26 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {c2s_preprocessing_hook, HostType, ?MODULE, run_initial_check, 10},
      {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
      {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10}].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
 
 %% API
 
@@ -64,12 +68,15 @@ check_packet(Acc, Event) ->
         Rules -> process_event(Acc, Rules, Event)
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := Node}) ->
-    case amp_features(Node) of
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := Node}, _, _) ->
+    NewAcc = case amp_features(Node) of
         [] -> Acc;
         Features -> mongoose_disco:add_features(Features, Acc)
-    end.
+    end,
+    {ok, NewAcc}.
 
 -spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
           [exml:element()].

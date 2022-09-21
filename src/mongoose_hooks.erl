@@ -358,8 +358,12 @@ register_user(HostType, LServer, LUser) ->
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
 remove_user(Acc, LServer, LUser) ->
+    Jid = jid:make_bare(LUser, LServer),
+    Params = #{jid => Jid},
+    Args = [LUser, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
+    run_hook_for_host_type(remove_user, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec resend_offline_messages_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
@@ -672,9 +676,11 @@ privacy_updated_list(HostType, OldList, NewList) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 offline_groupchat_message_hook(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc,
-                           [From, To, Packet]).
+    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec offline_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
@@ -683,8 +689,11 @@ offline_groupchat_message_hook(Acc, From, To, Packet) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 offline_message_hook(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_message_hook, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(offline_message_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec set_presence_hook(Acc, JID, Presence) -> Result when
     Acc :: mongoose_acc:t(),
@@ -823,9 +832,12 @@ roster_get_versioning_feature(HostType) ->
     Reason :: any(),
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
+    ToJID = jid:to_bare(To),
+    Params = #{to_jid => ToJID, from => From, type => Type, reason => Reason},
+    Args = [ToJID, From, Type, Reason],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_in_subscription, HostType, Acc,
-                           [jid:to_bare(To), From, Type, Reason]).
+    run_hook_for_host_type(roster_in_subscription, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_out_subscription' hook is called
 %%% when a user sends out subscription.
@@ -1297,7 +1309,7 @@ disco_sm_items(Acc = #{host_type := HostType}) ->
 %%% offered by the server.
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_features, HostType, Acc, #{}).
 
 %%% @doc `disco_sm_features' hook is called to get the features of the client
 %%% when a discovery IQ gets to session management.

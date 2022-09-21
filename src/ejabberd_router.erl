@@ -49,7 +49,7 @@
         ]).
 
 -export([start_link/0]).
--export([routes_cleanup_on_nodedown/2]).
+-export([routes_cleanup_on_nodedown/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -58,8 +58,7 @@
 -export([update_tables/0]).
 
 -ignore_xref([register_component/2, register_component/3, register_component/4,
-              register_components/2, register_components/3,
-              route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
+              register_components/2, register_components/3, route_error/4, start_link/0,
               unregister_component/1, unregister_component/2, unregister_components/2,
               unregister_routes/1, update_tables/0]).
 
@@ -346,7 +345,7 @@ init([]) ->
                          {record_name, external_component}]),
     mnesia:add_table_copy(external_component_global, node(), ram_copies),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
-    ejabberd_hooks:add(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
+    gen_hook:add_handlers(hooks()),
 
     {ok, #state{}}.
 
@@ -361,7 +360,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
+    gen_hook:delete_handlers(hooks()),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -370,6 +369,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+-spec hooks() -> [gen_hook:hook_tuple()].
+hooks() ->
+    [{node_cleanup, global, fun ?MODULE:routes_cleanup_on_nodedown/3, #{}, 90}].
+
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
 
@@ -428,9 +431,9 @@ update_tables() ->
             ok
     end.
 
--spec routes_cleanup_on_nodedown(map(), node()) -> map().
-routes_cleanup_on_nodedown(Acc, Node) ->
+-spec routes_cleanup_on_nodedown(map(), map(), map()) -> {ok, map()}.
+routes_cleanup_on_nodedown(Acc, #{node := Node}, _) ->
     Entries = mnesia:dirty_match_object(external_component_global,
                                         #external_component{node = Node, _ = '_'}),
     [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
-    maps:put(?MODULE, ok, Acc).
+    {ok, maps:put(?MODULE, ok, Acc)}.

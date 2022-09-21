@@ -54,7 +54,7 @@
 
 %% Hooks callbacks
 
--export([disco_local_features/1]).
+-export([disco_local_features/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -62,7 +62,7 @@
 
 -export([do_route/4]).
 
--ignore_xref([disco_local_features/1, do_route/4, get_iq_callback/1,
+-ignore_xref([do_route/4, get_iq_callback/1,
               process_iq_reply/4, start_link/0]).
 
 -include("mongoose.hrl").
@@ -241,12 +241,14 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE, {unregister_host, Host}).
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}, _, _) ->
     Features = [Feature || {_, Feature} <- ets:lookup(?NSTABLE, LServer)],
-    mongoose_disco:add_features(Features, Acc);
-disco_local_features(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_features(Features, Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -263,7 +265,7 @@ init([]) ->
     catch ets:new(?IQTABLE, [named_table, protected, {read_concurrency, true}]),
     catch ets:new(?NSTABLE, [named_table, bag, protected, {read_concurrency, true}]),
     catch ets:new(?IQRESPONSE, [named_table, public]),
-    ejabberd_hooks:add(hooks()),
+    gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -337,7 +339,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ejabberd_hooks:delete(hooks()).
+    gen_hook:delete_handlers(hooks()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -351,7 +353,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 hooks() ->
-    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99}
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}
      || HostType <- ?ALL_HOST_TYPES].
 
 -spec do_route(Acc :: mongoose_acc:t(),

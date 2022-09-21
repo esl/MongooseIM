@@ -30,7 +30,7 @@ admin_stats_tests() ->
 
 domain_admin_tests() ->
     [domain_admin_stats_global_test,
-     domain_admin_stats_domain_test,
+     admin_stats_domain_test,
      domain_admin_stats_domain_no_permission_test].
 
 init_per_suite(Config) ->
@@ -106,13 +106,6 @@ admin_stats_domain_with_users_test(Config, _Alice) ->
 
 domain_admin_stats_global_test(Config) ->
     get_unauthorized(get_stats(Config)).
-
-domain_admin_stats_domain_test(Config) ->
-    Result = get_ok_value([data, stat, domainStats],
-                          get_domain_stats(domain(), Config)),
-    #{<<"registeredUsers">> := RegisteredUsers, <<"onlineUsers">> := OnlineUsers} = Result,
-    ?assertEqual(0, RegisteredUsers),
-    ?assertEqual(0, OnlineUsers).
 
 domain_admin_stats_domain_no_permission_test(Config) ->
     get_unauthorized(get_domain_stats(secondary_domain(), Config)).

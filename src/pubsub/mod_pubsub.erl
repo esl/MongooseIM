@@ -69,7 +69,7 @@
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
-         disco_local_features/1,
+         disco_local_features/3,
          disco_sm_identity/1,
          disco_sm_features/1, disco_sm_items/1, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
@@ -120,7 +120,7 @@
     {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
     {?MOD_PUBSUB_DB_BACKEND, stop, 0},
     affiliation_to_string/1, caps_recognised/4, create_node/7, default_host/0,
-    delete_item/4, delete_node/3, disco_local_features/1, disco_sm_features/1,
+    delete_item/4, delete_node/3, disco_sm_features/1,
     disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
     get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
     handle_remote_hook/4, host/2, in_subscription/5, iq_sm/4, node_action/4, node_call/4,
@@ -398,7 +398,8 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     init_backend(ServerHost, Opts),
     Plugins = init_plugins(Host, ServerHost, Opts),
 
-    add_hooks(ServerHost, hooks()),
+    add_hooks(ServerHost, legacy_hooks()),
+    gen_hook:add_handlers(hooks(ServerHost)),
     case lists:member(?PEPNODE, Plugins) of
         true ->
             add_hooks(ServerHost, pep_hooks()),
@@ -435,10 +436,9 @@ add_hooks(ServerHost, Hooks) ->
 delete_hooks(ServerHost, Hooks) ->
     [ ejabberd_hooks:delete(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
 
-hooks() ->
+legacy_hooks() ->
     [
      {sm_remove_connection_hook, on_user_offline, 75},
-     {disco_local_features, disco_local_features, 75},
      {presence_probe_hook, presence_probe, 80},
      {roster_in_subscription, in_subscription, 50},
      {roster_out_subscription, out_subscription, 50},
@@ -446,6 +446,9 @@ hooks() ->
      {anonymous_purge_hook, remove_user, 50},
      {get_personal_data, get_personal_data, 50}
     ].
+
+hooks(ServerHost) ->
+    [{disco_local_features, ServerHost, fun ?MODULE:disco_local_features/3, #{}, 75}].
 
 pep_hooks() ->
     [
@@ -616,12 +619,15 @@ node_identity(Host, Type) ->
         false -> []
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
+
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}, _, _) ->
     Features = [?NS_PUBSUB | [feature(F) || F <- features(LServer, <<>>)]],
-    mongoose_disco:add_features(Features, Acc);
-disco_local_features(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_features(Features, Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
 disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
@@ -928,7 +934,8 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
             delete_pep_iq_handlers(ServerHost);
         false -> ok
     end,
-    delete_hooks(ServerHost, hooks()),
+    delete_hooks(ServerHost, legacy_hooks()),
+    gen_hook:delete_handlers(hooks(ServerHost)),
     case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
         undefined ->
             ?LOG_ERROR(#{what => pubsub_process_is_dead,

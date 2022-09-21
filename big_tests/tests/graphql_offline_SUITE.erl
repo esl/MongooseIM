@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0, domain/0]).
--import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1,
+                         get_unauthorized/1]).
 -import(config_parser_helper, [mod_config/2]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 
@@ -17,17 +18,25 @@ suite() ->
 
 all() ->
     [{group, admin_http},
-     {group, admin_cli}].
+     {group, admin_cli},
+     {group, domain_admin}].
 
 groups() ->
     [{admin_http, [], admin_groups()},
      {admin_cli, [], admin_groups()},
+     {domain_admin, [], domain_admin_groups()},
      {admin_offline, [], admin_offline_tests()},
-     {admin_offline_not_configured, [], admin_offline_not_configured_tests()}].
+     {admin_offline_not_configured, [], admin_offline_not_configured_tests()},
+     {domain_admin_offline, [], domain_admin_offline_tests()},
+     {domain_admin_offline_not_configured, [], domain_admin_offline_not_configured_tests()}].
 
 admin_groups() ->
     [{group, admin_offline},
      {group, admin_offline_not_configured}].
+
+domain_admin_groups() ->
+    [{group, domain_admin_offline},
+     {group, domain_admin_offline_not_configured}].
 
 admin_offline_tests() ->
     [admin_delete_expired_messages_test,
@@ -38,6 +47,18 @@ admin_offline_tests() ->
      admin_delete_old_messages_no_domain_test].
 
 admin_offline_not_configured_tests() ->
+    [admin_delete_expired_messages_offline_not_configured_test,
+     admin_delete_old_messages_offline_not_configured_test].
+
+domain_admin_offline_tests() ->
+    [admin_delete_expired_messages_test,
+     admin_delete_old_messages_test,
+     admin_delete_expired_messages2_test,
+     admin_delete_old_messages2_test,
+     domain_admin_delete_expired_messages_no_permission_test,
+     domain_admin_delete_old_messages_no_permission_test].
+
+domain_admin_offline_not_configured_tests() ->
     [admin_delete_expired_messages_offline_not_configured_test,
      admin_delete_old_messages_offline_not_configured_test].
 
@@ -61,7 +82,10 @@ init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
-init_per_group(admin_offline, Config) ->
+init_per_group(domain_admin, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
+init_per_group(GroupName, Config) when GroupName =:= admin_offline;
+                                       GroupName =:= domain_admin_offline ->
     HostType = host_type(),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
     ModConfig = create_config(Backend),
@@ -69,10 +93,14 @@ init_per_group(admin_offline, Config) ->
     [{backend, Backend} | escalus:init_per_suite(Config)];
 init_per_group(admin_offline_not_configured, Config) ->
     dynamic_modules:ensure_modules(host_type(), [{mod_offline, stopped}]),
+    Config;
+init_per_group(domain_admin_offline_not_configured, Config) ->
+    dynamic_modules:ensure_modules(host_type(), [{mod_offline, stopped}]),
     Config.
 
 end_per_group(GroupName, _Config) when GroupName =:= admin_http;
-                                       GroupName =:= admin_cli ->
+                                       GroupName =:= admin_cli;
+                                       GroupName =:= domain_admin ->
     graphql_helper:clean();
 end_per_group(_, _Config) ->
     ok.
@@ -134,6 +162,16 @@ admin_delete_expired_messages_offline_not_configured_test(Config) ->
 admin_delete_old_messages_offline_not_configured_test(Config) ->
     Result = delete_old_messages(domain(), 2, Config),
     ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)).
+
+%% Domain admin test cases
+
+domain_admin_delete_expired_messages_no_permission_test(Config) ->
+    get_unauthorized(delete_expired_messages(<<"AAAA">>, Config)),
+    get_unauthorized(delete_expired_messages(domain_helper:secondary_domain(), Config)).
+
+domain_admin_delete_old_messages_no_permission_test(Config) ->
+    get_unauthorized(delete_old_messages(<<"AAAA">>, 2, Config)),
+    get_unauthorized(delete_old_messages(domain_helper:secondary_domain(), 2, Config)).
 
 %% Commands
 
