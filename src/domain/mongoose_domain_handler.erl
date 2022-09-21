@@ -16,7 +16,8 @@
          content_types_accepted/2,
          content_types_provided/2,
          is_authorized/2,
-         delete_resource/2]).
+         delete_resource/2,
+         delete_completed/2]).
 
 %% Custom cowboy_rest callbacks.
 -export([handle_domain/2,
@@ -181,7 +182,16 @@ delete_resource(Req, State) ->
     MaybeParams = json_decode(Body),
     delete_domain(Domain, MaybeParams, Req2, State).
 
-delete_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
+delete_completed(Req, #{deletion := in_process} = State) ->
+    {false, Req, State};
+delete_completed(Req, State) ->
+    {true, Req, State}.
+
+async_delete(Domain, HostType, Req, State) ->
+    mongoose_domain_api:request_delete_domain(Domain, HostType),
+    {true, Req, State#{deletion => in_process}}.
+
+sync_delete(Domain, HostType, Req, State) ->
     case mongoose_domain_api:delete_domain(Domain, HostType) of
         ok ->
             {true, Req, State};
@@ -195,7 +205,13 @@ delete_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
             {false, reply_error(403, <<"wrong host type">>, Req), State};
         {error, unknown_host_type} ->
             {false, reply_error(403, <<"unknown host type">>, Req), State}
-    end;
+    end.
+
+delete_domain(Domain, {ok, #{<<"host_type">> := HostType,
+                             <<"request">> := <<"true">>}}, Req, State) ->
+    async_delete(Domain, HostType, Req, State);
+delete_domain(Domain, {ok, #{<<"host_type">> := HostType}}, Req, State) ->
+    sync_delete(Domain, HostType, Req, State);
 delete_domain(_Domain, {ok, #{}}, Req, State) ->
     {false, reply_error(400, <<"'host_type' field is missing">>, Req), State};
 delete_domain(_Domain, {error, empty}, Req, State) ->

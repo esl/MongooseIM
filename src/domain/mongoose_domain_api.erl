@@ -15,6 +15,9 @@
          get_all_static/0,
          get_domains_by_host_type/1]).
 
+%% Async API
+-export([request_delete_domain/2]).
+
 %% domain admin API
 -export([check_domain_password/2,
          set_domain_password/2,
@@ -86,6 +89,10 @@ delete_domain(Domain, HostType) ->
         Other ->
             Other
     end.
+
+-spec request_delete_domain(domain(), host_type()) -> {pid(), reference()}.
+request_delete_domain(Domain, HostType) ->
+    mongoose_domain_db_cleaner:request_delete_domain(Domain, HostType).
 
 -spec disable_domain(domain()) ->
     ok | {error, not_found} | {error, static} | {error, service_disabled}
