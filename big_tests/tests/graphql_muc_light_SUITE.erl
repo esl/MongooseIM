@@ -166,10 +166,12 @@ admin_muc_light_not_configured_tests() ->
 
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
-    Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
-    Config3 = ejabberd_node_utils:init(mim(), Config2),
-    escalus:init_per_suite(Config3).
+    Config2 = dynamic_modules:save_modules(SecondaryHostType, Config1),
+    Config3 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config2),
+    Config4 = ejabberd_node_utils:init(mim(), Config3),
+    escalus:init_per_suite(Config4).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -194,8 +196,8 @@ init_per_group(admin_http, Config) ->
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin_muc_light, Config) ->
-    ensure_muc_light_started(Config),
-    graphql_helper:init_domain_admin_handler(Config);
+    Config1 = ensure_muc_light_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
 init_per_group(Group, Config) when Group =:= user_muc_light;
                                    Group =:= admin_muc_light ->
     ensure_muc_light_started(Config);
@@ -207,16 +209,23 @@ init_per_group(user, Config) ->
 
 ensure_muc_light_started(Config) ->
     HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
     dynamic_modules:ensure_modules(HostType, required_modules(suite)),
-    [{muc_light_host, muc_light_helper:muc_host()} | Config].
+    dynamic_modules:ensure_modules(SecondaryHostType, required_modules(suite)),
+    [{muc_light_host, muc_light_helper:muc_host()},
+     {secondary_muc_light_host, <<"muclight.", (domain_helper:secondary_domain())/binary>>}
+     | Config].
 
 ensure_muc_light_stopped(Config) ->
     HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
     dynamic_modules:ensure_modules(HostType, [{mod_muc_light, stopped}]),
+    dynamic_modules:ensure_modules(SecondaryHostType, [{mod_muc_light, stopped}]),
     [{muc_light_host, <<"NON_EXISTING">>} | Config].
 
 end_per_group(Group, _Config) when Group =:= user;
                                    Group =:= admin_http;
+                                   Group =:= domain_admin_muc_light;
                                    Group =:= admin_cli ->
     graphql_helper:clean();
 end_per_group(_Group, _Config) ->
