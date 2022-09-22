@@ -60,10 +60,6 @@
     host = "localhost"
     path = "/api"
 
-  [[listen.http.handlers.mongoose_domain_handler]]
-    host = "localhost"
-    path = "/api"
-
 [[listen.http]]
   {{#http_api_client_endpoint}}
   {{{http_api_client_endpoint}}}

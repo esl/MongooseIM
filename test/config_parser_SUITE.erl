@@ -99,7 +99,6 @@ groups() ->
                            listen_http_handlers_client_api,
                            listen_http_handlers_admin_api,
                            listen_http_handlers_api,
-                           listen_http_handlers_domain,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
                          auth_password,
@@ -612,10 +611,6 @@ listen_http_handlers_api(_Config) ->
     ?cfg(P ++ [handlers], [mongoose_api_metrics],
          T(#{<<"handlers">> => [<<"mongoose_api_metrics">>]})),
     ?err(T(#{<<"handlers">> => [not_a_module]})).
-
-listen_http_handlers_domain(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_domain_handler),
-    test_listen_http_handler_creds(P, T).
 
 listen_http_handlers_graphql(_Config) ->
     T = fun graphql_handler_raw/1,
