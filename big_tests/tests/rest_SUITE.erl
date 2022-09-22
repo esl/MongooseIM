@@ -66,7 +66,8 @@ auth_test_cases() ->
      auth_fails_incorrect_creds].
 
 blank_auth_testcases() ->
-    [auth_always_passes_blank_creds].
+    [auth_passes_without_creds,
+     auth_fails_with_creds].
 
 test_cases() ->
     [non_existent_command_returns404,
@@ -153,13 +154,13 @@ auth_fails_incorrect_creds(_Config) ->
     % try to login with different creds
     {?NOT_AUTHORIZED, _} = gett(admin, path("users", [domain()]), {<<"ola">>, <<"mapsa">>}).
 
-auth_always_passes_blank_creds(_Config) ->
-    % we set control creds for blank
-    rest_helper:change_admin_creds(any),
-    % try with any auth
-    {?OK, Users} = gett(admin, path("users", [domain()]), {<<"aaaa">>, <<"bbbb">>}),
+auth_passes_without_creds(_Config) ->
     % try with no auth
-    {?OK, Users} = gett(admin, path("users", [domain()])).
+    {?OK, _Users} = gett(admin, path("users", [domain()])).
+
+auth_fails_with_creds(_Config) ->
+    % try with any auth
+    {?NOT_AUTHORIZED, _} = gett(admin, path("users", [domain()]), {<<"aaaa">>, <<"bbbb">>}).
 
 non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/isitthereornot">>).

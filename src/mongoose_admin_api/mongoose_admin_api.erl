@@ -101,8 +101,8 @@ authorize(#{username := Username, password := Password}, AuthDetails) ->
         _ ->
             false
     end;
-authorize(#{}, _) ->
-    true. % no credentials required
+authorize(#{}, AuthDetails) ->
+    AuthDetails =:= undefined. % Do not accept basic auth when not configured
 
 -spec parse_body(req()) -> #{atom() => jiffy:json_value()}.
 parse_body(Req) ->
