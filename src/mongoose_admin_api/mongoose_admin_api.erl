@@ -25,7 +25,7 @@
                              atom() => any()}.
 -type req() :: cowboy_req:req().
 -type state() :: map().
--type error_type() :: bad_request | denied | not_found | internal.
+-type error_type() :: bad_request | denied | not_found | duplicate | internal.
 
 %% mongoose_http_handler callbacks
 
@@ -67,7 +67,8 @@ api_paths(Opts) ->
      {"/mucs/:domain", mongoose_admin_api_muc, Opts},
      {"/mucs/:domain/:name/:arg", mongoose_admin_api_muc, Opts},
      {"/inbox/:host_type/:days/bin", mongoose_admin_api_inbox, Opts},
-     {"/inbox/:domain/:user/:days/bin", mongoose_admin_api_inbox, Opts}
+     {"/inbox/:domain/:user/:days/bin", mongoose_admin_api_inbox, Opts},
+     {"/domains/:domain", mongoose_admin_api_domain, Opts}
     ].
 
 %% Utilities for the handler modules
@@ -166,10 +167,12 @@ error_response(ErrorType, Message, Req, State) ->
 error_code(bad_request) -> 400;
 error_code(denied) -> 403;
 error_code(not_found) -> 404;
+error_code(duplicate) -> 409;
 error_code(internal) -> 500.
 
 -spec log_level(error_type()) -> logger:level().
 log_level(bad_request) -> warning;
 log_level(denied) -> warning;
 log_level(not_found) -> warning;
+log_level(duplicate) -> warning;
 log_level(internal) -> error.
