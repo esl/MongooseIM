@@ -267,7 +267,7 @@ failed_to_store_message(Acc) ->
     Result :: drop | filter_packet_acc().
 filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, []).
+    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, #{args => []}).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.
@@ -392,8 +392,11 @@ resend_offline_messages_hook(Acc, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 rest_user_send_packet(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(rest_user_send_packet, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(rest_user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -458,8 +461,11 @@ unregister_subhost(LDomain) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 user_available_hook(Acc, JID) ->
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_available_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(user_available_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping.
 -spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
@@ -513,8 +519,11 @@ user_sent_keep_alive(HostType, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
@@ -775,9 +784,11 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unset_presence_hook(Acc, JID, Status) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    Params = #{jid => JID},
+    Args = [LUser, LServer, LResource, Status],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(unset_presence_hook, HostType, Acc,
-                           [LUser, LServer, LResource, Status]).
+    run_hook_for_host_type(unset_presence_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
