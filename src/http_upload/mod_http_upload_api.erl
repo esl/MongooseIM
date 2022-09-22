@@ -34,13 +34,19 @@ get_urls(Domain, Filename, Size, ContentType, Timeout) ->
     end.
 
 check_module_and_get_urls(HostType, Filename, Size, ContentType, Timeout) ->
-    case mod_http_upload:get_urls(HostType, Filename, Size, ContentType, Timeout) of
-        {PutURL, GetURL, Header} ->
-            {ok, #{<<"PutUrl">> => PutURL, <<"GetUrl">> => GetURL,
-                   <<"Header">> => header_output(Header)}};
-        file_too_large_error ->
-            {file_too_large_error,
-             "Declared file size exceeds the host's maximum file size."}
+    %The check if the module is loaded is needed by one test in mongooseimctl_SUITE
+    case gen_mod:is_loaded(HostType, mod_http_upload) of
+        true ->
+            case mod_http_upload:get_urls(HostType, Filename, Size, ContentType, Timeout) of
+                {PutURL, GetURL, Header} ->
+                    {ok, #{<<"PutUrl">> => PutURL, <<"GetUrl">> => GetURL,
+                           <<"Header">> => header_output(Header)}};
+                file_too_large_error ->
+                    {file_too_large_error,
+                     "Declared file size exceeds the host's maximum file size."}
+            end;
+        false ->
+            {module_not_loaded_error, "mod_http_upload is not loaded for this host"}
     end.
 
 -spec generate_output_message(PutURL :: binary(), GetURL :: binary(),
