@@ -148,6 +148,7 @@ rest_cases() ->
      rest_cannot_put_domain_without_host_type,
      rest_cannot_put_domain_without_body,
      rest_cannot_put_domain_with_invalid_json,
+     rest_cannot_put_domain_with_invalid_name,
      rest_cannot_put_domain_when_it_is_static,
      rest_cannot_delete_domain_without_host_type,
      rest_cannot_delete_domain_without_body,
@@ -949,6 +950,10 @@ rest_cannot_put_domain_without_body(Config) ->
 rest_cannot_put_domain_with_invalid_json(Config) ->
     {{<<"400">>, <<"Bad Request">>}, <<"Invalid request body">>} =
         putt_domain_with_custom_body(Config, <<"{kek">>).
+
+rest_cannot_put_domain_with_invalid_name(Config) ->
+    {{<<"400">>, <<"Bad Request">>}, <<"Invalid domain name">>} =
+        rest_put_domain(Config, <<"%f3">>, <<"type1">>). % nameprep fails for ASCII code 243
 
 rest_cannot_put_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
