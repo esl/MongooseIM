@@ -154,41 +154,40 @@ modify_config_file(CfgVarsToChange, Config) ->
       ConfigVariable :: atom(),
       Value :: string().
 modify_config_file(Host, VarsToChange, Config, Format) ->
-    VarsFile = vars_file(Format),
     NodeVarsFile = ct:get_config({hosts, Host, vars}, Config) ++ "." ++ vars_file(Format),
     TemplatePath = config_template_path(Config, Format),
-    DefaultVarsPath = config_vars_path(VarsFile, Config),
     NodeVarsPath = config_vars_path(NodeVarsFile, Config),
 
     {ok, Template} = file:read_file(TemplatePath),
-    {ok, DefaultVars} = file:consult(DefaultVarsPath),
-    {ok, NodeVars} = file:consult(NodeVarsPath),
+    NodeVars = read_vars(NodeVarsPath),
     PresetVars = preset_vars(Config, Format),
 
-    TemplatedConfig = template_config(Template, [DefaultVars, NodeVars, PresetVars, VarsToChange]),
+    TemplatedConfig = template_config(Template, NodeVars ++ PresetVars ++ VarsToChange),
 
     RPCSpec = distributed_helper:Host(),
     NewCfgPath = update_config_path(RPCSpec, Format),
     ok = ejabberd_node_utils:call_fun(RPCSpec, file, write_file, [NewCfgPath, TemplatedConfig]).
 
+read_vars(File) ->
+    {ok, Terms} = file:consult(File),
+    lists:flatmap(fun({Key, Val}) ->
+                          [{Key, Val}];
+                     (IncludedFile) when is_list(IncludedFile) ->
+                          Path = filename:join(filename:dirname(File), IncludedFile),
+                          read_vars(Path)
+                  end, Terms).
+
 template_config(Template, Vars) ->
-    MergedVars = ensure_binary_strings(merge_vars(Vars)),
+    MergedVars = ensure_binary_strings(maps:from_list(Vars)),
     %% Render twice to replace variables in variables
     Tmp = bbmustache:render(Template, MergedVars, [{key_type, atom}]),
     bbmustache:render(Tmp, MergedVars, [{key_type, atom}]).
 
-merge_vars([Vars1, Vars2|Rest]) ->
-    Vars = lists:foldl(fun ({Var, Val}, Acc) ->
-                               lists:keystore(Var, 1, Acc, {Var, Val})
-                       end, Vars1, Vars2),
-    merge_vars([Vars|Rest]);
-merge_vars([Vars]) -> Vars.
-
 %% bbmustache tries to iterate over lists, so we need to make them binaries
 ensure_binary_strings(Vars) ->
-    lists:map(fun({dbs, V}) -> {dbs, V};
-                 ({K, V}) when is_list(V) -> {K, list_to_binary(V)};
-                 ({K, V}) -> {K, V}
+    maps:map(fun(dbs, V) -> V;
+                (_K, V) when is_list(V) -> list_to_binary(V);
+                (_K, V) -> V
               end, Vars).
 
 update_config_path(RPCSpec, Format) ->
