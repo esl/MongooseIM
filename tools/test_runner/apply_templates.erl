@@ -20,20 +20,23 @@ main([NodeAtom, BuildDirAtom]) ->
 
 
 overlay_vars(Node) ->
-    Vars = consult_map("rel/vars-toml.config"),
-    NodeVars = consult_map("rel/" ++ atom_to_list(Node) ++ ".vars-toml.config"),
-    %% NodeVars overrides Vars
-    ensure_binary_strings(maps:merge(Vars, NodeVars)).
+    File = "rel/" ++ atom_to_list(Node) ++ ".vars-toml.config",
+    ensure_binary_strings(maps:from_list(read_vars(File))).
+
+read_vars(File) ->
+    {ok, Terms} = file:consult(File),
+    lists:flatmap(fun({Key, Val}) ->
+                          [{Key, Val}];
+                     (IncludedFile) when is_list(IncludedFile) ->
+                          Path = filename:join(filename:dirname(File), IncludedFile),
+                          read_vars(Path)
+                  end, Terms).
 
 %% bbmustache tries to iterate over lists, so we need to make them binaries
 ensure_binary_strings(Vars) ->
     maps:map(fun(_K, V) when is_list(V) -> list_to_binary(V);
                 (_K, V) -> V
              end, Vars).
-
-consult_map(File) ->
-    {ok, Vars} = file:consult(File),
-    maps:from_list(Vars).
 
 %% Based on rebar.config overlay section
 templates(RelDir) ->
