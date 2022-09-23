@@ -68,7 +68,7 @@
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", inbox_extensions_SUITE}.
 
-% {suites, "tests", last_SUITE}.
+{suites, "tests", last_SUITE}.
 
 % {suites, "tests", login_SUITE}.
 
