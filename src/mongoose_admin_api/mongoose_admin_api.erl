@@ -68,7 +68,11 @@ api_paths(Opts) ->
      {"/mucs/:domain/:name/:arg", mongoose_admin_api_muc, Opts},
      {"/inbox/:host_type/:days/bin", mongoose_admin_api_inbox, Opts},
      {"/inbox/:domain/:user/:days/bin", mongoose_admin_api_inbox, Opts},
-     {"/domains/:domain", mongoose_admin_api_domain, Opts}
+     {"/domains/:domain", mongoose_admin_api_domain, Opts},
+     {"/metrics/", mongoose_admin_api_metrics, Opts},
+     {"/metrics/all/[:metric]", mongoose_admin_api_metrics, Opts#{suffix => all}},
+     {"/metrics/global/[:metric]", mongoose_admin_api_metrics, Opts#{suffix => global}},
+     {"/metrics/host_type/:host_type/[:metric]", mongoose_admin_api_metrics, Opts}
     ].
 
 %% Utilities for the handler modules
