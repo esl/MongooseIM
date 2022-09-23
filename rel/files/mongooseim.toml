@@ -113,17 +113,6 @@
     path = "/api/graphql"
     schema_endpoint = "user"
 
-[[listen.http]]
-  {{#http_api_old_endpoint}}
-  {{{http_api_old_endpoint}}}
-  {{/http_api_old_endpoint}}
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-
-  [[listen.http.handlers.mongoose_api]]
-    host = "localhost"
-    path = "/api"
-
 [[listen.c2s]]
   port = {{{c2s_port}}}
   {{#zlib}}
