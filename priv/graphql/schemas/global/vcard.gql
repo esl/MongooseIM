@@ -9,22 +9,35 @@ type Vcard{
     photo: [Image]
     "Birthday date"
     birthday: [String]
+    "User's addresses"
     address: [Address]
+    "Formatted text corresponding to delivery address"
     label: [Label]
+    "User's telephone number"
     telephone: [Telephone]
+    "User's email"
     email: [Email]
+    "User's JID"
     jabberId: [String]
+    "User's mail agent type"
     mailer: [String]
+    "User's timezone"
     timeZone: [String]
     "Geographical position"
     geo: [GeographicalPosition]
+    "Job title, functional position or function"
     title: [String]
+    "User's role, occupation, or business category"
     role: [String]
+    "Logo image"
     logo: [Image]
+    "Person who will act on behalf of the user or resource associated with the vCard"
     agent: [Agent]
-    "Organization"
+    "Organizational name and units associated"
     org: [Organization]
+    "Application specific category information"
     categories: [Keyword]
+    "Note about user"
     note: [String]
     "Identifier of product that generated the vCard property"
     prodId: [String]
@@ -47,14 +60,20 @@ type Vcard{
 }
 
 type Keyword{
+    "Keywords list"
     keyword: [String]
 }
 
 type NameComponents{
+    "User's family name"
     family: String
+    "User's name"
     givenName: String
+    "User's middle name"
     middleName: String
+    "Prefix to the name"
     prefix: String
+    "Suffix to the name"
     suffix: String
 }
 
@@ -65,23 +84,29 @@ type Address{
     pobox: String
     "Extra address data"
     extadd: String
+    "Street name"
     street: String
+    "Locality (e.g. city)"
     locality: String
+    "Region name"
     region: String
     "Postal code"
     pcode: String
+    "Country name"
     country: String
 }
 
 type Label{
     "Label tags"
     tags: [AddressTags]
+    "Individual label lines"
     line: [String]
 }
 
 type Telephone{
     "Telephone tags"
     tags: [TelephoneTags]
+    "Telephone's number"
     number: String
 }
 
@@ -93,30 +118,40 @@ type Email{
 }
 
 type ImageData{
+    "Format type parameter"
     type: String
+    "Base64 encoded binary image"
     binValue: String
 }
 
 type External{
+    "URI to an external value"
     extValue: String
 }
 
 type Phonetic {
+    "Textual phonetic pronunciation"
     phonetic: String
 }
 
 type BinValue{
+    "Value in binary form"
     binValue: String
 }
 
+"Agent vCard"
 type AgentVcard{
+    "vCard data"
     vcard: Vcard
 }
 
+"Specifies how image is stored"
 union Image = ImageData | External
 
+"Specifies how sound is stored"
 union Sound = Phonetic | BinValue | External
 
+"Specifies how agent is stored"
 union Agent = AgentVcard | External
 
 type GeographicalPosition{
@@ -134,11 +169,14 @@ type Organization{
 }
 
 type Privacy{
+    "List of privacy classification tags"
     tags: [PrivacyClassificationTags]
 }
 
 type Key{
+    "Type of a key"
     type: String
+    "Key credential"
     credential: String
 }
 
@@ -153,22 +191,35 @@ input VcardInput{
     photo: [ImageInput!]
     "Birthday date"
     birthday: [String!]
+    "User's address"
     address: [AddressInput!]
+    "Formatted text corresponding to delivery address"
     label: [LabelInput!]
+    "User's telephone number"
     telephone: [TelephoneInput!]
+    "User's email"
     email: [EmailInput!]
+    "User's JID"
     jabberId: [String!]
+    "User's mail agent type"
     mailer: [String!]
+    "User's timezone"
     timeZone: [String!]
     "Geographical position"
     geo: [GeographicalPositionInput!]
+    "Job title, functional position or function"
     title: [String!]
+    "User's role, occupation, or business category"
     role: [String!]
+    "Logo image"
     logo: [ImageInput!]
+    "Person who will act on behalf of the user or resource associated with the vCard"
     agent: [AgentInput!]
-    "Organization"
+    "Organizational name and units associated"
     org: [OrganizationInput!]
+    "Application specific category information"
     categories: [KeywordInput!]
+    "Note about user"
     note: [String!]
     "Identifier of product that generated the vCard property"
     prodId: [String!]
@@ -191,14 +242,20 @@ input VcardInput{
 }
 
 input KeywordInput{
+    "Keywords list"
     keyword: [String!]
 }
 
 input NameComponentsInput{
+    "User's family name"
     family: String
+    "User's name"
     givenName: String
+    "User's middle name"
     middleName: String
+    "Prefix to the name"
     prefix: String
+    "Suffix to the name"
     suffix: String
 }
 
@@ -209,23 +266,29 @@ input AddressInput{
     pobox: String
     "Extra address data"
     extadd: String
+    "Street name"
     street: String
+    "Locality (e.g. city)"
     locality: String
+    "Region name"
     region: String
     "Postal code"
     pcode: String
+    "Country name"
     country: String
 }
 
 input LabelInput{
     "Label tags"
     tags: [AddressTags!]
+    "Individual label lines"
     line: [String!]!
 }
 
 input TelephoneInput{
     "Telephone tags"
     tags: [TelephoneTags!]
+    "Telephone's number"
     number: String!
 }
 
@@ -251,6 +314,7 @@ input OrganizationInput{
 }
 
 input PrivacyInput{
+    "Privacy classification tag list"
     tags: [PrivacyClassificationTags!]
 }
 
@@ -280,46 +344,79 @@ input AgentInput{
 }
 
 input KeyInput{
+    "Type of input"
     type: String
+    "Credential or encryption key"
     credential: String!
 }
 
 enum PrivacyClassificationTags{
+    "vCard may be shared with everyone"
     PUBLIC
+    "vCard will not be shared"
     PRIVATE
+    "vCard may be shared with allowed users"
     CONFIDENTIAL
 }
 
+"Specifies type of an address"
 enum AddressTags{
+    "Place of residence address"
     HOME
+    "Workplace adress"
     WORK
+    "Postal code"
     POSTAL
+    "Parcel delivery address"
     PARCEL
+    "Domestic delivery address"
     DOM
+    "Preferred delivery address when more than one address is specified"
     PREF
+    "International delivery address"
     INTL
 }
 
+"Specifies intended use of a telphone number"
 enum TelephoneTags{
+    "Number associated with a residence"
     HOME
+    "Number associated with a workplace"
     WORK
+    "Voice telephone number"
     VOICE
+    "Facsimile telephone number"
     FAX
+    "Paging device telephone number"
     PAGER
+    "Number has voice messaging support"
     MSG
+    "Cellular telephone number"
     CELL
+    "Video conferencing telephone number"
     VIDEO
+    "Bulletin board system telephone number"
     BBS
+    "Modem connected telephone number"
     MODEM
+    "ISDN service telephone number"
     ISDN
+    "Personal communication services telephone number"
     PCS
+    "Preferred use of a telephone number"
     PREF
 }
 
+"Format or preference of an email"
 enum EmailTags{
+    "Address associated with a residence"
     HOME
+    "Address associated with a place of work"
     WORK
+    "Internet addressing type"
     INTERNET
+    "Preferred use of an email address when more than one is specified"
     PREF
+    "X.400 addressing type"
     X400
 }

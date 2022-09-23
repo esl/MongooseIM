@@ -1,0 +1,2 @@
+"Used to provide examples for non-standard types"
+directive @spectaql(options: [SpectaQLOption]) on OBJECT | FIELD_DEFINITION | SCALAR

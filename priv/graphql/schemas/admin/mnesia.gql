@@ -40,17 +40,26 @@ type MnesiaAdminMutation @protected{
 
 union MnesiaInfo =  MnesiaStringResponse | MnesiaListResponse | MnesiaIntResponse
 
+"Mnesia response in the form of a string"
 type MnesiaStringResponse {
+  "Result as a string"
   result: String
+  "Result's key"
   key: String
 }
 
+"Mnesia response in the form of a list"
 type MnesiaListResponse {
+  "Result as a list"
   result: [String]
+  "Result's key"
   key: String
 }
 
+"Mnesia response in the form of a integer"
 type MnesiaIntResponse {
+  "Result as an integer"
   result: Int
+  "Result's key"
   key: String
 }
