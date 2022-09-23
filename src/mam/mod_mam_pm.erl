@@ -717,7 +717,7 @@ remove_iq_handlers(HostType) ->
 
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:ensure_metric(HostType, [HostType, modMamLookups, simple], spiral),
+    mongoose_metrics:ensure_metric(HostType, [modMamLookups, simple], spiral),
     mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, archive], histogram),
     lists:foreach(fun(Name) ->
                       mongoose_metrics:ensure_metric(HostType, Name, spiral)
