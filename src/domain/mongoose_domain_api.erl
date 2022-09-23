@@ -2,6 +2,8 @@
 %% management.
 -module(mongoose_domain_api).
 
+-include("mongoose_logger.hrl").
+
 -export([init/0,
          stop/0,
          get_host_type/1]).
@@ -27,6 +29,9 @@
          get_subdomain_info/1,
          get_all_subdomains_for_domain/1]).
 
+%% Helper for remove_domain
+-export([remove_domain_wrapper/3]).
+
 %% For testing
 -export([get_all_dynamic/0]).
 
@@ -38,7 +43,9 @@
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
--export_type([status/0]).
+-type remove_domain_acc() :: #{failed := [module()]}.
+
+-export_type([status/0, remove_domain_acc/0]).
 
 -spec init() -> ok | {error, term()}.
 init() ->
@@ -251,3 +258,15 @@ unregister_subdomain(HostType, SubdomainPattern) ->
           [mongoose_subdomain_core:subdomain_info()].
 get_all_subdomains_for_domain(Domain) ->
     mongoose_subdomain_core:get_all_subdomains_for_domain(Domain).
+
+-spec remove_domain_wrapper(remove_domain_acc(), fun(() -> remove_domain_acc()), module()) ->
+    remove_domain_acc() | {stop, remove_domain_acc()}.
+remove_domain_wrapper(Acc, F, Module) ->
+    try F()
+    catch C:R:S ->
+        ?LOG_ERROR(#{what => hook_failed,
+                     text => <<"Error running hook">>,
+                     module => Module,
+                     class => C, reason => R, stacktrace => S}),
+        {stop, Acc#{failed := [Module | maps:get(failed, Acc)]}}
+    end.
