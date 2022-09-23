@@ -47,12 +47,11 @@ all() ->
 
 groups() ->
     [
-     {metrics, [], ?METRICS_CASES},
+     {metrics, [], [non_existent_metrics | ?METRICS_CASES]},
      {all_metrics_are_global, [], ?METRICS_CASES},
      {global, [], [session_counters,
                    node_uptime,
-                   cluster_size
-                  ]}
+                   cluster_size]}
     ].
 
 init_per_suite(Config) ->
@@ -86,6 +85,19 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% metrics_api tests
 %%--------------------------------------------------------------------
+
+non_existent_metrics(_Config) ->
+    IncompleteName = "backends",
+    GlobalMetricName = "adhoc_local_commands",
+    HostType = metrics_helper:make_host_type_name(host_type()),
+    assert_status(404, request(<<"GET">>, "/metrics/all/" ++ IncompleteName)),
+    assert_status(404, request(<<"GET">>, "/metrics/all/badMetric")),
+    assert_status(404, request(<<"GET">>, "/metrics/global/" ++ IncompleteName)),
+    assert_status(404, request(<<"GET">>, "/metrics/global/badMetric")),
+    assert_status(404, request(<<"GET">>, "/metrics/host_type/badHostType")),
+    assert_status(404, request(<<"GET">>, "/metrics/host_type/badHostType/xmppStanzaCount")),
+    assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/", GlobalMetricName])),
+    assert_status(404, request(<<"GET">>, ["/metrics/", HostType, "/badMetric"])).
 
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
@@ -304,19 +316,11 @@ metrics_msg_flow(_Config) ->
     ?assertEqual(2, maps:size(IM)),
     ?assertEqual(1, maps:size(B4)),
 
-    % Negative case for a non-existent given metric
-    Res5 = request(<<"GET">>, "/metrics/all/nonExistentMetric"),
-    assert_status(404, Res5),
-
     % All metrics for an example host type
     Res6 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType]),
     {_S6, _H6, B6} = Res6,
     #{<<"metrics">> := _} = B6,
     ?assertEqual(1, maps:size(B6)),
-
-    % Negative case for a non-existent host type
-    Res7 = request(<<"GET">>, "/metrics/host_type/nonExistentHostType"),
-    assert_status(404, Res7),
 
     % An example metric for an example host type
     Res8 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType, "/", ExampleMetric]),
@@ -324,10 +328,6 @@ metrics_msg_flow(_Config) ->
     #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM2} = B8,
     ?assertEqual(2, maps:size(IM2)),
     ?assertEqual(1, maps:size(B8)),
-
-    % Negative case for a non-existent (host type, metric) pair
-    Res9 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType, "/nonExistentMetric"]),
-    assert_status(404, Res9),
 
     % All global metrics
     Res10 = request(<<"GET">>, "/metrics/global"),
