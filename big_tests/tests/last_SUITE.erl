@@ -17,7 +17,8 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -31,7 +32,8 @@ groups() ->
     [{valid_queries, [sequence], valid_test_cases()},
      {invalid_queries, invalid_test_cases()}].
 
-valid_test_cases() -> [last_online_user,
+valid_test_cases() -> [online_user_query,
+                       last_online_user,
                        last_offline_user,
                        last_server].
 
@@ -79,6 +81,21 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Last tests
 %%--------------------------------------------------------------------
+online_user_query(Config) ->
+    %% Alice and Bob are friends
+    escalus:story(Config, [{alice, 1}, {bob, 1}],
+                  fun(Alice, Bob) ->
+                          %% Alice asks about Bob's last activity
+                          BobJid = escalus_utils:get_jid(Bob),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(BobJid)),
+                          %% Bob gets IQ and answers
+                          BobGetsIQ = escalus_client:wait_for_stanza(Bob),
+                          escalus_client:send(Bob, answer_last_activity(BobGetsIQ)),
+                          Stanza = escalus_client:wait_for_stanza(Alice),
+                          escalus:assert(is_last_result, Stanza),
+                          0 = get_last_activity(Stanza)
+                  end).
+
 last_online_user(Config) ->
     %% Alice and Bob are friends
     escalus:story(Config, [{alice, 1}, {bob, 1}],
@@ -120,7 +137,7 @@ last_offline_user(Config) ->
 
 last_server(Config) ->
     %% This story can be fresh_story
-    escalus:story(Config, [{alice, 1}],
+    escalus:fresh_story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice asks for server's uptime
                           Server = escalus_users:get_server(Config, alice),
@@ -142,6 +159,7 @@ user_not_subscribed_receives_error(Config) ->
         Error = escalus_client:wait_for_stanza(Alice),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
 
+        %% Alice asks Bob directly for last activity
         BobFullJID = escalus_client:full_jid(Bob),
         escalus_client:send(Alice, escalus_stanza:last_activity(BobFullJID)),
 
@@ -160,6 +178,17 @@ get_last_activity(Stanza) ->
 
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
+
+answer_last_activity(IQ = #xmlel{name = <<"iq">>}) ->
+    From = exml_query:attr(IQ, <<"from">>),
+    To = exml_query:attr(IQ, <<"to">>),
+    Id = exml_query:attr(IQ, <<"id">>),
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"from">>, To}, {<<"to">>, From}, {<<"id">>, Id}, {<<"type">>, <<"result">>}],
+           children = [#xmlel{name = <<"query">>,
+                              attrs = [{<<"xmlns">>, ?NS_LAST_ACTIVITY},
+                                       {<<"seconds">>, <<"0">>}]}
+                      ]}.
 
 required_modules(riak) ->
     [{mod_last, #{backend => riak,
