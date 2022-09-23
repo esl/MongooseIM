@@ -145,7 +145,7 @@ disable_domain(Config) ->
     ParsedResult = get_ok_value([data, domain, disableDomain], Result),
     ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"enabled">> := false}, ParsedResult),
     {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [?EXAMPLE_DOMAIN]),
-    ?assertEqual(#{host_type => ?HOST_TYPE, enabled => false}, Domain).
+    ?assertEqual(#{host_type => ?HOST_TYPE, status => disabled}, Domain).
 
 enable_domain(Config) ->
     Result = enable_domain(?EXAMPLE_DOMAIN, Config),
