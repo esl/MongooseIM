@@ -16,11 +16,8 @@
 -module(metrics_api_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
-
--import(distributed_helper, [mim/0, rpc/4]).
--import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
--define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
+-import(distributed_helper, [mim/0, mim2/0, rpc/4]).
+-import(rest_helper, [assert_status/2, make_request/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -245,10 +242,9 @@ cluster_size(Config) ->
 %%--------------------------------------------------------------------
 
 metrics_only_global(_Config) ->
-    Port = ct:get_config({hosts, mim2, metrics_rest_port}),
     % 0. GET is the only implemented allowed method
     % (both OPTIONS and HEAD are for free then)
-    Res = simple_request(<<"OPTIONS">>, "/metrics/", Port),
+    Res = request(<<"OPTIONS">>, "/metrics/", mim2()),
     {_S, H, _B} = Res,
     assert_status(200, Res),
     V = proplists:get_value(<<"allow">>, H),
@@ -256,7 +252,7 @@ metrics_only_global(_Config) ->
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
     % List of host types and metrics
-    Res2 = simple_request(<<"GET">>, "/metrics/", Port),
+    Res2 = request(<<"GET">>, "/metrics/", mim2()),
     {_S2, _H2, B2} = Res2,
     assert_status(200, Res2),
     #{<<"host_types">> := [_ExampleHostType | _],
@@ -264,16 +260,14 @@ metrics_only_global(_Config) ->
       <<"global">> := [ExampleGlobal | _]} = B2,
 
     % All global metrics
-    Res3 = simple_request(<<"GET">>, "/metrics/global", Port),
+    Res3 = request(<<"GET">>, "/metrics/global", mim2()),
     {_S3, _H3, B3} = Res3,
     assert_status(200, Res3),
     #{<<"metrics">> := _ML} = B3,
     ?assertEqual(1, maps:size(B3)),
 
     % An example global metric
-    Res4 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
-                          Port),
+    Res4 = request(<<"GET">>, ["/metrics/global/", ExampleGlobal], mim2()),
     {_S4, _H4, B4} = Res4,
     #{<<"metric">> := _} = B4,
     ?assertEqual(1, maps:size(B4)).
@@ -281,7 +275,7 @@ metrics_only_global(_Config) ->
 metrics_msg_flow(_Config) ->
     % 0. GET is the only implemented allowed method
     % (both OPTIONS and HEAD are for free then)
-    Res = simple_request(<<"OPTIONS">>, "/metrics/", ?PORT),
+    Res = request(<<"OPTIONS">>, "/metrics/"),
     {_S, H, _B} = Res,
     assert_status(200, Res),
     V = proplists:get_value(<<"allow">>, H),
@@ -289,7 +283,7 @@ metrics_msg_flow(_Config) ->
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
     % List of host types and metrics
-    Res2 = simple_request(<<"GET">>, "/metrics/", ?PORT),
+    Res2 = request(<<"GET">>, "/metrics/"),
     {_S2, _H2, B2} = Res2,
     assert_status(200, Res2),
     #{<<"host_types">> := [ExampleHostType | _],
@@ -297,63 +291,51 @@ metrics_msg_flow(_Config) ->
       <<"global">> := [ExampleGlobal | _]} = B2,
 
     % Sum of all metrics
-    Res3 = simple_request(<<"GET">>, "/metrics/all", ?PORT),
+    Res3 = request(<<"GET">>, "/metrics/all"),
     {_S3, _H3, B3} = Res3,
     assert_status(200, Res3),
     #{<<"metrics">> := _ML} = B3,
     ?assertEqual(1, maps:size(B3)),
 
     % Sum for a given metric
-    Res4 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/all/", ExampleMetric]),
-                          ?PORT),
+    Res4 = request(<<"GET">>, ["/metrics/all/", ExampleMetric]),
     {_S4, _H4, B4} = Res4,
     #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM} = B4,
     ?assertEqual(2, maps:size(IM)),
     ?assertEqual(1, maps:size(B4)),
 
     % Negative case for a non-existent given metric
-    Res5 = simple_request(<<"GET">>, "/metrics/all/nonExistentMetric", ?PORT),
+    Res5 = request(<<"GET">>, "/metrics/all/nonExistentMetric"),
     assert_status(404, Res5),
 
     % All metrics for an example host type
-    Res6 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType]),
-                          ?PORT),
+    Res6 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType]),
     {_S6, _H6, B6} = Res6,
     #{<<"metrics">> := _} = B6,
     ?assertEqual(1, maps:size(B6)),
 
     % Negative case for a non-existent host type
-    Res7 = simple_request(<<"GET">>, "/metrics/host_type/nonExistentHostType", ?PORT),
+    Res7 = request(<<"GET">>, "/metrics/host_type/nonExistentHostType"),
     assert_status(404, Res7),
 
     % An example metric for an example host type
-    Res8 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType,
-                                               "/", ExampleMetric]),
-                          ?PORT),
+    Res8 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType, "/", ExampleMetric]),
     {_S8, _H8, B8} = Res8,
     #{<<"metric">> := #{<<"one">> := _, <<"count">> := _} = IM2} = B8,
     ?assertEqual(2, maps:size(IM2)),
     ?assertEqual(1, maps:size(B8)),
 
     % Negative case for a non-existent (host type, metric) pair
-    Res9 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType,
-                                               "/nonExistentMetric"]),
-                          ?PORT),
+    Res9 = request(<<"GET">>, ["/metrics/host_type/", ExampleHostType, "/nonExistentMetric"]),
     assert_status(404, Res9),
 
     % All global metrics
-    Res10 = simple_request(<<"GET">>, "/metrics/global", ?PORT),
+    Res10 = request(<<"GET">>, "/metrics/global"),
     {_, _, B10} = Res10,
     #{<<"metrics">> := _} = B10,
     ?assertEqual(1, maps:size(B10)),
 
-    Res11 = simple_request(<<"GET">>,
-                           unicode:characters_to_list(["/metrics/global/", ExampleGlobal]),
-                           ?PORT),
+    Res11 = request(<<"GET">>, ["/metrics/global/", ExampleGlobal]),
     {_, _, B11} = Res11,
     #{<<"metric">> := _} = B11,
     ?assertEqual(1, maps:size(B11)).
@@ -394,28 +376,22 @@ fetch_counter_value(Counter, _Config) ->
     HostType = host_type(),
     HostTypeName = metrics_helper:make_host_type_name(HostType),
 
-    Result = simple_request(<<"GET">>,
-                            unicode:characters_to_list(["/metrics/host_type/", HostTypeName, "/", Metric]),
-                            ?PORT),
+    Result = request(<<"GET">>, ["/metrics/host_type/", HostTypeName, "/", Metric]),
     {_S, _H, B} = Result,
     assert_status(200, Result),
     #{<<"metric">> := #{<<"count">> := HostTypeValue}} = B,
 
-    Result2 = simple_request(<<"GET">>,
-                             unicode:characters_to_list(["/metrics/host_type/", HostTypeName]),
-                             ?PORT),
+    Result2 = request(<<"GET">>, ["/metrics/host_type/", HostTypeName]),
     {_S2, _H2, B2} = Result2,
     assert_status(200, Result2),
     #{<<"metrics">> := #{Metric := #{<<"count">> := HostTypeValueList}}} = B2,
 
-    Result3 = simple_request(<<"GET">>,
-                             unicode:characters_to_list(["/metrics/all/", Metric]),
-                             ?PORT),
+    Result3 = request(<<"GET">>, ["/metrics/all/", Metric]),
     {_S3, _H3, B3} = Result3,
     assert_status(200, Result3),
     #{<<"metric">> := #{<<"count">> := TotalValue}} = B3,
 
-    Result4 = simple_request(<<"GET">>, "/metrics/all/", ?PORT),
+    Result4 = request(<<"GET">>, "/metrics/all/"),
     {_S4, _H4, B4} = Result4,
     assert_status(200, Result4),
     #{<<"metrics">> := #{Metric := #{<<"count">> := TotalValueList}}} = B4,
@@ -434,8 +410,8 @@ fetch_global_gauge_value(Counter, Config) ->
 fetch_global_incrementing_gauge_value(Counter, Config) ->
     [Value, ValueList] = fetch_global_gauge_values(Counter, Config),
     ?assertEqual(true, Value =< ValueList, [{counter, Counter},
-                                                   {value, Value},
-                                                   {value_list, ValueList}]),
+                                            {value, Value},
+                                            {value_list, ValueList}]),
     ValueList.
 
 fetch_global_gauge_values(Counter, Config) ->
@@ -449,24 +425,19 @@ fetch_global_spiral_values(Counter, Config) ->
 fetch_global_counter_values(MetricKey, Counter, Config) ->
     Metric = atom_to_binary(Counter, utf8),
 
-    Port = case metrics_helper:all_metrics_are_global(Config) of
-               true ->
-                   ct:get_config({hosts, mim2, metrics_rest_port});
-               _ -> ct:get_config({hosts, mim, metrics_rest_port})
-           end,
+    Server = case metrics_helper:all_metrics_are_global(Config) of
+                 true -> mim2();
+                 _ -> mim()
+             end,
 
-    Result = simple_request(<<"GET">>,
-                            unicode:characters_to_list(["/metrics/global/", Metric]),
-                            Port),
+    Result = request(<<"GET">>, ["/metrics/global/", Metric], Server),
     assert_status(200, Result),
     {_S, H, B} = Result,
     #{<<"metric">> := #{MetricKey := Value}} = B,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
     ?assertEqual(1, maps:size(B)),
 
-    Result2 = simple_request(<<"GET">>,
-                             unicode:characters_to_list(["/metrics/global/"]),
-                             Port),
+    Result2 = request(<<"GET">>, ["/metrics/global/"], Server),
     assert_status(200, Result2),
     {_S2, H2, B2} = Result2,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H2)),
@@ -502,3 +473,11 @@ ensure_nodes_clustered(Config) ->
     [distributed_helper:add_node_to_cluster(N, Config)
      || N <- NodesToBeClustered],
     Config.
+
+request(Method, Path) ->
+    make_request(#{role => admin, method => Method, path => iolist_to_binary(Path),
+                   return_headers => true, return_maps => true}).
+
+request(Method, Path, Server) ->
+    make_request(#{role => admin, method => Method, path => iolist_to_binary(Path),
+                   return_headers => true, return_maps => true, server => Server}).
