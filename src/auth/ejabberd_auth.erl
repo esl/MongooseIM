@@ -425,12 +425,15 @@ auth_methods(HostType) ->
 auth_method_to_module(Method) ->
     list_to_atom("ejabberd_auth_" ++ atom_to_list(Method)).
 
--spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
-          mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    F = fun(Mod) -> mongoose_gen_auth:remove_domain(Mod, HostType, Domain) end,
-    call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    Acc.
+    F = fun() ->
+            FAuth = fun(Mod) -> mongoose_gen_auth:remove_domain(Mod, HostType, Domain) end,
+            call_auth_modules_for_host_type(HostType, FAuth, #{op => map}),
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 ensure_metrics(Host) ->
     Metrics = [authorize, check_password, try_register, does_user_exist],
