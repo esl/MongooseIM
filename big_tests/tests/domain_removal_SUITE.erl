@@ -394,18 +394,18 @@ last_removal(Config0) ->
 
             PresUn = escalus_client:wait_for_stanza(Alice),
             escalus:assert(is_presence_with_type, [<<"unavailable">>], PresUn),
-    
+
             %% Alice asks for Bob's last availability
             BobShortJID = escalus_client:short_jid(Bob),
             GetLast = escalus_stanza:last_activity(BobShortJID),
             Stanza = escalus_client:send_iq_and_wait_for_result(Alice, GetLast),
-    
+
             %% Alice receives Bob's status and last online time > 0
             escalus:assert(is_last_result, Stanza),
             true = (1 =< get_last_activity(Stanza)),
             <<"I am a banana!">> = get_last_status(Stanza),
-    
-            run_remove_domain(),                                         
+
+            run_remove_domain(),
             escalus_client:send(Alice, GetLast),
             Error = escalus_client:wait_for_stanza(Alice),
             escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
