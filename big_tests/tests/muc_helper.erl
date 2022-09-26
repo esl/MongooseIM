@@ -73,6 +73,10 @@ unload_muc() ->
     dynamic_modules:stop(HostType, mod_muc),
     dynamic_modules:stop(HostType, mod_muc_log).
 
+unload_muc(HostType) ->
+    dynamic_modules:stop(HostType, mod_muc),
+    dynamic_modules:stop(HostType, mod_muc_log).
+
 muc_host() ->
     ct:get_config({hosts, mim, muc_service}).
 

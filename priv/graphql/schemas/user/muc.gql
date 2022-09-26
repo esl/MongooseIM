@@ -1,43 +1,43 @@
 """
 Allow user to manage Multi-User Chat rooms.
 """
-type MUCUserMutation @protected{
+type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   "Create a MUC room under the given XMPP hostname"
   createInstantRoom(mucDomain: String!, name: String!, nick: String!): MUCRoomDesc
   "Invite a user to a MUC room"
-  inviteUser(room: JID!, recipient: JID!, reason: String): String
+  inviteUser(room: JID!, recipient: JID!, reason: String): String @use(arg: "room")
   "Kick a user from a MUC room"
-  kickUser(room: JID!, nick: String!, reason: String): String
+  kickUser(room: JID!, nick: String!, reason: String): String @use(arg: "room")
   "Send a message to a MUC room"
-  sendMessageToRoom(room: JID!, body: String!, resource: String): String
+  sendMessageToRoom(room: JID!, body: String!, resource: String): String @use(arg: "room")
   "Send a private message to a MUC room user from the given resource"
-  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String
+  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String @use(arg: "room")
   "Remove a MUC room"
-  deleteRoom(room: JID!, reason: String): String
+  deleteRoom(room: JID!, reason: String): String @use(arg: "room")
   "Change configuration of a MUC room"
-  changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig
+  changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig @use(arg: "room")
   "Change a user role"
-  setUserRole(room: JID!, nick: String!, role: MUCRole!): String
+  setUserRole(room: JID!, nick: String!, role: MUCRole!): String @use(arg: "room")
   "Change a user affiliation"
-  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String
+  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String @use(arg: "room")
   "Enter the room with given resource and nick"
-  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String
+  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String @use(arg: "room")
   "Exit the room with given resource and nick"
-  exitRoom(room: JID!, nick: String!, resource: String!): String
+  exitRoom(room: JID!, nick: String!, resource: String!): String @use(arg: "room")
 }
 
 """
 Allow user to get information about Multi-User Chat rooms.
 """
-type MUCUserQuery @protected{
+type MUCUserQuery @protected @use(modules: ["mod_muc"]){
   "Get MUC rooms under the given MUC domain"
   listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
-  getRoomConfig(room: JID!): MUCRoomConfig
+  getRoomConfig(room: JID!): MUCRoomConfig @use(arg: "room")
   "Get the user list of a given MUC room"
-  listRoomUsers(room: JID!): [MUCRoomUser!]
+  listRoomUsers(room: JID!): [MUCRoomUser!] @use(arg: "room")
   "Get the affiliation list of given MUC room"
-  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
+  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!] @use(arg: "room")
   "Get the MUC room archived messages"
-  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
+  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload @use(arg: "room")
 }
