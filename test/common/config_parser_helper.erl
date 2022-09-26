@@ -195,15 +195,6 @@ options("mongooseim-pgsql") ->
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
                }),
-       config([listen, http],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 5288,
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                handlers =>
-                    [config([listen, http, handlers, mongoose_api],
-                            #{host => "localhost", path => "/api"})]
-               }),
        config([listen, s2s],
               #{port => 5269,
                 shaper => s2s_shaper,
@@ -1090,9 +1081,6 @@ default_config([listen, http, handlers, mongoose_client_api]) ->
                    mongoose_client_api_rooms_messages],
       docs => true,
       module => mongoose_client_api};
-default_config([listen, http, handlers, mongoose_api]) ->
-    #{handlers => [mongoose_api_metrics, mongoose_api_users],
-      module => mongoose_api};
 default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->
     #{module => mongoose_graphql_cowboy_handler,
       schema_endpoint => admin};

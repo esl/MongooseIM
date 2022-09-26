@@ -46,7 +46,7 @@
 -ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
               get_rdbms_data_stats/0, get_rdbms_data_stats/1, get_up_time/0,
               remove_host_type_metrics/1, get_report_interval/0,
-              sample_metric/1]).
+              sample_metric/1, get_metric_value/1]).
 
 -define(PREFIXES, mongoose_metrics_prefixes).
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
