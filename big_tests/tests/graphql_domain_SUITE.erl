@@ -103,7 +103,7 @@ create_domain(DomainName, Config) ->
     ParsedResult = get_ok_value([data, domain, addDomain], Result),
     ?assertEqual(#{<<"domain">> => DomainName,
         <<"hostType">> => ?HOST_TYPE,
-        <<"enabled">> => null}, ParsedResult).
+        <<"status">> => null}, ParsedResult).
 
 unknown_host_type_error_formatting(Config) ->
     DomainName = ?EXAMPLE_DOMAIN,
@@ -143,14 +143,14 @@ wrong_host_type_error_formatting(Config) ->
 disable_domain(Config) ->
     Result = disable_domain(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, disableDomain], Result),
-    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"enabled">> := false}, ParsedResult),
+    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"status">> := <<"DISABLED">>}, ParsedResult),
     {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [?EXAMPLE_DOMAIN]),
     ?assertEqual(#{host_type => ?HOST_TYPE, status => disabled}, Domain).
 
 enable_domain(Config) ->
     Result = enable_domain(?EXAMPLE_DOMAIN, Config),
     ParsedResult = get_ok_value([data, domain, enableDomain], Result),
-    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"enabled">> := true}, ParsedResult).
+    ?assertMatch(#{<<"domain">> := ?EXAMPLE_DOMAIN, <<"status">> := <<"ENABLED">>}, ParsedResult).
 
 get_domains_by_host_type(Config) ->
     Result = get_domains_by_host_type(?HOST_TYPE, Config),
@@ -163,7 +163,7 @@ get_domain_details(Config) ->
     ParsedResult = get_ok_value([data, domain, domainDetails], Result),
     ?assertEqual(#{<<"domain">> => ?EXAMPLE_DOMAIN,
                    <<"hostType">> => ?HOST_TYPE,
-                   <<"enabled">> => true}, ParsedResult).
+                   <<"status">> => <<"ENABLED">>}, ParsedResult).
 
 delete_domain(Config) ->
     Result1 = remove_domain(?EXAMPLE_DOMAIN, ?HOST_TYPE, Config),
@@ -202,7 +202,7 @@ domain_admin_get_domain_details(Config) ->
     ParsedResult = get_ok_value([data, domain, domainDetails], Result),
     ?assertEqual(#{<<"domain">> => ?DOMAIN_ADMIN_EXAMPLE_DOMAIN,
                    <<"hostType">> => ?HOST_TYPE,
-                   <<"enabled">> => true}, ParsedResult).
+                   <<"status">> => <<"ENABLED">>}, ParsedResult).
 
 domain_admin_set_domain_password(Config) ->
     Result = set_domain_password(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, <<"secret">>, Config),

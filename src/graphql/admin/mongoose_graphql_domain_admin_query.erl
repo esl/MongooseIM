@@ -14,8 +14,7 @@ execute(_Ctx, admin, <<"domainsByHostType">>, #{<<"hostType">> := HostType}) ->
 execute(_Ctx, admin, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
     case mongoose_domain_sql:select_domain(Domain) of
         {ok, #{host_type := HostType, status := Status}} ->
-            {ok, #domain{host_type = HostType, domain = Domain,
-                         enabled = Status =:= enabled}};
+            {ok, #domain{host_type = HostType, domain = Domain, status = Status}};
         {error, not_found} ->
             {error, #{what => domain_not_found, domain => Domain}}
     end.

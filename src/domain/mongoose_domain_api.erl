@@ -34,10 +34,11 @@
 -ignore_xref([get_all_dynamic/0]).
 -ignore_xref([stop/0]).
 
+-type status() :: enabled | disabled | deleting.
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
-
+-export_type([status/0]).
 
 -spec init() -> ok | {error, term()}.
 init() ->

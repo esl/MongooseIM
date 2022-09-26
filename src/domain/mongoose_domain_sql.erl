@@ -33,9 +33,8 @@
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
--type status() :: enabled | disabled | deleting.
 -type event_id() :: non_neg_integer().
--type domain() :: binary().
+-type domain() :: jid:lserver().
 -type row() :: {event_id(), domain(), mongooseim:host_type() | null}.
 -export_type([row/0]).
 
@@ -331,7 +330,7 @@ set_domain_for_deletion_settings(Pool, Domain) ->
     ExtStatus = status_to_int(deleting),
     execute_successfully(Pool, domain_update_settings_status, [ExtStatus, Domain]).
 
--spec set_status(domain(), status()) -> ok | {error, term()}.
+-spec set_status(domain(), mongoose_domain_api:status()) -> ok | {error, term()}.
 set_status(Domain, Status) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
@@ -359,12 +358,12 @@ row_to_map({HostType, Status}) ->
     IntStatus = mongoose_rdbms:result_to_integer(Status),
     #{host_type => HostType, status => int_to_status(IntStatus)}.
 
--spec int_to_status(0..2) -> status().
+-spec int_to_status(0..2) -> mongoose_domain_api:status().
 int_to_status(0) -> disabled;
 int_to_status(1) -> enabled;
 int_to_status(2) -> deleting.
 
--spec status_to_int(status()) -> 0..2.
+-spec status_to_int(mongoose_domain_api:status()) -> 0..2.
 status_to_int(disabled) -> 0;
 status_to_int(enabled) -> 1;
 status_to_int(deleting) -> 2.
