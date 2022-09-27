@@ -17,6 +17,7 @@ all() ->
      {group, auth_removal},
      {group, cache_removal},
      {group, mam_removal},
+     {group, mam_removal_incremental},
      {group, inbox_removal},
      {group, muc_light_removal},
      {group, muc_removal},
@@ -35,6 +36,8 @@ groups() ->
      {cache_removal, [], [cache_removal]},
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
+     {mam_removal_incremental, [], [mam_pm_removal,
+                                    mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
@@ -92,6 +95,10 @@ group_to_modules(cache_removal) ->
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam, mam_helper:config_opts(#{pm => #{}, muc => #{host => MucHost}})},
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
+group_to_modules(mam_removal_incremental) ->
+    MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{mod_mam, mam_helper:config_opts(#{delete_domain_limit => 1, pm => #{}, muc => #{host => MucHost}})},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
 group_to_modules(muc_light_removal) ->
     [{mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
@@ -170,10 +177,11 @@ cache_removal(Config) ->
 
 mam_pm_removal(Config) ->
     F = fun(Alice, Bob) ->
-        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        escalus:wait_for_stanza(Bob),
-        mam_helper:wait_for_archive_size(Alice, 1),
-        mam_helper:wait_for_archive_size(Bob, 1),
+        N = 3,
+        [ escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)) || _ <- lists:seq(1, N) ],
+        escalus:wait_for_stanzas(Bob, N),
+        mam_helper:wait_for_archive_size(Alice, N),
+        mam_helper:wait_for_archive_size(Bob, N),
         run_remove_domain(),
         mam_helper:wait_for_archive_size(Alice, 0),
         mam_helper:wait_for_archive_size(Bob, 0)
@@ -182,14 +190,15 @@ mam_pm_removal(Config) ->
 
 mam_muc_removal(Config0) ->
     F = fun(Config, Alice) ->
+        N = 3,
         Room = muc_helper:fresh_room_name(),
         MucHost = muc_light_helper:muc_host(),
         muc_light_helper:create_room(Room, MucHost, alice,
                                      [], Config, muc_light_helper:ver(1)),
         RoomAddr = <<Room/binary, "@", MucHost/binary>>,
-        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
-        escalus:wait_for_stanza(Alice),
-        mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
+        [ escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)) || _ <- lists:seq(1, N) ],
+        escalus:wait_for_stanzas(Alice, N),
+        mam_helper:wait_for_room_archive_size(MucHost, Room, N),
         run_remove_domain(),
         mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
         end,
