@@ -1,6 +1,9 @@
 -module(mongoose_admin_api_inbox).
--behaviour(cowboy_rest).
 
+-behaviour(mongoose_admin_api).
+-export([routes/1]).
+
+-behaviour(cowboy_rest).
 -export([init/2,
          is_authorized/2,
          allowed_methods/2,
@@ -9,11 +12,16 @@
 -import(mongoose_admin_api, [try_handle_request/3, throw_error/2, respond/3]).
 
 -type req() :: cowboy_req:req().
--type state() :: map().
+-type state() :: mongoose_admin_api:state().
+
+-spec routes(state()) -> mongoose_http_handler:routes().
+routes(State) ->
+    [{"/inbox/:host_type/:days/bin", ?MODULE, State},
+     {"/inbox/:domain/:user/:days/bin", ?MODULE, State}].
 
 -spec init(req(), state()) -> {cowboy_rest, req(), state()}.
-init(Req, Opts) ->
-    mongoose_admin_api:init(Req, Opts).
+init(Req, State) ->
+    mongoose_admin_api:init(Req, State).
 
 -spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->

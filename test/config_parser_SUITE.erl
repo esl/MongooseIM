@@ -595,14 +595,17 @@ listen_http_handlers_websockets(_Config) ->
 
 listen_http_handlers_client_api(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_client_api),
-    ?cfg(P ++ [handlers], [mongoose_client_api_messages],
-         T(#{<<"handlers">> => [<<"mongoose_client_api_messages">>]})),
+    ?cfg(P ++ [handlers], [messages],
+         T(#{<<"handlers">> => [<<"messages">>]})),
     ?cfg(P ++ [docs], false, T(#{<<"docs">> => false})),
-    ?err(T(#{<<"handlers">> => [not_a_module]})),
+    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
     ?err(T(#{<<"docs">> => <<"maybe">>})).
 
 listen_http_handlers_admin_api(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_admin_api),
+    ?cfg(P ++ [handlers], [muc, inbox],
+         T(#{<<"handlers">> => [<<"muc">>, <<"inbox">>]})),
+    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
     test_listen_http_handler_creds(P, T).
 
 listen_http_handlers_graphql(_Config) ->

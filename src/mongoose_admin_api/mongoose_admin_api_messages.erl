@@ -1,6 +1,9 @@
 -module(mongoose_admin_api_messages).
--behaviour(cowboy_rest).
 
+-behaviour(mongoose_admin_api).
+-export([routes/1]).
+
+-behaviour(cowboy_rest).
 -export([init/2,
          is_authorized/2,
          content_types_provided/2,
@@ -14,11 +17,16 @@
 -import(mongoose_admin_api, [parse_body/1, parse_qs/1, try_handle_request/3, throw_error/2]).
 
 -type req() :: cowboy_req:req().
--type state() :: map().
+-type state() :: mongoose_admin_api:state().
+
+-spec routes(state()) -> mongoose_http_handler:routes().
+routes(State) ->
+    [{"/messages/:owner/:with", ?MODULE, State},
+     {"/messages/[:owner]", ?MODULE, State}].
 
 -spec init(req(), state()) -> {cowboy_rest, req(), state()}.
-init(Req, Opts) ->
-    mongoose_admin_api:init(Req, Opts).
+init(Req, State) ->
+    mongoose_admin_api:init(Req, State).
 
 -spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->

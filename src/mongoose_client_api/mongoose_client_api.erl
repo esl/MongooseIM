@@ -26,16 +26,18 @@
 -type handler_options() :: #{path := string(), handlers := [module()], docs := boolean(),
                              atom() => any()}.
 
+-callback routes() -> mongoose_http_handler:routes().
+
 %% mongoose_http_handler callbacks
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    HandlerModules = [Module || {_, Module, _} <- api_paths()],
+    Handlers = all_handlers(),
     #section{items = #{<<"handlers">> => #list{items = #option{type = atom,
-                                                               validate = {enum, HandlerModules}},
+                                                               validate = {enum, Handlers}},
                                                validate = unique},
                        <<"docs">> => #option{type = boolean}},
-             defaults = #{<<"handlers">> => HandlerModules,
+             defaults = #{<<"handlers">> => Handlers,
                           <<"docs">> => true}}.
 
 -spec routes(handler_options()) -> mongoose_http_handler:routes().
@@ -43,17 +45,16 @@ routes(Opts = #{path := BasePath}) ->
     [{[BasePath, Path], Module, ModuleOpts}
      || {Path, Module, ModuleOpts} <- api_paths(Opts)] ++ api_doc_paths(Opts).
 
-api_paths(#{handlers := HandlerModules}) ->
-    lists:filter(fun({_, Module, _}) -> lists:member(Module, HandlerModules) end, api_paths()).
+all_handlers() ->
+    [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages].
 
-api_paths() ->
-    [{"/sse", lasse_handler, #{module => mongoose_client_api_sse}},
-     {"/messages/[:with]", mongoose_client_api_messages, #{}},
-     {"/contacts/[:jid]", mongoose_client_api_contacts, #{}},
-     {"/rooms/[:id]", mongoose_client_api_rooms, #{}},
-     {"/rooms/[:id]/config", mongoose_client_api_rooms_config, #{}},
-     {"/rooms/:id/users/[:user]", mongoose_client_api_rooms_users, #{}},
-     {"/rooms/[:id]/messages", mongoose_client_api_rooms_messages, #{}}].
+-spec api_paths(handler_options()) -> mongoose_http_handler:routes().
+api_paths(#{handlers := Handlers}) ->
+    lists:flatmap(fun api_paths_for_handler/1, Handlers).
+
+api_paths_for_handler(Handler) ->
+    HandlerModule = list_to_existing_atom("mongoose_client_api_" ++ atom_to_list(Handler)),
+    HandlerModule:routes().
 
 api_doc_paths(#{docs := true}) ->
     [{"/api-docs", cowboy_swagger_redirect_handler, #{}},

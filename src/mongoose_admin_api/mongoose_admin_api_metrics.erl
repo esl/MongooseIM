@@ -1,6 +1,9 @@
 -module(mongoose_admin_api_metrics).
--behaviour(cowboy_rest).
 
+-behaviour(mongoose_admin_api).
+-export([routes/1]).
+
+-behaviour(cowboy_rest).
 -export([init/2,
          is_authorized/2,
          content_types_provided/2,
@@ -12,13 +15,20 @@
 -import(mongoose_admin_api, [parse_body/1, try_handle_request/3, throw_error/2, resource_created/4]).
 
 -type req() :: cowboy_req:req().
--type state() :: map().
+-type state() :: mongoose_admin_api:state().
 
 -include("mongoose.hrl").
 
+-spec routes(state()) -> mongoose_http_handler:routes().
+routes(State) ->
+    [{"/metrics/", ?MODULE, State},
+     {"/metrics/all/[:metric]", ?MODULE, State#{suffix => all}},
+     {"/metrics/global/[:metric]", ?MODULE, State#{suffix => global}},
+     {"/metrics/host_type/:host_type/[:metric]", ?MODULE, State}].
+
 -spec init(req(), state()) -> {cowboy_rest, req(), state()}.
-init(Req, Opts) ->
-    mongoose_admin_api:init(Req, Opts).
+init(Req, State) ->
+    mongoose_admin_api:init(Req, State).
 
 -spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->

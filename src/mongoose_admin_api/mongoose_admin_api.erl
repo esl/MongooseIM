@@ -24,15 +24,24 @@
 -type handler_options() :: #{path := string(), username => binary(), password => binary(),
                              atom() => any()}.
 -type req() :: cowboy_req:req().
--type state() :: map().
+-type state() :: #{atom() => any()}.
 -type error_type() :: bad_request | denied | not_found | duplicate | internal.
+
+-export_type([state/0]).
+
+-callback routes(state()) -> mongoose_http_handler:routes().
 
 %% mongoose_http_handler callbacks
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
+    Handlers = all_handlers(),
     #section{items = #{<<"username">> => #option{type = binary},
-                       <<"password">> => #option{type = binary}},
+                       <<"password">> => #option{type = binary},
+                       <<"handlers">> => #list{items = #option{type = atom,
+                                                               validate = {enum, Handlers}},
+                                               validate = unique}},
+             defaults = #{<<"handlers">> => Handlers},
              process = fun ?MODULE:process_config/1}.
 
 -spec process_config(handler_options()) -> handler_options().
@@ -46,34 +55,19 @@ process_config(Opts) ->
 
 -spec routes(handler_options()) -> mongoose_http_handler:routes().
 routes(Opts = #{path := BasePath}) ->
-    [{[BasePath, Path], Module, ModuleOpts}
-     || {Path, Module, ModuleOpts} <- api_paths(Opts)].
+    [{[BasePath, Path], Module, ModuleOpts} || {Path, Module, ModuleOpts} <- api_paths(Opts)].
 
-api_paths(Opts) ->
-    [{"/contacts/:user/[:contact]", mongoose_admin_api_contacts, Opts},
-     {"/contacts/:user/:contact/manage", mongoose_admin_api_contacts, Opts#{suffix => manage}},
-     {"/users/:domain/[:username]", mongoose_admin_api_users, Opts},
-     {"/sessions/:domain/[:username]/[:resource]", mongoose_admin_api_sessions, Opts},
-     {"/messages/:owner/:with", mongoose_admin_api_messages, Opts},
-     {"/messages/[:owner]", mongoose_admin_api_messages, Opts},
-     {"/stanzas", mongoose_admin_api_stanzas, Opts},
-     {"/muc-lights/:domain", mongoose_admin_api_muc_light, Opts},
-     {"/muc-lights/:domain/:id/participants", mongoose_admin_api_muc_light,
-      Opts#{suffix => participants}},
-     {"/muc-lights/:domain/:id/messages", mongoose_admin_api_muc_light,
-      Opts#{suffix => messages}},
-     {"/muc-lights/:domain/:id/management", mongoose_admin_api_muc_light,
-      Opts#{suffix => management}},
-     {"/mucs/:domain", mongoose_admin_api_muc, Opts},
-     {"/mucs/:domain/:name/:arg", mongoose_admin_api_muc, Opts},
-     {"/inbox/:host_type/:days/bin", mongoose_admin_api_inbox, Opts},
-     {"/inbox/:domain/:user/:days/bin", mongoose_admin_api_inbox, Opts},
-     {"/domains/:domain", mongoose_admin_api_domain, Opts},
-     {"/metrics/", mongoose_admin_api_metrics, Opts},
-     {"/metrics/all/[:metric]", mongoose_admin_api_metrics, Opts#{suffix => all}},
-     {"/metrics/global/[:metric]", mongoose_admin_api_metrics, Opts#{suffix => global}},
-     {"/metrics/host_type/:host_type/[:metric]", mongoose_admin_api_metrics, Opts}
-    ].
+all_handlers() ->
+    [contacts, users, sessions, messages, stanzas, muc_light, muc, inbox, domain, metrics].
+
+-spec api_paths(handler_options()) -> mongoose_http_handler:routes().
+api_paths(#{handlers := Handlers} = Opts) ->
+    State = maps:with([username, password], Opts),
+    lists:flatmap(fun(Handler) -> api_paths_for_handler(Handler, State) end, Handlers).
+
+api_paths_for_handler(Handler, State) ->
+    HandlerModule = list_to_existing_atom("mongoose_admin_api_" ++ atom_to_list(Handler)),
+    HandlerModule:routes(State).
 
 %% Utilities for the handler modules
 

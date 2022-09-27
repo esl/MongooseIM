@@ -1074,11 +1074,12 @@ default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
       module => mod_websockets};
+default_config([listen, http, handlers, mongoose_admin_api]) ->
+    #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
+                   inbox, domain, metrics],
+      module => mongoose_admin_api};
 default_config([listen, http, handlers, mongoose_client_api]) ->
-    #{handlers => [lasse_handler, mongoose_client_api_messages,
-                   mongoose_client_api_contacts, mongoose_client_api_rooms,
-                   mongoose_client_api_rooms_config, mongoose_client_api_rooms_users,
-                   mongoose_client_api_rooms_messages],
+    #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
       docs => true,
       module => mongoose_client_api};
 default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->

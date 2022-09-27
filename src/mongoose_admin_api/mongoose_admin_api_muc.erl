@@ -1,6 +1,9 @@
 -module(mongoose_admin_api_muc).
--behaviour(cowboy_rest).
 
+-behaviour(mongoose_admin_api).
+-export([routes/1]).
+
+-behaviour(cowboy_rest).
 -export([init/2,
          is_authorized/2,
          content_types_accepted/2,
@@ -15,11 +18,16 @@
 -include("jlib.hrl").
 
 -type req() :: cowboy_req:req().
--type state() :: map().
+-type state() :: mongoose_admin_api:state().
+
+-spec routes(state()) -> mongoose_http_handler:routes().
+routes(State) ->
+    [{"/mucs/:domain", ?MODULE, State},
+     {"/mucs/:domain/:name/:arg", ?MODULE, State}].
 
 -spec init(req(), state()) -> {cowboy_rest, req(), state()}.
-init(Req, Opts) ->
-    mongoose_admin_api:init(Req, Opts).
+init(Req, State) ->
+    mongoose_admin_api:init(Req, State).
 
 -spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->

@@ -1,6 +1,9 @@
 -module(mongoose_client_api_contacts).
--behaviour(cowboy_rest).
 
+-behaviour(mongoose_client_api).
+-export([routes/0]).
+
+-behaviour(cowboy_rest).
 -export([trails/0]).
 -export([init/2]).
 -export([content_types_provided/2]).
@@ -18,6 +21,10 @@
 
 -type req() :: cowboy_req:req().
 -type state() :: map().
+
+-spec routes() -> mongoose_http_handler:routes().
+routes() ->
+    [{"/contacts/[:jid]", ?MODULE, #{}}].
 
 trails() ->
     mongoose_client_api_contacts_doc:trails().

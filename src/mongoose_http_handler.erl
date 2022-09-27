@@ -10,7 +10,7 @@
                      atom() => any()}.
 
 -type path() :: iodata().
--type routes() :: [{path(), module(), options()}].
+-type routes() :: [{path(), module(), #{atom() => any()}}].
 
 -export_type([options/0, path/0, routes/0]).
 
