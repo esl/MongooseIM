@@ -168,6 +168,8 @@ common_config_items() ->
       <<"default_result_limit">> => #option{type = integer,
                                             validate = non_negative},
       <<"enforce_simple_queries">> => #option{type = boolean},
+      <<"delete_domain_limit">> => #option{type = int_or_infinity,
+                                           validate = positive},
       <<"max_result_limit">> => #option{type = integer,
                                         validate = non_negative},
       <<"db_jid_format">> => #option{type = atom,
@@ -296,7 +298,7 @@ parse_backend_opts(elasticsearch, Type, _Opts, Deps0) ->
 -spec add_rdbms_deps(basic | user_cache | async_writer,
                      mam_type(), module_opts(), module_map()) -> module_map().
 add_rdbms_deps(basic, Type, Opts, Deps) ->
-    Opts1 = maps:with([db_message_format, db_jid_format], Opts),
+    Opts1 = maps:with([db_message_format, db_jid_format, delete_domain_limit], Opts),
     Deps1 = add_dep(rdbms_arch_module(Type), maps:merge(rdbms_arch_defaults(Type), Opts1), Deps),
     add_dep(mod_mam_rdbms_user, user_db_types(Type), Deps1);
 add_rdbms_deps(user_cache, Type, #{cache_users := true, cache := CacheOpts}, Deps) ->
@@ -328,7 +330,7 @@ rdbms_arch_defaults(muc) ->
 
 rdbms_arch_defaults() ->
     #{db_message_format => mam_message_compressed_eterm,
-      no_writer => false}.
+      no_writer => false, delete_domain_limit => infinity}.
 
 rdbms_arch_module(pm) -> mod_mam_rdbms_arch;
 rdbms_arch_module(muc) -> mod_mam_muc_rdbms_arch.

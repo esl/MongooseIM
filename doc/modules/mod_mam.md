@@ -360,6 +360,14 @@ This sets the maximum page size of returned results.
 This enforces all mam lookups to be "simple", i.e., they skip the RSM count.
 See [Message Archive Management extensions](../open-extensions/mam.md).
 
+#### `modules.mod_mam.delete_domain_limit`
+
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `modules.mod_mam.delete_domain_limit = 10000`
+
+Domain deletion can be an expensive operation, as it requires to delete potentially many thousands of records from the DB. By default, the delete operation deletes everything in a transaction, but it might be desired, to handle timeouts and table locks more gracefully, to delete the records in batches. This limit establishes the size of the batch.
+
 #### `modules.mod_mam.db_jid_format`
 
 * **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_rfc_trust"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
