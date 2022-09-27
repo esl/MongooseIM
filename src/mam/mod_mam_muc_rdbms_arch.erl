@@ -52,9 +52,9 @@
 %% Starting and stopping functions for users' archives
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
+start(HostType, Opts) ->
     start_hooks(HostType),
-    register_prepared_queries(),
+    register_prepared_queries(Opts),
     ok.
 
 -spec stop(host_type()) -> ok.
@@ -106,16 +106,25 @@ hooks(HostType) ->
 %% ----------------------------------------------------------------------
 %% SQL queries
 
-register_prepared_queries() ->
+register_prepared_queries(Opts) ->
     prepare_insert(insert_mam_muc_message, 1),
     mongoose_rdbms:prepare(mam_muc_archive_remove, mam_muc_message, [room_id],
                            <<"DELETE FROM mam_muc_message "
                              "WHERE room_id = ?">>),
+
+    %% Domain Removal
+    {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
+    IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
+                " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
+    ServerTable = <<"(SELECT", MaybeLimitMSSQL/binary,
+                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
     mongoose_rdbms:prepare(mam_muc_remove_domain, mam_muc_message, ['mam_server_user.server'],
                            <<"DELETE FROM mam_muc_message "
-                             "WHERE room_id IN (SELECT id FROM mam_server_user where server = ?)">>),
+                             "WHERE room_id IN ", IdTable/binary>>),
     mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
-                           <<"DELETE FROM mam_server_user WHERE server = ?">>),
+                           <<"DELETE ", MaybeLimitMSSQL/binary,
+                             " FROM mam_server_user WHERE server IN", ServerTable/binary>>),
+
     mongoose_rdbms:prepare(mam_muc_make_tombstone, mam_muc_message, [message, room_id, id],
                            <<"UPDATE mam_muc_message SET message = ?, search_body = '' "
                              "WHERE room_id = ? AND id = ?">>),
@@ -306,13 +315,30 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
     F = fun() ->
-            SubHosts = get_subhosts(HostType, Domain),
-            {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
-                    [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
-                end),
+            case gen_mod:get_module_opt(HostType, ?MODULE, delete_domain_limit) of
+                infinity -> remove_domain_all(HostType, Domain);
+                Limit -> remove_domain_batch(HostType, Domain, Limit)
+            end,
             Acc
-    end,
+        end,
     mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
+
+-spec remove_domain_all(host_type(), jid:lserver()) -> any().
+remove_domain_all(HostType, Domain) ->
+    SubHosts = get_subhosts(HostType, Domain),
+    {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
+            [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
+     end).
+
+-spec remove_domain_batch(host_type(), jid:lserver(), non_neg_integer()) -> any().
+remove_domain_batch(HostType, Domain, Limit) ->
+    SubHosts = get_subhosts(HostType, Domain),
+    DeleteQueries = [mam_muc_remove_domain, mam_muc_remove_domain_users],
+    DelSubHost = [ mod_mam_utils:incremental_delete_domain(HostType, SubHost, Limit, DeleteQueries, 0)
+                   || SubHost <- SubHosts],
+    TotalDeleted = lists:sum(DelSubHost),
+    ?LOG_INFO(#{what => mam_muc_domain_removal_completed, total_records_deleted => TotalDeleted,
+                domain => Domain, host_type => HostType}).
 
 remove_domain_trans(HostType, MucHost) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain, [MucHost]),
