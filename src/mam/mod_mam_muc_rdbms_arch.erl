@@ -39,8 +39,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
--include("mongoose_rsm.hrl").
 -include("mongoose_mam.hrl").
 
 %% ----------------------------------------------------------------------
@@ -173,8 +171,8 @@ env_vars(HostType, ArcJID) ->
       decode_row_fn => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam_muc, HostType),
       has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam_muc, HostType),
-      db_jid_codec => db_jid_codec(HostType, ?MODULE),
-      db_message_codec => db_message_codec(HostType, ?MODULE)}.
+      db_jid_codec => mod_mam_utils:db_jid_codec(HostType, ?MODULE),
+      db_message_codec => mod_mam_utils:db_message_codec(HostType, ?MODULE)}.
 
 row_to_uniform_format(Row, Env) ->
     mam_decoder:decode_muc_row(Row, Env).
@@ -195,14 +193,6 @@ column_names(Mappings) ->
 
 %% ----------------------------------------------------------------------
 %% Options
-
--spec db_jid_codec(host_type(), module()) -> module().
-db_jid_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_jid_format).
-
--spec db_message_codec(host_type(), module()) -> module().
-db_message_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_message_format).
 
 -spec get_retract_id(exml:element(), env_vars()) -> none | mod_mam_utils:retraction_id().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
