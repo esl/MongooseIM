@@ -9,13 +9,17 @@
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1, supported_features/0]).
--export([run_initial_check/2,
+-export([run_initial_check/3,
          check_packet/2,
          disco_local_features/1,
-         c2s_stream_features/3
+         c2s_stream_features/3,
+         xmpp_send_element/2
         ]).
 
--ignore_xref([c2s_stream_features/3, disco_local_features/1, run_initial_check/2]).
+-ignore_xref([c2s_stream_features/3,
+              disco_local_features/1,
+              run_initial_check/2,
+              xmpp_send_element/2]).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
@@ -29,32 +33,40 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(c2s_hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(c2s_hooks(HostType)).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
+-spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
      {disco_local_features, HostType, ?MODULE, disco_local_features, 99},
-     {c2s_preprocessing_hook, HostType, ?MODULE, run_initial_check, 10},
      {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
-     {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10}].
+     {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10},
+     {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 10}].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+c2s_hooks(HostType) ->
+    [{c2s_preprocessing_hook, HostType, fun ?MODULE:run_initial_check/3, #{}, 10}].
 
 %% API
 
--spec run_initial_check(mongoose_acc:t(), ejabberd_c2s:state()) -> mongoose_acc:t().
-run_initial_check(#{result := drop} = Acc, _C2SState) ->
-    Acc;
-run_initial_check(Acc, _C2SState) ->
+-spec run_initial_check(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+run_initial_check(#{result := drop} = Acc, _Params, _Extra) ->
+    {ok, Acc};
+run_initial_check(Acc, _Params, _Extra) ->
     case mongoose_acc:stanza_name(Acc) of
-        <<"message">> -> run_initial_check(Acc);
-        _ -> Acc
+        <<"message">> -> {ok, run_initial_check(Acc)};
+        _ -> {ok, Acc}
     end.
 
 -spec check_packet(mongoose_acc:t(), amp_event()) -> mongoose_acc:t().
@@ -236,3 +248,11 @@ find(Pred, [H|T]) ->
         true -> {found, H};
         false -> find(Pred, T)
     end.
+
+-spec xmpp_send_element(mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
+xmpp_send_element(Acc, _El) ->
+    Event = case mongoose_acc:get(c2s, send_result, Acc) of
+                ok -> delivered;
+                _ -> delivery_failed
+            end,
+    check_packet(Acc, Event).

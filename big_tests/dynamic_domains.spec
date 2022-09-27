@@ -17,7 +17,7 @@
 
 {suites, "tests", adhoc_SUITE}.
 
-% {suites, "tests", amp_big_SUITE}.
+{suites, "tests", amp_big_SUITE}.
 
 % {suites, "tests", anonymous_SUITE}.
 

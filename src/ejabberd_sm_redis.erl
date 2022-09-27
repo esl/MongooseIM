@@ -25,7 +25,9 @@
          total_count/0,
          unique_count/0]).
 
--ignore_xref([maybe_initial_cleanup/2]).
+-export([total_count_internal/0]).
+
+-ignore_xref([maybe_initial_cleanup/2, total_count_internal/0]).
 
 -spec init(map()) -> any().
 init(_Opts) ->
@@ -156,8 +158,15 @@ maybe_initial_cleanup(Node, Initial) ->
 
 -spec total_count() -> integer().
 total_count() ->
-    {Counts, _} = rpc:multicall(supervisor, count_children, [ejabberd_c2s_sup]),
-    lists:sum([proplists:get_value(active, Count, 0) || Count <- Counts, is_list(Count)]).
+    {Counts, _} = rpc:multicall(?MODULE, total_count_internal, []),
+    lists:sum(Counts).
+
+-spec total_count_internal() -> integer().
+
+total_count_internal() ->
+    Children = supervisor:which_children(mongoose_listener_sup),
+    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+    lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]).
 
 -spec unique_count() -> integer().
 unique_count() ->
