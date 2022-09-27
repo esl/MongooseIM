@@ -8,7 +8,7 @@
 
 execute(_Ctx, #domain{host_type = HostType}, <<"hostType">>, _Args) ->
     {ok, HostType};
-execute(_Ctx, #domain{enabled = Enabled}, <<"enabled">>, _Args) ->
-    {ok, Enabled};
+execute(_Ctx, #domain{status = Status}, <<"status">>, _Args) ->
+    {ok, Status};
 execute(_Ctx, #domain{domain = Name}, <<"domain">>, _Args) ->
     {ok, Name}.
