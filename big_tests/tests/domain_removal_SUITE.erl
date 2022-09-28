@@ -25,7 +25,8 @@ all() ->
      {group, offline_removal},
      {group, markers_removal},
      {group, vcard_removal},
-     {group, last_removal}
+     {group, last_removal},
+     {group, removal_failures}
     ].
 
 groups() ->
@@ -43,7 +44,8 @@ groups() ->
      {offline_removal, [], [offline_removal]},
      {markers_removal, [], [markers_removal]},
      {vcard_removal, [], [vcard_removal]},
-     {last_removal, [], [last_removal]}
+     {last_removal, [], [last_removal]},
+     {removal_failures, [], [removal_stops_if_handler_fails]}
     ].
 
 %%%===================================================================
@@ -80,6 +82,8 @@ end_per_group(_Groupname, Config) ->
     end,
     ok.
 
+group_to_modules(removal_failures) ->
+    group_to_modules(mam_removal);
 group_to_modules(auth_removal) ->
     [];
 group_to_modules(cache_removal) ->
@@ -394,25 +398,63 @@ last_removal(Config0) ->
 
             PresUn = escalus_client:wait_for_stanza(Alice),
             escalus:assert(is_presence_with_type, [<<"unavailable">>], PresUn),
-    
+
             %% Alice asks for Bob's last availability
             BobShortJID = escalus_client:short_jid(Bob),
             GetLast = escalus_stanza:last_activity(BobShortJID),
             Stanza = escalus_client:send_iq_and_wait_for_result(Alice, GetLast),
-    
+
             %% Alice receives Bob's status and last online time > 0
             escalus:assert(is_last_result, Stanza),
             true = (1 =< get_last_activity(Stanza)),
             <<"I am a banana!">> = get_last_status(Stanza),
-    
-            run_remove_domain(),                                         
+
+            run_remove_domain(),
             escalus_client:send(Alice, GetLast),
             Error = escalus_client:wait_for_stanza(Alice),
             escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
         end,
     escalus:fresh_story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
 
+removal_stops_if_handler_fails(Config0) ->
+    mongoose_helper:inject_module(?MODULE),
+    F = fun(Config, Alice) ->
+        start_domain_removal_hook(),
+        Room = muc_helper:fresh_room_name(),
+        MucHost = muc_light_helper:muc_host(),
+        muc_light_helper:create_room(Room, MucHost, alice, [], Config, muc_light_helper:ver(1)),
+        RoomAddr = <<Room/binary, "@", MucHost/binary>>,
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
+        escalus:wait_for_stanza(Alice),
+        mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
+        run_remove_domain(),
+        mam_helper:wait_for_room_archive_size(MucHost, Room, 1),
+        stop_domain_removal_hook(),
+        run_remove_domain(),
+        mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
+        end,
+    escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
+
 %% Helpers
+start_domain_removal_hook() ->
+    rpc(mim(), ?MODULE, rpc_start_domain_removal_hook, [host_type()]).
+
+stop_domain_removal_hook() ->
+    rpc(mim(), ?MODULE, rpc_stop_domain_removal_hook, [host_type()]).
+
+rpc_start_domain_removal_hook(HostType) ->
+    gen_hook:add_handler(remove_domain, HostType,
+                         fun ?MODULE:domain_removal_hook_fn/3,
+                         #{}, 30). %% Priority is so that it comes before muclight and mam
+
+rpc_stop_domain_removal_hook(HostType) ->
+    gen_hook:delete_handler(remove_domain, HostType,
+                            fun ?MODULE:domain_removal_hook_fn/3,
+                            #{}, 30).
+
+domain_removal_hook_fn(Acc, _Params, _Extra) ->
+    F = fun() -> throw(first_time_needs_to_fail) end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 connect_and_disconnect(Spec) ->
     {ok, Client, _} = escalus_connection:start(Spec),

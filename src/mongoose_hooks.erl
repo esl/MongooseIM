@@ -233,9 +233,9 @@ does_user_exist(HostType, Jid, RequestType) ->
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
     Domain :: jid:lserver(),
-    Result :: ok.
+    Result :: mongoose_domain_api:remove_domain_acc().
 remove_domain(HostType, Domain) ->
-    run_hook_for_host_type(remove_domain, HostType, #{}, [HostType, Domain]).
+    run_hook_for_host_type(remove_domain, HostType, #{failed => []}, [HostType, Domain]).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->

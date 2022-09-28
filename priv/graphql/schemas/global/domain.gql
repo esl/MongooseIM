@@ -8,5 +8,14 @@ type Domain{
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
-  enabled: Boolean
+  status: DomainStatus
+}
+
+enum DomainStatus {
+  "Domain is enabled and ready to route traffic"
+  ENABLED
+  "Domain is disabled and won't be loaded into MongooseIM"
+  DISABLED
+  "Domain has been marked for deletion and is disabled until all data is removed"
+  DELETING
 }

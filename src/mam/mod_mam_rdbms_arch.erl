@@ -341,15 +341,18 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(), host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain, [Domain]),
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_prefs, [Domain]),
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_users, [Domain])
-        end),
-    Acc.
+    F = fun() ->
+            {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
+                mongoose_rdbms:execute_successfully(HostType, mam_remove_domain, [Domain]),
+                mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_prefs, [Domain]),
+                mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_users, [Domain])
+            end),
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 %% GDPR logic
 extract_gdpr_messages(Env, ArcID) ->

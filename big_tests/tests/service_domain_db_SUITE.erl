@@ -358,7 +358,7 @@ db_get_all_dynamic(_) ->
 
 db_inserted_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_inserted_domain_is_in_core(_) ->
@@ -375,7 +375,7 @@ db_deleted_domain_fails_with_wrong_host_type(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     {error, wrong_host_type} =
         delete_domain(mim(), <<"example.db">>, <<"type2">>),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 db_deleted_domain_from_core(_) ->
@@ -388,7 +388,7 @@ db_deleted_domain_from_core(_) ->
 db_disabled_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
-    {ok, #{host_type := <<"type1">>, enabled := false}} =
+    {ok, #{host_type := <<"type1">>, status := disabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_disabled_domain_not_in_core(_) ->
@@ -401,7 +401,7 @@ db_reenabled_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     ok = disable_domain(mim(), <<"example.db">>),
     ok = enable_domain(mim(), <<"example.db">>),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_reenabled_domain_is_in_core(_) ->
@@ -516,7 +516,7 @@ db_records_are_restored_on_mim_restart(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     service_enabled(mim()),
     %% DB still contains data
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
        select_domain(mim(), <<"example.com">>),
     %% Restored
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
@@ -530,9 +530,9 @@ db_record_is_ignored_if_domain_static(_) ->
     restart_domain_core(mim(), [{<<"example.com">>, <<"cfggroup">>}], [<<"dbgroup">>, <<"cfggroup">>]),
     service_enabled(mim()),
     %% DB still contains data
-    {ok, #{host_type := <<"dbgroup">>, enabled := true}} =
+    {ok, #{host_type := <<"dbgroup">>, status := enabled}} =
        select_domain(mim(), <<"example.com">>),
-    {ok, #{host_type := <<"dbgroup">>, enabled := true}} =
+    {ok, #{host_type := <<"dbgroup">>, status := enabled}} =
        select_domain(mim(), <<"example.net">>),
      %% Static DB records are ignored
     {ok, <<"cfggroup">>} = get_host_type(mim(), <<"example.com">>),
@@ -707,20 +707,20 @@ db_event_could_appear_with_lower_id(_Config) ->
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
         mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_disable_domain(Config) ->
     mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     mongooseimctl("disable_domain", [<<"example.db">>], Config),
-    {ok, #{host_type := <<"type1">>, enabled := false}} =
+    {ok, #{host_type := <<"type1">>, status := disabled}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_enable_domain(Config) ->
     mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     mongooseimctl("disable_domain", [<<"example.db">>], Config),
     mongooseimctl("enable_domain", [<<"example.db">>], Config),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_delete_domain(Config) ->
@@ -812,13 +812,13 @@ cli_disable_domain_fails_if_service_disabled(Config) ->
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
         rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_disable_domain(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     rest_patch_enabled(Config, <<"example.db">>, false),
-    {ok, #{host_type := <<"type1">>, enabled := false}} =
+    {ok, #{host_type := <<"type1">>, status := disabled}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_delete_domain(Config) ->
@@ -926,13 +926,13 @@ rest_can_enable_domain(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     rest_patch_enabled(Config, <<"example.db">>, false),
     rest_patch_enabled(Config, <<"example.db">>, true),
-    {ok, #{host_type := <<"type1">>, enabled := true}} =
+    {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_select_domain(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {{<<"200">>, <<"OK">>},
-     {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
+     {[ {<<"status">>, <<"enabled">>}, {<<"host_type">>, <<"type1">>} ]}} =
         rest_select_domain(Config, <<"example.db">>).
 
 rest_cannot_select_domain_if_domain_not_found(Config) ->
@@ -1113,7 +1113,7 @@ erase_database(Node) ->
 
 prepare_test_queries(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, [global]);
+        true -> rpc(Node, mongoose_domain_sql, prepare_test_queries, []);
         false -> ok
     end.
 

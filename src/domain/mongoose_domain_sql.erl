@@ -4,6 +4,7 @@
 
 -export([insert_domain/2,
          delete_domain/2,
+         set_domain_for_deletion/2,
          disable_domain/1,
          enable_domain/1]).
 
@@ -22,44 +23,44 @@
          insert_dummy_event/1]).
 
 %% interfaces only for integration tests
--export([prepare_test_queries/1,
+-export([prepare_test_queries/0,
          erase_database/1,
          insert_full_event/2,
          insert_domain_settings_without_event/2]).
 
--ignore_xref([erase_database/1, prepare_test_queries/1, get_enabled_dynamic/0,
+-ignore_xref([erase_database/1, prepare_test_queries/0, get_enabled_dynamic/0,
               insert_full_event/2, insert_domain_settings_without_event/2]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
 -type event_id() :: non_neg_integer().
--type domain() :: binary().
+-type domain() :: jid:lserver().
 -type row() :: {event_id(), domain(), mongooseim:host_type() | null}.
 -export_type([row/0]).
 
-start(#{db_pool := Pool}) ->
+start(_) ->
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
-    True = sql_true(Pool),
+    Enabled = integer_to_binary(status_to_int(enabled)),
     %% Settings
     prepare(domain_insert_settings, domain_settings, [domain, host_type],
             <<"INSERT INTO domain_settings (domain, host_type) "
               "VALUES (?, ?)">>),
-    prepare(domain_update_settings_enabled, domain_settings,
-            [enabled, domain],
+    prepare(domain_update_settings_status, domain_settings,
+            [status, domain],
             <<"UPDATE domain_settings "
-              "SET enabled = ? "
+              "SET status = ? "
               "WHERE domain = ?">>),
     prepare(domain_delete_settings, domain_settings, [domain],
             <<"DELETE FROM domain_settings WHERE domain = ?">>),
     prepare(domain_select, domain_settings, [domain],
-            <<"SELECT host_type, enabled "
+            <<"SELECT host_type, status "
               "FROM domain_settings WHERE domain = ?">>),
     prepare(domain_select_from, domain_settings,
             rdbms_queries:add_limit_arg(limit, [id]),
             <<"SELECT ", LimitMSSQL/binary,
               " id, domain, host_type "
               " FROM domain_settings "
-              " WHERE id > ? AND enabled = ", True/binary, " "
+              " WHERE id > ? AND status = ", Enabled/binary, " "
               " ORDER BY id ",
               LimitSQL/binary>>),
     %% Events
@@ -81,7 +82,7 @@ start(#{db_pool := Pool}) ->
               " FROM domain_events "
               " LEFT JOIN domain_settings ON "
                   "(domain_settings.domain = domain_events.domain AND "
-                   "domain_settings.enabled = ", True/binary, ") "
+                   "domain_settings.status = ", Enabled/binary, ") "
               " WHERE domain_events.id >= ? AND domain_events.id <= ? "
               " ORDER BY domain_events.id ">>),
     %% Admins
@@ -98,28 +99,22 @@ start(#{db_pool := Pool}) ->
               " FROM domain_admins WHERE domain = ?">>),
     ok.
 
-prepare_test_queries(Pool) ->
-    True = sql_true(Pool),
+prepare_test_queries() ->
+    Enabled = integer_to_binary(status_to_int(enabled)),
     prepare(domain_erase_admins, domain_admins, [],
             <<"DELETE FROM domain_admins">>),
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
     prepare(domain_erase_events, domain_events, [],
             <<"DELETE FROM domain_events">>),
-    prepare(domain_get_enabled_dynamic, domain_settings, [],
+    prepare(domain_get_status_dynamic, domain_settings, [],
             <<"SELECT "
               " domain, host_type "
               " FROM domain_settings "
-              " WHERE enabled = ", True/binary, " "
+              " WHERE status = ", Enabled/binary, " "
               " ORDER BY id">>),
     prepare(domain_events_get_all, domain_events, [],
             <<"SELECT id, domain FROM domain_events ORDER BY id">>).
-
-sql_true(Pool) ->
-    case mongoose_rdbms:db_engine(Pool) of
-        pgsql -> <<"true">>;
-        _ -> <<"1">>
-    end.
 
 %% ----------------------------------------------------------------------------
 %% API
@@ -160,11 +155,25 @@ delete_domain(Domain, HostType) ->
             end
         end).
 
+set_domain_for_deletion(Domain, HostType) ->
+    transaction(fun(Pool) ->
+            case select_domain(Domain) of
+                {ok, #{host_type := HT}} when HT =:= HostType ->
+                    {updated, 1} = set_domain_for_deletion_settings(Pool, Domain),
+                    insert_domain_event(Pool, Domain),
+                    ok;
+                {ok, _} ->
+                    {error, wrong_host_type};
+                {error, not_found} ->
+                    ok
+            end
+        end).
+
 disable_domain(Domain) ->
-    set_enabled(Domain, false).
+    set_status(Domain, disabled).
 
 enable_domain(Domain) ->
-    set_enabled(Domain, true).
+    set_status(Domain, enabled).
 
 select_domain_admin(Domain) ->
     Pool = get_db_pool(),
@@ -219,8 +228,8 @@ select_from(FromId, Limit) ->
 
 get_enabled_dynamic() ->
     Pool = get_db_pool(),
-    prepare_test_queries(Pool),
-    {selected, Rows} = execute_successfully(Pool, domain_get_enabled_dynamic, []),
+    prepare_test_queries(),
+    {selected, Rows} = execute_successfully(Pool, domain_get_status_dynamic, []),
     Rows.
 
 %% FromId, ToId are included into the result
@@ -317,43 +326,47 @@ insert_domain_settings(Pool, Domain, HostType) ->
 delete_domain_settings(Pool, Domain) ->
     execute_successfully(Pool, domain_delete_settings, [Domain]).
 
-set_enabled(Domain, Enabled) when is_boolean(Enabled) ->
+set_domain_for_deletion_settings(Pool, Domain) ->
+    ExtStatus = status_to_int(deleting),
+    execute_successfully(Pool, domain_update_settings_status, [ExtStatus, Domain]).
+
+-spec set_status(domain(), mongoose_domain_api:status()) -> ok | {error, term()}.
+set_status(Domain, Status) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
                 {error, Reason} ->
                     {error, Reason};
-                {ok, #{enabled := En, host_type := HostType}} ->
+                {ok, #{status := CurrentStatus, host_type := HostType}} ->
                     case mongoose_domain_core:is_host_type_allowed(HostType) of
                         false ->
                             {error, unknown_host_type};
-                        true when Enabled =:= En ->
+                        true when Status =:= CurrentStatus ->
                             ok;
                         true ->
-                            update_domain_enabled(Pool, Domain, Enabled),
+                            update_domain_enabled(Pool, Domain, Status),
                             insert_domain_event(Pool, Domain),
                             ok
                     end
             end
         end).
 
-update_domain_enabled(Pool, Domain, Enabled) ->
-    ExtEnabled = bool_to_ext(Pool, Enabled),
-    execute_successfully(Pool, domain_update_settings_enabled, [ExtEnabled, Domain]).
+update_domain_enabled(Pool, Domain, Status) ->
+    ExtStatus = status_to_int(Status),
+    execute_successfully(Pool, domain_update_settings_status, [ExtStatus, Domain]).
 
-%% MySQL needs booleans as integers
-bool_to_ext(Pool, Bool) when is_boolean(Bool) ->
-    case mongoose_rdbms:db_engine(Pool) of
-        pgsql ->
-            Bool;
-        _ ->
-            bool_to_int(Bool)
-    end.
+row_to_map({HostType, Status}) ->
+    IntStatus = mongoose_rdbms:result_to_integer(Status),
+    #{host_type => HostType, status => int_to_status(IntStatus)}.
 
-bool_to_int(true) -> 1;
-bool_to_int(false) -> 0.
+-spec int_to_status(0..2) -> mongoose_domain_api:status().
+int_to_status(0) -> disabled;
+int_to_status(1) -> enabled;
+int_to_status(2) -> deleting.
 
-row_to_map({HostType, Enabled}) ->
-    #{host_type => HostType, enabled => mongoose_rdbms:to_bool(Enabled)}.
+-spec status_to_int(mongoose_domain_api:status()) -> 0..2.
+status_to_int(disabled) -> 0;
+status_to_int(enabled) -> 1;
+status_to_int(deleting) -> 2.
 
 get_db_pool() ->
     mongoose_config:get_opt([services, service_domain_db, db_pool]).

@@ -420,13 +420,15 @@ remove_user(Acc, User, Server) ->
             Acc
     end.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    MUCHost = server_host_to_muc_host(HostType, Domain),
-    mod_muc_light_db_backend:remove_domain(HostType, MUCHost, Domain),
-    Acc.
+    F = fun() ->
+            MUCHost = server_host_to_muc_host(HostType, Domain),
+            mod_muc_light_db_backend:remove_domain(HostType, MUCHost, Domain),
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 -spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserJID :: jid:jid()) -> mongoose_acc:t().
 add_rooms_to_roster(Acc, UserJID) ->

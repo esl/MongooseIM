@@ -741,7 +741,7 @@ CREATE TABLE domain_settings (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     domain VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,
-    enabled SMALLINT NOT NULL DEFAULT 1
+    status SMALLINT NOT NULL DEFAULT 1
 );
 
 -- A new record is inserted into domain_events, each time

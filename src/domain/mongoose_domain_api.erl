@@ -2,6 +2,8 @@
 %% management.
 -module(mongoose_domain_api).
 
+-include("mongoose_logger.hrl").
+
 -export([init/0,
          stop/0,
          get_host_type/1]).
@@ -27,6 +29,9 @@
          get_subdomain_info/1,
          get_all_subdomains_for_domain/1]).
 
+%% Helper for remove_domain
+-export([remove_domain_wrapper/3]).
+
 %% For testing
 -export([get_all_dynamic/0]).
 
@@ -34,10 +39,13 @@
 -ignore_xref([get_all_dynamic/0]).
 -ignore_xref([stop/0]).
 
+-type status() :: enabled | disabled | deleting.
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
+-type remove_domain_acc() :: #{failed := [module()]}.
 
+-export_type([status/0, remove_domain_acc/0]).
 
 -spec init() -> ok | {error, term()}.
 init() ->
@@ -66,25 +74,37 @@ insert_domain(Domain, HostType) ->
             Other
     end.
 
+-type delete_domain_return() ::
+    ok | {error, static} | {error, unknown_host_type} | {error, service_disabled}
+    | {error, {db_error, term()}} | {error, wrong_host_type} | {error, {modules_failed, [module()]}}.
+
 %% Returns ok, if domain not found.
 %% Domain should be nameprepped using `jid:nameprep'.
--spec delete_domain(domain(), host_type()) ->
-    ok | {error, static} | {error, {db_error, term()}}
-    | {error, service_disabled} | {error, wrong_host_type} | {error, unknown_host_type}.
+-spec delete_domain(domain(), host_type()) -> delete_domain_return().
 delete_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
         ok ->
-            Res = check_db(mongoose_domain_sql:delete_domain(Domain, HostType)),
-            case Res of
+            Res0 = check_db(mongoose_domain_sql:set_domain_for_deletion(Domain, HostType)),
+            case Res0 of
                 ok ->
                     delete_domain_password(Domain),
-                    mongoose_hooks:remove_domain(HostType, Domain);
-                _ ->
-                    ok
-            end,
-            Res;
+                    do_delete_domain_in_progress(Domain, HostType);
+                Other ->
+                    Other
+            end;
         Other ->
             Other
+    end.
+
+%% This is ran only in the context of `do_delete_domain',
+%% so it can already skip some checks
+-spec do_delete_domain_in_progress(domain(), host_type()) -> delete_domain_return().
+do_delete_domain_in_progress(Domain, HostType) ->
+    case mongoose_hooks:remove_domain(HostType, Domain) of
+        #{failed := []} ->
+            check_db(mongoose_domain_sql:delete_domain(Domain, HostType));
+        #{failed := Failed} ->
+            {error, {modules_failed, Failed}}
     end.
 
 -spec disable_domain(domain()) ->
@@ -238,3 +258,15 @@ unregister_subdomain(HostType, SubdomainPattern) ->
           [mongoose_subdomain_core:subdomain_info()].
 get_all_subdomains_for_domain(Domain) ->
     mongoose_subdomain_core:get_all_subdomains_for_domain(Domain).
+
+-spec remove_domain_wrapper(remove_domain_acc(), fun(() -> remove_domain_acc()), module()) ->
+    remove_domain_acc() | {stop, remove_domain_acc()}.
+remove_domain_wrapper(Acc, F, Module) ->
+    try F()
+    catch C:R:S ->
+        ?LOG_ERROR(#{what => hook_failed,
+                     text => <<"Error running hook">>,
+                     module => Module,
+                     class => C, reason => R, stacktrace => S}),
+        {stop, Acc#{failed := [Module | maps:get(failed, Acc)]}}
+    end.

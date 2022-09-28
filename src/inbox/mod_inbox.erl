@@ -260,12 +260,14 @@ remove_user(Acc, User, Server) ->
     mod_inbox_utils:clear_inbox(HostType, User, Server),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    mod_inbox_backend:remove_domain(HostType, Domain),
-    Acc.
+    F = fun() ->
+            mod_inbox_backend:remove_domain(HostType, Domain),
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 -spec disco_local_features(mongoose_disco:feature_acc(),
                            map(),
