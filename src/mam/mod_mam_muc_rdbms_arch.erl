@@ -312,15 +312,17 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_archive_remove, [ArcID]),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    SubHosts = get_subhosts(HostType, Domain),
-    {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
-            [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
-        end),
-    Acc.
+    F = fun() ->
+            SubHosts = get_subhosts(HostType, Domain),
+            {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
+                    [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
+                end),
+            Acc
+    end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 remove_domain_trans(HostType, MucHost) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain, [MucHost]),
