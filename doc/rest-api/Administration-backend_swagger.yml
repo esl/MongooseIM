@@ -11,6 +11,9 @@ info:
     Please note that many of the fields such as **username** or **caller** expect a **JID** (jabber identifier, f.e. **alice@wonderland.com**). There are two types of **JIDs**:
       * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `mongooseim.toml` file).
       * **full JID** - is a **bare JID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
+
+    You should enable authentication to make sure the server can identify who sent the request and if it comes from an authorized user.
+    Currently the only supported method is **Basic Auth**.
 schemes:
   - http
 basePath: /api
@@ -696,6 +699,133 @@ paths:
       responses:
         200:
           description: The bin has been cleaned. The number of rows removed is returned as the body.
+  /domains/{domain}:
+    put:
+      description: Adds a domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
+      responses:
+        204:
+          description: Domain was successfully inserted.
+        400:
+          description: Bad request.
+          examples:
+            application/json: {"what": "body is empty"}
+        409:
+          description: Domain already exists with a different host type.
+          examples:
+            application/json: {"what": "duplicate"}
+        403:
+          description: DB service disabled, or the host type is unknown.
+          examples:
+            application/json: {"what": "domain is static"}
+        500:
+          description: Other errors.
+          examples:
+            application/json: {"what": "database error"}
+    patch:
+      description: Enables/disables a domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: enabled
+          description: Whether to enable or to disable a domain.
+          required: true
+          schema:
+            title: Enabled
+            type: object
+            properties:
+              enabled:
+                example: true
+                type: boolean
+      responses:
+        204:
+          description: Domain was successfully updated.
+        404:
+          description: Domain not found.
+          examples:
+            application/json: {"what": "domain not found"}
+        403:
+          description: Domain is static, or the service is disabled.
+          examples:
+            application/json: {"what": "domain is static"}
+        500:
+          description: Other errors.
+          examples:
+            application/json: {"what": "database error"}
+    get:
+      description: Returns information about the domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - name: domain
+          type: string
+          in: path
+          required: true
+      responses:
+        200:
+          description: Successful response.
+        404:
+          description: Domain not found.
+          examples:
+            application/json: {"what": "domain not found"}
+    delete:
+      description: "Removes a domain"
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
+      responses:
+        204:
+          description: "The domain is removed or not found."
+        403:
+          description: |
+            One of:
+              * the domain is static.
+              * the DB service is disabled.
+              * the host type is wrong (does not match the host type in the database).
+              * the host type is unknown.
+          examples:
+            application/json: {"what": "unknown host type"}
+        500:
+          description: "Other errors."
+          examples:
+            application/json: {"what": "database error"}
 
 parameters:
   MUCServer:

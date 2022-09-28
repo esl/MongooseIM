@@ -139,7 +139,6 @@ nav:
       - 'Client/frontend': 'rest-api/Client-frontend.md'
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
-      - 'Dynamic domains': 'rest-api/Dynamic-domains.md'
   - 'GraphQL API':
       - 'User': 'graphql-api/User-GraphQL.md'
       - 'Admin': 'graphql-api/Admin-GraphQL.md'
