@@ -661,6 +661,41 @@ paths:
       responses:
         204:
           description: User was kicked out from the MUC room.
+  /inbox/{domain}/{userName}/{days}/bin:
+    parameters:
+      - name: domain
+        in: path
+        description: Domain part of the user's JID
+        required: true
+        type: string
+      - name: userName
+        in: path
+        description: Name part of the user's JID
+        required: true
+        type: string
+      - $ref: '#/parameters/days'
+    delete:
+      tags:
+        - "Inbox management"
+      description: Clean the bin for a given user
+      responses:
+        200:
+          description: The bin has been cleaned. The number of rows removed is returned as the body.
+  /inbox/{hostType}/{days}/bin:
+    parameters:
+      - name: hostType
+        in: path
+        description: A host type where inbox is configured
+        required: true
+        type: string
+      - $ref: '#/parameters/days'
+    delete:
+      tags:
+        - "Inbox management"
+      description: Clean the bins of all users from a given host type
+      responses:
+        200:
+          description: The bin has been cleaned. The number of rows removed is returned as the body.
 
 parameters:
   MUCServer:
@@ -689,6 +724,12 @@ parameters:
     description: The MUC Light room's **id**
     required: true
     type: string
+  days:
+    name: days
+    in: path
+    description: Number of days for an entry to be considered old enough to be removed, zero allowed (which clears all)
+    required: true
+    type: integer
 
 definitions:
   messageList:

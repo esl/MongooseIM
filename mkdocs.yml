@@ -113,7 +113,6 @@ nav:
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_inbox': 'modules/mod_inbox.md'
-      - 'mod_inbox_commands': 'modules/mod_inbox_commands.md'
       - 'mod_jingle_sip': 'modules/mod_jingle_sip.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'
