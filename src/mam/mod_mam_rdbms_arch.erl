@@ -135,8 +135,8 @@ register_prepared_queries(Opts) ->
     {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
     IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
                 " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
-    ServerTable = <<"(SELECT", MaybeLimitMSSQL/binary,
-                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
+    ServerTable = <<"(SELECT * FROM (SELECT", MaybeLimitMSSQL/binary,
+                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
     mongoose_rdbms:prepare(mam_remove_domain, mam_message, ['mam_server_user.server'],
                            <<"DELETE FROM mam_message "
                              "WHERE user_id IN ", IdTable/binary>>),
@@ -145,7 +145,7 @@ register_prepared_queries(Opts) ->
                              "WHERE user_id IN ", IdTable/binary>>),
     mongoose_rdbms:prepare(mam_remove_domain_users, mam_server_user, [server],
                            <<"DELETE ", MaybeLimitMSSQL/binary,
-                             " FROM mam_server_user WHERE server IN", ServerTable/binary>>),
+                             " FROM mam_server_user WHERE server IN ", ServerTable/binary>>),
 
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
                            <<"UPDATE mam_message SET message = ?, search_body = '' "

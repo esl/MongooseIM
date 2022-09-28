@@ -116,8 +116,8 @@ register_prepared_queries(Opts) ->
     {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
     IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
                 " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
-    ServerTable = <<"(SELECT", MaybeLimitMSSQL/binary,
-                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
+    ServerTable = <<"(SELECT * FROM (SELECT", MaybeLimitMSSQL/binary,
+                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
     mongoose_rdbms:prepare(mam_muc_remove_domain, mam_muc_message, ['mam_server_user.server'],
                            <<"DELETE FROM mam_muc_message "
                              "WHERE room_id IN ", IdTable/binary>>),
