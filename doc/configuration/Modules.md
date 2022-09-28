@@ -70,10 +70,6 @@ This module tightly cooperates with [mod_pubsub](../modules/mod_pubsub.md) in or
 ### [mod_carboncopy](../modules/mod_carboncopy.md)
 Implements [XEP-0280: Message Carbons](http://xmpp.org/extensions/xep-0280.html) in order to keep all IM clients for a user engaged in a real-time conversation by carbon-copying all inbound and outbound messages to all interested resources (Full JIDs).
 
-### [mod_commands](../modules/mod_commands.md)
-A central gateway providing access to a subset of MongooseIM functions by channels other than XMPP.
-Commands defined there are currently accessible via REST API.
-
 ### [mod_csi](../modules/mod_csi.md)
 Enables the [XEP-0352: Client State Indication](http://xmpp.org/extensions/xep-0352.html) functionality.
 
@@ -125,17 +121,11 @@ Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep
 Implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room.
 It is tightly coupled with user presence in chat rooms.
 
-### [mod_muc_commands](../modules/mod_muc_commands.md)
-Provides `mod_muc` related `mongoose_commands`, accessible via the client REST API.
-
 ### [mod_muc_log](../modules/mod_muc_log.md)
 Implements a logging subsystem for [mod_muc](../modules/mod_muc.md).
 
 ### [mod_muc_light](../modules/mod_muc_light.md)
 Implements [XEP Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html).
-
-### [mod_muc_light_commands](../modules/mod_muc_light_commands.md)
-Provides `mod_muc_light` related `mongoose_commands`, accessible via client REST API.
 
 ### [mod_offline](../modules/mod_offline.md)
 Provides an offline messages storage that is compliant with [XEP-0160: Best Practices for Handling Offline Messages](http://xmpp.org/extensions/xep-0160.html).
