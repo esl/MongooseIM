@@ -61,9 +61,10 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
 
 -spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
-      Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
+      Args :: map(),
       Extra :: map().
-user_send_packet(Acc, #{from := From, to := To, packet := Packet = #xmlel{name = <<"message">>}}, _) ->
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     ResultAcc = case chat_type(Acc) of
         false -> Acc;
         Type ->
