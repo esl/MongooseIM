@@ -23,29 +23,6 @@ produces:
   - application/json
 host: "localhost:8088"
 paths:
-  /commands:
-    get:
-      description: Lists the available commands for administering MongooseIM.
-      tags:
-        - "Commands"
-      responses:
-        200:
-          description: A list of information on all the commands that are currently available.
-          schema:
-            title: commandList
-            type: array
-            items:
-              title: commandDescription
-              type: object
-              properties:
-                name:
-                  type: string
-                category:
-                  type: string
-                action:
-                  type: string
-                desc:
-                  type: string
   /users/{XMPPHost}:
     parameters:
       - $ref: '#/parameters/hostName'
