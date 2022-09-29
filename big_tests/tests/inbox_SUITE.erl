@@ -27,6 +27,7 @@
 
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
+-define(MSG(Text), {[{<<"message">>, Text}]}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -1331,13 +1332,13 @@ rest_api_bin_flush_user_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
     User = escalus_users:get_username(Config1, alice),
     Domain = escalus_users:get_server(Config1, alice),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
+    {{<<"400">>, <<"Bad Request">>}, ?MSG(<<"Invalid number of days">>)} =
         rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/", User/binary, "/x/bin">>),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid JID">>} =
+    {{<<"400">>, <<"Bad Request">>}, ?MSG(<<"Invalid JID">>)} =
         rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/@/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
+    {{<<"404">>, <<"Not Found">>}, ?MSG(<<"Domain not found">>)} =
         rest_helper:delete(admin, <<"/inbox/baddomain/", User/binary, "/0/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"User baduser@", _/binary>>} =
+    {{<<"404">>, <<"Not Found">>}, ?MSG(<<"User baduser@", _/binary>>)} =
         rest_helper:delete(admin, <<"/inbox/", Domain/binary, "/baduser/0/bin">>).
 
 rest_api_bin_flush_all(Config) ->
@@ -1354,9 +1355,9 @@ rest_api_bin_flush_all(Config) ->
 
 rest_api_bin_flush_all_errors(_Config) ->
     HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
-    {{<<"400">>, <<"Bad Request">>}, <<"Invalid number of days">>} =
+    {{<<"400">>, <<"Bad Request">>}, ?MSG(<<"Invalid number of days">>)} =
         rest_helper:delete(admin, <<"/inbox/", HostTypePath/binary, "/x/bin">>),
-    {{<<"404">>, <<"Not Found">>}, <<"Host type not found">>} =
+    {{<<"404">>, <<"Not Found">>}, ?MSG(<<"Host type not found">>)} =
         rest_helper:delete(admin, <<"/inbox/bad_host_type/0/bin">>).
 
 timeout_cleaner_flush_all(Config) ->

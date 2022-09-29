@@ -20,9 +20,7 @@
 -module(muc_light_http_api_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -31,6 +29,8 @@
 -import(domain_helper, [host_type/0, domain/0]).
 -import(config_parser_helper, [mod_config/2]).
 -import(rest_helper, [putt/3, post/3, delete/2]).
+
+-define(MSG(Text), {[{<<"message">>, Text}]}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -200,15 +200,15 @@ create_room_errors(Config) ->
     AliceJid = escalus_users:get_jid(Config1, alice),
     Path = path([muc_light_domain()]),
     Body = #{name => <<"Name">>, owner => AliceJid, subject => <<"Lewis Carol">>},
-    {{<<"400">>, _}, <<"Missing room name">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room name">>)} =
         post(admin, Path, maps:remove(name, Body)),
-    {{<<"400">>, _}, <<"Missing owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing owner JID">>)} =
         post(admin, Path, maps:remove(owner, Body)),
-    {{<<"400">>, _}, <<"Missing room subject">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room subject">>)} =
         post(admin, Path, maps:remove(subject, Body)),
-    {{<<"400">>, _}, <<"Invalid owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid owner JID">>)} =
         post(admin, Path, Body#{owner := <<"@invalid">>}),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         post(admin, path([domain_helper:domain()]), Body).
 
 create_identifiable_room_errors(Config) ->
@@ -218,19 +218,19 @@ create_identifiable_room_errors(Config) ->
     Body = #{id => <<"ID">>, name => <<"NameA">>, owner => AliceJid, subject => <<"Lewis Carol">>},
     {{<<"201">>, _}, _RoomJID} = putt(admin, Path, Body#{id => <<"ID1">>}),
     % Fails to create a room with the same ID
-    {{<<"400">>, _}, <<"Missing room ID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room ID">>)} =
         putt(admin, Path, maps:remove(id, Body)),
-    {{<<"400">>, _}, <<"Missing room name">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room name">>)} =
         putt(admin, Path, maps:remove(name, Body)),
-    {{<<"400">>, _}, <<"Missing owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing owner JID">>)} =
         putt(admin, Path, maps:remove(owner, Body)),
-    {{<<"400">>, _}, <<"Missing room subject">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room subject">>)} =
         putt(admin, Path, maps:remove(subject, Body)),
-    {{<<"400">>, _}, <<"Invalid owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid owner JID">>)} =
         putt(admin, Path, Body#{owner := <<"@invalid">>}),
-    {{<<"403">>, _}, <<"Room already exists">>} =
+    {{<<"403">>, _}, ?MSG(<<"Room already exists">>)} =
         putt(admin, Path, Body#{id := <<"ID1">>, name := <<"NameB">>}),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         putt(admin, path([domain_helper:domain()]), Body).
 
 invite_to_room_errors(Config) ->
@@ -241,17 +241,17 @@ invite_to_room_errors(Config) ->
     muc_light_helper:create_room(Name, muc_light_domain(), alice, [], Config1, <<"v1">>),
     Path = path([muc_light_domain(), Name, "participants"]),
     Body = #{sender => AliceJid, recipient => BobJid},
-    {{<<"400">>, _}, <<"Missing recipient JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing recipient JID">>)} =
         rest_helper:post(admin, Path, maps:remove(recipient, Body)),
-    {{<<"400">>, _}, <<"Missing sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing sender JID">>)} =
         rest_helper:post(admin, Path, maps:remove(sender, Body)),
-    {{<<"400">>, _}, <<"Invalid recipient JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid recipient JID">>)} =
         rest_helper:post(admin, Path, Body#{recipient := <<"@invalid">>}),
-    {{<<"400">>, _}, <<"Invalid sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid sender JID">>)} =
         rest_helper:post(admin, Path, Body#{sender := <<"@invalid">>}),
-    {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
+    {{<<"403">>, _}, ?MSG(<<"Given user does not occupy this room">>)} =
         rest_helper:post(admin, Path, Body#{sender := BobJid, recipient := AliceJid}),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         rest_helper:post(admin, path([domain(), Name, "participants"]), Body).
 
 send_message_errors(Config) ->
@@ -264,31 +264,31 @@ send_message_errors(Config) ->
     Body = #{from => AliceJid, body => <<"hello">>},
     {{<<"204">>, _}, <<>>} =
         rest_helper:post(admin, Path, Body),
-    {{<<"400">>, _}, <<"Missing message body">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing message body">>)} =
         rest_helper:post(admin, Path, maps:remove(body, Body)),
-    {{<<"400">>, _}, <<"Missing sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing sender JID">>)} =
         rest_helper:post(admin, Path, maps:remove(from, Body)),
-    {{<<"400">>, _}, <<"Invalid sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid sender JID">>)} =
         rest_helper:post(admin, Path, Body#{from := <<"@invalid">>}),
-    {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
+    {{<<"403">>, _}, ?MSG(<<"Given user does not occupy this room">>)} =
         rest_helper:post(admin, Path, Body#{from := BobJid}),
-    {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
+    {{<<"403">>, _}, ?MSG(<<"Given user does not occupy this room">>)} =
         rest_helper:post(admin, path([muc_light_domain(), "badroom", "messages"]), Body),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         rest_helper:post(admin, path([domain(), Name, "messages"]), Body).
 
 delete_room_errors(_Config) ->
-    {{<<"400">>, _}, <<"Invalid room ID or domain name">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid room ID or domain name">>)} =
         delete(admin, path([muc_light_domain(), "@badroom", "management"])),
     {{<<"404">>, _}, _} =
         delete(admin, path([muc_light_domain()])),
     {{<<"404">>, _}, _} =
         delete(admin, path([muc_light_domain(), "badroom"])),
-    {{<<"404">>, _}, <<"Cannot remove not existing room">>} =
+    {{<<"404">>, _}, ?MSG(<<"Cannot remove not existing room">>)} =
         delete(admin, path([muc_light_domain(), "badroom", "management"])),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         delete(admin, path([domain(), "badroom", "management"])),
-    {{<<"404">>, _}, <<"MUC Light server not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC Light server not found">>)} =
         delete(admin, path(["baddomain", "badroom", "management"])).
 
 %%--------------------------------------------------------------------

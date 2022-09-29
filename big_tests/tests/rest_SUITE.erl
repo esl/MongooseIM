@@ -41,6 +41,7 @@
 -define(NOT_AUTHORIZED, {<<"401">>, _}).
 -define(FORBIDDEN, {<<"403">>, _}).
 -define(BAD_REQUEST, {<<"400">>, _}).
+-define(MSG(Text), {[{<<"message">>, Text}]}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -172,11 +173,11 @@ invalid_query_string(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceJid = escalus_users:get_jid(Config1, alice),
     BobJid = escalus_users:get_jid(Config1, bob),
-    {?BAD_REQUEST, <<"Invalid query string">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid query string">>)} =
         gett(admin, <<"/messages/", AliceJid/binary, "/", BobJid/binary, "?kukurydza">>).
 
 invalid_request_body(_Config) ->
-    {?BAD_REQUEST, <<"Invalid request body">>} = post(admin, path("users"), <<"kukurydza">>).
+    {?BAD_REQUEST, ?MSG(<<"Invalid request body">>)} = post(admin, path("users"), <<"kukurydza">>).
 
 user_can_be_registered_and_removed(_Config) ->
     % list users
@@ -197,20 +198,20 @@ user_can_be_registered_and_removed(_Config) ->
 
 user_registration_errors(_Config) ->
     {AnonUser, AnonDomain} = anon_us(),
-    {?BAD_REQUEST, <<"Invalid JID", _/binary>>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid JID", _/binary>>)} =
         post(admin, path("users"), #{username => <<"m@ke">>, password => <<"nicniema">>}),
-    {?BAD_REQUEST, <<"Missing password", _/binary>>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing password", _/binary>>)} =
         post(admin, path("users"), #{username => <<"mike">>}),
-    {?BAD_REQUEST, <<"Missing user name", _/binary>>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing user name", _/binary>>)} =
         post(admin, path("users"), #{password => <<"nicniema">>}),
-    {?FORBIDDEN, <<"Can't register user", _/binary>>} =
+    {?FORBIDDEN, ?MSG(<<"Can't register user", _/binary>>)} =
         post(admin, path("users"), #{username => <<"mike">>, password => <<>>}),
-    {?FORBIDDEN, <<"Can't register user", _/binary>>} =
+    {?FORBIDDEN, ?MSG(<<"Can't register user", _/binary>>)} =
         post(admin, <<"/users/", AnonDomain/binary>>, #{username => AnonUser,
                                                         password => <<"secret">>}),
-    {?FORBIDDEN, <<"User does not exist or you are not authorised properly">>} =
+    {?FORBIDDEN, ?MSG(<<"User does not exist or you are not authorised properly">>)} =
         delete(admin, <<"/users/", AnonDomain/binary, "/", AnonUser/binary>>),
-    {?BAD_REQUEST, <<"Invalid JID", _/binary>>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid JID", _/binary>>)} =
         delete(admin, path("users", ["@mike"])).
 
 sessions_are_listed(_) ->
@@ -233,15 +234,15 @@ session_can_be_kicked(Config) ->
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
         {?OK, Sessions2} = gett(admin, path("sessions")),
         assert_notinlist(AliceJid, Sessions2),
-        {?NOT_FOUND, <<"No active session">>} = delete(admin, AliceSessionPath),
+        {?NOT_FOUND, ?MSG(<<"No active session">>)} = delete(admin, AliceSessionPath),
         ok
     end).
 
 session_kick_errors(_Config) ->
-    {?BAD_REQUEST, <<"Missing user name">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing user name">>)} =
         delete(admin, <<"/sessions/", (domain())/binary>>),
     %% Resource is matched first, because Cowboy matches path elements from the right
-    {?BAD_REQUEST, <<"Missing user name">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing user name">>)} =
         delete(admin, <<"/sessions/", (domain())/binary, "/resource">>).
 
 messages_are_sent_and_received(Config) ->
@@ -257,19 +258,19 @@ message_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceJID = escalus_users:get_jid(Config1, alice),
     BobJID = escalus_users:get_jid(Config1, bob),
-    {?BAD_REQUEST, <<"Missing sender JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing sender JID">>)} =
         post(admin, "/messages", #{to => BobJID, body => <<"whatever">>}),
-    {?BAD_REQUEST, <<"Missing recipient JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing recipient JID">>)} =
         post(admin, "/messages", #{caller => AliceJID, body => <<"whatever">>}),
-    {?BAD_REQUEST, <<"Missing message body">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing message body">>)} =
         post(admin, "/messages", #{caller => AliceJID, to => BobJID}),
-    {?BAD_REQUEST, <<"Invalid recipient JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid recipient JID">>)} =
         send_message_bin(AliceJID, <<"@noway">>),
-    {?BAD_REQUEST, <<"Invalid sender JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid sender JID">>)} =
         send_message_bin(<<"@noway">>, BobJID),
-    {?BAD_REQUEST, <<"Unknown user">>} =
+    {?BAD_REQUEST, ?MSG(<<"Unknown user">>)} =
         send_message_bin(<<"baduser@", (domain())/binary>>, BobJID),
-    {?BAD_REQUEST, <<"Unknown domain">>} =
+    {?BAD_REQUEST, ?MSG(<<"Unknown domain">>)} =
         send_message_bin(<<"baduser@baddomain">>, BobJID).
 
 stanzas_are_sent_and_received(Config) ->
@@ -289,21 +290,21 @@ stanza_errors(Config) ->
     AliceJid = escalus_users:get_jid(Config1, alice),
     BobJid = escalus_users:get_jid(Config1, bob),
     UnknownJid =  <<"baduser@", (domain())/binary>>,
-    {?BAD_REQUEST, <<"Missing recipient JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing recipient JID">>)} =
         send_stanza(extended_message([{<<"from">>, AliceJid}])),
-    {?BAD_REQUEST, <<"Missing sender JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing sender JID">>)} =
         send_stanza(extended_message([{<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Invalid recipient JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid recipient JID">>)} =
         send_stanza(extended_message([{<<"from">>, AliceJid}, {<<"to">>, <<"@invalid">>}])),
-    {?BAD_REQUEST, <<"Invalid sender JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid sender JID">>)} =
         send_stanza(extended_message([{<<"from">>, <<"@invalid">>}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Unknown domain">>} =
+    {?BAD_REQUEST, ?MSG(<<"Unknown domain">>)} =
         send_stanza(extended_message([{<<"from">>, <<"baduser@baddomain">>}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Unknown user">>} =
+    {?BAD_REQUEST, ?MSG(<<"Unknown user">>)} =
         send_stanza(extended_message([{<<"from">>, UnknownJid}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Malformed stanza">>} =
+    {?BAD_REQUEST, ?MSG(<<"Malformed stanza">>)} =
         send_stanza(broken_message([{<<"from">>, AliceJid}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Missing stanza">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing stanza">>)} =
         post(admin, <<"/stanzas">>, #{}).
 
 messages_are_archived(Config) ->
@@ -347,15 +348,15 @@ messages_are_archived(Config) ->
 message_archive_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
     User = binary_to_list(escalus_users:get_username(Config1, alice)),
-    {?NOT_FOUND, <<"Missing owner JID">>} =
+    {?NOT_FOUND, ?MSG(<<"Missing owner JID">>)} =
         gett(admin, "/messages"),
-    {?BAD_REQUEST, <<"Invalid owner JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid owner JID">>)} =
         gett(admin, "/messages/@invalid"),
-    {?BAD_REQUEST, <<"Invalid interlocutor JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid interlocutor JID">>)} =
         gett(admin, "/messages/" ++ User ++ "/@invalid"),
-    {?BAD_REQUEST, <<"Invalid limit">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid limit">>)} =
         gett(admin, "/messages/" ++ User ++ "?limit=x"),
-    {?BAD_REQUEST, <<"Invalid value of 'before'">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid value of 'before'">>)} =
         gett(admin, "/messages/" ++ User ++ "?before=x").
 
 messages_can_be_paginated(Config) ->
@@ -415,15 +416,15 @@ password_change_errors(Config) ->
     Alice = binary_to_list(escalus_users:get_username(Config, alice)),
     {AnonUser, AnonDomain} = anon_us(),
     Args = #{newpass => <<"secret">>},
-    {?FORBIDDEN, <<"Password change not allowed">>} =
+    {?FORBIDDEN, ?MSG(<<"Password change not allowed">>)} =
         putt(admin, <<"/users/", AnonDomain/binary, "/", AnonUser/binary>>, Args),
-    {?BAD_REQUEST, <<"Missing user name">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing user name">>)} =
         putt(admin, path("users", []), Args),
-    {?BAD_REQUEST, <<"Missing new password">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing new password">>)} =
         putt(admin, path("users", [Alice]), #{}),
-    {?BAD_REQUEST, <<"Empty password">>} =
+    {?BAD_REQUEST, ?MSG(<<"Empty password">>)} =
         putt(admin, path("users", [Alice]), #{newpass => <<>>}),
-    {?BAD_REQUEST, <<"Invalid JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid JID">>)} =
         putt(admin, path("users", ["@invalid"]), Args).
 
 anon_us() ->
@@ -556,22 +557,22 @@ befriend_and_alienate_auto(Config) ->
     ok.
 
 list_contacts_errors(_Config) ->
-    {?NOT_FOUND, <<"Domain not found">>} = gett(admin, contacts_path("baduser@baddomain")).
+    {?NOT_FOUND, ?MSG(<<"Domain not found">>)} = gett(admin, contacts_path("baduser@baddomain")).
 
 add_contact_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     BobJID = escalus_users:get_jid(Config, bob),
     AliceS = binary_to_list(escalus_users:get_jid(Config1, alice)),
     DomainS = binary_to_list(domain()),
-    {?BAD_REQUEST, <<"Missing JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing JID">>)} =
         post(admin, contacts_path(AliceS), #{}),
-    {?BAD_REQUEST, <<"Invalid JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid JID">>)} =
         post(admin, contacts_path(AliceS), #{jid => <<"@invalidjid">>}),
-    {?BAD_REQUEST, <<"Invalid user JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid user JID">>)} =
         post(admin, contacts_path("@invalid_jid"), #{jid => BobJID}),
-    {?NOT_FOUND, <<"The user baduser@", _/binary>>} =
+    {?NOT_FOUND, ?MSG(<<"The user baduser@", _/binary>>)} =
         post(admin, contacts_path("baduser@" ++ DomainS), #{jid => BobJID}),
-    {?NOT_FOUND, <<"Domain not found">>} =
+    {?NOT_FOUND, ?MSG(<<"Domain not found">>)} =
         post(admin, contacts_path("baduser@baddomain"), #{jid => BobJID}).
 
 subscription_errors(Config) ->
@@ -579,36 +580,36 @@ subscription_errors(Config) ->
     AliceS = binary_to_list(escalus_users:get_jid(Config1, alice)),
     BobS = binary_to_list(escalus_users:get_jid(Config1, bob)),
     DomainS = binary_to_list(domain()),
-    {?BAD_REQUEST, <<"Invalid contact JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid contact JID">>)} =
         putt(admin, contacts_path(AliceS, "@invalid_jid"), #{action => <<"subscribe">>}),
-    {?BAD_REQUEST, <<"Invalid user JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid user JID">>)} =
         putt(admin, contacts_path("@invalid_jid", BobS), #{action => <<"subscribe">>}),
-    {?BAD_REQUEST, <<"Missing action">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing action">>)} =
         putt(admin, contacts_path(AliceS, BobS), #{}),
-    {?BAD_REQUEST, <<"Missing action">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing action">>)} =
         putt(admin, contacts_manage_path(AliceS, BobS), #{}),
-    {?BAD_REQUEST, <<"Invalid action">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid action">>)} =
         putt(admin, contacts_path(AliceS, BobS), #{action => <<"something stupid">>}),
-    {?BAD_REQUEST, <<"Invalid action">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid action">>)} =
         putt(admin, contacts_manage_path(AliceS, BobS), #{action => <<"off with his head">>}),
-    {?BAD_REQUEST, <<"Invalid user JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid user JID">>)} =
         putt(admin, contacts_manage_path("@invalid", BobS), #{action => <<"connect">>}),
-    {?BAD_REQUEST, <<"Invalid contact JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Invalid contact JID">>)} =
         putt(admin, contacts_manage_path(AliceS, "@bzzz"), #{action => <<"connect">>}),
-    {?NOT_FOUND, <<"The user baduser@baddomain does not exist">>} =
+    {?NOT_FOUND, ?MSG(<<"The user baduser@baddomain does not exist">>)} =
         putt(admin, contacts_manage_path(AliceS, "baduser@baddomain"), #{action => <<"connect">>}),
-    {?NOT_FOUND, <<"Domain not found">>} =
+    {?NOT_FOUND, ?MSG(<<"Domain not found">>)} =
         putt(admin, contacts_manage_path("baduser@baddomain", AliceS), #{action => <<"connect">>}),
-    {?NOT_FOUND, <<"Cannot remove", _/binary>>} =
+    {?NOT_FOUND, ?MSG(<<"Cannot remove", _/binary>>)} =
         putt(admin, contacts_manage_path(AliceS, "baduser@" ++ DomainS), #{action => <<"disconnect">>}).
 
 delete_contact_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
     AliceS = binary_to_list(escalus_users:get_jid(Config1, alice)),
     DomainS = binary_to_list(domain()),
-    {?NOT_FOUND, <<"Cannot remove", _/binary>>} =
+    {?NOT_FOUND, ?MSG(<<"Cannot remove", _/binary>>)} =
         delete(admin, contacts_path(AliceS, "baduser@" ++ DomainS)),
-    {?BAD_REQUEST, <<"Missing contact JID">>} =
+    {?BAD_REQUEST, ?MSG(<<"Missing contact JID">>)} =
         delete(admin, contacts_path(AliceS)).
 
 %%--------------------------------------------------------------------

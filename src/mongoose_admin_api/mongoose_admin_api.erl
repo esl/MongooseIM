@@ -158,7 +158,8 @@ error_response(ErrorType, Message, Req, State) ->
                                  error_type => ErrorType,
                                  message => BinMessage,
                                  req => Req}),
-    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, BinMessage, Req),
+    Response = jiffy:encode(#{message => BinMessage}),
+    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, Response, Req),
     {stop, Req1, State}.
 
 -spec error_code(error_type()) -> non_neg_integer().

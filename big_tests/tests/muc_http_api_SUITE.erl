@@ -20,7 +20,6 @@
 -module(muc_http_api_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -28,6 +27,8 @@
 
 -import(domain_helper, [domain/0, secondary_domain/0]).
 -import(rest_helper, [post/3, delete/2]).
+
+-define(MSG(Text), {[{<<"message">>, Text}]}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -128,7 +129,7 @@ invite_online_user_to_room(Config) ->
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
                  reason => Reason},
-        {{<<"404">>, _}, <<"Room not found">>} = rest_helper:post(admin, Path, Body),
+        {{<<"404">>, _}, ?MSG(<<"Room not found">>)} = rest_helper:post(admin, Path, Body),
         set_up_room(Config, escalus_client:short_jid(Alice)),
         {{<<"204">>, _}, <<"">>} = rest_helper:post(admin, Path, Body),
         Stanza = escalus:wait_for_stanza(Bob),
@@ -281,17 +282,17 @@ room_creation_errors(Config) ->
     AliceJid = escalus_users:get_jid(Config1, alice),
     Name = ?config(room_name, Config),
     Body = #{name => Name, owner => AliceJid, nick => <<"nick">>},
-    {{<<"400">>, _}, <<"Missing room name">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing room name">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, maps:remove(name, Body)),
-    {{<<"400">>, _}, <<"Missing nickname">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing nickname">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, maps:remove(nick, Body)),
-    {{<<"400">>, _}, <<"Missing owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing owner JID">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, maps:remove(owner, Body)),
-    {{<<"400">>, _}, <<"Invalid room name">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid room name">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, Body#{name := <<"@invalid">>}),
-    {{<<"400">>, _}, <<"Invalid owner JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid owner JID">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, Body#{owner := <<"@invalid">>}),
-    {{<<"404">>, _}, <<"Given user not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"Given user not found">>)} =
         post(admin, <<"/mucs/", (domain())/binary>>, Body#{owner := <<"baduser@baddomain">>}).
 
 invite_errors(Config) ->
@@ -301,26 +302,26 @@ invite_errors(Config) ->
     Name = set_up_room(Config1, AliceJid),
     Path = path([Name, "participants"]),
     Body = #{sender => AliceJid, recipient => BobJid, reason => <<"Join this room!">>},
-    {{<<"400">>, _}, <<"Missing sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing sender JID">>)} =
         post(admin, Path, maps:remove(sender, Body)),
-    {{<<"400">>, _}, <<"Missing recipient JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing recipient JID">>)} =
         post(admin, Path, maps:remove(recipient, Body)),
-    {{<<"400">>, _}, <<"Missing invite reason">>} =
+    {{<<"400">>, _}, ?MSG(<<"Missing invite reason">>)} =
         post(admin, Path, maps:remove(reason, Body)),
-    {{<<"400">>, _}, <<"Invalid recipient JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid recipient JID">>)} =
         post(admin, Path, Body#{recipient := <<"@badjid">>}),
-    {{<<"400">>, _}, <<"Invalid sender JID">>} =
+    {{<<"400">>, _}, ?MSG(<<"Invalid sender JID">>)} =
         post(admin, Path, Body#{sender := <<"@badjid">>}),
-    {{<<"404">>, _}, <<"MUC domain not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"MUC domain not found">>)} =
         post(admin, <<"/mucs/baddomain/", Name/binary, "/participants">>, Body),
-    {{<<"404">>, _}, <<"Room not found">>} =
+    {{<<"404">>, _}, ?MSG(<<"Room not found">>)} =
         post(admin, path(["thisroomdoesnotexist", "participants"]), Body).
 
 kick_user_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
     AliceJid = escalus_users:get_jid(Config1, alice),
     Name = ?config(room_name, Config1),
-    {{<<"404">>, _}, <<"Room not found">>} = delete(admin, path([Name, "nick"])),
+    {{<<"404">>, _}, ?MSG(<<"Room not found">>)} = delete(admin, path([Name, "nick"])),
     set_up_room(Config1, AliceJid),
     mongoose_helper:wait_until(fun() -> check_if_moderator_not_found(Name) end, ok),
     %% Alice sends presence to the room, making her the moderator
@@ -338,7 +339,7 @@ kick_user_errors(Config) ->
 %% As a result, a request to kick a user returns Error 404
 check_if_moderator_not_found(RoomName) ->
     case delete(admin, path([RoomName, "nick"])) of
-        {{<<"404">>, _}, <<"Moderator user not found">>} -> ok;
+        {{<<"404">>, _}, ?MSG(<<"Moderator user not found">>)} -> ok;
         {{<<"204">>, _}, _} -> not_yet
     end.
 
@@ -349,10 +350,14 @@ message_errors(Config) ->
     Path = path([Name, "messages"]),
     Body = #{from => AliceJid, body => <<"Greetings!">>},
     % Message to a non-existent room succeeds in the current implementation
-    {{<<"204">>, _}, <<>>} = post(admin, path(["thisroomdoesnotexist", "messages"]), Body),
-    {{<<"400">>, _}, <<"Missing message body">>} = post(admin, Path, maps:remove(body, Body)),
-    {{<<"400">>, _}, <<"Missing sender JID">>} = post(admin, Path, maps:remove(from, Body)),
-    {{<<"400">>, _}, <<"Invalid sender JID">>} = post(admin, Path, Body#{from := <<"@invalid">>}).
+    {{<<"204">>, _}, <<>>} =
+        post(admin, path(["thisroomdoesnotexist", "messages"]), Body),
+    {{<<"400">>, _}, ?MSG(<<"Missing message body">>)} =
+        post(admin, Path, maps:remove(body, Body)),
+    {{<<"400">>, _}, ?MSG(<<"Missing sender JID">>)} =
+        post(admin, Path, maps:remove(from, Body)),
+    {{<<"400">>, _}, ?MSG(<<"Invalid sender JID">>)} =
+        post(admin, Path, Body#{from := <<"@invalid">>}).
 
 %%--------------------------------------------------------------------
 %% Ancillary (adapted from the MUC suite)
