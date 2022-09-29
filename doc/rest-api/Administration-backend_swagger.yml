@@ -663,11 +663,7 @@ paths:
           description: The bin has been cleaned. The number of rows removed is returned as the body.
   /inbox/{hostType}/{days}/bin:
     parameters:
-      - name: hostType
-        in: path
-        description: A host type where inbox is configured
-        required: true
-        type: string
+      - $ref: '#/parameters/hostType'
       - $ref: '#/parameters/days'
     delete:
       tags:
@@ -803,6 +799,155 @@ paths:
           description: "Other errors."
           examples:
             application/json: {"what": "database error"}
+  /metrics/:
+    get:
+      description: Returns a list of host type names and metric names
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Host type names and metric names.
+          schema:
+            type: object
+            properties:
+              host_types:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "localhost"
+              metrics:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "xmppErrorIq"
+                    - "xmppPresenceReceived"
+                    - "xmppMessageBounced"
+              global:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "nodeSessionCount"
+                    - "totalSessionCount"
+                    - "uniqueSessionCount"
+  /metrics/all:
+    get:
+      description: Returns a list of metrics aggregated for all host types
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              metrics:
+                type: object
+                example:
+                  modRosterPush:
+                    one: 0
+                    count: 0
+  /metrics/all/{metric}:
+    parameters:
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the metric value aggregated for all host types
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Aggregated metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  one: 0
+                  count: 0
+        404:
+          description: There is no such metric
+  /metrics/host_type/{hostType}:
+    parameters:
+      - $ref: '#/parameters/hostType'
+    get:
+      description: Returns the values of all host-type metrics
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              metrics:
+                type: object
+                example:
+                  modRosterPush:
+                    one: 0
+                    count: 0
+        404:
+          description: There is no such host type
+  /metrics/host_type/{hostType}/{metric}:
+    parameters:
+      - $ref: '#/parameters/hostType'
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the value of a host-type metric
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  one: 0
+                  count: 0
+        404:
+          description: There is no such metric
+  /metrics/global:
+    get:
+      description: Returns the values of all global metrics
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              type: object
+              example:
+                nodeUpTime:
+                  value: 6604
+  /metrics/global/{metric}:
+    parameters:
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the value of a global metric
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  value: 6604
+        404:
+          description: There is no such global metric
 
 parameters:
   MUCServer:
@@ -818,7 +963,12 @@ parameters:
     description: The XMPP host served by the server.
     required: true
     type: string
-    format: hostname
+  hostType:
+    name: hostType
+    in: path
+    description: Host type configured on the server
+    required: true
+    type: string
   roomName:
     name: roomName
     in: path
@@ -837,6 +987,12 @@ parameters:
     description: Number of days for an entry to be considered old enough to be removed, zero allowed (which clears all)
     required: true
     type: integer
+  metric:
+    name: metric
+    description: Metric name
+    in: path
+    required: true
+    type: string
 
 definitions:
   messageList:

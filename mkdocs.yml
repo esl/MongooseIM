@@ -137,7 +137,6 @@ nav:
       - 'mod_version': 'modules/mod_version.md'
   - 'REST API':
       - 'Client/frontend': 'rest-api/Client-frontend.md'
-      - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'GraphQL API':
       - 'User': 'graphql-api/User-GraphQL.md'
