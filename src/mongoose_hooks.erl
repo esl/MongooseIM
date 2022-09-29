@@ -267,7 +267,8 @@ failed_to_store_message(Acc) ->
     Result :: drop | filter_packet_acc().
 filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, #{args => []}).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, ParamsWithLegacyArgs).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.

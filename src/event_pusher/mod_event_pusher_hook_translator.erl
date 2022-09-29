@@ -51,11 +51,7 @@ filter_local_packet(drop, _, _) ->
 filter_local_packet({From, To, Acc0, Packet}, _, _) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;
-              Type ->
-                  Event = #chat_event{type = Type, direction = out,
-                                      from = From, to = To, packet = Packet},
-                  NewAcc = mod_event_pusher:push_event(Acc0, Event),
-                  merge_acc(Acc0, NewAcc)
+              Type -> push_chat_event(Acc0, Type, {From, To, Packet}, out)
           end,
     {ok, {From, To, Acc, Packet}}.
 
@@ -64,18 +60,14 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
       Args :: map(),
       Extra :: map().
 user_send_packet(Acc, _, _) ->
-    {From, To, Packet} = mongoose_acc:packet(Acc),
-    ResultAcc = case chat_type(Acc) of
-        false -> Acc;
-        Type ->
-            Event = #chat_event{type = Type, direction = in,
-                                from = From, to = To, packet = Packet},
-            NewAcc = mod_event_pusher:push_event(Acc, Event),
-            merge_acc(Acc, NewAcc)
+    Packet = mongoose_acc:packet(Acc),
+    ChatType = chat_type(Acc),
+    ResultAcc = if
+        Packet == undefined -> Acc;
+        ChatType == false -> Acc;
+        true -> push_chat_event(Acc, ChatType, Packet, in)
     end,
-    {ok, ResultAcc};
-user_send_packet(Acc, _, _) ->
-    {ok, Acc}.
+    {ok, ResultAcc}.
 
 -spec user_present(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
@@ -107,6 +99,19 @@ unacknowledged_message(Acc, #{jid := Jid}, _) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec push_chat_event(Acc, Type, {From, To, Packet}, Direction) -> Acc when
+      Acc :: mongoose_acc:t(),
+      Type :: chat | groupchat | headline | normal | false,
+      From :: jid:jid(),
+      To :: jid:jid(),
+      Packet :: exml:element(),
+      Direction :: in | out.
+push_chat_event(Acc, Type, {From, To, Packet}, Direction) ->
+    Event = #chat_event{type = Type, direction = Direction,
+                        from = From, to = To, packet = Packet},
+    NewAcc = mod_event_pusher:push_event(Acc, Event),
+    merge_acc(Acc, NewAcc).
 
 -spec chat_type(mongoose_acc:t()) -> chat | groupchat | headline | normal | false.
 chat_type(Acc) ->
