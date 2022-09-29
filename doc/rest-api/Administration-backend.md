@@ -2,8 +2,8 @@
 
 ## Configuration
 
-To enable the commands, you need to hook the `mongoose_api_admin` module to an HTTP endpoint as described
-in the [admin REST API handlers configuration](../configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
+To enable the commands, you need to hook the `mongoose_admin_api` module to an HTTP endpoint as described
+in the [admin REST API handlers configuration](../configuration/listen.md#handler-types-rest-api-admin-mongoose_admin_api)
 section of the [listeners](../configuration/listen.md) documentation.
 
 ## OpenAPI specifications
