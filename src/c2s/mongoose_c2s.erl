@@ -569,8 +569,15 @@ maybe_retry_state({wait_for_sasl_response, SaslState, Retries}) ->
 verify_from(El, StateJid) ->
     case exml_query:attr(El, <<"from">>) of
         undefined -> true;
-        SJid ->
-            jid:are_equal(jid:from_binary(SJid), StateJid)
+        GJid ->
+            case jid:from_binary(GJid) of
+                error ->
+                    false;
+                #jid{lresource = <<>>} = GivenJid ->
+                    jid:are_bare_equal(GivenJid, StateJid);
+                #jid{} = GivenJid ->
+                    jid:are_equal(GivenJid, StateJid)
+            end
     end.
 
 -spec handle_foreign_packet(c2s_data(), c2s_state(), exml:element()) -> fsm_res().
