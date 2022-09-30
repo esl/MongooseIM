@@ -32,7 +32,13 @@ set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
 get_vcard(#jid{luser = LUser, lserver = LServer}) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            get_vcard_from_db(HostType, LUser, LServer);
+            % check if mod_vcard is loaded is needed in user's get_vcard command, when user variable is not passed
+            case gen_mod:is_loaded(HostType, mod_vcard) of
+                true ->
+                    get_vcard_from_db(HostType, LUser, LServer);
+                false ->
+                    {vcard_not_configured_error, "Mod_vcard is not loaded for this host"}
+            end;
         _ ->
             {not_found, "User does not exist"}
     end.

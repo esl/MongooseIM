@@ -1,15 +1,15 @@
 """
 Allow user to set own vcard
 """
-type VcardUserMutation @protected{
+type VcardUserMutation @protected @use(modules: ["mod_vcard"]){
     "Set user's own vcard"
-    setVcard(vcard: VcardInput!): Vcard
+    setVcard(vcard: VcardInput!): Vcard @use
 }
 
 """
 Allow user to get user's vcard
 """
-type VcardUserQuery @protected{
+type VcardUserQuery @protected @use(modules: ["mod_vcard"]){
     "Get user's vcard"
-    getVcard(user: JID): Vcard
+    getVcard(user: JID): Vcard @use(arg: "user")
 }
