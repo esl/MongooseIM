@@ -11,5 +11,7 @@ Allow user to get user's vcard
 """
 type VcardUserQuery @protected @use(modules: ["mod_vcard"]){
     "Get user's vcard"
+    #In mod_vcard_api was left the check if the mod_vcard is loaded, because,
+    #when get_vcard is called without user variable @use directive cannot check if the module is loaded.
     getVcard(user: JID): Vcard @use(arg: "user")
 }
