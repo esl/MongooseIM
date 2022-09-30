@@ -36,6 +36,8 @@ groups() ->
      {admin_old_users, [], admin_old_users_tests()},
      {domain_admin_old_users, [], domain_admin_old_users_tests()},
      {admin_last_not_configured, [], admin_last_not_configured()},
+     {admin_last_not_configured_old_users, [], admin_last_not_configured_old_users()},
+     {admin_last_not_configured_group, [], admin_last_not_configured_groups()},
      {admin_last_configured, [], admin_last_configured()},
      {user_last_not_configured, [], user_last_not_configured()}].
 
@@ -45,7 +47,7 @@ user_groups() ->
 
 admin_groups() ->
     [{group, admin_last_configured},
-     {group, admin_last_not_configured}].
+     {group, admin_last_not_configured_group}].
 
 admin_last_configured() ->
     [{group, admin_last},
@@ -54,6 +56,10 @@ admin_last_configured() ->
 domain_admin_groups() ->
     [{group, domain_admin_last},
      {group, domain_admin_old_users}].
+
+admin_last_not_configured_groups() ->
+    [{group, admin_last_not_configured},
+     {group, admin_last_not_configured_old_users}].
 
 user_tests() ->
     [user_set_last,
@@ -105,11 +111,13 @@ domain_admin_old_users_tests() ->
 admin_last_not_configured() ->
     [admin_set_last_not_configured,
      admin_get_last_not_configured,
-     admin_count_active_users_last_not_configured,
-     admin_remove_old_users_domain_last_not_configured,
-     admin_remove_old_users_global_last_not_configured,
-     admin_list_old_users_domain_last_not_configured,
-     admin_list_old_users_global_last_not_configured].
+     admin_count_active_users_last_not_configured].
+
+admin_last_not_configured_old_users() ->
+     [admin_remove_old_users_domain_last_not_configured,
+      admin_remove_old_users_global_last_not_configured,
+      admin_list_old_users_domain_last_not_configured,
+      admin_list_old_users_global_last_not_configured].
 
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
@@ -142,20 +150,18 @@ init_per_group(admin_last, Config) ->
     Config;
 init_per_group(admin_last_configured, Config) ->
     configure_last(Config);
-init_per_group(admin_last_not_configured, Config) ->
+init_per_group(admin_last_not_configured_group, Config) ->
     stop_last(Config);
-init_per_group(admin_old_users, Config) ->
+init_per_group(Group, Config) when Group =:= admin_old_users;
+                                   Group =:= domain_admin_old_users;
+                                   Group =:= admin_last_not_configured_old_users ->
     AuthMods = mongoose_helper:auth_modules(),
     case lists:member(ejabberd_auth_ldap, AuthMods) of
         true -> {skip, not_fully_supported_with_ldap};
         false -> Config
     end;
-init_per_group(domain_admin_old_users, Config) ->
-    AuthMods = mongoose_helper:auth_modules(),
-    case lists:member(ejabberd_auth_ldap, AuthMods) of
-        true -> {skip, not_fully_supported_with_ldap};
-        false -> Config
-    end.
+init_per_group(admin_last_not_configured, Config) ->
+    Config.
 
 configure_last(Config) ->
     HostType = domain_helper:host_type(),
