@@ -124,8 +124,8 @@ amp_test_helper_code() ->
     "-module(amp_test_helper).\n"
     "-compile([export_all, nowarn_export_all]).\n"
     "setup_meck() ->\n"
-    "  meck:expect(ejabberd_socket, send, fun ejabberd_socket_send/2).\n"
-    "ejabberd_socket_send(Socket, Data) ->\n"
+    "  meck:expect(ranch_tcp, send, fun ranch_tcp_send/2).\n"
+    "ranch_tcp_send(Socket, Data) ->\n"
     "  case catch binary:match(Data, <<\"Recipient connection breaks\">>) of\n"
     "    {N, _} when is_integer(N) -> {error, simulated};\n"
     "    _ -> meck:passthrough([Socket, Data])\n"
@@ -149,7 +149,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, Config1).
 
 setup_meck(suite) ->
-    ok = rpc(mim(), meck, new, [ejabberd_socket, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, new, [ranch_tcp, [passthrough, no_link]]),
     ok = rpc(mim(), amp_test_helper, setup_meck, []);
 setup_meck(mam_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {error, simulated}]);

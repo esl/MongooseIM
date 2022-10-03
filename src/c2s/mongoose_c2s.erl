@@ -803,12 +803,14 @@ sm_unset_reason(_) ->
     error.
 
 %% @doc This is the termination point - from here stanza is sent to the user
--spec send_element(c2s_data(), exml:element(), mongoose_acc:t()) -> maybe_ok().
-send_element(StateData = #c2s_data{host_type = <<>>}, El, _) ->
-    send_xml(StateData, El);
+-spec send_element(c2s_data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
+    send_xml(StateData, El),
+    Acc;
 send_element(StateData = #c2s_data{host_type = HostType}, El, Acc) ->
-    mongoose_hooks:xmpp_send_element(HostType, Acc, El),
-    send_xml(StateData, El).
+    Res = send_xml(StateData, El),
+    Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
+    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(c2s_data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(StateData, Xml) ->
