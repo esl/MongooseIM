@@ -1,5 +1,5 @@
 """
-Allow admin to manage user rester/contacts.
+Allow admin to manage user roster/contacts.
 """
 type RosterAdminMutation @protected{
   "Add a new contact to a user's roster without subscription"
@@ -35,7 +35,7 @@ type RosterAdminQuery @protected{
   "Get the user's roster/contacts"
   listContacts(user: JID!): [Contact!]
     @protected(type: DOMAIN, args: ["user"])
-  "Get the user's contact"
+  "Get the information about the user's specific contact"
   getContact(user: JID!, contact: JID!): Contact
     @protected(type: DOMAIN, args: ["user"])
 }

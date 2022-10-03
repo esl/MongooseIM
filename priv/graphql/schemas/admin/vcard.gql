@@ -8,10 +8,10 @@ type VcardAdminMutation @protected{
 }
 
 """
-Allow admin to get user's vcard
+Allow admin to get the user's vcard
 """
 type VcardAdminQuery @protected{
-    "Get user's vcard"
+    "Get the user's vcard"
     getVcard(user: JID!): Vcard
       @protected(type: DOMAIN, args: ["user"])
 }

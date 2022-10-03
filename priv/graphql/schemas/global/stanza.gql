@@ -20,6 +20,6 @@ type StanzaMap{
 
 "Send stanza payload"
 type SendStanzaPayload{
-  "Send stanza id"
+  "Stanza id"
   id: ID
 }

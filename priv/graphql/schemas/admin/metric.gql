@@ -2,7 +2,7 @@
 Result of a metric
 """
 enum MetricType {
-  "Collects values over a sliding window of 60s and returns apropriate statistical values"
+  "Collects values over a sliding window of 60s and returns appropriate statistical values"
   histogram
   "Returns a number"
   counter
@@ -13,13 +13,13 @@ enum MetricType {
   spiral
   "Consists of value and time in milliseconds elapsed from the last metric update"
   gauge
-  "Informations about the inet"
+  "TCP/IP connection statistics from the 'inet' module"
   merged_inet_stats
-  "Metrics of the relational database management sytem"
+  "Metrics of the relational database management system"
   rdbms_stats
-  "Metrics of the virual machine memory"
+  "Metrics of the virtual machine memory"
   vm_stats_memory
-  "Information about virual machine"
+  "Information about virtual machine"
   vm_system_info
   "Information about process queue length"
   probe_queues

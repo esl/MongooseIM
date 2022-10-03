@@ -2,7 +2,10 @@
 Allow admin to acquire information about mnesia database
 """
 type MnesiaAdminQuery @protected{
-  "Allow to acquire information about mnesia database"
+  """
+  Get the information about appropriate mnesia property for a specified key,
+  if no keys are provided all the available properties will be returned
+  """
   systemInfo(keys: [String!]): [MnesiaInfo]
     @protected(type: GLOBAL)
 }
@@ -56,7 +59,7 @@ type MnesiaListResponse {
   key: String
 }
 
-"Mnesia response in the form of a integer"
+"Mnesia response in the form of an integer"
 type MnesiaIntResponse {
   "Result as an integer"
   result: Int

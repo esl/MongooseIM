@@ -5,7 +5,7 @@ type ServerAdminQuery @protected{
   "Get the status of the server"
   status: Status
     @protected(type: GLOBAL)
-  "Get the loglevel of the server"
+  "Get MongooseIM node's current LogLevel"
   getLoglevel: LogLevel
     @protected(type: GLOBAL)
   "Get the Erlang cookie of this node"
@@ -35,7 +35,7 @@ type ServerAdminMutation @protected{
   "Remove a MongooseIM node from Mnesia clustering config"
   removeNode(node: String!): String
     @protected(type: GLOBAL)
-  "Set MongooseIM Node's loglevel"
+  "Set MongooseIM node's LogLevel"
   setLoglevel(level: LogLevel!): String
     @protected(type: GLOBAL)
 }

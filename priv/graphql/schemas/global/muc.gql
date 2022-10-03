@@ -1,10 +1,10 @@
-"User affilation to a specific room"
+"User affiliation to a specific room"
 enum MUCAffiliation{
   "The user is the owner of the room"
   OWNER
-  "The user has administrative role"
+  "The user has an administrative role"
   ADMIN
-  "The user is a member of the rooom"
+  "The user is a member of the room"
   MEMBER
   "The user isn't a member of the room"
   OUTCAST
@@ -14,7 +14,7 @@ enum MUCAffiliation{
 
 "MUC role types"
 enum MUCRole{
-  "User is a visiting"
+  "User is a visitor"
   VISITOR
   "User can participate in the room"
   PARTICIPANT
@@ -46,7 +46,7 @@ type MUCRoomDesc{
   jid: JID!
   "Room's title"
   title: String!
-  "Is room private?"
+  "Is the room private?"
   private: Boolean
   "Number of the users"
   usersNumber: Int
@@ -58,13 +58,13 @@ type MUCRoomConfig{
   title: String!,
   "Room's description"
   description: String!,
-  "Allow to change room's subject?"
+  "Allow to change the room's subject?"
   allowChangeSubject: Boolean!,
   "Allow to query users?"
   allowQueryUsers: Boolean!,
   "Allow private messages?"
   allowPrivateMessages: Boolean!,
-  "Allow visitor staus?"
+  "Allow visitor status?"
   allowVisitorStatus: Boolean!,
   "Allow visitors to change their nicks?"
   allowVisitorNickchange: Boolean!,
@@ -110,7 +110,7 @@ input MUCRoomConfigInput{
   allowQueryUsers: Boolean,
   "Allow private messages?"
   allowPrivateMessages: Boolean,
-  "Allow visitor staus?"
+  "Allow visitor status?"
   allowVisitorStatus: Boolean,
   "Allow visitors to change their nicks?"
   allowVisitorNickchange: Boolean,

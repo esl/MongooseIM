@@ -2,7 +2,7 @@
 scalar DateTime
 "Body of a data structure exchanged by XMPP entities in XML streams"
 scalar Stanza @spectaql(options: [{ key: "example", value: "Hi!" }])
-"Unique indetifier in the form of **node@domain**"
+"Unique identifier in the form of **node@domain**"
 scalar JID @spectaql(options: [{ key: "example", value: "alice@localhost" }])
 "The JID with resource"
 scalar FullJID @spectaql(options: [{ key: "example", value: "alice@localhost/res1" }])
