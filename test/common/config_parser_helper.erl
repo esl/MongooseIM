@@ -898,11 +898,11 @@ default_mod_config(mod_mam) ->
 default_mod_config(mod_mam_muc) ->
     maps:merge(common_mam_config(), default_config([modules, mod_mam, muc]));
 default_mod_config(mod_mam_rdbms_arch) ->
-    #{no_writer => false,
+    #{no_writer => false, delete_domain_limit => infinity,
       db_message_format => mam_message_compressed_eterm,
       db_jid_format => mam_jid_mini};
 default_mod_config(mod_mam_muc_rdbms_arch) ->
-    #{no_writer => false,
+    #{no_writer => false, delete_domain_limit => infinity,
       db_message_format => mam_message_compressed_eterm,
       db_jid_format => mam_jid_rfc};
 default_mod_config(mod_muc) ->
