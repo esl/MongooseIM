@@ -39,15 +39,14 @@ all() ->
     ].
 
 groups() ->
-    G = [
+    [
          {manage, [parallel], manage_test_cases()},
          {effect, [parallel], effect_test_cases()},
          {offline, [sequence], offline_test_cases()},
          {errors, [parallel], error_test_cases()},
          {pushes, [parallel], push_test_cases()},
          {notify, [parallel], notify_test_cases()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 manage_test_cases() ->
     [

@@ -178,7 +178,7 @@ process_sm_iq(Acc, From, To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     case can_respond(HostType, From, To) of
         true ->
             UserListRecord = mongoose_hooks:privacy_get_user_list(HostType, To),
-            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, To, UserListRecord, To, From, out),
+            {Res, Acc1} = mongoose_privacy:privacy_check_packet(Acc, To, UserListRecord, To, From, out),
             {Acc1, make_response(HostType, IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}

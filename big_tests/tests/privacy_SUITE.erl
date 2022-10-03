@@ -36,10 +36,11 @@ all() ->
     ].
 
 groups() ->
-    G = [{management, [parallel], management_test_cases()},
-         {blocking, [parallel], blocking_test_cases()},
-         {allowing, [parallel], allowing_test_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {management, [parallel], management_test_cases()},
+     {blocking, [parallel], blocking_test_cases()},
+     {allowing, [parallel], allowing_test_cases()}
+    ].
 
 management_test_cases() ->
     [
@@ -100,9 +101,10 @@ init_per_suite(Config0) ->
      escalus:init_per_suite(Config1)].
 
 set_opts(riak) ->
-    #{riak => config_parser_helper:config([modules, mod_privacy, riak], #{}), backend => riak};
+    Riak = #{riak => config_parser_helper:config([modules, mod_privacy, riak], #{}), backend => riak},
+    config_parser_helper:mod_config(mod_privacy, Riak);
 set_opts(Backend) ->
-    #{backend => Backend}.
+    config_parser_helper:mod_config(mod_privacy, #{backend => Backend}).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -692,8 +694,7 @@ block_jid_all(Config) ->
 
         %% Alice should NOT receive presence-in from Bob, no err msg
         AliceBareJID = escalus_utils:get_short_jid(Alice),
-        Presence1 = escalus_stanza:presence_direct(AliceBareJID,
-                                                   <<"available">>),
+        Presence1 = escalus_stanza:presence_direct(AliceBareJID, <<"available">>),
         escalus_client:send(Bob, Presence1),
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Bob),

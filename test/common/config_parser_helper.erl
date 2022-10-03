@@ -687,6 +687,7 @@ pgsql_modules() ->
       mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => #{}, mod_muc_light_commands => #{},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
+      mod_presence => #{},
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>

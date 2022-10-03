@@ -121,7 +121,7 @@ check_with_changing_stanza(_C) ->
 make_check(Acc, PList, To, Dir, Exp) ->
     Server = <<"localhost">>,
     User = <<"alice">>,
-    {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, jid:make(User, Server, <<>>),
+    {Res, Acc1} = mongoose_privacy:privacy_check_packet(Acc, jid:make(User, Server, <<>>),
                                                         PList, To, Dir),
     ?assertEqual(Exp, Res),
     Acc1.
