@@ -498,8 +498,10 @@ ban_account(Config) ->
 
     {ok, Mike} = escalus_client:start_for(Config, mike, <<"newres">>),
     {_, 0} = mongooseimctl("ban_account", [User, Domain, "SomeReason"], Config),
+    Res = escalus:wait_for_stanza(Mike),
+    io:format("Res ~p~n", [Res]),
     escalus:assert(is_stream_error, [<<"conflict">>, <<"SomeReason">>],
-                   escalus:wait_for_stanza(Mike)),
+                   Res),
     {error, {connection_step_failed, _, _}} = escalus_client:start_for(Config, mike, <<"newres2">>),
     mongooseimctl("change_password", [User, Domain, Pass], Config),
     escalus_connection:wait_for_close(Mike, 1000),
@@ -1071,7 +1073,7 @@ send_stanza(Config) ->
                 BobJID = <<BobName/binary, $@, Domain/binary, $/,
                            (escalus_client:resource(Bob))/binary>>,
 
-                Stanza = Stanza = create_stanza(Alice, BobJID),
+                Stanza = create_stanza(Alice, BobJID),
                 {_, 0} = mongooseimctl("send_stanza_c2s",
                        [BobName, Domain, Resource, Stanza],
                        Config),

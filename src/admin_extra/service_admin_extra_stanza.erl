@@ -179,10 +179,9 @@ send_stanza_c2s(Username, Host, Resource, Stanza) ->
         _ ->
             case exml:parse(Stanza) of
                 {ok, XmlEl} ->
-                    p1_fsm_old:send_event(C2sPid, {xmlstreamelement, XmlEl}),
+                    C2sPid ! XmlEl,
                     {ok, "Stanza has been sent"};
                 {error, _} ->
                     {bad_stanza, "Stanza is incorrect"}
             end
     end.
-

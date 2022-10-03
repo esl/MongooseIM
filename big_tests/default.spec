@@ -71,7 +71,7 @@
 {suites, "tests", mod_version_SUITE}.
 {suites, "tests", mongoose_cassandra_SUITE}.
 {suites, "tests", mongoose_elasticsearch_SUITE}.
-% {suites, "tests", mongooseimctl_SUITE}.
+{suites, "tests", mongooseimctl_SUITE}.
 % {suites, "tests", muc_SUITE}.
 {suites, "tests", muc_http_api_SUITE}.
 {suites, "tests", muc_light_SUITE}.

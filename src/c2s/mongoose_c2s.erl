@@ -15,7 +15,8 @@
 -export([start_link/2]).
 -export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, remove_mod_state/2,
-         get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
+         get_ip/1, get_socket/1, get_lang/1, get_stream_id/1,
+         terminate_session/2]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
          reroute/2, stop/2, merge_states/2]).
 
@@ -499,6 +500,8 @@ maybe_retry_state(StateData = #c2s_data{listener_opts = LOpts}, C2SState) ->
     end.
 
 -spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
+handle_info(StateData, C2SState, #xmlel{} = El) ->
+    handle_c2s_packet(StateData, C2SState, El);
 handle_info(StateData, C2SState, {route, Acc}) ->
     handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, C2SState, {route, _From, _To, Acc}) ->
@@ -518,7 +521,7 @@ handle_info(StateData, _C2SState, replaced) ->
     send_trailer(StateData),
     {stop, {shutdown, replaced}};
 handle_info(StateData, _C2SState, {exit, Reason}) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(StateData#c2s_data.lang, Reason),
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, Reason}};
@@ -924,3 +927,11 @@ merge_states(S0 = #c2s_data{},
       jid = S0#c2s_data.jid,
       state_mod = S0#c2s_data.state_mod
      }.
+
+-spec terminate_session(jid:jid() | pid() | none, binary()) -> {exit, binary()} | no_session.
+terminate_session(none, _Reason) ->
+    no_session;
+terminate_session(#jid{} = Jid, Reason) ->
+    terminate_session(ejabberd_sm:get_session_pid(Jid), Reason);
+terminate_session(Pid, Reason) ->
+    Pid ! {exit, Reason}.
