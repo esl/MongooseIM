@@ -1,6 +1,7 @@
 -module(mod_presence).
 
 -include_lib("exml/include/exml.hrl").
+-include("jlib.hrl").
 -include("mongoose_logger.hrl").
 
 -behavior(gen_mod).
@@ -38,7 +39,13 @@
          user_terminate/3,
          foreign_event/3
         ]).
--export([get/2, is_subscribed_to_my_presence/3, presence_unavailable_stanza/0]).
+-export([
+         get/2,
+         is_subscribed_to_my_presence/3,
+         presence_unavailable_stanza/0,
+         get_presence/1,
+         set_presence/2
+        ]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
@@ -51,6 +58,15 @@ stop(HostType) ->
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
+
+-spec get_presence(pid()) -> {binary(), binary()}.
+get_presence(Pid) ->
+    gen_statem:call(Pid, get_presence).
+
+-spec set_presence(pid(), exml:element()) -> ok.
+
+set_presence(Pid, Message) ->
+    gen_statem:cast(Pid, {set_presence, Message}).
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
@@ -122,8 +138,44 @@ foreign_event(Acc, #{c2s_data := StateData,
         Presences ->
             {stop, handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences)}
     end;
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := {call, From},
+                     event_content := get_presence}, _Extra) ->
+    PresLast = case get_mod_state(StateData) of
+                 {error, not_found} ->
+                     undefined;
+                 #presences_state{pres_last = Value} ->
+                     Value
+               end,
+    #jid{luser = User, lresource = Resource} = mongoose_c2s:get_jid(StateData),
+    Reply = {User, Resource, get_showtag(PresLast), get_statustag(PresLast)},
+    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
+    {stop, Acc1};
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := cast,
+                     event_content := {set_presence, Message}}, _Extra) ->
+    Acc1 = mongoose_acc:update_stanza(#{element => Message}, Acc),
+    {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc1),
+    StanzaType = mongoose_acc:stanza_type(Acc1),
+    {stop, presence_update(Acc1, FromJid, ToJid, Packet, StateData, StanzaType)};
 foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
+
+-spec get_showtag(undefined | exml:element()) -> binary().
+get_showtag(undefined) ->
+    <<"unavailable">>;
+get_showtag(Presence) ->
+    case xml:get_path_s(Presence, [{elem, <<"show">>}, cdata]) of
+        <<>> -> <<"available">>;
+        ShowTag -> ShowTag
+    end.
+
+-spec get_statustag(undefined | exml:element()) -> binary().
+
+get_statustag(undefined) ->
+    <<>>;
+get_statustag(Presence) ->
+    xml:get_path_s(Presence, [{elem, <<"status">>}, cdata]).
 
 -spec handle_subscription_change(
         mongoose_acc:t(), mongoose_c2s:c2s_data(), term(), term(), presences_state()) ->

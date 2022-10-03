@@ -166,11 +166,10 @@ set_presence(JID, Type, Show, Status, Priority) ->
     Children = maybe_pres_status(Status,
                                  maybe_pres_priority(Priority,
                                                      maybe_pres_show(Show, []))),
-    Message = {xmlstreamelement,
-               #xmlel{name = <<"presence">>,
+    Message = #xmlel{name = <<"presence">>,
                       attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
-                      children = Children}},
-    ok = p1_fsm_old:send_event(Pid, Message),
+                      children = Children},
+    ok = mod_presence:set_presence(Pid, Message),
     {ok, <<"Presence set successfully">>}.
 
 -spec kick_sessions(jid:jid(), binary()) -> [kick_session_result()].
@@ -209,7 +208,7 @@ prepare_reason(Reason) when is_binary(Reason) ->
 
 -spec get_status_list([session()], status()) -> [status_user_info()].
 get_status_list(Sessions0, StatusRequired) ->
-    Sessions = [ {catch ejabberd_c2s:get_presence(Pid), S, P}
+    Sessions = [ {catch mod_presence:get_presence(Pid), S, P}
                  || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P} <- Sessions0
                ],
 

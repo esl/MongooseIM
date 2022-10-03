@@ -25,9 +25,7 @@
          total_count/0,
          unique_count/0]).
 
--export([total_count_internal/0]).
-
--ignore_xref([maybe_initial_cleanup/2, total_count_internal/0]).
+-ignore_xref([maybe_initial_cleanup/2]).
 
 -spec init(map()) -> any().
 init(_Opts) ->
@@ -158,15 +156,8 @@ maybe_initial_cleanup(Node, Initial) ->
 
 -spec total_count() -> integer().
 total_count() ->
-    {Counts, _} = rpc:multicall(?MODULE, total_count_internal, []),
+    {Counts, _} = rpc:multicall(ejabberd_sm, get_node_sessions_number, []),
     lists:sum(Counts).
-
--spec total_count_internal() -> integer().
-
-total_count_internal() ->
-    Children = supervisor:which_children(mongoose_listener_sup),
-    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
-    lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]).
 
 -spec unique_count() -> integer().
 unique_count() ->
