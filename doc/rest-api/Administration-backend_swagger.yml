@@ -11,6 +11,9 @@ info:
     Please note that many of the fields such as **username** or **caller** expect a **JID** (jabber identifier, f.e. **alice@wonderland.com**). There are two types of **JIDs**:
       * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `mongooseim.toml` file).
       * **full JID** - is a **bare JID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
+
+    You should enable authentication to make sure the server can identify who sent the request and if it comes from an authorized user.
+    Currently the only supported method is **Basic Auth**.
 schemes:
   - http
 basePath: /api
@@ -20,29 +23,6 @@ produces:
   - application/json
 host: "localhost:8088"
 paths:
-  /commands:
-    get:
-      description: Lists the available commands for administering MongooseIM.
-      tags:
-        - "Commands"
-      responses:
-        200:
-          description: A list of information on all the commands that are currently available.
-          schema:
-            title: commandList
-            type: array
-            items:
-              title: commandDescription
-              type: object
-              properties:
-                name:
-                  type: string
-                category:
-                  type: string
-                action:
-                  type: string
-                desc:
-                  type: string
   /users/{XMPPHost}:
     parameters:
       - $ref: '#/parameters/hostName'
@@ -661,6 +641,293 @@ paths:
       responses:
         204:
           description: User was kicked out from the MUC room.
+  /inbox/{domain}/{userName}/{days}/bin:
+    parameters:
+      - name: domain
+        in: path
+        description: Domain part of the user's JID
+        required: true
+        type: string
+      - name: userName
+        in: path
+        description: Name part of the user's JID
+        required: true
+        type: string
+      - $ref: '#/parameters/days'
+    delete:
+      tags:
+        - "Inbox management"
+      description: Clean the bin for a given user
+      responses:
+        200:
+          description: The bin has been cleaned. The number of rows removed is returned as the body.
+  /inbox/{hostType}/{days}/bin:
+    parameters:
+      - $ref: '#/parameters/hostType'
+      - $ref: '#/parameters/days'
+    delete:
+      tags:
+        - "Inbox management"
+      description: Clean the bins of all users from a given host type
+      responses:
+        200:
+          description: The bin has been cleaned. The number of rows removed is returned as the body.
+  /domains/{domain}:
+    put:
+      description: Adds a domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
+      responses:
+        204:
+          description: Domain was successfully inserted.
+        400:
+          description: Bad request.
+        409:
+          description: Domain already exists with a different host type.
+        403:
+          description: DB service disabled, or the host type is unknown.
+        500:
+          description: Other errors.
+    patch:
+      description: Enables/disables a domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: enabled
+          description: Whether to enable or to disable a domain.
+          required: true
+          schema:
+            title: Enabled
+            type: object
+            properties:
+              enabled:
+                example: true
+                type: boolean
+      responses:
+        204:
+          description: Domain was successfully updated.
+        404:
+          description: Domain not found.
+        403:
+          description: Domain is static, or the service is disabled.
+        500:
+          description: Other errors.
+    get:
+      description: Returns information about the domain.
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - name: domain
+          type: string
+          in: path
+          required: true
+      responses:
+        200:
+          description: Successful response.
+        404:
+          description: Domain not found.
+    delete:
+      description: "Removes a domain"
+      tags:
+        - "Dynamic domains"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
+      responses:
+        204:
+          description: "The domain is removed or not found."
+        403:
+          description: |
+            One of:
+              * the domain is static.
+              * the DB service is disabled.
+              * the host type is wrong (does not match the host type in the database).
+              * the host type is unknown.
+        500:
+          description: "Other errors."
+  /metrics/:
+    get:
+      description: Returns a list of host type names and metric names
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Host type names and metric names.
+          schema:
+            type: object
+            properties:
+              host_types:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "localhost"
+              metrics:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "xmppErrorIq"
+                    - "xmppPresenceReceived"
+                    - "xmppMessageBounced"
+              global:
+                schema:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "nodeSessionCount"
+                    - "totalSessionCount"
+                    - "uniqueSessionCount"
+  /metrics/all:
+    get:
+      description: Returns a list of metrics aggregated for all host types
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              metrics:
+                type: object
+                example:
+                  modRosterPush:
+                    one: 0
+                    count: 0
+  /metrics/all/{metric}:
+    parameters:
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the metric value aggregated for all host types
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Aggregated metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  one: 0
+                  count: 0
+        404:
+          description: There is no such metric
+  /metrics/host_type/{hostType}:
+    parameters:
+      - $ref: '#/parameters/hostType'
+    get:
+      description: Returns the values of all host-type metrics
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              metrics:
+                type: object
+                example:
+                  modRosterPush:
+                    one: 0
+                    count: 0
+        404:
+          description: There is no such host type
+  /metrics/host_type/{hostType}/{metric}:
+    parameters:
+      - $ref: '#/parameters/hostType'
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the value of a host-type metric
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  one: 0
+                  count: 0
+        404:
+          description: There is no such metric
+  /metrics/global:
+    get:
+      description: Returns the values of all global metrics
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metrics
+          schema:
+            type: object
+            properties:
+              type: object
+              example:
+                nodeUpTime:
+                  value: 6604
+  /metrics/global/{metric}:
+    parameters:
+      - $ref: '#/parameters/metric'
+    get:
+      description: Returns the value of a global metric
+      tags:
+        - "Metrics"
+      responses:
+        200:
+          description: Metric value
+          schema:
+            type: object
+            properties:
+              metric:
+                type: object
+                example:
+                  value: 6604
+        404:
+          description: There is no such global metric
 
 parameters:
   MUCServer:
@@ -676,7 +943,12 @@ parameters:
     description: The XMPP host served by the server.
     required: true
     type: string
-    format: hostname
+  hostType:
+    name: hostType
+    in: path
+    description: Host type configured on the server
+    required: true
+    type: string
   roomName:
     name: roomName
     in: path
@@ -687,6 +959,18 @@ parameters:
     name: roomID
     in: path
     description: The MUC Light room's **id**
+    required: true
+    type: string
+  days:
+    name: days
+    in: path
+    description: Number of days for an entry to be considered old enough to be removed, zero allowed (which clears all)
+    required: true
+    type: integer
+  metric:
+    name: metric
+    description: Metric name
+    in: path
     required: true
     type: string
 

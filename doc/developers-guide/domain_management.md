@@ -112,84 +112,9 @@ Please note, that [`mod_auth_token`](../modules/mod_auth_token.md) is the only e
 
 Described in the [`services` section](../configuration/Services.md#service_domain_db).
 
-## REST API
-
-Provides API for adding/removing and enabling/disabling domains over HTTP.
-Implemented by `mongoose_domain_handler` module.
-
-Configuration described in the [`listen` section](../configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler).
-
-REST API is documented using Swagger in [REST API for dynamic domains management](../rest-api/Dynamic-domains.md).
-Below are examples of how to use this API with the help of `curl`:
-
-### Add domain
-
-```bash
-curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"host_type": "type1"}'
-```
-
-Result codes:
-
-* 204 - Domain was successfully inserted.
-* 400 - Bad request.
-* 403 - DB service disabled, or the host type is unknown.
-* 409 - Domain already exists with a different host type.
-* 500 - Other errors.
-
-Example of the result body with a failure reason:
-
-```
-{"what":"unknown host type"}
-```
-
-Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
-
-### Remove domain
-
-You must provide the domain's host type inside the body:
-
-```bash
-curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"host_type": "type1"}'
-```
-
-Result codes:
-
-* 204 - The domain is removed or not found.
-* 403 - One of:
-    * the domain is static.
-    * the DB service is disabled.
-    * the host type is wrong (does not match the host type in the database).
-    * the host type is unknown.
-* 500 - Other errors.
-
-### Enable/disable domain
-
-Provide `{"enabled": true}` as a body to enable a domain.
-Provide `{"enabled": false}` as a body to disable a domain.
-
-```bash
-curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"enabled": true}'
-```
-
-Result codes:
-
-* 204 - Domain was successfully updated.
-* 403 - Domain is static, or the service is disabled.
-* 404 - Domain not found.
-* 500 - Other errors.
-
 ## Command Line Interface
 
-Domain management commands are grouped into the `domain` category.
+You can manage the domains with the `mongooseimctl` command. Some examples are provided below:
 
 ### Add domain:
 
@@ -214,3 +139,12 @@ Domain management commands are grouped into the `domain` category.
 ```
 ./mongooseimctl domain enableDomain --domain example.com
 ```
+
+Run `./mongooseimctl domain` to get more information about all supported operations.
+
+## API
+
+You can manage domains with one of our API's:
+
+* The [GraphQL API](../../graphql-api/Admin-GraphQL) has the same funtionality as the command line interface. The <a href="../../graphql-api/admin-graphql-doc.html#query-domain">queries</a> and <a href="../../graphql-api/admin-graphql-doc.html#mutation-domain">mutations</a> for domains are grouped under the `domain` category.
+* The [REST API](../../rest-api/Administration-backend) (deprecated) supports domain management as well. See <a href="../../swagger/index.html#/Dynamic_domains">Dynamic Domains</a> for details.

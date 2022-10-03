@@ -32,7 +32,7 @@ A list of supported inbox boxes by the server. This can be used by clients to cl
 !!! note
     `inbox`, `archive`, and `bin` are reserved box names and are always enabled, therefore they don't need to –and must not– be specified in this section. `all` has a special meaning in the box query and therefore is also not allowed as a box name.
 
-    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), or through an [admin API endpoint](../mod_inbox_commands#admin-endpoint).
+    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), with the `mongooseimctl inbox` command, through the [GraphQL API](../../graphql-api/Admin-GraphQL), or through the [REST API](../../rest-api/Administration-backend).
 
 #### `modules.mod_inbox.bin_ttl`
 * **Syntax:** non-negative integer, expressed in days.
