@@ -28,10 +28,10 @@
 
 -export([deps/2, start/2, stop/1, config_spec/0]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
--export([maybe_reroute/1]).
+-export([maybe_reroute/3]).
 -export([process_opts/1, process_endpoint/1]).
 
--ignore_xref([maybe_reroute/1, remove_metadata/2]).
+-ignore_xref([remove_metadata/2]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -59,19 +59,19 @@ bounce_modules(#{enabled := false}) -> [].
 start(HostType, #{global_host := HostType}) ->
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, histogram),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, spiral),
-    ejabberd_hooks:add(hooks());
+    gen_hook:add_handlers(hooks());
 start(_HostType, #{}) ->
     ok.
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, global_host) of
-        HostType -> ejabberd_hooks:delete(hooks());
+        HostType -> gen_hook:delete_handlers(hooks());
         _ -> ok
     end.
 
 hooks() ->
-    [{filter_packet, global, ?MODULE, maybe_reroute, 99}].
+    [{filter_packet, global, fun ?MODULE:maybe_reroute/3, #{}, 99}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -224,13 +224,15 @@ remove_metadata(Acc, Key) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec maybe_reroute(drop) -> drop;
-                   ({jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) ->
-    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
-maybe_reroute(drop) -> drop;
+-spec maybe_reroute(drop, _, _) -> drop;
+                   (FPacket, Params, Extra) -> {ok, drop} | {ok, FPacket} when
+                FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()},
+                Params :: map(),
+                Extra :: map().
+maybe_reroute(drop, _, _) -> {ok, drop};
 maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
                #jid{ luser = SameUser, lserver = SameServer } = _To,
-               _Acc, _Packet} = FPacket) ->
+               _Acc, _Packet} = FPacket, _, _) ->
     %% GD is not designed to support two user sessions existing in distinct clusters
     %% and here we explicitly block routing stanzas between them.
     %% Without this clause, test_pm_with_ungraceful_reconnection_to_different_server test
@@ -238,8 +240,8 @@ maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
     %% was poisoning reg1 cache. In such case, reg1 tried to route locally stanzas
     %% from unacked SM buffer, leading to an error, while a brand new, shiny Eve
     %% on mim1 was waiting.
-    FPacket;
-maybe_reroute({From, To, _, Packet} = FPacket) ->
+    {ok, FPacket};
+maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
     Acc = maybe_initialize_metadata(FPacket),
     {ok, ID} = find_metadata(Acc, id),
     LocalHost = opt(local_host),
@@ -247,7 +249,7 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
     %% If target_host_override is set (typically when routed out of bounce storage),
     %% host lookup is skipped and messages are routed to target_host_override value.
     TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
-    case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
+    ResultFPacket = case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
             %% Continue routing with initialized metadata
             mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost,
@@ -288,7 +290,8 @@ maybe_reroute({From, To, _, Packet} = FPacket) ->
             ?LOG_DEBUG(#{what => gd_route_failed, gd_id => ID, acc => Acc,
                          text => <<"Unable to route global: user not found in the routing table">>}),
             mongoose_hooks:mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet})
-    end.
+    end,
+    {ok, ResultFPacket}.
 
 %%--------------------------------------------------------------------
 %% Helpers
