@@ -29,7 +29,6 @@
 %% External exports
 -export([start/2,
          stop/1,
-         terminate_session/2,
          start_link/2,
          send_text/2,
          get_presence/1,
@@ -169,15 +168,6 @@ send_filtered(FsmRef, Feature, From, To, Packet) ->
 %% @doc Stops the session gracefully, entering resume state if applicable
 stop(FsmRef) ->
     p1_fsm_old:send_event(FsmRef, closed).
-
-%% @doc terminates the session immediately and unconditionally, sending the user a stream conflict
-%% error specifying the reason
-terminate_session(none, _Reason) ->
-    no_session;
-terminate_session(#jid{} = Jid, Reason) ->
-    terminate_session(ejabberd_sm:get_session_pid(Jid), Reason);
-terminate_session(Pid, Reason) when is_pid(Pid) ->
-    Pid ! {exit, Reason}.
 
 store_session_info(FsmRef, JID, Key, Value) ->
     FsmRef ! {store_session_info, JID, Key, Value, self()}.

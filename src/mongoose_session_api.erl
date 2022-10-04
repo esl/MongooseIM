@@ -187,10 +187,10 @@ kick_session(User, Server, Resource, ReasonText) ->
 
 -spec kick_session(jid:jid(), binary()) -> kick_session_result().
 kick_session(JID, ReasonText) ->
-    case mongoose_c2s:terminate_session(JID, prepare_reason(ReasonText)) of
+    case ejabberd_sm:terminate_session(JID, prepare_reason(ReasonText)) of
         no_session ->
             {no_session, <<"No active session">>};
-        {exit, ReasonText} ->
+        ok ->
             {ok, <<"Session kicked">>}
     end.
 

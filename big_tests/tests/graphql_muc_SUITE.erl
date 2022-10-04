@@ -777,7 +777,7 @@ user_without_session_send_message_to_room(Config) ->
 user_without_session_send_message_to_room_story(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
-    {exit, _} = rpc(mim(), ejabberd_c2s, terminate_session, [JID, <<"Kicked">>]),
+    ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [JID, <<"Kicked">>])),
     % Send message
     Res = user_send_message_to_room(Alice, RoomJID, <<"Hello!">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have any session">>)).
