@@ -1071,7 +1071,7 @@ send_stanza(Config) ->
                 BobJID = <<BobName/binary, $@, Domain/binary, $/,
                            (escalus_client:resource(Bob))/binary>>,
 
-                Stanza = Stanza = create_stanza(Alice, BobJID),
+                Stanza = create_stanza(Alice, BobJID),
                 {_, 0} = mongooseimctl("send_stanza_c2s",
                        [BobName, Domain, Resource, Stanza],
                        Config),

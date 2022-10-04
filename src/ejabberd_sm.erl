@@ -66,6 +66,7 @@
          get_user_present_pids/2,
          sync/0,
          run_session_cleanup_hook/1,
+         terminate_session/2,
          sm_backend/0
         ]).
 
@@ -323,7 +324,7 @@ bounce_offline_message(Acc, From, To, Packet) ->
 -spec disconnect_removed_user(mongoose_acc:t(), User :: jid:user(),
                               Server :: jid:server()) -> mongoose_acc:t().
 disconnect_removed_user(Acc, User, Server) ->
-    lists:map(fun({_, Pid}) -> ejabberd_c2s:terminate_session(Pid, <<"User removed">>) end,
+    lists:foreach(fun({_, Pid}) -> terminate_session(Pid, <<"User removed">>) end,
               get_user_present_pids(User, Server)),
     Acc.
 
@@ -466,6 +467,17 @@ run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
               lserver => S,
               element => undefined}),
     mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
+
+-spec terminate_session(jid:jid() | pid(), binary()) -> ok | no_session.
+terminate_session(#jid{} = Jid, Reason) ->
+    case get_session_pid(Jid) of
+        none ->
+            no_session;
+        Pid ->
+            terminate_session(Pid, Reason)
+    end;
+terminate_session(Pid, Reason) ->
+    mongoose_c2s:exit(Pid, Reason).
 
 %%====================================================================
 %% Hook handlers
