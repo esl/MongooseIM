@@ -20,7 +20,7 @@ type MUCLightAdminMutation @protected{
   "Send a message to a MUC Light room"
   sendMessageToRoom(room: JID!, from: JID!, body: String!): String
     @protected(type: DOMAIN, args: ["from"])
-  "Set the user blocking list"
+  "Set the user's list of blocked entities"
   setBlockingList(user: JID!, items: [BlockingInput!]!): String
     @protected(type: DOMAIN, args: ["user"])
 }
@@ -41,7 +41,7 @@ type MUCLightAdminQuery @protected{
   "Get the list of MUC Light rooms that the user participates in"
   listUserRooms(user: JID!): [JID!]
     @protected(type: DOMAIN, args: ["user"])
-  "Get the user blocking list"
+  "Get the user's list of blocked entities"
   getBlockingList(user: JID!): [BlockingItem!]
     @protected(type: DOMAIN, args: ["user"])
 }

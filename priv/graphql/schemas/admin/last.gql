@@ -2,7 +2,7 @@
 Allow admin to manage last activity.
 """
 type LastAdminQuery @use(modules: ["mod_last"]) @protected{
-  "Get the user's last activity information"
+  "Get the user's last status and timestamp"
   getLast(user: JID!): LastActivity
     @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
   "Get the number of users active from the given timestamp"
@@ -20,7 +20,7 @@ type LastAdminQuery @use(modules: ["mod_last"]) @protected{
 Allow admin to get information about last activity.
 """
 type LastAdminMutation @use(modules: ["mod_last"]) @protected{
-  "Set user's last activity information"
+  "Set user's last status and timestamp"
   setLast(user: JID!, timestamp: DateTime, status: String!): LastActivity
     @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
   """

@@ -9,10 +9,10 @@ type AdminAuthInfo{
 }
 
 enum AuthType{
-  ""
+  "Administrator of the specific domain"
   DOMAIN_ADMIN
-  ""
+  "Global administrator"
   ADMIN
-  ""
+  "Unauthorized user"
   UNAUTHORIZED
 }

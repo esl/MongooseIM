@@ -12,7 +12,7 @@ type AdminQuery{
   checkAuth: AdminAuthInfo
   "Account management"
   account: AccountAdminQuery
-  "Domain management"
+  "Dynamic domain management"
   domain: DomainAdminQuery
   "Last activity management"
   last: LastAdminQuery
@@ -20,25 +20,25 @@ type AdminQuery{
   muc: MUCAdminQuery
   "MUC Light room management"
   muc_light: MUCLightAdminQuery
-  "Session management"
+  "User session management"
   session: SessionAdminQuery
-  "Stanza management"
+  "Sending stanzas and querying MAM"
   stanza: StanzaAdminQuery
-  "Roster/Contacts management"
+  "User roster/contacts management"
   roster: RosterAdminQuery
-  "Vcard management"
+  "vCard management"
   vcard: VcardAdminQuery
-  "Private storage management"
+  "User private storage management"
   private: PrivateAdminQuery
-  "Metrics management"
+  "Browse metrics"
   metric: MetricAdminQuery
-  "Statistics"
+  "Server statistics"
   stat: StatsAdminQuery
   "Personal data management according to GDPR"
   gdpr: GdprAdminQuery
   "Mnesia internal database management"
   mnesia: MnesiaAdminQuery
-  "Server management"
+  "Server info and management"
   server: ServerAdminQuery
 }
 
@@ -49,34 +49,34 @@ Only an authenticated admin can execute these mutations.
 type AdminMutation @protected{
   "Account management"
   account: AccountAdminMutation
-  "Domain management"
+  "Dynamic domain management"
   domain: DomainAdminMutation
-  "Inbox bin management"
+  "Inbox bin flushing"
   inbox: InboxAdminMutation
-  "Last activity management"
+  "Last user activity management"
   last: LastAdminMutation
   "MUC room management"
   muc: MUCAdminMutation
   "MUC Light room management"
   muc_light: MUCLightAdminMutation
-  "Session management"
+  "User session management"
   session: SessionAdminMutation
-  "Stanza management"
+  "Sending stanzas and querying MAM"
   stanza: StanzaAdminMutation
-  "Roster/Contacts management"
+  "User roster/contacts management"
   roster: RosterAdminMutation
-  "Vcard management"
+  "vCard management"
   vcard: VcardAdminMutation
-  "Private storage management"
+  "User private storage management"
   private: PrivateAdminMutation
-  "Http upload"
+  "Generating upload/download URLs for the files"
   httpUpload: HttpUploadAdminMutation
-  "Offline deleting old messages"
+  "Deleting old Offline messages"
   offline: OfflineAdminMutation
-  "OAUTH token management"
+  "OAUTH user token management"
   token: TokenAdminMutation
   "Mnesia internal database management"
   mnesia: MnesiaAdminMutation
-  "Server management"
+  "Server info and management"
   server: ServerAdminMutation
 }

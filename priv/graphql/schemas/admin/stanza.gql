@@ -1,14 +1,17 @@
 type StanzaAdminQuery @protected{
-  "Get n last messages to/from a given contact (optional) with limit and optional date"
+  """
+  Get last 50 messages to/from a given contact, optionally you can change the limit,
+  specify a date or select only messages exchanged with a specific contact
+  """
   getLastMessages(caller: JID!, with: JID, limit: Int = 50, before: DateTime): StanzasPayload
     @protected(type: DOMAIN, args: ["caller"])
 }
 
 type StanzaAdminMutation @protected{
-  "Send a chat message to a local or remote bare or full JID"
+  "Send a chat message from a given contact to a local or remote bare or full JID"
   sendMessage(from: JID!, to: JID!, body: String!): SendStanzaPayload
     @protected(type: DOMAIN, args: ["from"])
-  "Send a headline message to a local or remote bare or full JID"
+  "Send a headline message from a given contact to a local or remote bare or full JID"
   sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
     @protected(type: DOMAIN, args: ["from"])
   "Send an arbitrary stanza. Only for global admin"

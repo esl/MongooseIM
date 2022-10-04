@@ -1,19 +1,31 @@
 """
 Result of a metric
 """
-
 enum MetricType {
+  "Collects values over a sliding window of 60s and returns appropriate statistical values"
   histogram
+  "Returns a number"
   counter
+  """
+  Provides 2 values: total event count and a value in 60s window.
+  Dividing one value by 60 provides an average per-second value over last minute.
+  """
   spiral
+  "Consists of value and time in milliseconds elapsed from the last metric update"
   gauge
+  "TCP/IP connection statistics from the 'inet' module"
   merged_inet_stats
+  "Metrics of the relational database management system"
   rdbms_stats
+  "Metrics of the virtual machine memory"
   vm_stats_memory
+  "Information about virtual machine"
   vm_system_info
+  "Information about process queue length"
   probe_queues
 }
 
+"Type of metric result"
 union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
                    | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
                    | VMStatsMemoryMetric | VMSystemInfoMetric

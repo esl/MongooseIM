@@ -567,8 +567,8 @@ basic_commands() ->
      {"stop", [], "Stop MongooseIM"},
      {"restart", [], "Restart MongooseIM"},
      {"help", ["[--tags [tag] | com?*]"], "Show help for the deprecated commands"},
-     {"mnesia", ["[info]"], "show information of Mnesia system"},
-     {"graphql", ["query"], "Execute graphql query or mutation"}].
+     {"mnesia", ["[info]"], "Show information about Mnesia database management system"},
+     {"graphql", ["query"], "Execute GraphQL query or mutation"}].
 
 -spec print_categories(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_categories(HelpMode, MaxC, ShCode) ->

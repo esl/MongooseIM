@@ -1,28 +1,46 @@
+"User's affiliation"
 enum Affiliation{
+  "Owner of the room"
   OWNER
+  "Member of the room"
   MEMBER
+  "User doesn't have any affiliation"
   NONE
 }
 
+"Specifies blocking data"
 input BlockingInput{
+  "Type of entity to block"
   entityType: BlockedEntityType!
+  "Type of blocking action"
   action: BlockingAction!
+  "Entity's JID"
   entity: JID!
 }
 
+"Blocking item data"
 type BlockingItem{
+  "Type of the entity"
   entityType: BlockedEntityType!
+  "Action to be taken"
   action: BlockingAction!
+  "Entity's JID"
   entity: JID!
 }
 
+"Type of blocking action"
 enum BlockingAction{
+  "Unblock user/room"
   ALLOW,
+  "Block user/room"
   DENY
 }
 
+"Type of blocked entity"
 enum BlockedEntityType{
+  "Individual user"
   USER,
+  "MUC Light room"
   ROOM
 }
 
@@ -40,15 +58,24 @@ type RoomConfigDictEntry{
   value: String!
 }
 
+"Room data"
 type Room{
+  "Room's JId"
   jid: JID!
+  "Name of the room"
   name: String!
+  "Subject of the room"
   subject: String!
+  "List of participants"
   participants: [RoomUser!]!
+  "Configuration options"
   options: [RoomConfigDictEntry!]!
 }
 
+"Room user data"
 type RoomUser{
+  "User's JID"
   jid: JID!
+  "User's affiliation"
   affiliation: Affiliation!
 }
