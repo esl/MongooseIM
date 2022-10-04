@@ -224,9 +224,9 @@ remove_metadata(Acc, Key) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec maybe_reroute(drop, _, _) -> drop;
+-spec maybe_reroute(drop, _, _) -> {ok, drop};
                    (FPacket, Params, Extra) -> {ok, drop} | {ok, FPacket} when
-                FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()},
+                FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()},    
                 Params :: map(),
                 Extra :: map().
 maybe_reroute(drop, _, _) -> {ok, drop};
