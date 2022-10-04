@@ -11,7 +11,8 @@
          has_peer_cert/2,
          is_channel_binding_supported/1,
          is_ssl/1,
-         get_ip/1
+         get_ip/1,
+         get_conn_type/1
         ]).
 
 -record(c2s_socket, {
@@ -22,7 +23,8 @@
          }).
 -type socket() :: #c2s_socket{}.
 -type transport() :: ranch_tcp | ranch_ssl | fast_tls.
--export_type([transport/0, socket/0]).
+-type conntype() :: c2s | c2s_tls.
+-export_type([transport/0, socket/0, conntype/0]).
 
 %%%----------------------------------------------------------------------
 %%% socket helpers
@@ -172,3 +174,8 @@ is_ssl(#c2s_socket{transport = Transport}) ->
 -spec get_ip(socket()) -> term().
 get_ip(#c2s_socket{ip = Ip}) ->
     Ip.
+
+-spec get_conn_type(socket()) -> conntype().
+get_conn_type(#c2s_socket{transport = ranch_tcp}) -> c2s;
+get_conn_type(#c2s_socket{transport = ranch_ssl}) -> c2s_tls;
+get_conn_type(#c2s_socket{transport = fast_tls}) -> c2s_tls.

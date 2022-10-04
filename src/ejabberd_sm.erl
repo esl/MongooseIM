@@ -436,10 +436,9 @@ get_vh_session_list(Server) ->
 
 -spec get_node_sessions_number() -> non_neg_integer().
 get_node_sessions_number() ->
-    {value, {active, Active}} = lists:keysearch(active, 1,
-                                                supervisor:count_children(ejabberd_c2s_sup)),
-    Active.
-
+    Children = supervisor:which_children(mongoose_listener_sup),
+    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+    lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]).
 
 -spec get_full_session_list() -> [session()].
 get_full_session_list() ->

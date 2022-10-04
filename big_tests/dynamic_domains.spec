@@ -54,11 +54,11 @@
 {suites, "tests", graphql_muc_light_SUITE}.
 {suites, "tests", graphql_private_SUITE}.
 {suites, "tests", graphql_roster_SUITE}.
-% {suites, "tests", graphql_session_SUITE}.
+{suites, "tests", graphql_session_SUITE}.
 {suites, "tests", graphql_stanza_SUITE}.
 {suites, "tests", graphql_vcard_SUITE}.
 {suites, "tests", graphql_offline_SUITE}.
-% {suites, "tests", graphql_stats_SUITE}.
+{suites, "tests", graphql_stats_SUITE}.
 {suites, "tests", graphql_gdpr_SUITE}.
 {suites, "tests", graphql_token_SUITE}.
 {suites, "tests", graphql_mnesia_SUITE}.

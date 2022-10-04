@@ -28,10 +28,11 @@
           sid = ejabberd_sm:make_new_sid() :: ejabberd_sm:sid(),
           streamid = new_stream_id() :: binary(),
           jid :: undefined | jid:jid(),
-          socket :: ranch_transport:socket(),
+          socket :: undefined | mongoose_c2s_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
           listener_opts :: mongoose_listener:options(),
+          auth_module :: undefined | module(),
           state_mod = #{} :: #{module() => term()}
          }).
 -type c2s_data() :: #c2s_data{} | ejabberd_c2s:state().
@@ -395,10 +396,12 @@ handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
 -spec handle_sasl_success(c2s_data(), term()) -> fsm_res().
 handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
     ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
+    AuthModule = mongoose_credentials:get(Creds, auth_module),
     send_element_from_server_jid(State, mongoose_c2s_stanzas:sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     NewState = State#c2s_data{streamid = new_stream_id(),
-                              jid = jid:make_bare(User, State#c2s_data.lserver)},
+                              jid = jid:make_bare(User, State#c2s_data.lserver),
+                              auth_module = AuthModule},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
                 c2s_state => NewState}),
     {next_state, {wait_for_stream, authenticated}, NewState, state_timeout(LOpts)}.
@@ -466,11 +469,18 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
 -spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t(), jlib:iq()) -> fsm_res().
-do_open_session(#c2s_data{host_type = HostType, sid = SID, jid = Jid} = StateData, C2SState, Acc, IQ) ->
+do_open_session(#c2s_data{host_type = HostType,
+                          sid = SID,
+                          jid = Jid,
+                          socket = Socket,
+                          auth_module = AuthModule} = StateData, C2SState, Acc, IQ) ->
     BindResult = mongoose_c2s_stanzas:successful_resource_binding(IQ, Jid),
     MAcc = mongoose_c2s_acc:new(#{c2s_state => session_established, socket_send => [BindResult]}),
     Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc),
-    FsmActions = case ejabberd_sm:open_session(HostType, SID, Jid, 0, #{}) of
+    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
+             conn => mongoose_c2s_socket:get_conn_type(Socket),
+             auth_module => AuthModule},
+    FsmActions = case ejabberd_sm:open_session(HostType, SID, Jid, 0, Info) of
                      [] -> [];
                      ReplacedPids ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
