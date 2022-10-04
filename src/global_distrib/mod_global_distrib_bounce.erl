@@ -30,10 +30,10 @@
 
 -export([start_link/0, start/2, stop/1, deps/2]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
--export([maybe_store_message/1, reroute_messages/4]).
+-export([maybe_store_message/3, reroute_messages/3]).
 -export([bounce_queue_size/0]).
 
--ignore_xref([bounce_queue_size/0, maybe_store_message/1, reroute_messages/4, start_link/0]).
+-ignore_xref([bounce_queue_size/0, start_link/0]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -46,14 +46,14 @@ start(HostType, _Opts) ->
     EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}], [value]},
     QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
     ejabberd_sup:stop_child(?MODULE),
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
 
@@ -62,8 +62,8 @@ deps(_HostType, Opts) ->
     [{mod_global_distrib_utils, Opts, hard}].
 
 hooks(HostType) ->
-    [{mod_global_distrib_unknown_recipient, HostType, ?MODULE, maybe_store_message, 80},
-     {mod_global_distrib_known_recipient, HostType, ?MODULE, reroute_messages, 80}].
+    [{mod_global_distrib_unknown_recipient, HostType, fun ?MODULE:maybe_store_message/3, #{}, 80},
+     {mod_global_distrib_known_recipient, HostType, fun ?MODULE:reroute_messages/3, #{}, 80}].
 
 -spec start_link() -> {ok, pid()} | {error, any()}.
 start_link() ->
@@ -99,14 +99,16 @@ terminate(_Reason, _State) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec maybe_store_message(drop) -> drop;
-                         ({jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) ->
-                                 drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}.
-maybe_store_message(drop) -> drop;
-maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
+-spec maybe_store_message(drop, _, _) -> {ok, drop};
+                         (FPacket, Params, Extra) -> {ok, drop} | {ok, FPacket} when
+                        FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()},
+                        Params :: map(),
+                        Extra :: map().
+maybe_store_message(drop, _, _) -> {ok, drop};
+maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
     LocalHost = opt(local_host),
     {ok, ID} = mod_global_distrib:find_metadata(Acc0, id),
-    case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost},
+    ResultAcc = case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost},
                                          opt([bounce, max_retries])) of
         0 ->
             ?LOG_DEBUG(#{what => gd_skip_store_message,
@@ -128,13 +130,14 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             ResendAt = erlang:monotonic_time() + ResendAfter,
             do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
             drop
-    end.
+    end,
+    {ok, ResultAcc}.
 
--spec reroute_messages(SomeAcc :: mongoose_acc:t(),
-                       From :: jid:jid(),
-                       To :: jid:jid(),
-                       TargetHost :: binary()) -> mongoose_acc:t().
-reroute_messages(Acc, From, To, TargetHost) ->
+-spec reroute_messages(Acc, Params, Extra) -> {ok, Acc} when
+                    Acc :: mongoose_acc:t(),
+                    Params :: #{from := jid:jid(), to := jid:jid(), target_host := binary()},
+                    Extra :: map().
+reroute_messages(Acc, #{from := From, to := To, target_host := TargetHost}, _) ->
     Key = get_index_key(From, To),
     StoredMessages =
         lists:filtermap(
@@ -150,7 +153,7 @@ reroute_messages(Acc, From, To, TargetHost) ->
               text => <<"Routing multiple previously stored messages">>,
               stored_messages_length => length(StoredMessages), acc => Acc}),
     lists:foreach(pa:bind(fun reroute_message/2, TargetHost), StoredMessages),
-    Acc.
+    {ok, Acc}.
 
 %%--------------------------------------------------------------------
 %% API for metrics

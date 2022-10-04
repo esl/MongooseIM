@@ -1515,8 +1515,11 @@ pubsub_publish_item(Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
     LocalHost :: jid:server(),
     Result :: any().
 mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
+    Params = #{from => From, to => To, target_host => LocalHost},
+    Args = [From, To, LocalHost],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mod_global_distrib_known_recipient, GlobalHost, ok,
-                           [From, To, LocalHost]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mod_global_distrib_unknown_recipient' hook is called when
 %%% the recipient is unknown to `global_distrib'.
@@ -1525,7 +1528,9 @@ mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
     Info :: filter_packet_acc(),
     Result :: any().
 mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
-    run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info,
+                           ParamsWithLegacyArgs).
 
 
 %%%----------------------------------------------------------------------
