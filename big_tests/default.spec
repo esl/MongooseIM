@@ -73,9 +73,9 @@
 {suites, "tests", mongoose_elasticsearch_SUITE}.
 % {suites, "tests", mongooseimctl_SUITE}.
 % {suites, "tests", muc_SUITE}.
-% {suites, "tests", muc_http_api_SUITE}.
-% {suites, "tests", muc_light_SUITE}.
-% {suites, "tests", muc_light_http_api_SUITE}.
+{suites, "tests", muc_http_api_SUITE}.
+{suites, "tests", muc_light_SUITE}.
+{suites, "tests", muc_light_http_api_SUITE}.
 % {suites, "tests", muc_light_legacy_SUITE}.
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
@@ -85,8 +85,8 @@
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
-% {suites, "tests", pubsub_SUITE}.
-% {suites, "tests", pubsub_s2s_SUITE}.
+{suites, "tests", pubsub_SUITE}.
+{suites, "tests", pubsub_s2s_SUITE}.
 % {suites, "tests", push_SUITE}.
 {suites, "tests", push_http_SUITE}.
 % {suites, "tests", push_integration_SUITE}.
