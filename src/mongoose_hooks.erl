@@ -24,7 +24,6 @@
          packet_to_component/3,
          presence_probe_hook/5,
          push_notifications/4,
-         register_command/1,
          register_subhost/2,
          register_user/3,
          remove_user/3,
@@ -34,7 +33,6 @@
          set_vcard/3,
          unacknowledged_message/2,
          filter_unacknowledged_messages/3,
-         unregister_command/1,
          unregister_subhost/1,
          user_available_hook/2,
          user_ping_response/5,
@@ -334,14 +332,6 @@ push_notifications(HostType, Acc, NotificationForms, Options) ->
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(push_notifications, HostType, Acc, ParamsWithLegacyArgs).
 
-%%% @doc The `register_command' hook is called when a command
-%%% is registered in `mongoose_commands'.
--spec register_command(Command) -> Result when
-    Command :: mongoose_commands:t(),
-    Result :: drop.
-register_command(Command) ->
-    run_global_hook(register_command, Command, []).
-
 %%% @doc The `register_subhost' hook is called when a component
 %%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
@@ -436,14 +426,6 @@ unacknowledged_message(Acc, JID) ->
     Result :: [mongoose_acc:t()].
 filter_unacknowledged_messages(HostType, Jid, Buffer) ->
     run_fold(filter_unacknowledged_messages, HostType, Buffer, #{jid => Jid}).
-
-%%% @doc The `unregister_command' hook is called when a command
-%%% is unregistered from `mongoose_commands'.
--spec unregister_command(Command) -> Result when
-    Command :: mongoose_commands:t(),
-    Result :: drop.
-unregister_command(Command) ->
-    run_global_hook(unregister_command, Command, []).
 
 %%% @doc The `unregister_subhost' hook is called when a component
 %%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.

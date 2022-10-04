@@ -32,11 +32,6 @@ All source files can be found in `src/muc_light/`.
   An implementation of a modern MUC Light protocol, described in the XEP.
   Supports all MUC Light features.
 
-* `mod_muc_light_commands.erl`
-
-  MUC Light-related commands.
-  They are registered in the `mongoose_commands` module, so they are available via the REST API.
-
 * `mod_muc_light_db_backend.erl`
 
   A behaviour implemented by database backends for the MUC Light extension.

@@ -70,7 +70,7 @@ For load testing we use [our own tools](../Contributions.md#amoc), that enable u
 
 MongooseIM supports multi-tenancy.
 This makes it possible to set up thousands of domains dynamically without a noticeable performance overhead.
-On more information on how to set up this feature, see [dynamic domains configuration](../configuration/general.md#generalhost_types) and [REST API for dynamic domains](../rest-api/Dynamic-domains.md).
+On more information on how to set up this feature, see [dynamic domains configuration](../configuration/general.md#generalhost_types).
 
 ## Integration with other platform components
 

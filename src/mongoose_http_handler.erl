@@ -10,7 +10,7 @@
                      atom() => any()}.
 
 -type path() :: iodata().
--type routes() :: [{path(), module(), options()}].
+-type routes() :: [{path(), module(), #{atom() => any()}}].
 
 -export_type([options/0, path/0, routes/0]).
 
@@ -83,7 +83,5 @@ cowboy_host(Host) -> Host.
 configurable_handler_modules() ->
     [mod_websockets,
      mongoose_client_api,
-     mongoose_api,
-     mongoose_api_admin,
-     mongoose_domain_handler,
+     mongoose_admin_api,
      mongoose_graphql_cowboy_handler].
