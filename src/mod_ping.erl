@@ -140,9 +140,7 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
                 _ ->
                     {ok, Acc}
             end;
-        {_, {error, not_found}} ->
-            {ok, Acc};
-        {_, _} ->
+        _ ->
             {ok, Acc}
     end.
 
