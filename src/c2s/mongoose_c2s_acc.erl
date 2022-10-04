@@ -8,7 +8,7 @@
 %% - `actions': a list of valid `gen_statem:action()' to request the `mongoose_c2s' engine.
 %% - `c2s_state': a new state is requested for the state machine.
 %% - `c2s_data': a new state data is requested for the state machine.
-%% - `stop': an action of type `{info, {stop, Reason}}' is to be triggered.
+%% - `stop': an action of type `{cast, {stop, Reason}}' is to be triggered.
 %% - `hard_stop': no other request is allowed, the state machine is immediatly triggered to stop.
 %% - `socket_send': xml elements to send on the socket to the user.
 -module(mongoose_c2s_acc).
@@ -68,7 +68,7 @@ new() ->
 -spec new(params()) -> t().
 new(Params = #{stop := Reason}) ->
     WithoutStop = maps:remove(stop, Params),
-    NewAction = [{next_event, info, {stop, Reason}}],
+    NewAction = [{next_event, cast, {stop, Reason}}],
     Fun = fun(Actions) -> [NewAction | Actions] end,
     NewParams = maps:update_with(actions, Fun, NewAction, WithoutStop),
     new(NewParams);
@@ -123,7 +123,7 @@ to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when i
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->
     C2SAcc#{socket_send := [Stanza | Stanzas]};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {stop, Reason}) ->
-    C2SAcc#{actions := [{next_event, info, {stop, Reason}} | Actions]};
+    C2SAcc#{actions := [{next_event, cast, {stop, Reason}} | Actions]};
 to_c2s_acc(C2SAcc, {Key, NewValue}) ->
     #{Key := _OldValue} = C2SAcc,
     C2SAcc#{Key := NewValue}.
