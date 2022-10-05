@@ -102,7 +102,7 @@
 % {suites, "tests", shared_roster_SUITE}.
 % {suites, "tests", sic_SUITE}.
 {suites, "tests", smart_markers_SUITE}.
-% {suites, "tests", sm_SUITE}.
+{suites, "tests", sm_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
