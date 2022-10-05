@@ -172,7 +172,7 @@ process(["mnesia", "info"]) ->
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),
-    Result = mongoose_graphql:execute(Ep, undefined, Doc),
+    Result = mongoose_graphql:execute_cli(Ep, undefined, Doc),
     handle_graphql_result(Result);
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
