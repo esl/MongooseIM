@@ -1,7 +1,7 @@
 """
 Allow admin to delete offline messages from specified domain
 """
-type OjflineAdminMutation @protected @use(modules: ["mod_offline"]){
+type OfflineAdminMutation @protected @use(modules: ["mod_offline"]){
     "Delete offline messages whose date has expired"
     deleteExpiredMessages(domain: String!): String @use(arg: "domain")
       @protected(type: DOMAIN, args: ["domain"])

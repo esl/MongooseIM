@@ -122,10 +122,9 @@ admin_last_not_configured_old_users() ->
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
     SecHostType = domain_helper:secondary_host_type(),
-    Config1 = escalus:init_per_suite(Config),
-    Config2 = dynamic_modules:save_modules([HostType, SecHostType], Config1),
-    Config3 = ejabberd_node_utils:init(mim(), Config2),
-    escalus:init_per_suite(Config3).
+    Config1 = dynamic_modules:save_modules([HostType, SecHostType], Config),
+    Config2 = ejabberd_node_utils:init(mim(), Config1),
+    escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),

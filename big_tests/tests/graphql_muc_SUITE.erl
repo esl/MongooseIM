@@ -92,7 +92,7 @@ user_muc_not_configured_tests() ->
      user_moderator_set_user_role_muc_not_configured,
      user_can_enter_room_muc_not_configured,
      user_can_exit_room_muc_not_configured,
-     user_list_room_affiliation_muc_not_configured].
+     user_list_room_affiliations_muc_not_configured].
 
 admin_muc_tests() ->
     [admin_create_and_delete_room,
@@ -1610,11 +1610,11 @@ user_can_exit_room_muc_not_configured_story(Config, Alice) ->
     Res = user_exit_room(Alice, get_room_name(), <<"ali">>, Resource, Config),
     get_not_loaded(Res).
 
-user_list_room_affiliation_muc_not_configured(Config) ->
+user_list_room_affiliations_muc_not_configured(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-        fun user_list_room_affiliation_muc_not_configured_story/2).
+        fun user_list_room_affiliations_muc_not_configured_story/2).
 
-user_list_room_affiliation_muc_not_configured_story(Config, Alice) ->
+user_list_room_affiliations_muc_not_configured_story(Config, Alice) ->
     Res = user_list_room_affiliations(Alice, get_room_name(), owner, Config),
     get_not_loaded(Res).
 

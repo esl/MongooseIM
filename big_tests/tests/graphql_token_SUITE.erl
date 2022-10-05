@@ -67,7 +67,6 @@ init_per_suite(Config0) ->
         true ->
             HostType = domain_helper:host_type(),
             Config = dynamic_modules:save_modules(HostType, Config0),
-            dynamic_modules:ensure_modules(HostType, required_modules()),
             Config1 = escalus:init_per_suite(Config),
             ejabberd_node_utils:init(mim(), Config1);
         false ->
