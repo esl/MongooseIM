@@ -1309,7 +1309,8 @@ disco_sm_identity(Acc = #{host_type := HostType}) ->
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_local_items(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_items, HostType, Acc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_local_items, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_sm_items' hook is called to get the items associated
 %%% with the client when a discovery IQ gets to session management.

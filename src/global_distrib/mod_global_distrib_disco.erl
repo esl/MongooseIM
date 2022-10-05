@@ -23,9 +23,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([start/2, stop/1, deps/2, disco_local_items/1]).
-
--ignore_xref([disco_local_items/1]).
+-export([start/2, stop/1, deps/2, disco_local_items/3]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -33,11 +31,11 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->
@@ -47,21 +45,25 @@ deps(_HostType, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_local_items(Acc = #{host_type := HostType, from_jid := From, node := <<>>}) ->
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+                        Acc :: mongoose_disco:item_acc(),
+                        Params :: map(),
+                        Extra :: map().
+disco_local_items(Acc = #{host_type := HostType, from_jid := From, node := <<>>}, _, _) ->
     Domains = domains_for_disco(HostType, From),
     ?LOG_DEBUG(#{what => gd_domains_fetched_for_disco, domains => Domains}),
     Items = [#{jid => Domain} || Domain <- Domains],
-    mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc) ->
-    Acc.
+    NewAcc = mongoose_disco:add_items(Items, Acc),
+    {ok, NewAcc};
+disco_local_items(Acc, _, _) ->
+    {ok, Acc}.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
 hooks(HostType) ->
-    [{disco_local_items, HostType, ?MODULE, disco_local_items, 99}].
+    [{disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 99}].
 
 -spec domains_for_disco(mongooseim:host_type(), From :: jid:jid()) -> Domains :: [binary()].
 domains_for_disco(_HostType, #jid{ luser = <<>> } = _From) ->
