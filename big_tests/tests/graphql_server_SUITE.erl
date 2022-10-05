@@ -16,18 +16,23 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [%{group, admin_http}, % http is not supported for the server category
+    [{group, admin_http},
      {group, admin_cli}].
 
 groups() ->
-    [{admin_http, [], admin_groups()},
-     {admin_cli, [], admin_groups()},
+    [{admin_http, [], admin_http_groups()},
+     {admin_cli, [], admin_cli_groups()},
      {server_tests, [], admin_tests()},
-     {clustering_tests, [], clustering_tests()}].
+     {clustering_tests, [], clustering_tests()},
+     {clustering_http_tests, [], clustering_http_tests()}].
 
-admin_groups() ->
+admin_cli_groups() ->
     [{group, server_tests},
      {group, clustering_tests}].
+
+admin_http_groups() ->
+    [{group, server_tests},
+     {group, clustering_http_tests}].
 
 admin_tests() ->
     [get_cookie_test,
@@ -42,6 +47,15 @@ clustering_tests() ->
      join_twice,
      remove_dead_from_cluster,
      remove_alive_from_cluster,
+     remove_node_test,
+     stop_node_test].
+
+clustering_http_tests() ->
+    [join_successful_http,
+     leave_successful_http,
+     join_unsuccessful_http,
+     remove_dead_from_cluster_http,
+     remove_alive_from_cluster_http,
      remove_node_test,
      stop_node_test].
 
@@ -111,7 +125,9 @@ set_and_get_loglevel_test(Config) ->
         Value1 = get_ok_value([data, server, getLoglevel], get_loglevel(Config)),
         ?assertEqual(LogLevel, Value1)
     end, LogLevels),
-    ?assertEqual(<<"unknown_enum">>, get_err_code(set_loglevel(<<"AAAA">>, Config))).
+    {_, Res} = set_loglevel(<<"AAAA">>, Config),
+    [Res1] = maps:get(<<"errors">>, Res),
+    ?assertEqual(<<"unknown_enum">>, graphql_helper:get_value([extensions, code], Res1)).
 
 get_status_test(Config) ->
     Result = get_ok_value([data, server, status], get_status(Config)),
@@ -197,6 +213,70 @@ stop_node_test(Config) ->
     F = fun() -> rpc:call(Node3Nodename, application, which_applications, [], Timeout) end,
     mongoose_helper:wait_until(F, {badrpc, nodedown}, #{sleep_time => 1000, name => stop_node}),
     distributed_helper:start_node(Node3Nodename, Config).
+
+join_successful_http(Config) ->
+    #{node := Node2} = RPCSpec2 = mim2(),
+    leave_cluster(Config),
+    timer:sleep(4500),
+    get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
+    timer:sleep(4500),
+    distributed_helper:verify_result(RPCSpec2, add).
+
+leave_successful_http(Config) ->
+    #{node := Node2} = RPCSpec2 = mim2(),
+    join_cluster(atom_to_binary(Node2), Config),
+    timer:sleep(4500),
+    get_ok_value([], leave_cluster(Config)),
+    timer:sleep(4500),
+    distributed_helper:verify_result(RPCSpec2, remove).
+
+join_unsuccessful_http(Config) ->
+    Node2 = mim2(),
+    get_ok_value([], join_cluster(<<>>, Config)),
+    timer:sleep(4500),
+    distributed_helper:verify_result(Node2, remove).
+
+remove_dead_from_cluster_http(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    #{node := Node1Nodename} = Node1 = mim(),
+    #{node := _Node2Nodename} = Node2 = mim2(),
+    #{node := Node3Nodename} = Node3 = mim3(),
+    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
+    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
+    %% when
+    distributed_helper:stop_node(Node3Nodename, Config),
+    get_ok_value([data, server, removeFromCluster],
+                  remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
+    timer:sleep(4500),
+    %% then
+    % node is down hence its not in mnesia cluster
+    have_node_in_mnesia(Node1, Node2, true),
+    have_node_in_mnesia(Node1, Node3, false),
+    have_node_in_mnesia(Node2, Node3, false),
+    % after node awakening nodes are clustered again
+    distributed_helper:start_node(Node3Nodename, Config),
+    timer:sleep(1000),
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node2, Node3, true).
+
+remove_alive_from_cluster_http(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    #{node := Node1Name} = Node1 = mim(),
+    #{node := Node2Name} = Node2 = mim2(),
+    Node3 = mim3(),
+    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
+    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
+    %% when
+    %% Node2 is still running
+    %% then
+    get_ok_value([], remove_from_cluster(atom_to_binary(Node2Name), Config)),
+    timer:sleep(4500),
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node1, Node2, false),
+    have_node_in_mnesia(Node3, Node2, false).
+
 
 %-----------------------------------------------------------------------
 %                                Helpers

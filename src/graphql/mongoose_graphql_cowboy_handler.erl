@@ -175,7 +175,7 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
     Ep = mongoose_graphql:get_endpoint(EpName),
     Ctx = maps:get(schema_ctx, State, #{}),
-    ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx},
+    ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx#{method => http}},
     case mongoose_graphql:execute(Ep, ReqCtx2) of
         {ok, Response} ->
             ResponseBody = mongoose_graphql_response:term_to_json(Response),
