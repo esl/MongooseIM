@@ -96,7 +96,7 @@ user_send_presence(Acc, #{c2s_data := StateData}, _Extra) ->
 user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
-            {ok, Acc};
+            {stop, Acc};
         Presences ->
             handle_user_received_presence(Acc, Presences, mongoose_acc:stanza_type(Acc))
     end.
