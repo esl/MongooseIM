@@ -55,7 +55,7 @@ The options listed below can be set for the `c2s`, `s2s` and `service` listeners
 
 ### `listen.*.backlog`
 * **Syntax:** positive integer
-* **Default:** `100`
+* **Default:** `1024`
 * **Example:** `backlog = 1000`
 
 Overrides the default TCP backlog value.
