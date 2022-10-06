@@ -43,6 +43,7 @@ user_muc_tests() ->
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
+     user_try_create_instant_room_with_invalid_name,
      user_list_rooms,
      user_list_room_users,
      user_list_room_users_without_anonymous_mode,
@@ -981,6 +982,14 @@ user_try_create_instant_room_with_nonexistent_domain(Config) ->
 user_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
     Res = user_create_instant_room(Alice, <<"unknown">>, rand_name(), <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+
+user_try_create_instant_room_with_invalid_name(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_create_instant_room_with_invalid_name_story/2).
+
+user_try_create_instant_room_with_invalid_name_story(Config, Alice) ->
+    Res = user_create_instant_room(Alice, muc_helper:muc_host(), <<"test room">>, <<"Ali">>, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain are invalid">>)).
 
 user_try_delete_nonexistent_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
