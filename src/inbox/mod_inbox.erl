@@ -16,24 +16,20 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
 
--export([get_personal_data/3]).
-
 %% gen_mod
 -export([start/2, stop/1, config_spec/0, supported_features/0]).
 
--export([process_iq/5,
-         user_send_packet/4,
-         filter_local_packet/1,
-         inbox_unread_count/2,
+-export([process_iq/5]).
+
+%% hook handlers
+-export([user_send_packet/3,
+         filter_local_packet/3,
+         inbox_unread_count/3,
          remove_user/3,
          remove_domain/3,
-         disco_local_features/3
+         disco_local_features/3,
+         get_personal_data/3
         ]).
-
--ignore_xref([
-    filter_local_packet/1, get_personal_data/3, inbox_unread_count/2, 
-    remove_domain/3, remove_user/3, user_send_packet/4
-]).
 
 -export([process_inbox_boxes/1]).
 -export([config_metrics/1]).
@@ -60,9 +56,11 @@
 %%--------------------------------------------------------------------
 %% gdpr callbacks
 %%--------------------------------------------------------------------
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
-    gdpr:personal_data().
-get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: gdpr:personal_data(),
+      Params :: #{jid := jid:jid()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Schema = ["jid", "content", "unread_count", "timestamp"],
     InboxParams = #{
         start => 0,
@@ -72,7 +70,8 @@ get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
        },
     Entries = mod_inbox_backend:get_inbox(HostType, LUser, LServer, InboxParams),
     ProcessedEntries = lists:map(fun process_entry/1, Entries),
-    [{inbox, Schema, ProcessedEntries} | Acc].
+    NewAcc = [{inbox, Schema, ProcessedEntries} | Acc],
+    {ok, NewAcc}.
 
 process_entry(#{remote_jid := RemJID,
                 msg := Content,
@@ -89,7 +88,6 @@ process_entry(#{remote_jid := RemJID,
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
     mod_inbox_backend:init(HostType, Opts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
@@ -102,7 +100,6 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     stop_cleaner(HostType),
     mod_inbox_muc:stop(HostType),
@@ -232,50 +229,65 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
--spec user_send_packet(Acc :: mongoose_acc:t(), From :: jid:jid(),
-                       To :: jid:jid(), Packet :: exml:element()) ->
-    mongoose_acc:t().
-user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
-    maybe_process_message(Acc, From, To, Msg, outgoing);
-user_send_packet(Acc, _From, _To, _Packet) ->
-    Acc.
+-spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
+      Extra :: map().
+user_send_packet(Acc, #{from := From, to := To, packet := #xmlel{name = <<"message">>} = Msg}, _) ->
+    NewAcc = maybe_process_message(Acc, From, To, Msg, outgoing),
+    {ok, NewAcc};
+user_send_packet(Acc, _, _) ->
+    {ok, Acc}.
 
--spec inbox_unread_count(Acc :: mongoose_acc:t(), To :: jid:jid()) -> mongoose_acc:t().
-inbox_unread_count(Acc, To) ->
+-spec inbox_unread_count(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{user := jid:jid()},
+      Extra :: map().
+inbox_unread_count(Acc, #{user := User}, _) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
-    get_inbox_unread(Res, Acc, To).
+    NewAcc = get_inbox_unread(Res, Acc, User),
+    {ok, NewAcc}.
 
--spec filter_local_packet(mongoose_hooks:filter_packet_acc() | drop) ->
-    mongoose_hooks:filter_packet_acc() | drop.
-filter_local_packet(drop) ->
-    drop;
-filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
+-spec filter_local_packet(drop, _, _) -> {ok, drop};
+                         (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+      FPacketAcc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: map().
+filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
     Acc0 = maybe_process_message(Acc, From, To, Msg, incoming),
-    {From, To, Acc0, Msg};
-filter_local_packet({From, To, Acc, Packet}) ->
-    {From, To, Acc, Packet}.
+    {ok, {From, To, Acc0, Msg}};
+filter_local_packet(FPacketAcc, _, _) ->
+    {ok, FPacketAcc}.
 
-remove_user(Acc, User, Server) ->
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_inbox_utils:clear_inbox(HostType, User, Server),
-    Acc.
+    {ok, Acc}.
 
--spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_domain_api:remove_domain_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             mod_inbox_backend:remove_domain(HostType, Domain),
             Acc
         end,
-    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
+    NewAcc = mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE),
+    {ok, NewAcc}.
 
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           map(),
-                           map()) -> {ok, mongoose_disco:feature_acc()}.
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_disco:feature_acc(),
+      Params :: map(),
+      Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_ESL_INBOX], Acc)};
 disco_local_features(Acc, _, _) ->
-    {ok, Acc}   .
+    {ok, Acc}.
 
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
                             From :: jid:jid(),
@@ -552,18 +564,16 @@ get_inbox_unread(undefined, Acc, To) ->
     {ok, Count} = mod_inbox_backend:get_inbox_unread(HostType, InboxEntryKey),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
-legacy_hooks(HostType) ->
-    [
-     {remove_user, HostType, ?MODULE, remove_user, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {user_send_packet, HostType, ?MODULE, user_send_packet, 70},
-     {filter_local_packet, HostType, ?MODULE, filter_local_packet, 90},
-     {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
-    ].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
+    [
+        {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+        {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+        {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 70},
+        {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 90},
+        {inbox_unread_count, HostType, fun ?MODULE:inbox_unread_count/3, #{}, 80},
+        {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
+    ].
 
 get_groupchat_types(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, groupchat).
