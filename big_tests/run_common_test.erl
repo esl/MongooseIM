@@ -278,22 +278,20 @@ is_test_host_enabled(HostName) ->
 enable_preset_on_node(Node, PresetVars, HostVarsFilePrefix) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
     TemplatePath = filename:join([repo_dir(), "rel", "files", "mongooseim.toml"]),
-    DefaultVarsPath = filename:join([repo_dir(), "rel", "vars-toml.config"]),
     NodeVarsPath = filename:join([repo_dir(), "rel", HostVarsFilePrefix ++ ".vars-toml.config"]),
 
     {ok, Template} = handle_file_error(TemplatePath, file:read_file(TemplatePath)),
-    {ok, DefaultVars} = handle_file_error(DefaultVarsPath, file:consult(DefaultVarsPath)),
-    {ok, NodeVars} = handle_file_error(NodeVarsPath, file:consult(NodeVarsPath)),
+    NodeVars = read_vars(NodeVarsPath),
 
-    TemplatedConfig = template_config(Template, [DefaultVars, NodeVars, PresetVars]),
+    TemplatedConfig = template_config(Template, NodeVars ++ PresetVars),
     CfgPath = filename:join([Cwd, "etc", "mongooseim.toml"]),
     ok = call(Node, file, write_file, [CfgPath, TemplatedConfig]),
     call(Node, application, stop, [mongooseim]),
     call(Node, application, start, [mongooseim]),
     ok.
 
-template_config(Template, Vars) ->
-    MergedVars = ensure_binary_strings(merge_vars(Vars)),
+template_config(Template, RawVars) ->
+    MergedVars = ensure_binary_strings(maps:from_list(RawVars)),
     %% Render twice to replace variables in variables
     Tmp = bbmustache:render(Template, MergedVars, [{key_type, atom}]),
     bbmustache:render(Tmp, MergedVars, [{key_type, atom}]).
@@ -305,11 +303,20 @@ merge_vars([Vars1, Vars2|Rest]) ->
     merge_vars([Vars|Rest]);
 merge_vars([Vars]) -> Vars.
 
+read_vars(File) ->
+    {ok, Terms} = handle_file_error(File, file:consult(File)),
+    lists:flatmap(fun({Key, Val}) ->
+                          [{Key, Val}];
+                     (IncludedFile) when is_list(IncludedFile) ->
+                          Path = filename:join(filename:dirname(File), IncludedFile),
+                          read_vars(Path)
+                  end, Terms).
+
 %% bbmustache tries to iterate over lists, so we need to make them binaries
 ensure_binary_strings(Vars) ->
-    lists:map(fun({dbs, V}) -> {dbs, V};
-                 ({K, V}) when is_list(V) -> {K, list_to_binary(V)};
-                 ({K, V}) -> {K, V}
+    maps:map(fun(dbs, V) -> V;
+                (_K, V) when is_list(V) -> list_to_binary(V);
+                (_K, V) -> V
               end, Vars).
 
 call(Node, M, F, A) ->

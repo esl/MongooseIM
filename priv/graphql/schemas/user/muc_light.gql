@@ -1,35 +1,36 @@
 """
 Allow user to manage Multi-User Chat Light rooms.
 """
-type MUCLightUserMutation @protected{
+type MUCLightUserMutation @protected @use(modules: ["mod_muc_light"]){
   "Create a MUC light room under the given XMPP hostname"
+  #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
   createRoom(mucDomain: String!, name: String!, subject: String!, id: NonEmptyString, options: [RoomConfigDictEntryInput!]): Room
   "Change configuration of a MUC Light room"
-  changeRoomConfiguration(room: JID!, name: String!, subject: String!, options: [RoomConfigDictEntryInput!]): Room
+  changeRoomConfiguration(room: JID!, name: String!, subject: String!, options: [RoomConfigDictEntryInput!]): Room @use(arg: "room")
   "Invite a user to a MUC Light room"
-  inviteUser(room: JID!, recipient: JID!): String
+  inviteUser(room: JID!, recipient: JID!): String @use(arg: "room")
   "Remove a MUC Light room"
-  deleteRoom(room: JID!): String
+  deleteRoom(room: JID!): String @use(arg: "room")
   "Kick a user from a MUC Light room"
-  kickUser(room: JID!, user: JID): String
+  kickUser(room: JID!, user: JID): String @use(arg: "room")
   "Send a message to a MUC Light room"
-  sendMessageToRoom(room: JID!, body: String!): String
+  sendMessageToRoom(room: JID!, body: String!): String @use(arg: "room")
   "Set the user blocking list"
-  setBlockingList(items: [BlockingInput!]!): String
+  setBlockingList(items: [BlockingInput!]!): String @use
 }
 
 """
 Allow user to get information about Multi-User Chat Light rooms.
 """
-type MUCLightUserQuery @protected{
+type MUCLightUserQuery @protected @use(modules: ["mod_muc_light"]){
   "Get the MUC Light room archived messages"
-  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
+  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload @use(arg: "room")
   "Get configuration of the MUC Light room"
-  getRoomConfig(room: JID!): Room
+  getRoomConfig(room: JID!): Room @use(arg: "room")
   "Get users list of given MUC Light room"
-  listRoomUsers(room: JID!): [RoomUser!]
+  listRoomUsers(room: JID!): [RoomUser!] @use(arg: "room")
   "Get the list of MUC Light rooms that the user participates in"
-  listRooms: [JID!]
+  listRooms: [JID!] @use
   "Get the user blocking list"
-  getBlockingList: [BlockingItem!]
+  getBlockingList: [BlockingItem!] @use
 }

@@ -170,11 +170,9 @@ options("mongooseim-pgsql") ->
                      config([listen, http, handlers, mod_websockets],
                             #{host => '_', path => "/ws-xmpp", max_stanza_size => 100,
                               ping_rate => 120000, timeout => infinity}),
-                     config([listen, http, handlers, mongoose_api_admin],
+                     config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api",
-                              username => <<"ala">>, password => <<"makotaipsa">>}),
-                     config([listen, http, handlers, mongoose_api_client],
-                            #{host => "localhost", path => "/api/contacts/{:jid}"})
+                              username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
@@ -185,7 +183,7 @@ options("mongooseim-pgsql") ->
                 port => 8088,
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 handlers =>
-                    [config([listen, http, handlers, mongoose_api_admin],
+                    [config([listen, http, handlers, mongoose_admin_api],
                             #{host => "localhost", path => "/api"})]
                }),
        config([listen, http],
@@ -196,15 +194,6 @@ options("mongooseim-pgsql") ->
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
                 tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
-               }),
-       config([listen, http],
-              #{ip_address => "127.0.0.1",
-                ip_tuple => {127, 0, 0, 1},
-                port => 5288,
-                transport => #{num_acceptors => 10, max_connections => 1024},
-                handlers =>
-                    [config([listen, http, handlers, mongoose_api],
-                            #{host => "localhost", path => "/api"})]
                }),
        config([listen, s2s],
               #{port => 5269,
@@ -682,10 +671,9 @@ pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
       mod_amp => #{}, mod_blocking => default_mod_config(mod_blocking),
       mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => #{},
+      mod_carboncopy => default_mod_config(mod_carboncopy),
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
-      mod_muc_commands => #{}, mod_muc_light_commands => #{},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_presence => #{},
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
@@ -911,11 +899,11 @@ default_mod_config(mod_mam) ->
 default_mod_config(mod_mam_muc) ->
     maps:merge(common_mam_config(), default_config([modules, mod_mam, muc]));
 default_mod_config(mod_mam_rdbms_arch) ->
-    #{no_writer => false,
+    #{no_writer => false, delete_domain_limit => infinity,
       db_message_format => mam_message_compressed_eterm,
       db_jid_format => mam_jid_mini};
 default_mod_config(mod_mam_muc_rdbms_arch) ->
-    #{no_writer => false,
+    #{no_writer => false, delete_domain_limit => infinity,
       db_message_format => mam_message_compressed_eterm,
       db_jid_format => mam_jid_rfc};
 default_mod_config(mod_muc) ->
@@ -1087,16 +1075,14 @@ default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
       module => mod_websockets};
+default_config([listen, http, handlers, mongoose_admin_api]) ->
+    #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
+                   inbox, domain, metrics],
+      module => mongoose_admin_api};
 default_config([listen, http, handlers, mongoose_client_api]) ->
-    #{handlers => [lasse_handler, mongoose_client_api_messages,
-                   mongoose_client_api_contacts, mongoose_client_api_rooms,
-                   mongoose_client_api_rooms_config, mongoose_client_api_rooms_users,
-                   mongoose_client_api_rooms_messages],
+    #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
       docs => true,
       module => mongoose_client_api};
-default_config([listen, http, handlers, mongoose_api]) ->
-    #{handlers => [mongoose_api_metrics, mongoose_api_users],
-      module => mongoose_api};
 default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->
     #{module => mongoose_graphql_cowboy_handler,
       schema_endpoint => admin};

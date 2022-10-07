@@ -17,7 +17,7 @@ type Contact{
   "The list of the groups the contact belongs to"
   groups: [String!]
   "The type of the subscription"
-  subscription: ContactSub 
+  subscription: ContactSub
   "The type of the ask"
   ask: ContactAsk
 }
@@ -45,11 +45,17 @@ enum ContactSub{
 
 "The contact ask types"
 enum ContactAsk{
+  "Ask to subscribe"
   SUBSCRIBE
+  "Ask to unsubscribe"
   UNSUBSCRIBE
+  "Invitation came in"
   IN
+  "Invitation came out"
   OUT
+  "Ask for mutual subscription"
   BOTH
+  "No invitation"
   NONE
 }
 

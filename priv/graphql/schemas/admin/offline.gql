@@ -1,11 +1,11 @@
 """
 Allow admin to delete offline messages from specified domain
 """
-type OfflineAdminMutation @protected{
-    "Allow admin to delete offline messages whose date has expired"
-    deleteExpiredMessages(domain: String!): String
+type OfflineAdminMutation @protected @use(modules: ["mod_offline"]){
+    "Delete offline messages whose date has expired"
+    deleteExpiredMessages(domain: String!): String @use(arg: "domain")
       @protected(type: DOMAIN, args: ["domain"])
-    "Allow the admin to delete messages at least as old as the number of days specified in the parameter"
+    "Delete messages at least as old as the number of days specified in the parameter"
     deleteOldMessages(domain: String!, days: Int!): String
-      @protected(type: DOMAIN, args: ["domain"])
+      @protected(type: DOMAIN, args: ["domain"]) @use(arg: "domain")
 }

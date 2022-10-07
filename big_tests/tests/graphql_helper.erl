@@ -11,8 +11,14 @@
 -spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
     {Status :: tuple(), Data :: map()}.
 execute(EpName, Body, Creds) ->
+    #{node := Node} = mim(),
+    execute(Node, EpName, Body, Creds).
+
+-spec execute(node(), atom(), binary(), {binary(), binary()} | undefined) ->
+    {Status :: tuple(), Data :: map()}.
+execute(Node, EpName, Body, Creds) ->
     Request =
-      #{port => get_listener_port(EpName),
+      #{port => get_listener_port(Node, EpName),
         role => {graphql, EpName},
         method => <<"POST">>,
         return_maps => true,
@@ -26,21 +32,26 @@ execute_user_command(Category, Command, User, Args, Config) ->
     execute_user(#{query => Doc, variables => Args}, User, Config).
 
 execute_command(Category, Command, Args, Config) ->
+    #{node := Node} = mim(),
     Protocol = ?config(protocol, Config),
-    execute_command(Category, Command, Args, Config, Protocol).
+    execute_command(Node, Category, Command, Args, Config, Protocol).
+
+execute_command(Node, Category, Command, Args, Config) ->
+    Protocol = ?config(protocol, Config),
+    execute_command(Node, Category, Command, Args, Config, Protocol).
 
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
-execute_command(Category, Command, Args, Config, http) ->
+execute_command(Node, Category, Command, Args, Config, http) ->
     #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
-    execute_auth(#{query => Doc, variables => Args}, Config);
-execute_command(Category, Command, Args, Config, cli) ->
+    execute_auth(Node, #{query => Doc, variables => Args}, Config);
+execute_command(Node, Category, Command, Args, Config, cli) ->
     CLIArgs = encode_cli_args(Args),
-    {Result, Code} = mongooseimctl_helper:mongooseimctl(Category, [Command | CLIArgs], Config),
+    {Result, Code}
+        = mongooseimctl_helper:mongooseimctl(Node, Category, [Command | CLIArgs], Config),
     {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
 
 encode_cli_args(Args) ->
     lists:flatmap(fun({Name, Value}) -> encode_cli_arg(Name, Value) end, maps:to_list(Args)).
-
 encode_cli_arg(_Name, null) ->
     [];
 encode_cli_arg(Name, Value) ->
@@ -56,28 +67,38 @@ arg_value_to_binary(Value) when is_list(Value);
                                 is_map(Value) -> iolist_to_binary(jiffy:encode(Value)).
 
 execute_auth(Body, Config) ->
+    #{node := Node} = mim(),
+    execute_auth(Node, Body, Config).
+
+execute_auth(Node, Body, Config) ->
     case Ep = ?config(schema_endpoint, Config) of
         admin ->
             #{username := Username, password := Password} = get_listener_opts(Ep),
-            execute(Ep, Body, {Username, Password});
+            execute(Node, Ep, Body, {Username, Password});
         domain_admin ->
             Creds = ?config(domain_admin, Config),
-            execute(Ep, Body, Creds)
+            execute(Node, Ep, Body, Creds)
     end.
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
     Creds = make_creds(User),
-    execute(Ep, Body, Creds).
+    #{node := Node} = mim(),
+    execute(Node, Ep, Body, Creds).
 
 -spec get_listener_port(binary()) -> integer().
 get_listener_port(EpName) ->
-    #{port := Port} = get_listener_config(EpName),
+    #{node := Node} = mim(),
+    get_listener_port(Node, EpName).
+
+-spec get_listener_port(node(), binary()) -> integer().
+get_listener_port(Node, EpName) ->
+    #{port := Port} = get_listener_config(Node, EpName),
     Port.
 
--spec get_listener_config(binary()) -> map().
-get_listener_config(EpName) ->
-    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
+-spec get_listener_config(node(), binary()) -> map().
+get_listener_config(Node, EpName) ->
+    Listeners = rpc(#{node => Node}, mongoose_config, get_opt, [listen]),
     [Config] =
         lists:filter(fun(Config) -> is_graphql_config(Config, EpName) end, Listeners),
     Config.
@@ -100,13 +121,15 @@ init_user(Config) ->
     add_specs([{schema_endpoint, user} | Config]).
 
 init_domain_admin_handler(Config) ->
-    Domain = domain_helper:domain(),
+    init_domain_admin_handler(Config, domain_helper:domain()).
+
+init_domain_admin_handler(Config, Domain) ->
     case mongoose_helper:is_rdbms_enabled(Domain) of
         true ->
             Password = base16:encode(crypto:strong_rand_bytes(8)),
             Creds = {<<"admin@", Domain/binary>>, Password},
             ok = domain_helper:set_domain_password(mim(), Domain, Password),
-            add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin} 
+            add_specs([{protocol, http}, {domain_admin, Creds}, {schema_endpoint, domain_admin}
                       | Config]);
         false -> {skip, require_rdbms}
     end.
@@ -129,8 +152,13 @@ end_domain_admin_handler(Config) ->
     domain_helper:delete_domain_password(mim(), Domain).
 
 get_listener_opts(EpName) ->
-    #{handlers := [Opts]} = get_listener_config(EpName),
+    #{node := Node} = mim(),
+    #{handlers := [Opts]} = get_listener_config(Node, EpName),
     Opts.
+
+get_not_loaded(Resp) ->
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Resp)),
+    ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Resp)).
 
 get_err_code(Resp) ->
     get_value([extensions, code], get_error(1, Resp)).
@@ -139,9 +167,11 @@ get_err_msg(Resp) ->
     get_err_msg(1, Resp).
 
 get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
-    [#{<<"extensions">> := #{<<"code">> := ErrorCode}}] = Errors,
-    assert_response_code(unauthorized, Code),
-    ?assertEqual(<<"no_permissions">>, ErrorCode).
+    [#{<<"extensions">> := #{<<"code">> := _ErrorCode}}] = Errors,
+    assert_response_code(unauthorized, Code).
+
+get_bad_request({Code, _Msg}) ->
+    assert_response_code(bad_request, Code).
 
 get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
     assert_response_code(bad_request, Code),

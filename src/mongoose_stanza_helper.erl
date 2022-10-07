@@ -1,7 +1,6 @@
 -module(mongoose_stanza_helper).
 -export([build_message/3]).
 -export([build_message_with_headline/3]).
--export([parse_from_to/2]).
 -export([get_last_messages/4]).
 -export([route/4]).
 
@@ -36,33 +35,6 @@ maybe_cdata_elem(Name, Text) when is_binary(Text) ->
 
 cdata_elem(Name, Text) when is_binary(Name), is_binary(Text) ->
     #xmlel{name = Name, children = [#xmlcdata{content = Text}]}.
-
--spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
-    {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
-parse_from_to(F, T) when F == undefined; T == undefined ->
-    {error, missing};
-parse_from_to(F, T) ->
-    case parse_jid_list([F, T]) of
-        {ok, [Fjid, Tjid]} -> {ok, Fjid, Tjid};
-        E -> E
-    end.
-
--spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
-parse_jid_list([_ | _] = BinJids) ->
-    Jids = lists:map(fun parse_jid/1, BinJids),
-    case [Msg || {error, Msg} <- Jids] of
-        [] -> {ok, Jids};
-        Errors -> {error, type_error, lists:join("; ", Errors)}
-    end.
-
--spec parse_jid(binary() | jid:jid()) -> jid:jid() | {error, string()}.
-parse_jid(#jid{} = Jid) ->
-    Jid;
-parse_jid(Jid) when is_binary(Jid) ->
-    case jid:from_binary(Jid) of
-        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
-        B -> B
-    end.
 
 -spec get_last_messages(Caller :: jid:jid(),
                         Limit :: non_neg_integer(),

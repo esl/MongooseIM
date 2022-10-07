@@ -23,13 +23,16 @@ groups() ->
       ]},
      {async_workers, [sequence],
       [
+       broadcast_reaches_all_workers,
+       broadcast_reaches_all_keys,
        filled_batch_raises_batch_metric,
        unfilled_batch_raises_flush_metric,
        timeouts_and_canceled_timers_do_not_need_to_log_messages,
        prepare_task_works,
        sync_flushes_down_everything,
        sync_aggregates_down_everything,
-       aggregating_error_is_handled,
+       aggregating_error_is_handled_and_can_continue,
+       aggregation_might_produce_noop_requests,
        async_request
       ]}
     ].
@@ -106,6 +109,49 @@ shared_cache_inserts_in_shared_table(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     mongoose_user_cache:merge_entry(host_type(), ?mod(2), some_jid(), #{}),
     ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
+
+aggregation_might_produce_noop_requests(_) ->
+    {ok, Server} = gen_server:start_link(?MODULE, [], []),
+    Requestor = fun(1, _) -> timer:sleep(1), gen_server:send_request(Server, 1);
+                   (_, _) -> drop end,
+    Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME,
+                                              request_callback => Requestor},
+    {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
+    [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 1000) ],
+    async_helper:wait_until(
+      fun() -> gen_server:call(Server, get_acc) end, 1).
+
+broadcast_reaches_all_workers(_) ->
+    {ok, Server} = gen_server:start_link(?MODULE, [], []),
+    WPoolOpts = (default_aggregator_opts(Server))#{pool_type => aggregate,
+                                                   pool_size => 10},
+    {ok, _} = mongoose_async_pools:start_pool(host_type(), ?FUNCTION_NAME, WPoolOpts),
+    mongoose_async_pools:broadcast_task(host_type(), ?FUNCTION_NAME, key, 1),
+    async_helper:wait_until(
+      fun() -> gen_server:call(Server, get_acc) end, 10).
+
+broadcast_reaches_all_keys(_) ->
+    HostType = host_type(),
+    {ok, Server} = gen_server:start_link(?MODULE, [], []),
+    Tid = ets:new(table, [public, {read_concurrency, true}]),
+    Req = fun(Task, _) ->
+                  case ets:member(Tid, continue) of
+                      true ->
+                          gen_server:send_request(Server, Task);
+                      false ->
+                          async_helper:wait_until(fun() -> ets:member(Tid, continue) end, true),
+                          gen_server:send_request(Server, 0)
+                  end
+          end,
+    WPoolOpts = (default_aggregator_opts(Server))#{pool_type => aggregate,
+                                                   pool_size => 3,
+                                                   request_callback => Req},
+    {ok, _} = mongoose_async_pools:start_pool(HostType, ?FUNCTION_NAME, WPoolOpts),
+    [ mongoose_async_pools:put_task(HostType, ?FUNCTION_NAME, N, 1) || N <- lists:seq(0, 1000) ],
+    mongoose_async_pools:broadcast(HostType, ?FUNCTION_NAME, -1),
+    ets:insert(Tid, {continue, true}),
+    async_helper:wait_until(
+      fun() -> gen_server:call(Server, get_acc) end, 0).
 
 filled_batch_raises_batch_metric(_) ->
     Opts = #{host_type => host_type(),
@@ -188,39 +234,31 @@ sync_flushes_down_everything(_) ->
 
 sync_aggregates_down_everything(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
-    Opts = #{host_type => host_type(),
-             pool_id => ?FUNCTION_NAME,
-             request_callback => fun(Task, _) -> timer:sleep(1), gen_server:send_request(Server, Task) end,
-             aggregate_callback => fun(T1, T2, _) -> {ok, T1 + T2} end,
-             verify_callback => fun(ok, _T, _) -> ok end,
-             flush_extra => #{host_type => host_type()}},
+    Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
     ?assertEqual(skipped, gen_server:call(Pid, sync)),
     [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 1000) ],
     ?assertEqual(ok, gen_server:call(Pid, sync)),
     ?assertEqual(500500, gen_server:call(Server, get_acc)).
 
-aggregating_error_is_handled(_) ->
+aggregating_error_is_handled_and_can_continue(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
-    Opts = #{host_type => host_type(),
-             pool_id => ?FUNCTION_NAME,
-             request_callback => fun(_, _) -> gen_server:send_request(Server, return_error) end,
-             aggregate_callback => fun(T1, T2, _) -> {ok, T1 + T2} end,
-             verify_callback => fun(ok, _T, _) -> ok end,
-             flush_extra => #{host_type => host_type()}},
+    Requestor = fun(Task, _) -> timer:sleep(1), gen_server:send_request(Server, Task) end,
+    Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME,
+                                              request_callback => Requestor},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
-    gen_server:cast(Pid, {task, key, 0}),
-    async_helper:wait_until(
-      fun() -> gen_server:call(Server, get_acc) end, 0).
+    [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 10) ],
+    gen_server:cast(Pid, {task, return_error, return_error}),
+    ct:sleep(100),
+    [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(11, 100) ],
+    %% We don't call sync here because sync is force flushing,
+    %% we want to test that it flushes alone
+    ct:sleep(100),
+    ?assert(55 < gen_server:call(Server, get_acc)).
 
 async_request(_) ->
     {ok, Server} = gen_server:start_link(?MODULE, [], []),
-    Opts = #{host_type => host_type(),
-             pool_id => ?FUNCTION_NAME,
-             request_callback => fun(Task, _) -> timer:sleep(1), gen_server:send_request(Server, Task) end,
-             aggregate_callback => fun(T1, T2, _) -> {ok, T1 + T2} end,
-             verify_callback => fun(ok, _T, _) -> ok end,
-             flush_extra => #{host_type => host_type()}},
+    Opts = (default_aggregator_opts(Server))#{pool_id => ?FUNCTION_NAME},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
     [ gen_server:cast(Pid, {task, key, N}) || N <- lists:seq(1, 1000) ],
     async_helper:wait_until(
@@ -232,6 +270,26 @@ host_type() ->
 
 some_jid() ->
     jid:make_noprep(<<"alice">>, <<"localhost">>, <<>>).
+
+default_aggregator_opts(Server) ->
+    #{host_type => host_type(),
+      request_callback => requester(Server),
+      aggregate_callback => fun aggregate_sum/3,
+      verify_callback => fun validate_all_ok/3,
+      flush_extra => #{host_type => host_type()}}.
+
+validate_all_ok(ok, _, _) ->
+    ok.
+
+aggregate_sum(T1, T2, _) ->
+    {ok, T1 + T2}.
+
+requester(Server) ->
+    fun(return_error, _) ->
+            gen_server:send_request(Server, return_error);
+       (Task, _) ->
+            timer:sleep(1), gen_server:send_request(Server, Task)
+    end.
 
 init([]) ->
     {ok, 0}.

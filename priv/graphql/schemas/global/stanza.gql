@@ -1,15 +1,25 @@
+"Stanza payload data"
 type StanzasPayload{
+  "List of stanza's maps"
   stanzas: [StanzaMap]
+  "Max number of stanzas"
   limit: Int
 }
 
+"Stanza map data"
 type StanzaMap{
+  "Sender's JID"
   sender: JID
+  "Stanza's timestamp"
   timestamp: DateTime
+  "ID of the stanza"
   stanza_id: String
+  "Stanza's data"
   stanza: Stanza
 }
 
+"Send stanza payload"
 type SendStanzaPayload{
+  "Stanza id"
   id: ID
 }

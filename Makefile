@@ -16,7 +16,6 @@ clean:
 	-rm -rf asngen
 	-rm configure.out
 	-rm rel/configure.vars.config
-	-rm rel/vars-toml.config
 
 # REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
@@ -27,7 +26,7 @@ ct:
 eunit:
 	@$(RUN) $(REBAR) eunit
 
-rel: certs configure.out rel/vars-toml.config
+rel: certs configure.out rel/configure.vars.config
 	. ./configure.out && $(REBAR) as prod release
 
 shell: certs etc/mongooseim.cfg
@@ -39,9 +38,6 @@ rock:
 	@if [ "$(FILE)" ]; then elvis rock $(FILE);\
 	elif [ "$(BRANCH)" ]; then tools/rock_changed.sh $(BRANCH); \
 	else tools/rock_changed.sh; fi
-
-rel/vars-toml.config: rel/vars-toml.config.in rel/configure.vars.config
-	cat $^ > $@
 
 ## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:

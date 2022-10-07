@@ -34,6 +34,7 @@ get_urls(Domain, Filename, Size, ContentType, Timeout) ->
     end.
 
 check_module_and_get_urls(HostType, Filename, Size, ContentType, Timeout) ->
+    %The check if the module is loaded is needed by one test in mongooseimctl_SUITE
     case gen_mod:is_loaded(HostType, mod_http_upload) of
         true ->
             case mod_http_upload:get_urls(HostType, Filename, Size, ContentType, Timeout) of

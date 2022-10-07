@@ -36,7 +36,7 @@
 -behaviour(mongoose_module_metrics).
 
 -export([read_caps/1, caps_stream_features/3,
-         disco_local_features/1, disco_local_identity/1, disco_info/1]).
+         disco_local_features/3, disco_local_identity/1, disco_info/1]).
 
 %% gen_mod callbacks
 -export([start/2, start_link/2, stop/1, config_spec/0, supported_features/0]).
@@ -53,7 +53,7 @@
 -export([delete_caps/1, make_disco_hash/2]).
 
 -ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, c2s_presence_in/4,
-              caps_stream_features/3, delete_caps/1, disco_info/1, disco_local_features/1,
+              caps_stream_features/3, delete_caps/1, disco_info/1,
               disco_local_identity/1, make_disco_hash/2, read_caps/1, start_link/2,
               user_receive_packet/5, user_send_packet/4]).
 
@@ -225,12 +225,15 @@ caps_stream_features(Acc, HostType, LServer) ->
              | Acc]
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := Node}) ->
-    case is_valid_node(Node) of
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := Node}, _, _) ->
+    NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
         false -> Acc
-    end.
+    end,
+    {ok, NewAcc}.
 
 -spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
 disco_local_identity(Acc = #{node := Node}) ->
@@ -357,7 +360,8 @@ init_db(mnesia) ->
 init([HostType, #{cache_size := MaxSize, cache_life_time := LifeTime}]) ->
     init_db(db_type(HostType)),
     cache_tab:new(caps_features, [{max_size, MaxSize}, {life_time, LifeTime}]),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     {ok, #state{host_type = HostType}}.
 
 -spec handle_call(term(), any(), state()) ->
@@ -375,9 +379,10 @@ handle_info(_Info, State) -> {noreply, State}.
 
 -spec terminate(any(), state()) -> ok.
 terminate(_Reason, #state{host_type = HostType}) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)).
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [{c2s_presence_in, HostType, ?MODULE, c2s_presence_in, 75},
      {c2s_filter_packet, HostType, ?MODULE, c2s_filter_packet, 75},
      {c2s_broadcast_recipients, HostType, ?MODULE, c2s_broadcast_recipients, 75},
@@ -385,9 +390,11 @@ hooks(HostType) ->
      {user_receive_packet, HostType, ?MODULE, user_receive_packet, 75},
      {c2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
      {s2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 1},
      {disco_local_identity, HostType, ?MODULE, disco_local_identity, 1},
      {disco_info, HostType, ?MODULE, disco_info, 1}].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

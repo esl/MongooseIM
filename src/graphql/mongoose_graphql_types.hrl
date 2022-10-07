@@ -1,7 +1,7 @@
 -record(domain, {
           domain :: binary(),
           host_type = null :: binary() | null,
-          enabled = null :: boolean() | null
+          status = null :: mongoose_domain_api:status() | null
          }).
 
 -record(resolver_error, {reason :: atom(),

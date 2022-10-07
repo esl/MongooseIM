@@ -27,12 +27,12 @@
          inbox_unread_count/2,
          remove_user/3,
          remove_domain/3,
-         disco_local_features/1
+         disco_local_features/3
         ]).
 
 -ignore_xref([
-    disco_local_features/1, filter_local_packet/1, get_personal_data/3,
-    inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
+    filter_local_packet/1, get_personal_data/3, inbox_unread_count/2, 
+    remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 
 -export([process_inbox_boxes/1]).
@@ -89,7 +89,8 @@ process_entry(#{remote_jid := RemJID,
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
     mod_inbox_backend:init(HostType, Opts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
@@ -101,7 +102,8 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     stop_cleaner(HostType),
     mod_inbox_muc:stop(HostType),
     case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of
@@ -165,7 +167,7 @@ process_inbox_boxes(Config = #{boxes := Boxes}) ->
 %% Cleaner gen_server callbacks
 start_cleaner(HostType, #{bin_ttl := TTL, bin_clean_after := Interval}) ->
     Name = gen_mod:get_module_proc(HostType, ?MODULE),
-    WOpts = #{host_type => HostType, action => fun mod_inbox_commands:flush_global_bin/2,
+    WOpts = #{host_type => HostType, action => fun mod_inbox_api:flush_global_bin/2,
               opts => TTL, interval => Interval},
     MFA = {mongoose_collector, start_link, [Name, WOpts]},
     ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
@@ -258,18 +260,22 @@ remove_user(Acc, User, Server) ->
     mod_inbox_utils:clear_inbox(HostType, User, Server),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
-    mod_inbox_backend:remove_domain(HostType, Domain),
-    Acc.
+    F = fun() ->
+            mod_inbox_backend:remove_domain(HostType, Domain),
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_ESL_INBOX], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_ESL_INBOX], Acc)};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}   .
 
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
                             From :: jid:jid(),
@@ -546,16 +552,18 @@ get_inbox_unread(undefined, Acc, To) ->
     {ok, Count} = mod_inbox_backend:get_inbox_unread(HostType, InboxEntryKey),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 70},
      {filter_local_packet, HostType, ?MODULE, filter_local_packet, 90},
      {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 99}
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
     ].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
 
 get_groupchat_types(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, groupchat).

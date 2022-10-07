@@ -1,8 +1,10 @@
 -module(mongoose_client_api_rooms).
+
+-behaviour(mongoose_client_api).
+-export([routes/0]).
+
 -behaviour(cowboy_rest).
-
 -export([trails/0]).
-
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -20,7 +22,10 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
+
+-spec routes() -> mongoose_http_handler:routes().
+routes() ->
+    [{"/rooms/[:id]", ?MODULE, #{}}].
 
 trails() ->
     mongoose_client_api_rooms_doc:trails().

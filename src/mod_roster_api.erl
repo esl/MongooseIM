@@ -113,7 +113,8 @@ subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
             ?UNKNOWN_DOMAIN_RESULT
     end.
 
--spec set_mutual_subscription(jid:jid(), jid:jid(), sub_mutual_action()) -> {ok, iolist()}.
+-spec set_mutual_subscription(jid:jid(), jid:jid(), sub_mutual_action()) ->
+          {ok | contact_not_found | internal | unknown_domain | user_not_exist, iolist()}.
 set_mutual_subscription(UserA, UserB, connect) ->
     subscribe_both({UserA, <<>>, []}, {UserB, <<>>, []});
 set_mutual_subscription(UserA, UserB, disconnect) ->
@@ -127,7 +128,7 @@ set_mutual_subscription(UserA, UserB, disconnect) ->
     end.
 
 -spec subscribe_both({jid:jid(), binary(), [binary()]}, {jid:jid(), binary(), [binary()]}) ->
-    {ok, iolist()}.
+    {ok | internal | unknown_domain | user_not_exist, iolist()}.
 subscribe_both({UserA, NameA, GroupsA}, {UserB, NameB, GroupsB}) ->
     Seq = [fun() -> add_contact(UserA, UserB, NameB, GroupsB) end,
            fun() -> add_contact(UserB, UserA, NameA, GroupsA) end,

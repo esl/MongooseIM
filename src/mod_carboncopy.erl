@@ -38,7 +38,7 @@
          is_carbon_copy/1]).
 
 %% Hooks
--export([disco_local_features/1,
+-export([disco_local_features/3,
          user_send_packet/4,
          user_receive_packet/5,
          iq_handler2/5,
@@ -49,7 +49,7 @@
 %% Tests
 -export([should_forward/3]).
 
--ignore_xref([disco_local_features/1, is_carbon_copy/1, remove_connection/5,
+-ignore_xref([is_carbon_copy/1, remove_connection/5,
               should_forward/3, user_receive_packet/5, user_send_packet/4]).
 
 -define(CC_KEY, 'cc').
@@ -77,34 +77,41 @@ is_carbon_copy(Packet) ->
 %% Default IQDisc is no_queue:
 %% executes disable/enable actions in the c2s process itself
 start(HostType, #{iqdisc := IQDisc}) ->
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm,
                                              fun ?MODULE:iq_handler2/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm,
                                              fun ?MODULE:iq_handler1/5, #{}, IQDisc).
 
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm),
     ok.
 
-hooks(HostType) ->
-    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
-     {unset_presence_hook, HostType, ?MODULE, remove_connection, 10},
+legacy_hooks(HostType) ->
+    [{unset_presence_hook, HostType, ?MODULE, remove_connection, 10},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 89},
      {user_receive_packet, HostType, ?MODULE, user_receive_packet, 89}].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
              defaults = #{<<"iqdisc">> => no_queue}}.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    NewAcc = mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc),
+    {ok, NewAcc};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 iq_handler2(Acc, From, _To, IQ, _Extra) ->
     iq_handler(Acc, From, IQ, ?NS_CC_2).

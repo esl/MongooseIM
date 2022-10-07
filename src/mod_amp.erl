@@ -11,20 +11,15 @@
 -export([start/2, stop/1, supported_features/0]).
 -export([run_initial_check/3,
          check_packet/2,
-         disco_local_features/1,
+         disco_local_features/3,
          c2s_stream_features/3,
-         xmpp_send_element/2
-        ]).
+         xmpp_send_element/2]).
 
--ignore_xref([c2s_stream_features/3,
-              disco_local_features/1,
-              run_initial_check/2,
-              xmpp_send_element/2]).
+-ignore_xref([c2s_stream_features/3, xmpp_send_element/2]).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_c2s.hrl").
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
@@ -33,25 +28,29 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)),
-    gen_hook:add_handlers(c2s_hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
-    gen_hook:delete_handlers(c2s_hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
+-spec legacy_hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+legacy_hooks(HostType) ->
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
      {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10},
      {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 10}].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}
+     | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
@@ -76,12 +75,15 @@ check_packet(Acc, Event) ->
         Rules -> process_event(Acc, Rules, Event)
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := Node}) ->
-    case amp_features(Node) of
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := Node}, _, _) ->
+    NewAcc = case amp_features(Node) of
         [] -> Acc;
         Features -> mongoose_disco:add_features(Features, Acc)
-    end.
+    end,
+    {ok, NewAcc}.
 
 -spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
           [exml:element()].
@@ -251,7 +253,7 @@ find(Pred, [H|T]) ->
 
 -spec xmpp_send_element(mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 xmpp_send_element(Acc, _El) ->
-    Event = case mongoose_acc:get(c2s, send_result, Acc) of
+    Event = case mongoose_acc:get(c2s, send_result, undefined, Acc) of
                 ok -> delivered;
                 _ -> delivery_failed
             end,

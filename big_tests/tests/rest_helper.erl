@@ -254,7 +254,7 @@ insert_creds(Opts = #{handlers := Handlers}, Creds) ->
     NewHandlers = [inject_creds_to_opts(Handler, Creds) || Handler <- Handlers],
     Opts#{handlers := NewHandlers}.
 
-inject_creds_to_opts(Handler = #{module := mongoose_api_admin}, Creds) ->
+inject_creds_to_opts(Handler = #{module := mongoose_admin_api}, Creds) ->
     case Creds of
         {UserName, Password} ->
             Handler#{username => UserName, password => Password};
@@ -277,7 +277,7 @@ is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, Role) ->
     lists:any(fun(#{module := Module}) -> Module =:= RoleModule end, Handlers);
 is_roles_config(_, _) -> false.
 
-role_to_module(admin) -> mongoose_api_admin;
+role_to_module(admin) -> mongoose_admin_api;
 role_to_module(client) -> mongoose_client_api.
 
 mapfromlist(L) ->

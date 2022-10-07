@@ -10,6 +10,7 @@
 
 -export([tokens/2,
          join/2,
+         encode_crypto/1,
          gen_from_crypto/0,
          gen_from_timestamp/0,
          string_to_binary/1]).
@@ -42,6 +43,9 @@ gen_from_timestamp() ->
     SecsB = integer_to_binary(Secs),
     MicroB = integer_to_binary(Micro),
     <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
+
+-spec encode_crypto(iodata()) -> binary().
+encode_crypto(Text) -> base16:encode(crypto:hash(sha, Text)).
 
 -spec string_to_binary(binary() | list()) -> binary().
 string_to_binary(S) when is_list(S) ->

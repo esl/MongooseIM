@@ -24,7 +24,6 @@
          packet_to_component/3,
          presence_probe_hook/5,
          push_notifications/4,
-         register_command/1,
          register_subhost/2,
          register_user/3,
          remove_user/3,
@@ -34,7 +33,6 @@
          set_vcard/3,
          unacknowledged_message/2,
          filter_unacknowledged_messages/3,
-         unregister_command/1,
          unregister_subhost/1,
          user_available_hook/2,
          user_ping_response/5,
@@ -234,9 +232,9 @@ does_user_exist(HostType, Jid, RequestType) ->
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
     Domain :: jid:lserver(),
-    Result :: ok.
+    Result :: mongoose_domain_api:remove_domain_acc().
 remove_domain(HostType, Domain) ->
-    run_hook_for_host_type(remove_domain, HostType, #{}, [HostType, Domain]).
+    run_hook_for_host_type(remove_domain, HostType, #{failed => []}, [HostType, Domain]).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
@@ -266,7 +264,8 @@ failed_to_store_message(Acc) ->
     Result :: drop | filter_packet_acc().
 filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, ParamsWithLegacyArgs).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.
@@ -333,14 +332,6 @@ push_notifications(HostType, Acc, NotificationForms, Options) ->
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(push_notifications, HostType, Acc, ParamsWithLegacyArgs).
 
-%%% @doc The `register_command' hook is called when a command
-%%% is registered in `mongoose_commands'.
--spec register_command(Command) -> Result when
-    Command :: mongoose_commands:t(),
-    Result :: drop.
-register_command(Command) ->
-    run_global_hook(register_command, Command, []).
-
 %%% @doc The `register_subhost' hook is called when a component
 %%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
@@ -367,8 +358,12 @@ register_user(HostType, LServer, LUser) ->
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
 remove_user(Acc, LServer, LUser) ->
+    Jid = jid:make_bare(LUser, LServer),
+    Params = #{jid => Jid},
+    Args = [LUser, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
+    run_hook_for_host_type(remove_user, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec resend_offline_messages_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
@@ -387,8 +382,11 @@ resend_offline_messages_hook(Acc, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 rest_user_send_packet(Acc, From, To, Packet) ->
+    Params = #{},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(rest_user_send_packet, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(rest_user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -432,14 +430,6 @@ unacknowledged_message(Acc, JID) ->
 filter_unacknowledged_messages(HostType, Jid, Buffer) ->
     run_fold(filter_unacknowledged_messages, HostType, Buffer, #{jid => Jid}).
 
-%%% @doc The `unregister_command' hook is called when a command
-%%% is unregistered from `mongoose_commands'.
--spec unregister_command(Command) -> Result when
-    Command :: mongoose_commands:t(),
-    Result :: drop.
-unregister_command(Command) ->
-    run_global_hook(unregister_command, Command, []).
-
 %%% @doc The `unregister_subhost' hook is called when a component
 %%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.
 -spec unregister_subhost(LDomain) -> Result when
@@ -453,8 +443,11 @@ unregister_subhost(LDomain) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 user_available_hook(Acc, JID) ->
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_available_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(user_available_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping, or times out
 -spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
@@ -499,8 +492,11 @@ user_sent_keep_alive(HostType, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
+    Params = #{},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
@@ -680,9 +676,11 @@ privacy_updated_list(HostType, OldList, NewList) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 offline_groupchat_message_hook(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc,
-                           [From, To, Packet]).
+    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec offline_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
@@ -691,8 +689,11 @@ offline_groupchat_message_hook(Acc, From, To, Packet) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 offline_message_hook(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_message_hook, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(offline_message_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec set_presence_hook(Acc, JID, Presence) -> Result when
     Acc :: mongoose_acc:t(),
@@ -756,9 +757,11 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unset_presence_hook(Acc, JID, Status) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    Params = #{jid => JID},
+    Args = [LUser, LServer, LResource, Status],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(unset_presence_hook, HostType, Acc,
-                           [LUser, LServer, LResource, Status]).
+    run_hook_for_host_type(unset_presence_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
@@ -831,9 +834,12 @@ roster_get_versioning_feature(HostType) ->
     Reason :: any(),
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
+    ToJID = jid:to_bare(To),
+    Params = #{to_jid => ToJID, from => From, type => Type, reason => Reason},
+    Args = [ToJID, From, Type, Reason],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_in_subscription, HostType, Acc,
-                           [jid:to_bare(To), From, Type, Reason]).
+    run_hook_for_host_type(roster_in_subscription, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_out_subscription' hook is called
 %%% when a user sends out subscription.
@@ -1293,7 +1299,8 @@ disco_sm_identity(Acc = #{host_type := HostType}) ->
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_local_items(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_items, HostType, Acc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_local_items, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_sm_items' hook is called to get the items associated
 %%% with the client when a discovery IQ gets to session management.
@@ -1305,7 +1312,7 @@ disco_sm_items(Acc = #{host_type := HostType}) ->
 %%% offered by the server.
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_features, HostType, Acc, #{}).
 
 %%% @doc `disco_sm_features' hook is called to get the features of the client
 %%% when a discovery IQ gets to session management.
@@ -1499,8 +1506,11 @@ pubsub_publish_item(Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
     LocalHost :: jid:server(),
     Result :: any().
 mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
+    Params = #{from => From, to => To, target_host => LocalHost},
+    Args = [From, To, LocalHost],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mod_global_distrib_known_recipient, GlobalHost, ok,
-                           [From, To, LocalHost]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mod_global_distrib_unknown_recipient' hook is called when
 %%% the recipient is unknown to `global_distrib'.
@@ -1509,7 +1519,9 @@ mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
     Info :: filter_packet_acc(),
     Result :: any().
 mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
-    run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info,
+                           ParamsWithLegacyArgs).
 
 
 %%%----------------------------------------------------------------------

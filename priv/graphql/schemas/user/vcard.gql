@@ -1,15 +1,17 @@
 """
 Allow user to set own vcard
 """
-type VcardUserMutation @protected{
+type VcardUserMutation @protected @use(modules: ["mod_vcard"]){
     "Set user's own vcard"
-    setVcard(vcard: VcardInput!): Vcard
+    setVcard(vcard: VcardInput!): Vcard @use
 }
 
 """
 Allow user to get user's vcard
 """
-type VcardUserQuery @protected{
+type VcardUserQuery @protected @use(modules: ["mod_vcard"]){
     "Get user's vcard"
-    getVcard(user: JID): Vcard
+    #In mod_vcard_api was left the check if the mod_vcard is loaded, because,
+    #when get_vcard is called without user variable @use directive cannot check if the module is loaded.
+    getVcard(user: JID): Vcard @use(arg: "user")
 }

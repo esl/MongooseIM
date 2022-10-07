@@ -1,17 +1,17 @@
 """
 Allow admin to set user's vcard
 """
-type VcardAdminMutation @protected{
+type VcardAdminMutation @protected @use(modules: ["mod_vcard"]){
     "Set a new vcard for a user"
     setVcard(user: JID!, vcard: VcardInput!): Vcard
-      @protected(type: DOMAIN, args: ["user"])
+      @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }
 
 """
-Allow admin to get user's vcard
+Allow admin to get the user's vcard
 """
-type VcardAdminQuery @protected{
-    "Get user's vcard"
+type VcardAdminQuery @protected @use(modules: ["mod_vcard"]){
+    "Get the user's vcard"
     getVcard(user: JID!): Vcard
-      @protected(type: DOMAIN, args: ["user"])
+      @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }

@@ -533,7 +533,7 @@ CREATE TABLE domain_settings (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     domain VARCHAR(250) NOT NULL,
     host_type VARCHAR(250) NOT NULL,
-    enabled BOOLEAN NOT NULL DEFAULT true
+    status TINYINT NOT NULL DEFAULT 1
 );
 
 -- A new record is inserted into domain_events, each time

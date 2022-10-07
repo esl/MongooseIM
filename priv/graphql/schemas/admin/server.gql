@@ -1,0 +1,81 @@
+"""
+Allow admin to acquire data about the node
+"""
+type ServerAdminQuery @protected{
+  "Get the status of the server"
+  status: Status
+    @protected(type: GLOBAL)
+  "Get MongooseIM node's current LogLevel"
+  getLoglevel: LogLevel
+    @protected(type: GLOBAL)
+  "Get the Erlang cookie of this node"
+  getCookie: String
+    @protected(type: GLOBAL)
+}
+
+"""
+Allow admin to manage the node
+"""
+type ServerAdminMutation @protected{
+  "Join the MongooseIM node to a cluster. Call it on the joining node"
+  joinCluster(node: String!): String
+    @protected(type: GLOBAL)
+  "Leave a cluster. Call it on the node that is going to leave"
+  leaveCluster: String
+    @protected(type: GLOBAL)
+  "Remove a MongooseIM node from the cluster. Call it from the member of the cluster"
+  removeFromCluster(node: String!): String
+    @protected(type: GLOBAL)
+  "Restart MongooseIM node"
+  restart: String
+    @protected(type: GLOBAL)
+  "Stop MongooseIM node"
+  stop: String
+    @protected(type: GLOBAL)
+  "Remove a MongooseIM node from Mnesia clustering config"
+  removeNode(node: String!): String
+    @protected(type: GLOBAL)
+  "Set MongooseIM node's LogLevel"
+  setLoglevel(level: LogLevel!): String
+    @protected(type: GLOBAL)
+}
+
+"Status of the server"
+type Status {
+  "Code of the status"
+  statusCode: StatusCode
+  "Message about the status"
+  message: String
+}
+
+"Specifies status of the server"
+enum StatusCode {
+  "Server is running"
+  RUNNING
+  "Server is not running"
+  NOT_RUNNING
+}
+
+"Logs events that equally or more severe than the configured level"
+enum LogLevel {
+  "Do not log any events"
+  NONE
+  "Log when system is unusable"
+  EMERGENCY
+  "Log when action must be taken immediately"
+  ALERT
+  "Log critical conditions"
+  CRITICAL
+  "Log error conditions"
+  ERROR
+  "Log warning conditions"
+  WARNING
+  "Log normal but significant conditions"
+  NOTICE
+  "Long informational messages"
+  INFO
+  "Log debug messages"
+  DEBUG
+  "Log everything"
+  ALL
+}

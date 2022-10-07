@@ -67,9 +67,9 @@
 %% Starting and stopping functions for users' archives
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
+start(HostType, Opts) ->
     start_hooks(HostType),
-    register_prepared_queries(),
+    register_prepared_queries(Opts),
     ok.
 
 -spec stop(host_type()) -> ok.
@@ -125,21 +125,28 @@ hooks(HostType) ->
 %% ----------------------------------------------------------------------
 %% SQL queries
 
-register_prepared_queries() ->
+register_prepared_queries(Opts) ->
     prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_remove, mam_message, [user_id],
                            <<"DELETE FROM mam_message "
                              "WHERE user_id = ?">>),
+
+    %% Domain Removal
+    {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
+    IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
+                " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
+    ServerTable = <<"(SELECT * FROM (SELECT", MaybeLimitMSSQL/binary,
+                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
     mongoose_rdbms:prepare(mam_remove_domain, mam_message, ['mam_server_user.server'],
                            <<"DELETE FROM mam_message "
-                             "WHERE user_id IN "
-                             "(SELECT id from mam_server_user WHERE server = ?)">>),
+                             "WHERE user_id IN ", IdTable/binary>>),
     mongoose_rdbms:prepare(mam_remove_domain_prefs, mam_config, ['mam_server_user.server'],
                            <<"DELETE FROM mam_config "
-                             "WHERE user_id IN "
-                             "(SELECT id from mam_server_user WHERE server = ?)">>),
+                             "WHERE user_id IN ", IdTable/binary>>),
     mongoose_rdbms:prepare(mam_remove_domain_users, mam_server_user, [server],
-                           <<"DELETE FROM mam_server_user WHERE server = ?">>),
+                           <<"DELETE ", MaybeLimitMSSQL/binary,
+                             " FROM mam_server_user WHERE server IN ", ServerTable/binary>>),
+
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
                            <<"UPDATE mam_message SET message = ?, search_body = '' "
                              "WHERE user_id = ? AND id = ?">>),
@@ -197,8 +204,8 @@ env_vars(HostType, ArcJID) ->
       decode_row_fn => fun row_to_uniform_format/2,
       has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam_pm, HostType),
       has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam_pm, HostType),
-      db_jid_codec => db_jid_codec(HostType, ?MODULE),
-      db_message_codec => db_message_codec(HostType, ?MODULE)}.
+      db_jid_codec => mod_mam_utils:db_jid_codec(HostType, ?MODULE),
+      db_message_codec => mod_mam_utils:db_message_codec(HostType, ?MODULE)}.
 
 row_to_uniform_format(Row, Env) ->
     mam_decoder:decode_row(Row, Env).
@@ -225,14 +232,6 @@ column_names(Mappings) ->
 
 %% ----------------------------------------------------------------------
 %% Options
-
--spec db_jid_codec(host_type(), module()) -> module().
-db_jid_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_jid_format).
-
--spec db_message_codec(host_type(), module()) -> module().
-db_message_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_message_format).
 
 -spec get_retract_id(exml:element(), env_vars()) -> none | mod_mam_utils:retraction_id().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
@@ -341,15 +340,32 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(), host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), host_type(), jid:lserver()) ->
+    mongoose_domain_api:remove_domain_acc().
 remove_domain(Acc, HostType, Domain) ->
+    F = fun() ->
+            case gen_mod:get_module_opt(HostType, ?MODULE, delete_domain_limit) of
+                infinity -> remove_domain_all(HostType, Domain);
+                Limit -> remove_domain_batch(HostType, Domain, Limit)
+            end,
+            Acc
+        end,
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
+
+-spec remove_domain_all(host_type(), jid:lserver()) -> any().
+remove_domain_all(HostType, Domain) ->
     {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain, [Domain]),
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_prefs, [Domain]),
-            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_users, [Domain])
-        end),
-    Acc.
+        mongoose_rdbms:execute_successfully(HostType, mam_remove_domain, [Domain]),
+        mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_prefs, [Domain]),
+        mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_users, [Domain])
+    end).
+
+-spec remove_domain_batch(host_type(), jid:lserver(), non_neg_integer()) -> any().
+remove_domain_batch(HostType, Domain, Limit) ->
+    DeleteQueries = [mam_remove_domain, mam_remove_domain_prefs, mam_remove_domain_users],
+    TotalDeleted = mod_mam_utils:incremental_delete_domain(HostType, Domain, Limit, DeleteQueries, 0),
+    ?LOG_INFO(#{what => mam_domain_removal_completed, total_records_deleted => TotalDeleted,
+                domain => Domain, host_type => HostType}).
 
 %% GDPR logic
 extract_gdpr_messages(Env, ArcID) ->

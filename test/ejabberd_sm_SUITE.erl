@@ -608,6 +608,7 @@ sm_backend(ejabberd_sm_mnesia) -> mnesia.
 
 set_meck() ->
     meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
+    meck:expect(gen_hook, add_handlers, fun(_) -> ok end),
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     meck:expect(ejabberd_commands, unregister_commands, fun(_) -> ok end),

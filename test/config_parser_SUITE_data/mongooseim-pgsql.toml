@@ -38,15 +38,11 @@
   tls.keyfile = "priv/dc1.pem"
   tls.password = ""
 
-  [[listen.http.handlers.mongoose_api_admin]]
+  [[listen.http.handlers.mongoose_admin_api]]
     host = "localhost"
     path = "/api"
     username = "ala"
     password = "makotaipsa"
-
-  [[listen.http.handlers.mongoose_api_client]]
-    host = "localhost"
-    path = "/api/contacts/{:jid}"
 
   [[listen.http.handlers.mod_bosh]]
     host = "_"
@@ -65,7 +61,7 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_api_admin]]
+  [[listen.http.handlers.mongoose_admin_api]]
     host = "localhost"
     path = "/api"
 
@@ -80,16 +76,6 @@
 
   [[listen.http.handlers.mongoose_client_api]]
     host = "_"
-    path = "/api"
-
-[[listen.http]]
-  port = 5288
-  ip_address = "127.0.0.1"
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-
-  [[listen.http.handlers.mongoose_api]]
-    host = "localhost"
     path = "/api"
 
 [[listen.c2s]]
@@ -179,12 +165,6 @@
 
 [modules.mod_disco]
   users_can_see_hidden_services = false
-
-[modules.mod_commands]
-
-[modules.mod_muc_commands]
-
-[modules.mod_muc_light_commands]
 
 [modules.mod_last]
   backend = "rdbms"

@@ -26,14 +26,14 @@ type AccountAdminMutation @protected{
   "Register a user. Username will be generated when skipped"
   registerUser(domain: String!, username: String, password: String!): UserPayload
     @protected(type: DOMAIN, args: ["domain"])
-  "Remove a user"
+  "Remove the user's account along with all the associated personal data"
   removeUser(user: JID!): UserPayload
     @protected(type: DOMAIN, args: ["user"])
   "Ban an account: kick sessions and set a random password"
-  banUser(user: JID!, reason: String!): UserPayload 
+  banUser(user: JID!, reason: String!): UserPayload
     @protected(type: DOMAIN, args: ["user"])
   "Change the password of a user"
-  changeUserPassword(user: JID!, newPassword: String!): UserPayload 
+  changeUserPassword(user: JID!, newPassword: String!): UserPayload
     @protected(type: DOMAIN, args: ["user"])
 }
 

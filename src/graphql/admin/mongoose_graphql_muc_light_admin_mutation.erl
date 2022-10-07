@@ -10,7 +10,7 @@
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 -import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
                                             prepare_blocking_items/1,
-                                            null_to_default/2, options_to_map/1]).
+                                            null_to_default/2, options_to_map/1, get_not_loaded/1]).
 
 execute(_Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Args);

@@ -13,7 +13,7 @@ Please see the [Authentication](#authentication) section for more details.
 1. The relevant endpoint has to be configured on the server side.
 See the [configuration section](#configuration).
 1. A list of provided actions is documented with Swagger.
-See the beautiful [specification](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true).
+See the [specification](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true).
 
 ## Authentication
 
@@ -36,7 +36,7 @@ Authorization: Basic YWxpY2VAbG9jYWxob3N0OnNlY3JldA==
 
 ## Configuration
 
-Handlers have to be configured as shown in the [REST API configuration example](../configuration/listen.md#example-3-client-api)
+Handlers have to be configured as shown in the [REST API configuration example](../configuration/listen.md#example-6-client-rest-api)
 to enable REST API.
 
 In order to get the client REST API up and running simply copy the provided example.
@@ -85,7 +85,7 @@ then in the final json message these properties will be converted to json map wi
 
 ## OpenAPI specifications
 
-See the beautiful [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true) for more information.
+See the [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true) for more information.
 
 [![Swagger](https://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](https://esl.github.io/MongooseDocs/latest/swagger/index.html?client=true)
 
