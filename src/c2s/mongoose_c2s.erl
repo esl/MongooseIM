@@ -217,6 +217,7 @@ activate_socket(#c2s_data{socket = Socket}) ->
 
 -spec send_text(c2s_data(), iodata()) -> ok | {error, term()}.
 send_text(#c2s_data{socket = Socket}, Text) ->
+    mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], size(Text)),
     mongoose_c2s_socket:send_text(Socket, Text).
 
 -spec filter_mechanism(c2s_data(), binary()) -> boolean().
@@ -705,13 +706,16 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
     maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
     {next_state, NextFsmState, StateData2, MaybeActions}.
 
+-spec maybe_send_xml(c2s_data(), mongoose_acc:t(), [exml:element()]) -> ok.
 maybe_send_xml(_StateData, _Acc, []) ->
     ok;
 maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    send_element(StateData, ToSend, Acc);
+    [send_element(StateData, El, Acc) || El <- ToSend],
+    ok;
 maybe_send_xml(StateData, Acc, ToSend) ->
-    send_element(StateData, ToSend, Acc).
+    [send_element(StateData, El, Acc) || El <- ToSend],
+    ok.
 
 -spec maybe_deliver(c2s_data(), gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
 maybe_deliver(StateData, {ok, Acc}) ->

@@ -7,11 +7,11 @@ MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tre
 All metrics are divided into the following groups:
 
 * Per host type metrics: Gathered separately for every host type supported by the cluster.
-    
+
     !!! Warning
         If a cluster supports many (thousands or more) host types, performance issues might occur.
         To avoid this, use global equivalents of the metrics with `all_metrics_are_global` config option.
-    
+
     * Hook metrics.
     They are created for every [hook](../developers-guide/Hooks-and-handlers.md) and incremented on every call to it.
 
@@ -137,7 +137,7 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, xmppMessageReceived]` | spiral | A message is sent to a client. |
 | `[HostType, xmppPresenceReceived]` | spiral | A presence is sent to a client. |
 | `[HostType, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
-| `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to a client. |
+| `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to and by a client. |
 | `[HostType, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
 
 ### Extension-specific metrics

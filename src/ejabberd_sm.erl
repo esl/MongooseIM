@@ -448,7 +448,7 @@ terminate_session(Pid, Reason) ->
 %% Hook handlers
 %%====================================================================
 
--spec node_cleanup(Acc, Args, Extra) -> {ok, Acc} when 
+-spec node_cleanup(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: any(),
       Args :: #{node := node()},
       Extra :: map().

@@ -255,7 +255,6 @@ error_presence(Config) ->
         Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
                                                   <<"error">>, [ErrorElt]),
         escalus:send(Bob, Presence),
-        escalus:wait_for_stanza(Alice),
 
         wait_for_counter(Errors + 1, xmppErrorPresence)
 
