@@ -3,24 +3,19 @@
 -export([delete_expired_messages/1, delete_old_messages/2]).
 
 -spec delete_expired_messages(jid:lserver()) ->
-    {ok | domain_not_found | server_error | module_not_loaded_error, iolist()}.
+    {ok | domain_not_found | server_error, iolist()}.
 delete_expired_messages(Domain) ->
     call_for_loaded_module(Domain, fun remove_expired_messages/2, {Domain}).
 
 -spec delete_old_messages(jid:lserver(), Days :: integer()) ->
-    {ok | domain_not_found | server_error | module_not_loaded_error, iolist()}.
+    {ok | domain_not_found | server_error, iolist()}.
 delete_old_messages(Domain, Days) ->
     call_for_loaded_module(Domain, fun remove_old_messages/2, {Domain, Days}).
 
 call_for_loaded_module(Domain, Function, Args) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
-            case gen_mod:is_loaded(HostType, mod_offline) of
-                true ->
-                    Function(Args, HostType);
-                false ->
-                    {module_not_loaded_error, "mod_offline is not loaded for this host"}
-            end;
+            Function(Args, HostType);
         {error, not_found} ->
             {domain_not_found, "Unknown domain"}
     end.

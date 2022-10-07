@@ -184,8 +184,8 @@ user_http_upload_not_configured(Config) ->
 
 user_http_upload_not_configured(Config, Alice) ->
     Result = user_get_url(<<"test">>, 123, <<"Test">>, 123, Alice, Config),
-    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)),
-    ?assertEqual(<<"mod_http_upload is not loaded for this host">>, get_err_msg(Result)).
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Result)),
+    ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Result)).
 
 % Admin test cases
 
@@ -218,8 +218,8 @@ admin_get_url_no_domain(Config) ->
 
 admin_http_upload_not_configured(Config) ->
     Result = admin_get_url(domain(), <<"test">>, 123, <<"Test">>, 123, Config),
-    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)),
-    ?assertEqual(<<"mod_http_upload is not loaded for this host">>, get_err_msg(Result)).
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Result)),
+    ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Result)).
 
 domain_admin_get_url_no_permission(Config) ->
     Result1 = admin_get_url(<<"AAAAA">>, <<"test">>, 123, <<"Test">>, 123, Config),

@@ -1,17 +1,17 @@
 """
 Allow admin to set the user's private data
 """
-type PrivateAdminMutation @protected {
+type PrivateAdminMutation @protected @use(modules: ["mod_private"]){
     "Set the user's private data"
     setPrivate(user: JID!, elementString: String!): String
-      @protected(type: DOMAIN, args: ["user"])
+      @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }
 
 """
 Allow admin to get the user's private data
 """
-type PrivateAdminQuery @protected {
+type PrivateAdminQuery @protected @use(modules: ["mod_private"]){
     "Get the user's private data"
     getPrivate(user: JID!, element: String!, nameSpace: String!): String
-      @protected(type: DOMAIN, args: ["user"])
+      @protected(type: DOMAIN, args: ["user"]) @use(arg: "user")
 }

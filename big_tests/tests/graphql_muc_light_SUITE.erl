@@ -5,7 +5,8 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
-                         get_coercion_err_msg/1, make_creds/1, get_unauthorized/1]).
+                         get_coercion_err_msg/1, make_creds/1, get_unauthorized/1,
+                         get_err_code/1, get_not_loaded/1]).
 
 -import(config_parser_helper, [mod_config/2]).
 
@@ -36,16 +37,28 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_muc_light},
-     {group, admin_muc_light_http},
-     {group, admin_muc_light_cli},
+    [{group, user},
+     {group, admin_http},
+     {group, admin_cli},
      {group, domain_admin_muc_light}].
 
 groups() ->
-    [{user_muc_light, [parallel], user_muc_light_tests()},
-     {admin_muc_light_http, [parallel], admin_muc_light_tests()},
-     {admin_muc_light_cli, [], admin_muc_light_tests()},
-     {domain_admin_muc_light, [], domain_admin_muc_light_tests()}].
+    [{user, [], user_groups()},
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {user_muc_light, [parallel], user_muc_light_tests()},
+     {user_muc_light_not_configured, [], user_muc_light_not_configured_tests()},
+     {admin_muc_light, [parallel], admin_muc_light_tests()},
+     {domain_admin_muc_light, [], domain_admin_muc_light_tests()},
+     {admin_muc_light_not_configured, [], admin_muc_light_not_configured_tests()}].
+
+user_groups() ->
+    [{group, user_muc_light},
+     {group, user_muc_light_not_configured}].
+
+admin_groups() ->
+    [{group, admin_muc_light},
+     {group, admin_muc_light_not_configured}].
 
 user_muc_light_tests() ->
     [user_create_room,
@@ -65,6 +78,19 @@ user_muc_light_tests() ->
      user_get_room_config,
      user_blocking_list
     ].
+
+user_muc_light_not_configured_tests() ->
+    [user_create_room_muc_light_not_configured,
+     user_change_room_config_muc_light_not_configured,
+     user_invite_user_muc_light_not_configured,
+     user_delete_room_muc_light_not_configured,
+     user_kick_user_muc_light_not_configured,
+     user_send_message_to_room_muc_light_not_configured,
+     user_get_room_messages_muc_light_not_configured,
+     user_list_rooms_muc_light_not_configured,
+     user_list_room_users_muc_light_not_configured,
+     user_get_room_config_muc_light_not_configured,
+     user_blocking_list_muc_light_not_configured].
 
 admin_muc_light_tests() ->
     [admin_create_room,
@@ -125,27 +151,32 @@ domain_admin_muc_light_tests() ->
      domain_admin_blocking_list_no_permission
     ].
 
+admin_muc_light_not_configured_tests() ->
+    [admin_create_room_muc_light_not_configured,
+     admin_change_room_config_muc_light_not_configured,
+     admin_invite_user_muc_light_not_configured,
+     admin_delete_room_muc_light_not_configured,
+     admin_kick_user_muc_light_not_configured,
+     admin_send_message_to_room_muc_light_not_configured,
+     admin_get_room_messages_muc_light_not_configured,
+     admin_list_user_rooms_muc_light_not_configured,
+     admin_list_room_users_muc_light_not_configured,
+     admin_get_room_config_muc_light_not_configured,
+     admin_blocking_list_muc_light_not_configured].
+
 init_per_suite(Config) ->
-    Config1 = init_modules(Config),
-    Config2 = ejabberd_node_utils:init(mim(), Config1),
-    [{muc_light_host, muc_light_helper:muc_host()},
-     {secondary_muc_light_host, <<"muclight.", (domain_helper:secondary_domain())/binary>>}
-     | escalus:init_per_suite(Config2)].
-
-end_per_suite(Config) ->
-    escalus_fresh:clean(),
-    dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
-
-init_modules(Config) ->
     HostType = domain_helper:host_type(),
     SecondaryHostType = domain_helper:secondary_host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     Config2 = dynamic_modules:save_modules(SecondaryHostType, Config1),
     Config3 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config2),
-    dynamic_modules:ensure_modules(HostType, required_modules(suite)),
-    dynamic_modules:ensure_modules(SecondaryHostType, required_modules(suite)),
-    Config3.
+    Config4 = ejabberd_node_utils:init(mim(), Config3),
+    escalus:init_per_suite(Config4).
+
+end_per_suite(Config) ->
+    escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_suite(Config).
 
 required_modules(_) ->
     MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true,
@@ -160,17 +191,45 @@ custom_schema() ->
      {<<"roomname">>, <<>>, roomname, binary},
      {<<"subject">>, <<>>, subject, binary}].
 
-init_per_group(admin_muc_light_http, Config) ->
+init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
-init_per_group(admin_muc_light_cli, Config) ->
+init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin_muc_light, Config) ->
-    graphql_helper:init_domain_admin_handler(Config);
-init_per_group(user_muc_light, Config) ->
+    Config1 = ensure_muc_light_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
+init_per_group(Group, Config) when Group =:= user_muc_light;
+                                   Group =:= admin_muc_light ->
+    ensure_muc_light_started(Config);
+init_per_group(Group, Config) when Group =:= user_muc_light_not_configured;
+                                   Group =:= admin_muc_light_not_configured ->
+    ensure_muc_light_stopped(Config);
+init_per_group(user, Config) ->
     graphql_helper:init_user(Config).
 
-end_per_group(_GN, _Config) ->
-    graphql_helper:clean().
+ensure_muc_light_started(Config) ->
+    HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
+    dynamic_modules:ensure_modules(HostType, required_modules(suite)),
+    dynamic_modules:ensure_modules(SecondaryHostType, required_modules(suite)),
+    [{muc_light_host, muc_light_helper:muc_host()},
+     {secondary_muc_light_host, <<"muclight.", (domain_helper:secondary_domain())/binary>>}
+     | Config].
+
+ensure_muc_light_stopped(Config) ->
+    HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, stopped}]),
+    dynamic_modules:ensure_modules(SecondaryHostType, [{mod_muc_light, stopped}]),
+    [{muc_light_host, <<"NON_EXISTING">>} | Config].
+
+end_per_group(Group, _Config) when Group =:= user;
+                                   Group =:= admin_http;
+                                   Group =:= domain_admin_muc_light;
+                                   Group =:= admin_cli ->
+    graphql_helper:clean();
+end_per_group(_Group, _Config) ->
+    escalus_fresh:clean().
 
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
@@ -1233,7 +1292,203 @@ admin_get_room_config_non_existent_domain_story(Config, Alice) ->
     Res = get_room_config(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
+%% User mod_muc_light not configured test cases
+user_create_room_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_create_room_muc_light_not_configured_story/2).
+
+user_create_room_muc_light_not_configured_story(Config, Alice) ->
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Res = user_create_room(Alice, MucServer, Name, Subject, null, Config),
+    ?assertEqual(<<"muc_server_not_found">>, get_err_code(Res)).
+
+user_change_room_config_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_change_room_config_muc_light_not_configured_story/2).
+
+user_change_room_config_muc_light_not_configured_story(Config, Alice) ->
+    Name = <<"changed room">>,
+    Subject = <<"not testing">>,
+    Res = user_change_room_configuration(Alice, get_room_name(), Name, Subject, Config),
+    get_not_loaded(Res).
+
+user_invite_user_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun user_invite_user_muc_light_not_configured_story/3).
+
+user_invite_user_muc_light_not_configured_story(Config, Alice, Bob) ->
+    BobBin = escalus_client:short_jid(Bob),
+    Res = user_invite_user(Alice, get_room_name(), BobBin, Config),
+    get_not_loaded(Res).
+
+user_delete_room_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_delete_room_muc_light_not_configured_story/2).
+
+user_delete_room_muc_light_not_configured_story(Config, Alice) ->
+    Res = user_delete_room(Alice, get_room_name(), Config),
+    get_not_loaded(Res).
+
+user_kick_user_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_kick_user_muc_light_not_configured_story/2).
+
+user_kick_user_muc_light_not_configured_story(Config, Alice) ->
+    Res = user_kick_user(Alice, get_room_name(), null, Config),
+    get_not_loaded(Res).
+
+user_send_message_to_room_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_send_message_to_room_muc_light_not_configured_story/2).
+
+user_send_message_to_room_muc_light_not_configured_story(Config, Alice) ->
+    MsgBody = <<"Hello there!">>,
+    Res = user_send_message_to_room(Alice, get_room_name(), MsgBody, Config),
+    get_not_loaded(Res).
+
+user_get_room_messages_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_get_room_messages_muc_light_not_configured_story/2).
+
+user_get_room_messages_muc_light_not_configured_story(Config, Alice) ->
+    Before = <<"2022-02-17T04:54:13+00:00">>,
+    Res = user_get_room_messages(Alice, get_room_name(), 51, Before, Config),
+    get_not_loaded(Res).
+
+user_list_rooms_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_list_rooms_muc_light_not_configured_story/2).
+
+user_list_rooms_muc_light_not_configured_story(Config, Alice) ->
+    Res = user_list_rooms(Alice, Config),
+    get_not_loaded(Res).
+
+user_list_room_users_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_list_room_users_muc_light_not_configured_story/2).
+
+user_list_room_users_muc_light_not_configured_story(Config, Alice) ->
+    Res = user_list_room_users(Alice, get_room_name(), Config),
+    get_not_loaded(Res).
+
+user_get_room_config_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_get_room_config_muc_light_not_configured_story/2).
+
+user_get_room_config_muc_light_not_configured_story(Config, Alice) ->
+    Res = user_get_room_config(Alice, get_room_name(), Config),
+    get_not_loaded(Res).
+
+user_blocking_list_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+         fun user_blocking_list_muc_light_not_configured_story/3).
+
+user_blocking_list_muc_light_not_configured_story(Config, Alice, Bob) ->
+    BobBin = escalus_client:full_jid(Bob),
+    Res = user_get_blocking(Alice, Config),
+    get_not_loaded(Res),
+    Res2 = user_set_blocking(Alice, [{<<"USER">>, <<"DENY">>, BobBin}], Config),
+    get_not_loaded(Res2).
+
+%% Admin mod_muc_light not configured test cases
+
+admin_create_room_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_create_room_muc_light_not_configured_story/2).
+
+admin_create_room_muc_light_not_configured_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Res = create_room(MucServer, Name, AliceBin, Subject, null, Config),
+    ?assertEqual(<<"muc_server_not_found">>, get_err_code(Res)).
+
+admin_invite_user_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun admin_invite_user_muc_light_not_configured_story/3).
+
+admin_invite_user_muc_light_not_configured_story(Config, Alice, Bob) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    BobBin = escalus_client:short_jid(Bob),
+    Res = invite_user(get_room_name(), AliceBin, BobBin, Config),
+    get_not_loaded(Res).
+
+admin_change_room_config_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_change_room_config_muc_light_not_configured_story/2).
+
+admin_change_room_config_muc_light_not_configured_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    Name = <<"changed room">>,
+    Subject = <<"not testing">>,
+    Res = change_room_configuration(get_room_name(), AliceBin, Name, Subject, Config),
+    get_not_loaded(Res).
+
+admin_delete_room_muc_light_not_configured(Config) ->
+    Res = delete_room(get_room_name(), Config),
+    get_not_loaded(Res).
+
+admin_kick_user_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{bob, 1}],
+        fun admin_kick_user_muc_light_not_configured_story/2).
+
+admin_kick_user_muc_light_not_configured_story(Config, Bob) ->
+    BobBin = escalus_client:short_jid(Bob),
+    Res = kick_user(get_room_name(), BobBin, Config),
+    get_not_loaded(Res).
+
+admin_send_message_to_room_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_send_message_to_room_muc_light_not_configured_story/2).
+
+admin_send_message_to_room_muc_light_not_configured_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    MsgBody = <<"Hello there!">>,
+    Res = send_message_to_room(get_room_name(), AliceBin, MsgBody, Config),
+    get_not_loaded(Res).
+
+admin_get_room_messages_muc_light_not_configured(Config) ->
+    Limit = 40,
+    Res = get_room_messages(get_room_name(), Limit, null, Config),
+    get_not_loaded(Res).
+
+admin_list_user_rooms_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_list_user_rooms_muc_light_not_configured_story/2).
+
+admin_list_user_rooms_muc_light_not_configured_story(Config, Alice) ->
+    AliceBin = escalus_client:short_jid(Alice),
+    Res = list_user_rooms(AliceBin, Config),
+    get_not_loaded(Res).
+
+admin_list_room_users_muc_light_not_configured(Config) ->
+    Res = list_room_users(get_room_name(), Config),
+    get_not_loaded(Res).
+
+admin_get_room_config_muc_light_not_configured(Config) ->
+    Res = get_room_config(get_room_name(), Config),
+    get_not_loaded(Res).
+
 %% Helpers
+
+get_room_name() ->
+    Domain = domain_helper:domain(),
+    <<"NON_EXISTING@", Domain/binary>>.
+
+admin_blocking_list_muc_light_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun admin_blocking_list_muc_light_not_configured_story/3).
+
+admin_blocking_list_muc_light_not_configured_story(Config, Alice, Bob) ->
+    AliceBin = escalus_client:full_jid(Alice),
+    BobBin = escalus_client:full_jid(Bob),
+    Res = get_user_blocking(AliceBin, Config),
+    get_not_loaded(Res),
+    Res2 = set_blocking(AliceBin, [{<<"USER">>, <<"DENY">>, BobBin}], Config),
+    get_not_loaded(Res2).
 
 make_bare_jid(User, Server) ->
     JID = jid:make_bare(User, Server),

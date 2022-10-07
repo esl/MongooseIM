@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2, get_err_code/1,
-                         user_to_bin/1, get_unauthorized/1]).
+                         user_to_bin/1, get_unauthorized/1, get_not_loaded/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -13,21 +13,37 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_private},
+    [{group, user},
      {group, domain_admin_private},
-     {group, admin_private_http},
-     {group, admin_private_cli}].
+     {group, admin_http},
+     {group, admin_cli}].
 
 groups() ->
-    [{user_private, [], user_private_tests()},
+    [{user, [], user_groups()},
      {domain_admin_private, [], domain_admin_private_tests()},
-     {admin_private_http, [], admin_private_tests()},
-     {admin_private_cli, [], admin_private_tests()}].
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {admin_private_configured, [], admin_private_tests()},
+     {user_private_configured, [], user_private_tests()},
+     {admin_private_not_configured, [], admin_private_not_configured_tests()},
+     {user_private_not_configured, [], user_private_not_configured_tests()}].
+
+admin_groups() ->
+    [{group, admin_private_configured},
+     {group, admin_private_not_configured}].
+
+user_groups() ->
+    [{group, user_private_configured},
+     {group, user_private_not_configured}].
 
 user_private_tests() ->
     [user_set_private,
      user_get_private,
      parse_xml_error].
+
+user_private_not_configured_tests() ->
+    [user_set_private_not_configured,
+     user_get_private_not_configured].
 
 domain_admin_private_tests() ->
     [admin_set_private,
@@ -41,13 +57,15 @@ admin_private_tests() ->
      no_user_error_set,
      no_user_error_get].
 
+admin_private_not_configured_tests() ->
+    [admin_set_private_not_configured,
+     admin_get_private_not_configured].
+
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
     escalus:init_per_suite([{backend, Backend} | Config2]).
 
 create_config(riak) ->
@@ -61,18 +79,41 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_private_http, Config) ->
+init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
-init_per_group(admin_private_cli, Config) ->
+init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(user, Config) ->
+    graphql_helper:init_user(Config);
 init_per_group(domain_admin_private, Config) ->
-    graphql_helper:init_domain_admin_handler(Config);
-init_per_group(user_private, Config) ->
-    graphql_helper:init_user(Config).
+    Config1 = ensure_private_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
+init_per_group(Group, Config) when Group =:= admin_private_configured;
+                                   Group =:= user_private_configured ->
+    ensure_private_started(Config);
+init_per_group(Group, Config) when Group =:= admin_private_not_configured;
+                                   Group =:= user_private_not_configured ->
+    ensure_private_stopped(Config).
 
+ensure_private_started(Config) ->
+    HostType = domain_helper:host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    ModConfig = create_config(Backend),
+    dynamic_modules:ensure_modules(HostType, ModConfig),
+    Config.
+
+ensure_private_stopped(Config) ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_private, stopped}]),
+    Config.
+
+end_per_group(GroupName, _Config) when GroupName =:= admin_http;
+                                       GroupName =:= admin_cli;
+                                       GroupName =:= user;
+                                       GroupName =:= domain_admin_private ->
+    graphql_helper:clean();
 end_per_group(_GroupName, _Config) ->
-    escalus_fresh:clean(),
-    graphql_helper:clean().
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -112,6 +153,23 @@ parse_xml_error(Config) ->
 parse_xml_error(Config, Alice) ->
     ResultSet = user_set_private(Alice, <<"AAAABBBB">>, Config),
     ?assertEqual(<<"parse_error">>, get_err_code(ResultSet)).
+
+% User private not configured test cases
+
+user_set_private_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_set_private_not_configured/2).
+
+user_set_private_not_configured(Config, Alice) ->
+    ElemStr = exml:to_binary(private_input()),
+    Res = user_set_private(Alice, ElemStr, Config),
+    get_not_loaded(Res).
+
+user_get_private_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_get_private_not_configured/2).
+
+user_get_private_not_configured(Config, Alice) ->
+    Res = user_get_private(Alice, <<"my_element">>, <<"alice:private:ns">>, Config),
+    get_not_loaded(Res).
 
 % Admin tests
 
@@ -155,7 +213,26 @@ private_input() ->
            attrs = [{<<"xmlns">>, "alice:private:ns"}],
            children = [{xmlcdata, <<"DATA">>}]}.
 
-%% Domain admin tests
+% Admin private not configured test cases
+
+admin_set_private_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_private_not_configured/2).
+
+admin_set_private_not_configured(Config, Alice) ->
+    AliceBin = user_to_bin(Alice),
+    ElemStr = exml:to_binary(private_input()),
+    Res = admin_set_private(AliceBin, ElemStr, Config),
+    get_not_loaded(Res).
+
+admin_get_private_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_private_not_configured/2).
+
+admin_get_private_not_configured(Config, Alice) ->
+    AliceBin = user_to_bin(Alice),
+    Res = admin_get_private(AliceBin, <<"my_element">>, <<"alice:private:ns">>, Config),
+    get_not_loaded(Res).
+
+% Domain admin tests
 
 domain_admin_user_set_private_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
