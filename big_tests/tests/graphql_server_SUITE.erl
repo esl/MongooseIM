@@ -217,23 +217,20 @@ stop_node_test(Config) ->
 join_successful_http(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     leave_cluster(Config),
-    timer:sleep(4500),
+    distributed_helper:verify_result(RPCSpec2, remove),
     get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
-    timer:sleep(4500),
     distributed_helper:verify_result(RPCSpec2, add).
 
 leave_successful_http(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     join_cluster(atom_to_binary(Node2), Config),
-    timer:sleep(4500),
+    distributed_helper:verify_result(RPCSpec2, add),
     get_ok_value([], leave_cluster(Config)),
-    timer:sleep(4500),
     distributed_helper:verify_result(RPCSpec2, remove).
 
 join_unsuccessful_http(Config) ->
     Node2 = mim2(),
     get_ok_value([], join_cluster(<<>>, Config)),
-    timer:sleep(4500),
     distributed_helper:verify_result(Node2, remove).
 
 remove_dead_from_cluster_http(Config) ->
