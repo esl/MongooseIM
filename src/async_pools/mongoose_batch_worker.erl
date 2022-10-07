@@ -74,6 +74,8 @@ handle_cast({task, Task}, State) ->
     {noreply, handle_task(Task, State)};
 handle_cast({task, _Key, Task}, State) ->
     {noreply, handle_task(Task, State)};
+handle_cast({broadcast, Broadcast}, State) ->
+    {noreply, handle_task(Broadcast, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.

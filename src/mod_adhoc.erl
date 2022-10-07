@@ -42,13 +42,13 @@
          process_sm_iq/5,
          disco_local_items/1,
          disco_local_identity/1,
-         disco_local_features/1,
+         disco_local_features/3,
          disco_sm_items/1,
          disco_sm_identity/1,
          disco_sm_features/1,
          ping_command/4]).
 
--ignore_xref([disco_local_features/1, disco_local_identity/1, disco_local_items/1,
+-ignore_xref([disco_local_identity/1, disco_local_items/1,
               disco_sm_features/1, disco_sm_identity/1, disco_sm_items/1,
               ping_command/4, process_local_iq/5, process_sm_iq/5]).
 
@@ -61,11 +61,13 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
@@ -74,14 +76,16 @@ iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
      {ejabberd_sm, fun ?MODULE:process_sm_iq/5}].
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [{disco_local_identity, HostType, ?MODULE, disco_local_identity, 99},
-     {disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {disco_local_items, HostType, ?MODULE, disco_local_items, 99},
      {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 99},
      {disco_sm_features, HostType, ?MODULE, disco_sm_features, 99},
      {disco_sm_items, HostType, ?MODULE, disco_sm_items, 99},
      {adhoc_local_commands, HostType, ?MODULE, ping_command, 100}].
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
 
 %%%
 %%% config_spec
@@ -212,17 +216,19 @@ command_list_identity(Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_COMMANDS], Acc);
-disco_local_features(Acc = #{node := ?NS_COMMANDS}) ->
+-spec disco_local_features(mongoose_disco:feature_acc(),
+                           map(),
+                           map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_local_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
+disco_local_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
     %% override all lesser features...
-    Acc#{result := []};
-disco_local_features(Acc = #{node := <<"ping">>}) ->
+    {ok, Acc#{result := []}};
+disco_local_features(Acc = #{node := <<"ping">>}, _, _) ->
     %% override all lesser features...
-    Acc#{result := [?NS_COMMANDS]};
-disco_local_features(Acc) ->
-    Acc.
+    {ok, Acc#{result := [?NS_COMMANDS]}};
+disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
 
 %%-------------------------------------------------------------------------
 

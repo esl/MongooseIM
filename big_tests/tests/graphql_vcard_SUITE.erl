@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5,
-                         user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1]).
+                         user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1,
+                         get_unauthorized/1, get_not_loaded/1, get_err_code/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -13,14 +14,28 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_vcard},
-     {group, admin_vcard_http},
-     {group, admin_vcard_cli}].
+    [{group, user},
+     {group, domain_admin_vcard},
+     {group, admin_http},
+     {group, admin_cli}].
 
 groups() ->
-    [{user_vcard, [], user_vcard_tests()},
-     {admin_vcard_http, [], admin_vcard_tests()},
-     {admin_vcard_cli, [], admin_vcard_tests()}].
+    [{user, [], user_groups()},
+     {domain_admin_vcard, [], domain_admin_vcard_tests()},
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {user_vcard_configured, [], user_vcard_tests()},
+     {user_vcard_not_configured, [], user_vcard_not_configured_tests()},
+     {admin_vcard_configured, [], admin_vcard_tests()},
+     {admin_vcard_not_configured, [], admin_vcard_not_configured_tests()}].
+
+user_groups() ->
+    [{group, user_vcard_configured},
+     {group, user_vcard_not_configured}].
+
+admin_groups() ->
+    [{group, admin_vcard_configured},
+     {group, admin_vcard_not_configured}].
 
 user_vcard_tests() ->
     [user_set_vcard,
@@ -30,6 +45,21 @@ user_vcard_tests() ->
      user_get_others_vcard_no_user,
      user_get_others_vcard_no_vcard].
 
+user_vcard_not_configured_tests() ->
+    [user_set_vcard_not_configured,
+     user_get_their_vcard_not_configured,
+     user_get_others_vcard_not_configured].
+
+domain_admin_vcard_tests() ->
+    [admin_set_vcard,
+     admin_set_vcard_incomplete_fields,
+     domain_admin_set_vcard_no_permission,
+     domain_admin_set_vcard_no_user,
+     admin_get_vcard,
+     admin_get_vcard_no_vcard,
+     domain_admin_get_vcard_no_user,
+     domain_admin_get_vcard_no_permission].
+
 admin_vcard_tests() ->
     [admin_set_vcard,
      admin_set_vcard_incomplete_fields,
@@ -38,30 +68,61 @@ admin_vcard_tests() ->
      admin_get_vcard_no_vcard,
      admin_get_vcard_no_user].
 
+admin_vcard_not_configured_tests() ->
+    [admin_set_vcard_not_configured,
+     admin_get_vcard_not_configured].
+
 init_per_suite(Config) ->
     case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, ldap_vcard_is_not_supported};
         _ ->
+            HostType = domain_helper:host_type(),
             Config1 = escalus:init_per_suite(Config),
             Config2 = ejabberd_node_utils:init(mim(), Config1),
-            dynamic_modules:save_modules(domain_helper:host_type(), Config2)
+            Config3 = dynamic_modules:save_modules(domain_helper:host_type(), Config2),
+            VCardOpts = dynamic_modules:get_saved_config(HostType, mod_vcard, Config3),
+            [{mod_vcard_opts, VCardOpts} | Config3]
     end.
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_vcard_http, Config) ->
+init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
-init_per_group(admin_vcard_cli, Config) ->
+init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
-init_per_group(user_vcard, Config) ->
-    graphql_helper:init_user(Config).
+init_per_group(domain_admin_vcard, Config) ->
+    Config1 = ensure_vcard_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
+init_per_group(user, Config) ->
+    graphql_helper:init_user(Config);
+init_per_group(Group, Config) when Group =:= admin_vcard_configured;
+                                   Group =:= user_vcard_configured ->
+    ensure_vcard_started(Config);
+init_per_group(Group, Config) when Group =:= admin_vcard_not_configured;
+                                   Group =:= user_vcard_not_configured ->
+    ensure_vcard_stopped(Config).
 
+end_per_group(GroupName, _Config) when GroupName =:= admin_http;
+                                       GroupName =:= admin_cli;
+                                       GroupName =:= user;
+                                       GroupName =:= domain_admin_vcard ->
+    graphql_helper:clean();
 end_per_group(_GroupName, _Config) ->
-    graphql_helper:clean(),
     escalus_fresh:clean().
+
+ensure_vcard_started(Config) ->
+    HostType = domain_helper:host_type(),
+    VCardConfig = ?config(mod_vcard_opts, Config),
+    dynamic_modules:restart(HostType, mod_vcard, VCardConfig),
+    Config.
+
+ensure_vcard_stopped(Config) ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:stop(HostType, mod_vcard),
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -141,6 +202,59 @@ user_get_others_vcard_no_user(Config, Alice) ->
     Result = user_get_vcard(Alice, <<"AAAAA">>, Config),
     ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
 
+% User VCard not configured test cases
+
+user_set_vcard_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_set_vcard_not_configured/2).
+
+user_set_vcard_not_configured(Config, Alice) ->
+    Vcard = complete_vcard_input(),
+    Res = user_set_vcard(Alice, Vcard, Config),
+    get_not_loaded(Res).
+
+user_get_others_vcard_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_others_vcard_not_configured/3).
+
+user_get_others_vcard_not_configured(Config, Alice, Bob) ->
+    Res = user_get_vcard(Alice, user_to_bin(Bob), Config),
+    get_not_loaded(Res).
+
+user_get_their_vcard_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_their_vcard_not_configured/2).
+
+user_get_their_vcard_not_configured(Config, Alice) ->
+    Res = user_get_own_vcard(Alice, Config),
+    ?assertEqual(<<"vcard_not_configured_error">>, get_err_code(Res)).
+
+%% Domain admin test cases
+
+domain_admin_set_vcard_no_user(Config) ->
+    Vcard = complete_vcard_input(),
+    get_unauthorized(set_vcard(Vcard, <<"AAAAA">>, Config)).
+
+domain_admin_get_vcard_no_user(Config) ->
+    get_unauthorized(get_vcard(<<"AAAAA">>, Config)).
+
+domain_admin_get_vcard_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_get_vcard_no_permission/2).
+
+domain_admin_get_vcard_no_permission(Config, AliceBis) ->
+    Result = get_vcard(user_to_bin(AliceBis), Config),
+    get_unauthorized(Result).
+
+domain_admin_set_vcard_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_set_vcard_no_permission/2).
+
+domain_admin_set_vcard_no_permission(Config, AliceBis) ->
+    Vcard = complete_vcard_input(),
+    Result = set_vcard(Vcard, user_to_bin(AliceBis), Config),
+    get_unauthorized(Result).
+
 %% Admin test cases
 
 admin_set_vcard(Config) ->
@@ -197,6 +311,26 @@ admin_get_vcard_no_vcard(Config, Alice) ->
 admin_get_vcard_no_user(Config) ->
     Result = get_vcard(<<"AAAAA">>, Config),
     ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
+
+%% Admin VCard not configured test cases
+
+admin_get_vcard_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_get_vcard_not_configured/2).
+
+admin_get_vcard_not_configured(Config, Alice) ->
+    Res = get_vcard(user_to_bin(Alice), Config),
+    get_not_loaded(Res).
+
+admin_set_vcard_not_configured(Config) ->
+    Config1 = [{vcard, complete_vcard_input()} | Config],
+    escalus:fresh_story_with_config(Config1, [{alice, 1}],
+                                    fun admin_set_vcard_not_configured/2).
+
+admin_set_vcard_not_configured(Config, Alice) ->
+    Vcard = ?config(vcard, Config),
+    Res = set_vcard(Vcard, user_to_bin(Alice), Config),
+    get_not_loaded(Res).
 
 %% Commands
 

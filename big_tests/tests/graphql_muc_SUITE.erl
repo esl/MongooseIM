@@ -4,7 +4,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
-                         get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1]).
+                         get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1,
+                         get_unauthorized/1, get_not_loaded/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -14,14 +15,28 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    [{group, user_muc},
-     {group, admin_muc_http},
-     {group, admin_muc_cli}].
+    [{group, user},
+     {group, admin_http},
+     {group, admin_cli},
+     {group, domain_admin_muc}].
 
 groups() ->
-    [{user_muc, [parallel], user_muc_tests()},
-     {admin_muc_http, [parallel], admin_muc_tests()},
-     {admin_muc_cli, [], admin_muc_tests()}].
+    [{user, [], user_groups()},
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {admin_muc_configured, [], admin_muc_tests()},
+     {admin_muc_not_configured, [], admin_muc_not_configured_tests()},
+     {user_muc_not_configured, [parallel], user_muc_not_configured_tests()},
+     {user_muc_configured, [parallel], user_muc_tests()},
+     {domain_admin_muc, [], domain_admin_muc_tests()}].
+
+user_groups() ->
+    [{group, user_muc_configured},
+     {group, user_muc_not_configured}].
+
+admin_groups() ->
+    [{group, admin_muc_configured},
+     {group, admin_muc_not_configured}].
 
 user_muc_tests() ->
     [user_create_and_delete_room,
@@ -63,6 +78,22 @@ user_muc_tests() ->
      user_try_list_nonexistent_room_affiliations
     ].
 
+user_muc_not_configured_tests() ->
+    [user_delete_room_muc_not_configured,
+     user_list_room_users_muc_not_configured,
+     user_change_room_config_muc_not_configured,
+     user_get_room_config_muc_not_configured,
+     user_invite_user_muc_not_configured,
+     user_kick_user_muc_not_configured,
+     user_send_message_to_room_muc_not_configured,
+     user_send_private_message_muc_not_configured,
+     user_get_room_messages_muc_not_configured,
+     user_owner_set_user_affiliation_muc_not_configured,
+     user_moderator_set_user_role_muc_not_configured,
+     user_can_enter_room_muc_not_configured,
+     user_can_exit_room_muc_not_configured,
+     user_list_room_affiliations_muc_not_configured].
+
 admin_muc_tests() ->
     [admin_create_and_delete_room,
      admin_try_create_instant_room_with_nonexistent_domain,
@@ -101,17 +132,76 @@ admin_muc_tests() ->
      admin_try_list_nonexistent_room_affiliations
     ].
 
+admin_muc_not_configured_tests() ->
+    [admin_delete_room_muc_not_configured,
+     admin_list_room_users_muc_not_configured,
+     admin_change_room_config_muc_not_configured,
+     admin_get_room_config_muc_not_configured,
+     admin_invite_user_muc_not_configured,
+     admin_kick_user_muc_not_configured,
+     admin_send_message_to_room_muc_not_configured,
+     admin_send_private_message_muc_not_configured,
+     admin_get_room_messages_muc_not_configured,
+     admin_set_user_affiliation_muc_not_configured,
+     admin_set_user_role_muc_not_configured,
+     admin_make_user_enter_room_muc_not_configured,
+     admin_make_user_exit_room_muc_not_configured,
+     admin_list_room_affiliations_muc_not_configured].
+
+domain_admin_muc_tests() ->
+    [admin_create_and_delete_room,
+     admin_try_create_instant_room_with_nonexistent_domain,
+     admin_try_delete_nonexistent_room,
+     domain_admin_create_and_delete_room_no_permission,
+     admin_list_rooms,
+     domain_admin_list_rooms_no_permission,
+     admin_list_room_users,
+     domain_admin_list_room_users_no_permission,
+     admin_change_room_config,
+     domain_admin_change_room_config_no_permission,
+     admin_get_room_config,
+     domain_admin_get_room_config_no_permission,
+     admin_invite_user,
+     admin_invite_user_with_password,
+     admin_try_invite_user_to_nonexistent_room,
+     domain_admin_invite_user_no_permission,
+     admin_kick_user,
+     admin_try_kick_user_from_room_without_moderators,
+     domain_admin_kick_user_no_permission,
+     admin_send_message_to_room,
+     domain_admin_send_message_to_room_no_permission,
+     admin_send_private_message,
+     domain_admin_send_private_message_no_permission,
+     admin_get_room_messages,
+     domain_admin_get_room_messages_no_permission,
+     admin_set_user_affiliation,
+     domain_admin_set_user_affiliation_no_permission,
+     admin_set_user_role,
+     admin_try_set_nonexistent_nick_role,
+     admin_try_set_user_role_in_room_without_moderators,
+     domain_admin_set_user_role_no_permission,
+     admin_make_user_enter_room,
+     admin_make_user_enter_room_with_password,
+     admin_make_user_enter_room_bare_jid,
+     domain_admin_make_user_enter_room_no_permission,
+     admin_make_user_exit_room,
+     admin_make_user_exit_room_bare_jid,
+     domain_admin_make_user_exit_room_no_permission,
+     admin_list_room_affiliations,
+     domain_admin_list_room_affiliations_no_permission
+    ].
+
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
+    SecondaryHostType = domain_helper:secondary_host_type(),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(HostType, Config2),
-    Config4 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config3),
-    Config5 = ejabberd_node_utils:init(mim(), Config4),
+    Config4 = dynamic_modules:save_modules(SecondaryHostType, Config3),
+    Config5 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config4),
+    Config6 = ejabberd_node_utils:init(mim(), Config5),
     dynamic_modules:restart(HostType, mod_disco,
                             config_parser_helper:default_mod_config(mod_disco)),
-    muc_helper:load_muc(),
-    mongoose_helper:ensure_muc_clean(),
-    Config5.
+    Config6.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -120,15 +210,42 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(admin_muc_http, Config) ->
+init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
-init_per_group(admin_muc_cli, Config) ->
+init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
-init_per_group(user_muc, Config) ->
+init_per_group(domain_admin_muc, Config) ->
+    Config1 = ensure_muc_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
+init_per_group(Group, Config) when Group =:= admin_muc_configured;
+                                   Group =:= user_muc_configured ->
+    ensure_muc_started(Config);
+init_per_group(Group, Config) when Group =:= admin_muc_not_configured;
+                                   Group =:= user_muc_not_configured ->
+    ensure_muc_stopped(Config);
+init_per_group(user, Config) ->
     graphql_helper:init_user(Config).
 
-end_per_group(_GN, _Config) ->
-    graphql_helper:clean().
+ensure_muc_started(Config) ->
+    SecondaryHostType = domain_helper:secondary_host_type(),
+    muc_helper:load_muc(),
+    muc_helper:load_muc(SecondaryHostType),
+    mongoose_helper:ensure_muc_clean(),
+    Config.
+
+ensure_muc_stopped(Config) ->
+    SecondaryHostType = domain_helper:secondary_host_type(),
+    muc_helper:unload_muc(),
+    muc_helper:unload_muc(SecondaryHostType),
+    Config.
+
+end_per_group(Group, _Config) when Group =:= user;
+                                   Group =:= admin_http;
+                                   Group =:= domain_admin_muc;
+                                   Group =:= admin_cli ->
+    graphql_helper:clean();
+end_per_group(_Group, _Config) ->
+    escalus_fresh:clean().
 
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
@@ -156,6 +273,7 @@ end_per_testcase(TC, Config) ->
 
 -define(NONEXISTENT_ROOM, <<"room@room">>).
 -define(NONEXISTENT_ROOM2, <<"room@", (muc_helper:muc_host())/binary>>).
+-define(EXTERNAL_DOMAIN_ROOM, <<"external_room@muc.", (domain_helper:secondary_domain())/binary>>).
 -define(PASSWORD, <<"pa5sw0rd">>).
 
 admin_list_rooms(Config) ->
@@ -581,6 +699,242 @@ admin_list_room_affiliations(Config, Alice, Bob) ->
 admin_try_list_nonexistent_room_affiliations(Config) ->
     Res = list_room_affiliations(?NONEXISTENT_ROOM, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+
+%% Admin MUC not configured test cases
+
+admin_delete_room_muc_not_configured(Config) ->
+    Res = delete_room(get_room_name(), null, Config),
+    get_not_loaded(Res).
+
+admin_list_room_users_muc_not_configured(Config) ->
+    Res = list_room_users(get_room_name(), Config),
+    get_not_loaded(Res).
+
+admin_change_room_config_muc_not_configured(Config) ->
+    RoomConfig = #{title => <<"NewTitle">>},
+    Res = change_room_config(get_room_name(), RoomConfig, Config),
+    get_not_loaded(Res).
+
+admin_get_room_config_muc_not_configured(Config) ->
+    Res = get_room_config(get_room_name(), Config),
+    get_not_loaded(Res).
+
+admin_invite_user_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun admin_invite_user_muc_not_configured_story/3).
+
+admin_invite_user_muc_not_configured_story(Config, Alice, Bob) ->
+    Res = invite_user(get_room_name(), Alice, Bob, null, Config),
+    get_not_loaded(Res).
+
+admin_kick_user_muc_not_configured(Config) ->
+    Res = kick_user(get_room_name(), <<"nick">>, <<"reason">>, Config),
+    get_not_loaded(Res).
+
+admin_send_message_to_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_send_message_to_room_muc_not_configured_story/2).
+
+admin_send_message_to_room_muc_not_configured_story(Config, Alice) ->
+    Res = send_message_to_room(get_room_name(), Alice, <<"body">>, Config),
+    get_not_loaded(Res).
+
+admin_send_private_message_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun admin_send_private_message_muc_not_configured_story/3).
+
+admin_send_private_message_muc_not_configured_story(Config, Alice, Bob) ->
+    Nick = <<"ali">>,
+    Res = send_private_message(get_room_name(), Alice, Nick, <<"body">>, Config),
+    get_not_loaded(Res).
+
+admin_get_room_messages_muc_not_configured(Config) ->
+    Res = get_room_messages(get_room_name(), 4, null, Config),
+    get_not_loaded(Res).
+
+admin_set_user_affiliation_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_set_user_affiliation_muc_not_configured_story/2).
+
+admin_set_user_affiliation_muc_not_configured_story(Config, Alice) ->
+    Res = set_user_affiliation(get_room_name(), Alice, member, Config),
+    get_not_loaded(Res).
+
+admin_set_user_role_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_set_user_role_muc_not_configured_story/2).
+
+admin_set_user_role_muc_not_configured_story(Config, Alice) ->
+    Res = set_user_role(get_room_name(), Alice, moderator, Config),
+    get_not_loaded(Res).
+
+admin_make_user_enter_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_make_user_enter_room_muc_light_not_configured_story/2).
+
+admin_make_user_enter_room_muc_light_not_configured_story(Config, Alice) ->
+    Nick = <<"ali">>,
+    Res = enter_room(get_room_name(), Alice, Nick, null, Config),
+    get_not_loaded(Res).
+
+admin_make_user_exit_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_make_user_exit_room_muc_not_configured_story/2).
+
+admin_make_user_exit_room_muc_not_configured_story(Config, Alice) ->
+    Nick = <<"ali">>,
+    Res = exit_room(get_room_name(), Alice, Nick, Config),
+    get_not_loaded(Res).
+
+admin_list_room_affiliations_muc_not_configured(Config) ->
+    Res = list_room_affiliations(get_room_name(), member, Config),
+    get_not_loaded(Res).
+
+%% Domain admin test cases
+
+domain_admin_try_delete_room_with_nonexistent_domain(Config) ->
+    RoomJID = jid:make_bare(<<"unknown">>, <<"unknown">>),
+    get_unauthorized(delete_room(RoomJID, null, Config)).
+
+domain_admin_create_and_delete_room_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_create_and_delete_room_no_permission_story/2).
+
+domain_admin_create_and_delete_room_no_permission_story(Config, AliceBis) ->
+    Name = rand_name(),
+    ExternalDomain = domain_helper:secondary_domain(),
+    UnknownDomain = <<"unknown">>,
+    MUCServer = muc_helper:muc_host(),
+    ExternalServer = <<"muc.", ExternalDomain/binary>>,
+    % Create instant room with a non-existent domain
+    UnknownJID = <<(rand_name())/binary, "@", UnknownDomain/binary>>,
+    Res = create_instant_room(MUCServer, Name, UnknownJID, <<"Ali">>, Config),
+    get_unauthorized(Res),
+    % Create instant room with an external domain
+    Res2 = create_instant_room(MUCServer, Name, AliceBis, <<"Ali">>, Config),
+    get_unauthorized(Res2),
+    % Delete instant room with a non-existent domain
+    UnknownRoomJID = jid:make_bare(<<"unknown_room">>, UnknownDomain),
+    Res3 = delete_room(UnknownRoomJID, null, Config),
+    get_unauthorized(Res3),
+    % Delete instant room with an external domain
+    ExternalRoomJID = jid:make_bare(<<"external_room">>, ExternalServer),
+    Res4 = delete_room(ExternalRoomJID, null, Config),
+    get_unauthorized(Res4).
+
+domain_admin_list_rooms_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_list_rooms_no_permission_story/2).
+
+domain_admin_list_rooms_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = jid:from_binary(escalus_client:short_jid(AliceBis)),
+    AliceBisRoom = rand_name(),
+    muc_helper:create_instant_room(AliceBisRoom, AliceBisJID, <<"Ali">>, []),
+    Res = list_rooms(muc_helper:muc_host(), AliceBis, null, null, Config),
+    get_unauthorized(Res).
+
+domain_admin_list_room_users_no_permission(Config) ->
+    get_unauthorized(list_room_users(?NONEXISTENT_ROOM, Config)),
+    get_unauthorized(list_room_users(?EXTERNAL_DOMAIN_ROOM, Config)).
+
+domain_admin_change_room_config_no_permission(Config) ->
+    RoomConfig = #{title => <<"NewTitle">>},
+    get_unauthorized(change_room_config(?NONEXISTENT_ROOM, RoomConfig, Config)),
+    get_unauthorized(change_room_config(?EXTERNAL_DOMAIN_ROOM, RoomConfig, Config)).
+
+domain_admin_get_room_config_no_permission(Config) ->
+    get_unauthorized(get_room_config(?NONEXISTENT_ROOM, Config)),
+    get_unauthorized(get_room_config(?EXTERNAL_DOMAIN_ROOM, Config)).
+
+domain_admin_invite_user_no_permission(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice_bis, 1}, {bob, 1}],
+                               fun domain_admin_invite_user_no_permission_story/3).
+
+domain_admin_invite_user_no_permission_story(Config, Alice, Bob) ->
+    RoomJIDBin = ?config(room_jid, Config),
+    RoomJID = jid:from_binary(RoomJIDBin),
+    Res = invite_user(RoomJID, Alice, Bob, null, Config),
+    get_unauthorized(Res).
+
+domain_admin_kick_user_no_permission(Config) ->
+    get_unauthorized(kick_user(?NONEXISTENT_ROOM, <<"ali">>, null, Config)),
+    get_unauthorized(kick_user(?EXTERNAL_DOMAIN_ROOM, <<"ali">>, null, Config)).
+
+domain_admin_send_message_to_room_no_permission(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice_bis, 1}],
+                                fun domain_admin_send_message_to_room_no_permission_story/2).
+
+domain_admin_send_message_to_room_no_permission_story(Config, AliceBis) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Message = <<"Hello All!">>,
+    AliceNick = <<"Bobek">>,
+    enter_room(RoomJID, AliceBis, AliceNick),
+    escalus:wait_for_stanza(AliceBis),
+    % Send message
+    Res = send_message_to_room(RoomJID, AliceBis, Message, Config),
+    get_unauthorized(Res).
+
+domain_admin_send_private_message_no_permission(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice_bis, 1}, {bob, 1}],
+                               fun domain_admin_send_private_message_no_permission_story/3).
+
+domain_admin_send_private_message_no_permission_story(Config, AliceBis, Bob) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Message = <<"Hello Bob!">>,
+    BobNick = <<"Bobek">>,
+    AliceBisNick = <<"Ali">>,
+    enter_room(RoomJID, AliceBis, AliceBisNick),
+    enter_room(RoomJID, Bob, BobNick),
+    escalus:wait_for_stanzas(Bob, 2),
+    % Send message
+    Res = send_private_message(RoomJID, AliceBis, BobNick, Message, Config),
+    get_unauthorized(Res).
+
+domain_admin_get_room_messages_no_permission(Config) ->
+    get_unauthorized(get_room_messages(?NONEXISTENT_ROOM, null, null, Config)),
+    get_unauthorized(get_room_messages(?EXTERNAL_DOMAIN_ROOM, null, null, Config)).
+
+domain_admin_set_user_affiliation_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun domain_admin_set_user_affiliation_no_permission_story/2).
+
+domain_admin_set_user_affiliation_no_permission_story(Config, Alice) ->
+    get_unauthorized(set_user_affiliation(?NONEXISTENT_ROOM, Alice, admin, Config)),
+    get_unauthorized(set_user_affiliation(?EXTERNAL_DOMAIN_ROOM, Alice, admin, Config)).
+
+domain_admin_set_user_role_no_permission(Config) ->
+    get_unauthorized(set_user_role(?NONEXISTENT_ROOM, <<"Alice">>, moderator, Config)),
+    get_unauthorized(set_user_role(?EXTERNAL_DOMAIN_ROOM, <<"Alice">>, moderator, Config)).
+
+domain_admin_list_room_affiliations_no_permission(Config) ->
+    get_unauthorized(list_room_affiliations(?NONEXISTENT_ROOM, null, Config)),
+    get_unauthorized(list_room_affiliations(?EXTERNAL_DOMAIN_ROOM, null, Config)).
+
+domain_admin_make_user_enter_room_no_permission(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice_bis, 1}],
+                               fun domain_admin_make_user_enter_room_no_permission_story/2).
+
+domain_admin_make_user_enter_room_no_permission_story(Config, AliceBis) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Nick = <<"ali">>,
+    % Enter room without password
+    Res = enter_room(RoomJID, AliceBis, Nick, null, Config),
+    get_unauthorized(Res),
+    % Enter room with password
+    Res2 = enter_room(RoomJID, AliceBis, Nick, ?PASSWORD, Config),
+    get_unauthorized(Res2).
+
+domain_admin_make_user_exit_room_no_permission(Config) ->
+    muc_helper:story_with_room(Config, [{persistent, true}], [{alice_bis, 1}],
+                               fun domain_admin_make_user_exit_room_no_permission_story/2).
+
+domain_admin_make_user_exit_room_no_permission_story(Config, AliceBis) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Nick = <<"ali">>,
+    enter_room(RoomJID, AliceBis, Nick),
+    ?assertMatch([_], get_room_users(RoomJID)),
+    Res = exit_room(RoomJID, AliceBis, Nick, Config),
+    get_unauthorized(Res).
 
 %% User test cases
 
@@ -1144,6 +1498,126 @@ user_try_list_nonexistent_room_affiliations(Config, Alice) ->
     Res = user_list_room_affiliations(Alice, ?NONEXISTENT_ROOM, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
+%% User MUC not configured test cases
+
+user_delete_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_delete_room_muc_not_configured_story/2).
+
+user_delete_room_muc_not_configured_story(Config, Alice) ->
+    Res = user_delete_room(Alice, get_room_name(), null, Config),
+    get_not_loaded(Res).
+
+user_list_room_users_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_list_room_users_muc_not_configured_story/2).
+
+user_list_room_users_muc_not_configured_story(Config, Alice) ->
+    Res = user_list_room_users(Alice, get_room_name(), Config),
+    get_not_loaded(Res).
+
+user_change_room_config_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_change_room_config_muc_not_configured_story/2).
+
+user_change_room_config_muc_not_configured_story(Config, Alice) ->
+    RoomConfig = #{title => <<"NewTitle">>},
+    Res = user_change_room_config(Alice, get_room_name(), RoomConfig, Config),
+    get_not_loaded(Res).
+
+user_get_room_config_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_get_room_config_muc_not_configured_story/2).
+
+user_get_room_config_muc_not_configured_story(Config, Alice) ->
+    Res = user_get_room_config(Alice, get_room_name(), Config),
+    get_not_loaded(Res).
+
+user_invite_user_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+        fun user_invite_user_muc_not_configured_story/3).
+
+user_invite_user_muc_not_configured_story(Config, Alice, Bob) ->
+    Res = user_invite_user(Alice, get_room_name(), Bob, null, Config),
+    get_not_loaded(Res).
+
+user_kick_user_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_kick_user_muc_not_configured_story/2).
+
+user_kick_user_muc_not_configured_story(Config, Alice) ->
+    Res = user_kick_user(Alice, get_room_name(), <<"nick">>, <<"reason">>, Config),
+    get_not_loaded(Res).
+
+user_send_message_to_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_send_message_to_room_muc_not_configured_story/2).
+
+user_send_message_to_room_muc_not_configured_story(Config, Alice) ->
+    Res = user_send_message_to_room(Alice, get_room_name(), <<"Body">>, null, Config),
+    get_not_loaded(Res).
+
+user_send_private_message_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_send_private_message_muc_not_configured_story/2).
+
+user_send_private_message_muc_not_configured_story(Config, Alice) ->
+    Message = <<"Hello Bob!">>,
+    BobNick = <<"Bobek">>,
+    Res = user_send_private_message(Alice, get_room_name(), Message, BobNick, null, Config),
+    get_not_loaded(Res).
+
+user_get_room_messages_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_get_room_messages_muc_not_configured_story/2).
+
+user_get_room_messages_muc_not_configured_story(Config, Alice) ->
+    Res = user_get_room_messages(Alice, get_room_name(), 10, null, Config),
+    get_not_loaded(Res).
+
+user_owner_set_user_affiliation_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_owner_set_user_affiliation_muc_not_configured_story/2).
+
+user_owner_set_user_affiliation_muc_not_configured_story(Config, Alice) ->
+    Res = user_set_user_affiliation(Alice, get_room_name(), <<"ali">>, member, Config),
+    get_not_loaded(Res).
+
+user_moderator_set_user_role_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_moderator_set_user_role_muc_not_configured_story/2).
+
+user_moderator_set_user_role_muc_not_configured_story(Config, Alice) ->
+    Res = user_set_user_role(Alice, get_room_name(), Alice, moderator, Config),
+    get_not_loaded(Res).
+
+user_can_enter_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_can_enter_room_muc_not_configured_story/2).
+
+user_can_enter_room_muc_not_configured_story(Config, Alice) ->
+    Nick = <<"ali">>,
+    Resource = escalus_client:resource(Alice),
+    Res = user_enter_room(Alice, get_room_name(), Nick, Resource, null, Config),
+    get_not_loaded(Res).
+
+user_can_exit_room_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_can_exit_room_muc_not_configured_story/2).
+
+user_can_exit_room_muc_not_configured_story(Config, Alice) ->
+    Resource = escalus_client:resource(Alice),
+    Res = user_exit_room(Alice, get_room_name(), <<"ali">>, Resource, Config),
+    get_not_loaded(Res).
+
+user_list_room_affiliations_muc_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_list_room_affiliations_muc_not_configured_story/2).
+
+user_list_room_affiliations_muc_not_configured_story(Config, Alice) ->
+    Res = user_list_room_affiliations(Alice, get_room_name(), owner, Config),
+    get_not_loaded(Res).
+
 %% Helpers
 
 assert_no_full_jid(Res) ->
@@ -1230,6 +1704,10 @@ assert_default_room_config(Response) ->
 
 atom_to_enum_item(null) -> null;
 atom_to_enum_item(Atom) -> list_to_binary(string:to_upper(atom_to_list(Atom))).
+
+get_room_name() ->
+    Domain = domain_helper:domain(),
+    <<"NON_EXISTING@", Domain/binary>>.
 
 %% Commands
 

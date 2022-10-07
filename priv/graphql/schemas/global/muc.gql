@@ -1,87 +1,159 @@
+"User affiliation to a specific room"
 enum MUCAffiliation{
+  "The user is the owner of the room"
   OWNER
+  "The user has an administrative role"
   ADMIN
+  "The user is a member of the room"
   MEMBER
+  "The user isn't a member of the room"
   OUTCAST
+  "The user doesn't have any affiliation"
   NONE
 }
 
+"MUC role types"
 enum MUCRole{
+  "User is a visitor"
   VISITOR
+  "User can participate in the room"
   PARTICIPANT
+  "User has ability to moderate room"
   MODERATOR
 }
 
+"MUC room user data"
 type MUCRoomUser{
+  "User's JID"
   jid: JID
+  "User's nickname"
   nick: String!
+  "User's role"
   role: MUCRole!
 }
 
+"MUC room affiliation data"
 type MUCRoomAffiliation{
+  "Room's JID"
   jid: JID!
+  "Affiliation type"
   affiliation: MUCAffiliation!
 }
 
+"MUC room description"
 type MUCRoomDesc{
+  "Room's JID"
   jid: JID!
+  "Room's title"
   title: String!
+  "Is the room private?"
   private: Boolean
+  "Number of the users"
   usersNumber: Int
 }
 
+"MUC room configuration"
 type MUCRoomConfig{
+  "Room's title"
   title: String!,
+  "Room's description"
   description: String!,
+  "Allow to change the room's subject?"
   allowChangeSubject: Boolean!,
+  "Allow to query users?"
   allowQueryUsers: Boolean!,
+  "Allow private messages?"
   allowPrivateMessages: Boolean!,
+  "Allow visitor status?"
   allowVisitorStatus: Boolean!,
+  "Allow visitors to change their nicks?"
   allowVisitorNickchange: Boolean!,
+  "Is the room public?"
   public: Boolean!,
+  "Is the room on the public list?"
   publicList: Boolean!,
+  "Is the room persistent"
   persistent: Boolean!,
+  "Is the room moderated?"
   moderated: Boolean!,
+  "Should all new occupants be members by default?"
   membersByDefault: Boolean!,
+  "Should only users with member affiliation be allowed to join the room?"
   membersOnly: Boolean!,
+  "Can users invite others to join the room?"
   allowUserInvites: Boolean!,
+  "Allow multiple sessions of the room?"
   allowMultipleSession: Boolean!,
+  "Is the room password protected?"
   passwordProtected: Boolean!,
+  "Password to the room"
   password: String!,
+  "Are occupants, except from moderators, able see each others real JIDs?"
   anonymous: Boolean!,
+  "Array of roles and/or privileges that enable retrieving the room's member list"
   mayGetMemberList: [String!]!
+  "Maximum number of users in the room"
   maxUsers: Int,
+  "Does the room enabled logging events to a file on the disk?"
   logging: Boolean!,
 }
 
+"MUC rooom configuration input"
 input MUCRoomConfigInput{
+  "Room's title"
   title: String,
+  "Room's description"
   description: String,
+  "Allow to change room's subject?"
   allowChangeSubject: Boolean,
+  "Allow to query users?"
   allowQueryUsers: Boolean,
+  "Allow private messages?"
   allowPrivateMessages: Boolean,
+  "Allow visitor status?"
   allowVisitorStatus: Boolean,
+  "Allow visitors to change their nicks?"
   allowVisitorNickchange: Boolean,
+  "Is the room public?"
   public: Boolean,
+  "Is the room on the public list?"
   publicList: Boolean,
+  "Is the room persistent"
   persistent: Boolean,
+  "Is the room moderated?"
   moderated: Boolean,
+  "Should all new occupants be members by default?"
   membersByDefault: Boolean,
+  "Should only users with member affiliation be allowed to join the room?"
   membersOnly: Boolean,
+  "Can users invite others to join the room?"
   allowUserInvites: Boolean,
+  "Allow multiple sessions of the room?"
   allowMultipleSession: Boolean,
+  "Is the room password protected?"
   passwordProtected: Boolean,
+  "Password to the room"
   password: String,
+  "Are occupants, except from moderators, able see each others real JIDs?"
   anonymous: Boolean,
+  "Array of roles and/or privileges that enable retrieving the room's member list"
   mayGetMemberList: [String!],
+  "Maximum number of users in the room"
   maxUsers: Int
+  "Does the room enabled logging events to a file on the disk?"
   logging: Boolean,
 }
 
+"MUC rooms payload"
 type MUCRoomsPayload{
+  "List of rooms descriptions"
   rooms: [MUCRoomDesc!]
+  "Number of the rooms"
   count: Int
+  "Index of the room"
   index: Int
+  "First room title"
   first: String
+  "Last room title"
   last: String
 }

@@ -90,7 +90,9 @@
 
 %% Shared logic
 -export([check_result_for_policy_violation/2,
-         lookup/3]).
+         lookup/3,
+         batch_delete_limits/1, incremental_delete_domain/5,
+         db_message_codec/2, db_jid_codec/2]).
 
 -callback extra_fin_element(mongooseim:host_type(),
                             mam_iq:lookup_params(),
@@ -1159,7 +1161,7 @@ check_for_item_not_found(#rsm_in{direction = before, id = ID},
                          _PageSize, {TotalCount, Offset, MessageRows}) ->
     case maybe_last(MessageRows) of
         {ok, #{id := ID}} ->
-            {ok, {TotalCount, Offset, list_without_last(MessageRows)}};
+            {ok, {TotalCount, Offset, lists:droplast(MessageRows)}};
         undefined ->
             {error, item_not_found}
     end;
@@ -1221,10 +1223,43 @@ set_complete_result_page_using_extra_message(PageSize, Params, Result = #{messag
 remove_extra_message(Params, Messages) ->
     case maps:get(ordering_direction, Params, forward) of
         forward ->
-            list_without_last(Messages);
+            lists:droplast(Messages);
         backward ->
             tl(Messages)
     end.
 
-list_without_last(List) ->
-    lists:reverse(tl(lists:reverse(List))).
+-spec db_jid_codec(mongooseim:host_type(), module()) -> module().
+db_jid_codec(HostType, Module) ->
+    gen_mod:get_module_opt(HostType, Module, db_jid_format).
+
+-spec db_message_codec(mongooseim:host_type(), module()) -> module().
+db_message_codec(HostType, Module) ->
+    gen_mod:get_module_opt(HostType, Module, db_message_format).
+
+-spec batch_delete_limits(#{delete_domain_limit := infinity | non_neg_integer()}) ->
+    {binary(), binary()}.
+batch_delete_limits(#{delete_domain_limit := infinity}) ->
+    {<<>>, <<>>};
+batch_delete_limits(#{delete_domain_limit := Limit}) ->
+    rdbms_queries:get_db_specific_limits_binaries(Limit).
+
+-spec incremental_delete_domain(
+        mongooseim:host_type(), jid:lserver(), non_neg_integer(), [atom()], non_neg_integer()) ->
+    non_neg_integer().
+incremental_delete_domain(_HostType, _Domain, _Limit, [], TotalDeleted) ->
+    TotalDeleted;
+incremental_delete_domain(HostType, Domain, Limit, [Query | MoreQueries] = AllQueries, TotalDeleted) ->
+    R1 = mongoose_rdbms:execute_successfully(HostType, Query, [Domain]),
+    case is_removing_done(R1, Limit) of
+        {done, N} ->
+            incremental_delete_domain(HostType, Domain, Limit, MoreQueries, N + TotalDeleted);
+        {remove_more, N} ->
+            incremental_delete_domain(HostType, Domain, Limit, AllQueries, N + TotalDeleted)
+    end.
+
+-spec is_removing_done(LastResult :: {updated, non_neg_integer()}, Limit :: non_neg_integer()) ->
+    {done | remove_more, non_neg_integer()}.
+is_removing_done({updated, N}, Limit) when N < Limit ->
+    {done, N};
+is_removing_done({updated, N}, _)->
+    {remove_more, N}.

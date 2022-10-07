@@ -25,14 +25,14 @@ execute(_Ctx, admin, <<"removeDomain">>, #{<<"domain">> := Domain, <<"hostType">
 execute(_Ctx, admin, <<"enableDomain">>, #{<<"domain">> := Domain}) ->
     case mongoose_domain_api:enable_domain(Domain) of
         ok ->
-            {ok, #domain{enabled = true, domain = Domain}};
+            {ok, #domain{status = enabled, domain = Domain}};
         {error, Error} ->
             error_handler(Error, Domain, <<>>)
     end;
 execute(_Ctx, admin, <<"disableDomain">>, #{<<"domain">> := Domain}) ->
     case mongoose_domain_api:disable_domain(Domain) of
         ok ->
-            {ok, #domain{enabled = false, domain = Domain}};
+            {ok, #domain{status = disabled, domain = Domain}};
         {error, Error} ->
             error_handler(Error, Domain, <<>>)
     end;

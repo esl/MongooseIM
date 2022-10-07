@@ -3,9 +3,9 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, domain/0, secondary_domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2,
-                         get_err_msg/1, get_err_code/1]).
+                         get_err_msg/1, get_err_code/1, get_unauthorized/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -17,16 +17,20 @@ suite() ->
 all() ->
     [{group, user},
      {group, admin_http},
-     {group, admin_cli}].
+     {group, admin_cli},
+     {group, domain_admin}].
 
 groups() ->
     [{user, [], user_groups()},
      {admin_http, [], admin_groups()},
      {admin_cli, [], admin_groups()},
+     {domain_admin, [], domain_admin_groups()},
      {user_http_upload, [], user_http_upload_tests()},
      {user_http_upload_not_configured, [], user_http_upload_not_configured_tests()},
      {admin_http_upload, [], admin_http_upload_tests()},
-     {admin_http_upload_not_configured, [], admin_http_upload_not_configured_tests()}].
+     {admin_http_upload_not_configured, [], admin_http_upload_not_configured_tests()},
+     {domain_admin_http_upload, [], domain_admin_http_upload_tests()},
+     {domain_admin_http_upload_not_configured, [], domain_admin_http_upload_not_configured_tests()}].
 
 user_groups() ->
     [{group, user_http_upload},
@@ -35,6 +39,10 @@ user_groups() ->
 admin_groups() ->
     [{group, admin_http_upload},
      {group, admin_http_upload_not_configured}].
+
+domain_admin_groups() ->
+    [{group, domain_admin_http_upload},
+     {group, domain_admin_http_upload_not_configured}].
 
 user_http_upload_tests() ->
     [user_get_url_test,
@@ -55,6 +63,16 @@ admin_http_upload_tests() ->
 admin_http_upload_not_configured_tests() ->
     [admin_http_upload_not_configured].
 
+domain_admin_http_upload_tests() ->
+    [admin_get_url_test,
+     admin_get_url_zero_size,
+     admin_get_url_too_large_size,
+     admin_get_url_zero_timeout,
+     domain_admin_get_url_no_permission].
+
+domain_admin_http_upload_not_configured_tests() ->
+    [admin_http_upload_not_configured].
+
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
@@ -70,6 +88,8 @@ init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_http_upload, Config) ->
     dynamic_modules:ensure_modules(host_type(),
         [{mod_http_upload, create_opts(?S3_HOSTNAME, true)}]),
@@ -81,7 +101,14 @@ init_per_group(admin_http_upload, Config) ->
     dynamic_modules:ensure_modules(host_type(),
         [{mod_http_upload, create_opts(?S3_HOSTNAME, true)}]),
     Config;
+init_per_group(domain_admin_http_upload, Config) ->
+    dynamic_modules:ensure_modules(host_type(),
+        [{mod_http_upload, create_opts(?S3_HOSTNAME, true)}]),
+    Config;
 init_per_group(admin_http_upload_not_configured, Config) ->
+    dynamic_modules:ensure_modules(host_type(), [{mod_http_upload, stopped}]),
+    Config;
+init_per_group(domain_admin_http_upload_not_configured, Config) ->
     dynamic_modules:ensure_modules(host_type(), [{mod_http_upload, stopped}]),
     Config.
 
@@ -157,8 +184,8 @@ user_http_upload_not_configured(Config) ->
 
 user_http_upload_not_configured(Config, Alice) ->
     Result = user_get_url(<<"test">>, 123, <<"Test">>, 123, Alice, Config),
-    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)),
-    ?assertEqual(<<"mod_http_upload is not loaded for this host">>, get_err_msg(Result)).
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Result)),
+    ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Result)).
 
 % Admin test cases
 
@@ -191,8 +218,14 @@ admin_get_url_no_domain(Config) ->
 
 admin_http_upload_not_configured(Config) ->
     Result = admin_get_url(domain(), <<"test">>, 123, <<"Test">>, 123, Config),
-    ?assertEqual(<<"module_not_loaded_error">>, get_err_code(Result)),
-    ?assertEqual(<<"mod_http_upload is not loaded for this host">>, get_err_msg(Result)).
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Result)),
+    ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Result)).
+
+domain_admin_get_url_no_permission(Config) ->
+    Result1 = admin_get_url(<<"AAAAA">>, <<"test">>, 123, <<"Test">>, 123, Config),
+    get_unauthorized(Result1),
+    Result2 = admin_get_url(secondary_domain(), <<"test">>, 123, <<"Test">>, 123, Config),
+    get_unauthorized(Result2).
 
 % Helpers
 

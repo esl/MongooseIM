@@ -342,7 +342,7 @@ create_room_raw(InRoomJID, CreatorJID, Options) ->
         {ok, RoomJID, #create{aff_users = AffUsers, raw_config = Conf}} ->
             {ok, make_room(RoomJID, Conf, AffUsers)};
         {error, exists} ->
-            {already_exist, "Room already exists"};
+            {already_exists, "Room already exists"};
         {error, max_occupants_reached} ->
             {max_occupants_reached, "Max occupants number reached"};
         {error, {Key, Reason}} ->

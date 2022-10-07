@@ -6,7 +6,7 @@ type SessionAdminQuery @protected{
   listSessions(domain: String): [Session!]
     @protected(type: DOMAIN, args: ["domain"])
   "Get the number of established sessions for a specified domain or globally"
-  countSessions(domain: String): Int 
+  countSessions(domain: String): Int
     @protected(type: DOMAIN, args: ["domain"])
   "Get information about all sessions of a user"
   listUserSessions(user: JID!): [Session!]

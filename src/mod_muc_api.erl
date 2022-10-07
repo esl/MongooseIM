@@ -468,7 +468,7 @@ room_desc_to_map(Desc) ->
             #{title => Title, private => Private, users_number => Number}
     end.
 
--spec verify_room(jid:jid(), jid:jid()) -> ok | {internal | not_found, term()}.
+-spec verify_room(jid:jid(), jid:jid()) -> ok | {internal | room_not_found, term()}.
 verify_room(BareRoomJID, OwnerJID) ->
     case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
         {ok, true} ->

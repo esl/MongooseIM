@@ -1,15 +1,15 @@
 """
 Allow user to set own private
 """
-type PrivateUserMutation @protected {
+type PrivateUserMutation @protected @use(modules: ["mod_private"]){
     "Set user's own private"
-    setPrivate(elementString: String!): String
+    setPrivate(elementString: String!): String @use
 }
 
 """
 Allow user to get own private
 """
-type PrivateUserQuery @protected {
+type PrivateUserQuery @protected @use(modules: ["mod_private"]){
     "Get user's own private"
-    getPrivate(element: String!, nameSpace: String!): String
+    getPrivate(element: String!, nameSpace: String!): String @use
 }

@@ -45,9 +45,7 @@
 -export([is_virtual_pubsub_host/3]).
 -export([disable_node/4]).
 
--ignore_xref([
-    iq_handler/4, remove_user/3
-]).
+-ignore_xref([iq_handler/4]).
 
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
@@ -68,7 +66,7 @@ start(HostType, Opts) ->
     mod_event_pusher_push_backend:init(HostType, Opts),
     mod_event_pusher_push_plugin:init(HostType, Opts),
     init_iq_handlers(HostType, Opts),
-    ejabberd_hooks:add(remove_user, HostType, ?MODULE, remove_user, 90),
+    gen_hook:add_handler(remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90),
     ok.
 
 start_pool(HostType, #{wpool := WpoolOpts}) ->
@@ -82,7 +80,7 @@ init_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(remove_user, HostType, ?MODULE, remove_user, 90),
+    gen_hook:delete_handler(remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 90),
 
     gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_PUSH),
     gen_iq_handler:remove_iq_handler(ejabberd_local, HostType, ?NS_PUSH),
@@ -128,12 +126,14 @@ push_event(Acc, _) ->
 %%--------------------------------------------------------------------
 %% Hooks and IQ handlers
 %%--------------------------------------------------------------------
--spec remove_user(Acc :: mongoose_acc:t(), LUser :: jid:luser(), LServer :: jid:lserver()) ->
-    mongoose_acc:t().
-remove_user(Acc, LUser, LServer) ->
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
     R = mod_event_pusher_push_backend:disable(LServer, jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
-    Acc.
+    {ok, Acc}.
 
 -spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->

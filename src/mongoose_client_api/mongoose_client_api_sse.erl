@@ -1,14 +1,21 @@
 -module(mongoose_client_api_sse).
+
+-behaviour(mongoose_client_api).
+-export([routes/0]).
+
 -behaviour(lasse_handler).
-
--include("mongoose.hrl").
--include("jlib.hrl").
-
 -export([init/3]).
 -export([handle_notify/2]).
 -export([handle_info/2]).
 -export([handle_error/3]).
 -export([terminate/3]).
+
+-include("mongoose.hrl").
+-include("jlib.hrl").
+
+-spec routes() -> mongoose_http_handler:routes().
+routes() ->
+    [{"/sse", lasse_handler, #{module => mongoose_client_api_sse}}].
 
 init(_InitArgs, _LastEvtId, Req) ->
     ?LOG_DEBUG(#{what => client_api_sse_init, req => Req}),

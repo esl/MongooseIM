@@ -97,10 +97,7 @@ groups() ->
                            listen_http_handlers_bosh,
                            listen_http_handlers_websockets,
                            listen_http_handlers_client_api,
-                           listen_http_handlers_api,
-                           listen_http_handlers_api_admin,
-                           listen_http_handlers_api_client,
-                           listen_http_handlers_domain,
+                           listen_http_handlers_admin_api,
                            listen_http_handlers_graphql]},
      {auth, [parallel], [auth_methods,
                          auth_password,
@@ -600,27 +597,17 @@ listen_http_handlers_websockets(_Config) ->
 
 listen_http_handlers_client_api(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_client_api),
-    ?cfg(P ++ [handlers], [mongoose_client_api_messages],
-         T(#{<<"handlers">> => [<<"mongoose_client_api_messages">>]})),
+    ?cfg(P ++ [handlers], [messages],
+         T(#{<<"handlers">> => [<<"messages">>]})),
     ?cfg(P ++ [docs], false, T(#{<<"docs">> => false})),
-    ?err(T(#{<<"handlers">> => [not_a_module]})),
+    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
     ?err(T(#{<<"docs">> => <<"maybe">>})).
 
-listen_http_handlers_api(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_api),
-    ?cfg(P ++ [handlers], [mongoose_api_metrics],
-         T(#{<<"handlers">> => [<<"mongoose_api_metrics">>]})),
-    ?err(T(#{<<"handlers">> => [not_a_module]})).
-
-listen_http_handlers_api_admin(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_api_admin),
-    test_listen_http_handler_creds(P, T).
-
-listen_http_handlers_api_client(_Config) ->
-    test_listen_http_handler(mongoose_api_client).
-
-listen_http_handlers_domain(_Config) ->
-    {P, T} = test_listen_http_handler(mongoose_domain_handler),
+listen_http_handlers_admin_api(_Config) ->
+    {P, T} = test_listen_http_handler(mongoose_admin_api),
+    ?cfg(P ++ [handlers], [muc, inbox],
+         T(#{<<"handlers">> => [<<"muc">>, <<"inbox">>]})),
+    ?err(T(#{<<"handlers">> => [<<"invalid">>]})),
     test_listen_http_handler_creds(P, T).
 
 listen_http_handlers_graphql(_Config) ->
@@ -2048,6 +2035,8 @@ test_mod_mam(P, T) ->
           T(#{<<"full_text_search">> => false})),
     ?cfgh(P ++ [cache_users], false,
           T(#{<<"cache_users">> => false})),
+    ?cfgh(P ++ [delete_domain_limit], 1000,
+          T(#{<<"delete_domain_limit">> => 1000})),
     ?cfgh(P ++ [default_result_limit], 100,
           T(#{<<"default_result_limit">> => 100})),
     ?cfgh(P ++ [max_result_limit], 1000,
@@ -2070,6 +2059,7 @@ test_mod_mam(P, T) ->
     ?errh(T(#{<<"user_prefs_store">> => <<"textfile">>})),
     ?errh(T(#{<<"full_text_search">> => <<"disabled">>})),
     ?errh(T(#{<<"cache_users">> => []})),
+    ?errh(T(#{<<"delete_domain_limit">> => []})),
     ?errh(T(#{<<"default_result_limit">> => -1})),
     ?errh(T(#{<<"max_result_limit">> => -2})),
     ?errh(T(#{<<"enforce_simple_queries">> => -2})),

@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
-                         get_ok_value/2, get_err_code/1]).
+                         get_ok_value/2, get_err_code/1, get_unauthorized/1, get_not_loaded/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -13,18 +13,43 @@ suite() ->
 
 all() ->
     [{group, user},
+     {group, domain_admin},
      {group, admin_http},
      {group, admin_cli}].
 
 groups() ->
-    [{user, [], user_tests()},
-     {admin_http, [], admin_tests()},
-     {admin_cli, [], admin_tests()}].
+    [{user, [], user_groups()},
+     {domain_admin, domain_admin_tests()},
+     {admin_http, [], admin_groups()},
+     {admin_cli, [], admin_groups()},
+     {user_token_configured, [], user_tests()},
+     {user_token_not_configured, [], user_token_not_configured_tests()},
+     {admin_token_configured, [], admin_tests()},
+     {admin_token_not_configured, [], admin_token_not_configured_tests()}].
+
+user_groups() ->
+    [{group, user_token_configured},
+     {group, user_token_not_configured}].
+
+admin_groups() ->
+    [{group, admin_token_configured},
+     {group, admin_token_not_configured}].
 
 user_tests() ->
     [user_request_token_test,
      user_revoke_token_no_token_before_test,
      user_revoke_token_test].
+
+user_token_not_configured_tests() ->
+    [user_request_token_test_not_configured,
+     user_revoke_token_test_not_configured].
+
+domain_admin_tests() ->
+    [admin_request_token_test,
+     domain_admin_request_token_no_permission_test,
+     domain_admin_revoke_token_no_permission_test,
+     admin_revoke_token_no_token_test,
+     admin_revoke_token_test].
 
 admin_tests() ->
     [admin_request_token_test,
@@ -33,12 +58,15 @@ admin_tests() ->
      admin_revoke_token_no_token_test,
      admin_revoke_token_test].
 
+admin_token_not_configured_tests() ->
+    [admin_request_token_test_not_configured,
+     admin_revoke_token_test_not_configured].
+
 init_per_suite(Config0) ->
     case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         true ->
             HostType = domain_helper:host_type(),
             Config = dynamic_modules:save_modules(HostType, Config0),
-            dynamic_modules:ensure_modules(HostType, required_modules()),
             Config1 = escalus:init_per_suite(Config),
             ejabberd_node_utils:init(mim(), Config1);
         false ->
@@ -65,11 +93,34 @@ init_per_group(admin_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin, Config) ->
+    Config1 = ensure_token_started(Config),
+    graphql_helper:init_domain_admin_handler(Config1);
+init_per_group(Group, Config) when Group =:= admin_token_configured;
+                                   Group =:= user_token_configured ->
+    ensure_token_started(Config);
+init_per_group(Group, Config) when Group =:= admin_token_not_configured;
+                                   Group =:= user_token_not_configured ->
+    ensure_token_stopped(Config);
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config).
 
-end_per_group(_, _Config) ->
-    graphql_helper:clean(),
+ensure_token_started(Config) ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:ensure_modules(HostType, required_modules()),
+    Config.
+
+ensure_token_stopped(Config) ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_auth_token, stopped}]),
+    Config.
+
+end_per_group(GroupName, _Config) when GroupName =:= admin_http;
+                                       GroupName =:= admin_cli;
+                                       GroupName =:= user;
+                                       GroupName =:= domain_admin ->
+    graphql_helper:clean();
+end_per_group(_GroupName, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
@@ -106,6 +157,50 @@ user_revoke_token_test(Config, Alice) ->
     ParsedRes = get_ok_value([data, token, revokeToken], Res2),
     ?assertEqual(<<"Revoked.">>, ParsedRes).
 
+% User test cases mod_token not configured
+
+user_request_token_test_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_request_token_test_not_configured/2).
+
+user_request_token_test_not_configured(Config, Alice) ->
+    Res = user_request_token(Alice, Config),
+    get_not_loaded(Res).
+
+user_revoke_token_test_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun user_revoke_token_test_not_configured/2).
+
+user_revoke_token_test_not_configured(Config, Alice) ->
+    Res = user_revoke_token(Alice, Config),
+    get_not_loaded(Res).
+
+% Domain admin tests
+
+domain_admin_request_token_no_permission_test(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_request_token_no_permission_test/2).
+
+domain_admin_request_token_no_permission_test(Config, AliceBis) ->
+    % External domain user
+    Res = admin_request_token(user_to_bin(AliceBis), Config),
+    get_unauthorized(Res),
+    % Non-existing user
+    Res2 = admin_request_token(<<"AAAAA">>, Config),
+    get_unauthorized(Res2).
+
+domain_admin_revoke_token_no_permission_test(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_revoke_token_no_permission_test/2).
+
+domain_admin_revoke_token_no_permission_test(Config, AliceBis) ->
+    % External domain user
+    Res = admin_revoke_token(user_to_bin(AliceBis), Config),
+    get_unauthorized(Res),
+    % Non-existing user
+    Res2 = admin_revoke_token(<<"AAAAA">>, Config),
+    get_unauthorized(Res2).
+
 % Admin tests
 
 admin_request_token_test(Config) ->
@@ -141,6 +236,26 @@ admin_revoke_token_test(Config, Alice) ->
     Res2 = admin_revoke_token(user_to_bin(Alice), Config),
     ParsedRes = get_ok_value([data, token, revokeToken], Res2),
     ?assertEqual(<<"Revoked.">>, ParsedRes).
+
+% Admin test cases token not configured
+
+admin_request_token_test_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_request_token_test_not_configured/2).
+
+admin_request_token_test_not_configured(Config, Alice) ->
+    Res = admin_request_token(user_to_bin(Alice), Config),
+    get_not_loaded(Res).
+
+admin_revoke_token_test_not_configured(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_revoke_token_test_not_configured/2).
+
+admin_revoke_token_test_not_configured(Config, Alice) ->
+    Res = admin_request_token(user_to_bin(Alice), Config),
+    get_not_loaded(Res).
+
+% Commands
 
 user_request_token(User, Config) ->
     execute_user_command(<<"token">>, <<"requestToken">>, User, #{}, Config).

@@ -1,8 +1,10 @@
 -module(mongoose_client_api_messages).
+
+-behaviour(mongoose_client_api).
+-export([routes/0]).
+
 -behaviour(cowboy_rest).
-
 -export([trails/0]).
-
 -export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -24,6 +26,10 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
+
+-spec routes() -> mongoose_http_handler:routes().
+routes() ->
+    [{"/messages/[:with]", ?MODULE, #{}}].
 
 trails() ->
     mongoose_client_api_messages_doc:trails().

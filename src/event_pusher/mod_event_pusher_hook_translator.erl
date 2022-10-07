@@ -22,14 +22,11 @@
 
 -export([add_hooks/1, delete_hooks/1]).
 
--export([user_send_packet/4,
-         filter_local_packet/1,
-         user_present/2,
-         user_not_present/5,
-         unacknowledged_message/2]).
-
--ignore_xref([filter_local_packet/1, unacknowledged_message/2, user_not_present/5,
-              user_present/2, user_send_packet/4]).
+-export([user_send_packet/3,
+         filter_local_packet/3,
+         user_present/3,
+         user_not_present/3,
+         unacknowledged_message/3]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -37,67 +34,84 @@
 
 -spec add_hooks(mongooseim:host_type()) -> ok.
 add_hooks(HostType) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec delete_hooks(mongooseim:host_type()) -> ok.
 delete_hooks(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 %%--------------------------------------------------------------------
 %% Hook callbacks
 %%--------------------------------------------------------------------
 -type routing_data() :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
--spec filter_local_packet(drop) -> drop;
-                         (routing_data()) -> routing_data().
-filter_local_packet(drop) ->
-    drop;
-filter_local_packet({From, To, Acc0, Packet}) ->
+-spec filter_local_packet(drop, _, _) -> {ok, drop};
+                         (routing_data(), _, _) -> {ok, routing_data()}.
+filter_local_packet(drop, _, _) ->
+    {ok, drop};
+filter_local_packet({From, To, Acc0, Packet}, _, _) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;
-              Type ->
-                  Event = #chat_event{type = Type, direction = out,
-                                      from = From, to = To, packet = Packet},
-                  NewAcc = mod_event_pusher:push_event(Acc0, Event),
-                  merge_acc(Acc0, NewAcc)
+              Type -> push_chat_event(Acc0, Type, {From, To, Packet}, out)
           end,
-    {From, To, Acc, Packet}.
+    {ok, {From, To, Acc, Packet}}.
 
--spec user_send_packet(mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                       Packet :: exml:element()) -> mongoose_acc:t().
-user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
-    case chat_type(Acc) of
-        false -> Acc;
-        Type ->
-            Event = #chat_event{type = Type, direction = in,
-                                from = From, to = To, packet = Packet},
-            NewAcc = mod_event_pusher:push_event(Acc, Event),
-            merge_acc(Acc, NewAcc)
-    end;
-user_send_packet(Acc, _From, _To, _Packet) ->
-    Acc.
+-spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: map(),
+      Extra :: map().
+user_send_packet(Acc, _, _) ->
+    Packet = mongoose_acc:packet(Acc),
+    ChatType = chat_type(Acc),
+    ResultAcc = if
+        Packet == undefined -> Acc;
+        ChatType == false -> Acc;
+        true -> push_chat_event(Acc, ChatType, Packet, in)
+    end,
+    {ok, ResultAcc}.
 
--spec user_present(mongoose_acc:t(), UserJID :: jid:jid()) -> mongoose_acc:t().
-user_present(Acc, #jid{} = UserJID) ->
+-spec user_present(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{jid := jid:jid()},
+      Extra :: map().
+user_present(Acc, #{jid := UserJID = #jid{}}, _) ->
     Event = #user_status_event{jid = UserJID, status = online},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
-    merge_acc(Acc, NewAcc).
+    {ok, merge_acc(Acc, NewAcc)}.
 
--spec user_not_present(mongoose_acc:t(), User :: jid:luser(), Server :: jid:lserver(),
-                       Resource :: jid:lresource(), Status :: any()) -> mongoose_acc:t().
-user_not_present(Acc, LUser, LServer, LResource, _Status) ->
-    UserJID = jid:make_noprep(LUser, LServer, LResource),
+-spec user_not_present(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{jid := jid:jid()},
+      Extra :: map().
+user_not_present(Acc, #{jid := UserJID}, _) ->
     Event = #user_status_event{jid = UserJID, status = offline},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
-    merge_acc(Acc, NewAcc).
+    {ok, merge_acc(Acc, NewAcc)}.
 
-unacknowledged_message(Acc, Jid) ->
+-spec unacknowledged_message(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Args :: #{jid := jid:jid()},
+      Extra :: map().
+unacknowledged_message(Acc, #{jid := Jid}, _) ->
     Event = #unack_msg_event{to = Jid},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
-    merge_acc(Acc, NewAcc).
+    {ok, merge_acc(Acc, NewAcc)}.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec push_chat_event(Acc, Type, {From, To, Packet}, Direction) -> Acc when
+      Acc :: mongoose_acc:t(),
+      Type :: chat | groupchat | headline | normal | false,
+      From :: jid:jid(),
+      To :: jid:jid(),
+      Packet :: exml:element(),
+      Direction :: in | out.
+push_chat_event(Acc, Type, {From, To, Packet}, Direction) ->
+    Event = #chat_event{type = Type, direction = Direction,
+                        from = From, to = To, packet = Packet},
+    NewAcc = mod_event_pusher:push_event(Acc, Event),
+    merge_acc(Acc, NewAcc).
 
 -spec chat_type(mongoose_acc:t()) -> chat | groupchat | headline | normal | false.
 chat_type(Acc) ->
@@ -115,13 +129,13 @@ merge_acc(Acc, EventPusherAcc) ->
     NS = mongoose_acc:get(event_pusher, EventPusherAcc),
     mongoose_acc:set_permanent(event_pusher, NS, Acc).
 
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+-spec hooks(mongooseim:host_type()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->
     [
-        {filter_local_packet, HostType, ?MODULE, filter_local_packet, 80},
-        {unset_presence_hook, HostType, ?MODULE, user_not_present, 90},
-        {user_available_hook, HostType, ?MODULE, user_present, 90},
-        {user_send_packet, HostType, ?MODULE, user_send_packet, 90},
-        {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 90},
-        {unacknowledged_message, HostType, ?MODULE, unacknowledged_message, 90}
+        {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 80},
+        {unset_presence_hook, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
+        {user_available_hook, HostType, fun ?MODULE:user_present/3, #{}, 90},
+        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90},
+        {rest_user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90},
+        {unacknowledged_message, HostType, fun ?MODULE:unacknowledged_message/3, #{}, 90}
     ].

@@ -238,8 +238,8 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, children = Els} = El,
     case {Name, xml:get_cdata(Els)} of
         {<<"handshake">>, Digest} ->
-            case sha:sha1_hex(StateData#state.streamid ++
-                         StateData#state.password) of
+            case mongoose_bin:encode_crypto([StateData#state.streamid,
+                                             StateData#state.password]) of
                 Digest ->
                     try_register_routes(StateData);
                 _ ->

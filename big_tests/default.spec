@@ -46,6 +46,7 @@
 {suites, "tests", graphql_mnesia_SUITE}.
 {suites, "tests", graphql_vcard_SUITE}.
 {suites, "tests", graphql_http_upload_SUITE}.
+{suites, "tests", graphql_server_SUITE}.
 {suites, "tests", graphql_metric_SUITE}.
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", inbox_extensions_SUITE}.
@@ -103,7 +104,6 @@
 % {suites, "tests", sic_SUITE}.
 {suites, "tests", smart_markers_SUITE}.
 % {suites, "tests", sm_SUITE}.
-{suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.

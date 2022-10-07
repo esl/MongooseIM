@@ -5,8 +5,12 @@
   default_server_domain = {{{default_server_domain}}}
   registration_timeout = "infinity"
   language = "en"
+  {{#all_metrics_are_global}}
   all_metrics_are_global = {{{all_metrics_are_global}}}
+  {{/all_metrics_are_global}}
+  {{#sm_backend}}
   sm_backend = {{{sm_backend}}}
+  {{/sm_backend}}
   max_fsm_queue = 1000
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}
@@ -56,11 +60,7 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_api_admin]]
-    host = "localhost"
-    path = "/api"
-
-  [[listen.http.handlers.mongoose_domain_handler]]
+  [[listen.http.handlers.mongoose_admin_api]]
     host = "localhost"
     path = "/api"
 
@@ -116,17 +116,6 @@
     host = "_"
     path = "/api/graphql"
     schema_endpoint = "user"
-
-[[listen.http]]
-  {{#http_api_old_endpoint}}
-  {{{http_api_old_endpoint}}}
-  {{/http_api_old_endpoint}}
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-
-  [[listen.http.handlers.mongoose_api]]
-    host = "localhost"
-    path = "/api"
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
@@ -217,16 +206,10 @@
 [modules.mod_disco]
   users_can_see_hidden_services = false
 
-[modules.mod_commands]
-
 {{#mod_cache_users}}
 [modules.mod_cache_users]
 {{{mod_cache_users}}}
 {{/mod_cache_users}}
-[modules.mod_muc_commands]
-
-[modules.mod_muc_light_commands]
-
 {{#mod_last}}
 [modules.mod_last]
 {{{mod_last}}}
@@ -374,7 +357,9 @@
   {{#s2s_certfile}}
   certfile = {{{s2s_certfile}}}
   {{/s2s_certfile}}
+  {{#s2s_default_policy}}
   default_policy = {{{s2s_default_policy}}}
+  {{/s2s_default_policy}}
   outgoing.port = {{{outgoing_s2s_port}}}
   {{#s2s_addr}}
 

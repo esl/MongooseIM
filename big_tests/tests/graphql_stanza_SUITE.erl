@@ -7,7 +7,8 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,
-                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1]).
+                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1,
+                         get_unauthorized/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -15,11 +16,13 @@ suite() ->
 all() ->
     [{group, admin_stanza_http},
      {group, admin_stanza_cli},
+     {group, domain_admin_stanza},
      {group, user_stanza}].
 
 groups() ->
     [{admin_stanza_http, [parallel], admin_stanza_cases()},
      {admin_stanza_cli, [], admin_stanza_cases()},
+     {domain_admin_stanza, [], domain_admin_stanza_cases()},
      {user_stanza, [parallel], user_stanza_cases()}].
 
 admin_stanza_cases() ->
@@ -39,6 +42,18 @@ admin_get_last_messages_cases() ->
      admin_get_last_messages_limit,
      admin_get_last_messages_limit_enforced,
      admin_get_last_messages_before].
+
+domain_admin_stanza_cases() ->
+    [admin_send_message,
+     admin_send_message_to_unparsable_jid,
+     admin_send_message_headline,
+     domain_admin_send_message_no_permission,
+     domain_admin_send_stanza,
+     admin_send_unparsable_stanza,
+     domain_admin_send_stanza_from_unknown_user,
+     domain_admin_send_stanza_from_unknown_domain,
+     domain_admin_get_last_messages_no_permission]
+    ++ admin_get_last_messages_cases().
 
 user_stanza_cases() ->
     [user_send_message,
@@ -68,6 +83,8 @@ init_per_group(admin_stanza_http, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(admin_stanza_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
+init_per_group(domain_admin_stanza, Config) ->
+    graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_stanza, Config) ->
     graphql_helper:init_user(Config).
 
@@ -193,6 +210,57 @@ user_send_message_headline_with_spoofed_from_story(Config, Alice, Bob) ->
     To = From = escalus_client:short_jid(Bob),
     Res = user_send_message_headline(Alice, From, To, <<"Welcome">>, <<"Hi!">>, Config),
     spoofed_error(sendMessageHeadLine, Res).
+
+domain_admin_send_message_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}, {bob, 1}],
+                                    fun domain_admin_send_message_no_permission_story/3).
+
+domain_admin_send_message_no_permission_story(Config, AliceBis, Bob) ->
+    From = escalus_client:full_jid(AliceBis),
+    To = escalus_client:short_jid(Bob),
+    Res = send_message(From, To, <<"Hi!">>, Config),
+    get_unauthorized(Res).
+
+domain_admin_send_stanza(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun domain_admin_send_stanza_story/3).
+
+domain_admin_send_stanza_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
+    Res = send_stanza(exml:to_binary(Stanza), Config),
+    get_unauthorized(Res).
+
+domain_admin_send_stanza_from_unknown_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{bob, 1}],
+                                    fun domain_admin_send_stanza_from_unknown_user_story/2).
+
+domain_admin_send_stanza_from_unknown_user_story(Config, Bob) ->
+    Body = <<"Hi!">>,
+    Server = escalus_client:server(Bob),
+    From = <<"YeeeAH@", Server/binary>>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
+    Res = send_stanza(exml:to_binary(Stanza), Config),
+    get_unauthorized(Res).
+
+domain_admin_send_stanza_from_unknown_domain(Config) ->
+    escalus:fresh_story_with_config(Config, [{bob, 1}],
+                                    fun domain_admin_send_stanza_from_unknown_domain_story/2).
+
+domain_admin_send_stanza_from_unknown_domain_story(Config, Bob) ->
+    Body = <<"Hi!">>,
+    From = <<"YeeeAH@oopsie">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
+    Res = send_stanza(exml:to_binary(Stanza), Config),
+    get_unauthorized(Res).
+
+domain_admin_get_last_messages_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_get_last_messages_story_no_permission/2).
+
+domain_admin_get_last_messages_story_no_permission(Config, AliceBis) ->
+    Res = get_last_messages(escalus_client:full_jid(AliceBis), null, null, Config),
+    get_unauthorized(Res).
 
 admin_send_stanza(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],

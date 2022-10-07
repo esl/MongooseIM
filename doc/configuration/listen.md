@@ -399,7 +399,7 @@ The shaper named `fast` needs to be defined in the `shaper` section.
 
 ## HTTP-based services: `[[listen.http]]`
 
-Manages all HTTP-based services, such as BOSH (HTTP long-polling), WebSocket and REST.
+Manages all HTTP-based services, such as BOSH (HTTP long-polling), WebSocket, GraphQL and REST.
 It uses the [Cowboy](https://ninenines.eu/docs/en/cowboy/2.6/manual) web server.
 Recommended port number: 5280 for BOSH/WS.
 
@@ -411,7 +411,7 @@ There are the following options for each of the HTTP listeners:
     * `mod_bosh` - for [BOSH](https://xmpp.org/extensions/xep-0124.html) connections,
     * `mod_websockets` - for [WebSocket](https://tools.ietf.org/html/rfc6455) connections,
     * `mongoose_graphql_cowboy_handler` - for GraphQL API,
-    * `mongoose_api_admin`, `mongoose_api_client`(obsolete), `mongoose_client_api`, `mongoose_domain_handler`, `mongoose_api` - for REST API.
+    * `mongoose_admin_api`, `mongoose_client_api` - for REST API.
 
     These types are described below in more detail.
     The double-bracket syntax is used because there can be multiple handlers of a given type, so for each type there is a TOML array of one or more tables (subsections).
@@ -505,9 +505,9 @@ The following options are supported for this handler:
 
 Specifies the schema endpoint:
 
-* `admin` - Endpoint with the admin commands. A global admin has permission to execute all commands. See the recommended configuration -  [Example 5](#example-5-admin-graphql-api).
-* `domain_admin` - Endpoint with the admin commands. A domain admin has permission to execute only commands with the owned domain. See the recommended configuration - [Example 6](#example-6-domain-admin-graphql-api).
-* `user` - Endpoint with the user commands. Used to manage the authorized user. See the recommended configuration - [Example 7](#example-7-user-graphql-api).
+* `admin` - Endpoint with the admin commands. A global admin has permission to execute all commands. See the recommended configuration -  [Example 2](#example-2-admin-graphql-api).
+* `domain_admin` - Endpoint with the admin commands. A domain admin has permission to execute only commands with the owned domain. See the recommended configuration - [Example 3](#example-3-domain-admin-graphql-api).
+* `user` - Endpoint with the user commands. Used to manage the authorized user. See the recommended configuration - [Example 4](#example-4-user-graphql-api).
 
 #### `listen.http.handlers.mongoose_graphql_cowboy_handler.username` - only for `admin`
 * **Syntax:** string
@@ -523,40 +523,47 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 
 Required to enable authentication for the admin API.
 
-### Handler types: REST API - Admin - `mongoose_api_admin`
+### Handler types: REST API - Admin - `mongoose_admin_api`
 
-The recommended configuration is shown in [Example 2](#example-2-admin-api) below.
+The recommended configuration is shown in [Example 5](#example-5-admin-rest-api) below.
 For more information about the API, see the [REST interface](../rest-api/Administration-backend.md) documentation.
 The following options are supported for this handler:
 
-#### `listen.http.handlers.mongoose_api_admin.username`
+#### `listen.http.handlers.mongoose_admin_api.username`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `username = "admin"`
 
 When set, enables authentication for the admin API, otherwise it is disabled. Requires setting `password`.
 
-#### `listen.http.handlers.mongoose_api_admin.password`
+#### `listen.http.handlers.mongoose_admin_api.password`
 * **Syntax:** string
 * **Default:** not set
 * **Example:** `password = "secret"`
 
 Required to enable authentication for the admin API.
 
+#### `listen.http.handlers.mongoose_admin_api.handlers`
+* **Syntax:** array of strings. Allowed values: `"contacts"`, `"users"`, `"sessions"`, `"messages"`, `"stanzas"`, `"muc_light"`, `"muc"`, `"inbox"`, `"domain"`, `"metrics"`.
+* **Default:** all API handler modules enabled
+* **Example:** `handlers = ["domain"]`
+
+The admin API consists of several handler modules, each of them implementing a subset of the functionality.
+By default all modules are enabled, so you don't need to change this option.
+
 ### Handler types: REST API - Client - `mongoose_client_api`
 
-The recommended configuration is shown in [Example 3](#example-3-client-api) below.
+The recommended configuration is shown in [Example 6](#example-6-client-rest-api) below.
 Please refer to [REST interface](../rest-api/Client-frontend.md) documentation for more information.
 The following options are supported for this handler:
 
 #### `listen.http.handlers.mongoose_client_api.handlers`
-* **Syntax:** array of strings - Erlang modules
+* **Syntax:** array of strings. Allowed values: `"sse"`, `"messages"`, `"contacts"`, `"rooms"`, `"rooms_config"`, `"rooms_users"`, `"rooms_messages"`.
 * **Default:** all API handler modules enabled
-* **Example:** `handlers = ["mongoose_client_api_messages", "mongoose_client_api_sse"]`
+* **Example:** `handlers = ["messages", "sse"]`
 
-The client API consists of several modules, each of them implementing a subset of the functionality.
+The client API consists of several handler modules, each of them implementing a subset of the functionality.
 By default all modules are enabled, so you don't need to change this option.
-For a list of allowed modules, you need to consult the [source code](https://github.com/esl/MongooseIM/blob/master/src/mongoose_client_api/mongoose_client_api.erl).
 
 #### `listen.http.handlers.mongoose_client_api.docs`
 * **Syntax:** boolean
@@ -565,38 +572,6 @@ For a list of allowed modules, you need to consult the [source code](https://git
 
 The Swagger documentation of the client API is hosted at the `/api-docs` path.
 You can disable the hosted documentation by setting this option to `false`.
-
-### Handler types: REST API - Domain management - `mongoose_domain_handler`
-
-The recommended configuration is shown in [Example 4](#example-4-domain-api) below.
-This handler enables dynamic domain management for different host types.
-For more information about the API, see the [REST interface](../rest-api/Dynamic-domains.md) documentation.
-The following options are supported for this handler:
-
-#### `listen.http.handlers.mongoose_domain_handler.username`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `username = "admin"`
-
-When set, enables authentication to access this endpoint. Requires setting password.
-
-#### `listen.http.handlers.mongoose_domain_handler.password`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `password = "secret"`
-
-Required to enable authentication for this endpoint.
-
-### Handler types: Metrics API (obsolete) - `mongoose_api`
-
-REST API for accessing the internal MongooseIM metrics.
-Please refer to the [REST interface to metrics](../rest-api/Metrics-backend.md) page for more information.
-The following option is required:
-
-#### `listen.http.handlers.mongoose_api.handlers`
-* **Syntax:** array of strings - Erlang modules
-* **Default:** all API handler modules enabled
-* **Example:** `handlers = ["mongoose_api_metrics"]`
 
 ### Transport options
 
@@ -661,57 +636,7 @@ The following listener accepts BOSH and WebSocket connections and has TLS config
     path = "/ws-xmpp"
 ```
 
-#### Example 2. Admin API
-
-REST API for administration, the listener is bound to `127.0.0.1` for increased security.
-The number of acceptors and connections is specified (reduced).
-
-```toml
-[[listen.http]]
-  ip_address = "127.0.0.1"
-  port = 8088
-  transport.num_acceptors = 5
-  transport.max_connections = 10
-
-  [[listen.http.handlers.mongoose_api_admin]]
-    host = "localhost"
-    path = "/api"
-```
-
-#### Example 3. Client API
-
-REST API for clients.
-
-```toml
-[[listen.http]]
-  port = 8089
-  transport.max_connections = 1024
-  protocol.compress = true
-
-  [[listen.http.handlers.mongoose_client_api]]
-    host = "_"
-    path = "/api"
-```
-
-#### Example 4. Domain API
-
-REST API for domain management.
-
-```toml
-[[listen.http]]
-  ip_address = "127.0.0.1"
-  port = 8088
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-
-  [[listen.http.handlers.mongoose_domain_handler]]
-    host = "localhost"
-    path = "/api"
-    username = "admin"
-    password = "secret"
-```
-
-#### Example 5. Admin GraphQL API
+#### Example 2. Admin GraphQL API
 
 GraphQL API for administration, the listener is bound to 127.0.0.1 for increased security. The number of acceptors and connections is specified (reduced).
 
@@ -730,7 +655,7 @@ GraphQL API for administration, the listener is bound to 127.0.0.1 for increased
     password = "secret"
 ```
 
-#### Example 6. Domain Admin GraphQL API
+#### Example 3. Domain Admin GraphQL API
 
 GraphQL API for the domain admin.
 
@@ -747,7 +672,7 @@ GraphQL API for the domain admin.
     schema_endpoint = "domain_admin"
 ```
 
-#### Example 7. User GraphQL API
+#### Example 4. User GraphQL API
 
 GraphQL API for the user.
 
@@ -762,4 +687,39 @@ GraphQL API for the user.
     host = "_"
     path = "/api/graphql"
     schema_endpoint = "user"
+```
+
+#### Example 5. Admin REST API
+
+REST API for administration, the listener is bound to `127.0.0.1` for increased security.
+The number of acceptors and connections is specified (reduced).
+Basic HTTP authentication is used as well.
+
+```toml
+[[listen.http]]
+  ip_address = "127.0.0.1"
+  port = 8088
+  transport.num_acceptors = 5
+  transport.max_connections = 10
+
+  [[listen.http.handlers.mongoose_admin_api]]
+    host = "localhost"
+    path = "/api"
+    username = "admin"
+    password = "secret"
+```
+
+#### Example 6. Client REST API
+
+REST API for clients.
+
+```toml
+[[listen.http]]
+  port = 8089
+  transport.max_connections = 1024
+  protocol.compress = true
+
+  [[listen.http.handlers.mongoose_client_api]]
+    host = "_"
+    path = "/api"
 ```

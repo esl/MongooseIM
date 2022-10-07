@@ -30,15 +30,12 @@
 
 -export([start/0, stop/0,
          %% Server
-         status/0,
          %% Accounts
          register/3, register/2, unregister/2,
          registered_users/1,
          import_users/1,
          %% Purge DB
          delete_expired_messages/1, delete_old_messages/2,
-         get_loglevel/0,
-         join_cluster/1, leave_cluster/0,
          remove_from_cluster/1]).
 
 -export([registrator_proc/1]).
@@ -46,8 +43,8 @@
 -ignore_xref([
     backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
     dump_mnesia/1, dump_table/2,
-    get_loglevel/0, import_users/1, install_fallback_mnesia/1,
-    join_cluster/1, leave_cluster/0, load_mnesia/1, mnesia_change_nodename/4,
+    import_users/1, install_fallback_mnesia/1,
+    load_mnesia/1, mnesia_change_nodename/4,
     register/2, register/3, registered_users/1, remove_from_cluster/1,
     restore_mnesia/1, status/0,
     stop/0, unregister/2]).
@@ -72,7 +69,7 @@ commands() ->
      %% They are defined here so that other interfaces can use them too
      #ejabberd_commands{name = status, tags = [server],
                         desc = "Get status of the ejabberd server",
-                        module = ?MODULE, function = status,
+                        module = mongoose_server_api, function = status,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = restart, tags = [server],
                         desc = "Restart ejabberd gracefully",
@@ -80,7 +77,7 @@ commands() ->
                         args = [], result = {res, rescode}},
      #ejabberd_commands{name = get_loglevel, tags = [logs, server],
                         desc = "Get the current loglevel",
-                        module = ?MODULE, function = get_loglevel,
+                        module = mongoose_server_api, function = get_loglevel,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
@@ -159,19 +156,19 @@ commands() ->
      #ejabberd_commands{name = join_cluster, tags = [server],
                         desc = "Join the node to a cluster. Call it from the joining node.
                                 Use `-f` or `--force` flag to avoid question prompt and force join the node",
-                        module = ?MODULE, function = join_cluster,
+                        module = mongoose_server_api, function = join_cluster,
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
                         desc = "Leave a cluster. Call it from the node that is going to leave.
                                 Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
-                        module = ?MODULE, function = leave_cluster,
+                        module = mongoose_server_api, function = leave_cluster,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = remove_from_cluster, tags = [server],
                         desc = "Remove dead node from the cluster. Call it from the member of the cluster.
                                 Use `-f` or `--force` flag to avoid question prompt and force remove the node",
-                        module = ?MODULE, function = remove_from_cluster,
+                        module = mongoose_server_api, function = remove_from_cluster,
                         args = [{node, string}],
                         result = {res, restuple}}
     ].
@@ -221,70 +218,6 @@ remove_rpc_alive_node(AliveNode) ->
             {rpc_error, String}
     end.
 
--spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {already_joined, string()} |
-                                {mnesia_error, string()} | {error, string()}.
-join_cluster(NodeString) ->
-    NodeAtom = list_to_atom(NodeString),
-    NodeList = mnesia:system_info(db_nodes),
-    case lists:member(NodeAtom, NodeList) of
-        true ->
-            String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
-            {already_joined, String};
-        _ ->
-            do_join_cluster(NodeAtom)
-    end.
-
-do_join_cluster(Node) ->
-    try mongoose_cluster:join(Node) of
-        ok ->
-            String = io_lib:format("You have successfully joined the node ~p to the cluster with node member ~p~n", [node(), Node]),
-            {ok, String}
-    catch
-        error:pang ->
-            String = io_lib:format("Timeout while attempting to connect to node ~s~n", [Node]),
-            {pang, String};
-        error:{cant_get_storage_type, {T, E, R}} ->
-            String = io_lib:format("Cannot get storage type for table ~p~n. Reason: ~p:~p", [T, E, R]),
-            {mnesia_error, String};
-        E:R:S ->
-            {error, {E, R, S}}
-    end.
-
--spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
-leave_cluster() ->
-    NodeList = mnesia:system_info(running_db_nodes),
-    ThisNode = node(),
-    case NodeList of
-        [ThisNode] ->
-            String = io_lib:format("The node ~p is not in the cluster~n", [node()]),
-            {not_in_cluster, String};
-        _ ->
-            do_leave_cluster()
-    end.
-
-do_leave_cluster() ->
-    try mongoose_cluster:leave() of
-        ok ->
-            String = io_lib:format("The node ~p has successfully left the cluster~n", [node()]),
-            {ok, String}
-    catch
-        E:R ->
-            {error, {E, R}}
-    end.
-
--spec status() -> {'mongooseim_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
-status() ->
-    {InternalStatus, ProvidedStatus} = init:get_status(),
-    String1 = io_lib:format("The node ~p is ~p. Status: ~p",
-                            [node(), InternalStatus, ProvidedStatus]),
-    {Is_running, String2} =
-        case lists:keysearch(mongooseim, 1, application:which_applications()) of
-            false ->
-                {mongooseim_not_running, "mongooseim is not running in that node."};
-            {value, {_, _, Version}} ->
-                {ok, io_lib:format("mongooseim ~s is running in that node", [Version])}
-        end,
-    {Is_running, String1 ++ String2}.
 
 %%%
 %%% Account management
@@ -396,12 +329,6 @@ do_register(List) ->
                  end,
     Info = lists:foldr(JoinBinary, <<"">>, List),
     {bad_csv, Info}.
-
-get_loglevel() ->
-    Level = mongoose_logs:get_global_loglevel(),
-    Number = mongoose_logs:loglevel_keyword_to_number(Level),
-    String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
-    {ok, String}.
 
 %%%
 %%% Purge DB

@@ -49,7 +49,7 @@
         ]).
 
 %% Hooks callbacks
--export([node_cleanup/2]).
+-export([node_cleanup/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -59,7 +59,7 @@
 -export([get_info_s2s_connections/1]).
 
 -ignore_xref([dirty_get_connections/0, get_info_s2s_connections/1, have_connection/1,
-              incoming_s2s_number/0, node_cleanup/2, outgoing_s2s_number/0, start_link/0]).
+              incoming_s2s_number/0, outgoing_s2s_number/0, start_link/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -163,7 +163,8 @@ dirty_get_connections() ->
 %% Hooks callbacks
 %%====================================================================
 
-node_cleanup(Acc, Node) ->
+-spec node_cleanup(map(), map(), map()) -> {ok, map()}.
+node_cleanup(Acc, #{node := Node}, _) ->
     F = fun() ->
                 Es = mnesia:select(
                        s2s,
@@ -175,7 +176,7 @@ node_cleanup(Acc, Node) ->
                               end, Es)
         end,
     Res = mnesia:async_dirty(F),
-    maps:put(?MODULE, Res, Acc).
+    {ok, maps:put(?MODULE, Res, Acc)}.
 
 -spec key(mongooseim:host_type(), {jid:lserver(), jid:lserver()}, binary()) ->
     binary().
@@ -205,7 +206,7 @@ init([]) ->
     mnesia:add_table_copy(s2s_shared, node(), ram_copies),
     {atomic, ok} = set_shared_secret(),
     ejabberd_commands:register_commands(commands()),
-    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
+    gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -250,7 +251,7 @@ handle_info(Msg, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
+    gen_hook:delete_handlers(hooks()),
     ejabberd_commands:unregister_commands(commands()),
     ok.
 
@@ -264,6 +265,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+-spec hooks() -> [gen_hook:hook_tuple()].
+hooks() ->
+    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
 
 -spec do_route(From :: jid:jid(),
                To :: jid:jid(),

@@ -10,7 +10,6 @@
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
 
--export([term_to_readable_binary/1]).
 -export([get_message_type/1, does_local_user_exist/3]).
 
 %% Private, just for warning
@@ -155,9 +154,6 @@ parse_ip_netmask(IPStr, MaskStr) ->
         _ ->
             error
     end.
-
-term_to_readable_binary(X) ->
-    iolist_to_binary(io_lib:format("~0p", [X])).
 
 %% ------------------------------------------------------------------
 %% does_local_user_exist
