@@ -245,17 +245,13 @@ remove_dead_from_cluster_http(Config) ->
     distributed_helper:stop_node(Node3Nodename, Config),
     get_ok_value([data, server, removeFromCluster],
                   remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
-    timer:sleep(4500),
-    %% then
-    % node is down hence its not in mnesia cluster
-    have_node_in_mnesia(Node1, Node2, true),
-    have_node_in_mnesia(Node1, Node3, false),
-    have_node_in_mnesia(Node2, Node3, false),
+    have_node_in_mnesia_wait(Node1, Node2, true),
+    have_node_in_mnesia_wait(Node1, Node3, false),
+    have_node_in_mnesia_wait(Node2, Node3, false),
     % after node awakening nodes are clustered again
     distributed_helper:start_node(Node3Nodename, Config),
-    timer:sleep(1000),
-    have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node2, Node3, true).
+    have_node_in_mnesia_wait(Node1, Node3, true),
+    have_node_in_mnesia_wait(Node2, Node3, true).
 
 remove_alive_from_cluster_http(Config) ->
     % given
@@ -269,14 +265,26 @@ remove_alive_from_cluster_http(Config) ->
     %% Node2 is still running
     %% then
     get_ok_value([], remove_from_cluster(atom_to_binary(Node2Name), Config)),
-    timer:sleep(4500),
-    have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node1, Node2, false),
-    have_node_in_mnesia(Node3, Node2, false).
+    have_node_in_mnesia_wait(Node1, Node3, true),
+    have_node_in_mnesia_wait(Node1, Node2, false),
+    have_node_in_mnesia_wait(Node3, Node2, false).
 
 %-----------------------------------------------------------------------
 %                                Helpers
 %-----------------------------------------------------------------------
+
+have_node_in_mnesia_wait(Node1, #{node := Node2}, Value) ->
+    mongoose_helper:wait_until(fun() ->
+                                   DbNodes1 = distributed_helper:rpc(Node1, mnesia,
+                                                                     system_info, [db_nodes]),
+                                   lists:member(Node2, DbNodes1)
+                               end,
+                               Value,
+                               #{
+                                 time_left => timer:seconds(5),
+                                 sleep_time => 1000,
+                                 name => have_node_in_mnesia
+                                }).
 
 all_log_levels() ->
     [<<"NONE">>,

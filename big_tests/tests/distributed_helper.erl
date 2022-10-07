@@ -53,8 +53,8 @@ verify_result(Node, Op) ->
     mongoose_helper:wait_until(fun() -> catch do_verify_result(Node, Op) end,
                                [],
                                #{
-                                 time_left => timer:seconds(20),
-                                 sleep_time => 1000,
+                                 time_left => timer:seconds(30),
+                                 sleep_time => 3000,
                                  name => verify_result
                                 }).
 
