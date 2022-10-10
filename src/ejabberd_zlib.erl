@@ -36,7 +36,7 @@
          close/1]).
 
 -ignore_xref([close/1, controlling_process/2, disable_zlib/1, peername/1, send/2,
-              setopts/2, sockname/1]).
+              setopts/2, sockname/1, get_sockmod/1]).
 
 -define(DEFLATE, 1).
 -define(INFLATE, 2).

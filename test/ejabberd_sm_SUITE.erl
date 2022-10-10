@@ -253,16 +253,21 @@ store_info_sends_message_to_the_session_owner(C) ->
     JID = jid:make_noprep(U, S, R),
     spawn_link(fun() -> ejabberd_sm:store_info(JID, cc, undefined) end),
     %% The original process receives a message
-    receive {store_session_info,
-             #jid{luser = User, lserver = Server, lresource = Resource},
-             K, V, _FromPid} ->
-        ?eq(U, User),
-        ?eq(S, Server),
-        ?eq(R, Resource),
-        ?eq({cc, undefined}, {K, V}),
-        ok
-        after 5000 ->
-            ct:fail("store_info_sends_message_to_the_session_owner=timeout")
+    receive
+        {'$gen_cast', {async,
+                       _Fun,
+                       [#jid{luser = User, lserver = Server, lresource = Resource},
+                       K,
+                       V]}} ->
+            ?eq(U, User),
+            ?eq(S, Server),
+            ?eq(R, Resource),
+            ?eq({cc, undefined}, {K, V}),
+            ok;
+        Message ->
+            ct:fail("unexpected message: ~p", [Message])
+    after 5000 ->
+        ct:fail("store_info_sends_message_to_the_session_owner=timeout")
     end.
 
 remove_info_sends_message_to_the_session_owner(C) ->
@@ -277,16 +282,20 @@ remove_info_sends_message_to_the_session_owner(C) ->
     JID = jid:make_noprep(U, S, R),
     spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
     %% The original process receives a message
-    receive {remove_session_info,
-             #jid{luser = User, lserver = Server, lresource = Resource},
-             Key, _FromPid} ->
-        ?eq(U, User),
-        ?eq(S, Server),
-        ?eq(R, Resource),
-        ?eq(cc, Key),
-        ok
-        after 5000 ->
-            ct:fail("remove_info_sends_message_to_the_session_owner=timeout")
+    receive
+        {'$gen_cast', {async,
+                       _Fun,
+                       [#jid{luser = User, lserver = Server, lresource = Resource},
+                       Key]}} ->
+            ?eq(U, User),
+            ?eq(S, Server),
+            ?eq(R, Resource),
+            ?eq(cc, Key),
+            ok;
+        Message ->
+            ct:fail("unexpected message: ~p", [Message])
+    after 5000 ->
+        ct:fail("remove_info_sends_message_to_the_session_owner=timeout")
     end.
 
 delete_session(C) ->

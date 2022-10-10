@@ -56,6 +56,8 @@
          maybe_append_delay/4,
          remove_delay_tags/1]).
 
+-ignore_xref([make_result_iq_reply/1]).
+
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").

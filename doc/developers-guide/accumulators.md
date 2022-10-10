@@ -56,7 +56,7 @@ While allowed, stanza-less accumulators usage should be avoided.
 * `element(t())`
 * `to_jid(t())`
 * `from_jid(t())`
-* `packet(t())` - Returns an `ejabberd_c2s:packet()` if there is a stanza in the accumulator.
+* `packet(t())` - Returns an `mongoose_c2s:packet()` if there is a stanza in the accumulator.
 * `stanza_name(t())` - Returns `name` value from `stanza` map.
 * `stanza_type(t())` - Returns `type` value from `stanza` map.
 * `stanza_ref(t())` - Returns `ref` value from `stanza` map. This is not the same as `ref(t())`!

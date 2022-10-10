@@ -8,6 +8,7 @@
 -behaviour(mongoose_http_handler).
 -behaviour(cowboy_websocket).
 -behaviour(mongoose_transport).
+-behaviour(mongoose_c2s_socket).
 
 %% mongoose_http_handler callbacks
 -export([config_spec/0]).
@@ -18,6 +19,18 @@
          websocket_handle/2,
          websocket_info/2,
          terminate/3]).
+
+%% mongoose_c2s_socket callbacks
+-export([socket_new/2,
+         socket_peername/1,
+         tcp_to_tls/2,
+         socket_handle_data/2,
+         socket_activate/1,
+         socket_close/1,
+         socket_send_xml/2,
+         has_peer_cert/2,
+         is_channel_binding_supported/1,
+         is_ssl/1]).
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
@@ -52,6 +65,7 @@
 -record(ws_state, {
           peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
+          fsm_module :: module() | undefined,
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
           opts :: map(),
@@ -190,21 +204,24 @@ handle_text(Text, #ws_state{parser = Parser} = State) ->
         process_parse_error(Reason, State)
     end.
 
-process_client_elements(Elements, #ws_state{fsm_pid = FSM} = State) ->
+process_client_elements(Elements, #ws_state{fsm_pid = FSM, fsm_module = FSMModule} = State) ->
     {Elements1, State1} = process_client_stream_start(Elements, State),
-    [send_to_fsm(FSM, process_client_stream_end(
+    [send_to_fsm(FSMModule, FSM, process_client_stream_end(
                 replace_stream_ns(Elem, State1), State1)) || Elem <- Elements1],
     {ok, State1}.
 
 process_parse_error(_Reason, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
-process_parse_error(Reason, #ws_state{fsm_pid = FSM} = State) ->
-    send_to_fsm(FSM, {xmlstreamerror, Reason}),
+process_parse_error(Reason, #ws_state{fsm_pid = FSM, fsm_module = FSMModule} = State) ->
+    send_to_fsm(FSMModule, FSM, {xmlstreamerror, Reason}),
     {ok, State}.
 
-send_to_fsm(FSM, #xmlel{} = Element) ->
-    send_to_fsm(FSM, {xmlstreamelement, Element});
-send_to_fsm(FSM, StreamElement) ->
+send_to_fsm(mongoose_c2s, FSM, Element) ->
+    FSM ! {tcp, undefined, Element},
+    ok;
+send_to_fsm(ejabberd_service, FSM, #xmlel{} = Element) ->
+    send_to_fsm(ejabberd_service, FSM, {xmlstreamelement, Element});
+send_to_fsm(ejabberd_service, FSM, StreamElement) ->
     p1_fsm:send_event(FSM, StreamElement).
 
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
@@ -218,8 +235,15 @@ maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
     end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 #ws_state{fsm_pid = undefined} = State) ->
-    Opts = #{access => all, shaper => none, xml_socket => true, hibernate_after => 0},
-    do_start_fsm(ejabberd_c2s, Opts, State);
+    Opts = #{
+        access => all,
+        shaper => none,
+        max_stanza_size => 0,
+        xml_socket => true,
+        hibernate_after => 0,
+        c2s_state_timeout => 5000,
+        backwards_compatible_session => true},
+    do_start_fsm(mongoose_c2s, Opts, State);
 maybe_start_fsm(_Els, State) ->
     {ok, State}.
 
@@ -233,7 +257,7 @@ do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert
                          text => <<"WebSockets starts c2s process">>,
                          c2s_pid => Pid, c2s_module => FSMModule,
                          peer => State#ws_state.peer}),
-            NewState = State#ws_state{fsm_pid = Pid, peercert = passed},
+            NewState = State#ws_state{fsm_pid = Pid, fsm_module = FSMModule, peercert = passed},
             {ok, NewState};
         {error, Reason} ->
             ?LOG_WARNING(#{what => ws_c2s_start_failed,
@@ -243,8 +267,9 @@ do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert
             {stop, State#ws_state{peercert = passed}}
     end.
 
-call_fsm_start(ejabberd_c2s, SocketData, Opts) ->
-    ejabberd_c2s:start({?MODULE, SocketData}, Opts);
+call_fsm_start(mongoose_c2s, SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) ->
+    mongoose_c2s:start({?MODULE, SocketData, Opts},
+                       [{hibernate_after, HibernateAfterTimeout}]);
 call_fsm_start(ejabberd_service, SocketData, Opts) ->
     ejabberd_service:start({?MODULE, SocketData}, Opts).
 
@@ -423,3 +448,54 @@ case_insensitive_match(LowerPattern, [Case | Cases]) ->
     end;
 case_insensitive_match(_, []) ->
     nomatch.
+
+%% mongoose_c2s_socket callbacks
+
+-spec socket_new(socket(), mongoose_listener:options()) -> socket().
+socket_new(Socket, _LOpts) ->
+    Socket.
+
+-spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
+socket_peername(Socket) ->
+    {ok, Peername} = peername(Socket),
+    Peername.
+
+-spec tcp_to_tls(socket(), mongoose_listener:options()) ->
+  {ok, socket()} | {error, term()}.
+tcp_to_tls(_Socket, _LOpts) ->
+    {error, tls_not_allowed_on_websockets}.
+
+-spec socket_handle_data(socket(), {tcp | ssl, term(), term()}) ->
+  iodata() | {raw, [exml:element()]} | {error, term()}.
+socket_handle_data(_Socket, {_Kind, _Term, Packet}) ->
+    {raw, [Packet]}.
+
+-spec socket_activate(socket()) -> ok.
+socket_activate(_Socket) ->
+    ok.
+
+-spec socket_close(socket()) -> ok.
+socket_close(Socket) ->
+    close(Socket),
+    ok.
+
+-spec socket_send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
+    ok | {error, term()}.
+socket_send_xml(#websocket{pid = Pid}, XMLs) when is_list(XMLs) ->
+    [Pid ! {send_xml, XML} || XML <- XMLs],
+    ok;
+socket_send_xml(#websocket{pid = Pid}, XML) ->
+    Pid ! {send_xml, XML},
+    ok.
+
+-spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
+has_peer_cert(Socket, _LOpts) ->
+    get_peer_certificate(Socket) /= no_peer_cert.
+
+-spec is_channel_binding_supported(socket()) -> boolean().
+is_channel_binding_supported(_Socket) ->
+    false.
+
+-spec is_ssl(socket()) -> boolean().
+is_ssl(_Socket) ->
+    false.

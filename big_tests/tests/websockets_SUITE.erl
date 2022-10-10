@@ -31,10 +31,8 @@ all() ->
      {group, wss_chat}].
 
 groups() ->
-    G = [{ws_chat, [sequence], test_cases()},
-         {wss_chat, [sequence], test_cases()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{ws_chat, [sequence], test_cases()},
+     {wss_chat, [sequence], test_cases()}].
 
 test_cases() ->
     [chat_msg,
@@ -111,4 +109,3 @@ escape_attrs(Config) ->
         special_chars_helper:check_attr_from_to(Geralt, Carol)
 
     end).
-

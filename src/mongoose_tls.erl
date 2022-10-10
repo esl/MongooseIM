@@ -30,6 +30,8 @@
 -ignore_xref([behaviour_info/1, close/1, controlling_process/2, peername/1,
               send/2, setopts/2, sockname/1]).
 
+-ignore_xref([get_sockmod/1]).
+
 -type tls_socket() :: any().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 

@@ -237,7 +237,7 @@ wait_for_session_count(Expected) ->
     wait_until(fun() -> length(get_session_specs()) end, Expected, #{name => session_count}).
 
 get_session_specs() ->
-    rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup]).
+    rpc(mim(), supervisor, which_children, [mongoose_c2s_sup]).
 
 get_session_pids() ->
     [element(2, X) || X <- get_session_specs()].

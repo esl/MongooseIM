@@ -132,7 +132,7 @@ filter_unknown_api(ApiList) ->
 get_transport_mechanisms() ->
     HTTP = [Mod || Mod <- get_http_handler_modules(),
                    Mod =:= mod_bosh orelse Mod =:= mod_websockets],
-    TCP = lists:usort([tcp || #{proto := tcp} <- get_listeners(ejabberd_c2s)]),
+    TCP = lists:usort([tcp || #{proto := tcp} <- get_listeners(mongoose_c2s_listener)]),
     [#{report_name => transport_mechanism,
        key => Transport,
        value => enabled} || Transport <- HTTP ++ TCP].
@@ -149,7 +149,7 @@ get_http_handler_modules(#{handlers := Handlers}) ->
     [Module || #{module := Module} <- Handlers].
 
 get_tls_options() ->
-    TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(ejabberd_c2s)),
+    TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(mongoose_c2s_listener)),
     [#{report_name => tls_option, key => TLSMode, value => TLSModule} ||
         {TLSMode, TLSModule} <- lists:usort(TLSOptions)].
 

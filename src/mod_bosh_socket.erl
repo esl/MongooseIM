@@ -2,6 +2,7 @@
 
 -behaviour(gen_fsm_compat).
 -behaviour(mongoose_transport).
+-behaviour(mongoose_c2s_socket).
 
 %% API
 -export([start/4,
@@ -29,6 +30,18 @@
          close/1,
          peername/1,
          get_peer_certificate/1]).
+
+%% mongoose_c2s_socket callbacks
+-export([socket_new/2,
+         socket_peername/1,
+         tcp_to_tls/2,
+         socket_handle_data/2,
+         socket_activate/1,
+         socket_send_xml/2,
+         socket_close/1,
+         has_peer_cert/2,
+         is_channel_binding_supported/1,
+         is_ssl/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -192,11 +205,17 @@ get_cached_responses(Pid) ->
 %%--------------------------------------------------------------------
 init([HostType, Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
-    C2SOpts = #{access => all, shaper => none, xml_socket => true, hibernate_after => 0},
-    {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
+    C2SOpts = #{access => all,
+                shaper => none,
+                xml_socket => true,
+                max_stanza_size => 0,
+                hibernate_after => 0,
+                c2s_state_timeout => 5000,
+                backwards_compatible_session => true},
+    {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),
-    ?LOG_DEBUG(ls(#{what => bosh_socket_init}, State)),
+    ?LOG_DEBUG(ls(#{what => bosh_socket_init, peer => Peer}, State)),
     {ok, accumulate, State}.
 
 new_state(Sid, C2SPid, #{inactivity := Inactivity, max_wait := MaxWait,
@@ -416,7 +435,7 @@ handle_info(Info, SName, State) ->
 terminate(Reason, StateName, #state{sid = Sid, handlers = Handlers} = S) ->
     [Pid ! {close, Sid} || {_, _, Pid} <- lists:sort(Handlers)],
     mod_bosh_backend:delete_session(Sid),
-    catch ejabberd_c2s:stop(S#state.c2s_pid),
+    catch mongoose_c2s:stop(S#state.c2s_pid, normal),
     ?LOG_DEBUG(ls(#{what => bosh_socket_closing_session, reason => Reason,
                     state_name => StateName, handlers => Handlers,
                     pending => S#state.pending}, S)).
@@ -787,9 +806,10 @@ store(Data, #state{pending = Pending} = S) ->
     S#state{pending = Pending ++ Data}.
 
 
--spec forward_to_c2s('undefined' | pid(), jlib:xmlstreamel()) -> 'ok'.
+-spec forward_to_c2s(pid() | undefined, jlib:xmlstreamel()) -> ok.
 forward_to_c2s(C2SPid, StreamElement) ->
-    gen_fsm_compat:send_event(C2SPid, StreamElement).
+    C2SPid ! {tcp, undefined, StreamElement},
+    ok.
 
 
 -spec maybe_add_handler(_, rid(), state()) -> state().
@@ -854,10 +874,10 @@ bosh_unwrap(streamend, Body, State) ->
 bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
     Sid = exml_query:attr(Body, <<"sid">>),
     ?NS_HTTPBIND = exml_query:attr(Body, <<"xmlns">>),
-    {[{xmlstreamelement, El}
-      || El <- Body#xmlel.children,
-         %% Ignore whitespace keepalives.
-         El /= #xmlcdata{content = <<" ">>}],
+
+    {[El || El <- Body#xmlel.children,
+            %% Ignore whitespace keepalives.
+            El /= #xmlcdata{content = <<" ">>}],
      State}.
 
 
@@ -1103,6 +1123,58 @@ ls(LogMap, State) ->
 
 ignore_undefined(Map) ->
     maps:filter(fun(_, V) -> V =/= undefined end, Map).
+
+%% mongoose_c2s_socket callbacks
+
+-spec socket_new(mod_bosh:socket(), mongoose_listener:options()) -> mod_bosh:socket().
+socket_new(Socket, _LOpts) ->
+    Socket.
+
+-spec socket_peername(mod_bosh:socket()) -> {inet:ip_address(), inet:port_number()}.
+socket_peername(Socket) ->
+    {ok, Peername} = peername(Socket),
+    Peername.
+
+-spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options()) ->
+  {ok, mod_bosh:socket()} | {error, term()}.
+tcp_to_tls(_Socket, _LOpts) ->
+    {error, tls_not_allowed_on_bosh}.
+
+-spec socket_handle_data(mod_bosh:socket(), {tcp | ssl, term(), iodata()}) ->
+  iodata() | {raw, [exml:element()]} | {error, term()}.
+socket_handle_data(_Socket, {_Kind, _Term, Packet}) ->
+    {raw, [Packet]}.
+
+-spec socket_activate(mod_bosh:socket()) -> ok.
+socket_activate(_Socket) ->
+    ok.
+
+-spec socket_send_xml(mod_bosh:socket(),
+                      iodata() | exml_stream:element() | [exml_stream:element()]) ->
+    ok | {error, term()}.
+socket_send_xml(#bosh_socket{pid = Pid}, XMLs) when is_list(XMLs) ->
+    [Pid ! {send, XML} || XML <- XMLs],
+    ok;
+socket_send_xml(#bosh_socket{pid = Pid}, XML) ->
+    Pid ! {send, XML},
+    ok.
+
+-spec socket_close(mod_bosh:socket()) -> ok.
+socket_close(Socket) ->
+    close(Socket),
+    ok.
+
+-spec has_peer_cert(mod_bosh:socket(), mongoose_listener:options()) -> boolean().
+has_peer_cert(Socket, _LOpts) ->
+    get_peer_certificate(Socket) /= no_peer_cert.
+
+-spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
+is_channel_binding_supported(_Socket) ->
+    false.
+
+-spec is_ssl(mod_bosh:socket()) -> boolean().
+is_ssl(_Socket) ->
+    false.
 
 %%--------------------------------------------------------------------
 %% Tests

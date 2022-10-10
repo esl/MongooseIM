@@ -41,7 +41,7 @@ new(Name) ->
 
 %% @doc Update shaper.
 %% `Delay' is how many milliseconds to wait.
--spec update(shaper(), Size :: pos_integer()) -> {shaper(), Delay :: non_neg_integer()}.
+-spec update(shaper(), Size :: non_neg_integer()) -> {shaper(), Delay :: non_neg_integer()}.
 update(none, _Size) ->
     {none, 0};
 update(#shaper{max_rate = MaxRatePerSecond,

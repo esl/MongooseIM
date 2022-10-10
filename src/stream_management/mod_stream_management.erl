@@ -40,8 +40,10 @@
          register_stale_smid_h/3,
          remove_stale_smid_h/2]).
 
--ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2,
-              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5]).
+-ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2, remove_smid/5,
+              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5,
+              get_ack_freq/1, get_buffer_max/1, get_resume_timeout/1,
+              get_session_from_smid/2, make_smid/0, register_smid/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
