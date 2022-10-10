@@ -569,7 +569,10 @@ c2s_filter_packet(State, Feature, To, Packet) ->
     State :: ejabberd_c2s:state(),
     Result :: mongoose_acc:t().
 c2s_preprocessing_hook(HostType, Acc, State) ->
-    run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
+    Params = #{state => State},
+    Args = [State],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec c2s_presence_in(State, From, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),

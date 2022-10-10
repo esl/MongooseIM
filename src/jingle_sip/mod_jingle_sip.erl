@@ -33,11 +33,11 @@
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0]).
 
--export([intercept_jingle_stanza/2]).
+-export([intercept_jingle_stanza/3]).
 
 -export([content_to_nksip_media/1]).
 
--ignore_xref([content_to_nksip_media/1, intercept_jingle_stanza/2]).
+-ignore_xref([content_to_nksip_media/1]).
 
 %% this is because nksip has wrong type specs
 -dialyzer({nowarn_function, [jingle_content_to_media/1,
@@ -52,7 +52,7 @@
 start(Host, Opts) ->
     start_nksip_service_or_error(Opts),
     mod_jingle_sip_backend:init(Host, Opts),
-    ejabberd_hooks:add(hooks(Host)),
+    gen_hook:add_handlers(hooks(Host)),
     ok.
 
 start_nksip_service_or_error(Opts = #{listen_port := ListenPort}) ->
@@ -80,7 +80,7 @@ maybe_add_udp_max_size(NkSipOpts, Opts) ->
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
+    gen_hook:delete_handlers(hooks(Host)),
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -121,15 +121,20 @@ process_u2p(#{username := U, phone := P}) ->
     {U, P}.
 
 hooks(Host) ->
-    [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
+    [{c2s_preprocessing_hook, Host, fun ?MODULE:intercept_jingle_stanza/3, #{}, 75}].
 
-intercept_jingle_stanza(Acc, _C2SState) ->
-    case mongoose_acc:get(hook, result, undefined, Acc) of
+-spec intercept_jingle_stanza(Acc, Params, Extra) -> {ok, Acc} when
+       Acc :: mongoose_acc:t(),
+       Params :: map(),
+       Extra :: map().
+intercept_jingle_stanza(Acc, _, _) ->
+    NewAcc = case mongoose_acc:get(hook, result, undefined, Acc) of
         drop ->
             Acc;
         _ ->
             maybe_iq_stanza(Acc)
-    end.
+    end,
+    {ok, NewAcc}.
 
 maybe_iq_stanza(Acc) ->
     case mongoose_acc:stanza_name(Acc) of
