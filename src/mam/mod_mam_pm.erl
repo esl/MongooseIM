@@ -210,9 +210,10 @@ disco_local_features(Acc, _, _) ->
 %%       attribute as the target JID.
 -spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
        Acc :: mongoose_acc:t(),
-       Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
+       Args :: map(),
        Extra :: map().
-user_send_packet(Acc, #{from := From, to := To, packet := Packet}, _) ->
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
     {_, Acc2} = handle_package(outgoing, true, From, To, From, Packet, Acc),
     {ok, Acc2}.

@@ -393,7 +393,7 @@ resend_offline_messages_hook(Acc, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 rest_user_send_packet(Acc, From, To, Packet) ->
-    Params = #{from => From, to => To, packet => Packet},
+    Params = #{},
     Args = [From, To, Packet],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -512,7 +512,7 @@ user_sent_keep_alive(HostType, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
-    Params = #{from => From, to => To, packet => Packet},
+    Params = #{},
     Args = [From, To, Packet],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
