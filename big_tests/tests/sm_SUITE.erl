@@ -1187,7 +1187,7 @@ rpc_stop_hook_handler(HookExtra, HostType) ->
                             HookExtra, 50).
 
 hook_handler_fn(Acc,
-                #{args := [Jid]} = _Params,
+                #{jid := Jid} = _Params,
                 #{luser := LUser, pid := TestCasePid} = _Extra) ->
     {U, _S, R} = jid:to_lower(Jid),
     case U of
