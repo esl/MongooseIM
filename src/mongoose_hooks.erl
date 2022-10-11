@@ -210,8 +210,12 @@ adhoc_sm_commands(HostType, From, To, AdhocRequest) ->
     LUser :: jid:user(),
     Result :: mongose_acc:t().
 anonymous_purge_hook(LServer, Acc, LUser) ->
+    Jid = jid:make_bare(LUser, LServer),
+    Params = #{jid => Jid},
+    Args = [LUser, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(anonymous_purge_hook, HostType, Acc, [LUser, LServer]).
+    run_hook_for_host_type(anonymous_purge_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec auth_failed(HostType, Server, Username) -> Result when
     HostType :: binary(),
@@ -389,7 +393,7 @@ resend_offline_messages_hook(Acc, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 rest_user_send_packet(Acc, From, To, Packet) ->
-    Params = #{},
+    Params = #{from => From, to => To, packet => Packet},
     Args = [From, To, Packet],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -744,8 +748,11 @@ sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
     Packet :: exml:element(),
     Result :: boolean().
 sm_filter_offline_message(HostType, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(sm_filter_offline_message, HostType, false,
-                           [From, To, Packet]).
+                           ParamsWithLegacyArgs).
 
 -spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
     HostType :: binary(),
@@ -1376,9 +1383,12 @@ amp_check_condition(HostType, Strategy, Rule) ->
     Event :: mod_amp:amp_event(),
     Result :: mod_amp:amp_strategy().
 amp_determine_strategy(HostType, From, To, Packet, Event) ->
+    Params = #{from => From, to => To, packet => Packet, event => Event},
+    Args = [From, To, Packet, Event],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     DefaultStrategy = amp_strategy:null_strategy(),
     run_hook_for_host_type(amp_determine_strategy, HostType, DefaultStrategy,
-                           [From, To, Packet, Event]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `amp_verify_support' hook is called when checking
 %%% whether the host supports given AMP rules.
