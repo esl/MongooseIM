@@ -161,13 +161,14 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
 -spec terminate(term(), c2s_state(), c2s_data()) -> term().
 terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
+    Params = (hook_arg(StateData, C2SState))#{extra := Reason},
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    Acc1 = mongoose_acc:set(c2s, terminate, Reason, Acc0),
-    Acc2 = mongoose_c2s_hooks:user_terminate(HostType, Acc1, hook_arg(StateData)),
-    close_session(StateData, C2SState, Acc2, Reason),
+    Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
+    Acc2 = close_session(StateData, C2SState, Acc1, Reason),
+    _Acc3 = mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
+    bounce_messages(StateData),
     close_parser(StateData),
     close_socket(StateData),
-    bounce_messages(StateData),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -251,7 +252,7 @@ handle_foreign_event(StateData = #c2s_data{host_type = HostType, lserver = LServ
 
 -spec handle_stop_request(c2s_data(), c2s_state(), atom()) -> fsm_res().
 handle_stop_request(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{extra => Reason},
+    Params = (hook_arg(StateData, C2SState))#{extra := Reason},
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_stop_request(HostType, Acc0, Params),
@@ -259,7 +260,7 @@ handle_stop_request(StateData = #c2s_data{host_type = HostType, lserver = LServe
 
 -spec handle_socket_closed(c2s_data(), c2s_state(), term()) -> fsm_res().
 handle_socket_closed(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{extra => Reason},
+    Params = (hook_arg(StateData, C2SState))#{extra := Reason},
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_socket_closed(HostType, Acc0, Params),
@@ -267,7 +268,7 @@ handle_socket_closed(StateData = #c2s_data{host_type = HostType, lserver = LServ
 
 -spec handle_socket_error(c2s_data(), c2s_state(), term()) -> fsm_res().
 handle_socket_error(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{extra => Reason},
+    Params = (hook_arg(StateData, C2SState))#{extra := Reason},
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_socket_error(HostType, Acc0, Params),
@@ -871,7 +872,7 @@ hook_arg(StateData) ->
 
 -spec hook_arg(c2s_data(), c2s_state()) -> mongoose_c2s_hooks:hook_params().
 hook_arg(StateData, C2SState) ->
-    #{c2s_data => StateData, c2s_state => C2SState}.
+    #{c2s_data => StateData, c2s_state => C2SState, extra => undefined}.
 
 %%%----------------------------------------------------------------------
 %%% API

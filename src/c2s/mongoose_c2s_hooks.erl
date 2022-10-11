@@ -27,6 +27,7 @@
 -export([foreign_event/3,
          user_open_session/3,
          user_terminate/3,
+         reroute_unacked_messages/3,
          user_stop_request/3,
          user_socket_closed/3,
          user_socket_error/3]).
@@ -185,6 +186,17 @@ user_open_session(HostType, Acc, Params) ->
     Result :: mongoose_acc:t().
 user_terminate(HostType, Acc, Params) ->
     {_, Res} = gen_hook:run_fold(user_terminate, HostType, Acc, Params),
+    Res.
+
+%% @doc Triggered when the user session is irrevocably terminating.
+%% This is ran _after_ removing the user from the session table, but before closing the socket
+-spec reroute_unacked_messages(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: hook_params(),
+    Result :: mongoose_acc:t().
+reroute_unacked_messages(HostType, Acc, Params) ->
+    {_, Res} = gen_hook:run_fold(reroute_unacked_messages, HostType, Acc, Params),
     Res.
 
 %% These conditions required that one and only one handler declared full control over it,
