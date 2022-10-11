@@ -103,18 +103,17 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
 
 -spec user_terminate(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-user_terminate(Acc, #{c2s_data := StateData}, _Extra) ->
+user_terminate(Acc, #{c2s_data := StateData, reason := Reason}, _Extra) ->
     case get_mod_state(StateData) of
         {error, not_found} -> {ok, Acc};
         #presences_state{pres_last = undefined} -> {ok, Acc};
-        Presences -> handle_user_terminate(Acc, StateData, Presences)
+        Presences -> handle_user_terminate(Acc, StateData, Presences, Reason)
     end.
 
--spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:c2s_data(), presences_state()) ->
+-spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:c2s_data(), presences_state(), term()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-handle_user_terminate(Acc, StateData, Presences) ->
+handle_user_terminate(Acc, StateData, Presences, Reason) ->
     Jid = mongoose_c2s:get_jid(StateData),
-    Reason = mongoose_acc:get(c2s, terminate, normal, Acc),
     Status = close_session_status(Reason),
     PresenceUnavailable = presence_unavailable_stanza(Status),
     ParamsAcc = #{from_jid => Jid, to_jid => jid:to_bare(Jid), element => PresenceUnavailable},
@@ -586,6 +585,10 @@ close_session_status({shutdown, retries}) ->
     <<"Too many attempts">>;
 close_session_status({shutdown, replaced}) ->
     <<"Replaced by new connection">>;
+close_session_status({shutdown, Reason}) when is_atom(Reason) ->
+    <<"Shutdown by reason: ", (atom_to_binary(Reason))/binary>>;
+close_session_status({shutdown, Reason}) when is_binary(Reason) ->
+    <<"Shutdown by reason: ", Reason/binary>>;
 close_session_status(_) ->
     <<"Unknown condition">>.
 

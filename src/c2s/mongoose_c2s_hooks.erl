@@ -5,7 +5,9 @@
                             hook_result()).
 -type hook_params() :: #{c2s_data := mongoose_c2s:state(),
                          c2s_state := mongoose_c2s:c2s_state(),
-                         atom() => _}.
+                         event_type := undefined | gen_statem:event_type(),
+                         event_content := undefined | term(),
+                         reason := undefined | term()}.
 -type hook_result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).
 -export_type([hook_fn/0, hook_params/0, hook_result/0]).
 
