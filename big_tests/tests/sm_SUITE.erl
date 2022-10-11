@@ -1001,14 +1001,14 @@ replies_are_processed_by_resumed_session(Config) ->
 
 %% This is a regression test for a bug, which manifested in following scenario
 %% (due to improper presence sub requests buffering):
-%% 1. A is online, B is offline
-%% 2. A subscribes to B's presence;
-%% 3. B becomes online
-%% 4. A sends a message to B
-%% 5. B doesn't SM-ack the request or message, terminates the connection
-%% 6. B reconnects but with session *replace*, not resume
+%% 1. Bob is online, Alice is offline
+%% 2. Bob subscribes to Alice's presence;
+%% 3. Alice becomes online
+%% 4. Bob sends a message to Alice
+%% 5. Alice doesn't SM-ack the request or message, terminates the connection
+%% 6. Alice reconnects but with session *replace*, not resume
 %% 7. Packet rerouting crashes on the buffered sub request, preventing resending whole buffer
-%% 8. B doesn't receive the buffered message
+%% 8. Alice doesn't receive the buffered message
 subscription_requests_are_buffered_properly(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     MsgBody = <<"buffered">>,
