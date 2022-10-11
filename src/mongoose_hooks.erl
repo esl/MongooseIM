@@ -235,7 +235,10 @@ does_user_exist(HostType, Jid, RequestType) ->
     Domain :: jid:lserver(),
     Result :: mongoose_domain_api:remove_domain_acc().
 remove_domain(HostType, Domain) ->
-    run_hook_for_host_type(remove_domain, HostType, #{failed => []}, [HostType, Domain]).
+    Params = #{domain => Domain},
+    Args = [HostType, Domain],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(remove_domain, HostType, #{failed => []}, ParamsWithLegacyArgs).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
@@ -284,7 +287,10 @@ filter_packet(Acc) ->
     User :: jid:jid(),
     Result :: mongoose_acc:t().
 inbox_unread_count(LServer, Acc, User) ->
-    run_hook_for_host_type(inbox_unread_count, LServer, Acc, [User]).
+    Params = #{user => User},
+    Args = [User],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(inbox_unread_count, LServer, Acc, ParamsWithLegacyArgs).
 
 -spec extend_inbox_message(mongoose_acc:t(), mod_inbox:inbox_res(), jlib:iq()) ->
     [exml:element()].
@@ -502,7 +508,7 @@ user_sent_keep_alive(HostType, JID) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
-    Params = #{},
+    Params = #{from => From, to => To, packet => Packet},
     Args = [From, To, Packet],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -1235,7 +1241,10 @@ get_mam_muc_gdpr_data(HostType, JID) ->
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
 get_personal_data(HostType, JID) ->
-    run_hook_for_host_type(get_personal_data, HostType, [], [HostType, JID]).
+    Params = #{jid => JID},
+    Args = [HostType, JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(get_personal_data, HostType, [], ParamsWithLegacyArgs).
 
 %% S2S related hooks
 
