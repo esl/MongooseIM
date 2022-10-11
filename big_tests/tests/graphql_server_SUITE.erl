@@ -102,11 +102,15 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) when CaseName == join_successful
                                    orelse CaseName == leave_unsuccessful
+                                   orelse CaseName == join_successful_http
+                                   orelse CaseName == leave_unsuccessful_http
                                    orelse CaseName == join_twice ->
     remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
-                                   orelse CaseName == remove_dead_from_cluster ->
+                                   orelse CaseName == remove_dead_from_cluster
+                                   orelse CaseName == remove_alive_from_cluster_http
+                                   orelse CaseName == remove_dead_from_cluster_http ->
     remove_node_from_cluster(mim3(), Config),
     remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
