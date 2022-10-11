@@ -819,10 +819,9 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> ok.
-close_session(#c2s_data{jid = Jid, sid = Sid}, session_established, Acc, Reason) ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)),
-    ok;
+-spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
+close_session(#c2s_data{jid = Jid, sid = Sid}, _, Acc, Reason) when Jid =/= undefined ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
 close_session(_, _, Acc, _) ->
     Acc.
 
