@@ -11,7 +11,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([get_hooks/1]).
+-export([hooks/1]).
+-export([c2s_hooks/1]).
 
 %%-------------------
 %% Internal exports
@@ -19,8 +20,8 @@
 -export([sm_register_connection_hook/5,
          sm_remove_connection_hook/5,
          auth_failed/3,
-         user_send_packet/4,
-         user_receive_packet/5,
+         user_send_packet/3,
+         user_open_session/3,
          xmpp_bounce_message/1,
          xmpp_stanza_dropped/4,
          xmpp_send_element/2,
@@ -40,34 +41,37 @@
              privacy_list_push/5, register_user/3, remove_user/3, roster_get/2,
              roster_in_subscription/5, roster_push/4, roster_set/4,
              sm_register_connection_hook/5, sm_remove_connection_hook/5,
-             user_receive_packet/5, user_send_packet/4, xmpp_bounce_message/1,
-             xmpp_send_element/2, xmpp_stanza_dropped/4]).
+             user_send_packet/3, user_open_session/3,
+             xmpp_bounce_message/1, xmpp_send_element/2, xmpp_stanza_dropped/4]).
 
 %%-------------------
 %% Implementation
 %%-------------------
 
 %% @doc Here will be declared which hooks should be registered
--spec get_hooks(_) -> [ejabberd_hooks:hook(), ...].
-get_hooks(HostType) ->
-    [ {sm_register_connection_hook, HostType, ?MODULE, sm_register_connection_hook, 50},
-      {sm_remove_connection_hook, HostType, ?MODULE, sm_remove_connection_hook, 50},
-      {auth_failed, HostType, ?MODULE, auth_failed, 50},
-      {user_send_packet, HostType, ?MODULE, user_send_packet, 50},
-      {user_receive_packet, HostType, ?MODULE, user_receive_packet, 50},
-      {xmpp_stanza_dropped, HostType, ?MODULE, xmpp_stanza_dropped, 50},
-      {xmpp_bounce_message, HostType, ?MODULE, xmpp_bounce_message, 50},
-      {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 50},
-      {roster_get, HostType, ?MODULE, roster_get, 55},
-      {roster_set, HostType, ?MODULE, roster_set, 50},
-      {roster_push, HostType, ?MODULE, roster_push, 50},
-      {roster_in_subscription, HostType, ?MODULE, roster_in_subscription, 55},
-      {register_user, HostType, ?MODULE, register_user, 50},
-      {remove_user, HostType, ?MODULE, remove_user, 50},
-      {privacy_iq_get, HostType, ?MODULE, privacy_iq_get, 1},
-      {privacy_iq_set, HostType, ?MODULE, privacy_iq_set, 1},
-      {privacy_check_packet, HostType, ?MODULE, privacy_check_packet, 55},
-      {sm_broadcast, HostType, ?MODULE, privacy_list_push, 1}].
+-spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+hooks(HostType) ->
+    [{sm_register_connection_hook, HostType, ?MODULE, sm_register_connection_hook, 50},
+     {sm_remove_connection_hook, HostType, ?MODULE, sm_remove_connection_hook, 50},
+     {auth_failed, HostType, ?MODULE, auth_failed, 50},
+     {xmpp_stanza_dropped, HostType, ?MODULE, xmpp_stanza_dropped, 50},
+     {xmpp_bounce_message, HostType, ?MODULE, xmpp_bounce_message, 50},
+     {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 50},
+     {roster_get, HostType, ?MODULE, roster_get, 55},
+     {roster_set, HostType, ?MODULE, roster_set, 50},
+     {roster_push, HostType, ?MODULE, roster_push, 50},
+     {roster_in_subscription, HostType, ?MODULE, roster_in_subscription, 55},
+     {register_user, HostType, ?MODULE, register_user, 50},
+     {remove_user, HostType, ?MODULE, remove_user, 50},
+     {privacy_iq_get, HostType, ?MODULE, privacy_iq_get, 1},
+     {privacy_iq_set, HostType, ?MODULE, privacy_iq_set, 1},
+     {privacy_check_packet, HostType, ?MODULE, privacy_check_packet, 55},
+     {sm_broadcast, HostType, ?MODULE, privacy_list_push, 1}].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+c2s_hooks(HostType) ->
+    [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 50},
+     {user_open_session, HostType, fun ?MODULE:user_open_session/3, #{}, 50}].
 
 -spec sm_register_connection_hook(any(), mongooseim:host_type(), tuple(), jid:jid(), term()
                                  ) -> any().
@@ -92,13 +96,14 @@ auth_failed(Acc, _, Server) ->
     mongoose_metrics:update(HostType, sessionAuthFails, 1),
     Acc.
 
--spec user_send_packet(mongoose_acc:t(), jid:jid(), tuple(), tuple()
-                      ) -> mongoose_acc:t().
-user_send_packet(Acc, _, _, Packet) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_packet(Acc, _Params, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaSent, 1),
-    user_send_packet_type(HostType, Packet),
-    Acc.
+    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
+    El = mongoose_acc:element(Acc),
+    user_send_packet_type(HostType, El),
+    {ok, Acc}.
 
 -spec user_send_packet_type(HostType :: mongooseim:host_type(),
                             Packet :: exml:element()) -> ok | {error, not_found}.
@@ -108,23 +113,6 @@ user_send_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
     mongoose_metrics:update(HostType, xmppIqSent, 1);
 user_send_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(HostType, xmppPresenceSent, 1).
-
--spec user_receive_packet(mongoose_acc:t(), jid:jid(), tuple(), tuple(), tuple()
-                         ) -> mongoose_acc:t().
-user_receive_packet(Acc, _, _, _, Packet) ->
-    HostType = mongoose_acc:host_type(Acc),
-    mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
-    user_receive_packet_type(HostType, Packet),
-    Acc.
-
--spec user_receive_packet_type(HostType :: mongooseim:host_type(),
-                               Packet :: exml:element()) -> ok | {error, not_found}.
-user_receive_packet_type(HostType, #xmlel{name = <<"message">>}) ->
-    mongoose_metrics:update(HostType, xmppMessageReceived, 1);
-user_receive_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
-    mongoose_metrics:update(HostType, xmppIqReceived, 1);
-user_receive_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(HostType, xmppPresenceReceived, 1).
 
 -spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 xmpp_bounce_message(Acc) ->
@@ -139,25 +127,48 @@ xmpp_stanza_dropped(Acc, _, _, _) ->
     mongoose_metrics:update(HostType, xmppStanzaDropped, 1),
     Acc.
 
--spec xmpp_send_element(Acc :: mongoose_acc:t(), Server :: jid:server()) -> mongoose_acc:t().
-xmpp_send_element(Acc, _El) ->
+-spec xmpp_send_element(Acc :: mongoose_acc:t(), El :: exml:element()) -> mongoose_acc:t().
+xmpp_send_element(Acc, #xmlel{name = Name} = El)
+  when Name == <<"iq">>; Name == <<"message">>; Name == <<"presence">> ->
     HostType = mongoose_acc:host_type(Acc),
     mongoose_metrics:update(HostType, xmppStanzaCount, 1),
-    case mongoose_acc:stanza_type(Acc) of
+    case exml_query:attr(El, <<"type">>) of
         <<"error">> ->
             mongoose_metrics:update(HostType, xmppErrorTotal, 1),
-            case mongoose_acc:stanza_name(Acc) of
-                <<"iq">> ->
-                    mongoose_metrics:update(HostType, xmppErrorIq, 1);
-                <<"message">> ->
-                    mongoose_metrics:update(HostType, xmppErrorMessage, 1);
-                <<"presence">> ->
-                    mongoose_metrics:update(HostType, xmppErrorPresence, 1)
-            end;
-        _ -> ok
+            xmpp_send_element_error(HostType, El);
+        _ ->
+            mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
+            xmpp_send_element_type(HostType, El)
     end,
+    Acc;
+xmpp_send_element(Acc, _El) ->
     Acc.
 
+-spec xmpp_send_element_error(HostType :: mongooseim:host_type(),
+                              Packet :: exml:element()) -> ok | {error, not_found}.
+xmpp_send_element_error(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorMessage, 1);
+xmpp_send_element_error(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorIq, 1);
+xmpp_send_element_error(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorPresence, 1).
+
+-spec xmpp_send_element_type(HostType :: mongooseim:host_type(),
+                             Packet :: exml:element()) -> ok | {error, not_found}.
+xmpp_send_element_type(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppMessageReceived, 1);
+xmpp_send_element_type(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppIqReceived, 1);
+xmpp_send_element_type(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppPresenceReceived, 1).
+
+-spec user_open_session(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    mongoose_c2s_hooks:hook_result().
+user_open_session(Acc, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, xmppStanzaSent, 1),
+    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
+    mongoose_metrics:update(HostType, xmppIqSent, 1),
+    {ok, Acc}.
 
 %% Roster
 

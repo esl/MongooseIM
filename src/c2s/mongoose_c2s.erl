@@ -217,6 +217,7 @@ activate_socket(#c2s_data{socket = Socket}) ->
 
 -spec send_text(c2s_data(), iodata()) -> ok | {error, term()}.
 send_text(#c2s_data{socket = Socket}, Text) ->
+    mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], iolist_size(Text)),
     mongoose_c2s_socket:send_text(Socket, Text).
 
 -spec filter_mechanism(c2s_data(), binary()) -> boolean().
@@ -705,13 +706,16 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
     maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
     {next_state, NextFsmState, StateData2, MaybeActions}.
 
+-spec maybe_send_xml(c2s_data(), mongoose_acc:t(), [exml:element()]) -> ok.
 maybe_send_xml(_StateData, _Acc, []) ->
     ok;
 maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    send_element(StateData, ToSend, Acc);
+    send_element(StateData, ToSend, Acc),
+    ok;
 maybe_send_xml(StateData, Acc, ToSend) ->
-    send_element(StateData, ToSend, Acc).
+    send_element(StateData, ToSend, Acc),
+    ok.
 
 -spec maybe_deliver(c2s_data(), gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
 maybe_deliver(StateData, {ok, Acc}) ->
@@ -829,14 +833,16 @@ sm_unset_reason(_) ->
     error.
 
 %% @doc This is the termination point - from here stanza is sent to the user
--spec send_element(c2s_data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+-spec send_element(c2s_data(), [exml:element()] | exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
 send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
     send_xml(StateData, El),
     Acc;
-send_element(StateData = #c2s_data{host_type = HostType}, El, Acc) ->
-    Res = send_xml(StateData, El),
+send_element(StateData = #c2s_data{host_type = HostType}, Els, Acc) when is_list(Els) ->
+    Res = send_xml(StateData, Els),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
-    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
+    [mongoose_hooks:xmpp_send_element(HostType, Acc1, El) || El <- Els];
+send_element(StateData, El, Acc) ->
+    send_element(StateData, [El], Acc).
 
 -spec send_xml(c2s_data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(StateData, Xml) ->

@@ -110,14 +110,14 @@ one_client_just_logs_in(Config) ->
         (Config, metrics_helper:userspec(1, Config),
          fun(_User1) -> end_of_story end,
          %% A list of metrics and their expected relative increase
-         [{xmppIqSent, 0},
-          {xmppIqReceived, 0},
+         [{xmppIqSent, 0 + user_alpha(2)},
+          {xmppIqReceived, 0 + user_alpha(2)},
           {xmppMessageSent, 0},
           {xmppMessageReceived, 0},
           {xmppPresenceSent, 0 + user_alpha(1)},
           {xmppPresenceReceived, 0 + user_alpha(1)},
-          {xmppStanzaSent, 0 + user_alpha(1)},
-          {xmppStanzaReceived, 0 + user_alpha(1)},
+          {xmppStanzaSent, 0 + user_alpha(3)},
+          {xmppStanzaReceived, 0 + user_alpha(3)},
           {sessionSuccessfulLogins, 0 + user_alpha(1)},
           {sessionLogouts, 0 + user_alpha(1)}
          ]).
@@ -126,12 +126,14 @@ two_clients_just_log_in(Config) ->
     instrumented_story
         (Config, metrics_helper:userspec(1, 1, Config),
          fun(_User1, _User2) -> end_of_story end,
-         [{xmppMessageSent, 0},
+         [{xmppIqSent, 0 + user_alpha(4)},
+          {xmppIqReceived, 0 + user_alpha(4)},
+          {xmppMessageSent, 0},
           {xmppMessageReceived, 0},
-          {xmppStanzaSent, 0 + user_alpha(2)},
-          {xmppStanzaReceived, 0 + user_alpha(2)},
           {xmppPresenceSent, 0 + user_alpha(2)},
           {xmppPresenceReceived, 0 + user_alpha(2)},
+          {xmppStanzaSent, 0 + user_alpha(6)},
+          {xmppStanzaReceived, 0 + user_alpha(6)},
           {sessionSuccessfulLogins, 0 + user_alpha(2)},
           {sessionLogouts, 0 + user_alpha(2)}
          ]).
@@ -158,8 +160,8 @@ one_direct_presence_sent(Config) ->
         end,
        [{xmppPresenceSent, 1 + user_alpha(2)},
         {xmppPresenceReceived, 1 + user_alpha(2)},
-        {xmppStanzaSent, 1 + user_alpha(2)},
-        {xmppStanzaReceived, 1 + user_alpha(2)}]).
+        {xmppStanzaSent, 1 + user_alpha(6)},
+        {xmppStanzaReceived, 1 + user_alpha(6)}]).
 
 one_iq_sent(Config) ->
     instrumented_story
@@ -169,11 +171,11 @@ one_iq_sent(Config) ->
                escalus_client:send(User1, RosterIq),
                escalus_client:wait_for_stanza(User1)
         end,
-       [{xmppIqSent, 1},
-        {xmppIqReceived, 1},
+       [{xmppIqSent, 3},
+        {xmppIqReceived, 3},
         {modRosterGets, 1},
-        {xmppStanzaSent, 1 + user_alpha(1)},
-        {xmppStanzaReceived, 1 + user_alpha(1)}]).
+        {xmppStanzaSent, 1 + user_alpha(3)},
+        {xmppStanzaReceived, 1 + user_alpha(3)}]).
 
 one_message_error(Config) ->
     instrumented_story
@@ -221,11 +223,13 @@ session_counters(Config) ->
     escalus:story
       (Config, [{alice, 2}, {bob, 1}],
        fun(_User11, _User12, _User2) ->
-               %% Force update
-               lists:foreach(fun metrics_helper:sample/1, Names),
-               ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
-               ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
-               ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
+            %% Force update
+            lists:foreach(fun metrics_helper:sample/1, Names),
+            timer:sleep(timer:seconds(1)),
+
+            ?assertEqual(3, fetch_global_gauge_value(totalSessionCount, Config)),
+            ?assertEqual(2, fetch_global_gauge_value(uniqueSessionCount, Config)),
+            ?assertEqual(3, fetch_global_gauge_value(nodeSessionCount, Config))
        end).
 
 node_uptime(Config) ->
@@ -352,7 +356,7 @@ user_alpha(NumberOfUsers) ->
 instrumented_story(Config, UsersSpecs, StoryFun, CounterSpecs) ->
     Befores = fetch_all(Config, CounterSpecs),
     StoryResult = escalus:story(Config, UsersSpecs, StoryFun),
-    Afters =  fetch_all(Config, CounterSpecs),
+    Afters = fetch_all(Config, CounterSpecs),
     [ assert_counter_inc(Name, N, find(Name, Befores), find(Name, Afters))
       || {Name, N} <- CounterSpecs ],
     StoryResult.
