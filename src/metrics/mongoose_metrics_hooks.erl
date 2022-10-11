@@ -112,7 +112,9 @@ user_send_packet_type(HostType, #xmlel{name = <<"message">>}) ->
 user_send_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
     mongoose_metrics:update(HostType, xmppIqSent, 1);
 user_send_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(HostType, xmppPresenceSent, 1).
+    mongoose_metrics:update(HostType, xmppPresenceSent, 1);
+user_send_packet_type(_, _) ->
+    ok.
 
 -spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 xmpp_bounce_message(Acc) ->
