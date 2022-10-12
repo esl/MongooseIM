@@ -14,7 +14,7 @@
 %% utils
 -export([start_link/2, stop/2, exit/2]).
 -export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
-         get_mod_state/2, remove_mod_state/2,
+         get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
          reroute/2, merge_states/2]).
@@ -567,6 +567,12 @@ handle_info(StateData, _C2SState, replaced) ->
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, replaced}};
+handle_info(_StateData, _C2SState, {store_session_info, Jid, Key, Value, _FromPid}) ->
+    ejabberd_sm:store_info(Jid, Key, Value),
+    keep_state_and_data;
+handle_info(_StateData, _C2SState, {remove_session_info, Jid, Key, _FromPid}) ->
+    ejabberd_sm:remove_info(Jid, Key),
+    keep_state_and_data;
 handle_info(StateData, C2SState, Info) ->
     handle_foreign_event(StateData, C2SState, info, Info).
 
@@ -584,7 +590,9 @@ handle_timeout(StateData, _C2SState, state_timeout, state_timeout_termination) -
     StreamConflict = mongoose_xmpp_errors:connection_timeout(),
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
-    {stop, {shutdown, state_timeout}}.
+    {stop, {shutdown, state_timeout}};
+handle_timeout(StateData, C2SState, Name, Payload) ->
+    handle_foreign_event(StateData, C2SState, {timeout, Name}, Payload).
 
 verify_process_alive(StateData, C2SState, Pid) ->
     IsAlive = case node(Pid) =:= node() of

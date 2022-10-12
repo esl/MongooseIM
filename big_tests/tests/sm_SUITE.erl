@@ -793,7 +793,8 @@ unacknowledged_message_hook_offline(Config) ->
 
 unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
     C2SRef = erlang:monitor(process, C2SPid),
-    %%reset the session, so old C2S process is stopped
+    sm_helper:wait_for_process_termination(C2SRef),
+    %% reset the session, so old C2S process is stopped
     NewAlice = connect_spec(AliceSpec, sr_session, manual),
     %% wait for old C2S termination before send presence. other way
     %% some of the latest unacknowledged messages can be bounced to
@@ -801,7 +802,6 @@ unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
     %% looks like all the unacknowledged messages arrive to the new
     %% C2S, but the message sequence is broken (the bounced messages
     %% delivered before the messages from the mod_offline storage)
-    sm_helper:wait_for_process_termination(C2SRef),
     send_initial_presence(NewAlice),
     {Resource, NewAlice}.
 
