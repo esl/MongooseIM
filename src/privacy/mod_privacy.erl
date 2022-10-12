@@ -189,10 +189,15 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
 -spec user_receive_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:hook_result().
 user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
-    case mongoose_acc:stanza_type(Acc) of
-        <<"get">> -> do_privacy_check_receive(Acc, StateData, send);
-        <<"set">> -> do_privacy_check_receive(Acc, StateData, send);
-        _ -> do_privacy_check_receive(Acc, StateData, ignore)
+    From = mongoose_acc:from_jid(Acc),
+    Me = mongoose_c2s:get_jid(StateData),
+    case {mongoose_iq:info(Acc), jid:are_bare_equal(From, Me)} of
+        {{#iq{xmlns = ?NS_PRIVACY}, Acc1}, true} ->
+            {ok, Acc1};
+        {{#iq{type = Type}, Acc1}, _} when Type =:= get; Type =:= set ->
+            do_privacy_check_receive(Acc1, StateData, send);
+        {{_, Acc1}, _} ->
+            do_privacy_check_receive(Acc1, StateData, ignore)
     end.
 
 -spec foreign_event(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
