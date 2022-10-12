@@ -230,7 +230,7 @@ count_riak(BucketType) ->
     length(lists:flatten(BucketKeys)).
 
 kick_everyone() ->
-    [rpc(mim(), ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    [rpc(mim(), mongoose_c2s, stop, [Pid, normal]) || Pid <- get_session_pids()],
     wait_for_session_count(0).
 
 wait_for_session_count(Expected) ->
@@ -567,8 +567,8 @@ do_restore_config_option(Option, {error, not_found}) ->
     rpc(mim(), mongoose_config, unset_opt, [Option]).
 
 wait_for_n_offline_messages(Client, N) ->
-    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
-    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    LUser = escalus_utils:jid_to_lower(escalus_utils:get_username(Client)),
+    LServer = escalus_utils:jid_to_lower(escalus_utils:get_server(Client)),
     WaitFn = fun() -> total_offline_messages({LUser, LServer}) end,
     wait_until(WaitFn, N).
 
@@ -577,14 +577,9 @@ wait_for_c2s_state_name(C2SPid, NewStateName) ->
                 #{name => get_c2s_state_name}).
 
 get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
-    SysStatus = rpc(mim(), sys, get_state, [C2SPid]),
-    extract_state_name(SysStatus).
+    {StateName, _StateData} = rpc(mim(), sys, get_state, [C2SPid]),
+    StateName.
 
 get_c2s_state_data(C2SPid) when is_pid(C2SPid) ->
     {_StateName, StateData} = rpc(mim(), sys, get_state, [C2SPid]),
     StateData.
-
-extract_state_name({StateName, _StateData}) ->
-    StateName; %% gen_statem
-extract_state_name([_, StateName | _]) ->
-    StateName. %% p1_fsm_old

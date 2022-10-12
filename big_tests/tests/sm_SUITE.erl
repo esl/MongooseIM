@@ -88,8 +88,7 @@ parallel_cases() ->
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption,
-     messages_are_properly_flushed_during_resumption_p1_fsm_old].
+     messages_are_properly_flushed_during_resumption].
 
 parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
@@ -199,7 +198,7 @@ required_sm_opts(group, parallel) ->
     #{ack_freq => never};
 required_sm_opts(group, parallel_manual_ack_freq_1) ->
     #{ack_freq => 1,
-      resume_timeout => ?SHORT_TIMEOUT};
+      resume_timeout => ?LONG_TIMEOUT};
 required_sm_opts(group, manual_ack_freq_2) ->
     #{ack_freq => 2};
 required_sm_opts(group, stream_mgmt_disabled) ->
@@ -452,15 +451,14 @@ resend_more_offline_messages_than_buffer_size(Config) ->
 
     % sent some messages - more than unacked buffer size
     MessagesToSend = ?SMALL_SM_BUFFER + 1,
-    JID = common_helper:get_bjid(AliceSpec),
-    [escalus_connection:send(Bob, escalus_stanza:chat_to(JID, integer_to_binary(I)))
+    AliceJid = common_helper:get_bjid(AliceSpec),
+    [escalus_connection:send(Bob, escalus_stanza:chat_to(AliceJid, integer_to_binary(I)))
      || I <- lists:seq(1, MessagesToSend)],
+    mongoose_helper:wait_for_n_offline_messages(AliceJid, MessagesToSend),
 
     % connect alice who wants to receive all messages from offline storage
     Alice = connect_spec(AliceSpec, sm_after_session, manual),
-    mongoose_helper:wait_for_n_offline_messages(Alice, MessagesToSend),
     send_initial_presence(Alice),
-
     escalus:wait_for_stanzas(Alice, MessagesToSend * 2), %messages and ack requests
 
     escalus_connection:get_stanza(Alice, presence),
@@ -689,7 +687,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:kill(Alice),
     % session should be alive
     sm_helper:assert_alive_resources(Alice, 1),
-    rpc(mim(), ejabberd_c2s, stop, [C2SPid]),
+    rpc(mim(), mongoose_c2s, stop, [C2SPid, normal]),
     mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
     %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
@@ -1106,41 +1104,6 @@ messages_are_properly_flushed_during_resumption(Config) ->
 
                       % ...and old process is resumed.
                       ok = rpc(mim(), sys, resume, [C2SPid])
-              end),
-        Alice2 = connect_resume(Alice, SMH),
-        % THEN Alice's new session receives Bob's message
-        RecvMsg = escalus:wait_for_stanza(Alice2),
-        escalus:assert(is_chat_message, [MsgBody], RecvMsg)
-      end).
-
-messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
-    %% the same as messages_are_properly_flushed_during_resumption,
-    %% but tests that buffered by p1_fsm_old messages are delivered
-    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        Alice = connect_fresh(Config, alice, sr_presence),
-        SMH = escalus_connection:get_sm_h(Alice),
-        escalus_client:kill_connection(Config, Alice),
-        C2SPid = mongoose_helper:get_session_pid(Alice),
-        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
-        ok = rpc(mim(), sys, suspend, [C2SPid]),
-
-        %% send some dummy event. ignored by c2s but ensures that
-        %% p1_old_fsm buffers the messages, sent after this one
-        rpc(mim(), p1_fsm_old, send_all_state_event, [C2SPid, dummy_event]),
-
-        MsgBody = <<"flush-regression">>,
-        spawn_link(fun() ->
-                    sm_helper:wait_for_queue_length(C2SPid, 2),
-
-                    % Bob sends a message...
-                    escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
-
-                    % ...we ensure that a message is enqueued in Alice's session...
-                    % (2 messages = resume request + Bob's message)
-                    sm_helper:wait_for_queue_length(C2SPid, 3),
-
-                    % ...and old process is resumed.
-                    ok = rpc(mim(), sys, resume, [C2SPid])
               end),
         Alice2 = connect_resume(Alice, SMH),
         % THEN Alice's new session receives Bob's message
