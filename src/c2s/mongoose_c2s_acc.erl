@@ -10,6 +10,7 @@
 %% - `c2s_data': a new state data is requested for the state machine.
 %% - `stop': an action of type `{cast, {stop, Reason}}' is to be triggered.
 %% - `hard_stop': no other request is allowed, the state machine is immediatly triggered to stop.
+%% - `route': mongoose_acc elements to trigger the whole `handle_stanza_to_client' pipeline.
 %% - `socket_send': xml elements to send on the socket to the user.
 -module(mongoose_c2s_acc).
 
@@ -19,7 +20,7 @@
          to_acc/3, to_acc_many/2
         ]).
 
--type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | socket_send.
+-type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | route | socket_send.
 -type pairs() :: [pair()].
 -type pair() :: {state_mod, {module(), term()}}
               | {actions, gen_statem:action()}
@@ -27,6 +28,7 @@
               | {c2s_data, mongoose_c2s:c2s_data()}
               | {stop, term() | {shutdown, atom()}}
               | {hard_stop, term() | {shutdown, atom()}}
+              | {route, mongoose_acc:t()}
               | {socket_send, exml:element()}.
 
 -type t() :: #{
@@ -45,6 +47,7 @@
         c2s_data => mongoose_c2s:c2s_data(),
         stop => Reason :: term(),
         hard_stop => Reason :: term(),
+        route => [mongoose_acc:t()],
         socket_send => [exml:element()]
        }.
 
@@ -66,14 +69,26 @@ new() ->
      }.
 
 -spec new(params()) -> t().
-new(Params = #{stop := Reason}) ->
+new(Params) ->
+    Params1 = extract_stop(Params),
+    Params2 = extract_routes(Params1),
+    maps:merge(new(), Params2).
+
+extract_stop(Params = #{stop := Reason}) ->
     WithoutStop = maps:remove(stop, Params),
     NewAction = [{next_event, cast, {stop, Reason}}],
     Fun = fun(Actions) -> [NewAction | Actions] end,
-    NewParams = maps:update_with(actions, Fun, NewAction, WithoutStop),
-    new(NewParams);
-new(T) ->
-    maps:merge(new(), T).
+    maps:update_with(actions, Fun, NewAction, WithoutStop);
+extract_stop(Params) ->
+    Params.
+
+extract_routes(Params = #{route := Accs}) ->
+    WithoutStop = maps:remove(route, Params),
+    NewAction = [{next_event, info, {route, Acc}} || Acc <- Accs ],
+    Fun = fun(Actions) -> NewAction ++ Actions end,
+    maps:update_with(actions, Fun, NewAction, WithoutStop);
+extract_routes(Params) ->
+    Params.
 
 -spec get_statem_result(mongoose_acc:t()) -> mongoose_c2s_acc:t().
 get_statem_result(Acc) ->
@@ -93,6 +108,7 @@ from_mongoose_acc(Acc, Key) ->
             (mongoose_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_acc:t();
             (mongoose_acc:t(), hard_stop, atom()) -> mongoose_acc:t();
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
+            (mongoose_acc:t(), route, mongoose_acc:t()) -> mongoose_acc:t();
             (mongoose_acc:t(), socket_send, exml:element()) -> mongoose_acc:t().
 to_acc(Acc, Key, NewValue) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
@@ -118,6 +134,11 @@ to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, NewActions}) when is_list(N
     C2SAcc#{actions := lists:reverse(NewActions) ++ Actions};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, Action}) ->
     C2SAcc#{actions := [Action | Actions]};
+to_c2s_acc(C2SAcc = #{actions := Actions}, {route, Accs}) when is_list(Accs) ->
+    Routes = [{next_event, info, {route, Acc}} || Acc <- Accs ],
+    C2SAcc#{actions := lists:reverse(Routes) ++ Actions};
+to_c2s_acc(C2SAcc = #{actions := Actions}, {route, Acc}) ->
+    C2SAcc#{actions := [{next_event, info, {route, Acc}} | Actions]};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when is_list(NewStanzas) ->
     C2SAcc#{socket_send := lists:reverse(NewStanzas) ++ Stanzas};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->

@@ -494,7 +494,8 @@ presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences,
                false ->
                    Acc
            end,
-    ToAcc = [{socket_send, Pending}, {state_mod, {?MODULE, Presences}}],
+    Accs = create_route_accs(Acc1, FromJid, Pending),
+    ToAcc = [{route, Accs}, {state_mod, {?MODULE, Presences}}],
     mongoose_c2s_acc:to_acc_many(Acc1, ToAcc).
 
 -spec presence_broadcast_to_trusted(
@@ -555,9 +556,16 @@ presence_broadcast_first(Acc0, FromJid, Packet, Presences, SocketSend) ->
                                end,
                                {Presences#presences_state.pres_a, Acc0}, Presences#presences_state.pres_f),
             NewPresences = Presences#presences_state{pres_a = As},
-            ToAcc = [{socket_send, SocketSend}, {state_mod, {?MODULE, NewPresences}}],
+            Accs = create_route_accs(Acc0, FromJid, SocketSend),
+            ToAcc = [{route, Accs}, {state_mod, {?MODULE, NewPresences}}],
             mongoose_c2s_acc:to_acc_many(Acc0, ToAcc)
     end.
+
+create_route_accs(Acc0, To, List) when is_list(List) ->
+    [ mongoose_acc:update_stanza(#{to_jid => To, element => P}, Acc0)
+      || P <- List ];
+create_route_accs(Acc0, To, El) ->
+    create_route_accs(Acc0, To, [El]).
 
 -spec presence_probe() -> exml:element().
 presence_probe() ->

@@ -267,7 +267,9 @@ handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName) ->
             BareJid = jid:to_bare(Jid),
             PrivPushEl = jlib:replace_from_to(BareJid, Jid, jlib:iq_to_xml(PrivPushIQ)),
             maybe_update_presence(Acc, StateData, OldPrivList, NewPrivList),
-            ToAcc = [{socket_send, PrivPushEl}, {state_mod, {?MODULE, NewPrivList}}],
+            AccParams = #{from_jid => BareJid, to_jid => Jid, element => PrivPushEl},
+            PrivPushAcc = mongoose_acc:update_stanza(AccParams, Acc),
+            ToAcc = [{route, PrivPushAcc}, {state_mod, {?MODULE, NewPrivList}}],
             mongoose_c2s_acc:to_acc_many(Acc, ToAcc)
     end.
 
