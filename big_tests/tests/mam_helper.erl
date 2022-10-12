@@ -811,7 +811,8 @@ room_archive_size(Server, Username) ->
     rpc_apply(mod_mam_muc, archive_size, [Server, Username]).
 
 delete_archive(Server, Username) ->
-    rpc_apply(mod_mam_pm, delete_archive, [Server, Username]).
+    ArcJID = jid:make_bare(Username, Server),
+    rpc_apply(mod_mam_pm, delete_archive, [ArcJID]).
 
 delete_room_archive(Server, Username) ->
     rpc_apply(mod_mam_muc, delete_archive, [Server, Username]).

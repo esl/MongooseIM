@@ -37,7 +37,7 @@
 %% Exports
 
 %% Client API
--export([delete_archive/2,
+-export([delete_archive/1,
          archive_size/2,
          archive_size_with_host_type/3,
          archive_id/2]).
@@ -65,7 +65,7 @@
 -export([archive_id_int/2]).
 
 -ignore_xref([archive_message_from_ct/1, archive_size/2,
-              archive_size_with_host_type/3, delete_archive/2]).
+              archive_size_with_host_type/3, delete_archive/1]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -108,11 +108,9 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec delete_archive(jid:server(), jid:user()) -> 'ok'.
-delete_archive(Server, User)
-  when is_binary(Server), is_binary(User) ->
-    ?LOG_DEBUG(#{what => mam_delete_archive, user => User, server => Server}),
-    ArcJID = jid:make_bare(User, Server),
+-spec delete_archive(jid:jid()) -> 'ok'.
+delete_archive(ArcJID) ->
+    ?LOG_DEBUG(#{what => mam_delete_archive, jid => ArcJID}),
     HostType = jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     remove_archive_hook(HostType, ArcID, ArcJID),
@@ -265,8 +263,8 @@ process_incoming_packet(From, To, Packet, Acc) ->
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
       Extra :: map().
-remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
-    delete_archive(Server, User),
+remove_user(Acc, #{jid := JID}, _) ->
+    delete_archive(JID),
     {ok, Acc}.
 
 -spec determine_amp_strategy(StrategyAcc, Params, Extra) -> {ok, StrategyAcc} when
