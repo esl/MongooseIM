@@ -47,6 +47,7 @@
                    | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
                    | {wait_for_feature_after_auth, retries()}
                    | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
+                   | wait_for_session_establishment
                    | session_established.
 
 -export_type([packet/0, c2s_data/0, c2s_state/0]).
@@ -127,12 +128,19 @@ handle_event(internal, #xmlel{name = <<"iq">>} = El, {wait_for_feature_after_aut
             send_element_from_server_jid(StateData, Err),
             maybe_retry_state(StateData, C2SState)
     end;
-handle_event(internal, #xmlel{} = El, session_established, StateData) ->
+handle_event(internal, #xmlel{name = <<"iq">>} = El, wait_for_session_establishment = C2SState, StateData) ->
+    case jlib:iq_query_info(El) of
+        #iq{type = set, xmlns = ?NS_SESSION} = IQ ->
+            handle_session_establishment(StateData, C2SState, El, IQ);
+        _ ->
+            handle_foreign_packet(StateData, C2SState, El)
+    end;
+handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData) ->
     case verify_from(El, StateData#c2s_data.jid) of
         false ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from());
         true ->
-            handle_c2s_packet(StateData, session_established, El)
+            handle_c2s_packet(StateData, C2SState, El)
     end;
 
 %% This is an xml packet in any state other than session_established,
@@ -439,17 +447,39 @@ handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
             maybe_retry_state(StateData, C2SState);
         Resource ->
             NewStateData = replace_resource(StateData, Resource),
+            NextState = maybe_wait_for_session(StateData),
+            Jid = get_jid(NewStateData),
+            BindResult = mongoose_c2s_stanzas:successful_resource_binding(IQ, Jid),
+            MAcc = mongoose_c2s_acc:new(#{c2s_state => NextState, socket_send => [BindResult]}),
             Acc = element_to_origin_accum(NewStateData, El),
-            verify_user_and_open_session(NewStateData, C2SState, Acc, El, IQ)
+            Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc),
+            verify_user_and_open_session(NewStateData, C2SState, NextState, Acc1, El)
     end.
 
--spec verify_user_and_open_session(c2s_data(), c2s_state(), mongoose_acc:t(), exml:element(), jlib:iq()) ->
+-spec handle_session_establishment(c2s_data(), c2s_state(), exml:element(), jlib:iq()) -> fsm_res().
+handle_session_establishment(#c2s_data{host_type = HostType, lserver = LServer} = StateData, C2SState, El, IQ) ->
+    HookParams = hook_arg(StateData, C2SState),
+    Acc0 = element_to_origin_accum(StateData, El),
+    SessEstablished = mongoose_c2s_stanzas:successful_session_establishment(IQ),
+    ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
+    ParamsAcc = #{from_jid => ServerJid, to_jid => StateData#c2s_data.jid, element => SessEstablished},
+    SessEstablishedAcc = mongoose_acc:update_stanza(ParamsAcc, Acc0),
+    MAcc = mongoose_c2s_acc:new(#{c2s_state => session_established, route => [SessEstablishedAcc]}),
+    Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc0),
+    {_, Acc2} = mongoose_c2s_hooks:user_send_packet(HostType, Acc1, HookParams),
+    {_, Acc3} = mongoose_c2s_hooks:user_send_iq(HostType, Acc2, HookParams),
+    verify_user_and_open_session(StateData, C2SState, session_established, Acc3, El).
+
+-spec verify_user_and_open_session(c2s_data(), c2s_state(), c2s_state(), mongoose_acc:t(), exml:element()) ->
     fsm_res().
-verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState, Acc, El, IQ) ->
+verify_user_and_open_session(StateData, C2SState, wait_for_session_establishment, Acc, _El) ->
+    handle_state_after_packet(StateData, C2SState, Acc);
+verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState,
+                             session_established, Acc, El) ->
     case mongoose_c2s_hooks:user_open_session(HostType, Acc, (hook_arg(StateData, C2SState))) of
         {ok, Acc1} ->
             ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
-            do_open_session(StateData, C2SState, Acc1, IQ);
+            do_open_session(StateData, C2SState, Acc1);
         {stop, Acc1} ->
             Acc2 = mongoose_hooks:forbidden_session_hook(HostType, Acc1, Jid),
             ?LOG_INFO(#{what => forbidden_session, text => <<"User not allowed to open session">>,
@@ -473,15 +503,12 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% > If no priority is provided, a server SHOULD consider the priority to be zero.
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
--spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t(), jlib:iq()) -> fsm_res().
+-spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
 do_open_session(#c2s_data{host_type = HostType,
                           sid = SID,
                           jid = Jid,
                           socket = Socket,
-                          auth_module = AuthModule} = StateData, C2SState, Acc, IQ) ->
-    BindResult = mongoose_c2s_stanzas:successful_resource_binding(IQ, Jid),
-    MAcc = mongoose_c2s_acc:new(#{c2s_state => session_established, socket_send => [BindResult]}),
-    Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc),
+                          auth_module = AuthModule} = StateData, C2SState, Acc1) ->
     Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
              conn => mongoose_c2s_socket:get_conn_type(Socket),
              auth_module => AuthModule},
@@ -493,6 +520,11 @@ do_open_session(#c2s_data{host_type = HostType,
                  end,
     Acc2 = mongoose_c2s_acc:to_acc(Acc1, actions, FsmActions),
     handle_state_after_packet(StateData, C2SState, Acc2).
+
+maybe_wait_for_session(#c2s_data{listener_opts = #{backwards_compatible_session := false}}) ->
+    session_established;
+maybe_wait_for_session(#c2s_data{listener_opts = #{backwards_compatible_session := true}}) ->
+    wait_for_session_establishment.
 
 -spec maybe_retry_state(c2s_data(), c2s_state()) -> fsm_res().
 maybe_retry_state(StateData = #c2s_data{listener_opts = LOpts}, C2SState) ->
@@ -569,6 +601,7 @@ verify_process_alive(StateData, C2SState, Pid) ->
 
 -spec maybe_retry_state(c2s_state()) -> c2s_state() | {stop, term()}.
 maybe_retry_state(connect) -> connect;
+maybe_retry_state(wait_for_session_establishment) -> {stop, {shutdown, stream_end}};
 maybe_retry_state(session_established) -> session_established;
 maybe_retry_state({wait_for_stream, StreamState}) ->
     {wait_for_stream, StreamState};
@@ -620,7 +653,7 @@ handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
         {ok, Acc1} ->
             do_handle_c2s_packet(StateData, C2SState, Acc1, HookParams);
         {stop, _Acc1} ->
-            {next_state, session_established, StateData}
+            {next_state, C2SState, StateData}
     end.
 
 -spec do_handle_c2s_packet(c2s_data(), c2s_state(), mongoose_acc:t(), mongoose_c2s_hooks:hook_params()) ->
