@@ -10,7 +10,8 @@
          get_endpoint/1,
          create_endpoint/3,
          execute/2,
-         execute/3]).
+         execute/3,
+         execute_cli/3]).
 
 -ignore_xref([create_endpoint/3]).
 
@@ -101,6 +102,16 @@ execute(Ep, OpName, Doc)  ->
             vars => #{},
             authorized => true,
             ctx => #{}},
+    execute(Ep, Req).
+
+-spec execute_cli(graphql:endpoint_context(), undefined | binary(), binary()) ->
+    {ok, map()} | {error, term()}.
+execute_cli(Ep, OpName, Doc)  ->
+    Req = #{document => Doc,
+            operation_name => OpName,
+            vars => #{},
+            authorized => true,
+            ctx => #{method => cli}},
     execute(Ep, Req).
 
 % Internal

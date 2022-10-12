@@ -50,13 +50,17 @@ script_path(Node, Config, Script) ->
     filename:join([get_cwd(Node, Config), "bin", Script]).
 
 verify_result(Node, Op) ->
-    mongoose_helper:wait_until(fun() -> catch do_verify_result(Node, Op) end,
-                               [],
-                               #{
-                                 time_left => timer:seconds(20),
+    mongoose_helper:wait_until(fun() -> catch do_verify_result(Node, Op) end, [],
+                               #{time_left => timer:seconds(20),
                                  sleep_time => 1000,
-                                 name => verify_result
-                                }).
+                                 name => verify_result}),
+    mongoose_helper:wait_until(fun() -> check_mongooseim_on_node_started(mim()) end, true,
+                               #{time_left => timer:seconds(20),
+                                 sleep_time => 1000,
+                                 name => verify_mongooseim_started}).
+
+check_mongooseim_on_node_started(Node) ->
+    lists:keymember(mongooseim, 1, rpc(Node, application, which_applications, [])).
 
 do_verify_result(Node, Op) ->
     VerifyNode = mim(),
