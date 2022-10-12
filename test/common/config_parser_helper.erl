@@ -139,15 +139,13 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
-                zlib => 10000,
                 tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem"}
                }),
        config([listen, c2s],
               #{port => 5223,
                 access => c2s,
                 shaper => c2s_shaper,
-                max_stanza_size => 65536,
-                zlib => 4096
+                max_stanza_size => 65536
                }),
        config([listen, http],
               #{port => 5280,
@@ -1100,6 +1098,7 @@ default_config([listen, c2s]) ->
                                      max_connections => infinity,
                                      c2s_state_timeout => 5000,
                                      reuse_port => false,
+                                     backwards_compatible_session => true,
                                      access => all,
                                      shaper => none};
 default_config([listen, c2s, tls]) ->

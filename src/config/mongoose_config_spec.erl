@@ -303,14 +303,13 @@ xmpp_listener_extra(c2s) ->
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"zlib">> => #option{type = integer,
-                                             validate = positive},
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = positive},
                        <<"c2s_state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative,
                                                           wrap = global_config},
                        <<"reuse_port">> => #option{type = boolean},
+                       <<"backwards_compatible_session">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
@@ -320,7 +319,8 @@ xmpp_listener_extra(c2s) ->
                           <<"shaper">> => none,
                           <<"max_connections">> => infinity,
                           <<"c2s_state_timeout">> => 5000,
-                          <<"reuse_port">> => false}
+                          <<"reuse_port">> => false,
+                          <<"backwards_compatible_session">> => true}
             };
 xmpp_listener_extra(s2s) ->
     TLSSection = tls([server], [fast_tls]),
