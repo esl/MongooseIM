@@ -180,7 +180,9 @@ user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
         #sm_handler{counter_in = Counter} = SmHandler ->
             NewSmHandler = SmHandler#sm_handler{counter_in = incr_counter(Counter)},
             {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})}
-    end.
+    end;
+user_send_packet(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 -spec user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
@@ -208,7 +210,9 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
             {stop, Acc};
         _ -> %% Continue processing
             do_user_receive_packet(Acc, Params, Extra)
-    end.
+    end;
+user_receive_packet(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 -spec do_user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
