@@ -83,7 +83,9 @@ from_binary_kv(RawConfig, ConfigSchema, Config) ->
     end.
 
 take_next_kv([{KeyBin, ValBin} | RRawConfig], [{KeyBin, _Default, Key, Type} | RSchema]) ->
-    {value, RRawConfig, RSchema, {Key, b2value(ValBin, Type)}};
+    try {value, RRawConfig, RSchema, {Key, b2value(ValBin, Type)}}
+    catch _:_ -> {error, {KeyBin, type_error}}
+    end;
 take_next_kv(RawConfig, [{_KeyBin, Default, Key, _Type} | RSchema]) ->
     {default, RawConfig, RSchema, {Key, Default}};
 take_next_kv([{KeyBin, _} | _], _) ->
@@ -99,11 +101,11 @@ to_binary_kv(Config, ConfigSchema) ->
 %%====================================================================
 
 -spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
-b2value(ValBin, binary) -> ValBin;
+b2value(ValBin, binary) when is_binary(ValBin) -> ValBin;
 b2value(ValBin, integer) -> binary_to_integer(ValBin);
 b2value(ValBin, float) -> binary_to_float(ValBin).
 
 -spec value2b(Val :: value(), Type :: value_type()) -> Converted :: binary().
-value2b(Val, binary) -> Val;
+value2b(Val, binary) when is_binary(Val) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
 value2b(Val, float) -> float_to_binary(Val).
