@@ -69,38 +69,6 @@
 
 -type host_type() :: mongooseim:host_type().
 
-%% ----------------------------------------------------------------------
-%% Imports
-
-%% UID
--import(mod_mam_utils,
-        [get_or_generate_mam_id/1,
-         decode_compact_uuid/1]).
-
-%% XML
--import(mod_mam_utils,
-        [maybe_add_arcid_elems/4,
-         wrap_message/6,
-         result_set/4,
-         result_prefs/4,
-         make_fin_element/7,
-         parse_prefs/1,
-         is_mam_result_message/1,
-         features/2]).
-
-%% Forms
--import(mod_mam_utils,
-        [message_form/3]).
-
-%% Other
--import(mod_mam_utils,
-        [mess_id_to_external_binary/1]).
-
-%% ejabberd
--import(mod_mam_utils,
-        [is_jid_in_user_roster/3]).
-
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
@@ -198,7 +166,7 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
                            map(),
                            map()) -> {ok, mongoose_disco:feature_acc()}.
 disco_local_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
-    {ok, mongoose_disco:add_features(features(?MODULE, HostType), Acc)};
+    {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
@@ -243,7 +211,7 @@ filter_packet({From, To, Acc1, Packet}, _, _) ->
                     {undefined, Acc2} ->
                         {mam_failed, Packet, Acc2};
                     {MessID, Acc2} ->
-                        Packet2 = maybe_add_arcid_elems(
+                        Packet2 = mod_mam_utils:maybe_add_arcid_elems(
                                      To, MessID, Packet,
                                      mod_mam_params:add_stanzaid_element(?MODULE, HostType)),
                         {archived, Packet2, Acc2}
@@ -292,7 +260,7 @@ determine_amp_strategy(Strategy, _, _) ->
       Extra :: map().
 sm_filter_offline_message(_Drop=false, #{packet := Packet}, _) ->
     %% If ...
-    {ok, is_mam_result_message(Packet)};
+    {ok, mod_mam_utils:is_mam_result_message(Packet)};
     %% ... than drop the message
 sm_filter_offline_message(Other, _, _) ->
     {ok, Other}.
@@ -363,7 +331,7 @@ handle_mam_iq(Action, From, To, IQ, Acc) ->
 -spec handle_set_prefs(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
                               jlib:iq() | {error, term(), jlib:iq()}.
 handle_set_prefs(ArcJID=#jid{}, IQ=#iq{sub_el = PrefsEl}, Acc) ->
-    {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
+    {DefaultMode, AlwaysJIDs, NeverJIDs} = mod_mam_utils:parse_prefs(PrefsEl),
     ?LOG_DEBUG(#{what => mam_set_prefs, default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     HostType = acc_to_host_type(Acc),
@@ -373,7 +341,7 @@ handle_set_prefs(ArcJID=#jid{}, IQ=#iq{sub_el = PrefsEl}, Acc) ->
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
     Namespace = IQ#iq.xmlns,
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
+    ResultPrefsEl = mod_mam_utils:result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
@@ -391,7 +359,7 @@ handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?LOG_DEBUG(#{what => mam_get_prefs_result, default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     Namespace = IQ#iq.xmlns,
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
+    ResultPrefsEl = mod_mam_utils:result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
@@ -434,9 +402,11 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
                                                          QueryID, MessageRows, true),
             %% Make fin iq
             IsStable = true,
-            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+            ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
-            FinElem = make_fin_element(HostType, Params, IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, ExtFinMod),
+            FinElem = mod_mam_utils:make_fin_element(HostType, Params, IQ#iq.xmlns,
+                                                     IsComplete, IsStable,
+                                                     ResultSetEl, ExtFinMod),
             IQ#iq{type = result, sub_el = [FinElem]}
     end.
 
@@ -487,7 +457,7 @@ handle_package(Dir, ReturnMessID,
             OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
-                    MessID = get_or_generate_mam_id(Acc),
+                    MessID = mod_mam_utils:get_or_generate_mam_id(Acc),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,
@@ -514,8 +484,10 @@ should_archive_if_groupchat(_, _) ->
 -spec return_external_message_id_if_ok(ReturnMessID :: boolean(),
                                        ArchivingResult :: ok | any(),
                                        MessID :: integer()) -> binary() | undefined.
-return_external_message_id_if_ok(true, ok, MessID) -> mess_id_to_external_binary(MessID);
-return_external_message_id_if_ok(_, _, _MessID) -> undefined.
+return_external_message_id_if_ok(true, ok, MessID) ->
+    mod_mam_utils:mess_id_to_external_binary(MessID);
+return_external_message_id_if_ok(_, _, _MessID) ->
+    undefined.
 
 return_acc_with_mam_id_if_configured(undefined, _, Acc) ->
     Acc;
@@ -534,7 +506,7 @@ is_interesting(HostType, LocJID, RemJID, ArcID) ->
     case get_behaviour(HostType, ArcID, LocJID, RemJID) of
         always -> true;
         never  -> false;
-        roster -> is_jid_in_user_roster(HostType, LocJID, RemJID)
+        roster -> mod_mam_utils:is_jid_in_user_roster(HostType, LocJID, RemJID)
     end.
 
 %% ----------------------------------------------------------------------
@@ -618,15 +590,15 @@ archive_message(HostType, Params) ->
     exml:element().
 message_row_to_xml(MamNs, #{id := MessID, jid := SrcJID, packet := Packet},
                    QueryID, SetClientNs)  ->
-    {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
+    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     TS = calendar:system_time_to_rfc3339(Microseconds, [{offset, "Z"}, {unit, microsecond}]),
-    BExtMessID = mess_id_to_external_binary(MessID),
+    BExtMessID = mod_mam_utils:mess_id_to_external_binary(MessID),
     Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
-    wrap_message(MamNs, Packet1, QueryID, BExtMessID, TS, SrcJID).
+    mod_mam_utils:wrap_message(MamNs, Packet1, QueryID, BExtMessID, TS, SrcJID).
 
 -spec message_row_to_ext_id(mod_mam:message_row()) -> binary().
 message_row_to_ext_id(#{id := MessID}) ->
-    mess_id_to_external_binary(MessID).
+    mod_mam_utils:mess_id_to_external_binary(MessID).
 
 handle_error_iq(HostType, Acc, _To, _Action, {error, _Reason, IQ}) ->
     mongoose_metrics:update(HostType, modMamDroppedIQ, 1),
@@ -664,7 +636,7 @@ return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
 return_message_form_iq(HostType, IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(?MODULE, HostType, IQ#iq.xmlns)]}.
+    IQ#iq{type = result, sub_el = [mod_mam_utils:message_form(?MODULE, HostType, IQ#iq.xmlns)]}.
 
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
