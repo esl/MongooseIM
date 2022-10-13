@@ -74,11 +74,10 @@ sm_register_connection_hook(Acc, _, #{host_type := HostType}) ->
 -spec sm_remove_connection_hook(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-sm_remove_connection_hook(Acc, _, _) ->
-    HT = mongoose_acc:host_type(Acc),
-    mongoose_metrics:update(HT, sessionLogouts, 1),
-    mongoose_metrics:update(HT, sessionCount, -1),
+      Extra :: #{host_type := mongooseim:host_type()}.
+sm_remove_connection_hook(Acc, _, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, sessionLogouts, 1),
+    mongoose_metrics:update(HostType, sessionCount, -1),
     {ok, Acc}.
 
 -spec auth_failed(Acc, Params, Extra) -> {ok, Acc} when
@@ -94,10 +93,9 @@ auth_failed(Acc, #{server := Server}, _) ->
 -spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-user_send_packet(Acc, _, _) ->
+      Extra :: #{host_type := mongooseim:host_type()}.
+user_send_packet(Acc, _, #{host_type := HostType}) ->
     {_, _, Packet} = mongoose_acc:packet(Acc),
-    HostType = mongoose_acc:host_type(Acc),
     mongoose_metrics:update(HostType, xmppStanzaSent, 1),
     user_send_packet_type(HostType, Packet),
     {ok, Acc}.
@@ -114,10 +112,9 @@ user_send_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
 -spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-user_receive_packet(Acc, _, _) ->
+      Extra :: #{host_type := mongooseim:host_type()}.
+user_receive_packet(Acc, _, #{host_type := HostType}) ->
     {_, _, Packet} = mongoose_acc:packet(Acc),
-    HostType = mongoose_acc:host_type(Acc),
     mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
     user_receive_packet_type(HostType, Packet),
     {ok, Acc}.
@@ -134,27 +131,24 @@ user_receive_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
 -spec xmpp_bounce_message(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-xmpp_bounce_message(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+xmpp_bounce_message(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppMessageBounced, 1),
     {ok, Acc}.
 
 -spec xmpp_stanza_dropped(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-xmpp_stanza_dropped(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+xmpp_stanza_dropped(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaDropped, 1),
     {ok, Acc}.
 
 -spec xmpp_send_element(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-xmpp_send_element(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+xmpp_send_element(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaCount, 1),
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> ->
@@ -177,9 +171,8 @@ xmpp_send_element(Acc, _, _) ->
 -spec roster_get(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-roster_get(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+roster_get(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modRosterGets, 1),
     {ok, Acc}.
 
@@ -195,13 +188,11 @@ roster_set(Acc, #{from := #jid{lserver = LServer}}, _) ->
 -spec roster_in_subscription(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{type := mod_roster:sub_presence()},
-      Extra :: map().
-roster_in_subscription(Acc, #{type := subscribed}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+roster_in_subscription(Acc, #{type := subscribed}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modPresenceSubscriptions, 1),
     {ok, Acc};
-roster_in_subscription(Acc, #{type := unsubscribed}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+roster_in_subscription(Acc, #{type := unsubscribed}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modPresenceUnsubscriptions, 1),
     {ok, Acc};
 roster_in_subscription(Acc, _, _) ->
@@ -230,9 +221,8 @@ register_user(Acc, #{jid := #jid{lserver = LServer}}, _) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-remove_user(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+remove_user(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modUnregisterCount, 1),
     {ok, Acc}.
 
@@ -241,18 +231,16 @@ remove_user(Acc, _, _) ->
 -spec privacy_iq_get(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-privacy_iq_get(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+privacy_iq_get(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modPrivacyGets, 1),
     {ok, Acc}.
 
 -spec privacy_iq_set(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{iq := jlib:iq()},
-      Extra :: map().
-privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, #{host_type := HostType}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"active">>}] ->
@@ -268,18 +256,16 @@ privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, _) ->
 -spec privacy_list_push(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{session_count := non_neg_integer()},
-      Extra :: map().
-privacy_list_push(Acc, #{session_count := SessionCount}, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+privacy_list_push(Acc, #{session_count := SessionCount}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modPrivacyPush, SessionCount),
     {ok, Acc}.
 
 -spec privacy_check_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
-privacy_check_packet(Acc, _, _) ->
-    HostType = mongoose_acc:host_type(Acc),
+      Extra :: #{host_type := mongooseim:host_type()}.
+privacy_check_packet(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modPrivacyStanzaAll, 1),
     case mongoose_acc:get(privacy, check, allow, Acc) of
         deny ->
