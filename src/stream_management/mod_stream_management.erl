@@ -102,10 +102,10 @@ hooks(HostType) ->
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
     [
-     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 100},
-     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 5},
-     {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 100},
-     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 100},
+     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 10},
+     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 100},
+     {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 50},
+     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50},
      {user_stop_request, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
      {user_socket_closed, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
      {user_socket_error, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
