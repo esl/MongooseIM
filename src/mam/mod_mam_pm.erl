@@ -672,7 +672,6 @@ hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
         {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 60},
-        {rest_user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 60},
         {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},

@@ -136,6 +136,5 @@ hooks(HostType) ->
         {unset_presence_hook, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
         {user_available_hook, HostType, fun ?MODULE:user_present/3, #{}, 90},
         {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90},
-        {rest_user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90},
         {unacknowledged_message, HostType, fun ?MODULE:unacknowledged_message/3, #{}, 90}
     ].
