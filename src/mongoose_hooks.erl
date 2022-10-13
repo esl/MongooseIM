@@ -483,7 +483,7 @@ user_ping_timeout(HostType, JID) ->
     El :: exml:element(),
     Result :: mongoose_acc:t().
 user_receive_packet(HostType, Acc, JID, From, To, El) ->
-    Params = #{jid => JID, from => From, to => To, el => El},
+    Params = #{jid => JID},
     Args = [JID, From, To, El],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
@@ -558,9 +558,11 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
     Packet :: exml:element(),
     Result :: [jid:simple_jid()].
 c2s_broadcast_recipients(State, Type, From, Packet) ->
+    Params = #{state => State, type => Type, from => From, packet => Packet},
+    Args = [State, Type, From, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_broadcast_recipients, HostType, [],
-                           [State, Type, From, Packet]).
+    run_hook_for_host_type(c2s_broadcast_recipients, HostType, [], ParamsWithLegacyArgs).
 
 -spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
@@ -569,9 +571,11 @@ c2s_broadcast_recipients(State, Type, From, Packet) ->
     Packet :: exml:element(),
     Result :: boolean().
 c2s_filter_packet(State, Feature, To, Packet) ->
+    Params = #{state => State, feature => Feature, to => To, packet => Packet},
+    Args = [State, Feature, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_filter_packet, HostType, true,
-                           [State, Feature, To, Packet]).
+    run_hook_for_host_type(c2s_filter_packet, HostType, true, ParamsWithLegacyArgs).
 
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
     HostType :: mongooseim:host_type(),
@@ -591,15 +595,21 @@ c2s_preprocessing_hook(HostType, Acc, State) ->
     Packet :: exml:element(),
     Result :: ejabberd_c2s:state().
 c2s_presence_in(State, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
+    run_hook_for_host_type(c2s_presence_in, HostType, State, ParamsWithLegacyArgs).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     Result :: [exml:element()].
 c2s_stream_features(HostType, LServer) ->
-    run_hook_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
+    Params = #{lserver => LServer},
+    Args = [HostType, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(c2s_stream_features, HostType, [], ParamsWithLegacyArgs).
 
 -spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
     HostType :: mongooseim:host_type(),
@@ -1329,7 +1339,10 @@ s2s_send_packet(Acc, From, To, Packet) ->
     LServer :: jid:lserver(),
     Result :: [exml:element()].
 s2s_stream_features(HostType, LServer) ->
-    run_hook_for_host_type(s2s_stream_features, HostType, [], [HostType, LServer]).
+    Params = #{lserver => LServer},
+    Args = [HostType, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(s2s_stream_features, HostType, [], ParamsWithLegacyArgs).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
@@ -1345,7 +1358,8 @@ s2s_receive_packet(Acc) ->
 -spec disco_local_identity(mongoose_disco:identity_acc()) ->
     mongoose_disco:identity_acc().
 disco_local_identity(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_local_identity, HostType, Acc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_local_identity, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_sm_identity' hook is called to get the identity of the
 %%% client when a discovery IQ gets to session management.
@@ -1386,7 +1400,8 @@ disco_muc_features(Acc = #{host_type := HostType}) ->
 %%% @doc `disco_info' hook is called to extract information about the server.
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
 disco_info(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_info, HostType, Acc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_info, HostType, Acc, ParamsWithLegacyArgs).
 
 %% AMP related hooks
 
