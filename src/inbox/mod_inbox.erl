@@ -233,11 +233,13 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
       Acc :: mongoose_acc:t(),
       Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
       Extra :: map().
-user_send_packet(Acc, #{from := From, to := To, packet := #xmlel{name = <<"message">>} = Msg}, _) ->
-    NewAcc = maybe_process_message(Acc, From, To, Msg, outgoing),
-    {ok, NewAcc};
 user_send_packet(Acc, _, _) ->
-    {ok, Acc}.
+    {From, To, Msg} = mongoose_acc:packet(Acc),
+    NewAcc = case Msg of
+        #xmlel{name = <<"message">>} -> maybe_process_message(Acc, From, To, Msg, outgoing);
+        _ -> Acc
+    end,
+    {ok, NewAcc}.
 
 -spec inbox_unread_count(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),

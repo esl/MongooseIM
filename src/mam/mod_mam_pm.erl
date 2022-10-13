@@ -37,7 +37,7 @@
 %% Exports
 
 %% Client API
--export([delete_archive/2,
+-export([delete_archive/1,
          archive_size/2,
          archive_size_with_host_type/3,
          archive_id/2]).
@@ -45,14 +45,16 @@
 %% gen_mod handlers
 -export([start/2, stop/1, supported_features/0]).
 
-%% ejabberd handlers
+%% hook handlers
 -export([disco_local_features/3,
-         process_mam_iq/5,
-         user_send_packet/4,
+         user_send_packet/3,
+         filter_packet/3,
          remove_user/3,
-         filter_packet/1,
-         determine_amp_strategy/5,
-         sm_filter_offline_message/4]).
+         determine_amp_strategy/3,
+         sm_filter_offline_message/3]).
+
+%% ejabberd handlers
+-export([process_mam_iq/5]).
 
 %% gdpr callbacks
 -export([get_personal_data/3]).
@@ -62,10 +64,8 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
--ignore_xref([archive_message_from_ct/1,
-              archive_size/2, archive_size_with_host_type/3, delete_archive/2,
-              determine_amp_strategy/5, filter_packet/1, get_personal_data/3, 
-              remove_user/3, sm_filter_offline_message/4, user_send_packet/4]).
+-ignore_xref([archive_message_from_ct/1, archive_size/2,
+              archive_size_with_host_type/3, delete_archive/1]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -108,18 +108,9 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
-    gdpr:personal_data().
-get_personal_data(Acc, HostType, ArcJID) ->
-    Schema = ["id", "from", "message"],
-    Entries = mongoose_hooks:get_mam_pm_gdpr_data(HostType, ArcJID),
-    [{mam_pm, Schema, Entries} | Acc].
-
--spec delete_archive(jid:server(), jid:user()) -> 'ok'.
-delete_archive(Server, User)
-  when is_binary(Server), is_binary(User) ->
-    ?LOG_DEBUG(#{what => mam_delete_archive, user => User, server => Server}),
-    ArcJID = jid:make_bare(User, Server),
+-spec delete_archive(jid:jid()) -> 'ok'.
+delete_archive(ArcJID) ->
+    ?LOG_DEBUG(#{what => mam_delete_archive, jid => ArcJID}),
     HostType = jid_to_host_type(ArcJID),
     ArcID = archive_id_int(HostType, ArcJID),
     remove_archive_hook(HostType, ArcID, ArcJID),
@@ -215,13 +206,15 @@ disco_local_features(Acc, _, _) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc :: mongoose_acc:t(), From :: jid:jid(),
-                       To :: jid:jid(),
-                       Packet :: exml:element()) -> mongoose_acc:t().
-user_send_packet(Acc, From, To, Packet) ->
+-spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
+       Acc :: mongoose_acc:t(),
+       Args :: map(),
+       Extra :: map().
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
     {_, Acc2} = handle_package(outgoing, true, From, To, From, Packet, Acc),
-    Acc2.
+    {ok, Acc2}.
 
 %% @doc Handle an incoming message.
 %%
@@ -230,14 +223,14 @@ user_send_packet(Acc, From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--type fpacket() :: {From :: jid:jid(),
-                    To :: jid:jid(),
-                    Acc :: mongoose_acc:t(),
-                    Packet :: exml:element()}.
--spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_packet(drop) ->
-    drop;
-filter_packet({From, To, Acc1, Packet}) ->
+-spec filter_packet(drop, _, _) -> {ok, drop};
+                   (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+      FPacketAcc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: map().
+filter_packet(drop, _, _) ->
+    {ok, drop};
+filter_packet({From, To, Acc1, Packet}, _, _) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),
     Type = mongoose_lib:get_message_type(Acc1),
@@ -260,23 +253,58 @@ filter_packet({From, To, Acc1, Packet}) ->
                                          from_jid => From,
                                          to_jid => To }, Acc3),
     Acc5 = mod_amp:check_packet(Acc4, AmpEvent),
-    {From, To, Acc5, mongoose_acc:element(Acc5)}.
+    {ok, {From, To, Acc5, mongoose_acc:element(Acc5)}}.
 
 process_incoming_packet(From, To, Packet, Acc) ->
     handle_package(incoming, true, To, From, From, Packet, Acc).
 
 %% hook handler
--spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
-remove_user(Acc, User, Server) ->
-    delete_archive(Server, User),
-    Acc.
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+remove_user(Acc, #{jid := JID}, _) ->
+    delete_archive(JID),
+    {ok, Acc}.
 
-sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
+-spec determine_amp_strategy(StrategyAcc, Params, Extra) -> {ok, StrategyAcc} when
+      StrategyAcc :: mod_amp:amp_strategy(),
+      Params :: #{from := jid:jid(), to := jid:jid(), packet := exml:element(), event := mod_amp:amp_event()},
+      Extra :: map().
+determine_amp_strategy(Strategy = #amp_strategy{deliver = Deliver},
+                       #{from := FromJID, to := ToJID, packet := Packet, event := initial_check},
+                       _) ->
+    HostType = jid_to_host_type(ToJID),
+    ShouldBeStored = is_archivable_message(HostType, incoming, Packet)
+        andalso is_interesting(ToJID, FromJID)
+        andalso ejabberd_auth:does_user_exist(ToJID),
+    NewStrategy = case ShouldBeStored of
+        true -> Strategy#amp_strategy{deliver = amp_deliver_strategy(Deliver)};
+        false -> Strategy
+    end,
+    {ok, NewStrategy};
+determine_amp_strategy(Strategy, _, _) ->
+    {ok, Strategy}.
+
+-spec sm_filter_offline_message(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: boolean(),
+      Params :: #{packet := exml:element()},
+      Extra :: map().
+sm_filter_offline_message(_Drop=false, #{packet := Packet}, _) ->
     %% If ...
-    is_mam_result_message(Packet);
+    {ok, is_mam_result_message(Packet)};
     %% ... than drop the message
-sm_filter_offline_message(Other, _From, _To, _Packet) ->
-    Other.
+sm_filter_offline_message(Other, _, _) ->
+    {ok, Other}.
+
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+       Acc :: gdpr:personal_data(),
+       Params :: #{jid := jid:jid()},
+       Extra :: #{host_type := mongooseim:host_type()}.
+get_personal_data(Acc, #{jid := ArcJID}, #{host_type := HostType}) ->
+    Schema = ["id", "from", "message"],
+    Entries = mongoose_hooks:get_mam_pm_gdpr_data(HostType, ArcJID),
+    {ok, [{mam_pm, Schema, Entries} | Acc]}.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -446,19 +474,6 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
     HostType = acc_to_host_type(Acc),
     return_message_form_iq(HostType, IQ).
-
-determine_amp_strategy(Strategy = #amp_strategy{deliver = Deliver},
-                       FromJID, ToJID, Packet, initial_check) ->
-    HostType = jid_to_host_type(ToJID),
-    ShouldBeStored = is_archivable_message(HostType, incoming, Packet)
-        andalso is_interesting(ToJID, FromJID)
-        andalso ejabberd_auth:does_user_exist(ToJID),
-    case ShouldBeStored of
-        true -> Strategy#amp_strategy{deliver = amp_deliver_strategy(Deliver)};
-        false -> Strategy
-    end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
-    Strategy.
 
 amp_deliver_strategy([none]) -> [stored, none];
 amp_deliver_strategy([direct, none]) -> [direct, stored, none].
@@ -684,18 +699,20 @@ is_archivable_message(HostType, Dir, Packet) ->
 
 -spec legacy_hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 legacy_hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 60},
-     {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
-     {filter_local_packet, HostType, ?MODULE, filter_packet, 60},
-     {remove_user, HostType, ?MODULE, remove_user, 50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
-     {amp_determine_strategy, HostType, ?MODULE, determine_amp_strategy, 20},
-     {sm_filter_offline_message, HostType, ?MODULE, sm_filter_offline_message, 50},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
-     | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)].
+    mongoose_metrics_mam_hooks:get_mam_hooks(HostType).
 
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
+    [
+        {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 60},
+        {rest_user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 60},
+        {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
+        {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+        {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+        {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
+        {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
+        {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
+    ].
 
 add_iq_handlers(HostType, Opts) ->
     Component = ejabberd_sm,
