@@ -343,12 +343,7 @@ is_action_allowed(HostType, Action, From, To) ->
 -spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: jid:jid(),
                                    To :: jid:jid()) -> boolean().
 is_action_allowed_by_default(_Action, From, To) ->
-    compare_bare_jids(From, To).
-
--spec compare_bare_jids(jid:simple_jid() | jid:jid(),
-                        jid:simple_jid() | jid:jid()) -> boolean().
-compare_bare_jids(JID1, JID2) ->
-    jid:to_bare(JID1) =:= jid:to_bare(JID2).
+    jid:are_bare_equal(From, To).
 
 -spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), To :: jid:jid(),
                     IQ :: jlib:iq(), Acc :: mongoose_acc:t()) ->

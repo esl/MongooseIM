@@ -137,7 +137,7 @@ process_iq(Acc,
            IQ = #iq{type = Type, sub_el = SubElem = #xmlel{children = Elems}},
            _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    IsEqual = compare_bare_jids(From, To),
+    IsEqual = jid:are_bare_equal(From, To),
     Strategy = choose_strategy(IsEqual, Type),
     Res = case Strategy of
         get ->
@@ -175,10 +175,6 @@ process_iq(Acc, _From, _To, IQ, _Extra) ->
 choose_strategy(true, get) -> get;
 choose_strategy(true, set) -> set;
 choose_strategy(_,    _  ) -> forbidden.
-
-compare_bare_jids(#jid{luser = LUser, lserver = LServer},
-                  #jid{luser = LUser, lserver = LServer}) -> true;
-compare_bare_jids(_, _) -> false.
 
 element_to_namespace(#xmlel{attrs = Attrs}) ->
     xml:get_attr_s(<<"xmlns">>, Attrs);

@@ -35,22 +35,19 @@ send_message_headline2(Args = #{<<"from">> := From, <<"to">> := To}) ->
 send_stanza(#{user := User}, #{<<"stanza">> := Packet}) ->
     From = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-    case compare_bare_jids(User, From) of
+    case jid:are_bare_equal(User, From) of
         true ->
             mongoose_stanza_helper:route(From, To, Packet, false);
         false ->
             {error, #{what => bad_from_jid}}
     end.
 
-compare_bare_jids(#jid{luser = U, lserver = S}, #jid{luser = U, lserver = S}) -> true;
-compare_bare_jids(_, _) -> false.
-
 with_from(_Ctx = #{user := User}, Args, Next) ->
     case maps:get(<<"from">>, Args, null) of
         null ->
             Next(Args#{<<"from">> => User});
         From ->
-            case compare_bare_jids(User, From) of
+            case jid:are_bare_equal(User, From) of
                 true ->
                     %% We still can allow a custom resource
                     Next(Args#{<<"from">> => From});
