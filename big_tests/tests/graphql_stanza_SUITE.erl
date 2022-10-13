@@ -71,8 +71,8 @@ user_get_last_messages_cases() ->
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
     Config2 = escalus:init_per_suite(Config1),
-    dynamic_modules:save_modules(domain_helper:host_type(), Config2),
-    init_mam(Config2).
+    Config3 = dynamic_modules:save_modules(domain_helper:host_type(), Config2),
+    init_mam(Config3).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
