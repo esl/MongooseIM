@@ -174,12 +174,12 @@ stale_h_config_spec() ->
 -spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
-    case get_mod_state(StateData) of
-        {error, not_found} ->
-            {ok, Acc};
-        #sm_handler{counter_in = Counter} = SmHandler ->
+    case {get_mod_state(StateData), is_not_sm_element(Acc)} of
+        {#sm_handler{counter_in = Counter} = SmHandler, true} ->
             NewSmHandler = SmHandler#sm_handler{counter_in = incr_counter(Counter)},
-            {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})}
+            {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})};
+        {_, _} ->
+            {ok, Acc}
     end;
 user_send_packet(Acc, _Params, _Extra) ->
     {ok, Acc}.
@@ -189,8 +189,9 @@ user_send_packet(Acc, _Params, _Extra) ->
 user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Params, Extra) ->
     Check1 = is_conflict_incomming_acc(Acc, StateData),
     Check2 = is_conflict_receiver_sid(Acc, StateData),
-    case {Check1, Check2} of
-        {true, _} -> %% A race condition detected: same jid, but different sids
+    Check3 = is_not_sm_element(Acc),
+    case {Check1, Check2, Check3} of
+        {true, _, _} -> %% A race condition detected: same jid, but different sids
             C2SSid = mongoose_c2s:get_sid(StateData),
             OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
             ?LOG_WARNING(#{what => conflict_check_failed,
@@ -199,7 +200,7 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
                            c2s_sid => C2SSid, origin_sid => OriginSid,
                            acc => Acc, state_name => C2SState, c2s_state => StateData}),
             {stop, Acc};
-        {_, true} ->
+        {_, true, _} ->
             C2SSid = mongoose_c2s:get_sid(StateData),
             ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
             ?LOG_WARNING(#{what => conflict_check_failed,
@@ -208,6 +209,8 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
                            c2s_sid => C2SSid, receiver_sid => ReceiverSID,
                            acc => Acc, state_name => C2SState, c2s_state => StateData}),
             {stop, Acc};
+        {_, _, false} ->
+            {ok, Acc};
         _ -> %% Continue processing
             do_user_receive_packet(Acc, Params, Extra)
     end;
@@ -808,6 +811,11 @@ maybe_buffer_acc(SmHandler, _Acc, false) ->
 -spec is_message(binary()) -> boolean().
 is_message(<<"message">>) -> true;
 is_message(_) -> false.
+
+-spec is_not_sm_element(mongoose_acc:t()) -> boolean().
+is_not_sm_element(Acc) ->
+    El = mongoose_acc:element(Acc),
+    ?NS_STREAM_MGNT_3 =/= exml_query:attr(El, <<"xmlns">>).
 
 -spec make_smid() -> smid().
 make_smid() ->
