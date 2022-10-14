@@ -169,7 +169,7 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
 -spec terminate(term(), c2s_state(), c2s_data()) -> term().
 terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
-    Params = (hook_arg(StateData, C2SState))#{reason := Reason},
+    Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
     Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
     Acc2 = close_session(StateData, C2SState, Acc1, Reason),
@@ -246,7 +246,7 @@ filter_mechanism(_, _) ->
 -spec handle_foreign_event(c2s_data(), c2s_state(), gen_statem:event_type(), term()) -> fsm_res().
 handle_foreign_event(StateData = #c2s_data{host_type = HostType, lserver = LServer},
                      C2SState, EventType, EventContent) ->
-    Params = (hook_arg(StateData, C2SState))#{event_type := EventType, event_content := EventContent},
+    Params = hook_arg(StateData, C2SState, EventType, EventContent, undefined),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     case mongoose_c2s_hooks:foreign_event(HostType, Acc0, Params) of
@@ -260,23 +260,23 @@ handle_foreign_event(StateData = #c2s_data{host_type = HostType, lserver = LServ
 
 -spec handle_stop_request(c2s_data(), c2s_state(), atom()) -> fsm_res().
 handle_stop_request(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{reason := Reason},
+    Params = hook_arg(StateData, C2SState, cast, {stop, Reason}, Reason),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_stop_request(HostType, Acc0, Params),
     stop_if_unhandled(StateData, C2SState, Res, Reason).
 
 -spec handle_socket_closed(c2s_data(), c2s_state(), term()) -> fsm_res().
-handle_socket_closed(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{reason := Reason},
+handle_socket_closed(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, SocketClosed) ->
+    Params = hook_arg(StateData, C2SState, info, SocketClosed, SocketClosed),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_socket_closed(HostType, Acc0, Params),
     stop_if_unhandled(StateData, C2SState, Res, socket_closed).
 
 -spec handle_socket_error(c2s_data(), c2s_state(), term()) -> fsm_res().
-handle_socket_error(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, Reason) ->
-    Params = (hook_arg(StateData, C2SState))#{reason := Reason},
+handle_socket_error(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, SocketError) ->
+    Params = hook_arg(StateData, C2SState, info, SocketError, SocketError),
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION},
     Acc0 = mongoose_acc:new(AccParams),
     Res = mongoose_c2s_hooks:user_socket_error(HostType, Acc0, Params),
@@ -458,7 +458,7 @@ handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
 
 -spec handle_session_establishment(c2s_data(), c2s_state(), exml:element(), jlib:iq()) -> fsm_res().
 handle_session_establishment(#c2s_data{host_type = HostType, lserver = LServer} = StateData, C2SState, El, IQ) ->
-    HookParams = hook_arg(StateData, C2SState),
+    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     Acc0 = element_to_origin_accum(StateData, El),
     SessEstablished = mongoose_c2s_stanzas:successful_session_establishment(IQ),
     ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
@@ -476,7 +476,8 @@ verify_user_and_open_session(StateData, C2SState, wait_for_session_establishment
     handle_state_after_packet(StateData, C2SState, Acc);
 verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState,
                              session_established, Acc, El) ->
-    case mongoose_c2s_hooks:user_open_session(HostType, Acc, (hook_arg(StateData, C2SState))) of
+    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
+    case mongoose_c2s_hooks:user_open_session(HostType, Acc, HookParams) of
         {ok, Acc1} ->
             ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
             do_open_session(StateData, C2SState, Acc1);
@@ -649,13 +650,13 @@ handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LSer
     AccParams = #{host_type => HostType, lserver => LServer, location => ?LOCATION,
                   element => El, from_jid => ServerJid, to_jid => ServerJid},
     Acc0 = mongoose_acc:new(AccParams),
-    HookParams = hook_arg(StateData, C2SState),
+    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc0, HookParams),
     handle_state_after_packet(StateData, C2SState, Acc1).
 
 -spec handle_c2s_packet(c2s_data(), c2s_state(), exml:element()) -> fsm_res().
 handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
-    HookParams = hook_arg(StateData, C2SState),
+    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     Acc0 = element_to_origin_accum(StateData, El),
     case mongoose_c2s_hooks:c2s_preprocessing_hook(HostType, Acc0, HookParams) of
         {ok, Acc1} ->
@@ -701,7 +702,7 @@ handle_stanza_to_client(StateData = #c2s_data{host_type = HostType}, C2SState, A
     FinalEl = jlib:replace_from_to(From, To, El),
     ParamsAcc = #{from_jid => From, to_jid => To, element => FinalEl},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
-    HookParams = hook_arg(StateData, C2SState),
+    HookParams = hook_arg(StateData, C2SState, info, El, undefined),
     case mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, HookParams) of
         {ok, Acc2} ->
             StanzaName = mongoose_acc:stanza_name(Acc2),
@@ -911,11 +912,12 @@ new_stream_id() ->
 generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-", (mongoose_bin:gen_from_crypto())/binary>>.
 
--spec hook_arg(c2s_data(), c2s_state()) -> mongoose_c2s_hooks:hook_params().
-hook_arg(StateData, C2SState) ->
+-spec hook_arg(c2s_data(), c2s_state(), terminate | gen_statem:event_type(), term(), term()) ->
+    mongoose_c2s_hooks:hook_params().
+hook_arg(StateData, C2SState, EventType, EventContent, Reason) ->
     #{c2s_data => StateData, c2s_state => C2SState,
-      event_type => undefined, event_content => undefined,
-      reason => undefined}.
+      event_type => EventType, event_content => EventContent,
+      reason => Reason}.
 
 %%%----------------------------------------------------------------------
 %%% API
