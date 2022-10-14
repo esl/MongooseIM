@@ -223,7 +223,10 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
     Username :: jid:user() | unknown,
     Result :: ok.
 auth_failed(HostType, Server, Username) ->
-    run_hook_for_host_type(auth_failed, HostType, ok, [Username, Server]).
+    Params = #{username => Username, server => Server},
+    Args = [Username, Server],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(auth_failed, HostType, ok, ParamsWithLegacyArgs).
 
 -spec does_user_exist(HostType, Jid, RequestType) -> Result when
       HostType :: mongooseim:host_type(),
@@ -360,7 +363,11 @@ register_subhost(LDomain, IsHidden) ->
     LUser :: jid:luser(),
     Result :: any().
 register_user(HostType, LServer, LUser) ->
-    run_hook_for_host_type(register_user, HostType, ok, [LUser, LServer]).
+    Jid = jid:make_bare(LUser, LServer),
+    Params = #{jid => Jid},
+    Args = [LUser, LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(register_user, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `remove_user' hook is called when a user is removed.
 -spec remove_user(Acc, LServer, LUser) -> Result when
@@ -492,7 +499,10 @@ user_ping_timeout(HostType, JID) ->
     El :: exml:element(),
     Result :: mongoose_acc:t().
 user_receive_packet(HostType, Acc, JID, From, To, El) ->
-    run_hook_for_host_type(user_receive_packet, HostType, Acc, [JID, From, To, El]).
+    Params = #{jid => JID, from => From, to => To, el => El},
+    Args = [JID, From, To, El],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec user_sent_keep_alive(HostType, JID) -> Result when
     HostType :: binary(),
@@ -535,7 +545,10 @@ vcard_set(HostType, Server, LUser, VCard) ->
     El :: exml:element(),
     Result :: mongoose_acc:t().
 xmpp_send_element(HostType, Acc, El) ->
-    run_hook_for_host_type(xmpp_send_element, HostType, Acc, [El]).
+    Params = #{el => El},
+    Args = [El],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(xmpp_send_element, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `xmpp_stanza_dropped' hook is called to inform that
 %%% an xmpp stanza has been dropped.
@@ -546,8 +559,11 @@ xmpp_send_element(HostType, Acc, El) ->
     Packet :: exml:element(),
     Result :: any().
 xmpp_stanza_dropped(Acc, From, To, Packet) ->
+    Params = #{from => From, to => To, packet => Packet},
+    Args = [From, To, Packet],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_stanza_dropped, HostType, Acc, [From, To, Packet]).
+    run_hook_for_host_type(xmpp_stanza_dropped, HostType, Acc, ParamsWithLegacyArgs).
 
 %% C2S related hooks
 
@@ -649,10 +665,14 @@ session_opening_allowed_for_user(HostType, JID) ->
     Dir :: in | out,
     Result :: mongoose_acc:t().
 privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
+    Params = #{jid => JID, privacy_list => PrivacyList,
+               from_to_name_type => FromToNameType, dir => Dir},
+    Args = [JID, PrivacyList, FromToNameType, Dir],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
     AccWithRes = mongoose_acc:set(hook, result, allow, Acc),
     run_hook_for_host_type(privacy_check_packet, HostType, AccWithRes,
-                           [JID, PrivacyList, FromToNameType, Dir]).
+                           ParamsWithLegacyArgs).
 
 -spec privacy_get_user_list(HostType, JID) -> Result when
     HostType :: binary(),
@@ -670,7 +690,10 @@ privacy_get_user_list(HostType, JID) ->
     PrivList :: mongoose_privacy:userlist(),
     Result :: mongoose_acc:t().
 privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) ->
-    run_hook_for_host_type(privacy_iq_get, HostType, Acc, [From, To, IQ, PrivList]).
+    Params = #{from => From, to => To, iq => IQ, priv_list => PrivList},
+    Args = [From, To, IQ, PrivList],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_iq_get, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec privacy_iq_set(HostType, Acc, From, To, IQ) -> Result when
     HostType :: binary(),
@@ -680,7 +703,10 @@ privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) ->
     IQ :: jlib:iq(),
     Result :: mongoose_acc:t().
 privacy_iq_set(HostType, Acc, From, To, IQ) ->
-    run_hook_for_host_type(privacy_iq_set, HostType, Acc, [From, To, IQ]).
+    Params = #{from => From, to => To, iq => IQ},
+    Args = [From, To, IQ],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_iq_set, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec privacy_updated_list(HostType, OldList, NewList) -> Result when
     HostType :: binary(),
@@ -737,9 +763,11 @@ set_presence_hook(Acc, JID, Presence) ->
     SessionCount :: non_neg_integer(),
     Result :: mongoose_acc:t().
 sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
+    Params = #{from => From, to => To, broadcast => Broadcast, session_count => SessionCount},
+    Args = [From, To, Broadcast, SessionCount],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(sm_broadcast, HostType, Acc,
-                           [From, To, Broadcast, SessionCount]).
+    run_hook_for_host_type(sm_broadcast, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
     HostType :: binary(),
@@ -761,8 +789,11 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
     Info :: ejabberd_sm:info(),
     Result :: ok.
 sm_register_connection_hook(HostType, SID, JID, Info) ->
+    Params = #{sid => SID, jid => JID, info => Info},
+    Args = [HostType, SID, JID, Info],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(sm_register_connection_hook, HostType, ok,
-                           [HostType, SID, JID, Info]).
+                           ParamsWithLegacyArgs).
 
 -spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
@@ -772,9 +803,12 @@ sm_register_connection_hook(HostType, SID, JID, Info) ->
     Reason :: ejabberd_sm:close_reason(),
     Result :: mongoose_acc:t().
 sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
+    Params = #{sid => SID, jid => JID, info => Info, reason => Reason},
+    Args = [SID, JID, Info, Reason],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(sm_remove_connection_hook, HostType, Acc,
-                           [SID, JID, Info, Reason]).
+                           ParamsWithLegacyArgs).
 
 -spec unset_presence_hook(Acc, JID, Status) -> Result when
     Acc :: mongoose_acc:t(),
@@ -793,8 +827,9 @@ unset_presence_hook(Acc, JID, Status) ->
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 xmpp_bounce_message(Acc) ->
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(xmpp_bounce_message, HostType, Acc, []).
+    run_hook_for_host_type(xmpp_bounce_message, HostType, Acc, ParamsWithLegacyArgs).
 
 %% Roster related hooks
 
@@ -804,8 +839,11 @@ xmpp_bounce_message(Acc) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 roster_get(Acc, JID) ->
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_get, HostType, Acc, [JID]).
+    run_hook_for_host_type(roster_get, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_groups' hook is called to extract roster groups.
 -spec roster_groups(LServer) -> Result when
@@ -897,7 +935,10 @@ roster_process_item(HostType, LServer, Item) ->
     Item :: mod_roster:roster(),
     Result :: any().
 roster_push(HostType, From, Item) ->
-    run_hook_for_host_type(roster_push, HostType, ok, [HostType, From, Item]).
+    Params = #{from => From, item => Item},
+    Args = [HostType, From, Item],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_push, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_set' hook is called when a user's roster is set through an IQ.
 -spec roster_set(HostType, From, To, SubEl) -> Result when
@@ -907,7 +948,10 @@ roster_push(HostType, From, Item) ->
     SubEl :: exml:element(),
     Result :: any().
 roster_set(HostType, From, To, SubEl) ->
-    run_hook_for_host_type(roster_set, HostType, ok, [From, To, SubEl]).
+    Params = #{from => From, to => To, sub_el => SubEl},
+    Args = [From, To, SubEl],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_set, HostType, ok, ParamsWithLegacyArgs).
 
 %% MUC related hooks
 

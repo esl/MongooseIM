@@ -84,7 +84,7 @@ create_global_metrics() ->
 init_predefined_host_type_metrics(HostType) ->
     create_metrics(HostType),
     Hooks = mongoose_metrics_hooks:get_hooks(HostType),
-    ejabberd_hooks:add(Hooks),
+    gen_hook:add_handlers(Hooks),
     ok.
 
 init_subscriptions() ->
