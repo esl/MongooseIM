@@ -33,7 +33,6 @@
 -export([room_jid_to_host_type/1]).
 -export([room_jid_to_server_host/1]).
 -export([muc_host_to_host_type/1]).
--export([server_host_to_host_type/1]).
 -export([server_host_to_muc_host/2]).
 -export([run_forget_room_hook/1]).
 
@@ -293,14 +292,6 @@ room_jid_to_server_host(#jid{lserver = MucHost}) ->
             ServerHost;
         Other ->
             error({room_jid_to_server_host_failed, MucHost, Other})
-    end.
-
-server_host_to_host_type(LServer) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            HostType;
-        Other ->
-            error({server_host_to_host_type_failed, LServer, Other})
     end.
 
 muc_host_to_host_type(MucHost) ->
