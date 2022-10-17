@@ -13,7 +13,15 @@
 
 %% hooks handlers
 -export([c2s_stream_features/3,
-         session_cleanup/5]).
+         session_cleanup/5,
+         user_send_packet/3,
+         user_receive_packet/3,
+         user_send_xmlel/3,
+         foreign_event/3,
+         handle_user_stopping/3,
+         user_terminate/3,
+         reroute_unacked_messages/3
+        ]).
 
 %% API for `mongoose_c2s'
 -export([make_smid/0,
@@ -22,15 +30,6 @@
          get_ack_freq/1,
          get_resume_timeout/1,
          register_smid/3]).
-
--export([user_send_packet/3,
-         user_receive_packet/3,
-         user_send_xmlel/3,
-         foreign_event/3,
-         handle_user_stopping/3,
-         user_terminate/3,
-         reroute_unacked_messages/3
-        ]).
 
 %% gen_statem callbacks
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
@@ -52,17 +51,17 @@
 -define(IS_STREAM_MGMT_STOP(R), R =:= {shutdown, ?MODULE}; R =:= {shutdown, resumed}).
 -define(IS_ALLOWED_STATE(S), S =:= wait_for_session_establishment; S =:= session_established).
 
--record(sm_handler, {
+-record(sm_state, {
           buffer = [] :: [mongoose_acc:t()],
           buffer_size = 0 :: non_neg_integer(),
           counter_in = 0 :: short(),
           counter_out = 0 :: short(),
           buffer_max = 100 :: buffer_max(),
           ack_freq = 1 :: ack_freq(),
-          resumed_from = undefined :: undefined | ejabberd_sm:sid()
+          resumed_from :: undefined | ejabberd_sm:sid()
          }).
 
--type sm_handler() :: #sm_handler{}.
+-type sm_state() :: #sm_state{}.
 
 -type buffer_max() :: pos_integer() | infinity | no_buffer.
 -type ack_freq() :: pos_integer() | never.
@@ -174,9 +173,9 @@ stale_h_config_spec() ->
 -spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 user_send_packet(Acc, #{c2s_data := StateData}, _Extra) ->
-    case {get_mod_state(StateData), is_not_sm_element(Acc)} of
-        {#sm_handler{counter_in = Counter} = SmHandler, true} ->
-            NewSmHandler = SmHandler#sm_handler{counter_in = incr_counter(Counter)},
+    case {get_mod_state(StateData), is_sm_element(Acc)} of
+        {#sm_state{counter_in = Counter} = SmHandler, false} ->
+            NewSmHandler = SmHandler#sm_state{counter_in = incr_counter(Counter)},
             {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})};
         {_, _} ->
             {ok, Acc}
@@ -187,11 +186,10 @@ user_send_packet(Acc, _Params, _Extra) ->
 -spec user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Params, Extra) ->
-    Check1 = is_conflict_incomming_acc(Acc, StateData),
+    Check1 = is_conflict_incoming_acc(Acc, StateData),
     Check2 = is_conflict_receiver_sid(Acc, StateData),
-    Check3 = is_not_sm_element(Acc),
-    case {Check1, Check2, Check3} of
-        {true, _, _} -> %% A race condition detected: same jid, but different sids
+    case {Check1, Check2} of
+        {true, _} -> %% A race condition detected: same jid, but different sids
             C2SSid = mongoose_c2s:get_sid(StateData),
             OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
             ?LOG_WARNING(#{what => conflict_check_failed,
@@ -200,7 +198,7 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
                            c2s_sid => C2SSid, origin_sid => OriginSid,
                            acc => Acc, state_name => C2SState, c2s_state => StateData}),
             {stop, Acc};
-        {_, true, _} ->
+        {_, true} ->
             C2SSid = mongoose_c2s:get_sid(StateData),
             ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
             ?LOG_WARNING(#{what => conflict_check_failed,
@@ -209,8 +207,6 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
                            c2s_sid => C2SSid, receiver_sid => ReceiverSID,
                            acc => Acc, state_name => C2SState, c2s_state => StateData}),
             {stop, Acc};
-        {_, _, false} ->
-            {ok, Acc};
         _ -> %% Continue processing
             do_user_receive_packet(Acc, Params, Extra)
     end;
@@ -225,17 +221,17 @@ do_user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Ex
             {ok, Acc};
         {_, <<"probe">>} ->
             {ok, Acc};
-        {#sm_handler{buffer_max = no_buffer} = SmHandler, _} ->
+        {#sm_state{buffer_max = no_buffer} = SmHandler, _} ->
             maybe_send_ack_request(Acc, SmHandler);
         {SmHandler, _} ->
             Jid = mongoose_c2s:get_jid(StateData),
             handle_buffer_and_ack(Acc, C2SState, Jid, SmHandler)
     end.
 
--spec handle_buffer_and_ack(mongoose_acc:t(), c2s_state(), jid:jid(), sm_handler()) ->
+-spec handle_buffer_and_ack(mongoose_acc:t(), c2s_state(), jid:jid(), sm_state()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-handle_buffer_and_ack(Acc, C2SState, Jid, #sm_handler{buffer = Buffer, buffer_max = BufferMax,
-                                                      buffer_size = BufferSize} = SmHandler) ->
+handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max = BufferMax,
+                                                    buffer_size = BufferSize} = SmHandler) ->
     NewBufferSize = BufferSize + 1,
     MaybeActions = case is_buffer_full(NewBufferSize, BufferMax) of
                        true ->
@@ -244,7 +240,7 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_handler{buffer = Buffer, buffer_ma
                            []
                    end,
     Acc1 = notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, C2SState),
-    NewSmHandler = SmHandler#sm_handler{buffer = [Acc1 | Buffer], buffer_size = NewBufferSize},
+    NewSmHandler = SmHandler#sm_state{buffer = [Acc1 | Buffer], buffer_size = NewBufferSize},
     Acc2 = mongoose_c2s_acc:to_acc(Acc, actions, MaybeActions),
     maybe_send_ack_request(Acc2, NewSmHandler).
 
@@ -261,11 +257,11 @@ is_buffer_full(BufferSize, BufferMax) when BufferSize =< BufferMax ->
 is_buffer_full(_, _) ->
     true.
 
--spec maybe_send_ack_request(mongoose_acc:t(), sm_handler()) ->
+-spec maybe_send_ack_request(mongoose_acc:t(), sm_state()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-maybe_send_ack_request(Acc, #sm_handler{buffer_size = BufferSize,
-                                        counter_out = Out,
-                                        ack_freq = AckFreq} = SmHandler)
+maybe_send_ack_request(Acc, #sm_state{buffer_size = BufferSize,
+                                      counter_out = Out,
+                                      ack_freq = AckFreq} = SmHandler)
   when 0 =:= (Out + BufferSize) rem AckFreq, ack_freq =/= never ->
     Stanza = stream_mgmt_request(),
     ToAcc = [{socket_send, Stanza}, {state_mod, {?MODULE, SmHandler}}],
@@ -282,7 +278,7 @@ user_send_xmlel(Acc, Params, Extra) ->
     El = mongoose_acc:element(Acc),
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_STREAM_MGNT_3 ->
-            handle_stream_mgnt(Acc, Params, El);
+            handle_stream_mgmt(Acc, Params, El);
         _ ->
             user_send_packet(Acc, Params, Extra)
     end.
@@ -302,7 +298,7 @@ foreign_event(Acc, #{c2s_data := StateData, event_type := {call, From}, event_co
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end;
 foreign_event(Acc, #{c2s_data := StateData, event_type := timeout, event_content := check_buffer_full}, _Extra) ->
-    #sm_handler{buffer_size = BufferSize, buffer_max = BufferMax} = get_mod_state(StateData),
+    #sm_state{buffer_size = BufferSize, buffer_max = BufferMax} = get_mod_state(StateData),
     case is_buffer_full(BufferSize, BufferMax) of
         true ->
             Lang = mongoose_c2s:get_lang(StateData),
@@ -332,12 +328,12 @@ handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
 
--spec notify_unacknowledged_messages(mongoose_acc:t(), mongoose_c2s:c2s_data(), sm_handler()) ->
-    sm_handler().
-notify_unacknowledged_messages(_, StateData, #sm_handler{buffer = Buffer} = SmHandler) ->
+-spec notify_unacknowledged_messages(mongoose_acc:t(), mongoose_c2s:c2s_data(), sm_state()) ->
+    sm_state().
+notify_unacknowledged_messages(_, StateData, #sm_state{buffer = Buffer} = SmHandler) ->
     Jid = mongoose_c2s:get_jid(StateData),
     NewBuffer = [maybe_notify_unacknowledged_msg(Acc, Jid) || Acc <- lists:reverse(Buffer)],
-    SmHandler#sm_handler{buffer = lists:reverse(NewBuffer)}.
+    SmHandler#sm_state{buffer = lists:reverse(NewBuffer)}.
 
 -spec maybe_notify_unacknowledged_msg(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 maybe_notify_unacknowledged_msg(Acc, Jid) ->
@@ -365,52 +361,52 @@ user_terminate(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 -spec maybe_handle_stream_mgmt_reroute(
-        mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), term(), sm_handler()) ->
+        mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), term(), sm_state()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_handler{counter_in = H} = SmHandler)
+maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{counter_in = H} = SmHandler)
   when ?IS_STREAM_MGMT_STOP(Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
     NewSmHandler = handle_user_terminate(SmHandler, StateData, HostType),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})};
-maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, _Reason, #sm_handler{} = SmHandler) ->
+maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, _Reason, #sm_state{} = SmHandler) ->
     NewSmHandler = handle_user_terminate(SmHandler, StateData, HostType),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})};
 maybe_handle_stream_mgmt_reroute(Acc, _StateData, _HostType, _Reason, {error, not_found}) ->
     {ok, Acc}.
 
--spec handle_user_terminate(sm_handler(), mongoose_c2s:c2s_data(), mongooseim:host_type()) ->
-    sm_handler().
-handle_user_terminate(SmHandler = #sm_handler{buffer = Buffer, counter_in = H}, StateData, HostType) ->
+-spec handle_user_terminate(sm_state(), mongoose_c2s:c2s_data(), mongooseim:host_type()) ->
+    sm_state().
+handle_user_terminate(SmHandler = #sm_state{buffer = Buffer, counter_in = H}, StateData, HostType) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
     Jid = mongoose_c2s:get_jid(StateData),
     OrderedBuffer = lists:reverse(Buffer),
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
     [mongoose_c2s:reroute(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer],
-    SmHandler#sm_handler{buffer = [], buffer_size = 0}.
+    SmHandler#sm_state{buffer = [], buffer_size = 0}.
 
 -spec terminate(term(), c2s_state(), mongoose_c2s:c2s_data()) -> term().
 terminate(Reason, C2SState, StateData) ->
     ?LOG_DEBUG(#{what => stream_mgmt_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     mongoose_c2s:terminate({shutdown, ?MODULE}, C2SState, StateData).
 
--spec handle_stream_mgnt(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), exml:element()) ->
+-spec handle_stream_mgmt(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), exml:element()) ->
     mongoose_c2s_hooks:hook_result().
-handle_stream_mgnt(Acc, Params = #{c2s_state := C2SState}, El = #xmlel{name = <<"a">>})
+handle_stream_mgmt(Acc, Params = #{c2s_state := C2SState}, El = #xmlel{name = <<"a">>})
   when ?IS_ALLOWED_STATE(C2SState) ->
     handle_a(Acc, Params, El);
-handle_stream_mgnt(Acc, Params = #{c2s_state := C2SState}, #xmlel{name = <<"r">>})
+handle_stream_mgmt(Acc, Params = #{c2s_state := C2SState}, #xmlel{name = <<"r">>})
   when ?IS_ALLOWED_STATE(C2SState) ->
     handle_r(Acc, Params);
-handle_stream_mgnt(Acc, Params = #{c2s_state := C2SState}, El = #xmlel{name = <<"enable">>})
+handle_stream_mgmt(Acc, Params = #{c2s_state := C2SState}, El = #xmlel{name = <<"enable">>})
   when ?IS_ALLOWED_STATE(C2SState) ->
     handle_enable(Acc, Params, El);
-handle_stream_mgnt(Acc, Params = #{c2s_state := {wait_for_feature_after_auth, _}}, El = #xmlel{name = <<"resume">>}) ->
+handle_stream_mgmt(Acc, Params = #{c2s_state := {wait_for_feature_after_auth, _}}, El = #xmlel{name = <<"resume">>}) ->
     handle_resume(Acc, Params, El);
-handle_stream_mgnt(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _El) ->
+handle_stream_mgmt(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _El) ->
     unexpected_sm_request(Acc, StateData, C2SState);
-handle_stream_mgnt(Acc, _Params, _El) ->
+handle_stream_mgmt(Acc, _Params, _El) ->
     {ok, Acc}.
 
 -spec handle_r(mongoose_acc:t(), mongoose_c2s_hooks:hook_params()) ->
@@ -421,7 +417,7 @@ handle_r(Acc, #{c2s_data := StateData}) ->
             ?LOG_WARNING(#{what => unexpected_r, c2s_state => StateData,
                            text => <<"received <r/> but stream management is off!">>}),
             {ok, Acc};
-        #sm_handler{counter_in = In} ->
+        #sm_state{counter_in = In} ->
             Stanza = stream_mgmt_ack(In),
             {ok, mongoose_c2s_acc:to_acc(Acc, socket_send, Stanza)}
     end.
@@ -440,11 +436,11 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
             do_handle_ack(Acc, StateData, Handler, H)
     end.
 
--spec do_handle_ack(mongoose_acc:t(), mongoose_c2s:c2s_data(), sm_handler(), non_neg_integer()) ->
+-spec do_handle_ack(mongoose_acc:t(), mongoose_c2s:c2s_data(), sm_state(), non_neg_integer()) ->
     mongoose_c2s_hooks:hook_result().
-do_handle_ack(Acc, StateData, SmHandler = #sm_handler{counter_out = OldAcked,
-                                                      buffer_size = BufferSize,
-                                                      buffer = Buffer}, Acked) ->
+do_handle_ack(Acc, StateData, SmHandler = #sm_state{counter_out = OldAcked,
+                                                    buffer_size = BufferSize,
+                                                    buffer = Buffer}, Acked) ->
     ToDrop = calc_to_drop(Acked, OldAcked),
     case BufferSize < ToDrop of
         true ->
@@ -458,7 +454,7 @@ do_handle_ack(Acc, StateData, SmHandler = #sm_handler{counter_out = OldAcked,
         false ->
             NewSize = BufferSize - ToDrop,
             {NewBuffer, _Dropped} = lists:split(NewSize, Buffer),
-            NewSmHandler = SmHandler#sm_handler{counter_out = Acked, buffer_size = NewSize, buffer = NewBuffer},
+            NewSmHandler = SmHandler#sm_state{counter_out = Acked, buffer_size = NewSize, buffer = NewBuffer},
             {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmHandler})}
     end.
 
@@ -486,7 +482,7 @@ handle_enable(Acc, #{c2s_data := StateData}, El) ->
             do_handle_enable(Acc, StateData, false);
         {{error, not_found}, _InvalidResumeAttr} ->
             stream_error(Acc, StateData);
-        {#sm_handler{}, _} ->
+        {#sm_state{}, _} ->
             stream_error(Acc, StateData)
     end.
 
@@ -519,7 +515,7 @@ handle_resume(Acc, #{c2s_state := C2SState, c2s_data := StateData}, El) ->
             bad_request(Acc);
         {_, invalid_h_attribute, _} ->
             bad_request(Acc);
-        {_, _, #sm_handler{}} ->
+        {_, _, #sm_state{}} ->
             bad_request(Acc);
         {SMID, H, {error, not_found}} ->
             HostType = mongoose_c2s:get_host_type(StateData),
@@ -585,8 +581,8 @@ do_resume(Acc0, StateData, SMID, H) ->
             {stop, Acc}
     end.
 
--spec get_all_stanzas_to_forward(sm_handler(), smid(), jid:lserver()) -> [exml:element()].
-get_all_stanzas_to_forward(#sm_handler{counter_in = Counter, buffer = Buffer}, SMID, LServer) ->
+-spec get_all_stanzas_to_forward(sm_state(), smid(), jid:lserver()) -> [exml:element()].
+get_all_stanzas_to_forward(#sm_state{counter_in = Counter, buffer = Buffer}, SMID, LServer) ->
     Resumed = stream_mgmt_resumed(SMID, Counter),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ToForward = [ begin
@@ -613,13 +609,13 @@ maybe_add_timestamp(Packet, _StanzaName, _StanzaType, _TS, _FromServer) ->
 %% The conflict can happen, when actions with an accumulator were initiated by
 %% one process but the resulting stanzas were routed to another process with
 %% the same JID but different SID.
-%% The conflict usually happens when an user is reconnecting.
+%% The conflict usually happens when a user is reconnecting.
 %% Both origin_sid and origin_jid props should be defined.
 %% But we don't force developers to set both of them, so we should correctly
 %% process stanzas, that have only one properly set.
 %% "Incoming" means that stanza is coming from ejabberd_router.
--spec is_conflict_incomming_acc(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
-is_conflict_incomming_acc(Acc, StateData) ->
+-spec is_conflict_incoming_acc(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
+is_conflict_incoming_acc(Acc, StateData) ->
     OriginJid = mongoose_acc:get(c2s, origin_jid, undefined, Acc),
     OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
     AreOriginsDefined = OriginJid =/= undefined andalso OriginSid =/= undefined,
@@ -637,9 +633,9 @@ is_conflict_incomming_acc(Acc, StateData) ->
             SameJid andalso not (SameSid or SameOldSession)
     end.
 
--spec maybe_get_resumed_from(sm_handler()) -> ejabberd_sm:sid();
+-spec maybe_get_resumed_from(sm_state()) -> ejabberd_sm:sid();
                             ({error, not_found}) -> undefined.
-maybe_get_resumed_from(#sm_handler{resumed_from = ResumedFrom}) ->
+maybe_get_resumed_from(#sm_state{resumed_from = ResumedFrom}) ->
     ResumedFrom;
 maybe_get_resumed_from(_) ->
     undefined.
@@ -681,13 +677,13 @@ stream_mgmt_error(Acc, _StateData, C2SState, Err) ->
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
 
--spec build_sm_handler(mongooseim:host_type()) -> sm_handler().
+-spec build_sm_handler(mongooseim:host_type()) -> sm_state().
 build_sm_handler(HostType) ->
     BufferMax = get_buffer_max(HostType),
     AckFreq = get_ack_freq(HostType),
-    #sm_handler{buffer_max = BufferMax, ack_freq = AckFreq}.
+    #sm_state{buffer_max = BufferMax, ack_freq = AckFreq}.
 
--spec get_mod_state(mongoose_c2s:c2s_data()) -> sm_handler() | {error, not_found}.
+-spec get_mod_state(mongoose_c2s:c2s_data()) -> sm_state() | {error, not_found}.
 get_mod_state(StateData) ->
     mongoose_c2s:get_mod_state(StateData, ?MODULE).
 
@@ -772,16 +768,16 @@ handle_resume_call(StateData, Acc, From) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
             {stop, bad_stream_management_request};
-        #sm_handler{} = SmHandler ->
+        #sm_state{} = SmHandler ->
             Sid = mongoose_c2s:get_sid(StateData),
             Jid = mongoose_c2s:get_jid(StateData),
             ejabberd_sm:close_session(Acc, Sid, Jid, resumed),
             mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()),
-            WithResumedFrom = SmHandler#sm_handler{resumed_from = Sid},
+            WithResumedFrom = SmHandler#sm_state{resumed_from = Sid},
             PassSmHandler = recover_messages(WithResumedFrom),
             PassStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => PassSmHandler}),
             ReplyAction = {reply, From, {ok, PassStateData}},
-            KeepSmHandler = SmHandler#sm_handler{buffer = [], buffer_size = 0},
+            KeepSmHandler = SmHandler#sm_state{buffer = [], buffer_size = 0},
             KeepStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => KeepSmHandler}),
             {stop_and_reply, {shutdown, resumed}, ReplyAction, KeepStateData}
     end.
@@ -790,7 +786,7 @@ handle_resume_call(StateData, Acc, From) ->
 %% API for `mongoose_c2s'
 %%
 
--spec recover_messages(sm_handler()) -> sm_handler().
+-spec recover_messages(sm_state()) -> sm_state().
 recover_messages(SmHandler) ->
     receive
         {route, Acc} ->
@@ -801,9 +797,9 @@ recover_messages(SmHandler) ->
               SmHandler
     end.
 
--spec maybe_buffer_acc(sm_handler(), mongoose_acc:t(), boolean()) -> sm_handler().
-maybe_buffer_acc(#sm_handler{buffer = Buffer, buffer_size = BufferSize} = SmHandler, Acc, true) ->
-    SmHandler#sm_handler{buffer = [Acc | Buffer], buffer_size = BufferSize + 1};
+-spec maybe_buffer_acc(sm_state(), mongoose_acc:t(), boolean()) -> sm_state().
+maybe_buffer_acc(#sm_state{buffer = Buffer, buffer_size = BufferSize} = SmHandler, Acc, true) ->
+    SmHandler#sm_state{buffer = [Acc | Buffer], buffer_size = BufferSize + 1};
 maybe_buffer_acc(SmHandler, _Acc, false) ->
     SmHandler.
 
@@ -812,10 +808,10 @@ maybe_buffer_acc(SmHandler, _Acc, false) ->
 is_message(<<"message">>) -> true;
 is_message(_) -> false.
 
--spec is_not_sm_element(mongoose_acc:t()) -> boolean().
-is_not_sm_element(Acc) ->
+-spec is_sm_element(mongoose_acc:t()) -> boolean().
+is_sm_element(Acc) ->
     El = mongoose_acc:element(Acc),
-    ?NS_STREAM_MGNT_3 =/= exml_query:attr(El, <<"xmlns">>).
+    ?NS_STREAM_MGNT_3 =:= exml_query:attr(El, <<"xmlns">>).
 
 -spec make_smid() -> smid().
 make_smid() ->

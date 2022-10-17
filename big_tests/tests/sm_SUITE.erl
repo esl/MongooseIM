@@ -55,8 +55,8 @@ groups() ->
     [
      {parallel, [parallel], parallel_cases()},
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
-     {manual_ack_freq_2, [sequence], manual_ack_freq_2_cases()},
-     {stale_h, [sequence], stale_h_cases()},
+     {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
+     {stale_h, [], stale_h_cases()},
      {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
     ].
 

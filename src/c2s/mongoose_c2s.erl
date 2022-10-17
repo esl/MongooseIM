@@ -173,7 +173,7 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} =
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
     Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
     Acc2 = close_session(StateData, C2SState, Acc1, Reason),
-    _Acc3 = mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
+    mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
     bounce_messages(StateData),
     close_parser(StateData),
     close_socket(StateData),
@@ -568,12 +568,6 @@ handle_info(StateData, _C2SState, replaced) ->
     send_element_from_server_jid(StateData, StreamConflict),
     send_trailer(StateData),
     {stop, {shutdown, replaced}};
-handle_info(_StateData, _C2SState, {store_session_info, Jid, Key, Value, _FromPid}) ->
-    ejabberd_sm:store_info(Jid, Key, Value),
-    keep_state_and_data;
-handle_info(_StateData, _C2SState, {remove_session_info, Jid, Key, _FromPid}) ->
-    ejabberd_sm:remove_info(Jid, Key),
-    keep_state_and_data;
 handle_info(StateData, C2SState, Info) ->
     handle_foreign_event(StateData, C2SState, info, Info).
 

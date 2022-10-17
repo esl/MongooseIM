@@ -235,8 +235,8 @@ wait_for_c2s_unacked_count(C2SPid, Count) ->
 
 get_c2s_unacked_count(C2SPid) ->
     StateData = mongoose_helper:get_c2s_state_data(C2SPid),
-    SmHandler = rpc(mim(), mongoose_c2s, get_mod_state, [StateData, mod_stream_management]),
-    element(3, SmHandler).
+    SmStateData = rpc(mim(), mongoose_c2s, get_mod_state, [StateData, mod_stream_management]),
+    element(3, SmStateData).
 
 wait_for_resource_count(Client, N) ->
     mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(Client)) end,
