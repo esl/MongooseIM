@@ -1250,7 +1250,9 @@ preprocess_and_ship(Acc, From, To, El, StateData) ->
         jid:to_binary(To),
         Attrs),
     FixedEl = El#xmlel{attrs = Attrs2},
-    Acc2 = mongoose_hooks:user_receive_packet(StateData#state.host_type, Acc,
+    FixedStanza = #{element => FixedEl, from_jid => From, to_jid => To},
+    FixedAcc = mongoose_acc:update_stanza(FixedStanza, Acc),
+    Acc2 = mongoose_hooks:user_receive_packet(StateData#state.host_type, FixedAcc,
                                               StateData#state.jid, From, To, FixedEl),
     ship_to_local_user(Acc2, {From, To, FixedEl}, StateData).
 

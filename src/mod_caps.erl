@@ -36,7 +36,7 @@
 -behaviour(mongoose_module_metrics).
 
 -export([read_caps/1, caps_stream_features/3,
-         disco_local_features/3, disco_local_identity/1, disco_info/1]).
+         disco_local_features/3, disco_local_identity/3, disco_info/3]).
 
 %% gen_mod callbacks
 -export([start/2, start_link/2, stop/1, config_spec/0, supported_features/0]).
@@ -45,17 +45,14 @@
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2, terminate/2, code_change/3]).
 
--export([user_send_packet/4, user_receive_packet/5,
-         c2s_presence_in/4, c2s_filter_packet/5,
-         c2s_broadcast_recipients/5]).
+-export([user_send_packet/3, user_receive_packet/3,
+         c2s_presence_in/3, c2s_filter_packet/3,
+         c2s_broadcast_recipients/3]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
 
--ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, c2s_presence_in/4,
-              caps_stream_features/3, delete_caps/1, disco_info/1,
-              disco_local_identity/1, make_disco_hash/2, read_caps/1, start_link/2,
-              user_receive_packet/5, user_send_packet/4]).
+-ignore_xref([delete_caps/1, make_disco_hash/2, read_caps/1, start_link/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
@@ -174,6 +171,14 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
+-spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
+    {ok, user_send_packet(Acc, From, To, Packet)}.
+
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc,
                  #jid{luser = User, lserver = LServer} = From,
@@ -184,9 +189,18 @@ user_send_packet(Acc,
 user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
--spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) ->
+
+-spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: map().
+user_receive_packet(Acc, #{jid := #jid{lserver = LServer}}, _) ->
+    {From, _, Packet} = mongoose_acc:packet(Acc),
+    {ok, user_receive_packet(Acc, LServer, From, Packet)}.
+
+-spec user_receive_packet(mongoose_acc:t(), jid:lserver(), jid:jid(), exml:element()) ->
           mongoose_acc:t().
-user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
+user_receive_packet(Acc, LServer, From,
                     #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case mongoose_domain_api:get_host_type(From#jid.lserver) of
@@ -195,7 +209,7 @@ user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
         {ok, _} ->
             Acc %% it was already handled in 'user_send_packet'
     end;
-user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
+user_receive_packet(Acc, _, _, _) ->
     Acc.
 
 -spec handle_presence(mongoose_acc:t(), jid:lserver(), jid:jid(), binary(), [exml:element()]) ->
@@ -211,10 +225,12 @@ handle_presence(Acc, LServer, From, Type, Elements) when Type =:= <<>>;
 handle_presence(Acc, _LServer, _From, _Type, _Elements) ->
     Acc.
 
--spec caps_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-caps_stream_features(Acc, HostType, LServer) ->
-    case make_my_disco_hash(HostType, LServer) of
+-spec caps_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: #{lserver := jid:lserver()},
+    Extra :: #{host_type := mongooseim:host_type()}.
+caps_stream_features(Acc, #{lserver := LServer}, #{host_type := HostType}) ->
+    NewAcc = case make_my_disco_hash(HostType, LServer) of
         <<>> ->
             Acc;
         Hash ->
@@ -223,7 +239,8 @@ caps_stream_features(Acc, HostType, LServer) ->
                              {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
                     children = []}
              | Acc]
-    end.
+    end,
+    {ok, NewAcc}.
 
 -spec disco_local_features(mongoose_disco:feature_acc(),
                            map(),
@@ -235,23 +252,33 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
     end,
     {ok, NewAcc}.
 
--spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_local_identity(Acc = #{node := Node}) ->
-    case is_valid_node(Node) of
+-spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:identity_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_local_identity(Acc = #{node := Node}, _, _) ->
+    NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
         false -> Acc
-    end.
+    end,
+    {ok, NewAcc}.
 
--spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
-disco_info(Acc = #{node := Node}) ->
-    case is_valid_node(Node) of
+-spec disco_info(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:identity_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_info(Acc = #{node := Node}, _, _) ->
+    NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
         false -> Acc
-    end.
+    end,
+    {ok, NewAcc}.
 
--spec c2s_presence_in(ejabberd_c2s:state(), jid:jid(), jid:jid(), exml:element()) ->
-          ejabberd_c2s:state().
-c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = Els}) ->
+-spec c2s_presence_in(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_c2s:state(),
+    Params :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
+    Extra :: map().
+c2s_presence_in(C2SState, #{from := From, to := To, packet := Packet = #xmlel{attrs = Attrs, children = Els}}, _) ->
     ?LOG_DEBUG(#{what => caps_c2s_presence_in,
                  to => jid:to_binary(To), from => jid:to_binary(From),
                  exml_packet => Packet, c2s_state => C2SState}),
@@ -260,7 +287,7 @@ c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = El
     Insert = (Type == <<>> orelse Type == <<"available">>)
         and (Subscription == both orelse Subscription == to),
     Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
-    case Insert orelse Delete of
+    NewState = case Insert orelse Delete of
         true ->
             LFrom = jid:to_lower(From),
             Rs = case ejabberd_c2s:get_aux_field(caps_resources,
@@ -282,7 +309,8 @@ c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = El
             ejabberd_c2s:set_aux_field(caps_resources, NewRs,
                                        C2SState);
         false -> C2SState
-    end.
+    end,
+    {ok, NewState}.
 
 -spec upsert_caps(jid:simple_jid(), caps(), caps_resources()) -> caps_resources().
 upsert_caps(LFrom, Caps, Rs) ->
@@ -294,10 +322,11 @@ upsert_caps(LFrom, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
--spec c2s_filter_packet(Acc, ejabberd_c2s:state(), {atom(), binary()},
-                        jid:jid(), exml:element()) -> Acc
-              when Acc :: boolean().
-c2s_filter_packet(InAcc, C2SState, {pep_message, Feature}, To, _Packet) ->
+-spec c2s_filter_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: boolean(),
+    Params :: #{state := ejabberd_c2s:state(), feature := {atom(), binary()}, to := jid:jid()},
+    Extra :: map().
+c2s_filter_packet(InAcc, #{state := C2SState, feature := {pep_message, Feature}, to := To}, _) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
             ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
@@ -311,25 +340,26 @@ c2s_filter_packet(InAcc, C2SState, {pep_message, Feature}, To, _Packet) ->
                 none ->
                     {stop, true}
             end;
-        _ -> InAcc
+        _ -> {ok, InAcc}
     end;
-c2s_filter_packet(Acc, _, _, _, _) -> Acc.
+c2s_filter_packet(Acc, _, _) -> {ok, Acc}.
 
--spec c2s_broadcast_recipients(Acc, ejabberd_c2s:state(), {atom(), binary()},
-                               jid:jid(), exml:element()) -> Acc
-              when Acc :: [jid:simple_jid()].
-c2s_broadcast_recipients(InAcc, C2SState, {pep_message, Feature}, _From, _Packet) ->
+-spec c2s_broadcast_recipients(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [jid:simple_jid()],
+    Params :: #{state := ejabberd_c2s:state(), type := {atom(), binary()}},
+    Extra :: map().
+c2s_broadcast_recipients(InAcc, #{state := C2SState, type := {pep_message, Feature}}, _) ->
     HostType = ejabberd_c2s_state:host_type(C2SState),
-    case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
+    NewAcc = case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
             filter_recipients_by_caps(HostType, InAcc, Feature, Rs);
         _ -> InAcc
-    end;
-c2s_broadcast_recipients(Acc, _, _, _, _) -> Acc.
+    end,
+    {ok, NewAcc};
+c2s_broadcast_recipients(Acc, _, _) -> {ok, Acc}.
 
--spec filter_recipients_by_caps(mongooseim:host_type(), Acc,
-                                {atom(), binary()}, caps_resources()) -> Acc
-              when Acc :: [jid:simple_jid()].
+-spec filter_recipients_by_caps(mongooseim:host_type(), Acc, binary(), caps_resources()) -> Acc
+    when Acc :: [jid:simple_jid()].
 filter_recipients_by_caps(HostType, InAcc, Feature, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
                           case lists:member(Feature, get_features_list(HostType, Caps)) of
@@ -360,7 +390,6 @@ init_db(mnesia) ->
 init([HostType, #{cache_size := MaxSize, cache_life_time := LifeTime}]) ->
     init_db(db_type(HostType)),
     cache_tab:new(caps_features, [{max_size, MaxSize}, {life_time, LifeTime}]),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     {ok, #state{host_type = HostType}}.
 
@@ -379,22 +408,21 @@ handle_info(_Info, State) -> {noreply, State}.
 
 -spec terminate(any(), state()) -> ok.
 terminate(_Reason, #state{host_type = HostType}) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)).
 
-legacy_hooks(HostType) ->
-    [{c2s_presence_in, HostType, ?MODULE, c2s_presence_in, 75},
-     {c2s_filter_packet, HostType, ?MODULE, c2s_filter_packet, 75},
-     {c2s_broadcast_recipients, HostType, ?MODULE, c2s_broadcast_recipients, 75},
-     {user_send_packet, HostType, ?MODULE, user_send_packet, 75},
-     {user_receive_packet, HostType, ?MODULE, user_receive_packet, 75},
-     {c2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
-     {s2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
-     {disco_local_identity, HostType, ?MODULE, disco_local_identity, 1},
-     {disco_info, HostType, ?MODULE, disco_info, 1}].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}].
+    [
+     {c2s_presence_in, HostType, fun ?MODULE:c2s_presence_in/3, #{}, 75},
+     {c2s_filter_packet, HostType, fun ?MODULE:c2s_filter_packet/3, #{}, 75},
+     {c2s_broadcast_recipients, HostType, fun ?MODULE:c2s_broadcast_recipients/3, #{}, 75},
+     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 75},
+     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 75},
+     {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
+     {s2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
+     {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 1},
+     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1},
+     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}
+    ].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

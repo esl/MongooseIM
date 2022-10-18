@@ -732,10 +732,11 @@ do_route_no_resource(<<"presence">>, From, To, Acc, El) ->
         true ->
             PResources = get_user_present_resources(To),
             lists:foldl(fun({_, R}, A) ->
-                            do_route(A, From, jid:replace_resource(To, R), El)
-                        end,
-                        Acc,
-                        PResources);
+                                NewTo = jid:replace_resource(To, R),
+                                NewAccParams = #{element => El, from_jid => From, to_jid => NewTo},
+                                A0 = mongoose_acc:update_stanza(NewAccParams, A),
+                                do_route(A0, From, NewTo, El)
+                        end, Acc, PResources);
         false ->
             Acc
     end;
