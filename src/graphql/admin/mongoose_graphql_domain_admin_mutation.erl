@@ -22,6 +22,14 @@ execute(_Ctx, admin, <<"removeDomain">>, #{<<"domain">> := Domain, <<"hostType">
         {error, Error} ->
             error_handler(Error, Domain, HostType)
     end;
+execute(_Ctx, admin, <<"requestRemoveDomain">>, #{<<"domain">> := Domain, <<"hostType">> := HostType}) ->
+    case mongoose_domain_api:request_delete_domain(Domain, HostType) of
+        ok ->
+            DomainObj = #domain{domain = Domain, host_type = HostType, status = deleting},
+            {ok, #{<<"domain">> => DomainObj, <<"msg">> => <<"Domain disabled and enqueued for deletion">>}};
+        {error, Error} ->
+            error_handler(Error, Domain, HostType)
+    end;
 execute(_Ctx, admin, <<"enableDomain">>, #{<<"domain">> := Domain}) ->
     case mongoose_domain_api:enable_domain(Domain) of
         ok ->
