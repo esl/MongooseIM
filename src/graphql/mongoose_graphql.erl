@@ -75,7 +75,8 @@ execute(Ep, #{document := Doc,
         {ok, #{ast := Ast2,
                fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
         ok = graphql:validate(Ast2),
-        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars),
+        Vars2 = remove_null_args(Vars),
+        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
         Ctx2 = Ctx#{params => Coerced,
                     operation_name => OpName,
                     authorized => AuthStatus,
@@ -135,6 +136,9 @@ graphql_parse(Doc) ->
         {error, Err} ->
             graphql_err:abort([], parse, Err)
     end.
+
+remove_null_args(Vars) ->
+    maps:filter(fun(_Key, Value) -> Value /= null end, Vars).
 
 admin_mapping_rules() ->
     #{objects => #{

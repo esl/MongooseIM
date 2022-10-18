@@ -40,6 +40,7 @@ admin_get_last_messages_cases() ->
      admin_get_last_messages_for_unknown_user,
      admin_get_last_messages_with,
      admin_get_last_messages_limit,
+     admin_get_last_messages_limit_null,
      admin_get_last_messages_limit_enforced,
      admin_get_last_messages_before].
 
@@ -398,6 +399,19 @@ admin_get_last_messages_limit_story(Config, Alice, Bob) ->
     #{<<"stanzas">> := [M1], <<"limit">> := 1} =
         get_ok_value([data, stanza, getLastMessages], Res),
     check_stanza_map(M1, Bob).
+
+admin_get_last_messages_limit_null(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_get_last_messages_limit_null_story/3).
+
+admin_get_last_messages_limit_null_story(Config, Alice, Bob) ->
+    admin_send_message_story(Config, Alice, Bob),
+    mam_helper:wait_for_archive_size(Alice, 1),
+    Caller = escalus_client:full_jid(Alice),
+    Res = get_last_messages(Caller, null, null, null, Config),
+    #{<<"stanzas">> := [M1], <<"limit">> := 50} =
+        get_ok_value([data, stanza, getLastMessages], Res),
+    check_stanza_map(M1, Alice).
 
 admin_get_last_messages_limit_enforced(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],

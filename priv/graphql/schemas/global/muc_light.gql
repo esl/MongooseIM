@@ -13,7 +13,7 @@ input BlockingInput{
   "Type of entity to block"
   entityType: BlockedEntityType!
   "Type of blocking action"
-  action: BlockingAction!
+  action: BlockingAction! = DENY
   "Entity's JID"
   entity: JID!
 }
