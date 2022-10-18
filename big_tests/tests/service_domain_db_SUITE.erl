@@ -130,11 +130,11 @@ rest_auth_cases(true) ->
      rest_cannot_enable_domain_without_auth,
      rest_cannot_disable_domain_without_auth,
      rest_cannot_select_domain_without_auth].
-
 rest_cases() ->
     [rest_can_insert_domain,
      rest_can_disable_domain,
      rest_can_delete_domain,
+     rest_request_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
      rest_delete_missing_domain,
      rest_cannot_insert_domain_twice_with_another_host_type,
@@ -820,6 +820,19 @@ rest_can_disable_domain(Config) ->
     rest_patch_enabled(Config, <<"example.db">>, false),
     {ok, #{host_type := <<"type1">>, status := disabled}} =
         select_domain(mim(), <<"example.db">>).
+
+rest_request_can_delete_domain(Config) ->
+    %% Put a new domain to delete later
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    %% Request delete domain
+    {{<<"202">>, _}, _} = domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>),
+    %% Wait until it is not found anymore
+    Return = {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>},
+    F1 = fun() -> rest_select_domain(Config, <<"example.db">>) end,
+    mongoose_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
+    %% Double-check
+    F2 = fun() -> select_domain(mim(), <<"example.db">>) end,
+    mongoose_helper:wait_until(F2, {error, not_found}, #{time_left => timer:seconds(5)}).
 
 rest_can_delete_domain(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
