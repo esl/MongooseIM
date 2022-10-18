@@ -51,6 +51,7 @@ db_cases() -> [
      db_deleted_domain_from_db,
      db_deleted_domain_fails_with_wrong_host_type,
      db_deleted_domain_from_core,
+     rest_cannot_enable_deleting,
      db_disabled_domain_is_in_db,
      db_disabled_domain_not_in_core,
      db_reenabled_domain_is_in_db,
@@ -180,6 +181,7 @@ init_per_suite(Config) ->
     prepare_test_queries(mim2()),
     erase_database(mim()),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite([{service_setup, per_testcase} | Config2]).
 
 end_per_suite(Config) ->
@@ -220,6 +222,10 @@ end_per_group(_GroupName, Config) ->
         per_testcase -> ok
     end.
 
+init_per_testcase(rest_cannot_enable_deleting, Config) ->
+    HostType = <<"type1">>,
+    Server = start_domain_removal_hook(HostType),
+    init_per_testcase(generic, [{server, Server}, {host_type, HostType} | Config]);
 init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
     maybe_setup_meck(db_crash_on_initial_load_restarts_service),
     restart_domain_core(mim(), [], []),
@@ -237,6 +243,11 @@ service_opts(db_events_table_gets_truncated) ->
 service_opts(_) ->
     #{}.
 
+end_per_testcase(rest_cannot_enable_deleting, Config) ->
+    Server = ?config(server, Config),
+    HostType = ?config(host_type, Config),
+    stop_domain_removal_hook(HostType, Server),
+    exit(Server, normal);
 end_per_testcase(TestcaseName, Config) ->
     end_per_testcase2(TestcaseName, Config),
     case TestcaseName of
@@ -365,6 +376,19 @@ db_inserted_domain_is_in_core(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
+
+rest_cannot_enable_deleting(Config) ->
+    HostType = ?config(host_type, Config),
+    Domain = <<"example.db">>,
+    ok = insert_domain(mim(), Domain, HostType),
+    {ok, #{status := enabled}} = select_domain(mim(), Domain),
+    ok = request_delete_domain(mim(), Domain, HostType),
+    {ok, #{status := deleting}} = select_domain(mim(), Domain),
+    {error, domain_deleted} = enable_domain(mim(), Domain),
+    Server = ?config(server, Config),
+    Server ! continue,
+    F = fun () -> select_domain(mim(), <<"example.db">>) end,
+    mongoose_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
 
 db_deleted_domain_from_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
@@ -1091,6 +1115,9 @@ insert_domain(Node, Domain, HostType) ->
 delete_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
 
+request_delete_domain(Node, Domain, HostType) ->
+    rpc(Node, mongoose_domain_api, request_delete_domain, [Domain, HostType]).
+
 select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).
 
@@ -1158,6 +1185,30 @@ disable_domain(Node, Domain) ->
 
 enable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, enable_domain, [Domain]).
+
+start_domain_removal_hook(HostType) ->
+    Server = spawn(fun stopper/0),
+    rpc(mim(), gen_hook, add_handler,
+        [ remove_domain, HostType, fun ?MODULE:domain_removal_hook_fn/3,
+          #{server => Server}, 30]), %% Priority is so that it comes before muclight and mam
+    Server.
+
+stop_domain_removal_hook(HostType, Server) ->
+    rpc(mim(), gen_hook, delete_handler,
+        [ remove_domain, HostType, fun ?MODULE:domain_removal_hook_fn/3,
+          #{server => Server}, 30]).
+
+domain_removal_hook_fn(Acc, _Params, #{server := Server}) ->
+    Server ! {wait, self()},
+    receive continue -> ok end,
+    Acc.
+
+stopper() ->
+    receive
+        {wait, From} ->
+            receive continue -> ok end,
+            From ! continue
+    end.
 
 %% force_check_for_updates is already sent by insert or delete commands.
 %% But it is async.
