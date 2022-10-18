@@ -11,7 +11,8 @@
          allowed_methods/2,
          to_json/2,
          from_json/2,
-         delete_resource/2]).
+         delete_resource/2,
+         delete_completed/2]).
 
 -ignore_xref([to_json/2, from_json/2]).
 
@@ -68,6 +69,12 @@ from_json(Req, State) ->
 -spec delete_resource(req(), state()) -> {true | stop, req(), state()}.
 delete_resource(Req, State) ->
     try_handle_request(Req, State, fun handle_delete/2).
+
+-spec delete_completed(req(), state()) -> {boolean(), req(), state()}.
+delete_completed(Req, #{deletion := in_process} = State) ->
+    {false, Req, State};
+delete_completed(Req, State) ->
+    {true, Req, State}.
 
 %% Internal functions
 
@@ -128,7 +135,20 @@ handle_delete(Req, State) ->
     Bindings = cowboy_req:bindings(Req),
     Domain = get_domain(Bindings),
     Args = parse_body(Req),
-    HostType = get_host_type(Args),
+    handle_delete(Req, State, Domain, Args).
+
+handle_delete(Req, State, Domain, #{host_type := HostType, request := true}) ->
+    async_delete(Req, State, Domain, HostType);
+handle_delete(Req, State, Domain, #{host_type := HostType}) ->
+    sync_delete(Req, State, Domain, HostType);
+handle_delete(_Req, _State, _Domain, #{}) ->
+    throw_error(bad_request, <<"'host_type' field is missing">>).
+
+async_delete(Req, State, Domain, HostType) ->
+    mongoose_domain_api:request_delete_domain(Domain, HostType),
+    {true, Req, State#{deletion => in_process}}.
+
+sync_delete(Req, State, Domain, HostType) ->
     case mongoose_domain_api:delete_domain(Domain, HostType) of
         ok ->
             {true, Req, State};
