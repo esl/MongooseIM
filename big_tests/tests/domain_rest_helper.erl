@@ -11,6 +11,7 @@
          putt_domain_with_custom_body/2,
          rest_select_domain/2,
          rest_delete_domain/3,
+         request_delete_domain/3,
          delete_custom/4,
          patch_custom/4]).
 
@@ -68,6 +69,13 @@ rest_select_domain(Config, Domain) ->
 
 rest_delete_domain(Config, Domain, HostType) ->
     Params = #{<<"host_type">> => HostType},
+    rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
+                                path => domain_path(Domain),
+                                creds => make_creds(Config),
+                                body => Params }).
+
+request_delete_domain(Config, Domain, HostType) ->
+    Params = #{<<"host_type">> => HostType, <<"request">> => true},
     rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
                                 path => domain_path(Domain),
                                 creds => make_creds(Config),

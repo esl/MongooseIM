@@ -4,7 +4,7 @@
 -include("mongoose_logger.hrl").
 
 -export([start/1, stop/0]).
--export([start_link/1]).
+-export([start_link/1, request_delete_domain/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -37,6 +37,10 @@ stop() ->
 start_link(Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
 
+-spec request_delete_domain(jid:lserver(), mongooseim:host_type()) -> ok.
+request_delete_domain(Domain, HostType) ->
+    gen_server:cast(?MODULE, {delete_domain, Domain, HostType}).
+
 %% ---------------------------------------------------------------------------
 %% Server callbacks
 
@@ -51,6 +55,8 @@ handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, ok, State}.
 
+handle_cast({delete_domain, Domain, HostType}, State) ->
+    {noreply, handle_delete_domain(Domain, HostType, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
@@ -89,4 +95,14 @@ schedule_removal(State = #{max_age := MaxAge}) ->
 
 handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->
     mongoose_domain_sql:delete_events_older_than(LastEventId),
+    State.
+
+handle_delete_domain(Domain, HostType, State) ->
+    try
+        mongoose_domain_api:do_delete_domain_in_progress(Domain, HostType, sync)
+    catch Class:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => domain_deletion_failed,
+                           domain => Domain, host_type => HostType,
+                           class => Class, reason => Reason, stacktrace => Stacktrace})
+    end,
     State.

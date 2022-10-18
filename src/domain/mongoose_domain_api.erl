@@ -11,6 +11,7 @@
 %% domain API
 -export([insert_domain/2,
          delete_domain/2,
+         request_delete_domain/2,
          disable_domain/1,
          enable_domain/1,
          get_domain_host_type/1,
@@ -30,7 +31,8 @@
          get_all_subdomains_for_domain/1]).
 
 %% Helper for remove_domain
--export([remove_domain_wrapper/3]).
+-export([remove_domain_wrapper/3,
+         do_delete_domain_in_progress/3]).
 
 %% For testing
 -export([get_all_dynamic/0]).
@@ -82,13 +84,20 @@ insert_domain(Domain, HostType) ->
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec delete_domain(domain(), host_type()) -> delete_domain_return().
 delete_domain(Domain, HostType) ->
+    do_delete_domain(Domain, HostType, sync).
+
+-spec request_delete_domain(domain(), host_type()) -> delete_domain_return().
+request_delete_domain(Domain, HostType) ->
+    do_delete_domain(Domain, HostType, async).
+
+do_delete_domain(Domain, HostType, RequestType) ->
     case check_domain(Domain, HostType) of
         ok ->
             Res0 = check_db(mongoose_domain_sql:set_domain_for_deletion(Domain, HostType)),
             case Res0 of
                 ok ->
                     delete_domain_password(Domain),
-                    do_delete_domain_in_progress(Domain, HostType);
+                    do_delete_domain_in_progress(Domain, HostType, RequestType);
                 Other ->
                     Other
             end;
@@ -98,8 +107,10 @@ delete_domain(Domain, HostType) ->
 
 %% This is ran only in the context of `do_delete_domain',
 %% so it can already skip some checks
--spec do_delete_domain_in_progress(domain(), host_type()) -> delete_domain_return().
-do_delete_domain_in_progress(Domain, HostType) ->
+-spec do_delete_domain_in_progress(domain(), host_type(), sync | async) -> delete_domain_return().
+do_delete_domain_in_progress(Domain, HostType, async) ->
+    mongoose_domain_db_cleaner:request_delete_domain(Domain, HostType);
+do_delete_domain_in_progress(Domain, HostType, sync) ->
     case mongoose_hooks:remove_domain(HostType, Domain) of
         #{failed := []} ->
             check_db(mongoose_domain_sql:delete_domain(Domain, HostType));

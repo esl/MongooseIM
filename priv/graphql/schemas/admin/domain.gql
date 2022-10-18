@@ -14,6 +14,9 @@ type DomainAdminMutation @protected{
   "Remove domain. Only for global admin"
   removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
     @protected(type: GLOBAL)
+  "Remove domain asynchronously. Only for global admin"
+  requestRemoveDomain(domain: String!, hostType: String!): RemoveDomainPayload
+    @protected(type: GLOBAL)
   "Enable domain. Only for global admin"
   enableDomain(domain: String!): Domain
     @protected(type: GLOBAL)
