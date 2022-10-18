@@ -1413,8 +1413,11 @@ disco_info(Acc = #{host_type := HostType}) ->
     Rule :: mod_amp:amp_rule(),
     Result :: mod_amp:amp_match_result().
 amp_check_condition(HostType, Strategy, Rule) ->
+    Params = #{strategy => Strategy, rule => Rule},
+    Args = [Strategy, Rule],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAcc = no_match, %% mod_amp:amp_match_result() type
-    run_hook_for_host_type(amp_check_condition, HostType, InitialAcc, [Strategy, Rule]).
+    run_hook_for_host_type(amp_check_condition, HostType, InitialAcc, ParamsWithLegacyArgs).
 
 %%% @doc The `amp_determine_strategy' hook is called when checking to determine
 %%% which strategy will be chosen when executing AMP rules.
@@ -1440,7 +1443,10 @@ amp_determine_strategy(HostType, From, To, Packet, Event) ->
     Rules :: mod_amp:amp_rules(),
     Result :: [mod_amp:amp_rule_support()].
 amp_verify_support(HostType, Rules) ->
-    run_hook_for_host_type(amp_verify_support, HostType, [], [Rules]).
+    Params = #{rules => Rules},
+    Args = [Rules],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(amp_verify_support, HostType, [], ParamsWithLegacyArgs).
 
 %% MUC and MUC Light related hooks
 

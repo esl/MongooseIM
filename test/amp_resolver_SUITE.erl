@@ -115,4 +115,5 @@ check_cond(Strategy, Rule) ->
 
 check_cond(HookAcc, Strategy, Rule) ->
     ct:log("check condition (acc: ~p)~nstrategy: ~p~nrule: ~p", [HookAcc, Strategy, Rule]),
-    amp_resolver:check_condition(HookAcc, Strategy, Rule).
+    {ok, Result} = amp_resolver:check_condition(HookAcc, #{strategy => Strategy, rule =>Rule}, #{}),
+    Result.
