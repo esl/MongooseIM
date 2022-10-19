@@ -12,6 +12,7 @@
 -xep([{xep, 199}, {version, "2.0"}]).
 
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 -include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_SEND_PINGS, false). % bool()
@@ -161,11 +162,17 @@ ping_c2s_handler(send_ping, StateData) ->
     PingId = mongoose_bin:gen_from_crypto(),
     IQ = ping_get(PingId),
     HostType = mongoose_c2s:get_host_type(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    Jid = mongoose_c2s:get_jid(StateData),
+    FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
     Actions = [{{timeout, ping_timeout}, Interval, fun ping_c2s_handler/2}],
     T0 = erlang:monotonic_time(millisecond),
+    Params = #{host_type => HostType, lserver => LServer, location => ?LOCATION,
+               from_jid => FromServer, to_jid => Jid, element => IQ},
+    Acc = mongoose_acc:new(Params),
     mongoose_c2s_acc:new(#{state_mod => #{?MODULE => #ping_handler{id = PingId, time = T0}},
-                           actions => Actions, socket_send => [IQ]});
+                           actions => Actions, route => [Acc]});
 ping_c2s_handler(ping_timeout, StateData) ->
     Jid = mongoose_c2s:get_jid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),

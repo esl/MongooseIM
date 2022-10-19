@@ -169,17 +169,20 @@ process_unauthenticated_iq(Acc, StateData, Iq, HostType) ->
                   _ -> undefined
               end,
     LServer = mongoose_c2s:get_lserver(StateData),
+    FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ResIQ = process_unauthenticated_iq(HostType,
                                        no_JID,
                                        %% For the above: the client is
                                        %% not registered (no JID), at
                                        %% least not yet, so they can
                                        %% not be authenticated either.
-                                       make_host_only_jid(LServer),
+                                       FromServer,
                                        Iq,
                                        Address),
-    Response = set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(LServer)),
-    {stop, mongoose_c2s_acc:to_acc(Acc, socket_send, Response)}.
+    Response = set_sender(jlib:iq_to_xml(ResIQ), FromServer),
+    AccParams = #{from_jid => FromServer, to_jid => FromServer, element => Response},
+    ResponseAcc = mongoose_acc:update_stanza(AccParams, Acc),
+    {stop, mongoose_c2s_acc:to_acc(Acc, route, ResponseAcc)}.
 
 %% Clients must register before being able to authenticate.
 process_unauthenticated_iq(HostType, From, To, #iq{type = set} = IQ, IPAddr) ->
@@ -556,9 +559,6 @@ ip_to_integer({IP1, IP2, IP3, IP4}) ->
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     <<X:64>> = <<IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8>>,
     X.
-
-make_host_only_jid(Name) when is_binary(Name) ->
-    jid:make(<<>>, Name, <<>>).
 
 set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
     Stanza#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|A]}.

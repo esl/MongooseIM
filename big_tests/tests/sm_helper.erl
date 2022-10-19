@@ -234,8 +234,9 @@ wait_for_c2s_unacked_count(C2SPid, Count) ->
                                 #{name => get_c2s_unacked_count}).
 
 get_c2s_unacked_count(C2SPid) ->
-     Info = rpc(mim(), ejabberd_c2s, get_info, [C2SPid]),
-     maps:get(stream_mgmt_buffer_size, Info).
+    StateData = mongoose_helper:get_c2s_state_data(C2SPid),
+    SmStateData = rpc(mim(), mongoose_c2s, get_mod_state, [StateData, mod_stream_management]),
+    element(3, SmStateData).
 
 wait_for_resource_count(Client, N) ->
     mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(Client)) end,

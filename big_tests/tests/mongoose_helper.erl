@@ -51,7 +51,7 @@
 -export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
 -export([restore_config/1, restore_config_option/2]).
 -export([wait_for_n_offline_messages/2]).
--export([wait_for_c2s_state_name/2, get_c2s_state_name/1]).
+-export([wait_for_c2s_state_name/2, get_c2s_state_name/1, get_c2s_state_data/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -230,7 +230,7 @@ count_riak(BucketType) ->
     length(lists:flatten(BucketKeys)).
 
 kick_everyone() ->
-    [rpc(mim(), ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    [rpc(mim(), mongoose_c2s, stop, [Pid, normal]) || Pid <- get_session_pids()],
     wait_for_session_count(0).
 
 wait_for_session_count(Expected) ->
@@ -567,8 +567,8 @@ do_restore_config_option(Option, {error, not_found}) ->
     rpc(mim(), mongoose_config, unset_opt, [Option]).
 
 wait_for_n_offline_messages(Client, N) ->
-    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
-    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    LUser = escalus_utils:jid_to_lower(escalus_utils:get_username(Client)),
+    LServer = escalus_utils:jid_to_lower(escalus_utils:get_server(Client)),
     WaitFn = fun() -> total_offline_messages({LUser, LServer}) end,
     wait_until(WaitFn, N).
 
@@ -577,10 +577,9 @@ wait_for_c2s_state_name(C2SPid, NewStateName) ->
                 #{name => get_c2s_state_name}).
 
 get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
-    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
-    extract_state_name(SysStatus).
+    {StateName, _StateData} = rpc(mim(), sys, get_state, [C2SPid]),
+    StateName.
 
-extract_state_name(SysStatus) ->
-    {status, _Pid, {module, _},
-     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
-    proplists:get_value("StateName", FSMData).
+get_c2s_state_data(C2SPid) when is_pid(C2SPid) ->
+    {_StateName, StateData} = rpc(mim(), sys, get_state, [C2SPid]),
+    StateData.

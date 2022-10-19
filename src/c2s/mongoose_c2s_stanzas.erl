@@ -10,7 +10,8 @@
          sasl_success_stanza/1,
          sasl_failure_stanza/1,
          sasl_challenge_stanza/1,
-         successful_resource_binding/2
+         successful_resource_binding/2,
+         successful_session_establishment/1
         ]).
 
 stream_header(Server, Version, Lang, StreamId) ->
@@ -133,4 +134,11 @@ successful_resource_binding(IQ, Jid) ->
                 sub_el = [#xmlel{name = <<"bind">>,
                                  attrs = [{<<"xmlns">>, ?NS_BIND}],
                                  children = [JIDEl]}]},
+    jlib:iq_to_xml(Res).
+
+-spec successful_session_establishment(jlib:iq()) -> exml:element().
+successful_session_establishment(IQ) ->
+    Res = IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"session">>,
+                                 attrs = [{<<"xmlns">>, ?NS_SESSION}]}]},
     jlib:iq_to_xml(Res).

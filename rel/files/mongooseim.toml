@@ -119,9 +119,6 @@
 
 [[listen.c2s]]
   port = {{{c2s_port}}}
-  {{#zlib}}
-  zlib = {{{zlib}}}
-  {{/zlib}}
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536

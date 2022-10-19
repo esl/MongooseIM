@@ -5,7 +5,9 @@
                             hook_result()).
 -type hook_params() :: #{c2s_data := mongoose_c2s:state(),
                          c2s_state := mongoose_c2s:c2s_state(),
-                         atom() => _}.
+                         event_type := undefined | gen_statem:event_type(),
+                         event_content := undefined | term(),
+                         reason := undefined | term()}.
 -type hook_result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).
 -export_type([hook_fn/0, hook_params/0, hook_result/0]).
 
@@ -27,6 +29,7 @@
 -export([foreign_event/3,
          user_open_session/3,
          user_terminate/3,
+         reroute_unacked_messages/3,
          user_stop_request/3,
          user_socket_closed/3,
          user_socket_error/3]).
@@ -185,6 +188,17 @@ user_open_session(HostType, Acc, Params) ->
     Result :: mongoose_acc:t().
 user_terminate(HostType, Acc, Params) ->
     {_, Res} = gen_hook:run_fold(user_terminate, HostType, Acc, Params),
+    Res.
+
+%% @doc Triggered when the user session is irrevocably terminating.
+%% This is ran _after_ removing the user from the session table, but before closing the socket
+-spec reroute_unacked_messages(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: hook_params(),
+    Result :: mongoose_acc:t().
+reroute_unacked_messages(HostType, Acc, Params) ->
+    {_, Res} = gen_hook:run_fold(reroute_unacked_messages, HostType, Acc, Params),
     Res.
 
 %% These conditions required that one and only one handler declared full control over it,

@@ -1,8 +1,6 @@
 -module(mongoose_c2s_listener).
 
--include("jlib.hrl").
 -include("mongoose.hrl").
--include("mongoose_ns.hrl").
 
 -behaviour(mongoose_listener).
 -export([socket_type/0, start_listener/1]).
@@ -16,8 +14,6 @@
 
 %% Hook handlers
 -export([handle_user_open_session/3]).
-%% backwards compatibility, process iq-session
--export([process_iq/5]).
 
 -type options() :: #{module := module(),
                      atom() => any()}.
@@ -50,9 +46,6 @@ handle_user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType,
             {stop, Acc}
     end.
 
-process_iq(Acc, _From, _To, #iq{type = set, sub_el = #xmlel{name = <<"session">>}} = IQ, _) ->
-    {Acc, IQ#iq{type = result}}.
-
 %% ranch_protocol
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
     mongoose_c2s:start_link({Ref, Transport, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
@@ -65,18 +58,12 @@ start_link(Opts) ->
 -spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(#{module := Module} = Opts) ->
     HostTypes = ?ALL_HOST_TYPES,
-    acc_session_iq_handler(HostTypes),
     maybe_add_access_check(HostTypes, Opts),
     TransportOpts = prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
     OptsWithTlsConfig = process_tls_opts(Opts),
     Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, OptsWithTlsConfig),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
-
-acc_session_iq_handler(HostTypes) ->
-    [ gen_iq_handler:add_iq_handler_for_domain(
-        HostType, ?NS_SESSION, ejabberd_sm, fun ?MODULE:process_iq/5, #{}, no_queue)
-      || HostType <- HostTypes ].
 
 maybe_add_access_check(_, #{access := all}) ->
     ok;

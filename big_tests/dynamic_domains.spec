@@ -150,7 +150,7 @@
 % {suites, "tests", sic_SUITE}.
 
 {suites, "tests", smart_markers_SUITE}.
-% {suites, "tests", sm_SUITE}.
+{suites, "tests", sm_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.

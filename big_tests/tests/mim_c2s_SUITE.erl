@@ -37,7 +37,7 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(HostType, Config1),
     Config3 = escalus_users:update_userspec(Config2, alice, connection_steps, Steps),
     Config4 = escalus_users:update_userspec(Config3, bob, connection_steps, Steps),
-    configure_c2s_listener(Config4, #{max_stanza_size => 1024}),
+    configure_c2s_listener(Config4, #{backwards_compatible_session => false, max_stanza_size => 1024}),
     escalus:init_per_suite([{escalus_overrides, EscalusOverrides} | Config4 ]).
 
 end_per_suite(Config) ->
