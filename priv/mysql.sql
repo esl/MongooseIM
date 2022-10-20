@@ -321,8 +321,8 @@ CREATE TABLE muc_light_rooms(
     luser VARCHAR(250)      NOT NULL,
     lserver VARCHAR(250)    NOT NULL,
     version VARCHAR(20)     NOT NULL,
-    PRIMARY KEY (lserver, luser),
-    UNIQUE KEY k_id USING HASH (id)
+    PRIMARY KEY (id),
+    UNIQUE KEY (lserver, luser)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
@@ -359,11 +359,12 @@ CREATE TABLE muc_light_blocking(
 CREATE INDEX i_muc_light_blocking_su USING BTREE ON muc_light_blocking(lserver, luser);
 
 CREATE TABLE muc_rooms(
-    id SERIAL,
+    id BIGINT UNSIGNED      NOT NULL AUTO_INCREMENT,
     muc_host VARCHAR(250)   NOT NULL,
     room_name VARCHAR(250)       NOT NULL,
     options JSON            NOT NULL,
-    PRIMARY KEY (muc_host, room_name)
+    PRIMARY KEY (id),
+    UNIQUE KEY (muc_host, room_name)
 );
 
 CREATE TABLE muc_room_aff(
