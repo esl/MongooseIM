@@ -69,7 +69,7 @@ get_hooks(HostType) ->
 sm_register_connection_hook(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, sessionSuccessfulLogins, 1),
     mongoose_metrics:update(HostType, sessionCount, 1),
-    Acc.
+    {ok, Acc}.
 
 -spec sm_remove_connection_hook(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
