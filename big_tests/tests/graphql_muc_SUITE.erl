@@ -989,7 +989,7 @@ user_try_create_instant_room_with_invalid_name(Config) ->
 
 user_try_create_instant_room_with_invalid_name_story(Config, Alice) ->
     Res = user_create_instant_room(Alice, muc_helper:muc_host(), <<"test room">>, <<"Ali">>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain are invalid">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain is invalid">>)).
 
 user_try_delete_nonexistent_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],

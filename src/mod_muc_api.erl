@@ -115,7 +115,7 @@ create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
                     Error
             end;
         {true, error} ->
-            {invalid_input, "Room name or domain are invalid"};
+            {invalid_input, "Room name or domain is invalid"};
         {false, _} ->
             ?USER_NOT_FOUND_RESULT
     end.
