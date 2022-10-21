@@ -9,7 +9,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,
                          get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1,
-                         get_unauthorized/1]).
+                         get_unauthorized/1, get_not_loaded/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -21,10 +21,19 @@ all() ->
      {group, user_stanza}].
 
 groups() ->
-    [{admin_stanza_http, [parallel], admin_stanza_cases()},
-     {admin_stanza_cli, [], admin_stanza_cases()},
-     {domain_admin_stanza, [], domain_admin_stanza_cases()},
-     {user_stanza, [parallel], user_stanza_cases()}].
+    [{admin_stanza_http, [], [{group, admin_mam},
+                              {group, admin_no_mam}]},
+     {admin_stanza_cli, [], [{group, admin_mam},
+                             {group, admin_no_mam}]},
+     {domain_admin_stanza, [], [{group, admin_mam}, % same as for admin
+                                {group, domain_admin_no_mam}]},
+     {user_stanza, [], [{group, user_mam},
+                        {group, user_no_mam}]},
+     {admin_mam, [parallel], admin_mam_cases()},
+     {admin_no_mam, [parallel], admin_stanza_cases() ++ admin_no_mam_cases()},
+     {domain_admin_no_mam, [parallel], domain_admin_stanza_cases() ++ admin_no_mam_cases()},
+     {user_mam, [parallel], user_mam_cases()},
+     {user_no_mam, [parallel], user_stanza_cases() ++ user_no_mam_cases()}].
 
 admin_stanza_cases() ->
     [admin_send_message,
@@ -33,10 +42,9 @@ admin_stanza_cases() ->
      admin_send_stanza,
      admin_send_unparsable_stanza,
      admin_send_stanza_from_unknown_user,
-     admin_send_stanza_from_unknown_domain]
-    ++ admin_get_last_messages_cases().
+     admin_send_stanza_from_unknown_domain].
 
-admin_get_last_messages_cases() ->
+admin_mam_cases() ->
     [admin_get_last_messages,
      admin_get_last_messages_for_unknown_user,
      admin_get_last_messages_with,
@@ -44,6 +52,9 @@ admin_get_last_messages_cases() ->
      admin_get_last_messages_limit_null,
      admin_get_last_messages_limit_enforced,
      admin_get_last_messages_before].
+
+admin_no_mam_cases() ->
+    [admin_get_last_messages_no_mam].
 
 domain_admin_stanza_cases() ->
     [admin_send_message,
@@ -54,8 +65,7 @@ domain_admin_stanza_cases() ->
      admin_send_unparsable_stanza,
      domain_admin_send_stanza_from_unknown_user,
      domain_admin_send_stanza_from_unknown_domain,
-     domain_admin_get_last_messages_no_permission]
-    ++ admin_get_last_messages_cases().
+     domain_admin_get_last_messages_no_permission].
 
 user_stanza_cases() ->
     [user_send_message,
@@ -65,17 +75,18 @@ user_stanza_cases() ->
      user_send_message_headline_with_spoofed_from,
      user_send_stanza,
      user_send_stanza_without_from_with_id,
-     user_send_stanza_with_spoofed_from]
-    ++ user_get_last_messages_cases().
+     user_send_stanza_with_spoofed_from].
 
-user_get_last_messages_cases() ->
+user_mam_cases() ->
     [user_get_last_messages].
+
+user_no_mam_cases() ->
+    [user_get_last_messages_no_mam].
 
 init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(mim(), Config),
     Config2 = escalus:init_per_suite(Config1),
-    dynamic_modules:save_modules(domain_helper:host_type(), Config2),
-    init_mam(Config2).
+    dynamic_modules:save_modules(domain_helper:host_type(), Config2).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -89,22 +100,28 @@ init_per_group(admin_stanza_cli, Config) ->
 init_per_group(domain_admin_stanza, Config) ->
     graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user_stanza, Config) ->
-    graphql_helper:init_user(Config).
+    graphql_helper:init_user(Config);
+init_per_group(GN, Config) when GN =:= admin_mam;
+                                GN =:= domain_admin_mam;
+                                GN =:= user_mam ->
+    init_mam(Config);
+init_per_group(GN, Config) when GN =:= admin_no_mam;
+                                GN =:= domain_admin_no_mam;
+                                GN =:= user_no_mam ->
+    Mods = [{mod_mam, stopped}],
+    dynamic_modules:ensure_modules(domain_helper:host_type(), Mods),
+    Config.
 
-end_per_group(_, _Config) ->
-    graphql_helper:clean().
+end_per_group(GN, _Config) when GN =:= admin_stanza_http;
+                                GN =:= admin_stanza_cli;
+                                GN =:= domain_admin_stanza;
+                                GN =:= user_stanza ->
+    graphql_helper:clean();
+end_per_group(_GN, _Config) ->
+    ok.
 
 init_per_testcase(CaseName, Config) ->
-    HasMam = proplists:get_value(has_mam, Config, false),
-    MamOnly = lists:member(CaseName,
-                           user_get_last_messages_cases()
-                           ++ admin_get_last_messages_cases()),
-    case {HasMam, MamOnly} of
-        {false, true} ->
-            {skip, no_mam};
-        _ ->
-            escalus:init_per_testcase(CaseName, Config)
-    end.
+    escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -112,7 +129,7 @@ end_per_testcase(CaseName, Config) ->
 init_mam(Config) when is_list(Config) ->
     case mam_helper:backend() of
         disabled ->
-            Config;
+            {skip, no_mam};
         Backend ->
             MAMOpts = mam_helper:config_opts(#{backend => Backend, pm => #{}}),
             Mods = [{mod_mam, MAMOpts}],
@@ -368,6 +385,12 @@ admin_get_last_messages_story(Config, Alice, Bob) ->
         get_ok_value([data, stanza, getLastMessages], Res2),
     check_stanza_map(M2, Alice).
 
+admin_get_last_messages_no_mam(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(FreshConfig, alice),
+    Res = get_last_messages(AliceJid, null, null, Config),
+    get_not_loaded(Res).
+
 user_get_last_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun user_get_last_messages_story/3).
@@ -384,6 +407,14 @@ user_get_last_messages_story(Config, Alice, Bob) ->
     #{<<"stanzas">> := [M2], <<"limit">> := 50} =
         get_ok_value([data, stanza, getLastMessages], Res2),
     check_stanza_map(M2, Alice).
+
+user_get_last_messages_no_mam(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_last_messages_no_mam_story/2).
+
+user_get_last_messages_no_mam_story(Config, Alice) ->
+    Res = user_get_last_messages(Alice, null, null, Config),
+    get_not_loaded(Res).
 
 admin_get_last_messages_for_unknown_user(Config) ->
     Domain = domain_helper:domain(),

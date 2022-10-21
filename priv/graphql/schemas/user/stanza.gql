@@ -3,7 +3,8 @@ Allow user to query MAM archive.
 """
 type StanzaUserQuery @protected{
   "Get n last messages to/from a given contact (optional) with limit and optional date"
-  getLastMessages(with: JID, limit: Int = 50, before: DateTime): StanzasPayload
+  getLastMessages(with: JID, limit: PosInt = 50, before: DateTime): StanzasPayload
+    @use(modules: ["mod_mam_pm"])
 }
 
 """
