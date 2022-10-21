@@ -6,8 +6,8 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
--include("mongoose_logger.hrl").
--include("jlib.hrl").
+
+-import(mongoose_graphql_helper, [null_to_undefined/1, format_result/2]).
 
 execute(_Ctx, _Obj, <<"sendMessage">>, Args) ->
     send_message(Args);
@@ -17,16 +17,15 @@ execute(_Ctx, _Obj, <<"sendStanza">>, Args) ->
     send_stanza(Args).
 
 send_message(#{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
-    Packet = mongoose_stanza_helper:build_message(
-               jid:to_binary(From), jid:to_binary(To), Body),
-    mongoose_stanza_helper:route(From, To, Packet, true).
+    Res = mongoose_stanza_api:send_chat_message(undefined, From, To, Body),
+    format_result(Res, #{from => jid:to_binary(From)}).
 
-send_message_headline(Args = #{<<"from">> := From, <<"to">> := To}) ->
-    Packet = mongoose_stanza_helper:build_message_with_headline(
-               jid:to_binary(From), jid:to_binary(To), Args),
-    mongoose_stanza_helper:route(From, To, Packet, true).
+send_message_headline(#{<<"from">> := From, <<"to">> := To,
+                        <<"body">> := Body, <<"subject">> := Subject}) ->
+    Res = mongoose_stanza_api:send_headline_message(
+            undefined, From, To, null_to_undefined(Body), null_to_undefined(Subject)),
+    format_result(Res, #{from => jid:to_binary(From)}).
 
 send_stanza(#{<<"stanza">> := Packet}) ->
-    From = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
-    To = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-    mongoose_stanza_helper:route(From, To, Packet, true).
+    Res = mongoose_stanza_api:send_stanza(undefined, Packet),
+    format_result(Res, #{}).
