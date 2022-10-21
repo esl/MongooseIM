@@ -74,25 +74,23 @@ handle_get(Req, State = #{jid := OwnerJid}) ->
     Args = parse_qs(Req),
     Limit = get_limit(Args),
     Before = get_before(Args),
-    Rows = mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit),
+    {ok, {Rows, _Limit}} =
+        mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit, false),
     Resp = [make_json_msg(Msg, MAMId) || #{id := MAMId, packet := Msg} <- Rows],
     {jiffy:encode(Resp), Req, State}.
 
-handle_post(Req, State = #{jid := From}) ->
+handle_post(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
     To = get_to(Args),
     Body = get_body(Args),
-    Packet = mongoose_stanza_helper:build_message(jid:to_binary(From), jid:to_binary(To), Body),
-    {ok, _} =  mongoose_stanza_helper:route(From, To, Packet, true),
-    Id = exml_query:attr(Packet, <<"id">>),
-    Resp = #{<<"id">> => Id},
+    {ok, Resp} = mongoose_stanza_api:send_chat_message(UserJid, undefined, To, Body),
     Req2 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
     {true, Req2, State}.
 
 get_limit(#{limit := LimitBin}) ->
     try
         Limit = binary_to_integer(LimitBin),
-        true = Limit >= 0 andalso Limit =< 500,
+        true = Limit >= 0,
         Limit
     catch
         _:_ -> throw_error(bad_request, <<"Invalid limit">>)
@@ -105,7 +103,7 @@ get_before(#{before := BeforeBin}) ->
     catch
         _:_ -> throw_error(bad_request, <<"Invalid value of 'before'">>)
     end;
-get_before(#{}) -> 0.
+get_before(#{}) -> undefined.
 
 get_with_jid(#{with := With}) ->
     case jid:from_binary(With) of
