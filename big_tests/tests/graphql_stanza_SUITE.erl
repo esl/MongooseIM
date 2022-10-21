@@ -1,5 +1,6 @@
 -module(graphql_stanza_SUITE).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -63,6 +64,7 @@ user_stanza_cases() ->
      user_send_message_headline,
      user_send_message_headline_with_spoofed_from,
      user_send_stanza,
+     user_send_stanza_without_from_with_id,
      user_send_stanza_with_spoofed_from]
     ++ user_get_last_messages_cases().
 
@@ -112,9 +114,10 @@ init_mam(Config) when is_list(Config) ->
         disabled ->
             Config;
         Backend ->
-            Mods = [{mod_mam, mam_helper:config_opts(#{backend => Backend, pm => #{}})}],
+            MAMOpts = mam_helper:config_opts(#{backend => Backend, pm => #{}}),
+            Mods = [{mod_mam, MAMOpts}],
             dynamic_modules:ensure_modules(domain_helper:host_type(), Mods),
-            [{has_mam, true}|Config]
+            Config
     end;
 init_mam(Other) ->
     Other.
@@ -129,8 +132,8 @@ admin_send_message_story(Config, Alice, Bob) ->
     From = escalus_client:full_jid(Alice),
     To = escalus_client:short_jid(Bob),
     Res = send_message(From, To, <<"Hi!">>, Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendMessage], Res),
-    assert_not_empty(MamID, Config),
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessage], Res),
+    assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 user_send_message(Config) ->
@@ -141,8 +144,8 @@ user_send_message_story(Config, Alice, Bob) ->
     From = escalus_client:full_jid(Alice),
     To = escalus_client:short_jid(Bob),
     Res = user_send_message(Alice, From, To, <<"Hi!">>, Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendMessage], Res),
-    assert_not_empty(MamID, Config),
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessage], Res),
+    assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 user_send_message_without_from(Config) ->
@@ -152,8 +155,8 @@ user_send_message_without_from(Config) ->
 user_send_message_without_from_story(Config, Alice, Bob) ->
     To = escalus_client:short_jid(Bob),
     Res = user_send_message(Alice, null, To, <<"Hi!">>, Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendMessage], Res),
-    assert_not_empty(MamID, Config),
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessage], Res),
+    assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 user_send_message_with_spoofed_from(Config) ->
@@ -185,9 +188,12 @@ admin_send_message_headline_story(Config, Alice, Bob) ->
     From = escalus_client:full_jid(Alice),
     To = escalus_client:short_jid(Bob),
     Res = send_message_headline(From, To, <<"Welcome">>, <<"Hi!">>, Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendMessageHeadLine], Res),
-    % Headlines are not stored in MAM
-    <<>> = MamID,
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessageHeadLine], Res),
+    assert_not_empty(StanzaId),
+    escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+    Res2 = send_message_headline(From, To, null, null, Config),
+    #{<<"id">> := StanzaId2} = get_ok_value([data, stanza, sendMessageHeadLine], Res2),
+    assert_not_empty(StanzaId2),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 user_send_message_headline(Config) ->
@@ -198,9 +204,8 @@ user_send_message_headline_story(Config, Alice, Bob) ->
     From = escalus_client:full_jid(Alice),
     To = escalus_client:short_jid(Bob),
     Res = user_send_message_headline(Alice, From, To, <<"Welcome">>, <<"Hi!">>, Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendMessageHeadLine], Res),
-    % Headlines are not stored in MAM
-    <<>> = MamID,
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessageHeadLine], Res),
+    assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 user_send_message_headline_with_spoofed_from(Config) ->
@@ -271,9 +276,11 @@ admin_send_stanza_story(Config, Alice, Bob) ->
     Body = <<"Hi!">>,
     Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
     Res = send_stanza(exml:to_binary(Stanza), Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendStanza], Res),
-    assert_not_empty(MamID, Config),
-    escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendStanza], Res),
+    assert_not_empty(StanzaId),
+    StanzaIn = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_message, StanzaIn),
+    ?assertEqual(StanzaId, exml_query:attr(StanzaIn, <<"id">>)).
 
 user_send_stanza(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -283,9 +290,25 @@ user_send_stanza_story(Config, Alice, Bob) ->
     Body = <<"Hi!">>,
     Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
     Res = user_send_stanza(Alice, exml:to_binary(Stanza), Config),
-    #{<<"id">> := MamID} = get_ok_value([data, stanza, sendStanza], Res),
-    assert_not_empty(MamID, Config),
-    escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+    #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendStanza], Res),
+    assert_not_empty(StanzaId),
+    StanzaIn = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_message, StanzaIn),
+    ?assertEqual(StanzaId, exml_query:attr(StanzaIn, <<"id">>)).
+
+user_send_stanza_without_from_with_id(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_stanza_without_from_with_id_story/3).
+
+user_send_stanza_without_from_with_id_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    StanzaId = base16:encode(crypto:strong_rand_bytes(8)),
+    Stanza = escalus_stanza:set_id(escalus_stanza:chat_to_short_jid(Bob, Body), StanzaId),
+    Res = user_send_stanza(Alice, exml:to_binary(Stanza), Config),
+    ?assertEqual(#{<<"id">> => StanzaId}, get_ok_value([data, stanza, sendStanza], Res)),
+    StanzaIn = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_message, StanzaIn),
+    ?assertEqual(StanzaId, exml_query:attr(StanzaIn, <<"id">>)).
 
 user_send_stanza_with_spoofed_from(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -314,7 +337,7 @@ admin_send_stanza_from_unknown_user_story(Config, Bob) ->
     Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
     Res = send_stanza(exml:to_binary(Stanza), Config),
     ?assertEqual(<<"unknown_user">>, get_err_code(Res)),
-    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res)).
+    ?assertEqual(<<"User does not exist">>, get_err_msg(Res)).
 
 admin_send_stanza_from_unknown_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{bob, 1}],
@@ -325,8 +348,8 @@ admin_send_stanza_from_unknown_domain_story(Config, Bob) ->
     From = <<"YeeeAH@oopsie">>,
     Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
     Res = send_stanza(exml:to_binary(Stanza), Config),
-    ?assertEqual(<<"unknown_domain">>, get_err_code(Res)),
-    ?assertEqual(<<"Given domain does not exist">>, get_err_msg(Res)).
+    ?assertEqual(<<"unknown_user">>, get_err_code(Res)),
+    ?assertEqual(<<"User's domain does not exist">>, get_err_msg(Res)).
 
 admin_get_last_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -367,7 +390,7 @@ admin_get_last_messages_for_unknown_user(Config) ->
     Jid = <<"maybemaybebutnot@", Domain/binary>>,
     Res = get_last_messages(Jid, null, null, Config),
     ?assertEqual(<<"unknown_user">>, get_err_code(Res)),
-    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res)).
+    ?assertEqual(<<"User does not exist">>, get_err_msg(Res)).
 
 admin_get_last_messages_with(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -423,7 +446,7 @@ admin_get_last_messages_limit_enforced_story(Config, Alice, Bob) ->
     Caller = escalus_client:full_jid(Alice),
     Res = get_last_messages(Caller, null, 1000, null, Config),
     %% The actual limit is returned
-    #{<<"stanzas">> := [M1], <<"limit">> := 500} =
+    #{<<"stanzas">> := [M1], <<"limit">> := 50} =
         get_ok_value([data, stanza, getLastMessages], Res),
     check_stanza_map(M1, Alice).
 
@@ -487,14 +510,6 @@ user_get_last_messages(User, With, Before, Config) ->
 
 %% Helpers
 
-assert_not_empty(Bin, Config) ->
-    case proplists:get_value(has_mam, Config) of
-        true ->
-            assert_not_empty(Bin);
-        _ ->
-            skip
-    end.
-
 assert_not_empty(Bin) when byte_size(Bin) > 0 -> ok.
 
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
@@ -512,5 +527,5 @@ check_stanza_map(#{<<"sender">> := SenderJID,
 
 spoofed_error(Call, Response) ->
     null = graphql_helper:get_err_value([data, stanza, Call], Response),
-    ?assertEqual(<<"Sending from this JID is not allowed">>, get_err_msg(Response)),
-    ?assertEqual(<<"bad_from_jid">>, get_err_code(Response)).
+    ?assertEqual(<<"Sender's JID is different from the user's JID">>, get_err_msg(Response)),
+    ?assertEqual(<<"invalid_sender">>, get_err_code(Response)).
