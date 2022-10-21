@@ -63,7 +63,7 @@
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.9.0">>},1},
  {<<"jwerl">>,
   {git,"https://gitlab.com/vkatsuba/jwerl.git",
-       {ref,"d03607fd14a6a7556f01014af84903a3df60ff5d"}},
+       {ref,"cd1cdfc393bc7865f6a412a2c5e015729397e607"}},
   0},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.9.2">>},0},
  {<<"lasse">>,{pkg,<<"lasse">>,<<"1.2.0">>},0},
