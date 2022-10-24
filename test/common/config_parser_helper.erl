@@ -1084,8 +1084,7 @@ default_config([listen, http, handlers, mongoose_client_api]) ->
       module => mongoose_client_api};
 default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->
     #{module => mongoose_graphql_cowboy_handler,
-      schema_endpoint => admin,
-      allowed_categories => []};
+      schema_endpoint => admin};
 default_config([listen, http, handlers, Module]) ->
     #{module => Module};
 default_config([listen, http, transport]) ->

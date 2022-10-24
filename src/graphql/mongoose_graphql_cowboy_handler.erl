@@ -207,8 +207,7 @@ auth_domain_admin(_, State) ->
 run_request(#{document := undefined}, Req, State) ->
     reply_error(make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
-                                 authorized := AuthStatus,
-                                 llowed_categories := AllowedCategories} = State) ->
+                                 authorized := AuthStatus} = State) ->
     AllowedCategories = maps:get(allowed_categories, State, []),
     Ep = mongoose_graphql:get_endpoint(EpName),
     Ctx = maps:get(schema_ctx, State, #{}),
@@ -234,8 +233,12 @@ retrieve_category_from_ctx(Ctx)->
     {ok, Document} = mongoose_graphql:graphql_parse(Doc),
     [Parsed] = Document#document.definitions,
     [Field] = Parsed#op.selection_set,
-    {name, _, Category} = Field#field.id,
-    Category.
+    case Field#field.id of
+        {name, _, Category} ->
+            Category;
+        Category ->
+            Category
+    end.
 
 gather(Req) ->
     case get_params(cowboy_req:method(Req), Req) of

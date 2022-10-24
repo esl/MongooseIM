@@ -68,7 +68,7 @@ format_error(internal_crash) ->
     Msg = #{message => <<"GraphQL Internal Server Error">>,
             extensions => #{code => internal_server_error}},
     {500, Msg};
-format_error({{category_disabled, Category}}) ->
+format_error({category_disabled, Category}) ->
     Message = iolist_to_binary(io_lib:format("~p", [
         #{message => <<"Category disabled">>, extensions => #{category => Category}}])),
     {400, #{message => Message, extensions => #{code => category_disabled}}};
