@@ -24,13 +24,15 @@ all() ->
     [{group, cowboy_handler},
      {group, admin_handler},
      {group, domain_admin_handler},
-     {group, user_handler}].
+     {group, user_handler},
+     {group, categories_disabled}].
 
 groups() ->
     [{cowboy_handler, [parallel], cowboy_handler()},
      {user_handler, [parallel], user_handler()},
      {domain_admin_handler, [parallel], domain_admin_handler()},
-     {admin_handler, [parallel], admin_handler()}].
+     {admin_handler, [parallel], admin_handler()},
+     {categories_disabled, [parallel], categories_disabled_tests()}].
 
 cowboy_handler() ->
     [can_connect_to_admin,
@@ -49,6 +51,10 @@ domain_admin_handler() ->
 
 common_tests() ->
     [can_load_graphiql].
+
+categories_disabled_tests() ->
+    [category_disabled_error_test,
+     admin_checks_auth].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -71,6 +77,15 @@ init_per_group(domain_admin_handler, Config) ->
 init_per_group(user_handler, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
     [{schema_endpoint, user} | Config1];
+init_per_group(categories_disabled, Config) ->
+    #{node := Node} = mim(),
+    CowboyGraphqlListenerConfig = graphql_helper:get_listener_config(Node, admin),
+    #{handlers := [SchemaConfig]} = CowboyGraphqlListenerConfig,
+    UpdatedSchemaConfig = maps:put(allowed_categories, [<<"vcard">>, <<"checkAuth">>], SchemaConfig),
+    UpdatedListenerConfig = maps:put(handlers, [UpdatedSchemaConfig], CowboyGraphqlListenerConfig),
+    mongoose_helper:restart_listener(mim(), UpdatedListenerConfig),
+    Config1 = [{admin_listener_config, CowboyGraphqlListenerConfig} | Config],
+    graphql_helper:init_admin_handler(Config1);
 init_per_group(cowboy_handler, Config) ->
     Config.
 
@@ -78,6 +93,10 @@ end_per_group(user_handler, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(domain_admin_handler, Config) ->
     graphql_helper:end_domain_admin_handler(Config);
+end_per_group(categories_disabled, Config) ->
+    ListenerConfig = ?config(admin_listener_config, Config),
+    mongoose_helper:restart_listener(mim(), ListenerConfig),
+    Config;
 end_per_group(_, _Config) ->
     ok.
 
@@ -136,6 +155,10 @@ auth_domain_admin_checks_auth(Config) ->
     Res = execute_auth(admin_check_auth_body(), Config),
     ?assertAdminAuth(Domain, 'DOMAIN_ADMIN', 'AUTHORIZED', Res).
 
+category_disabled_error_test(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    StatusData = execute(Ep, admin_server_get_loglevel_body(), undefined).
+
 %% Helpers
 
 assert_auth(Auth, {Status, Data}) ->
@@ -157,6 +180,9 @@ maybe_atom_to_bin(X) -> atom_to_binary(X).
 
 admin_check_auth_body() ->
     #{query => "{ checkAuth { domain authType authStatus } }"}.
+
+admin_server_get_loglevel_body() ->
+    #{query => "{ server { getLogLevel } }"}.
 
 user_check_auth_body() ->
     #{query => "{ checkAuth { username authStatus } }"}.

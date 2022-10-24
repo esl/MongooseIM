@@ -39,6 +39,8 @@
 -ignore_xref([from_json/2, to_html/2, to_json/2]).
 
 -include("mongoose_config_spec.hrl").
+-include_lib("graphql/src/graphql_internal.hrl").
+-include_lib("graphql/src/graphql_schema.hrl").
 
 %% mongoose_http_handler callbacks
 
@@ -48,8 +50,9 @@ config_spec() ->
        items = #{<<"username">> => #option{type = binary},
                  <<"password">> => #option{type = binary},
                  <<"schema_endpoint">> => #option{type = atom,
-                                                  validate = {enum, [admin, domain_admin, user]}}
-                },
+                                                  validate = {enum, [admin, domain_admin, user]}},
+                 <<"allowed_categories">> => #list{items = #option{type = binary,
+                     validate = {enum, allowed_schemas()}}}},
         format_items = map,
         required = [<<"schema_endpoint">>],
         process = fun ?MODULE:process_config/1}.
@@ -204,19 +207,35 @@ auth_domain_admin(_, State) ->
 run_request(#{document := undefined}, Req, State) ->
     reply_error(make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
-                                 authorized := AuthStatus} = State) ->
+                                 authorized := AuthStatus,
+                                 llowed_categories := AllowedCategories} = State) ->
+    AllowedCategories = maps:get(allowed_categories, State, []),
     Ep = mongoose_graphql:get_endpoint(EpName),
     Ctx = maps:get(schema_ctx, State, #{}),
     ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx#{method => http}},
-    case mongoose_graphql:execute(Ep, ReqCtx2) of
-        {ok, Response} ->
-            ResponseBody = mongoose_graphql_response:term_to_json(Response),
-            Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
-            Reply = cowboy_req:reply(200, Req2),
-            {stop, Reply, State};
-        {error, Reason} ->
-            reply_error(Reason, Req, State)
+    Category = retrieve_category_from_ctx(ReqCtx),
+    case AllowedCategories =:= [] orelse lists:member(Category, AllowedCategories) of
+        true ->
+            case mongoose_graphql:execute(Ep, ReqCtx2) of
+                {ok, Response} ->
+                    ResponseBody = mongoose_graphql_response:term_to_json(Response),
+                    Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
+                    Reply = cowboy_req:reply(200, Req2),
+                    {stop, Reply, State};
+                {error, Reason} ->
+                    reply_error(Reason, Req, State)
+            end;
+        false ->
+            reply_error({category_disabled, Category}, Req, State)
     end.
+
+retrieve_category_from_ctx(Ctx)->
+    #{document := Doc} = Ctx,
+    {ok, Document} = mongoose_graphql:graphql_parse(Doc),
+    [Parsed] = Document#document.definitions,
+    [Field] = Parsed#op.selection_set,
+    {name, _, Category} = Field#field.id,
+    Category.
 
 gather(Req) ->
     case get_params(cowboy_req:method(Req), Req) of
@@ -270,3 +289,9 @@ reply_error(Msg, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.
+
+allowed_schemas() ->
+    [<<"checkAuth">>, <<"account">>, <<"domain">>, <<"last">>, <<"muc">>, <<"muc_light">>,
+     <<"session">>, <<"stanza">>, <<"roster">>, <<"vcard">>, <<"private">>, <<"metric">>,
+     <<"stat">>, <<"gdpr">>, <<"mnesia">>, <<"server">>, <<"inbox">>, <<"http_upload">>,
+     <<"offline">>, <<"token">>].
