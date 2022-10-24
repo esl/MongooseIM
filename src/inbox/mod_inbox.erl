@@ -11,6 +11,7 @@
 -behaviour(mongoose_module_metrics).
 
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 -include("mod_inbox.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
@@ -44,7 +45,8 @@
         'end' => integer(),
         order => asc | desc,
         hidden_read => true | false,
-        box => binary()
+        box => binary(),
+        limit => undefined | pos_integer()
        }.
 
 -type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
@@ -430,36 +432,22 @@ text_single_form_field(Var, DefaultValue) ->
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
 -spec query_to_params(mongooseim:host_type(), QueryEl :: exml:element()) ->
-    get_inbox_params() | {error, bad_request, Msg :: binary()}.
+    get_inbox_params() | {error, bad_request, binary()}.
 query_to_params(HostType, QueryEl) ->
-    case form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
-        {error, bad_request, Msg} ->
-            {error, bad_request, Msg};
-        Params ->
-            case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
-                {error, Msg} -> {error, bad_request, Msg};
-                undefined -> Params;
-                Rsm -> Params#{limit => Rsm}
-            end
-    end.
+    Form = form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)),
+    Rsm = jlib:rsm_decode(QueryEl),
+    build_params(Form, Rsm).
 
--spec maybe_rsm(exml:element() | undefined) ->
-    undefined | non_neg_integer() | {error, binary()}.
-maybe_rsm(#xmlel{name = <<"set">>,
-                 children = [#xmlel{name = <<"max">>,
-                                    children = [#xmlcdata{content = Bin}]}]}) ->
-    case mod_inbox_utils:maybe_binary_to_positive_integer(Bin) of
-        {error, _} -> {error, wrong_rsm_message()};
-        0 -> undefined;
-        N -> N
-    end;
-maybe_rsm(undefined) ->
-    undefined;
-maybe_rsm(_) ->
-    {error, wrong_rsm_message()}.
-
-wrong_rsm_message() ->
-    <<"bad-request">>.
+-spec build_params(get_inbox_params() | {error, bad_request, binary()}, none | jlib:rsm_in()) ->
+    get_inbox_params() | {error, bad_request, binary()}.
+build_params({error, bad_request, Msg}, _) ->
+    {error, bad_request, Msg};
+build_params(_, #rsm_in{max = error}) ->
+    {error, bad_request, <<"bad-request">>};
+build_params(Params, none) ->
+    Params;
+build_params(Params, #rsm_in{max = Max}) when Max =/= undefined ->
+    Params#{limit => Max}.
 
 -spec form_to_params(mongooseim:host_type(), FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
