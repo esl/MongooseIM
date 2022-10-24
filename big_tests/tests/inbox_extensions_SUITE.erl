@@ -677,10 +677,12 @@ max_queries_can_be_limited(Config) ->
         % Then Alice queries her inbox setting a limit to only one conversation,
         % and she gets the newest one
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => inbox}),
+        Inbox1 = inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => inbox}),
+        verify_rsm(Inbox1),
         % And a limit to two also works fine
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => inbox})
+        Inbox2 = inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => inbox}),
+        verify_rsm(Inbox2)
     end).
 
 max_queries_can_fetch_ahead(Config) ->

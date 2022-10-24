@@ -395,8 +395,18 @@ build_result_iq(List) ->
     ResultBinary = maps:map(fun(K, V) ->
                                     #xmlel{name = K, children = [#xmlcdata{content = integer_to_binary(V)}]}
                             end, Result),
+    ResultSetEl = result_set(List),
     #xmlel{name = <<"fin">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-           children = maps:values(ResultBinary)}.
+           children = [ResultSetEl | maps:values(ResultBinary)]}.
+
+-spec result_set([inbox_res()]) -> exml:element().
+result_set([]) ->
+    #xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}]};
+result_set([#{timestamp := First} | _] = List) ->
+    #{timestamp := Last} = lists:last(List),
+    BFirst = integer_to_binary(First),
+    BLast = integer_to_binary(Last),
+    mod_mam_utils:result_set(BFirst, BLast, undefined, undefined).
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-get
