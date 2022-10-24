@@ -701,12 +701,12 @@ timestamp_is_not_reset_with_setting_properties(Config) ->
         % Alice sends a message to Bob
         inbox_helper:send_msg(Alice, Bob),
         %% We capture the timestamp
-        [Item1] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        #{respond_messages := [Item1]} = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp1 = inbox_helper:timestamp_from_item(Item1),
         % Bob sets a bunch of properties
         set_inbox_properties(Bob, Alice, [{read, true}, {mute, 24*?HOUR}]),
         % Bob gets the inbox again, and timestamp should be the same
-        [Item2] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        #{respond_messages := [Item2]} = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp2 = inbox_helper:timestamp_from_item(Item2),
         ?assertEqual(TStamp1, TStamp2)
   end).
@@ -750,6 +750,12 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 
 -type maybe_client() :: undefined | escalus:client().
+
+verify_rsm(#{respond_iq := Iq}) ->
+    Set = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                               {element_with_ns, <<"set">>, ?NS_RSM}]),
+    ?assertNotEqual(undefined, exml_query:subelement(Set, <<"first">>)),
+    ?assertNotEqual(undefined, exml_query:subelement(Set, <<"last">>)).
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->

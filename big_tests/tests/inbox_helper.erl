@@ -200,9 +200,11 @@ do_check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                               asc -> lists:reverse(Convs);
                               _ -> Convs
                           end,
-    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
+    Inbox = #{respond_messages := ResultStanzas}
+        = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
     try
-        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs),
+        Inbox
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -251,23 +253,25 @@ maybe_check_queryid(_Children, #{}) ->
     ok.
 
 -spec get_inbox(Client :: escalus:client(),
-                ExpectedResult :: inbox_result_params()) -> [exml:element()].
+                ExpectedResult :: inbox_result_params()) ->
+    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
 get_inbox(Client, ExpectedResult) ->
     get_inbox(Client, #{}, ExpectedResult).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
-                ExpectedResult :: inbox_result_params()) -> [exml:element()].
+                ExpectedResult :: inbox_result_params()) ->
+    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
     GetInbox = make_inbox_stanza(GetParams),
     Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
     {ok, Inbox} = mongoose_helper:wait_until(
                     fun() -> do_get_inbox(Client, GetInbox) end,
                     ExpectedCount, #{validator => Validator, name => inbox_size}),
-    #{respond_iq := ResIQ, respond_messages := Stanzas} = Inbox,
+    #{respond_iq := ResIQ} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),
-    Stanzas.
+    Inbox.
 
 do_get_inbox(Client, GetInbox) ->
     escalus:send(Client, GetInbox),
@@ -669,7 +673,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
     mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-    Stanzas = get_inbox(User, #{}, #{count => ExpectedCount}),
+    #{respond_messages := Stanzas} = get_inbox(User, #{}, #{count => ExpectedCount}),
     LastMsg = lists:last(Stanzas),
     [InnerMsg] = get_inner_msg(LastMsg),
     MsgId = exml_query:attr(InnerMsg, <<"id">>),

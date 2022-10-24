@@ -1229,12 +1229,14 @@ timestamp_is_updated_on_new_message(Config) ->
          %% We capture the timestamp after the first message
          escalus:send(Alice, escalus_stanza:chat_to(Bob, Body1)),
          _M1 = escalus:wait_for_stanza(Bob),
-         [Item1] = check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body1}]),
+         #{respond_messages := [Item1]}
+             = check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body1}]),
          TStamp1 = inbox_helper:timestamp_from_item(Item1),
          %% We capture the timestamp after the second message
          escalus:send(Alice, escalus_stanza:chat_to(Bob, Body2)),
          _M2 = escalus:wait_for_stanza(Bob),
-         [Item2] = check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body2}]),
+         #{respond_messages := [Item2]}
+             = check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body2}]),
          TStamp2 = inbox_helper:timestamp_from_item(Item2),
          %% Timestamp after second message must be higher
          case TStamp2 > TStamp1 of
