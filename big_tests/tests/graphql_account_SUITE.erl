@@ -7,9 +7,12 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
-                         execute_domain_admin_command/4, get_unauthorized/1]).
+                         execute_domain_admin_command/4, get_unauthorized/1,
+                         get_coercion_err_msg/1]).
 
 -define(NOT_EXISTING_JID, <<"unknown987@unknown">>).
+-define(NOT_EXISTING_NAME, <<"unknown987@", (domain_helper:domain())/binary>>).
+-define(EMPTY_NAME_JID, <<"@", (domain_helper:domain())/binary>>).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -36,7 +39,7 @@ admin_account_tests() ->
      admin_count_users,
      admin_count_users_unknown_domain,
      admin_check_password,
-     admin_check_password_non_exisiting_user,
+     admin_check_password_non_existing_user,
      admin_check_password_hash,
      admin_check_password_hash_non_existing_user,
      admin_check_plain_password_hash,
@@ -47,7 +50,9 @@ admin_account_tests() ->
      admin_remove_non_existing_user,
      admin_remove_existing_user,
      admin_ban_user,
-     admin_change_user_password].
+     admin_ban_non_existing_user,
+     admin_change_user_password,
+     admin_change_non_existing_user_password].
 
 domain_admin_tests() ->
     [admin_list_users,
@@ -174,8 +179,9 @@ user_unregister_story(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp), <<"successfully unregistered">>)),
     % Ensure the user is removed
     AllUsers = rpc(mim(), mongoose_account_api, list_users, [domain_helper:domain()]),
+    {_, AllUsersList} = AllUsers,
     LAliceJID = jid:to_binary(jid:from_binary(escalus_client:short_jid(Alice))),
-    ?assertNot(lists:member(LAliceJID, AllUsers)).
+    ?assertNot(lists:member(LAliceJID, AllUsersList)).
 
 user_change_password(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_password_story/2).
@@ -199,7 +205,7 @@ admin_list_users(Config) ->
 
 admin_list_users_unknown_domain(Config) ->
     Resp = list_users(<<"unknown-domain">>, Config),
-    ?assertEqual([], get_ok_value([data, account, listUsers], Resp)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"Domain does not exist">>)).
 
 admin_count_users(Config) ->
     % A domain with at least one user
@@ -209,7 +215,7 @@ admin_count_users(Config) ->
 
 admin_count_users_unknown_domain(Config) ->
     Resp = count_users(<<"unknown-domain">>, Config),
-    ?assertEqual(0, get_ok_value([data, account, countUsers], Resp)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"Domain does not exist">>)).
 
 admin_check_password(Config) ->
     Password = lists:last(escalus_users:get_usp(Config, alice)),
@@ -222,10 +228,17 @@ admin_check_password(Config) ->
     Resp2 = check_password(BinJID, <<"incorrect_pw">>, Config),
     ?assertMatch(#{<<"correct">> := false, <<"message">> := _}, get_ok_value(Path, Resp2)).
 
-admin_check_password_non_exisiting_user(Config) ->
+admin_check_password_non_existing_user(Config) ->
     Password = lists:last(escalus_users:get_usp(Config, alice)),
+    % Non-existing user, non-existing domain
     Resp = check_password(?NOT_EXISTING_JID, Password, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
+    % Non-existing user, existing domain
+    Resp2 = check_password(?NOT_EXISTING_NAME, Password, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)),
+    % Empty username
+    Resp3 = check_password(?EMPTY_NAME_JID, Password, Config),
+    get_coercion_err_msg(Resp3).
 
 admin_check_password_hash(Config) ->
     UserSCRAM = escalus_users:get_jid(Config, alice),
@@ -238,8 +251,15 @@ admin_check_password_hash(Config) ->
 admin_check_password_hash_non_existing_user(Config) ->
     EmptyHash = list_to_binary(get_md5(<<>>)),
     Method = <<"md5">>,
-    Resp2 = check_password_hash(?NOT_EXISTING_JID, EmptyHash, Method, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)).
+    % Non-existing user, non-existing domain
+    Resp = check_password_hash(?NOT_EXISTING_JID, EmptyHash, Method, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
+    % Non-existing user, existing domain
+    Resp2 = check_password_hash(?NOT_EXISTING_NAME, EmptyHash, Method, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)),
+    % Empty username
+    Resp3 = check_password_hash(?EMPTY_NAME_JID, EmptyHash, Method, Config),
+    get_coercion_err_msg(Resp3).
 
 admin_check_plain_password_hash(Config) ->
     UserJID = escalus_users:get_jid(Config, carol),
@@ -266,8 +286,15 @@ admin_check_user(Config) ->
 
 admin_check_non_existing_user(Config) ->
     Path = [data, account, checkUser],
+    % Non-existing user, non-existing domain
     Resp = check_user(?NOT_EXISTING_JID, Config),
-    ?assertMatch(#{<<"exist">> := false, <<"message">> := _}, get_ok_value(Path, Resp)).
+    ?assertMatch(#{<<"exist">> := false, <<"message">> := _}, get_ok_value(Path, Resp)),
+    % Non-existing user, existing domain
+    Resp2 = check_user(?NOT_EXISTING_NAME, Config),
+    ?assertMatch(#{<<"exist">> := false, <<"message">> := _}, get_ok_value(Path, Resp2)),
+    % Empty username
+    Resp3 = check_user(?EMPTY_NAME_JID, Config),
+    get_coercion_err_msg(Resp3).
 
 admin_register_user(Config) ->
     Password = <<"my_password">>,
@@ -278,7 +305,10 @@ admin_register_user(Config) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp1), <<"successfully registered">>)),
     % Try to register a user with existing name
     Resp2 = register_user(Domain, Username, Password, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)),
+    % Try to register a user without any name
+    Resp3 = register_user(Domain, <<"">>, Password, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"Invalid JID">>)).
 
 admin_register_random_user(Config) ->
     Password = <<"my_password">>,
@@ -293,8 +323,15 @@ admin_register_random_user(Config) ->
     {ok, _} = rpc(mim(), mongoose_account_api, unregister_user, [Username, Server]).
 
 admin_remove_non_existing_user(Config) ->
+    % Non-existing user, non-existing domain
     Resp = remove_user(?NOT_EXISTING_JID, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
+    % Non-existing user, existing domain
+    Resp2 = remove_user(?NOT_EXISTING_NAME, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)),
+    % Empty username
+    Resp3 = remove_user(?EMPTY_NAME_JID, Config),
+    get_coercion_err_msg(Resp3).
 
 admin_remove_existing_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -317,8 +354,15 @@ admin_ban_user(Config) ->
 
 admin_ban_non_existing_user(Config) ->
     Reason = <<"annoying">>,
+    % Non-existing name, non-existing domain
     Resp = ban_user(?NOT_EXISTING_JID, Reason, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not allowed">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
+    % Non-existing name, existing domain
+    Resp2 = ban_user(?NOT_EXISTING_NAME, Reason, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)),
+    % Empty username
+    Resp3 = ban_user(?EMPTY_NAME_JID, Reason, Config),
+    get_coercion_err_msg(Resp3).
 
 admin_change_user_password(Config) ->
     Path = [data, account, changeUserPassword, message],
@@ -333,10 +377,17 @@ admin_change_user_password(Config) ->
         ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp2), <<"Password changed">>))
     end).
 
-admin_change_non_exisisting_user_password(Config) ->
+admin_change_non_existing_user_password(Config) ->
     NewPassword = <<"new password">>,
+    % Non-existing name, non-existing domain
     Resp = change_user_password(?NOT_EXISTING_JID, NewPassword, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not allowed">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"does not exist">>)),
+    % Non-existing name, existing domain
+    Resp2 = change_user_password(?NOT_EXISTING_NAME, NewPassword, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"does not exist">>)),
+    % Empty username
+    Resp3 = ban_user(?EMPTY_NAME_JID, NewPassword, Config),
+    get_coercion_err_msg(Resp3).
 
 domain_admin_list_users_no_permission(Config) ->
     % An unknown domain

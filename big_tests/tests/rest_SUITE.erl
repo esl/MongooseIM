@@ -208,7 +208,7 @@ user_registration_errors(_Config) ->
     {?FORBIDDEN, <<"Can't register user", _/binary>>} =
         post(admin, <<"/users/", AnonDomain/binary>>, #{username => AnonUser,
                                                         password => <<"secret">>}),
-    {?FORBIDDEN, <<"User does not exist or you are not authorised properly">>} =
+    {?FORBIDDEN, <<"User does not exist or you are not authorized properly">>} =
         delete(admin, <<"/users/", AnonDomain/binary, "/", AnonUser/binary>>),
     {?BAD_REQUEST, <<"Invalid JID", _/binary>>} =
         delete(admin, path("users", ["@mike"])).
@@ -415,7 +415,7 @@ password_change_errors(Config) ->
     Alice = binary_to_list(escalus_users:get_username(Config, alice)),
     {AnonUser, AnonDomain} = anon_us(),
     Args = #{newpass => <<"secret">>},
-    {?FORBIDDEN, <<"Password change not allowed">>} =
+    {?FORBIDDEN, <<"User does not exist or you are not authorized properly">>} =
         putt(admin, <<"/users/", AnonDomain/binary, "/", AnonUser/binary>>, Args),
     {?BAD_REQUEST, <<"Missing user name">>} =
         putt(admin, path("users", []), Args),

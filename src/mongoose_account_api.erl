@@ -20,15 +20,20 @@
 
 -type register_result() :: {ok | exists | invalid_jid | cannot_register, iolist()}.
 
--type unregister_result() :: {ok | not_allowed | invalid_jid, string()}.
+-type unregister_result() :: {ok | not_allowed | invalid_jid | user_does_not_exist, string()}.
 
--type change_password_result() :: {ok | empty_password | not_allowed | invalid_jid, string()}.
+-type change_password_result() :: {ok | empty_password | not_allowed | invalid_jid |
+                                   user_does_not_exist, string()}.
 
 -type check_password_result() :: {ok | incorrect | user_does_not_exist, string()}.
 
 -type check_password_hash_result() :: {ok | incorrect | wrong_user | wrong_method, string()}.
 
 -type check_account_result() :: {ok | user_does_not_exist, string()}.
+
+-type list_user_result() :: {ok, [jid:literal_jid()]} | {domain_not_found, string()}.
+
+-type count_user_result() :: {ok, non_neg_integer()} | {domain_not_found, string()}.
 
 -export_type([register_result/0,
               unregister_result/0,
@@ -39,15 +44,28 @@
 
 %% API
 
--spec list_users(jid:server()) -> [jid:literal_jid()].
+-spec list_users(jid:server()) -> list_user_result().
 list_users(Domain) ->
-    Users = ejabberd_auth:get_vh_registered_users(Domain),
-    SUsers = lists:sort(Users),
-    [jid:to_binary(US) || US <- SUsers].
+    PrepDomain = jid:nameprep(Domain),
+    case mongoose_domain_api:get_domain_host_type(PrepDomain) of
+        {ok, _} ->
+            Users = ejabberd_auth:get_vh_registered_users(PrepDomain),
+            SUsers = lists:sort(Users),
+            {ok, [jid:to_binary(US) || US <- SUsers]};
+        {error, not_found} ->
+            {domain_not_found, "Domain does not exist"}
+    end.
 
--spec count_users(jid:server()) -> integer().
+-spec count_users(jid:server()) -> count_user_result().
 count_users(Domain) ->
-    ejabberd_auth:get_vh_registered_users_number(Domain).
+    PrepDomain = jid:nameprep(Domain),
+    case mongoose_domain_api:get_domain_host_type(PrepDomain) of
+        {ok, _} ->
+            UserCount = ejabberd_auth:get_vh_registered_users_number(PrepDomain),
+            {ok, UserCount};
+        {error, not_found} ->
+            {domain_not_found, "Domain does not exist"}
+    end.
 
 -spec register_generated_user(jid:server(), binary()) -> {register_result(), jid:literal_jid()}.
 register_generated_user(Host, Password) ->
@@ -88,8 +106,8 @@ unregister_user(JID) ->
             {ok, io_lib:format("User ~s successfully unregistered", [jid:to_binary(JID)])};
         error ->
             {invalid_jid, "Invalid JID"};
-        {error, not_allowed} ->
-            {not_allowed, "User does not exist or you are not authorised properly"}
+        {error, _} ->
+            {not_allowed, "User does not exist or you are not authorized properly"}
     end.
 
 -spec change_password(jid:user(), jid:server(), binary()) -> change_password_result().
@@ -173,14 +191,19 @@ ban_account(User, Host, ReasonText) ->
 
 -spec ban_account(jid:jid(), binary()) -> change_password_result().
 ban_account(JID, ReasonText) ->
-    Reason = mongoose_session_api:prepare_reason(ReasonText),
-    mongoose_session_api:kick_sessions(JID, Reason),
-    case set_random_password(JID, Reason) of
-        ok ->
-            {ok, io_lib:format("User ~s successfully banned with reason: ~s",
-                               [jid:to_binary(JID), ReasonText])};
-        ErrResult ->
-            format_change_password(ErrResult)
+    case ejabberd_auth:does_user_exist(JID) of
+        true ->
+            Reason = mongoose_session_api:prepare_reason(ReasonText),
+            mongoose_session_api:kick_sessions(JID, Reason),
+            case set_random_password(JID, Reason) of
+                ok ->
+                    {ok, io_lib:format("User ~s successfully banned with reason: ~s",
+                                    [jid:to_binary(JID), Reason])};
+                ErrResult ->
+                    format_change_password(ErrResult)
+            end;
+        false ->
+            {user_does_not_exist, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
 
 %% Internal
@@ -190,7 +213,7 @@ format_change_password(ok) ->
 format_change_password({error, empty_password}) ->
     {empty_password, "Empty password"};
 format_change_password({error, not_allowed}) ->
-    {not_allowed, "Password change not allowed"};
+    {not_allowed, "User does not exist or you are not authorized properly"};
 format_change_password({error, invalid_jid}) ->
     {invalid_jid, "Invalid JID"}.
 

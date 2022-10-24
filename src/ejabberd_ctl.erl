@@ -464,8 +464,9 @@ format_result(ElementsTuple, {_Name, {tuple, ElementsDef}}) ->
        fun({Element, ElementDef}) ->
                ["\t" | format_result(Element, ElementDef)]
        end,
-       ElementsAndDef)].
-
+       ElementsAndDef)];
+format_result({ok, List}, ListDef) ->
+    format_result(List, ListDef).
 
 -spec make_status(ok | true | _) -> 0 | 1.
 make_status(ok) -> ?STATUS_SUCCESS;
