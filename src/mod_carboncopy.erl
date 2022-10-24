@@ -39,18 +39,17 @@
 
 %% Hooks
 -export([disco_local_features/3,
-         user_send_packet/4,
-         user_receive_packet/5,
+         user_send_packet/3,
+         user_receive_packet/3,
          iq_handler2/5,
          iq_handler1/5,
-         remove_connection/5
+         remove_connection/3
         ]).
 
 %% Tests
 -export([should_forward/3]).
 
--ignore_xref([is_carbon_copy/1, remove_connection/5,
-              should_forward/3, user_receive_packet/5, user_send_packet/4]).
+-ignore_xref([is_carbon_copy/1, should_forward/3]).
 
 -define(CC_KEY, 'cc').
 
@@ -77,7 +76,6 @@ is_carbon_copy(Packet) ->
 %% Default IQDisc is no_queue:
 %% executes disable/enable actions in the c2s process itself
 start(HostType, #{iqdisc := IQDisc}) ->
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm,
                                              fun ?MODULE:iq_handler2/5, #{}, IQDisc),
@@ -85,28 +83,28 @@ start(HostType, #{iqdisc := IQDisc}) ->
                                              fun ?MODULE:iq_handler1/5, #{}, IQDisc).
 
 stop(HostType) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm),
     ok.
 
-legacy_hooks(HostType) ->
-    [{unset_presence_hook, HostType, ?MODULE, remove_connection, 10},
-     {user_send_packet, HostType, ?MODULE, user_send_packet, 89},
-     {user_receive_packet, HostType, ?MODULE, user_receive_packet, 89}].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
+    [
+     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+     {unset_presence_hook, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
+     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 89},
+     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 89}
+    ].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
              defaults = #{<<"iqdisc">> => no_queue}}.
 
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           map(),
-                           map()) -> {ok, mongoose_disco:feature_acc()}.
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     NewAcc = mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc),
     {ok, NewAcc};
@@ -140,18 +138,31 @@ iq_handler(Acc, From, #iq{type = set,
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
-user_send_packet(Acc, From, To, Packet) ->
+-spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, From, To, Packet, sent),
-    Acc.
+    {ok, Acc}.
 
-user_receive_packet(Acc, JID, _From, To, Packet) ->
+-spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: map().
+user_receive_packet(Acc, #{jid := JID}, _) ->
+    {_, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, JID, To, Packet, received),
-    Acc.
+    {ok, Acc}.
 
-remove_connection(Acc, LUser, LServer, LResource, _Status) ->
-    JID = jid:make_noprep(LUser, LServer, LResource),
+-spec remove_connection(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: map().
+remove_connection(Acc, #{jid := JID}, _) ->
     disable(JID),
-    Acc.
+    {ok, Acc}.
 
 % Check if the traffic is local.
 % Modified from original version:
