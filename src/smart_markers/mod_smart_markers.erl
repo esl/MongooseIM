@@ -69,10 +69,9 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([process_iq/5, user_send_packet/4, filter_local_packet/1,
-         remove_user/3, remove_domain/3, forget_room/4, room_new_affiliations/4]).
--ignore_xref([process_iq/5, user_send_packet/4, filter_local_packet/1,
-              remove_user/3, remove_domain/3, forget_room/4, room_new_affiliations/4]).
+-export([process_iq/5, user_send_packet/3, filter_local_packet/3,
+         remove_user/3, remove_domain/3, forget_room/3, room_new_affiliations/3]).
+-ignore_xref([process_iq/5]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -95,7 +94,7 @@ start(HostType, #{iqdisc := IQDisc, keep_private := Private} = Opts) ->
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm,
       fun ?MODULE:process_iq/5, #{keep_private => Private}, IQDisc),
-    ejabberd_hooks:add(hooks(HostType, Opts)).
+    gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -105,7 +104,7 @@ stop(HostType) ->
         _ -> ok
     end,
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm),
-    ejabberd_hooks:delete(hooks(HostType, Opts)).
+    gen_hook:delete_handlers(hooks(HostType, Opts)).
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -191,21 +190,29 @@ maybe_thread(Bin) ->
     [{<<"thread">>, Bin}].
 
 %% HOOKS
--spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> [ejabberd_hooks:hook()].
+-spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> gen_hook:hook_list().
 hooks(HostType, #{keep_private := KeepPrivate}) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90} |
+    [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90} |
     private_hooks(HostType, KeepPrivate) ++ removal_hooks(HostType)].
 
 private_hooks(_HostType, false) ->
     [];
 private_hooks(HostType, true) ->
-    [{filter_local_packet, HostType, ?MODULE, filter_local_packet, 20}].
+    [{filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 20}].
 
 removal_hooks(HostType) ->
-    [{remove_user, HostType, ?MODULE, remove_user, 60},
-     {remove_domain, HostType, ?MODULE, remove_domain, 60},
-     {forget_room, HostType, ?MODULE, forget_room, 85},
-     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}].
+    [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 60},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 60},
+     {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 85},
+     {room_new_affiliations, HostType, fun ?MODULE:room_new_affiliations/3, #{}, 60}].
+
+-spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: map(),
+      Extra :: map().
+user_send_packet(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
+    {ok, user_send_packet(Acc, From, To, Packet)}.
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
@@ -219,54 +226,64 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec filter_local_packet(mongoose_hooks:filter_packet_acc() | drop) ->
-    mongoose_hooks:filter_packet_acc() | drop.
-filter_local_packet(Filter = {_From, _To, _Acc, Msg = #xmlel{name = <<"message">>}}) ->
-    case mongoose_chat_markers:has_chat_markers(Msg) of
+-spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_hooks:filter_packet_acc() | drop,
+      Params :: map(),
+      Extra :: map().
+filter_local_packet(Filter = {_From, _To, _Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
+    NewFilter = case mongoose_chat_markers:has_chat_markers(Msg) of
         false -> Filter;
         true -> drop
-    end;
-filter_local_packet(Filter) ->
-    Filter.
+    end,
+    {ok, NewFilter};
+filter_local_packet(Filter, _, _) ->
+    {ok, Filter}.
 
-remove_user(Acc, User, Server) ->
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_smart_markers_backend:remove_user(HostType, jid:make_bare(User, Server)),
-    Acc.
+    {ok, Acc}.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_smart_markers_backend:remove_domain(HostType, Domain),
-    Acc.
+    {ok, Acc}.
 
--spec forget_room(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver(), jid:luser()) ->
-    mongoose_hooks:simple_acc().
-forget_room(Acc, HostType, RoomS, RoomU) ->
+-spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:simple_acc(),
+      Params :: #{muc_host := jid:lserver(), room := jid:luser()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) ->
     mod_smart_markers_backend:remove_to(HostType, jid:make_noprep(RoomU, RoomS, <<>>)),
-    Acc.
+    {ok, Acc}.
 
 %% The new affs can be found in the Acc:element, where we can scan for 'none' ones
--spec room_new_affiliations(mongoose_acc:t(), jid:jid(), mod_muc_light:aff_users(), binary()) ->
-    mongoose_acc:t().
-room_new_affiliations(Acc, RoomJid, _NewAffs, _NewVersion) ->
+-spec room_new_affiliations(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_domain_api:simple_acc(),
+      Params :: #{room := jid:jid()},
+      Extra :: map().
+room_new_affiliations(Acc, #{room := RoomJID}, _) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    case mongoose_acc:element(Acc) of
-        undefined -> Acc;
-        Packet ->
-            case exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
-                                           {element_with_attr, <<"affiliation">>, <<"none">>},
-                                           cdata]) of
-                [] -> Acc;
-                Users ->
-                    [begin
-                         FromJid = jid:to_bare(jid:from_binary(User)),
-                         mod_smart_markers_backend:remove_to_for_user(HostType, FromJid, RoomJid)
-                     end || User <- Users ],
-                    Acc
-            end
-    end.
+    Packet = mongoose_acc:element(Acc),
+    maybe_remove_to_for_users(Packet, RoomJID, HostType),
+    {ok, Acc}.
+
+-spec maybe_remove_to_for_users(exml:element() | undefined, jid:jid(), mongooseim:host_type()) -> ok.
+maybe_remove_to_for_users(undefined, _, _) -> ok;
+maybe_remove_to_for_users(Packet, RoomJID, HostType) ->
+    Users = exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
+                                      {element_with_attr, <<"affiliation">>, <<"none">>},
+                                      cdata]),
+    FromJIDs = lists:map(fun(U) -> jid:to_bare(jid:from_binary(U)) end, Users),
+    RemoveFun = fun(FromJID) -> mod_smart_markers_backend:remove_to_for_user(HostType, FromJID, RoomJID) end,
+    lists:foreach(RemoveFun, FromJIDs).
 
 %%--------------------------------------------------------------------
 %% Other API

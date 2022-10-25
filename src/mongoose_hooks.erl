@@ -1008,8 +1008,11 @@ room_exists(HostType, Room) ->
       Version :: binary(),
       NewAcc :: mongoose_acc:t().
 room_new_affiliations(Acc, Room, NewAffs, Version) ->
+    Params = #{room => Room, new_affs => NewAffs, version => Version},
+    Args = [Room, NewAffs, Version],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    run_hook_for_host_type(room_new_affiliations, HostType, Acc, [Room, NewAffs, Version]).
+    run_hook_for_host_type(room_new_affiliations, HostType, Acc, ParamsWithLegacyArgs).
 
 %% MAM related hooks
 
@@ -1465,7 +1468,10 @@ filter_room_packet(HostType, Packet, EventData) ->
     Room :: jid:luser(),
     Result :: any().
 forget_room(HostType, MucHost, Room) ->
-    run_hook_for_host_type(forget_room, HostType, #{}, [HostType, MucHost, Room]).
+    Params = #{muc_host => MucHost, room => Room},
+    Args = [HostType, MucHost, Room],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(forget_room, HostType, #{}, ParamsWithLegacyArgs).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),
