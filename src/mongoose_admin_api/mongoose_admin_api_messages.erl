@@ -69,24 +69,24 @@ handle_get(Req, State) ->
     Args = parse_qs(Req),
     Limit = get_limit(Args),
     Before = get_before(Args),
-    Rows = mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit),
-    Messages = lists:map(fun row_to_map/1, Rows),
-    {jiffy:encode(Messages), Req, State}.
+    case mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit, true) of
+        {ok, {Rows, _Limit}} ->
+            Messages = lists:map(fun row_to_map/1, Rows),
+            {jiffy:encode(Messages), Req, State};
+        {unknown_user, Msg} ->
+            throw_error(bad_request, Msg)
+    end.
 
 handle_post(Req, State) ->
     Args = parse_body(Req),
     From = get_caller(Args),
     To = get_to(Args),
     Body = get_body(Args),
-    Packet = mongoose_stanza_helper:build_message(
-               jid:to_binary(From), jid:to_binary(To), Body),
-    case mongoose_stanza_helper:route(From, To, Packet, true) of
-        {error, #{what := unknown_domain}} ->
-            throw_error(bad_request, <<"Unknown domain">>);
-        {error, #{what := unknown_user}} ->
-            throw_error(bad_request, <<"Unknown user">>);
+    case mongoose_stanza_api:send_chat_message(undefined, From, To, Body) of
         {ok, _} ->
-            {true, Req, State}
+            {true, Req, State};
+        {_Error, Msg} ->
+            throw_error(bad_request, Msg)
     end.
 
 -spec row_to_map(mod_mam:message_row()) -> map().
@@ -103,7 +103,7 @@ row_to_map(#{id := Id, jid := From, packet := Msg}) ->
 get_limit(#{limit := LimitBin}) ->
     try
         Limit = binary_to_integer(LimitBin),
-        true = Limit >= 0 andalso Limit =< 500,
+        true = Limit >= 0,
         Limit
     catch
         _:_ -> throw_error(bad_request, <<"Invalid limit">>)
@@ -116,7 +116,7 @@ get_before(#{before := BeforeBin}) ->
     catch
         _:_ -> throw_error(bad_request, <<"Invalid value of 'before'">>)
     end;
-get_before(#{}) -> 0.
+get_before(#{}) -> undefined.
 
 get_owner_jid(#{owner := Owner}) ->
     case jid:from_binary(Owner) of
