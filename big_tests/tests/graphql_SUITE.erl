@@ -7,7 +7,8 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, execute_user/3]).
+-import(graphql_helper, [execute/3, execute_auth/2, execute_user/3,
+                         get_value/2, get_bad_request/1]).
 
 -define(assertAdminAuth(Domain, Type, Auth, Data),
         assert_auth(#{<<"domain">> => Domain,
@@ -54,7 +55,8 @@ common_tests() ->
 
 categories_disabled_tests() ->
     [category_disabled_error_test,
-     admin_checks_auth].
+     admin_checks_auth,
+     category_does_not_exists_error].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -157,7 +159,17 @@ auth_domain_admin_checks_auth(Config) ->
 
 category_disabled_error_test(Config) ->
     Ep = ?config(schema_endpoint, Config),
-    StatusData = execute(Ep, admin_server_get_loglevel_body(), undefined).
+    Status = execute(Ep, admin_server_get_loglevel_body(), undefined),
+    get_bad_request(Status),
+    {_Code, #{<<"errors">> := [Msg]}} = Status,
+    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], Msg)).
+
+category_does_not_exists_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Status = execute(Ep, #{<<"query">> => <<"{ field ">>}, undefined),
+    get_bad_request(Status),
+    {_Code, #{<<"errors">> := [Msg]}} = Status,
+    ?assertEqual(<<"parser_error">>, get_value([extensions, code], Msg)).
 
 %% Helpers
 
