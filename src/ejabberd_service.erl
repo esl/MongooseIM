@@ -155,8 +155,8 @@ start_listener(Opts) ->
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                      El :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
-process_packet(Acc, From, To, _El, #{pid := Pid}) ->
-    Pid ! {route, From, To, Acc},
+process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
+    Pid ! {route, Acc},
     Acc.
 
 %%%----------------------------------------------------------------------
@@ -372,8 +372,9 @@ handle_info({send_element, El}, StateName, StateData) ->
                  component => component_host(StateData), exml_packet => El}),
     send_element(StateData, El),
     {next_state, StateName, StateData};
-handle_info({route, From, To, Acc}, StateName, StateData) ->
-    Packet = mongoose_acc:element(Acc),
+handle_info({route, Acc}, StateName, StateData) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
+
     ?LOG_DEBUG(#{what => comp_route,
                  text => <<"Route packet to an external component">>,
                  component => component_host(StateData), acc => Acc}),

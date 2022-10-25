@@ -669,7 +669,7 @@ do_route(Acc, From, To, El) ->
                 Pid when is_pid(Pid) ->
                     ?LOG_DEBUG(#{what => sm_route_to_pid,
                                  session_pid => Pid, acc => Acc}),
-                    Pid ! {route, From, To, Acc},
+                    Pid ! {route, Acc},
                     Acc
             end
     end.
@@ -810,7 +810,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, Acc};
+                      Pid ! {route, Acc};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok
@@ -907,7 +907,7 @@ check_for_sessions_to_replace(HostType, JID) ->
     %% replacement for max_sessions. We need to check this at some point.
     ReplacedRedundantSessions = check_existing_resources(HostType, LUser, LServer, LResource),
     AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions),
-    [Pid ! replaced || Pid <- AllReplacedSessionPids],
+    [mongoose_c2s:exit(Pid, <<"Replaced by new connection">>) || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
 -spec check_existing_resources(HostType, LUser, LServer, LResource) ->

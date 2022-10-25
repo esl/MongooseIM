@@ -569,8 +569,6 @@ handle_info(StateData, C2SState, #xmlel{} = El) ->
     handle_c2s_packet(StateData, C2SState, El);
 handle_info(StateData, C2SState, {route, Acc}) ->
     handle_stanza_to_client(StateData, C2SState, Acc);
-handle_info(StateData, C2SState, {route, _From, _To, Acc}) ->
-    handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
   when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
@@ -845,9 +843,6 @@ send_element_from_server_jid(StateData, El) ->
 bounce_messages(StateData) ->
     receive
         {route, Acc} ->
-            reroute(StateData, Acc),
-            bounce_messages(StateData);
-        {route, _From, _To, Acc} ->
             reroute(StateData, Acc),
             bounce_messages(StateData);
         _ ->

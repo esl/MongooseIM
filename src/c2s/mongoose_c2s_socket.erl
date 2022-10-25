@@ -98,7 +98,6 @@ activate(#c2s_socket{module = Module, state = State}) ->
 close(#c2s_socket{module = Module, state = State}) ->
     Module:socket_close(State).
 
-% TODO: Check if XML can be an array
 -spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
 send_xml(#c2s_socket{module = Module, state = State}, XML) ->
     Module:socket_send_xml(State, XML).

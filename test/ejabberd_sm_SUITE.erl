@@ -340,8 +340,10 @@ too_much_sessions(_C) ->
     given_session_opened(AddSid, AddUSR),
 
     receive
-        replaced ->
-            ok
+        {'$gen_cast', {exit, <<"Replaced by new connection">>}} ->
+            ok;
+        Message ->
+            ct:fail("Unexpected message: ~p", [Message])
     after 10 ->
         ct:fail("replaced message not sent")
     end.
