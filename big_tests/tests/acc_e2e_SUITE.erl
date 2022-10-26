@@ -170,13 +170,13 @@ acc_test_helper_code(Config) ->
     binary_to_list(Code).
 
 add_handler(Hook, F, Seq) ->
-    rpc(mim(), ejabberd_hooks, add, handler(Hook, F, Seq)).
+    rpc(mim(), gen_hook, add_handler, handler(Hook, F, Seq)).
 
 remove_handler(Hook, F, Seq) ->
-    rpc(mim(), ejabberd_hooks, delete, handler(Hook, F, Seq)).
+    rpc(mim(), gen_hook, delete_handler, handler(Hook, F, Seq)).
 
 handler(Hook, F, Seq) ->
-    [Hook, domain_helper:host_type(mim), acc_test_helper, F, Seq].
+    [Hook, domain_helper:host_type(mim), fun acc_test_helper:F/3, #{}, Seq].
 
 %% creates a temporary ets table keeping refs and some attrs of accumulators created in c2s
 recreate_table() ->
