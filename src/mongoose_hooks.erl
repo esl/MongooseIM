@@ -180,8 +180,11 @@
     C2SState :: ejabberd_c2s:state(),
     Result :: term(). % ok | empty_state | HandlerState
 c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
+    Params = #{tag => Tag, hook_args => Args, c2s_state => C2SState},
+    LegacyArgs = [Tag, Args, C2SState],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, LegacyArgs),
     run_hook_for_host_type(c2s_remote_hook, HostType, HandlerState,
-                           [Tag, Args, C2SState]).
+                           ParamsWithLegacyArgs).
 
 -spec adhoc_local_commands(HostType, From, To, AdhocRequest) -> Result when
     HostType :: mongooseim:host_type(),
@@ -493,7 +496,10 @@ user_receive_packet(HostType, Acc, JID, From, To, El) ->
     JID :: jid:jid(),
     Result :: any().
 user_sent_keep_alive(HostType, JID) ->
-    run_hook_for_host_type(user_sent_keep_alive, HostType, ok, [JID]).
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(user_sent_keep_alive, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc A hook called when a user sends an XMPP stanza.
 %%% The hook's handler is expected to accept four parameters:

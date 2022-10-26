@@ -26,17 +26,14 @@
 
 %% Hook callbacks
 -export([iq_ping/5,
-         user_online/5,
-         user_offline/5,
-         user_send/4,
-         user_ping_response/5,
-         user_keep_alive/2]).
+         user_online/3,
+         user_offline/3,
+         user_send/3,
+         user_ping_response/3,
+         user_keep_alive/3]).
 
 %% Remote hook callback
--export([handle_remote_hook/4]).
-
--ignore_xref([handle_remote_hook/4, user_keep_alive/2, user_offline/5, user_online/5,
-              user_ping_response/5, user_ping_response/5, user_send/4]).
+-export([handle_remote_hook/3]).
 
 %%====================================================================
 %% Info Handler
@@ -75,12 +72,12 @@ route_ping_iq(JID, Server, HostType) ->
 %%====================================================================
 
 hooks(HostType) ->
-    [{sm_register_connection_hook, HostType, ?MODULE, user_online, 100},
-     {sm_remove_connection_hook, HostType, ?MODULE, user_offline, 100},
-     {user_send_packet, HostType, ?MODULE, user_send, 100},
-     {user_sent_keep_alive, HostType, ?MODULE, user_keep_alive, 100},
-     {user_ping_response, HostType, ?MODULE, user_ping_response, 100},
-     {c2s_remote_hook, HostType, ?MODULE, handle_remote_hook, 100}].
+    [{sm_register_connection_hook, HostType, fun ?MODULE:user_online/3, #{}, 100},
+     {sm_remove_connection_hook, HostType, fun ?MODULE:user_offline/3, #{}, 100},
+     {user_send_packet, HostType, fun ?MODULE:user_send/3, #{}, 100},
+     {user_sent_keep_alive, HostType, fun ?MODULE:user_keep_alive/3, #{}, 100},
+     {user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100},
+     {c2s_remote_hook, HostType, fun ?MODULE:handle_remote_hook/3, #{}, 100}].
 
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response], spiral),
@@ -102,7 +99,7 @@ start(HostType, #{send_pings := SendPings, iqdisc := IQDisc}) ->
 
 -spec maybe_add_hooks_handlers(mongooseim:host_type(), boolean()) -> ok.
 maybe_add_hooks_handlers(Host, true) ->
-    ejabberd_hooks:add(hooks(Host));
+    gen_hook:add_handlers(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
@@ -110,7 +107,7 @@ maybe_add_hooks_handlers(_, _) ->
 stop(HostType) ->
 %%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
 %%    won't stop currently running timers. They'll run one more time, and then stop.
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm),
     ok.
@@ -152,43 +149,62 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 %% Hook callbacks
 %%====================================================================
 
-handle_remote_hook(HandlerState, mod_ping, Args, C2SState) ->
-    handle_remote_call(Args,
+-spec handle_remote_hook(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{tag := atom(), args := term(), c2s_state := ejabberd_c2s:state()},
+    Extra :: map().
+handle_remote_hook(HandlerState, #{tag := mod_ping, hook_args := Args, c2s_state := C2SState}, _) ->
+    {ok, handle_remote_call(Args,
                        ejabberd_c2s_state:jid(C2SState),
                        ejabberd_c2s_state:server(C2SState),
                        ejabberd_c2s_state:host_type(C2SState),
-                       HandlerState);
-handle_remote_hook(HandlerState, _, _, _) ->
-    HandlerState.
+                       HandlerState)};
+handle_remote_hook(HandlerState, _, _) ->
+    {ok, HandlerState}.
 
-user_online(Acc, _HostType, {_, Pid} = _SID, _Jid, _Info) ->
+-spec user_online(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok,
+    Params :: #{sid := ejabberd_sm:sid()},
+    Extra :: map().
+user_online(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
-    Acc.
+    {ok, Acc}.
 
-user_offline(Acc, {_, Pid} = _SID, _JID, _Info, _Reason) ->
+-spec user_offline(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{sid := ejabberd_sm:sid()},
+    Extra :: map().
+user_offline(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, remove_timer),
-    Acc.
+    {ok, Acc}.
 
-user_send(Acc, _JID, _From, _Packet) ->
+-spec user_send(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: map(),
+      Extra :: map().
+user_send(Acc, _, _) ->
     ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
-    Acc.
+    {ok, Acc}.
 
-user_keep_alive(Acc, _JID) ->
+-spec user_keep_alive(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: map(),
+      Extra :: map().
+user_keep_alive(Acc, _, _) ->
     ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
-    Acc.
+    {ok, Acc}.
 
--spec user_ping_response(Acc :: mongoose_acc:t(),
-                         HostType :: mongooseim:host_type(),
-                         JID :: jid:jid(),
-                         Response :: timeout | jlib:iq(),
-                         TDelta :: pos_integer()) -> mongoose_acc:t().
-user_ping_response(Acc, HostType, _JID, timeout, _TDelta) ->
+-spec user_ping_response(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer()},
+    Extra :: #{host_type := mongooseim:host_type()}.
+user_ping_response(Acc, #{response := timeout}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, [mod_ping, ping_response_timeout], 1),
-    Acc;
-user_ping_response(Acc, HostType, _JID, _Response, TDelta) ->
+    {ok, Acc};
+user_ping_response(Acc, #{time_delta := TDelta}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, [mod_ping, ping_response_time], TDelta),
     mongoose_metrics:update(HostType, [mod_ping, ping_response], 1),
-    Acc.
+    {ok, Acc}.
 
 %%====================================================================
 %% Implementation
