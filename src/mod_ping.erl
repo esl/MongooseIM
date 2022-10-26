@@ -164,7 +164,7 @@ handle_remote_hook(HandlerState, _, _) ->
 
 -spec user_online(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: #{sid := 'undefined' | ejabberd_sm:sid()},
+    Params :: #{sid := ejabberd_sm:sid()},
     Extra :: map().
 user_online(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
@@ -172,7 +172,7 @@ user_online(Acc, #{sid := {_, Pid}}, _) ->
 
 -spec user_offline(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{sid := 'undefined' | ejabberd_sm:sid()},
+    Params :: #{sid := ejabberd_sm:sid()},
     Extra :: map().
 user_offline(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, remove_timer),
