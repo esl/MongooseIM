@@ -458,6 +458,7 @@ build_params(Params, #rsm_in{max = Max, id = undefined}) when Max =/= undefined 
     Params#{limit => Max};
 build_params(Params, #rsm_in{max = Max, id = ISO, direction = Dir}) when is_binary(ISO) ->
     case {mod_inbox_utils:maybe_binary_to_positive_integer(ISO), Dir} of
+        {{error, _}, before} -> Params#{limit => Max, 'end' => (1 bsl 63 - 1)};
         {{error, _}, _} -> {error, bad_request, <<"bad-request">>};
         {Stamp, aft} -> Params#{limit => Max, start => Stamp + 1};
         {Stamp, undefined} -> Params#{limit => Max, start => Stamp + 1};

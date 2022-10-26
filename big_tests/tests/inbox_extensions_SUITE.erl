@@ -100,6 +100,7 @@ groups() ->
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
         inbox_can_paginate_forwards,
+        inbox_can_paginate_backwards,
         max_queries_can_be_limited,
         max_queries_can_fetch_ahead,
         timestamp_is_not_reset_with_setting_properties
@@ -688,6 +689,30 @@ inbox_can_paginate_forwards(Config) ->
         inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params1),
         Params2 = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike,
                     'after' => to_int(TimeAfterBob) - 99999},
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate, ConvWithBob], Params2)
+    end).
+
+inbox_can_paginate_backwards(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % Extract all the helper values
+        ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        TimeAfterBob = ConvWithBob#conv.time_after,
+        TimeAfterKate = ConvWithKate#conv.time_after,
+        TimeAfterMike = ConvWithMike#conv.time_after,
+        % We set end to return Convs with Mike, but using RSM we override that
+        Params1 = #{box => inbox, 'end' => TimeAfterMike,
+                    before => to_int(TimeAfterBob)},
+        inbox_helper:check_inbox(Alice, [ConvWithBob], Params1),
+        Params2 = #{box => inbox, 'end' => TimeAfterMike,
+                    before => to_int(TimeAfterMike) + 99999},
         inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate, ConvWithBob], Params2)
     end).
 
