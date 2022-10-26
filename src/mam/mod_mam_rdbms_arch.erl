@@ -31,7 +31,7 @@
 %% Called from mod_mam_rdbms_async_pool_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 
--ignore_xref([behaviour_info/1, remove_archive/4, remove_domain/3]).
+-ignore_xref([behaviour_info/1, remove_archive/4]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -103,13 +103,15 @@ uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
 
 -spec start_hooks(host_type()) -> ok.
 start_hooks(HostType) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop_hooks(host_type()) -> ok.
 stop_hooks(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)).
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, no_writer) of
         true ->
             [];
@@ -119,8 +121,13 @@ hooks(HostType) ->
     [{mam_archive_size, HostType, ?MODULE, archive_size, 50},
      {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
      {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [
+        {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}
+    ].
 
 %% ----------------------------------------------------------------------
 %% SQL queries
@@ -340,9 +347,11 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
     Acc.
 
--spec remove_domain(mongoose_domain_api:remove_domain_acc(), host_type(), jid:lserver()) ->
-    mongoose_domain_api:remove_domain_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_domain_api:remove_domain_acc(),
+    Params :: map(),
+    Extra :: map().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             case gen_mod:get_module_opt(HostType, ?MODULE, delete_domain_limit) of
                 infinity -> remove_domain_all(HostType, Domain);

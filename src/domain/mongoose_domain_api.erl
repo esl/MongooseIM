@@ -271,9 +271,10 @@ get_all_subdomains_for_domain(Domain) ->
     mongoose_subdomain_core:get_all_subdomains_for_domain(Domain).
 
 -spec remove_domain_wrapper(remove_domain_acc(), fun(() -> remove_domain_acc()), module()) ->
-    remove_domain_acc() | {stop, remove_domain_acc()}.
+    {ok | stop, remove_domain_acc()}.
 remove_domain_wrapper(Acc, F, Module) ->
-    try F()
+    try F() of
+        Acc -> {ok, Acc}
     catch C:R:S ->
         ?LOG_ERROR(#{what => hook_failed,
                      text => <<"Error running hook">>,

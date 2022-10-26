@@ -969,7 +969,10 @@ roster_set(HostType, From, To, SubEl) ->
       User :: jid:jid(),
       Result :: boolean().
 is_muc_room_owner(HostType, Acc, Room, User) ->
-    run_hook_for_host_type(is_muc_room_owner, HostType, false, [Acc, Room, User]).
+    Params = #{acc => Acc, room => Room, user => User},
+    Args = [Acc, Room, User],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(is_muc_room_owner, HostType, false, ParamsWithLegacyArgs).
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.
@@ -979,7 +982,10 @@ is_muc_room_owner(HostType, Acc, Room, User) ->
       User :: jid:jid(),
       Result :: boolean().
 can_access_identity(HostType, Room, User) ->
-    run_hook_for_host_type(can_access_identity, HostType, false, [HostType, Room, User]).
+    Params = #{room => Room, user => User},
+    Args = [HostType, Room, User],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(can_access_identity, HostType, false, ParamsWithLegacyArgs).
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.
@@ -990,22 +996,31 @@ can_access_identity(HostType, Room, User) ->
       User :: jid:jid(),
       Result :: boolean().
 can_access_room(HostType, Acc, Room, User) ->
-    run_hook_for_host_type(can_access_room, HostType, false, [Acc, Room, User]).
+    Params = #{acc => Acc, room => Room, user => User},
+    Args = [Acc, Room, User],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(can_access_room, HostType, false, ParamsWithLegacyArgs).
 
 -spec acc_room_affiliations(Acc, Room) -> NewAcc when
       Acc :: mongoose_acc:t(),
       Room :: jid:jid(),
       NewAcc :: mongoose_acc:t().
 acc_room_affiliations(Acc, Room) ->
+    Params = #{room => Room},
+    Args = [Room],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
+    run_hook_for_host_type(acc_room_affiliations, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec room_exists(HostType, Room) -> Result when
       HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       Result :: boolean().
 room_exists(HostType, Room) ->
-    run_hook_for_host_type(room_exists, HostType, false, [HostType, Room]).
+    Params = #{room => Room},
+    Args = [HostType, Room],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(room_exists, HostType, false, ParamsWithLegacyArgs).
 
 -spec room_new_affiliations(Acc, Room, NewAffs, Version) -> NewAcc when
       Acc :: mongoose_acc:t(),

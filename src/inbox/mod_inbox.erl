@@ -279,8 +279,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
             mod_inbox_backend:remove_domain(HostType, Domain),
             Acc
         end,
-    NewAcc = mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE),
-    {ok, NewAcc}.
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:feature_acc(),

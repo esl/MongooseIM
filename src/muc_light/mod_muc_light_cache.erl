@@ -8,12 +8,9 @@
 -export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
--export([pre_acc_room_affiliations/2, post_acc_room_affiliations/2,
+-export([pre_acc_room_affiliations/3, post_acc_room_affiliations/3,
          pre_room_exists/3, post_room_exists/3,
-         forget_room/4, remove_domain/3, room_new_affiliations/4]).
--ignore_xref([pre_acc_room_affiliations/2, post_acc_room_affiliations/2,
-              pre_room_exists/3, post_room_exists/3,
-              forget_room/4, remove_domain/3, room_new_affiliations/4]).
+         forget_room/3, remove_domain/3, room_new_affiliations/3]).
 
 %% For tests
 -export([force_clear/1]).
@@ -21,12 +18,12 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     start_cache(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     stop_cache(HostType),
     ok.
 
@@ -39,84 +36,97 @@ config_spec() ->
 supported_features() ->
     [dynamic_domains].
 
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
-     {acc_room_affiliations, HostType, ?MODULE, pre_acc_room_affiliations, 40},
-     {acc_room_affiliations, HostType, ?MODULE, post_acc_room_affiliations, 60},
-     {room_exists, HostType, ?MODULE, pre_room_exists, 40},
-     {room_exists, HostType, ?MODULE, post_room_exists, 60},
-     {forget_room, HostType, ?MODULE, forget_room, 80},
-     {remove_domain, HostType, ?MODULE, remove_domain, 20},
-     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 50}
+     {acc_room_affiliations, HostType, fun ?MODULE:pre_acc_room_affiliations/3, #{}, 40},
+     {acc_room_affiliations, HostType, fun ?MODULE:post_acc_room_affiliations/3, #{}, 60},
+     {room_exists, HostType, fun ?MODULE:pre_room_exists/3, #{}, 40},
+     {room_exists, HostType, fun ?MODULE:post_room_exists/3, #{}, 60},
+     {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 80},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 20},
+     {room_new_affiliations, HostType, fun ?MODULE:room_new_affiliations/3, #{}, 50}
     ].
 
--spec pre_acc_room_affiliations(mongoose_acc:t(), jid:jid()) ->
-    mongoose_acc:t() | {stop, mongoose_acc:t()}.
-pre_acc_room_affiliations(Acc, RoomJid) ->
+-spec pre_acc_room_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+pre_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
     case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
-            HostType = mongoose_acc:host_type(Acc),
             case mongoose_user_cache:get_entry(HostType, ?MODULE, RoomJid) of
                 #{affs := Res} ->
-                    mod_muc_light:set_room_affs_from_acc(Acc, RoomJid, Res);
+                    {ok, mod_muc_light:set_room_affs_from_acc(Acc, RoomJid, Res)};
                 _ ->
-                    Acc
+                    {ok, Acc}
             end;
         _Res ->
             {stop, Acc}
     end.
 
--spec post_acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
-post_acc_room_affiliations(Acc, RoomJid) ->
+-spec post_acc_room_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+post_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
     case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
-            Acc;
+            {ok, Acc};
         Res ->
-            HostType = mongoose_acc:host_type(Acc),
             mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{affs => Res}),
-            Acc
+            {ok, Acc}
     end.
 
--spec pre_room_exists(boolean(), mongooseim:host_type(), jid:jid()) ->
-    boolean() | {stop, true}.
-pre_room_exists(false, HostType, RoomJid) ->
+-spec pre_room_exists(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+pre_room_exists(false, #{room := RoomJid}, #{host_type := HostType}) ->
     case mongoose_user_cache:is_member(HostType, ?MODULE, RoomJid) of
         true -> {stop, true};
-        false -> false
+        false -> {ok, false}
     end;
 pre_room_exists(Status, _, _) ->
-    Status.
+    {ok, Status}.
 
--spec post_room_exists(boolean(), mongooseim:host_type(), jid:jid()) ->
-    boolean().
-post_room_exists(true, HostType, RoomJid) ->
+-spec post_room_exists(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+post_room_exists(true, #{room := RoomJid}, #{host_Type := HostType}) ->
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{}),
-    true;
+    {ok, true};
 post_room_exists(Status, _, _) ->
-    Status.
+    {ok, Status}.
 
--spec forget_room(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver(), binary()) ->
-    mongoose_hooks:simple_acc().
-forget_room(Acc, HostType, RoomS, RoomU) ->
+-spec forget_room(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, jid:make_noprep(RoomU, RoomS, <<>>)),
-    Acc.
+    {ok, Acc}.
 
--spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_domain_api:remove_domain_acc(),
+    Params :: map(),
+    Extra :: map().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = mod_muc_light:server_host_to_muc_host(HostType, Domain),
     mongoose_user_cache:delete_domain(HostType, ?MODULE, MUCHost),
-    Acc.
+    {ok, Acc}.
 
--spec room_new_affiliations(mongoose_acc:t(), jid:jid(), mod_muc_light:aff_users(), binary()) ->
-    mongoose_acc:t().
-room_new_affiliations(Acc, RoomJid, NewAffs, NewVersion) ->
+-spec room_new_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+room_new_affiliations(Acc, #{room := RoomJid, new_affs := NewAffs, version := NewVersion}, _Extra) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     % make sure other nodes forget about stale values
     mongoose_user_cache:delete_user(HostType, ?MODULE, RoomJid),
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{affs => {ok, NewAffs, NewVersion}}),
-    Acc.
+    {ok, Acc}.
 
 -spec force_clear(mongooseim:host_type()) -> ok.
 force_clear(HostType) ->
