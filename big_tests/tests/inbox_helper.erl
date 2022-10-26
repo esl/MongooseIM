@@ -372,7 +372,7 @@ make_inbox_stanza(GetParams) ->
     GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
-                      children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
+                      children = [make_inbox_form(GetParams) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
@@ -380,7 +380,7 @@ make_inbox_stanza(GetParams, Verify) ->
     GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
-                      children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
+                      children = [make_inbox_form(GetParams, Verify) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 inbox_iq(#{iq_id := IqId}) ->
@@ -396,12 +396,25 @@ maybe_query_params(#{queryid := QueryId}) ->
 maybe_query_params(_) ->
     [].
 
-rsm_max(#{limit := Value}) ->
-    [#xmlel{name = <<"set">>,
-            attrs = [{<<"xmlns">>, ?NS_RSM}],
-            children = [#xmlel{name = <<"max">>,
-                               children = [#xmlcdata{content = itb(Value)}]}]}];
-rsm_max(_) -> [].
+rsm(Params) ->
+    Max = maps:get(limit, Params, undefined),
+    Before = maps:get(before, Params, undefined),
+    After = maps:get('after', Params, undefined),
+    Elems = [#xmlel{name = <<"max">>,
+                    children = [#xmlcdata{content = itb(Max)}]}
+             || _ <- [Max], undefined =/= Max ] ++
+            [#xmlel{name = <<"before">>,
+                    children = [#xmlcdata{content = itb(Before)}]}
+             || _ <- [Before], undefined =/= Before ] ++
+            [#xmlel{name = <<"after">>,
+                    children = [#xmlcdata{content = itb(After)}]}
+             || _ <- [After], undefined =/= After ],
+    case Elems of
+        [] -> [];
+        _ -> [#xmlel{name = <<"set">>,
+                     attrs = [{<<"xmlns">>, ?NS_RSM}],
+                     children = Elems}]
+    end.
 
 itb(N) when is_integer(N) -> integer_to_binary(N);
 itb(Bin) when is_binary(Bin) -> Bin.

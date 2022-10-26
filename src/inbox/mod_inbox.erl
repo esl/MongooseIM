@@ -452,12 +452,19 @@ query_to_params(HostType, QueryEl) ->
     get_inbox_params() | {error, bad_request, binary()}.
 build_params({error, bad_request, Msg}, _) ->
     {error, bad_request, Msg};
-build_params(_, #rsm_in{max = error}) ->
+build_params(_, #rsm_in{max = Max, index = Index}) when Max =:= error; Index =:= error ->
     {error, bad_request, <<"bad-request">>};
-build_params(Params, none) ->
-    Params;
-build_params(Params, #rsm_in{max = Max}) when Max =/= undefined ->
-    Params#{limit => Max}.
+build_params(Params, #rsm_in{max = Max, id = undefined}) when Max =/= undefined ->
+    Params#{limit => Max};
+build_params(Params, #rsm_in{max = Max, id = ISO, direction = Dir}) when is_binary(ISO) ->
+    case {mod_inbox_utils:maybe_binary_to_positive_integer(ISO), Dir} of
+        {{error, _}, _} -> {error, bad_request, <<"bad-request">>};
+        {Stamp, aft} -> Params#{limit => Max, start => Stamp + 1};
+        {Stamp, undefined} -> Params#{limit => Max, start => Stamp + 1};
+        {Stamp, before} -> Params#{limit => Max, 'end' => Stamp}
+    end;
+build_params(Params, _Rsm) ->
+    Params.
 
 -spec form_to_params(mongooseim:host_type(), FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.

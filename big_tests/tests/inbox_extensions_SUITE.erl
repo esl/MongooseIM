@@ -99,6 +99,7 @@ groups() ->
         properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
+        inbox_can_paginate_forwards,
         max_queries_can_be_limited,
         max_queries_can_fetch_ahead,
         timestamp_is_not_reset_with_setting_properties
@@ -666,6 +667,30 @@ properties_many_can_be_set(Config, QueryId) ->
                                                 end}], #{box => archive})
     end).
 
+inbox_can_paginate_forwards(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % Extract all the helper values
+        ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        TimeAfterBob = ConvWithBob#conv.time_after,
+        TimeAfterKate = ConvWithKate#conv.time_after,
+        TimeAfterMike = ConvWithMike#conv.time_after,
+        % We set start and end to return Convs with Mike, but using RSM we override that
+        Params1 = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike,
+                    'after' => to_int(TimeAfterBob)},
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params1),
+        Params2 = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike,
+                    'after' => to_int(TimeAfterBob) - 99999},
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate, ConvWithBob], Params2)
+    end).
+
 max_queries_can_be_limited(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
@@ -758,6 +783,9 @@ verify_rsm(#{respond_iq := Iq}) ->
                                {element_with_ns, <<"set">>, ?NS_RSM}]),
     ?assertNotEqual(undefined, exml_query:subelement(Set, <<"first">>)),
     ?assertNotEqual(undefined, exml_query:subelement(Set, <<"last">>)).
+
+to_int(Bin) ->
+    calendar:rfc3339_to_system_time(binary_to_list(Bin), [{unit, microsecond}]).
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
