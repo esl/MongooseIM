@@ -42,6 +42,7 @@
 -export([
          get/2,
          is_subscribed_to_my_presence/3,
+         am_i_subscribed_to_presence/3,
          presence_unavailable_stanza/0,
          get_presence/1,
          set_presence/2
@@ -634,6 +635,11 @@ update_priority(Acc, Priority, Packet, StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
     ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, #{}).
+
+am_i_subscribed_to_presence(LJID, LBareJID, S) ->
+    gb_sets:is_element(LJID, S#presences_state.pres_t)
+    orelse (LJID /= LBareJID)
+    andalso gb_sets:is_element(LBareJID, S#presences_state.pres_t).
 
 -spec am_i_available_to(jid:jid(), jid:jid(), presences_state()) -> boolean().
 am_i_available_to(FromJid, BareJid, Presences) ->

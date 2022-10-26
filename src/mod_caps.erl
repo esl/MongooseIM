@@ -46,13 +46,13 @@
          handle_cast/2, terminate/2, code_change/3]).
 
 -export([user_send_packet/4, user_receive_packet/5,
-         c2s_presence_in/4, c2s_filter_packet/5,
+         user_receive_presence/3, c2s_filter_packet/5,
          c2s_broadcast_recipients/5]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
 
--ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, c2s_presence_in/4,
+-ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, user_receive_presence/3,
               caps_stream_features/3, delete_caps/1, disco_info/1,
               disco_local_identity/1, make_disco_hash/2, read_caps/1, start_link/2,
               user_receive_packet/5, user_send_packet/4]).
@@ -249,39 +249,52 @@ disco_info(Acc = #{node := Node}) ->
         false -> Acc
     end.
 
--spec c2s_presence_in(ejabberd_c2s:state(), jid:jid(), jid:jid(), exml:element()) ->
-          ejabberd_c2s:state().
-c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = Els}) ->
-    ?LOG_DEBUG(#{what => caps_c2s_presence_in,
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
+    mongoose_c2s_hooks:hook_result().
+user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
+    {From, To, #xmlel{attrs = Attrs, children = Els} = Packet} = mongoose_acc:packet(Acc),
+    ?LOG_DEBUG(#{what => user_receive_presence,
                  to => jid:to_binary(To), from => jid:to_binary(From),
-                 exml_packet => Packet, c2s_state => C2SState}),
+                 exml_packet => Packet, c2s_state => StateData}),
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    Subscription = ejabberd_c2s:get_subscription(From, C2SState),
+    Presences = mongoose_c2s:get_mod_state(StateData, mod_presence),
+    Subscription = get_subscription(From, Presences),
     Insert = (Type == <<>> orelse Type == <<"available">>)
         and (Subscription == both orelse Subscription == to),
     Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
     case Insert orelse Delete of
         true ->
             LFrom = jid:to_lower(From),
-            Rs = case ejabberd_c2s:get_aux_field(caps_resources,
-                                                 C2SState)
-                 of
+            Rs = case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
                      {ok, Rs1} -> Rs1;
                      error -> gb_trees:empty()
                  end,
             Caps = read_caps(Els),
             NewRs = case Caps of
-                        nothing when Insert == true -> Rs;
+                        nothing when Insert == true ->
+                            Rs;
                         _ when Insert == true ->
                             ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
                                          to => jid:to_binary(To), from => jid:to_binary(From),
-                                         exml_packet => Packet, c2s_state => C2SState}),
+                                         exml_packet => Packet, c2s_state => StateData}),
                             upsert_caps(LFrom, Caps, Rs);
-                        _ -> gb_trees:delete_any(LFrom, Rs)
+                        _ ->
+                            gb_trees:delete_any(LFrom, Rs)
                     end,
-            ejabberd_c2s:set_aux_field(caps_resources, NewRs,
-                                       C2SState);
-        false -> C2SState
+            {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewRs})};
+        false ->
+            {ok, Acc}
+    end.
+
+get_subscription(From, Presences) ->
+    BareFrom = jid:to_bare(From),
+    F = mod_presence:is_subscribed_to_my_presence(From, BareFrom, Presences),
+    T = mod_presence:am_i_subscribed_to_presence(From, BareFrom, Presences),
+    case {F, T} of
+        {true, true} -> both;
+        {true, false} -> from;
+        {false, true} -> to;
+        {false, false} -> none
     end.
 
 -spec upsert_caps(jid:simple_jid(), caps(), caps_resources()) -> caps_resources().
@@ -394,7 +407,8 @@ legacy_hooks(HostType) ->
      {disco_info, HostType, ?MODULE, disco_info, 1}].
 
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
+     {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 1}].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
