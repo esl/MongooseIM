@@ -128,7 +128,7 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case {mongoose_acc:stanza_type(Acc),
           mongoose_c2s:get_mod_state(StateData, ?MODULE)} of
-        {<<"result">>, #ping_handler{id = PingId, time = T0}} ->
+        {<<"result">>, {ok, #ping_handler{id = PingId, time = T0}}} ->
             IqResponse = mongoose_acc:element(Acc),
             IqId = exml_query:attr(IqResponse, <<"id">>),
             case {IqId, PingId} of

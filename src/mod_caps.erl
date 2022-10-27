@@ -52,7 +52,7 @@
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
 
--ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5, user_receive_presence/3,
+-ignore_xref([c2s_broadcast_recipients/5, c2s_filter_packet/5,
               caps_stream_features/3, delete_caps/1, disco_info/1,
               disco_local_identity/1, make_disco_hash/2, read_caps/1, start_link/2,
               user_receive_packet/5, user_send_packet/4]).
@@ -257,32 +257,39 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
                  to => jid:to_binary(To), from => jid:to_binary(From),
                  exml_packet => Packet, c2s_state => StateData}),
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    Presences = mongoose_c2s:get_mod_state(StateData, mod_presence),
-    Subscription = get_subscription(From, Presences),
-    Insert = (Type == <<>> orelse Type == <<"available">>)
-        and (Subscription == both orelse Subscription == to),
-    Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
-    case Insert orelse Delete of
-        true ->
-            LFrom = jid:to_lower(From),
-            Rs = case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
-                     {ok, Rs1} -> Rs1;
-                     error -> gb_trees:empty()
-                 end,
-            Caps = read_caps(Els),
-            NewRs = case Caps of
-                        nothing when Insert == true ->
-                            Rs;
-                        _ when Insert == true ->
-                            ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
-                                         to => jid:to_binary(To), from => jid:to_binary(From),
-                                         exml_packet => Packet, c2s_state => StateData}),
-                            upsert_caps(LFrom, Caps, Rs);
-                        _ ->
-                            gb_trees:delete_any(LFrom, Rs)
-                    end,
-            {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewRs})};
-        false ->
+    case mongoose_c2s:get_mod_state(StateData, mod_presence) of
+        {ok, Presences} ->
+            Subscription = get_subscription(From, Presences),
+            Insert = (Type == <<>> orelse Type == <<"available">>)
+                and (Subscription == both orelse Subscription == to),
+            Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
+            case Insert orelse Delete of
+                true ->
+                    LFrom = jid:to_lower(From),
+                    Rs = case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
+                            {ok, Rs1} -> Rs1;
+                            {error, not_found} -> gb_trees:empty()
+                        end,
+                    Caps = read_caps(Els),
+                    NewRs = case Caps of
+                                nothing when Insert == true ->
+                                    Rs;
+                                _ when Insert == true ->
+                                    ?LOG_DEBUG(#{what => caps_set_caps,
+                                                 caps => Caps,
+                                                 to => jid:to_binary(To),
+                                                 from => jid:to_binary(From),
+                                                 exml_packet => Packet,
+                                                 c2s_state => StateData}),
+                                    upsert_caps(LFrom, Caps, Rs);
+                                _ ->
+                                    gb_trees:delete_any(LFrom, Rs)
+                            end,
+                    {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewRs})};
+                false ->
+                    {ok, Acc}
+            end;
+        {error, not_found} ->
             {ok, Acc}
     end.
 

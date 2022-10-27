@@ -688,7 +688,10 @@ build_sm_handler(HostType) ->
 
 -spec get_mod_state(mongoose_c2s:c2s_data()) -> sm_state() | {error, not_found}.
 get_mod_state(StateData) ->
-    mongoose_c2s:get_mod_state(StateData, ?MODULE).
+    case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
+        {ok, State} -> State;
+        Error -> Error
+    end.
 
 -spec get_peer_state(pid()) -> {ok, mongoose_c2s:c2s_data()} | {_, _, _}.
 get_peer_state(Pid) ->

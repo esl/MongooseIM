@@ -80,12 +80,11 @@ tcp_to_tls(#c2s_socket{module = Module, state = State} = C2SSocket, LOpts) ->
             {ok, C2SSocket#c2s_socket{state = NewState}};
         Error ->
             Error
-        end.
+    end.
 
 -spec handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
     iodata() | {raw, [term()]} | {error, term()}.
-handle_data(#c2s_socket{module = Module, state = State},
-            {Transport, _Socket, _Data} = Payload) when Transport == tcp; Transport == ssl ->
+handle_data(#c2s_socket{module = Module, state = State}, Payload) ->
     Module:socket_handle_data(State, Payload);
 handle_data(_, _) ->
     {error, bad_packet}.

@@ -116,6 +116,7 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
 has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
     case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket), TlsOpts} of
         {0, {ok, _}, _} -> true;
+        %% 18 is OpenSSL's and fast_tls's error code for self-signed certs
         {18, {ok, _}, #{verify_mode := selfsigned_peer}} -> true;
         {_, {ok, _}, _} -> false;
         {_, error, _} -> false

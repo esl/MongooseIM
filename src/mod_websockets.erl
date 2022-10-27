@@ -87,9 +87,14 @@ config_spec() ->
                                                   validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},
-                       <<"service">> => mongoose_config_spec:xmpp_listener_extra(service)},
+                       <<"service">> => mongoose_config_spec:xmpp_listener_extra(service),
+                       <<"c2s_state_timeout">> => #option{type = int_or_infinity,
+                                                          validate = non_negative},
+                       <<"backwards_compatible_session">> => #option{type = boolean}},
              defaults = #{<<"timeout">> => 60000,
-                          <<"max_stanza_size">> => infinity}
+                          <<"max_stanza_size">> => infinity,
+                          <<"c2s_state_timeout">> => 5000,
+                          <<"backwards_compatible_session">> => true}
             }.
 
 %%--------------------------------------------------------------------
@@ -234,15 +239,17 @@ maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
             {stop, State}
     end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
-                #ws_state{fsm_pid = undefined} = State) ->
+                #ws_state{fsm_pid = undefined,
+                          opts = #{c2s_state_timeout := StateTimeout,
+                                   backwards_compatible_session := BackwardsCompatible}} = State) ->
     Opts = #{
         access => all,
         shaper => none,
         max_stanza_size => 0,
         xml_socket => true,
         hibernate_after => 0,
-        c2s_state_timeout => 5000,
-        backwards_compatible_session => true},
+        c2s_state_timeout => StateTimeout,
+        backwards_compatible_session => BackwardsCompatible},
     do_start_fsm(mongoose_c2s, Opts, State);
 maybe_start_fsm(_Els, State) ->
     {ok, State}.

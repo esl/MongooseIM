@@ -578,11 +578,6 @@ handle_info(StateData, C2SState, {Closed, _Socket} = SocketData)
 handle_info(StateData, C2SState, {Error, _Socket} = SocketData)
   when Error =:= tcp_error; Error =:= ssl_error ->
     handle_socket_error(StateData, C2SState, SocketData);
-handle_info(StateData, _C2SState, replaced) ->
-    StreamConflict = mongoose_xmpp_errors:stream_conflict(),
-    send_element_from_server_jid(StateData, StreamConflict),
-    send_trailer(StateData),
-    {stop, {shutdown, replaced}};
 handle_info(StateData, C2SState, Info) ->
     handle_foreign_event(StateData, C2SState, info, Info).
 
@@ -983,9 +978,12 @@ get_lang(#c2s_data{lang = Lang}) ->
 get_stream_id(#c2s_data{streamid = StreamId}) ->
     StreamId.
 
--spec get_mod_state(c2s_data(), atom()) -> term() | {error, not_found}.
+-spec get_mod_state(c2s_data(), atom()) -> {ok, term()} | {error, not_found}.
 get_mod_state(#c2s_data{state_mod = Handlers}, HandlerName) ->
-    maps:get(HandlerName, Handlers, {error, not_found}).
+    case maps:get(HandlerName, Handlers, undefined) of
+        undefined -> {error, not_found};
+        HandlerState -> {ok, HandlerState}
+    end.
 
 -spec merge_mod_state(c2s_data(), map()) -> c2s_data().
 merge_mod_state(StateData = #c2s_data{state_mod = StateHandlers}, MoreHandlers) ->

@@ -45,7 +45,8 @@
          am_i_subscribed_to_presence/3,
          presence_unavailable_stanza/0,
          get_presence/1,
-         set_presence/2
+         set_presence/2,
+         maybe_get_handler/1
         ]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -604,13 +605,16 @@ close_session_status(_) ->
 -spec maybe_get_handler(mongoose_c2s:c2s_data()) -> presences_state().
 maybe_get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
-        #presences_state{} = Presences -> Presences;
+        {ok, #presences_state{} = Presences} -> Presences;
         {error, not_found} -> #presences_state{}
     end.
 
 -spec get_mod_state(mongoose_c2s:c2s_data()) -> presences_state() | {error, not_found}.
 get_mod_state(StateData) ->
-    mongoose_c2s:get_mod_state(StateData, ?MODULE).
+    case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
+        {ok, Presence} -> Presence;
+        Error -> Error
+    end.
 
 -spec get_priority_from_presence(exml:element()) -> priority().
 get_priority_from_presence(PresencePacket) ->

@@ -111,7 +111,7 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
 -spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:c2s_data()) -> ok.
 blocking_presence_to_contacts(_Action, [], _StateData) -> ok;
 blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
-    Presences = mongoose_c2s:get_mod_state(StateData, mod_presence),
+    Presences = mod_presence:maybe_get_handler(StateData),
     Pres = case Action of
                block ->
                    mod_presence:presence_unavailable_stanza();
