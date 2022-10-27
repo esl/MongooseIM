@@ -1107,9 +1107,12 @@ mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
     NeverJIDs :: [jid:literel_jid()],
     Result :: any().
 mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID, default_mode => DefaultMode,
+               always_jids => AlwaysJIDs, never_jids => NeverJIDs},
+    Args = [HookServer, ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mam_set_prefs, HookServer, {error, not_implemented},
-                           [HookServer, ArchiveID, OwnerJID,
-                            DefaultMode, AlwaysJIDs, NeverJIDs]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_get_prefs' hook is called to read
 %%% the archive settings for a given user.
@@ -1120,9 +1123,12 @@ mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJI
       OwnerJID :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
 mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
+    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID},
+    Args = [HookServer, ArchiveID, OwnerJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAccValue = {DefaultMode, [], []}, %% mod_mam:preference() type
     run_hook_for_host_type(mam_get_prefs, HookServer, InitialAccValue,
-                           [HookServer, ArchiveID, OwnerJID]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_remove_archive' hook is called in order to
 %%% remove the entire archive for a particular user.
@@ -1131,8 +1137,11 @@ mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
       ArchiveID :: undefined | mod_mam:archive_id(),
       OwnerJID :: jid:jid().
 mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
+    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID},
+    Args = [HookServer, ArchiveID, OwnerJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mam_remove_archive, HookServer, ok,
-                           [HookServer, ArchiveID, OwnerJID]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_lookup_messages' hook is to retrieve
 %%% archived messages for given search parameters.
@@ -1141,9 +1150,11 @@ mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
 mam_lookup_messages(HookServer, Params) ->
+    Args = [HookServer, Params],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
     run_hook_for_host_type(mam_lookup_messages, HookServer, {ok, InitialLookupValue},
-                           [HookServer, Params]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_archive_message' hook is called in order
 %%% to store the message in the archive.
@@ -1153,15 +1164,19 @@ mam_lookup_messages(HookServer, Params) ->
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_archive_message(HookServer, Params) ->
-    run_hook_for_host_type(mam_archive_message, HookServer, ok, [HookServer, Params]).
+    Args = [HookServer, Params],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_archive_message, HookServer, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_flush_messages' hook is run after the async bulk write
 %%% happens for messages despite the result of the write.
 -spec mam_flush_messages(HookServer :: jid:lserver(),
                          MessageCount :: integer()) -> ok.
 mam_flush_messages(HookServer, MessageCount) ->
-    run_hook_for_host_type(mam_flush_messages, HookServer, ok,
-                           [HookServer, MessageCount]).
+    Params = #{message_count => MessageCount},
+    Args = [HookServer, MessageCount],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_flush_messages, HookServer, ok, ParamsWithLegacyArgs).
 
 %% @doc Waits until all pending messages are written
 -spec mam_archive_sync(HostType :: mongooseim:host_type()) -> ok.
@@ -1235,10 +1250,12 @@ mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
       NeverJIDs :: [jid:literel_jid()],
       Result :: any().
 mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    Params = #{archive_id => ArchiveID, room_jid => RoomJID, default_mode => DefaultMode,
+               always_jids => AlwaysJIDs, never_jids => NeverJIDs},
+    Args = [HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAcc = {error, not_implemented},
-    run_hook_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
-                           [HostType, ArchiveID, RoomJID, DefaultMode,
-                            AlwaysJIDs, NeverJIDs]).
+    run_hook_for_host_type(mam_muc_set_prefs, HostType, InitialAcc, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_get_prefs' hook is called to read
 %%% the archive settings for a given room.
@@ -1249,9 +1266,11 @@ mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJI
       RoomJID :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
 mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
+    Params = #{archive_id => ArchiveID, room_jid => RoomJID},
+    Args = [HostType, ArchiveID, RoomJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
-    run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
-                           [HostType, ArchiveID, RoomJID]).
+    run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_remove_archive' hook is called in order to remove the entire
 %%% archive for a particular user.
@@ -1260,8 +1279,10 @@ mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid().
 mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
-    run_hook_for_host_type(mam_muc_remove_archive, HostType, ok,
-                           [HostType, ArchiveID, RoomJID]).
+    Params = #{archive_id => ArchiveID, room_jid => RoomJID},
+    Args = [HostType, ArchiveID, RoomJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_muc_remove_archive, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_lookup_messages' hook is to retrieve archived
 %%% MUC messages for any given search parameters.
@@ -1270,9 +1291,11 @@ mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
 mam_muc_lookup_messages(HostType, Params) ->
+    Args = [HostType, Params],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
     run_hook_for_host_type(mam_muc_lookup_messages, HostType, {ok, InitialLookupValue},
-                           [HostType, Params]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_archive_message' hook is called in order
 %%% to store the MUC message in the archive.
@@ -1281,15 +1304,19 @@ mam_muc_lookup_messages(HostType, Params) ->
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_muc_archive_message(HostType, Params) ->
-    run_hook_for_host_type(mam_muc_archive_message, HostType, ok, [HostType, Params]).
+    Args = [HostType, Params],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_muc_archive_message, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.
 -spec mam_muc_flush_messages(HookServer :: jid:lserver(),
                              MessageCount :: integer()) -> ok.
 mam_muc_flush_messages(HookServer, MessageCount) ->
-    run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok,
-                           [HookServer, MessageCount]).
+    Params = #{message_count => MessageCount},
+    Args = [HookServer, MessageCount],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok, ParamsWithLegacyArgs).
 
 %% @doc Waits until all pending messages are written
 -spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.
