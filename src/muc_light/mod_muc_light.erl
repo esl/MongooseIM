@@ -386,7 +386,7 @@ prevent_service_unavailable(Acc, #{packet := Packet}, _Extra) ->
         _Type -> {ok, Acc}
     end.
 
--spec disco_local_items(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -408,7 +408,7 @@ disco_local_items(Acc, _Params, _Extra) ->
 legacy_mode(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode).
 
--spec remove_user(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -437,7 +437,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
         end,
     mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
--spec add_rooms_to_roster(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec add_rooms_to_roster(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -516,7 +516,7 @@ process_iq_set(Acc, #{from := #jid{ lserver = FromS } = From, to := To, iq := IQ
             {ok, mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)}
     end.
 
--spec is_muc_room_owner(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec is_muc_room_owner(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
     Extra :: map().
@@ -525,7 +525,7 @@ is_muc_room_owner(true, _Params, _Extra) ->
 is_muc_room_owner(_, #{acc := Acc, room := Room, user := User}, _Extra) ->
     {ok, owner == get_affiliation(Acc, Room, User)}.
 
--spec can_access_room(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec can_access_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
     Extra :: map().
@@ -534,7 +534,7 @@ can_access_room(true, _Params, _Extra) ->
 can_access_room(_, #{acc := Acc, room := Room, user := User}, _Extra) ->
     {ok, none =/= get_affiliation(Acc, Room, User)}.
 
--spec acc_room_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -552,7 +552,7 @@ acc_room_affiliations(Acc1, #{room := RoomJid}, _Extra) ->
             {ok, Acc1}
     end.
 
--spec room_exists(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec room_exists(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
     Extra :: map().
@@ -578,7 +578,7 @@ get_room_affs_from_acc(Acc, RoomJid) ->
 set_room_affs_from_acc(Acc, RoomJid, Affs) ->
     mongoose_acc:set(?MODULE, {affiliations, RoomJid}, Affs, Acc).
 
--spec can_access_identity(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec can_access_identity(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
     Extra :: map().

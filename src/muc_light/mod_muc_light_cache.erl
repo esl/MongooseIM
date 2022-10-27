@@ -65,7 +65,7 @@ pre_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
             {stop, Acc}
     end.
 
--spec post_acc_room_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec post_acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -90,7 +90,7 @@ pre_room_exists(false, #{room := RoomJid}, #{host_type := HostType}) ->
 pre_room_exists(Status, _, _) ->
     {ok, Status}.
 
--spec post_room_exists(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec post_room_exists(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
     Extra :: map().
@@ -100,7 +100,7 @@ post_room_exists(true, #{room := RoomJid}, #{host_Type := HostType}) ->
 post_room_exists(Status, _, _) ->
     {ok, Status}.
 
--spec forget_room(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
@@ -108,7 +108,7 @@ forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) 
     mongoose_user_cache:delete_user(HostType, ?MODULE, jid:make_noprep(RoomU, RoomS, <<>>)),
     {ok, Acc}.
 
--spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
     Extra :: map().
@@ -117,7 +117,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_domain(HostType, ?MODULE, MUCHost),
     {ok, Acc}.
 
--spec room_new_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
+-spec room_new_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
