@@ -70,7 +70,7 @@
          process_sm_iq/5,
          remove_user/3,
          remove_domain/3,
-         set_vcard/4]).
+         set_vcard/3]).
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
@@ -85,7 +85,7 @@
 
 -ignore_xref([
     process_packet/5,
-    get_personal_data/3, remove_user/3, remove_domain/3, set_vcard/4, start_link/2
+    start_link/2
 ]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
@@ -93,14 +93,15 @@
 -record(state, {search :: boolean(),
                 host_type :: mongooseim:host_type()}).
 
--type error() :: error | {error, any()}.
-
 %%--------------------------------------------------------------------
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: gdpr:personal_data(),
+    Params :: map(),
+    Extra :: map().
+get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
     Entries = case mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
@@ -109,7 +110,7 @@ get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
                       [{Jid, SerializedRecords}];
                   _ -> []
               end,
-    [{vcard, Schema, Entries} | Acc].
+    {ok, [{vcard, Schema, Entries} | Acc]}.
 
 -spec default_search_fields() -> list().
 default_search_fields() ->
@@ -161,21 +162,18 @@ stop(HostType) ->
 supported_features() -> [dynamic_domains].
 
 start_hooks(HostType) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 stop_hooks(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{Hook, HostType, ?MODULE, Function, Priority}
-     || {Hook, Function, Priority} <- hooks2()].
-
-hooks2() ->
-    [{remove_user, remove_user, 50},
-     {anonymous_purge_hook, remove_user, 50},
-     {remove_domain, remove_domain, 50},
-     {set_vcard, set_vcard, 50},
-     {get_personal_data, get_personal_data, 50}].
+    [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {set_vcard, HostType, fun ?MODULE:set_vcard/3, #{}, 50},
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 start_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm,
@@ -458,42 +456,46 @@ unsafe_set_vcard(HostType, From, VCARD) ->
     end.
 
 
--spec set_vcard(HandlerAcc, HostType, From, VCARD) -> Result when
-      HandlerAcc :: ok | error(),
-      HostType :: mongooseim:host_type(),
-      From ::jid:jid(),
-      VCARD :: exml:element(),
-      Result :: ok | error().
-set_vcard(ok, _HostType, _From, _VCARD) ->
+-spec set_vcard(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok | {error, term()},
+    Params :: map(),
+    Extra :: map().
+set_vcard(ok, _Params, _Extra) ->
     ?LOG_DEBUG(#{what => hook_call_already_handled}),
-    ok;
-set_vcard({error, no_handler_defined}, HostType, From, VCARD) ->
-    try unsafe_set_vcard(HostType, From, VCARD) of
-        ok -> ok;
-        {error, Reason} ->
-            ?LOG_ERROR(#{what => unsafe_set_vcard_failed, reason => Reason}),
-            {error, Reason}
-    catch
-        E:R:S -> ?LOG_ERROR(#{what => unsafe_set_vcard_failed, class => E,
-                              reason => R, stacktrace => S}),
-               {error, {E, R}}
-    end;
-set_vcard({error, _} = E, _HostType, _From, _VCARD) -> E.
+    {ok, ok};
+set_vcard({error, no_handler_defined}, #{user := From, vcard := VCARD}, #{host_type := HostType}) ->
+    Result = try unsafe_set_vcard(HostType, From, VCARD) of
+                 ok -> ok;
+                 {error, Reason} ->
+                     ?LOG_ERROR(#{what => unsafe_set_vcard_failed, reason => Reason}),
+                     {error, Reason}
+             catch
+                 E:R:S -> ?LOG_ERROR(#{what => unsafe_set_vcard_failed, class => E,
+                                     reason => R, stacktrace => S}),
+                     {error, {E, R}}
+             end,
+    {ok, Result};
+set_vcard({error, _} = Error, _Params, _Extra) ->
+    {ok, Error}.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_domain_api:remove_domain_acc(),
+    Params :: map(),
+    Extra :: map().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_vcard_backend:remove_domain(HostType, Domain),
-    Acc.
+    {ok, Acc}.
 
-%% #rh
-remove_user(Acc, User, Server) ->
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
     HostType = mongoose_acc:host_type(Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
     mod_vcard_backend:remove_user(HostType, LUser, LServer),
-    Acc.
+    {ok, Acc}.
 
 %% ------------------------------------------------------------------
 %% Internal
