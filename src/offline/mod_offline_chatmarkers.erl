@@ -43,13 +43,9 @@
 -export([config_spec/0]).
 
 %% Hook handlers
--export([inspect_packet/4,
+-export([inspect_packet/3,
          remove_user/3,
-         pop_offline_messages/2]).
-
--ignore_xref([
-    behaviour_info/1, inspect_packet/4, pop_offline_messages/2, remove_user/3
-]).
+         pop_offline_messages/3]).
 
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -70,24 +66,25 @@ deps(_, _)->
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     mod_offline_chatmarkers_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     DefaultHooks = [
-        {offline_message_hook, HostType, ?MODULE, inspect_packet, 40},
-        {resend_offline_messages_hook, HostType, ?MODULE, pop_offline_messages, 60},
-        {remove_user, HostType, ?MODULE, remove_user, 50}
+        {offline_message_hook, HostType, fun ?MODULE:inspect_packet/3, #{}, 40},
+        {resend_offline_messages_hook, HostType, fun ?MODULE:pop_offline_messages/3, #{}, 60},
+        {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50}
     ],
     case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages) of
         true ->
             GroupChatHook = {offline_groupchat_message_hook,
-                             HostType, ?MODULE, inspect_packet, 40},
+                             HostType, fun ?MODULE:inspect_packet/3, #{}, 40},
             [GroupChatHook | DefaultHooks];
         _ -> DefaultHooks
     end.
@@ -104,20 +101,32 @@ config_spec() ->
                     }
         }.
 
-remove_user(Acc, User, Server) ->
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<>>)),
-    Acc.
+    {ok, Acc}.
 
-pop_offline_messages(Acc, JID) ->
-    mongoose_acc:append(offline, messages, offline_chatmarkers(Acc, JID), Acc).
+-spec pop_offline_messages(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+pop_offline_messages(Acc, #{jid := JID}, _Extra) ->
+    {ok, mongoose_acc:append(offline, messages, offline_chatmarkers(Acc, JID), Acc)}.
 
-inspect_packet(Acc, From, To, Packet) ->
+-spec inspect_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+inspect_packet(Acc, #{from := From, to := To, packet := Packet}, _Extra) ->
     case maybe_store_chat_marker(Acc, From, To, Packet) of
         true ->
             {stop, mongoose_acc:set(offline, stored, true, Acc)};
         false ->
-            Acc
+            {ok, Acc}
     end.
 
 maybe_store_chat_marker(Acc, From, To, Packet) ->
