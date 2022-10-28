@@ -268,7 +268,8 @@ ejabberd_ctl_process(Acc, Args) ->
     Result :: mongoose_acc:t().
 failed_to_store_message(Acc) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(failed_to_store_message, HostType, Acc, #{}).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(failed_to_store_message, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
@@ -1404,7 +1405,8 @@ disco_local_items(Acc = #{host_type := HostType}) ->
 %%% with the client when a discovery IQ gets to session management.
 -spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_sm_items(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_items, HostType, Acc, #{}).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_sm_items, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_local_features' hook is called to extract features
 %%% offered by the server.
@@ -1416,13 +1418,15 @@ disco_local_features(Acc = #{host_type := HostType}) ->
 %%% when a discovery IQ gets to session management.
 -spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_sm_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_features, HostType, Acc, #{}).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_sm_features, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_muc_features' hook is called to get the features
 %%% supported by the MUC (Light) service.
 -spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_muc_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_muc_features, HostType, Acc, #{}).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_muc_features, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_info' hook is called to extract information about the server.
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().

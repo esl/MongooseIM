@@ -32,28 +32,27 @@
          supported_features/0]).
 
 %% Hook handlers
--export([stop_hook_processing/4]).
-
--ignore_xref([stop_hook_processing/4]).
+-export([stop_hook_processing/3]).
 
 -spec start(any(), any()) -> 'ok'.
 start(HostType, _Opts) ->
-    [ejabberd_hooks:add(Hook, HostType, M, F, Prio)
-     || {Hook, M, F, Prio} <- handlers()],
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(any()) -> 'ok'.
 stop(HostType) ->
-    [ejabberd_hooks:delete(Hook, HostType, M, F, Prio)
-     || {Hook, M, F, Prio} <- handlers()],
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
 supported_features() -> [dynamic_domains].
 
-%% Don't repeat yourself.
-handlers() ->
-    [{offline_message_hook, ?MODULE, stop_hook_processing, 75}].
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{offline_message_hook, HostType, fun ?MODULE:stop_hook_processing/3, #{}, 75}].
 
--spec stop_hook_processing(map(), any(), any(), any()) -> {stop, map()}.
-stop_hook_processing(Acc, _From, _To, _Packet) ->
+-spec stop_hook_processing(Acc, Params, Extra) -> {stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+stop_hook_processing(Acc, _Params, _Extra) ->
     {stop, Acc}.
