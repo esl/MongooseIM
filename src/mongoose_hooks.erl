@@ -322,7 +322,10 @@ get_key(HostType, KeyName) ->
     To :: jid:jid(),
     Result :: mongoose_acc:t().
 packet_to_component(Acc, From, To) ->
-    run_global_hook(packet_to_component, Acc, [From, To]).
+    Params = #{from => From, to => To},
+    Args = [From, To],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_global_hook(packet_to_component, Acc, ParamsWithLegacyArgs).
 
 -spec presence_probe_hook(HostType, Acc, From, To, Pid) -> Result when
     HostType :: binary(),
@@ -355,7 +358,10 @@ push_notifications(HostType, Acc, NotificationForms, Options) ->
     IsHidden :: boolean(),
     Result :: any().
 register_subhost(LDomain, IsHidden) ->
-    run_global_hook(register_subhost, ok, [LDomain, IsHidden]).
+    Params = #{ldomain => LDomain, is_hidden => IsHidden},
+    Args = [LDomain, IsHidden],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_global_hook(register_subhost, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `register_user' hook is called when a user is successfully
 %%% registered in an authentication backend.
@@ -441,7 +447,10 @@ filter_unacknowledged_messages(HostType, Jid, Buffer) ->
     LDomain :: binary(),
     Result :: any().
 unregister_subhost(LDomain) ->
-    run_global_hook(unregister_subhost, ok, [LDomain]).
+    Params = #{ldomain => LDomain},
+    Args = [LDomain],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_global_hook(unregister_subhost, ok, ParamsWithLegacyArgs).
 
 -spec user_available_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
