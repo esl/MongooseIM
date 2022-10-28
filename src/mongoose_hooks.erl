@@ -268,7 +268,7 @@ ejabberd_ctl_process(Acc, Args) ->
     Result :: mongoose_acc:t().
 failed_to_store_message(Acc) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(failed_to_store_message, HostType, Acc, []).
+    run_hook_for_host_type(failed_to_store_message, HostType, Acc, #{}).
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
@@ -390,8 +390,11 @@ remove_user(Acc, LServer, LUser) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 resend_offline_messages_hook(Acc, JID) ->
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -1401,7 +1404,7 @@ disco_local_items(Acc = #{host_type := HostType}) ->
 %%% with the client when a discovery IQ gets to session management.
 -spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_sm_items(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_items, HostType, Acc, []).
+    run_hook_for_host_type(disco_sm_items, HostType, Acc, #{}).
 
 %%% @doc `disco_local_features' hook is called to extract features
 %%% offered by the server.
@@ -1413,13 +1416,13 @@ disco_local_features(Acc = #{host_type := HostType}) ->
 %%% when a discovery IQ gets to session management.
 -spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_sm_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_sm_features, HostType, Acc, #{}).
 
 %%% @doc `disco_muc_features' hook is called to get the features
 %%% supported by the MUC (Light) service.
 -spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_muc_features(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_muc_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_muc_features, HostType, Acc, #{}).
 
 %%% @doc `disco_info' hook is called to extract information about the server.
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
