@@ -82,10 +82,11 @@ start(_, _) ->
 %% before shutting down the processes of the application.
 prep_stop(State) ->
     mongoose_deprecations:stop(),
+    broadcast_c2s_shutdown_listeners(),
     mongoose_listener:stop(),
     mongoose_modules:stop(),
     mongoose_service:stop(),
-    broadcast_c2s_shutdown(),
+    broadcast_c2s_shutdown_sup(),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
     mongoose_config:stop(),
@@ -115,18 +116,36 @@ db_init() ->
     end,
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 
--spec broadcast_c2s_shutdown() -> 'ok'.
-broadcast_c2s_shutdown() ->
-    Children = supervisor:which_children(ejabberd_c2s_sup),
+-spec broadcast_c2s_shutdown_listeners() -> ok.
+broadcast_c2s_shutdown_listeners() ->
+    Children = supervisor:which_children(mongoose_listener_sup),
+    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
     lists:foreach(
-      fun({_, C2SPid, _, _}) ->
-          C2SPid ! system_shutdown
-      end, Children),
+        fun(Listener) ->
+            ranch:suspend_listener(Listener),
+            [mongoose_c2s:exit(Pid, system_shutdown) || Pid <- ranch:procs(Listener, connections)],
+            mongoose_lib:wait_until(
+                fun() ->
+                    length(ranch:procs(Listener, connections))
+                end,
+                0)
+        end,
+        Listeners).
+
+-spec broadcast_c2s_shutdown_sup() -> ok.
+broadcast_c2s_shutdown_sup() ->
+    Children = supervisor:which_children(mongoose_c2s_sup),
+    lists:foreach(
+        fun({_, Pid, _, _}) ->
+            mongoose_c2s:exit(Pid, system_shutdown)
+        end,
+        Children),
     mongoose_lib:wait_until(
-      fun() ->
-              Res = supervisor:count_children(ejabberd_c2s_sup),
+        fun() ->
+              Res = supervisor:count_children(mongoose_c2s_sup),
               proplists:get_value(active, Res)
-      end, 0).
+        end,
+        0).
 
 %%%
 %%% PID file

@@ -18,6 +18,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -define(SERVER, "http://localhost:8080").
 
@@ -221,9 +222,9 @@ start_cowboy_returns_error_eaddrinuse(_C) ->
              handlers => [],
              transport => default_config([listen, http, transport]),
              protocol => default_config([listen, http, protocol])},
-    {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts, 2, 10),
+    ?assertMatch({ok, _}, ejabberd_cowboy:start_cowboy(a_ref, Opts, 2, 10)),
     Result = ejabberd_cowboy:start_cowboy(a_ref_2, Opts, 2, 10),
-    {error, eaddrinuse} = Result.
+    ?assertEqual({error, eaddrinuse}, Result).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -391,4 +392,3 @@ ws_websocket_terminate(_Reason, _Req, no_ws_state) ->
 assert_cowboy_handler_calls(M, F, Num) ->
     Fun = fun() -> meck:num_calls(M, F, '_') end,
     async_helper:wait_until(Fun, Num).
-

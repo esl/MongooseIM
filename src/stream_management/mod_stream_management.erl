@@ -40,8 +40,10 @@
          register_stale_smid_h/3,
          remove_stale_smid_h/2]).
 
--ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2,
-              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5]).
+-ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2, remove_smid/5,
+              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5,
+              get_ack_freq/1, get_buffer_max/1, get_resume_timeout/1,
+              get_session_from_smid/2, make_smid/0, register_smid/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -686,7 +688,10 @@ build_sm_handler(HostType) ->
 
 -spec get_mod_state(mongoose_c2s:c2s_data()) -> sm_state() | {error, not_found}.
 get_mod_state(StateData) ->
-    mongoose_c2s:get_mod_state(StateData, ?MODULE).
+    case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
+        {ok, State} -> State;
+        Error -> Error
+    end.
 
 -spec get_peer_state(pid()) -> {ok, mongoose_c2s:c2s_data()} | {_, _, _}.
 get_peer_state(Pid) ->

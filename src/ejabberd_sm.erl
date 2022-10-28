@@ -35,7 +35,7 @@
          route/3,
          route/4,
          make_new_sid/0,
-         open_session/4, open_session/5,
+         open_session/5,
          close_session/4,
          store_info/3,
          get_info/2,
@@ -43,7 +43,6 @@
          get_user_resources/1,
          set_presence/6,
          unset_presence/5,
-         close_session_unset_presence/5,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
          get_node_sessions_number/0,
@@ -114,7 +113,8 @@
               priority/0,
               backend/0,
               close_reason/0,
-              info/0
+              info/0,
+              info_key/0
              ]).
 
 %% default value for the maximum number of user connections
@@ -203,15 +203,6 @@ route(From, To, Acc, El) ->
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.
 
--spec open_session(HostType, SID, JID, Info) -> ReplacedPids when
-      HostType :: binary(),
-      SID :: 'undefined' | sid(),
-      JID :: jid:jid(),
-      Info :: info(),
-      ReplacedPids :: [pid()].
-open_session(HostType, SID, JID, Info) ->
-    open_session(HostType, SID, JID, undefined, Info).
-
 -spec open_session(HostType, SID, JID, Priority, Info) -> ReplacedPids when
       HostType :: binary(),
       SID :: 'undefined' | sid(),
@@ -257,7 +248,7 @@ store_info(JID, Key, Value) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:store_session_info(Pid, JID, Key, Value),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:store_info/3, [JID, Key, Value]),
                     {ok, Key}
             end
     end.
@@ -289,7 +280,7 @@ remove_info(JID, Key) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:remove_session_info(Pid, JID, Key),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:remove_info/2, [JID, Key]),
                     ok
             end
     end.
@@ -351,18 +342,6 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
 unset_presence(Acc, SID, JID, Status, Info) ->
     set_session(SID, JID, undefined, Info),
     mongoose_hooks:unset_presence_hook(Acc, JID, Status).
-
-
--spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
-      Acc :: mongoose_acc:t(),
-      SID :: 'undefined' | sid(),
-      JID :: jid:jid(),
-      Status :: binary(),
-      Reason :: close_reason(),
-      Acc1 :: mongoose_acc:t().
-close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    Acc1 = close_session(Acc, SID, JID, Reason),
-    mongoose_hooks:unset_presence_hook(Acc1, JID, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -690,7 +669,7 @@ do_route(Acc, From, To, El) ->
                 Pid when is_pid(Pid) ->
                     ?LOG_DEBUG(#{what => sm_route_to_pid,
                                  session_pid => Pid, acc => Acc}),
-                    Pid ! {route, From, To, Acc},
+                    Pid ! {route, Acc},
                     Acc
             end
     end.
@@ -831,7 +810,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, Acc};
+                      Pid ! {route, Acc};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok
@@ -928,7 +907,7 @@ check_for_sessions_to_replace(HostType, JID) ->
     %% replacement for max_sessions. We need to check this at some point.
     ReplacedRedundantSessions = check_existing_resources(HostType, LUser, LServer, LResource),
     AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions),
-    [Pid ! replaced || Pid <- AllReplacedSessionPids],
+    [mongoose_c2s:exit(Pid, <<"Replaced by new connection">>) || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
 -spec check_existing_resources(HostType, LUser, LServer, LResource) ->

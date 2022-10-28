@@ -36,20 +36,13 @@
          unregister_subhost/1,
          user_available_hook/2,
          user_ping_response/5,
-         user_receive_packet/6,
-         user_sent_keep_alive/2,
          user_send_packet/4,
          vcard_set/4,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
 -export([c2s_broadcast_recipients/4,
-         c2s_filter_packet/4,
-         c2s_preprocessing_hook/3,
-         c2s_presence_in/4,
          c2s_stream_features/2,
-         c2s_unauthenticated_iq/4,
-         c2s_update_presence/2,
          check_bl_c2s/1,
          forbidden_session_hook/3,
          session_opening_allowed_for_user/2]).
@@ -153,8 +146,6 @@
 -export([mod_global_distrib_known_recipient/4,
          mod_global_distrib_unknown_recipient/2]).
 
--export([c2s_remote_hook/5]).
-
 -export([remove_domain/2,
          node_cleanup/1]).
 
@@ -171,17 +162,6 @@
                               Acc :: mongoose_acc:t(),
                               Packet :: exml:element()}.
 -export_type([filter_packet_acc/0]).
-
--spec c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) -> Result when
-    HostType :: binary(),
-    Tag :: atom(),
-    Args :: term(),
-    HandlerState :: term(),
-    C2SState :: ejabberd_c2s:state(),
-    Result :: term(). % ok | empty_state | HandlerState
-c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
-    run_hook_for_host_type(c2s_remote_hook, HostType, HandlerState,
-                           [Tag, Args, C2SState]).
 
 -spec adhoc_local_commands(HostType, From, To, AdhocRequest) -> Result when
     HostType :: mongooseim:host_type(),
@@ -463,24 +443,6 @@ user_ping_response(HostType, Acc, JID, Response, TDelta) ->
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(user_ping_response, HostType, Acc, ParamsWithLegacyArgs).
 
--spec user_receive_packet(HostType, Acc, JID, From, To, El) -> Result when
-    HostType :: binary(),
-    Acc :: mongoose_acc:t(),
-    JID :: jid:jid(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    El :: exml:element(),
-    Result :: mongoose_acc:t().
-user_receive_packet(HostType, Acc, JID, From, To, El) ->
-    run_hook_for_host_type(user_receive_packet, HostType, Acc, [JID, From, To, El]).
-
--spec user_sent_keep_alive(HostType, JID) -> Result when
-    HostType :: binary(),
-    JID :: jid:jid(),
-    Result :: any().
-user_sent_keep_alive(HostType, JID) ->
-    run_hook_for_host_type(user_sent_keep_alive, HostType, ok, [JID]).
-
 %%% @doc A hook called when a user sends an XMPP stanza.
 %%% The hook's handler is expected to accept four parameters:
 %%% `Acc', `From', `To' and `Packet'
@@ -532,44 +494,15 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
 %% C2S related hooks
 
 -spec c2s_broadcast_recipients(State, Type, From, Packet) -> Result when
-    State :: ejabberd_c2s:state(),
+    State :: mongoose_c2s:state(),
     Type :: {atom(), any()},
     From :: jid:jid(),
     Packet :: exml:element(),
     Result :: [jid:simple_jid()].
 c2s_broadcast_recipients(State, Type, From, Packet) ->
-    HostType = ejabberd_c2s_state:host_type(State),
+    HostType = mongoose_c2s:get_host_type(State),
     run_hook_for_host_type(c2s_broadcast_recipients, HostType, [],
                            [State, Type, From, Packet]).
-
--spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
-    State :: ejabberd_c2s:state(),
-    Feature :: {atom(), binary()},
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: boolean().
-c2s_filter_packet(State, Feature, To, Packet) ->
-    HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_filter_packet, HostType, true,
-                           [State, Feature, To, Packet]).
-
--spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    State :: mongoose_c2s:c2s_data(),
-    Result :: mongoose_acc:t().
-c2s_preprocessing_hook(HostType, Acc, State) ->
-    run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
-
--spec c2s_presence_in(State, From, To, Packet) -> Result when
-    State :: ejabberd_c2s:state(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: ejabberd_c2s:state().
-c2s_presence_in(State, From, To, Packet) ->
-    HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),
@@ -577,22 +510,6 @@ c2s_presence_in(State, From, To, Packet) ->
     Result :: [exml:element()].
 c2s_stream_features(HostType, LServer) ->
     run_hook_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
-
--spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
-    HostType :: mongooseim:host_type(),
-    Server :: jid:server(),
-    IQ :: jlib:iq(),
-    IP :: {inet:ip_address(), inet:port_number()} | undefined,
-    Result :: exml:element() | empty.
-c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
-    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, [HostType, Server, IQ, IP]).
-
--spec c2s_update_presence(HostType, Acc) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Result :: mongoose_acc:t().
-c2s_update_presence(HostType, Acc) ->
-    run_hook_for_host_type(c2s_update_presence, HostType, Acc, []).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),

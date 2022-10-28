@@ -48,7 +48,7 @@ handle_user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType,
 
 %% ranch_protocol
 start_link(Ref, Transport, Opts = #{hibernate_after := HibernateAfterTimeout}) ->
-    mongoose_c2s:start_link({Ref, Transport, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
+    mongoose_c2s:start_link({mongoose_c2s_ranch, {Transport, Ref}, Opts}, [{hibernate_after, HibernateAfterTimeout}]).
 
 %% supervisor
 -spec start_link(options()) -> any().

@@ -1,5 +1,6 @@
 -module(mongoose_c2s_stanzas).
 
+-include_lib("exml/include/exml_stream.hrl").
 -include("jlib.hrl").
 
 -export([
@@ -14,22 +15,22 @@
          successful_session_establishment/1
         ]).
 
+-spec stream_header(binary(), binary(), binary(), binary()) -> exml_stream:start().
 stream_header(Server, Version, Lang, StreamId) ->
-    VersionStr = case Version of
-                    <<>> -> <<>>;
-                     _ -> <<" version='", (Version)/binary, "'">>
-                 end,
-    LangStr = case Lang of
-                  <<>> -> <<>>;
-                  _ when is_binary(Lang) -> <<" xml:lang='", (Lang)/binary, "'">>
-              end,
-    <<"<?xml version='1.0'?>",
-      "<stream:stream xmlns='jabber:client' ",
-      "xmlns:stream='http://etherx.jabber.org/streams' ",
-      "id='", (StreamId)/binary, "' ",
-      "from='", (Server)/binary, "'",
-      (VersionStr)/binary,
-      (LangStr)/binary, ">">>.
+    Attrs = [{<<"xmlns">>, ?NS_CLIENT},
+             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
+             {<<"id">>, StreamId},
+             {<<"from">>, Server}],
+    Attrs1 = case Version of
+                 <<>> -> Attrs;
+                 _ -> [{<<"version">>, Version} | Attrs]
+             end,
+    Attrs2 = case Lang of
+                 <<>> -> Attrs1;
+                 _ -> [{<<"xml:lang">>, Lang} | Attrs1]
+             end,
+    #xmlstreamstart{name = <<"stream:stream">>,
+                    attrs = Attrs2}.
 
 -spec stream_features([exml:element() | exml:cdata()]) -> exml:element().
 stream_features(Features) ->

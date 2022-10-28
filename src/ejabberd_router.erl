@@ -380,7 +380,7 @@ routing_modules_list() ->
             To     :: jid:jid(),
             Acc    :: mongoose_acc:t(),
             Packet :: exml:element(),
-            [atom()]) -> mongoose_acc:t().
+            [module()]) -> mongoose_acc:t().
 route(_From, _To, Acc, _Packet, []) ->
     ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc}),
     mongoose_metrics:update(global, routingErrors, 1),

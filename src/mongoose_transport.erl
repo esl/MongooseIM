@@ -44,7 +44,7 @@
 -export([starttls/3, starttls/4, monitor/2, send_xml/3, peername/2,
          get_peer_certificate/2]).
 
--ignore_xref([behaviour_info/1]).
+-ignore_xref([get_peer_certificate/2, monitor/2, peername/2, send_xml/3, starttls/3]).
 
 -spec starttls(TransportMod :: module(), Transport :: t(), mongoose_tls:options()) -> t().
 starttls(TransportMod, Transport, TLSOpts) -> TransportMod:starttls(Transport, TLSOpts).

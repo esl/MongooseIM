@@ -15,7 +15,6 @@
 
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
--include("ejabberd_c2s.hrl").
 
 %% The templater in flatlog works with meta fields.
 %% So, we would need a filter, that takes the interesting fields
@@ -104,16 +103,16 @@ remove_fields_filter(Event, _) ->
     Event.
 
 
-c2s_state_to_map(#state{socket = Socket, streamid = StreamId,
-                        jid = Jid, sid = Sid}) ->
-    SocketMap = ejabberd_socket:format_socket(Socket),
+c2s_state_to_map(State) ->
+    SocketMap = format_socket(mongoose_c2s:get_socket(State)),
+    Jid = mongoose_c2s:get_jid(State),
     SocketMap#{
-      streamid => StreamId,
+      streamid => mongoose_c2s:get_stream_id(State),
       jid => maybe_jid_to_binary(Jid),
       user => maybe_jid_to_luser(Jid),
       server => maybe_jid_to_lserver(Jid),
       resource => maybe_jid_to_lresource(Jid),
-      session_started => maybe_sid_to_timestamp(Sid)}.
+      session_started => maybe_sid_to_timestamp(mongoose_c2s:get_sid(State))}.
 
 format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
 
@@ -129,13 +128,28 @@ maybe_jid_to_lserver(_) -> undefined.
 maybe_jid_to_lresource(#jid{lresource = LResource}) -> LResource;
 maybe_jid_to_lresource(_) -> undefined.
 
-maybe_sid_to_timestamp({Timestamp, _Pid}) -> format_microseconds(Timestamp);
-maybe_sid_to_timestamp(_) -> undefined.
+maybe_sid_to_timestamp({Timestamp, _Pid}) -> format_microseconds(Timestamp).
 
 format_microseconds(N) ->
     calendar:system_time_to_rfc3339(N, [{unit, microsecond},
                                         {offset, 0},
                                         {time_designator, $T}]).
+
+format_socket(undefined) ->
+    #{};
+format_socket(Socket) ->
+    DestAddress = mongoose_c2s_socket:get_ip(Socket),
+    #{
+        transport => mongoose_c2s_socket:get_transport(Socket),
+        conn_type => mongoose_c2s_socket:get_conn_type(Socket),
+        dest_address => format_address(DestAddress)
+    }.
+
+format_address({Address, Port}) ->
+    #{
+        address => inet:ntoa(Address),
+        port => Port
+    }.
 
 format_stacktrace_args([{_Mod,_Fun,Args,_Info}|_]) when is_list(Args) ->
     iolist_to_binary(io_lib:format("~p", [Args]));

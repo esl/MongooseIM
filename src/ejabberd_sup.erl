@@ -88,8 +88,8 @@ init([]) ->
          supervisor,
          [ejabberd_tmp_sup]},
     C2SSupervisor =
-        {ejabberd_c2s_sup,
-         {ejabberd_tmp_sup, start_link, [ejabberd_c2s_sup, ejabberd_c2s]},
+        {mongoose_c2s_sup,
+         {ejabberd_tmp_sup, start_link, [mongoose_c2s_sup, mongoose_c2s]},
          permanent,
          infinity,
          supervisor,

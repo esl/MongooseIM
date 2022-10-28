@@ -279,7 +279,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({unregister_host, Host}, _From, State) ->
     Node = node(),
-    [ejabberd_c2s:stop(Pid)
+    [mongoose_c2s:stop(Pid, host_was_unregistered)
      || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host),
         node(Pid) =:= Node],
     do_unregister_host(Host),

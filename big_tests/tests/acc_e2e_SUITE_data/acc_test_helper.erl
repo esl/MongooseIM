@@ -52,7 +52,7 @@ drop_if_jid_not_mine(X) ->
 
 recreate_table() ->
     try ets:delete(test_message_index) catch _:_ -> ok end,
-    ets:new(test_message_index, [named_table, public, {heir, whereis(ejabberd_c2s_sup), none}]).
+    ets:new(test_message_index, [named_table, public, {heir, whereis(mongoose_c2s_sup), none}]).
 
 check_acc(#{ stanza := #{ type := <<"chat">> } } = Acc) ->
     Ref = mongoose_acc:ref(Acc),

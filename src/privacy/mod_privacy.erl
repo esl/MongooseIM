@@ -298,7 +298,7 @@ process_privacy_iq(Acc, HostType, set, ToJid, StateData) ->
 
 maybe_update_presence(Acc, StateData, OldList, NewList) ->
     Jid = mongoose_c2s:get_jid(StateData),
-    Presences = mongoose_c2s:get_mod_state(StateData, mod_presence),
+    Presences = mod_presence:maybe_get_handler(StateData),
     FromS = mod_presence:get(Presences, s_from),
     % Our own jid is added to pres_f, even though we're not a "contact", so for
     % the purposes of this check we don't want it:
@@ -361,7 +361,7 @@ send_back_error(Acc, _, _) ->
 get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {error, not_found} -> get_privacy_list(StateData);
-        Handler -> Handler
+        {ok, Handler} -> Handler
     end.
 
 -spec get_privacy_list(mongoose_c2s:c2s_data()) -> mongoose_privacy:userlist().

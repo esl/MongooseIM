@@ -35,5 +35,6 @@
 -record(xmlstreamerror, {name :: binary()}).
 
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
+-define(XML_STREAM_TRAILER, #xmlstreamend{name = <<"stream:stream">>}).
 
 -endif.
