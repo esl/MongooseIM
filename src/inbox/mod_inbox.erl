@@ -270,7 +270,7 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     mod_inbox_utils:clear_inbox(HostType, User, Server),
     {ok, Acc}.
 
--spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+-spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
       Params :: #{domain := jid:lserver()},
       Extra :: #{host_type := mongooseim:host_type()}.
@@ -279,8 +279,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
             mod_inbox_backend:remove_domain(HostType, Domain),
             Acc
         end,
-    NewAcc = mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE),
-    {ok, NewAcc}.
+    mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:feature_acc(),

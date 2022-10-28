@@ -67,7 +67,7 @@
 -ignore_xref([
     auth_methods/1, auth_modules/1, check_password/4, does_user_exist/4,
     get_vh_registered_users/2, get_vh_registered_users_number/2,
-    remove_domain/3, start/1, stop/1]).
+    start/1, stop/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -103,22 +103,29 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
 
-hooks(HostType) ->
+legacy_hooks(HostType) ->
     [
      %% These hooks must run in between those of mod_cache_users
-     {does_user_exist, HostType, ?MODULE, does_user_exist, 50},
-     %% It is important that this handler happens _before_ all other modules
-     {remove_domain, HostType, ?MODULE, remove_domain, 10}
+     {does_user_exist, HostType, ?MODULE, does_user_exist, 50}
+    ].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [
+        %% It is important that this handler happens _before_ all other modules
+        {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 10}
     ].
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
@@ -425,9 +432,9 @@ auth_methods(HostType) ->
 auth_method_to_module(Method) ->
     list_to_atom("ejabberd_auth_" ++ atom_to_list(Method)).
 
--spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_domain_api:remove_domain_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(mongoose_domain_api:remove_domain_acc(), map(), map()) ->
+    {ok | stop, mongoose_domain_api:remove_domain_acc()}.
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             FAuth = fun(Mod) -> mongoose_gen_auth:remove_domain(Mod, HostType, Domain) end,
             call_auth_modules_for_host_type(HostType, FAuth, #{op => map}),
