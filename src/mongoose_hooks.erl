@@ -1546,7 +1546,8 @@ room_packet(Server, FromNick, FromJID, JID, Packet) ->
     Info :: mod_muc_room:update_inbox_for_muc_payload(),
     Result :: mod_muc_room:update_inbox_for_muc_payload().
 update_inbox_for_muc(HostType, Info) ->
-    run_hook_for_host_type(update_inbox_for_muc, HostType, Info, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(update_inbox_for_muc, HostType, Info, ParamsWithLegacyArgs).
 
 %% Caps related hooks
 
