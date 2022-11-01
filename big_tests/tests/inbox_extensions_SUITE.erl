@@ -99,6 +99,7 @@ groups() ->
         properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
+        inbox_pagination_overrides_form,
         inbox_can_paginate_forwards,
         inbox_can_paginate_backwards,
         max_queries_can_be_limited,
@@ -668,7 +669,7 @@ properties_many_can_be_set(Config, QueryId) ->
                                                 end}], #{box => archive})
     end).
 
-inbox_can_paginate_forwards(Config) ->
+inbox_pagination_overrides_form(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
@@ -677,19 +678,30 @@ inbox_can_paginate_forwards(Config) ->
         % Alice has some messages in her inbox
         inbox_helper:check_inbox(Alice, AliceConvs),
         % Extract all the helper values
-        ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        TimeAfterBob = ConvWithBob#conv.time_after,
         TimeAfterKate = ConvWithKate#conv.time_after,
         TimeAfterMike = ConvWithMike#conv.time_after,
         % We set start and end to return Convs with Mike, but using RSM we override that
-        Params1 = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike,
-                    'after' => to_int(TimeAfterBob)},
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params1),
-        Params2 = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike,
-                    'after' => to_int(TimeAfterBob) - 99999},
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate, ConvWithBob], Params2)
+        Params = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike, before => <<>>},
+        inbox_helper:check_inbox(Alice, AliceConvs, Params)
+    end).
+
+inbox_can_paginate_forwards(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := [ConvWithMike, ConvWithKate, ConvWithBob] = AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % We set start and end to return Convs with Mike, but using RSM we override that
+        Params1 = #{box => inbox, limit => 1},
+        #{respond_iq := Iq} = inbox_helper:check_inbox(Alice, [ConvWithMike], Params1),
+        AfterPrevious = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                                             {element, <<"set">>}, {element, <<"last">>}, cdata]),
+        Params2 = #{box => inbox, 'after' => AfterPrevious},
+        inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob], Params2)
     end).
 
 inbox_can_paginate_backwards(Config) ->
@@ -704,16 +716,15 @@ inbox_can_paginate_backwards(Config) ->
         ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        TimeAfterBob = ConvWithBob#conv.time_after,
-        TimeAfterKate = ConvWithKate#conv.time_after,
-        TimeAfterMike = ConvWithMike#conv.time_after,
         % We set end to return Convs with Mike, but using RSM we override that
-        Params1 = #{box => inbox, 'end' => TimeAfterMike,
-                    before => to_int(TimeAfterBob)},
-        inbox_helper:check_inbox(Alice, [ConvWithBob], Params1),
-        Params2 = #{box => inbox, 'end' => TimeAfterMike,
-                    before => to_int(TimeAfterMike) + 99999},
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate, ConvWithBob], Params2)
+        Params1 = #{box => inbox, limit => 1, before => <<>>},
+        #{respond_iq := Iq} = inbox_helper:check_inbox(Alice, [ConvWithBob], Params1),
+        BeforeLast = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                                          {element, <<"set">>}, {element, <<"first">>}, cdata]),
+        Params2 = #{box => inbox, before => BeforeLast},
+        % inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params2)
+        GetInbox = inbox_helper:make_inbox_stanza(Params2),
+        inbox_helper:do_get_inbox(Alice, GetInbox)
     end).
 
 max_queries_can_be_limited(Config) ->
