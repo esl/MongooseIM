@@ -191,10 +191,10 @@ extract_attr_jid(ResetStanza) ->
 
 -spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | {error, atom()}.
 maybe_binary_to_positive_integer(Bin) ->
-    try erlang:binary_to_integer(Bin) of
-        N when N >= 0 -> N;
-        _ -> {error, non_positive_integer}
-    catch error:badarg -> {error, 'NaN'}
+    case mongoose_lib:maybe_binary_to_positive_integer(Bin) of
+        error -> {error, 'NaN'};
+        undefined -> {error, non_positive_integer};
+        N -> N
     end.
 
 -spec binary_to_bool(binary()) -> true | false | error.

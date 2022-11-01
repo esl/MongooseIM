@@ -11,6 +11,7 @@
 -export([parse_ip_netmask/1]).
 
 -export([get_message_type/1, does_local_user_exist/3]).
+-export([maybe_binary_to_positive_integer/1]).
 
 %% Private, just for warning
 -export([deprecated_logging/1]).
@@ -153,6 +154,16 @@ parse_ip_netmask(IPStr, MaskStr) ->
             end;
         _ ->
             error
+    end.
+
+-spec maybe_binary_to_positive_integer(binary()) -> non_neg_integer() | undefined | error.
+maybe_binary_to_positive_integer(<<>>) ->
+    undefined;
+maybe_binary_to_positive_integer(Bin) ->
+    try erlang:binary_to_integer(Bin) of
+        N when N >= 0 -> N;
+        _ -> error
+    catch error:badarg -> error
     end.
 
 %% ------------------------------------------------------------------
