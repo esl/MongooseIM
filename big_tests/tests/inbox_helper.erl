@@ -401,13 +401,13 @@ rsm(Params) ->
     Before = maps:get(before, Params, undefined),
     After = maps:get('after', Params, undefined),
     Elems = [#xmlel{name = <<"max">>,
-                    children = [#xmlcdata{content = itb(Max)}]}
+                    children = [#xmlcdata{content = to_bin(Max)}]}
              || _ <- [Max], undefined =/= Max ] ++
             [#xmlel{name = <<"before">>,
-                    children = [#xmlcdata{content = itb(Before)}]}
+                    children = [#xmlcdata{content = to_bin(Before)}]}
              || _ <- [Before], undefined =/= Before ] ++
             [#xmlel{name = <<"after">>,
-                    children = [#xmlcdata{content = itb(After)}]}
+                    children = [#xmlcdata{content = to_bin(After)}]}
              || _ <- [After], undefined =/= After ],
     case Elems of
         [] -> [];
@@ -416,8 +416,8 @@ rsm(Params) ->
                      children = Elems}]
     end.
 
-itb(N) when is_integer(N) -> integer_to_binary(N);
-itb(Bin) when is_binary(Bin) -> Bin.
+to_bin(N) when is_integer(N) -> integer_to_binary(N);
+to_bin(Bin) when is_binary(Bin) -> Bin.
 
 
 -spec reset_inbox(
