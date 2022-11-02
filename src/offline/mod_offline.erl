@@ -318,7 +318,7 @@ code_change(_OldVsn, State, _Extra) ->
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
-inspect_packet(Acc, #{from := From, to := To, packet := Packet}, _Params) ->
+inspect_packet(Acc, #{from := From, to := To, packet := Packet}, _Extra) ->
     case check_event_chatstates(Acc, From, To, Packet) of
         true ->
             Acc1 = store_packet(Acc, From, To, Packet),
@@ -475,7 +475,6 @@ pop_messages(HostType, JID) ->
     Params :: map(),
     Extra :: map().
 remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
-    HostType = mongoose_acc:host_type(Acc),
     mod_offline_backend:remove_user(HostType, LUser, LServer),
     {ok, Acc}.
 

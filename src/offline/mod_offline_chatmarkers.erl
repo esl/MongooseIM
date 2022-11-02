@@ -106,7 +106,6 @@ config_spec() ->
     Params :: map(),
     Extra :: map().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
-    HostType = mongoose_acc:host_type(Acc),
     mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<>>)),
     {ok, Acc}.
 
