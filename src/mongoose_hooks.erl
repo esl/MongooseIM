@@ -236,8 +236,10 @@ auth_failed(HostType, Server, Username) ->
       RequestType :: ejabberd_auth:exist_type(),
       Result :: boolean().
 does_user_exist(HostType, Jid, RequestType) ->
-    run_hook_for_host_type(does_user_exist, HostType, false,
-                           [HostType, Jid, RequestType]).
+    Params = #{jid => Jid, request_type => RequestType},
+    Args = [HostType, Jid, RequestType],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(does_user_exist, HostType, false, ParamsWithLegacyArgs).
 
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
@@ -408,9 +410,11 @@ resend_offline_messages_hook(Acc, JID) ->
     SID :: ejabberd_sm:sid(),
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
+    Params = #{user => User, server => Server, resource => Resource, sid => SID},
+    Args = [User, Server, Resource, SID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(session_cleanup, HostType, Acc,
-                           [User, Server, Resource, SID]).
+    run_hook_for_host_type(session_cleanup, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
 -spec set_vcard(HostType, UserJID, VCard) -> Result when

@@ -29,9 +29,9 @@
 -export([start/1,
          stop/1,
          config_spec/0,
-         register_connection/5,
-         unregister_connection/5,
-         session_cleanup/5
+         register_connection/3,
+         unregister_connection/3,
+         session_cleanup/3
         ]).
 
 -behaviour(mongoose_gen_auth).
@@ -51,8 +51,7 @@
 -export([check_password/4,
          check_password/6]).
 
--ignore_xref([register_connection/5, session_cleanup/5, unregister_connection/5,
-              login/3]).
+-ignore_xref([login/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -73,17 +72,21 @@ start(HostType) ->
                                     {attributes, record_info(fields, anonymous)}]),
     mnesia:add_table_copy(anonymous, node(), ram_copies),
     %% The hooks are needed to add / remove users from the anonymous tables
-    ejabberd_hooks:add(sm_register_connection_hook, HostType, ?MODULE, register_connection, 100),
-    ejabberd_hooks:add(sm_remove_connection_hook, HostType, ?MODULE, unregister_connection, 100),
-    ejabberd_hooks:add(session_cleanup, HostType, ?MODULE, session_cleanup, 50),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(sm_register_connection_hook, HostType, ?MODULE, register_connection, 100),
-    ejabberd_hooks:delete(sm_remove_connection_hook, HostType, ?MODULE, unregister_connection, 100),
-    ejabberd_hooks:delete(session_cleanup, HostType, ?MODULE, session_cleanup, 50),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [
+        {sm_register_connection_hook, HostType, fun ?MODULE:register_connection/3, #{}, 100},
+        {sm_remove_connection_hook, HostType, fun ?MODULE:unregister_connection/3, #{}, 100},
+        {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50}
+    ].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -132,32 +135,35 @@ remove_connection(SID, LUser, LServer) ->
 
 
 %% @doc Register connection
--spec register_connection(Acc,
-                          HostType :: mongooseim:host_type(),
-                          SID :: ejabberd_sm:sid(),
-                          JID :: jid:jid(),
-                          Info :: ejabberd_sm:info()) -> Acc when Acc :: any().
-register_connection(Acc, HostType, SID, #jid{luser = LUser, lserver = LServer},
-                    #{auth_module := AuthModule})
+-spec register_connection(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+register_connection(Acc,
+                    #{sid := SID,
+                      jid := #jid{luser = LUser, lserver = LServer},
+                      info := #{auth_module := AuthModule}},
+                    #{host_type := HostType})
   when AuthModule =:= ejabberd_auth_anonymous; % login_anon
        AuthModule =:= cyrsasl_anonymous -> % sasl_anon
     mongoose_hooks:register_user(HostType, LServer, LUser),
     US = {LUser, LServer},
     mnesia:sync_dirty(fun() -> mnesia:write(#anonymous{us = US, sid = SID}) end),
-    Acc;
-register_connection(Acc, _HostType, _SID, _JID, _Info) ->
-    Acc.
+    {ok, Acc};
+register_connection(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 %% @doc Remove an anonymous user from the anonymous users table
--spec unregister_connection(Acc, SID :: ejabberd_sm:sid(), JID :: jid:jid(),
-                            any(), ejabberd_sm:close_reason()) -> Acc
-              when Acc :: mongoose_acc:t().
-unregister_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
+-spec unregister_connection(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+unregister_connection(Acc, #{sid := SID, jid := #jid{luser = LUser, lserver = LServer}}, _Extra) ->
     purge_hook(does_anonymous_user_exist(LUser, LServer),
                mongoose_acc:host_type(Acc),
                LUser, LServer),
     remove_connection(SID, LUser, LServer),
-    Acc.
+    {ok, Acc}.
 
 %% @doc Launch the hook to purge user data only for anonymous users.
 -spec purge_hook(boolean(), mongooseim:host_type(), jid:luser(), jid:lserver()) -> 'ok'.
@@ -170,13 +176,13 @@ purge_hook(true, HostType, LUser, LServer) ->
                               element => undefined }),
     mongoose_hooks:anonymous_purge_hook(LServer, Acc, LUser).
 
--spec session_cleanup(Acc :: map(), LUser :: jid:luser(),
-                      LServer :: jid:lserver(),
-                      LResource :: jid:lresource(),
-                      SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(Acc, LUser, LServer, _LResource, SID) ->
+-spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+session_cleanup(Acc, #{sid := SID, user := LUser, server := LServer}, _Extra) ->
     remove_connection(SID, LUser, LServer),
-    Acc.
+    {ok, Acc}.
 
 %% ---------------------------------
 %% Specific anonymous auth functions

@@ -95,7 +95,9 @@ auth_anonymous(_Config) ->
     {U, S, R, JID, SID} = get_fake_session(),
     ejabberd_auth_anonymous:start(HostType),
     Info = #{auth_module => cyrsasl_anonymous},
-    ejabberd_auth_anonymous:register_connection(#{}, HostType, SID, JID, Info),
+    ejabberd_auth_anonymous:register_connection(#{},
+                                                #{sid => SID, jid => JID, info => Info},
+                                                #{host_type => HostType}),
     true = ejabberd_auth_anonymous:does_user_exist(HostType, U, S),
     mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
     false = ejabberd_auth_anonymous:does_user_exist(HostType, U, S).

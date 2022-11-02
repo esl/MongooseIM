@@ -62,12 +62,11 @@
 
 %% Hook handlers
 -export([remove_domain/3]).
--export([does_user_exist/4]).
+-export([on_does_user_exist/3]).
 
 -ignore_xref([
-    auth_methods/1, auth_modules/1, check_password/4, does_user_exist/4,
-    get_vh_registered_users/2, get_vh_registered_users_number/2,
-    start/1, stop/1]).
+    auth_methods/1, auth_modules/1, check_password/4, get_vh_registered_users/2,
+    get_vh_registered_users_number/2, start/1, stop/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -103,27 +102,21 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
 
-legacy_hooks(HostType) ->
-    [
-     %% These hooks must run in between those of mod_cache_users
-     {does_user_exist, HostType, ?MODULE, does_user_exist, 50}
-    ].
-
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
+        %% These hooks must run in between those of mod_cache_users
+        {does_user_exist, HostType, fun ?MODULE:on_does_user_exist/3, #{}, 50},
         %% It is important that this handler happens _before_ all other modules
         {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 10}
     ].
@@ -316,14 +309,19 @@ does_user_exist(HostType, Jid, RequestType) ->
 
 %% @doc does_user_exist hook handler
 %% Returns 'false' in case of an error
--spec does_user_exist(boolean(), mongooseim:host_type(), jid:jid(), exist_type()) -> boolean().
-does_user_exist(false, HostType, Jid, stored) ->
-    true =:= does_stored_user_exist(HostType, Jid);
-does_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, with_anonymous) ->
+-spec on_does_user_exist(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+on_does_user_exist(false, #{jid := Jid, request_type := stored}, #{host_type := HostType}) ->
+    {ok, true =:= does_stored_user_exist(HostType, Jid)};
+on_does_user_exist(false,
+                   #{jid := #jid{luser = LUser, lserver = LServer}, request_type := with_anonymous},
+                   #{host_type := HostType}) ->
     F = fun(Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod) end,
-    call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist});
-does_user_exist(Status, _, _, _) ->
-    Status.
+    {ok, call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist})};
+on_does_user_exist(Status, _, _) ->
+    {ok, Status}.
 
 %% @doc Returns true if the user exists in the DB
 %% In case of a backend error, it is propagated to the caller
