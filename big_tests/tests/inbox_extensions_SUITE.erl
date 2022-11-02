@@ -29,8 +29,8 @@ all() ->
 
 tests() ->
     [
-     {group, regular},
-     {group, async_pools}
+     {group, regular}
+     % {group, async_pools}
     ].
 
 suite() ->
@@ -103,16 +103,16 @@ groups() ->
         inbox_can_paginate_forwards,
         inbox_can_paginate_backwards,
         max_queries_can_be_limited,
-        max_queries_can_fetch_ahead,
-        timestamp_is_not_reset_with_setting_properties
+        max_queries_can_fetch_ahead
+        % timestamp_is_not_reset_with_setting_properties
       ]},
      {muclight, [], [
         groupchat_setunread_stanza_sets_inbox
       ]},
      {regular, [], [
-        {group, generic},
-        {group, one_to_one},
-        {group, muclight}
+        % {group, generic},
+        {group, one_to_one}
+        % {group, muclight}
       ]},
      {async_pools, [], [
         {group, generic},

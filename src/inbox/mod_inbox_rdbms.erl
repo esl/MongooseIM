@@ -10,6 +10,33 @@
 -include("mod_inbox.hrl").
 -include("mongoose_logger.hrl").
 
+-define(DEFAULT_ORDER, <<"DESC">>).
+-define(EXPRESSION_MAYBE_UNREAD_COUNT,
+    "unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END").
+% -define(EXPRESSION_KEEP_ARCHIVE_BOX,
+%         {expression, <<"box">>, <<"CASE WHEN inbox.box='archive' THEN inbox.box ELSE ? END">>}).
+% -define(EXPRESSION_INCR_COUNT,
+%         {expression, <<"unread_count">>, <<"inbox.unread_count+?">>}).
+% -define(EXPRESSION_SET_COUNT,
+%         {expression, <<"unread_count">>, <<"?">>}).
+
+-type value() :: binary() | integer() | boolean().
+% -type query_op() :: binary() | {assignment | expression, binary(), binary()}.
+-record(update_prop, {name :: atom(),
+                      fields = [] :: [atom()],
+                      query = <<>> :: binary(),
+                      values = [] :: [value()]}).
+-type update_prop() :: #update_prop{}.
+
+-record(lookup_inbox, {name :: atom(),
+                       fields = [] :: [atom()],
+                       from = <<"inbox">> :: binary(),
+                       order = ?DEFAULT_ORDER :: binary(),
+                       limit = {<<>>, <<>>} :: {iodata(), iodata()},
+                       conditions = [<<"box <> 'bin">>] :: iodata(),
+                       values = [] :: [value()]}).
+-type lookup_inbox() :: #lookup_inbox{}.
+
 -behaviour(mod_inbox_backend).
 
 %% API
@@ -75,8 +102,8 @@ init(HostType, _Options) ->
     BoxQuery = <<"CASE WHEN ?='bin' THEN 'bin'",
                      " WHEN inbox.box='archive' THEN 'inbox'",
                      " ELSE inbox.box END">>,
-    UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
-    InsertFields = UniqueKeyFields ++ [<<"msg_id">>, <<"box">>, <<"content">>, <<"unread_count">>, <<"timestamp">>],
+    UniqueKeyFields = inbox_unique_keys(),
+    InsertFields = inbox_insert_keys(),
     rdbms_queries:prepare_upsert(HostType, inbox_upsert, inbox,
                                  InsertFields,
                                  [<<"msg_id">>,
@@ -93,7 +120,62 @@ init(HostType, _Options) ->
                                   {expression, <<"unread_count">>, <<"inbox.unread_count + ?">>},
                                   <<"timestamp">>],
                                  UniqueKeyFields, <<"timestamp">>),
+    % prepare_getters(),
+    prepare_setters(),
     ok.
+
+prepare_getters() ->
+    [ prepare_get_inbox(
+        choose_getter(#{order => Order, limit => Limit,
+                        start => Start, 'end' => End,
+                        hidden_read => Hidden, box => Box}))
+      || Order <- [asc, desc],
+         Limit <- [false, 0],
+         Start <- [false, 0],
+         End <- [false, 0],
+         Hidden <- [false, true],
+         Box <- [false, <<"all">>, <<"box">>] ].
+
+-spec prepare_get_inbox(lookup_inbox()) -> {ok, atom()} | {error, already_exists}.
+prepare_get_inbox(#lookup_inbox{name = QueryName, fields = Fields,
+                                order = Order, limit = {MSLimit, Limit},
+                                conditions = Conditions}) ->
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            FinalQuery = ["SELECT ", MSLimit, query_row(),
+                          " FROM inbox WHERE luser = ? AND lserver = ? ", Conditions,
+                          " ORDER BY timestamp ", Order, " ", Limit],
+            mongoose_rdbms:prepare(QueryName, inbox, Fields, FinalQuery);
+        true ->
+            {ok, QueryName}
+    end.
+
+prepare_setters() ->
+    [ prepare_update_property(
+        choose_setter(#{unread_count => Count, muted_until => Muted, box => Box}))
+      || Count <- [false, 0, 1],
+         Muted <- [false, 0],
+         Box <- [false, <<"box">>] ].
+
+-spec prepare_update_property(update_prop()) -> {ok, atom()} | {error, already_exists}.
+prepare_update_property(#update_prop{name = QueryName, fields = Fields, query = Query}) ->
+    case mongoose_rdbms:prepared(QueryName) of
+        false ->
+            RowCond = <<" WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
+            FinalQuery = [<<"UPDATE inbox SET ">>, Query, RowCond],
+            mongoose_rdbms:prepare(QueryName, inbox, Fields, FinalQuery);
+        true ->
+            {ok, QueryName}
+    end.
+
+-spec inbox_insert_keys() -> [binary()].
+inbox_insert_keys() ->
+    [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>,
+     <<"msg_id">>, <<"box">>, <<"content">>, <<"unread_count">>, <<"timestamp">>].
+
+-spec inbox_unique_keys() -> [binary()].
+inbox_unique_keys() ->
+    [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>].
 
 -spec get_inbox(HostType :: mongooseim:host_type(),
                 LUser :: jid:luser(),
@@ -271,27 +353,19 @@ get_inbox_rdbms(HostType, LUser, LServer, Params) ->
     mongoose_rdbms:execute_successfully(HostType, QueryName, Args).
 
 set_entry_properties_rdbms(HostType, LUser, LServer, RemBareJID, Properties) ->
-    QueryName = update_query_name(Properties),
-    case mongoose_rdbms:prepared(QueryName) of
-        false ->
-            SQL = update_properties_query(Properties),
-            Columns = update_query_columns(Properties),
-            mongoose_rdbms:prepare(QueryName, inbox, Columns, SQL);
-        true ->
-            ok
-    end,
+    #update_prop{name = QueryName, values = Args} = choose_setter(Properties),
     {atomic, TransactionResult} =
         mongoose_rdbms:sql_transaction(
           LServer,
-          fun() -> set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Properties) end),
+          fun() -> set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Args) end),
     TransactionResult.
 
--spec set_entry_properties_t(mongooseim:host_type(), atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
-                             entry_properties()) ->
-          mongoose_rdbms:query_result().
-set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Properties) ->
-    Args = update_query_args(LUser, LServer, RemBareJID, Properties),
-    case mongoose_rdbms:execute_successfully(HostType, QueryName, Args) of
+-spec set_entry_properties_t(
+        mongooseim:host_type(), atom(), jid:luser(), jid:lserver(), jid:literal_jid(), [binary()]) ->
+    mongoose_rdbms:query_result().
+set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Args) ->
+    RowCond = [LUser, LServer, RemBareJID],
+    case mongoose_rdbms:execute_successfully(HostType, QueryName, Args ++ RowCond) of
         {updated, 1} ->
             execute_select_properties(HostType, LUser, LServer, RemBareJID);
         Other ->
@@ -388,49 +462,116 @@ lookup_sql_condition(box, Val) when is_binary(Val) ->
 lookup_sql_condition(_, _) ->
     "".
 
-%% Property update
+order_desc(#{hidden_read := false, box := false, limit := false, start := false, 'end' := false}) ->
+    #lookup_inbox{name = inbox_lookup};
 
-update_properties_query(Properties) ->
-    KVs = [{Key, maps:get(Key, Properties, undefined)} || Key <- property_keys()],
-    Parts = [update_sql_part(Key, Value) || {Key, Value} <- KVs, Value =/= undefined],
-    ["UPDATE inbox SET ", string:join(Parts, ", "),
-     " WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?"].
+order_desc(#{hidden_read := true, box := false, limit := false, start := false, 'end' := false}) ->
+    L0 = #lookup_inbox{name = inbox_lookup_hidden_read},
+    L0#lookup_inbox{conditions = [<<"unread_count > 0 AND ">> | L0#lookup_inbox.conditions]};
 
-update_query_args(LUser, LServer, RemBareJID, Properties) ->
-    [maps:get(Key, Properties) || Key <- update_arg_keys(Properties)] ++
-        [LUser, LServer, RemBareJID].
+order_desc(#{hidden_read := false, box := false, limit := false, start := false, 'end' := false}) ->
+    L0 = #lookup_inbox{name = inbox_lookup_hidden_read},
+    % L0#lookup_inbox{conditions = [<<"unread_count > 0 AND ">> | L0#lookup_inbox.conditions]};
 
-update_query_columns(Properties) ->
-    update_arg_keys(Properties) ++ [luser, lserver, remote_bare_jid].
+    #lookup_inbox{name = inbox_lookup_hidden_read,
+                  fields = [],
+                  from = <<"(SELECT timestamp ORDER BY timestamp DESC WHERE remote_bare_jid = ?)">>,
+                  order = <<"DESC">>,
+                  limit = {<<>>, <<>>},
+                  conditions = <<"unread_count > 0">>,
+                  values = []}.
 
-update_arg_keys(Properties) ->
-    lists:filter(fun(Key) -> maps:is_key(Key, Properties) end, [box, muted_until]).
 
-update_query_name(Properties) ->
-    IDString = lists:flatmap(fun(Prop) ->
-                                     property_id(Prop, maps:get(Prop, Properties, undefined))
-                             end, property_keys()),
-    list_to_atom("inbox_update_properties" ++ IDString).
+%% NOTE: the question marks in the `query' field need to match in the same order and number
+%% with the function in the `value' field, which describe how to generate the corresponding data.
+%% This is not checked statically or dynamically, but the proximity of the description should
+%% make the definition easy to get right.
+-spec choose_getter(map()) -> update_prop().
+%% order desc
+choose_getter(#{order := desc} = Params) ->
+    order_desc(Params);
 
-property_keys() ->
-    [unread_count, box, muted_until].
+choose_getter(#{order := Order, hidden_read := Hidden, box := Box,
+                limit := Limit, start := Start, 'end' := End}) ->
+    #lookup_inbox{name = inbox_update_properties_noop}.
 
--spec property_id(Key :: atom(), Value :: any()) -> string().
-property_id(_, undefined) -> "";
-property_id(unread_count, 0) -> "_read";
-property_id(unread_count, 1) -> "_unread";
-property_id(box, _) -> "_box";
-property_id(muted_until, _) -> "_muted".
 
--spec update_sql_part(Key :: atom(), Value :: any()) -> string().
-update_sql_part(unread_count, 0) ->
-    "unread_count = 0";
-update_sql_part(unread_count, 1) ->
-    "unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END";
-update_sql_part(box, Val) when is_binary(Val) ->
-    "box = ?";
-update_sql_part(muted_until, Val) when is_integer(Val) ->
-    "muted_until = ?".
+%% NOTE: the question marks in the `query' field need to match in the same order and number
+%% with the function in the `value' field, which describe how to generate the corresponding data.
+%% This is not checked statically or dynamically, but the proximity of the description should
+%% make the definition easy to get right.
+-spec choose_setter(mod_inbox_entries:properties()) -> update_prop().
+choose_setter(#{unread_count := false} = Properties) ->
+    unread_count_false(Properties);
+choose_setter(#{unread_count := 0} = Properties) ->
+    unread_count_0(Properties);
+choose_setter(#{unread_count := 1} = Properties) ->
+    unread_count_1(Properties).
+
+unread_count_false(#{muted_until := false, box := false}) ->
+    #update_prop{name = inbox_update_properties_noop};
+unread_count_false(#{muted_until := MutedUntil, box := false})
+  when is_integer(MutedUntil) ->
+    #update_prop{name = inbox_update_properties_muted_until,
+                 fields = [muted_until],
+                 query = <<"muted_until = ?">>,
+                 values = [MutedUntil]};
+unread_count_false(#{muted_until := false, box := Box})
+  when is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_box,
+                 fields = [box],
+                 query = <<"box = ?">>,
+                 values = [Box]};
+unread_count_false(#{muted_until := MutedUntil, box := Box})
+  when is_integer(MutedUntil), is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_muted_until_box,
+                 fields = [muted_until, box],
+                 query = <<"muted_until = ?, box = ?">>,
+                 values = [MutedUntil, Box]}.
+
+unread_count_0(#{muted_until := false, box := false}) ->
+    #update_prop{name = inbox_update_properties_reset_unread_count,
+                 query = <<"unread_count = 0">>};
+unread_count_0(#{muted_until := MutedUntil, box := false})
+  when is_integer(MutedUntil) ->
+    #update_prop{name = inbox_update_properties_reset_unread_count_muted_until,
+                 fields = [muted_until],
+                 query = <<"unread_count = 0, muted_until = ?">>,
+                 values = [MutedUntil]};
+unread_count_0(#{muted_until := false, box := Box})
+  when is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_reset_unread_count_box,
+                 fields = [box],
+                 query = <<"unread_count = 0, box = ?">>,
+                 values = [Box]};
+unread_count_0(#{muted_until := MutedUntil, box := Box})
+  when is_integer(MutedUntil), is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_reset_unread_count_muted_until_box,
+                 fields = [muted_until, box],
+                 query = <<"unread_count = 0, muted_until = ?, box = ?">>,
+                 values = [MutedUntil, Box]}.
+
+unread_count_1(#{muted_until := false, box := false}) ->
+    #update_prop{name = inbox_update_properties_incr_unread_count,
+                 query = <<?EXPRESSION_MAYBE_UNREAD_COUNT>>};
+unread_count_1(#{muted_until := MutedUntil, box := false})
+  when is_integer(MutedUntil) ->
+    #update_prop{name = inbox_update_properties_incr_unread_count_muted_until,
+                 fields = [muted_until],
+                 query = <<?EXPRESSION_MAYBE_UNREAD_COUNT, ", muted_until = ?">>,
+                 values = [MutedUntil]};
+unread_count_1(#{muted_until := false, box := Box})
+  when is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_incr_unread_count_box,
+                 fields = [box],
+                 query = <<?EXPRESSION_MAYBE_UNREAD_COUNT, ", box = ?">>,
+                 values = [Box]};
+unread_count_1(#{muted_until := MutedUntil, box := Box})
+  when is_integer(MutedUntil), is_binary(Box) ->
+    #update_prop{name = inbox_update_properties_incr_unread_count_muted_until_box,
+                 fields = [muted_until, box],
+                 query = <<?EXPRESSION_MAYBE_UNREAD_COUNT, ", muted_until = ?, box = ?">>,
+                 values = [MutedUntil, Box]}.
 
 %% Query execution
 

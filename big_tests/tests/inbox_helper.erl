@@ -9,6 +9,7 @@
 
 % Generic inbox
 -export([
+         do_get_inbox/2,
          skip_or_run_inbox_tests/1,
          maybe_run_in_parallel/1,
          inbox_opts/0,

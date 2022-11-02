@@ -202,6 +202,7 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
         {error, bad_request, Msg} ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         Params ->
+            ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => Params}),
             List0 = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
             List = with_rsm(List0, Params),
             forward_messages(Acc, List, IQ, From),
@@ -474,6 +475,7 @@ build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = before})
 build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = aft}) ->
     Params#{limit => Max, 'end' => (1 bsl 63 - 1)};
 build_params_with_rsm(Params, Rsm = #rsm_in{max = Max, id = Id, direction = Dir}) when is_binary(Id) ->
+    ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', stuff => Rsm}),
     case {mongoose_lib:maybe_binary_to_positive_integer(Id), Dir} of
         {error, _} -> {error, bad_request, <<"bad-request">>};
         {undefined, before} -> Params#{limit => Max, order => asc, start => 0};
@@ -482,7 +484,8 @@ build_params_with_rsm(Params, Rsm = #rsm_in{max = Max, id = Id, direction = Dir}
         {Stamp, undefined} -> Params#{limit => Max, 'end' => Stamp - 1};
         {Stamp, before} -> Params#{limit => Max, order => asc, start => Stamp}
     end;
-build_params_with_rsm(Params, _Rsm) ->
+build_params_with_rsm(Params, Rsm) ->
+    ?LOG_ERROR(#{what => 'DEBUG_MESSAGE', params => Params, stuff => Rsm}),
     Params.
 
 -spec form_to_params(mongooseim:host_type(), FormEl :: exml:element() | undefined) ->

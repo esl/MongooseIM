@@ -10,6 +10,4 @@
                        unread_count := integer(),
                        box := binary()}.
 
--type entry_properties() :: #{muted_until := integer(),
-                              unread_count := integer(),
-                              box := binary()} | inbox_res().
+-type entry_properties() :: mod_inbox_entries:properties() | inbox_res().

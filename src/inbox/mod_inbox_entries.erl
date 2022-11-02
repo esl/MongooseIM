@@ -8,13 +8,14 @@
 -export([process_iq_conversation/5]).
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/2]).
+-export([properties/0]).
 
--type entry_query() :: #{box => binary(),
-                         unread_count => 0 | 1,
-                         muted_until => integer()}.
+-type properties() :: #{box := false | binary(),
+                        unread_count := false | 0 | 1,
+                        muted_until := false | integer()}.
 
 -type get_entry_type() :: full_entry | only_properties.
--export_type([get_entry_type/0]).
+-export_type([properties/0, get_entry_type/0]).
 
 -spec process_iq_conversation(Acc :: mongoose_acc:t(),
                               From :: jid:jid(),
@@ -100,14 +101,14 @@ process_iq_conversation_set(Acc, IQ, From, #xmlel{children = Requests} = Query) 
 -spec extract_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), [exml:element()]) ->
     {mongoose_acc:t(), jlib:iq()}.
 extract_requests(Acc, IQ, From, EntryJID, Requests) ->
-    case form_to_query(Acc, Requests, #{}) of
+    case form_to_query(Acc, Requests, properties()) of
         {error, Msg} ->
             return_error(Acc, IQ, bad_request, Msg);
         Params ->
             process_requests(Acc, IQ, From, EntryJID, Params)
     end.
 
--spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), entry_query()) ->
+-spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), properties()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_requests(Acc, IQ, From, EntryJID, Params) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -119,7 +120,7 @@ process_requests(Acc, IQ, From, EntryJID, Params) ->
             forward_result(Acc, IQ, From, InboxEntryKey, Result)
     end.
 
--spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties()) ->
+-spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), properties()) ->
     {mongoose_acc:t(), jlib:iq()}.
 forward_result(Acc, IQ = #iq{id = IqId}, From, {_, _, ToBareJidBin}, Result) ->
     Properties = build_result(Acc, Result, IQ, only_properties),
@@ -157,7 +158,7 @@ process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec build_result(mongoose_acc:t(), inbox_res() | entry_properties(), jlib:iq(), get_entry_type()) ->
+-spec build_result(mongoose_acc:t(), inbox_res() | properties(), jlib:iq(), get_entry_type()) ->
     [exml:element()].
 build_result(Acc, Entry = #{unread_count := UnreadCount}, IQ, QueryType) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
@@ -176,34 +177,37 @@ maybe_full_entry(_, _, _, _) ->
 return_error(Acc, IQ, Type, Msg) when is_binary(Msg) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Type(<<"en">>, Msg)]}}.
 
--spec form_to_query(mongoose_acc:t(), [exml:element()], map()) -> entry_query() | {error, binary()}.
-form_to_query(_, [], Acc) when map_size(Acc) == 0 ->
+-spec form_to_query(mongoose_acc:t(), [exml:element()], properties()) -> properties() | {error, binary()}.
+form_to_query(_, [], #{unread_count := false, muted_until := false, box := false}) ->
     {error, <<"no-property">>};
 form_to_query(_, [], Acc) ->
     Acc;
 form_to_query(MAcc, [#xmlel{name = <<"box">>, children = [#xmlcdata{content = BoxName}]} | Rest], Acc) ->
     case is_box_accepted(MAcc, BoxName) of
-        true -> form_to_query(MAcc, Rest, Acc#{box => BoxName});
+        true -> form_to_query(MAcc, Rest, Acc#{box := BoxName});
         false -> {error, <<"invalid-box">>}
     end;
-form_to_query(MAcc, [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(MAcc, Rest, Acc#{box => maps:get(box, Acc, <<"archive">>)});
-form_to_query(MAcc, [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(MAcc, Rest, Acc#{box => maps:get(box, Acc, <<"inbox">>)});
+form_to_query(MAcc, [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc = #{box := false}) ->
+    form_to_query(MAcc, Rest, Acc#{box := <<"archive">>});
+form_to_query(MAcc, [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc = #{box := false}) ->
+    form_to_query(MAcc, Rest, Acc#{box := <<"inbox">>});
+form_to_query(MAcc, [#xmlel{name = <<"archive">>, children = [#xmlcdata{content = Bool}]} | Rest], Acc)
+  when Bool =:= <<"true">>; Bool =:= <<"false">> ->
+    form_to_query(MAcc, Rest, Acc);
 form_to_query(MAcc, [#xmlel{name = <<"read">>, children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(MAcc, Rest, Acc#{unread_count => 0});
+    form_to_query(MAcc, Rest, Acc#{unread_count := 0});
 form_to_query(MAcc, [#xmlel{name = <<"read">>, children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(MAcc, Rest, Acc#{unread_count => 1});
+    form_to_query(MAcc, Rest, Acc#{unread_count := 1});
 form_to_query(MAcc, [#xmlel{name = <<"mute">>,
                             children = [#xmlcdata{content = Value}]} | Rest], Acc) ->
     case mod_inbox_utils:maybe_binary_to_positive_integer(Value) of
         {error, _} -> {error, <<"bad-request">>};
         0 ->
-            form_to_query(MAcc, Rest, Acc#{muted_until => 0});
+            form_to_query(MAcc, Rest, Acc#{muted_until := 0});
         Num when Num > 0 ->
             TS = mongoose_acc:timestamp(MAcc),
             MutedUntilMicroSec = TS + erlang:convert_time_unit(Num, second, microsecond),
-            form_to_query(MAcc, Rest, Acc#{muted_until => MutedUntilMicroSec})
+            form_to_query(MAcc, Rest, Acc#{muted_until := MutedUntilMicroSec})
     end;
 form_to_query(_, _, _) ->
     {error, <<"bad-request">>}.
@@ -244,3 +248,8 @@ maybe_muted_until(MutedUntil, CurrentTS) ->
         true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
         false -> <<"0">>
     end.
+
+properties() ->
+    #{box => false,
+      unread_count => false,
+      muted_until => false}.
