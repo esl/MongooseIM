@@ -491,7 +491,6 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     Params :: map(),
     Extra :: map().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
-    HostType = mongoose_acc:host_type(Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
     mod_vcard_backend:remove_user(HostType, LUser, LServer),
