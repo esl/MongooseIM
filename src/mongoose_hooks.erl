@@ -193,8 +193,10 @@ c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
     AdhocRequest :: adhoc:request(),
     Result :: mod_adhoc:command_hook_acc().
 adhoc_local_commands(HostType, From, To, AdhocRequest) ->
-    run_hook_for_host_type(adhoc_local_commands, HostType, empty,
-                           [From, To, AdhocRequest]).
+    Params = #{from => From, to => To, adhoc_request => AdhocRequest},
+    LegacyArgs = [From, To, AdhocRequest],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, LegacyArgs),
+    run_hook_for_host_type(adhoc_local_commands, HostType, empty, ParamsWithLegacyArgs).
 
 -spec adhoc_sm_commands(HostType, From, To, AdhocRequest) -> Result when
     HostType :: mongooseim:host_type(),
@@ -1408,7 +1410,8 @@ disco_local_identity(Acc = #{host_type := HostType}) ->
 %%% client when a discovery IQ gets to session management.
 -spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
 disco_sm_identity(Acc = #{host_type := HostType}) ->
-    run_hook_for_host_type(disco_sm_identity, HostType, Acc, []).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, []),
+    run_hook_for_host_type(disco_sm_identity, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
