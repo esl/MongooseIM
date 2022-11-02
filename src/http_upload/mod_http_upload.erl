@@ -46,8 +46,6 @@
 %% mongoose_module_metrics callbacks
 -export([config_metrics/1]).
 
--ignore_xref([behaviour_info/1, process_disco_iq/5, process_iq/5]).
-
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
