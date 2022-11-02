@@ -427,8 +427,10 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
     VCard :: exml:element(),
     Result :: ok | {error, any()}.
 set_vcard(HostType, UserJID, VCard) ->
-    run_hook_for_host_type(set_vcard, HostType, {error, no_handler_defined},
-                           [HostType, UserJID, VCard]).
+    Params = #{user => UserJID, vcard => VCard},
+    Args = [HostType, UserJID, VCard],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(set_vcard, HostType, {error, no_handler_defined}, ParamsWithLegacyArgs).
 
 -spec unacknowledged_message(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
