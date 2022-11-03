@@ -4,14 +4,13 @@
 -include("jlib.hrl").
 
 -behaviour(mongoose_packet_handler).
+-behaviour(gen_mod).
 
 %% API
 -export([start/2, stop/1,
          config_spec/0,
          supported_features/0]).
 -export([process_packet/5, process_iq/5]).
-
--ignore_xref([config_spec/0, process_packet/5, start/2, stop/1, supported_features/0]).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

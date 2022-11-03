@@ -10,16 +10,15 @@
 %% Exports
 
 %% gen_mod handlers
+-behaviour(gen_mod).
 -export([start/2, stop/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_prefs).
--export([get_behaviour/5,
-         get_prefs/4,
-         set_prefs/7,
-         remove_archive/4]).
-
--ignore_xref([remove_archive/4, start/2, stop/1, supported_features/0]).
+-export([get_behaviour/3,
+         get_prefs/3,
+         set_prefs/3,
+         remove_archive/3]).
 
 -import(mongoose_rdbms, [prepare/4]).
 
@@ -34,12 +33,12 @@
 -spec start(mongooseim:host_type(), _) -> ok.
 start(HostType, _Opts) ->
     prepare_queries(HostType),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
 -spec supported_features() -> [atom()].
@@ -58,16 +57,16 @@ maybe_muc_hooks(true, HostType) -> muc_hooks(HostType);
 maybe_muc_hooks(false, _HostType) -> [].
 
 pm_hooks(HostType) ->
-    [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
-     {mam_get_prefs, HostType, ?MODULE, get_prefs, 50},
-     {mam_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}].
+    [{mam_get_behaviour, HostType, fun ?MODULE:get_behaviour/3, #{}, 50},
+     {mam_get_prefs, HostType, fun ?MODULE:get_prefs/3, #{}, 50},
+     {mam_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
+     {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50}].
 
 muc_hooks(HostType) ->
-    [{mam_muc_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
-     {mam_muc_get_prefs, HostType, ?MODULE, get_prefs, 50},
-     {mam_muc_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}].
+    [{mam_muc_get_behaviour, HostType, fun ?MODULE:get_behaviour/3, #{}, 50},
+     {mam_muc_get_prefs, HostType, fun ?MODULE:get_prefs/3, #{}, 50},
+     {mam_muc_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
+     {mam_muc_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50}].
 
 %% Prepared queries
 prepare_queries(HostType) ->
@@ -103,20 +102,23 @@ order_by_remote_jid_in_delete(HostType) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-        HostType :: mongooseim:host_type(), ArchiveID :: mod_mam:archive_id(),
-        LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
-get_behaviour(DefaultBehaviour, HostType, UserID, _LocJID, RemJID)
+-spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:archive_behaviour(),
+    Params :: map(),
+    Extra :: map().
+get_behaviour(DefaultBehaviour,
+              #{archive_id := UserID, remote := RemJID},
+              #{host_type := HostType})
         when is_integer(UserID) ->
     RemLJID      = jid:to_lower(RemJID),
     BRemLBareJID = jid:to_bare_binary(RemLJID),
     BRemLJID     = jid:to_binary(RemLJID),
     case query_behaviour(HostType, UserID, BRemLJID, BRemLBareJID) of
         {selected, []} ->
-            DefaultBehaviour;
+            {ok, DefaultBehaviour};
         {selected, RemoteJid2Behaviour} ->
             DbBehaviour = choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour),
-            decode_behaviour(DbBehaviour)
+            {ok, decode_behaviour(DbBehaviour)}
     end.
 
 -spec choose_behaviour(binary(), binary(), [{binary(), binary()}]) -> binary().
@@ -135,16 +137,18 @@ choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
             end
     end.
 
--spec set_prefs(Result :: any(), HostType :: mongooseim:host_type(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
-        DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [jid:literal_jid()],
-        NeverJIDs :: [jid:literal_jid()]) -> any().
-set_prefs(_Result, HostType, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+-spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+set_prefs(_Result,
+          #{archive_id := UserID, default_mode := DefaultMode,
+            always_jids := AlwaysJIDs, never_jids := NeverJIDs},
+          #{host_type := HostType}) ->
     try
-        set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs)
+        {ok, set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs)}
     catch _Type:Error ->
-        {error, Error}
+        {ok, {error, Error}}
     end.
 
 set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -159,19 +163,21 @@ set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         end, #{user_id => UserID, retries => 5, delay => 100}),
     ok.
 
--spec get_prefs(mod_mam:preference(), HostType :: mongooseim:host_type(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
-            -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, HostType, UserID, _ArcJID) ->
+-spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc ::  mod_mam:preference(),
+    Params :: map(),
+    Extra :: map().
+get_prefs({GlobalDefaultMode, _, _}, #{archive_id := UserID}, #{host_type := HostType}) ->
     {selected, Rows} = mongoose_rdbms:execute(HostType, mam_prefs_select, [UserID]),
-    decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
+    {ok, decode_prefs_rows(Rows, GlobalDefaultMode, [], [])}.
 
--spec remove_archive(mongoose_acc:t(), mongooseim:host_type(),
-                     mod_mam:archive_id(), jid:jid()) ->
-    mongoose_acc:t().
-remove_archive(Acc, HostType, UserID, _ArcJID) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+remove_archive(Acc, #{archive_id := UserID}, #{host_type := HostType}) ->
     remove_archive(HostType, UserID),
-    Acc.
+    {ok, Acc}.
 
 remove_archive(HostType, UserID) ->
     {updated, _} =

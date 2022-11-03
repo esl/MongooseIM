@@ -29,12 +29,9 @@
 %% ejabberd_gen_mam_archive callbacks
 -export([archive_message/3]).
 -export([lookup_messages/3]).
--export([remove_archive/4]).
--export([archive_size/4]).
-
+-export([remove_archive/3]).
+-export([archive_size/3]).
 -export([get_mam_pm_gdpr_data/3]).
-
--ignore_xref([remove_archive/4]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -50,18 +47,19 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-                           mongooseim:host_type(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, _HostType, Owner) ->
+-spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+    Params :: map(),
+    Extra :: map().
+get_mam_pm_gdpr_data(Acc, #{jid := Owner}, _Extra) ->
     BinOwner = mod_mam_utils:bare_jid(Owner),
     Filter = #{term => #{owner => BinOwner}},
     Sorting = #{mam_id => #{order => asc}},
@@ -69,17 +67,22 @@ get_mam_pm_gdpr_data(Acc, _HostType, Owner) ->
     {ok, #{<<"hits">> := #{<<"hits">> := Hits}}}
         = mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery),
     Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
-    Messages ++ Acc.
+    {ok, Messages ++ Acc}.
 
 %%-------------------------------------------------------------------
 %% ejabberd_gen_mam_archive callbacks
 %%-------------------------------------------------------------------
 
-archive_message(_Result, Host, #{message_id := MessageId,
-                                 local_jid := LocalJid,
-                                 remote_jid := RemoteJid,
-                                 source_jid := SourceJid,
-                                 packet := Packet}) ->
+-spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok | {error, term()},
+    Params :: map(),
+    Extra :: map().
+archive_message(_Result, #{params := Params}, #{host_type := Host}) ->
+    #{message_id := MessageId,
+      local_jid := LocalJid,
+      remote_jid := RemoteJid,
+      source_jid := SourceJid,
+      packet := Packet} = Params,
     Owner = mod_mam_utils:bare_jid(LocalJid),
     Remote = mod_mam_utils:bare_jid(RemoteJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
@@ -87,23 +90,31 @@ archive_message(_Result, Host, #{message_id := MessageId,
     Doc = make_document(MessageId, Owner, Remote, SourceBinJid, Packet),
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
-            ok;
+            {ok, ok};
         {error, Reason} = Err ->
             ?LOG_ERROR(#{what => archive_message_failed,
                          user => Owner, server => Host, remote => Remote,
                          message_id => MessageId, reason => Reason}),
             mongoose_metrics:update(Host, modMamDropped, 1),
-            Err
+            {ok, Err}
     end.
 
-lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
+-spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
+    Params :: map(),
+    Extra :: map().
+lookup_messages(Result,
+                #{params := #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params},
+                #{host_type := Host})
   when ID =/= undefined ->
-    lookup_message_page(Result, Host, RSM, Params);
-lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
+    {ok, lookup_message_page(Result, Host, RSM, Params)};
+lookup_messages(Result,
+                #{params := #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params},
+                #{host_type := Host})
   when ID =/= undefined ->
-    lookup_message_page(Result, Host, RSM, Params);
-lookup_messages(Result, Host, Params) ->
-    do_lookup_messages(Result, Host, Params).
+    {ok, lookup_message_page(Result, Host, RSM, Params)};
+lookup_messages(Result, #{params := Params}, #{host_type := Host}) ->
+    {ok, do_lookup_messages(Result, Host, Params)}.
 
 lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->
     PageSize = maps:get(page_size, Params),
@@ -130,21 +141,21 @@ do_lookup_messages(_Result, Host, Params) ->
             Err
     end.
 
--spec archive_size(Size :: integer(),
-                   Host :: jid:server(),
-                   _ArchiveId,
-                   OwnerJid :: jid:jid()) -> non_neg_integer().
-archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
+-spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: integer(),
+    Params :: map(),
+    Extra :: map().
+archive_size(_Size, #{owner := OwnerJid}, _Extra)->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
-    archive_size(SearchQuery).
+    {ok, archive_size(SearchQuery)}.
 
--spec remove_archive(Acc :: mongoose_acc:t(),
-                     Host :: jid:server(),
-                     ArchiveId :: mod_mam:archive_id(),
-                     OwnerJid :: jid:jid()) -> Acc when Acc :: map().
-remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+remove_archive(Acc, #{owner := OwnerJid}, #{host_type := Host}) ->
     remove_archive(Host, OwnerJid),
-    Acc.
+    {ok, Acc}.
 
 remove_archive(Host, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
@@ -161,13 +172,13 @@ remove_archive(Host, OwnerJid) ->
 %% Helpers
 %%-------------------------------------------------------------------
 
--spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(Host) ->
-    [{mam_archive_message, Host, ?MODULE, archive_message, 50},
-     {mam_lookup_messages, Host, ?MODULE, lookup_messages, 50},
-     {mam_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
-     {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
+    [{mam_archive_message, Host, fun ?MODULE:archive_message/3, #{}, 50},
+     {mam_lookup_messages, Host, fun ?MODULE:lookup_messages/3, #{}, 50},
+     {mam_archive_size, Host, fun ?MODULE:archive_size/3, #{}, 50},
+     {mam_remove_archive, Host, fun ?MODULE:remove_archive/3, #{}, 50},
+     {get_mam_pm_gdpr_data, Host, fun ?MODULE:get_mam_pm_gdpr_data/3, #{}, 50}].
 
 -spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Owner, MessageId) ->

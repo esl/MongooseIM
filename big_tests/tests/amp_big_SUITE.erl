@@ -152,9 +152,9 @@ setup_meck(suite) ->
     ok = rpc(mim(), meck, new, [ejabberd_socket, [passthrough, no_link]]),
     ok = rpc(mim(), amp_test_helper, setup_meck, []);
 setup_meck(mam_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {ok, {error, simulated}}]);
 setup_meck(offline_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 4, {error, simulated}]);
+ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 4, {error, simulated}]);
 setup_meck(_) -> ok.
 
 save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];
@@ -371,6 +371,7 @@ notify_deliver_to_offline_user_test(Config) ->
                                    false -> none
                                end, notify},
               Rules = rules(Config, [Rule]),
+              io:format("~p~n", [Rules]),
               BobJid = escalus_users:get_jid(FreshConfig, bob),
               Msg = amp_message_to(BobJid, Rules, <<"A message in a bottle...">>),
 
@@ -382,12 +383,14 @@ notify_deliver_to_offline_user_test(Config) ->
                   true -> client_receives_notification(Alice, BobJid, Rule);
                   false -> ok
               end,
+              io:format("~p~n", [?config(offline_storage, Config)]),
               case ?config(offline_storage, Config) of
                   offline_failure -> client_receives_generic_error(Alice, <<"500">>, <<"wait">>);
                   _ -> client_receives_nothing(Alice)
               end
       end),
     wait_until_no_session(FreshConfig, alice),
+    io:format("no session~n"),
     case is_offline_storage_working(Config) of
         true -> user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>);
         false -> user_has_no_incoming_offline_messages(FreshConfig, bob)

@@ -6,6 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_cassandra_prefs).
 -behaviour(mongoose_cassandra).
+-behaviour(gen_mod).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -15,14 +16,12 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_prefs).
--export([get_behaviour/5,
-         get_prefs/4,
-         set_prefs/7,
-         remove_archive/4]).
+-export([get_behaviour/3,
+         get_prefs/3,
+         set_prefs/3,
+         remove_archive/3]).
 
 -export([prepared_queries/0]).
-
--ignore_xref([remove_archive/4, start/2, stop/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -36,12 +35,12 @@
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    ejabberd_hooks:add(hooks(HostType, Opts)).
+    gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(host_type()) -> ok.
 stop(HostType) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
-    ejabberd_hooks:delete(hooks(HostType, Opts)).
+    gen_hook:delete_handlers(hooks(HostType, Opts)).
 
 %% ----------------------------------------------------------------------
 %% Hooks
@@ -50,15 +49,15 @@ hooks(HostType, Opts) ->
     lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
 hooks(HostType, pm, #{pm := true}) ->
-    [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
-     {mam_get_prefs, HostType, ?MODULE, get_prefs, 50},
-     {mam_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+    [{mam_get_behaviour, HostType, fun ?MODULE:get_behaviour/3, #{}, 50},
+     {mam_get_prefs, HostType, fun ?MODULE:get_prefs/3, #{}, 50},
+     {mam_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
+     {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50}];
 hooks(HostType, muc, #{muc := true}) ->
-    [{mam_muc_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
-     {mam_muc_get_prefs, HostType, ?MODULE, get_prefs, 50},
-     {mam_muc_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+    [{mam_muc_get_behaviour, HostType, fun ?MODULE:get_behaviour/3, #{}, 50},
+     {mam_muc_get_prefs, HostType, fun ?MODULE:get_prefs/3, #{}, 50},
+     {mam_muc_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
+     {mam_muc_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50}];
 hooks(_HostType, _Opt, _Opts) ->
     [].
 
@@ -82,16 +81,19 @@ prepared_queries() ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-                    HostType :: host_type(), ArchiveID :: mod_mam:archive_id(),
-                    LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
-get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
+-spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:archive_behaviour(),
+    Params :: map(),
+    Extra :: map().
+get_behaviour(DefaultBehaviour,
+              #{owner := LocJID, remote := RemJID},
+              #{host_type := HostType}) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
     BRemBareJID = mod_mam_utils:bare_jid(RemJID),
     BRemJID = mod_mam_utils:full_jid(RemJID),
     case query_behaviour(HostType, LocJID, BUserJID, BRemJID, BRemBareJID) of
         {ok, []} ->
-            DefaultBehaviour;
+            {ok, DefaultBehaviour};
         {ok, [_ | _] = Rows} ->
             %% After sort <<>>, <<"a">>, <<"a/b">>
             SortedRows = lists:sort(
@@ -100,24 +102,26 @@ get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
                     {JID1, B1} < {JID2, B2}
                 end, Rows),
             #{behaviour := Behaviour} = lists:last(SortedRows),
-            decode_behaviour(Behaviour)
+            {ok, decode_behaviour(Behaviour)}
     end.
 
 
--spec set_prefs(Result :: any(), HostType :: host_type(),
-                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
-                DefaultMode :: mod_mam:archive_behaviour(),
-                AlwaysJIDs :: [jid:literal_jid()],
-                NeverJIDs :: [jid:literal_jid()]) -> any().
-set_prefs(_Result, HostType, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+-spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+set_prefs(_Result,
+          #{owner := UserJID, default_mode := DefaultMode, always_jids := AlwaysJIDs,
+            never_jids := NeverJIDs},
+          #{host_type := HostType}) ->
     try
-        set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
+        {ok, set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)}
     catch Type:Error:StackTrace ->
               ?LOG_ERROR(#{what => mam_set_prefs_failed,
                            user_jid => UserJID, default_mode => DefaultMode,
                            always_jids => AlwaysJIDs, never_jids => NeverJIDs,
                            class => Type, reason => Error, stacktrace => StackTrace}),
-            {error, Error}
+            {ok, {error, Error}}
     end.
 
 set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
@@ -144,22 +148,25 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
       behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
--spec get_prefs(mod_mam:preference(), _HostType :: host_type(),
-                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
-               -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
+-spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc ::  mod_mam:preference(),
+    Params :: map(),
+    Extra :: map().
+get_prefs({GlobalDefaultMode, _, _}, #{owner := UserJID}, #{host_type := HostType}) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
     {ok, Rows} = mongoose_cassandra:cql_read(pool_name(HostType), UserJID, ?MODULE,
                                              get_prefs_query, Params),
-    decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
+    {ok, decode_prefs_rows(Rows, GlobalDefaultMode, [], [])}.
 
 
--spec remove_archive(mongoose_acc:t(), host_type(), mod_mam:archive_id(), jid:jid()) ->
-    mongoose_acc:t().
-remove_archive(Acc, HostType, _UserID, UserJID) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+remove_archive(Acc, #{owner := UserJID}, #{host_type := HostType}) ->
     remove_archive(HostType, UserJID),
-    Acc.
+    {ok, Acc}.
 
 remove_archive(HostType, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),

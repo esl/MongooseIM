@@ -43,10 +43,11 @@
 -export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd room handlers
--export([disco_muc_features/1,
+-export([disco_muc_features/3,
          filter_room_packet/3,
-         room_process_mam_iq/5,
-         forget_room/4]).
+         forget_room/3]).
+
+-export([room_process_mam_iq/5]).
 
 %% gdpr callback
 -export([get_personal_data/3]).
@@ -56,9 +57,8 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
--ignore_xref([archive_id/2, archive_message_for_ct/1, archive_size/2, behaviour_info/1,
-              delete_archive/2, disco_muc_features/1, filter_room_packet/3,
-              forget_room/4, get_personal_data/3, start/2, stop/1, supported_features/0]).
+-ignore_xref([archive_id/2, archive_message_for_ct/1, archive_size/2, delete_archive/2,
+              start/2, stop/1, supported_features/0]).
 
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
@@ -82,12 +82,14 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
-    gdpr:personal_data().
-get_personal_data(Acc, HostType, ArcJID) ->
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: gdpr:personal_data(),
+    Params :: map(),
+    Extra :: map().
+get_personal_data(Acc, #{jid := ArcJID}, #{host_type := HostType}) ->
     Schema = ["id", "message"],
     Entries = mongoose_hooks:get_mam_muc_gdpr_data(HostType, ArcJID),
-    [{mam_muc, Schema, Entries} | Acc].
+    {ok, [{mam_muc, Schema, Entries} | Acc]}.
 
 -spec delete_archive(jid:server(), jid:user()) -> ok.
 delete_archive(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
@@ -119,7 +121,6 @@ archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
 start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
     ensure_metrics(HostType),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
@@ -127,7 +128,6 @@ start(HostType, Opts) ->
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
@@ -139,16 +139,21 @@ supported_features() ->
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
 
--spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_muc_features(Acc = #{host_type := HostType, node := <<>>}) ->
-    mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc);
-disco_muc_features(Acc) ->
-    Acc.
+-spec disco_muc_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_muc_features(Acc = #{host_type := HostType, node := <<>>}, _Params, _Extra) ->
+    {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
+disco_muc_features(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Packet :: packet(), HostType :: host_type(),
-                         EventData :: mod_muc:room_event_data()) -> packet().
-filter_room_packet(Packet, HostType, EventData = #{}) ->
+-spec filter_room_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: exml:element(),
+    Params :: map(),
+    Extra :: map().
+filter_room_packet(Packet, #{event_data := #{} = EventData}, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
     IsArchivable = is_archivable_message(HostType, incoming, Packet),
@@ -156,9 +161,10 @@ filter_room_packet(Packet, HostType, EventData = #{}) ->
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
               role := Role, affiliation := Affiliation, timestamp := TS} = EventData,
-            archive_room_packet(HostType, Packet, FromNick, FromJID,
-                                RoomJID, Role, Affiliation, TS);
-        false -> Packet
+            {ok, archive_room_packet(HostType, Packet, FromNick, FromJID,
+                                     RoomJID, Role, Affiliation, TS)};
+        false ->
+            {ok, Packet}
     end.
 
 %% @doc Archive without validation.
@@ -235,10 +241,13 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
             {Acc, return_action_not_allowed_error_iq(Reason, IQ)}
     end.
 
--spec forget_room(map(), host_type(), jid:lserver(), binary()) -> map().
-forget_room(Acc, _HostType, MucServer, RoomName) ->
+-spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
+forget_room(Acc, #{muc_host := MucServer, room := RoomName}, _Extra) ->
     delete_archive(MucServer, RoomName),
-    Acc.
+    {ok, Acc}.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -618,16 +627,13 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec legacy_hooks(host_type()) -> [ejabberd_hooks:hook()].
-legacy_hooks(HostType) ->
-    [{disco_muc_features, HostType, ?MODULE, disco_muc_features, 99},
-     {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
-     {forget_room, HostType, ?MODULE, forget_room, 90},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
-
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType).
+    [{disco_muc_features, HostType, fun ?MODULE:disco_muc_features/3, #{}, 99},
+     {filter_room_packet, HostType, fun ?MODULE:filter_room_packet/3, #{}, 60},
+     {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 90},
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
+     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),

@@ -1,18 +1,16 @@
 -module(ejabberd_gen_mam_prefs).
 
--ignore_xref([behaviour_info/1]).
+-callback get_behaviour(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mod_mam:archive_behaviour(),
+    Params :: map(),
+    Extra :: map().
 
--callback get_behaviour(Default :: mod_mam:archive_behaviour(),
-        Host :: jid:server(), ArcID :: mod_mam:archive_id(),
-        LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
+-callback set_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: map().
 
--callback set_prefs(Result :: any(), Host :: jid:server(),
-        ArcID :: mod_mam:archive_id(), ArcJID :: jid:jid(),
-        DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [jid:literal_jid()],
-        NeverJIDs :: [jid:literal_jid()]) -> any().
-
--callback get_prefs(mod_mam:preference(), _Host :: jid:server(),
-        ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid())
-            -> mod_mam:preference().
-
+-callback get_prefs(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:preference() | {error, Reason :: term()},
+    Params :: map(),
+    Extra :: map().

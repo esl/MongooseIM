@@ -9,18 +9,28 @@
 
 -behaviour(gen_mod).
 -export([start/2, stop/1, supported_features/0]).
--export([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
--ignore_xref([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
+-export([archive_muc_message/3, mam_muc_archive_sync/3]).
+-export([flush/2]).
+-ignore_xref([flush/2]).
 
--spec archive_muc_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) -> ok.
-archive_muc_message(_Result, HostType, Params0 = #{archive_id := RoomID}) ->
+-spec archive_muc_message(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()},
+    Params :: map(),
+    Extra :: map().
+archive_muc_message(Result,
+                    #{params := #{archive_id := RoomID} = Params0},
+                    #{host_type := HostType}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
-    mongoose_async_pools:put_task(HostType, muc_mam, RoomID, Params).
+    mongoose_async_pools:put_task(HostType, muc_mam, RoomID, Params),
+    {ok, Result}.
 
--spec mam_muc_archive_sync(term(), mongooseim:host_type()) -> term().
-mam_muc_archive_sync(Result, HostType) ->
+-spec mam_muc_archive_sync(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok,
+    Params :: map(),
+    Extra :: map().
+mam_muc_archive_sync(Result, _Params, #{host_type := HostType}) ->
     mongoose_async_pools:sync(HostType, muc_mam),
-    Result.
+    {ok, Result}.
 
 %%% gen_mod callbacks
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
@@ -29,15 +39,20 @@ start(HostType, Opts) ->
     mod_mam_rdbms_arch_async:prepare_insert_queries(muc, Extra),
     mongoose_metrics:ensure_metric(HostType, ?PER_MESSAGE_FLUSH_TIME, histogram),
     mongoose_metrics:ensure_metric(HostType, ?FLUSH_TIME, histogram),
-    ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
-    ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
+    gen_hook:add_handlers(hooks(HostType)),
     mongoose_async_pools:start_pool(HostType, muc_mam, PoolOpts).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
-    ejabberd_hooks:delete(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
-    ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
+    gen_hook:delete_handlers(hooks(HostType)),
     mongoose_async_pools:stop_pool(HostType, muc_mam).
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [
+        {mam_muc_archive_sync, HostType, fun ?MODULE:mam_muc_archive_sync/3, #{}, 50},
+        {mam_muc_archive_message, HostType, fun ?MODULE:archive_muc_message/3, #{}, 50}
+    ].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
