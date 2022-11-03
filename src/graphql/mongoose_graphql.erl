@@ -161,10 +161,11 @@ remove_null_args(Vars) ->
 admin_mapping_rules() ->
     #{objects => #{
         'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminMutation' => mongoose_graphql_admin_mutation,
+        'AdminSubscription' => mongoose_graphql_admin_subscription,
         'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'GdprAdminQuery' => mongoose_graphql_gdpr_admin_query,
-        'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
         'InboxAdminMutation' => mongoose_graphql_inbox_admin_mutation,
         'SessionAdminMutation' => mongoose_graphql_session_admin_mutation,
@@ -175,6 +176,7 @@ admin_mapping_rules() ->
         'GlobalStats' => mongoose_graphql_stats_global,
         'DomainStats' => mongoose_graphql_stats_domain,
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
+        'StanzaAdminSubscription' => mongoose_graphql_stanza_admin_subscription,
         'ServerAdminQuery' => mongoose_graphql_server_admin_query,
         'ServerAdminMutation' => mongoose_graphql_server_admin_mutation,
         'LastAdminMutation' => mongoose_graphql_last_admin_mutation,
@@ -207,6 +209,7 @@ user_mapping_rules() ->
     #{objects => #{
         'UserQuery' => mongoose_graphql_user_query,
         'UserMutation' => mongoose_graphql_user_mutation,
+        'UserSubscription' => mongoose_graphql_user_subscription,
         'AccountUserQuery' => mongoose_graphql_account_user_query,
         'AccountUserMutation' => mongoose_graphql_account_user_mutation,
         'InboxUserMutation' => mongoose_graphql_inbox_user_mutation,
@@ -226,6 +229,7 @@ user_mapping_rules() ->
         'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
         'TokenUserMutation' => mongoose_graphql_token_user_mutation,
         'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
+        'StanzaUserSubscription' => mongoose_graphql_stanza_user_subscription,
         'HttpUploadUserMutation' => mongoose_graphql_http_upload_user_mutation,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
