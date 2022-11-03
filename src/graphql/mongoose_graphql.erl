@@ -9,7 +9,7 @@
 -export([init/0,
          get_endpoint/1,
          create_endpoint/3,
-         execute/2,
+         execute/2, prepare/2,
          execute/3,
          execute_cli/3]).
 
@@ -19,13 +19,14 @@
                      operation_name := binary() | undefined,
                      vars := map(),
                      authorized := boolean(),
-                     ctx := map()}.
+                     ctx := map(),
+                     ast => graphql:document()}.
 -type context() :: map().
 -type object() :: term().
 -type field() :: binary().
 -type args() :: map().
 
--type result() :: {ok, term()} | {error, term()}.
+-type result() :: {ok, term()} | {ok, term(), Aux :: term()} | {error, term()}.
 -callback execute(Ctx :: context(), Obj :: object(), Field :: field(), Args :: args()) ->
             result().
 
@@ -65,24 +66,19 @@ create_endpoint(Name, Mapping, Patterns) ->
 %% @doc Execute request on a given endpoint.
 -spec execute(graphql:endpoint_context(), request()) ->
     {ok, map()} | {error, term()}.
-execute(Ep, #{document := Doc,
-              operation_name := OpName,
-              authorized := AuthStatus,
-              vars := Vars,
-              ctx := Ctx}) ->
-    try
-        {ok, Ast} = graphql_parse(Doc),
-        {ok, #{ast := Ast2,
-               fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
-        ok = graphql:validate(Ast2),
-        Vars2 = remove_null_args(Vars),
-        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
-        Ctx2 = Ctx#{params => Coerced,
-                    operation_name => OpName,
-                    authorized => AuthStatus,
-                    error_module => mongoose_graphql_errors},
-        Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
-        {ok, graphql:execute(Ep, Ctx2, Ast3)}
+execute(Ep, Req = #{ast := _}) ->
+    execute_graphql(Ep, Req);
+execute(Ep, Req) ->
+    case prepare(Ep, Req) of
+        {error, _} = Error ->
+            Error;
+        {ok, Req1} ->
+            execute_graphql(Ep, Req1)
+    end.
+
+-spec prepare(graphql:endpoint_context(), request()) -> {ok, request()} | {error, term()}.
+prepare(Ep, Req) ->
+    try {ok, prepare_request(Ep, Req)}
     catch
         throw:{error, Err} ->
             {error, Err};
@@ -93,6 +89,28 @@ execute(Ep, #{document := Doc,
             ?LOG_ERROR(Err),
             {error, internal_crash}
     end.
+
+prepare_request(Ep, #{document := Doc,
+                      operation_name := OpName,
+                      authorized := AuthStatus,
+                      vars := Vars,
+                      ctx := Ctx} = Request) ->
+    {ok, Ast} = graphql_parse(Doc),
+    {ok, #{ast := Ast2,
+           fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
+    ok = graphql:validate(Ast2),
+    Vars2 = remove_null_args(Vars),
+    Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
+    Ctx2 = Ctx#{params => Coerced,
+                operation_name => OpName,
+                authorized => AuthStatus,
+                error_module => mongoose_graphql_errors},
+    Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
+    mongoose_graphql_operations:verify_operations(Ctx2, Ast3),
+    Request#{ast => Ast3, ctx := Ctx2}.
+
+execute_graphql(Ep, #{ast := Ast, ctx := Ctx}) ->
+    {ok, graphql:execute(Ep, Ctx, Ast)}.
 
 %% @doc Execute selected operation on a given endpoint with authorization.
 -spec execute(graphql:endpoint_context(), undefined | binary(), binary()) ->
