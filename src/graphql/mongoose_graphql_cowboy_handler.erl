@@ -39,8 +39,6 @@
 -ignore_xref([from_json/2, to_html/2, to_json/2]).
 
 -include("mongoose_config_spec.hrl").
--include_lib("graphql/src/graphql_internal.hrl").
--include_lib("graphql/src/graphql_schema.hrl").
 
 %% mongoose_http_handler callbacks
 
@@ -218,22 +216,10 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
         {ok, Response} ->
             ResponseBody = mongoose_graphql_response:term_to_json(Response),
             Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
-            cowboy_req:reply(200, Req2);
+            Reply = cowboy_req:reply(200, Req2),
+            {stop, Reply, State};
         {error, Reason} ->
             reply_error(Reason, Req, State)
-    end.
-
-retrieve_category_from_ctx(Ctx, _) ->
-    #{document := Doc} = Ctx,
-    try mongoose_graphql:graphql_parse(Doc) of
-        {ok, Document} ->
-            [Parsed] = Document#document.definitions,
-            [Field] = Parsed#op.selection_set,
-            {name, _, Category} = Field#field.id,
-            Category
-    catch
-        Error ->
-            Error
     end.
 
 gather(Req) ->

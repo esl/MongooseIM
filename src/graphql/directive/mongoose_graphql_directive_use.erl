@@ -61,9 +61,6 @@ handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Fiel
                     Field;
                 {_, _} ->
                     Fun = resolve_not_loaded_fun(UnloadedModules, UnloadedServices),
-                    io:format("tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\n\n\n"),
-                    io:format("~p\n", [Field#schema_field{resolve = Fun}]),
-                    io:format("tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\n\n\n"),
                     Field#schema_field{resolve = Fun}
             end;
         {error, not_found} ->
