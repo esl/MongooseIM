@@ -56,7 +56,9 @@ common_tests() ->
 categories_disabled_tests() ->
     [category_disabled_error_test,
      admin_checks_auth,
-     category_does_not_exists_error].
+     category_does_not_exists_error,
+     listener_reply_with_validation_error,
+     multiple_categories_query_test].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -158,11 +160,10 @@ auth_domain_admin_checks_auth(Config) ->
     ?assertAdminAuth(Domain, 'DOMAIN_ADMIN', 'AUTHORIZED', Res).
 
 category_disabled_error_test(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Status = execute(Ep, admin_server_get_loglevel_body(), undefined),
-    get_bad_request(Status),
+    Status = execute_auth(admin_server_get_loglevel_body(), Config),
     {_Code, #{<<"errors">> := [Msg]}} = Status,
-    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], Msg)).
+    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], Msg)),
+    ?assertEqual([<<"server">>], get_value([path], Msg)).
 
 category_does_not_exists_error(Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -170,6 +171,19 @@ category_does_not_exists_error(Config) ->
     get_bad_request(Status),
     {_Code, #{<<"errors">> := [Msg]}} = Status,
     ?assertEqual(<<"parser_error">>, get_value([extensions, code], Msg)).
+
+listener_reply_with_validation_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>,
+             <<"operationName">> => <<"Q1">>},
+    {Status, Data} = execute(Ep, Body, undefined).
+
+multiple_categories_query_test(Config) ->
+    Status = execute_auth(user_check_auth_multiple(), Config),
+    {_Code, #{<<"errors">> := [ErrorMsg], <<"data">> := DataMsg}} = Status,
+    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], ErrorMsg)),
+    ?assertEqual([<<"server">>], get_value([path], ErrorMsg)),
+    ?assertEqual(<<"AUTHORIZED">>, get_value([checkAuth, authStatus], DataMsg)).
 
 %% Helpers
 
@@ -194,7 +208,10 @@ admin_check_auth_body() ->
     #{query => "{ checkAuth { domain authType authStatus } }"}.
 
 admin_server_get_loglevel_body() ->
-    #{query => "{ server { getLogLevel } }"}.
+    #{query => "{ server { getLoglevel } }"}.
 
 user_check_auth_body() ->
     #{query => "{ checkAuth { username authStatus } }"}.
+
+user_check_auth_multiple() ->
+    #{query => "{ checkAuth { authStatus } server { getLoglevel } }"}.

@@ -206,17 +206,22 @@ auth_domain_admin(_, State) ->
 
 run_request(#{document := undefined}, Req, State) ->
     reply_error(make_error(decode, no_query_supplied), Req, State);
-run_request(#{} = ReqCtx, Req, State) ->
-    fold(ReqCtx, {ReqCtx, Req, State}, [fun retrieve_category_from_ctx/2,
-                                        fun check_allowed_categories/2,
-                                        fun execute_request/2]).
-
-fold({error, Error}, {_ReqCtx, Req, State}, _) ->
-    reply_error(Error, Req, State);
-fold(Reply, {_ReqCtx, _Req, State}, []) ->
-    {stop, Reply, State};
-fold(M, Data, [Step | Rest]) ->
-    fold(Step(M, Data), Data, Rest).
+run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
+                                 authorized := AuthStatus} = State) ->
+    Ep = mongoose_graphql:get_endpoint(EpName),
+    Ctx = maps:get(schema_ctx, State, #{}),
+    AllowedCategories = maps:get(allowed_categories, State, []),
+    ReqCtx2 = ReqCtx#{authorized => AuthStatus,
+                      ctx => Ctx#{method => http,
+                                  allowed_categories => AllowedCategories}},
+    case mongoose_graphql:execute(Ep, ReqCtx2) of
+        {ok, Response} ->
+            ResponseBody = mongoose_graphql_response:term_to_json(Response),
+            Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
+            cowboy_req:reply(200, Req2);
+        {error, Reason} ->
+            reply_error(Reason, Req, State)
+    end.
 
 retrieve_category_from_ctx(Ctx, _) ->
     #{document := Doc} = Ctx,
@@ -229,30 +234,6 @@ retrieve_category_from_ctx(Ctx, _) ->
     catch
         Error ->
             Error
-    end.
-
-
-check_allowed_categories(Category, {_, _Req, State}) ->
-    AllowedCategories = maps:get(allowed_categories, State, []),
-    case AllowedCategories =:= [] orelse lists:member(Category, AllowedCategories) of
-        true ->
-            ok;
-        false ->
-            {error, {category_disabled, Category}}
-    end.
-
-execute_request(_, {ReqCtx, Req, #{schema_endpoint := EpName,
-                                   authorized := AuthStatus} = State}) ->
-    Ep = mongoose_graphql:get_endpoint(EpName),
-    Ctx = maps:get(schema_ctx, State, #{}),
-    ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx#{method => http}},
-    case mongoose_graphql:execute(Ep, ReqCtx2) of
-        {ok, Response} ->
-            ResponseBody = mongoose_graphql_response:term_to_json(Response),
-            Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
-            cowboy_req:reply(200, Req2);
-        {error, Reason} ->
-            {error, Reason}
     end.
 
 gather(Req) ->
