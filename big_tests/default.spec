@@ -26,6 +26,7 @@
 {suites, "tests", extdisco_SUITE}.
 {suites, "tests", gdpr_SUITE}.
 {suites, "tests", graphql_SUITE}.
+{suites, "tests", graphql_sse_SUITE}.
 {suites, "tests", graphql_account_SUITE}.
 {suites, "tests", graphql_domain_SUITE}.
 {suites, "tests", graphql_inbox_SUITE}.
