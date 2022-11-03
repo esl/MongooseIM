@@ -10,7 +10,8 @@
 -behavior(cowboy_rest).
 
 %% mongoose_http_handler callbacks
--export([config_spec/0]).
+-export([config_spec/0,
+         routes/1]).
 
 %% config processing callbacks
 -export([process_config/1]).
@@ -30,6 +31,10 @@
 -export([from_json/2,
          to_json/2,
          to_html/2]).
+
+%% Utilities used by the SSE handler
+-export([check_auth_header/2,
+         gather/1]).
 
 -ignore_xref([from_json/2, to_html/2, to_json/2]).
 
@@ -56,6 +61,12 @@ process_config(Opts) ->
         false ->
             error(#{what => both_username_and_password_required, opts => Opts})
     end.
+
+-spec routes(mongoose_http_handler:options()) -> mongoose_http_handler:routes().
+routes(Opts = #{path := Path}) ->
+    [{Path, ?MODULE, Opts},
+     {Path ++ "/sse", lasse_handler, #{module => mongoose_graphql_sse_handler,
+                                       init_args => Opts}}].
 
 %% cowboy_rest callbacks
 
@@ -84,18 +95,11 @@ charsets_provided(Req, State) ->
     {[<<"utf-8">>], Req, State}.
 
 is_authorized(Req, State) ->
-    try cowboy_req:parse_header(<<"authorization">>, Req) of
-        Auth ->
-            case check_auth(Auth, State) of
-                {ok, State2} ->
-                    {true, Req, State2};
-                error ->
-                    Msg = make_error(authorize, wrong_credentials),
-                    reply_error(Msg, Req, State)
-            end
-    catch
-        exit:Err ->
-            reply_error(make_error(authorize, Err), Req, State)
+    case check_auth_header(Req, State) of
+        {ok, State2} ->
+            {true, Req, State2};
+        {error, Error} ->
+            reply_error(Error, Req, State)
     end.
 
 resource_exists(#{method := <<"GET">>} = Req, State) ->
@@ -118,6 +122,34 @@ json_request(Req, State) ->
 
 from_json(Req, State) -> json_request(Req, State).
 to_json(Req, State) -> json_request(Req, State).
+
+%% Utils used also by the SSE handler
+
+check_auth_header(Req, State) ->
+    try cowboy_req:parse_header(<<"authorization">>, Req) of
+        Auth ->
+            case check_auth(Auth, State) of
+                {ok, State2} ->
+                    {ok, State2};
+                error ->
+                    {error, make_error(authorize, wrong_credentials)}
+            end
+    catch
+        exit:Err ->
+            {error, make_error(authorize, Err)}
+    end.
+
+gather(Req, Params) ->
+    QueryDocument = document(Params),
+    case variables(Params) of
+        {ok, Vars} ->
+            Operation = operation_name(Params),
+            {ok, Req, #{document => QueryDocument,
+                        vars => Vars,
+                        operation_name => Operation}};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 %% Internal
 
@@ -187,33 +219,25 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
     end.
 
 gather(Req) ->
-    {ok, Body, Req2} = cowboy_req:read_body(Req),
-    Bindings = cowboy_req:bindings(Req2),
-    try jiffy:decode(Body, [return_maps]) of
-        JSON ->
-            gather(Req2, JSON, Bindings)
-    catch
-        _:_ ->
-            {error, make_error(decode, invalid_json_body)}
+    case get_params(cowboy_req:method(Req), Req) of
+        {error, _} = Error -> Error;
+        Params -> gather(Req, Params)
     end.
 
-gather(Req, Body, Params) ->
-    QueryDocument = document([Params, Body]),
-    case variables([Params, Body]) of
-        {ok, Vars} ->
-            Operation = operation_name([Params, Body]),
-            {ok, Req, #{document => QueryDocument,
-                         vars => Vars,
-                         operation_name => Operation}};
-        {error, Reason} ->
-            {error, Reason}
+get_params(<<"GET">>, Req) ->
+    try maps:from_list(cowboy_req:parse_qs(Req))
+    catch _:_ -> {error, make_error(decode, invalid_query_parameters)}
+    end;
+get_params(<<"POST">>, Req) ->
+    {ok, Body, _} = cowboy_req:read_body(Req),
+    try jiffy:decode(Body, [return_maps])
+    catch _:_ -> {error, make_error(decode, invalid_json_body)}
     end.
 
-document([#{<<"query">> := Q}|_]) -> Q;
-document([_|Next]) -> document(Next);
-document([]) -> undefined.
+document(#{<<"query">> := Q}) -> Q;
+document(#{}) -> undefined.
 
-variables([#{<<"variables">> := Vars} | _]) ->
+variables(#{<<"variables">> := Vars}) ->
   if
       is_binary(Vars) ->
           try jiffy:decode(Vars, [return_maps]) of
@@ -229,16 +253,12 @@ variables([#{<<"variables">> := Vars} | _]) ->
       Vars == null ->
           {ok, #{}}
   end;
-variables([_ | Next]) ->
-    variables(Next);
-variables([]) ->
+variables(#{}) ->
     {ok, #{}}.
 
-operation_name([#{<<"operationName">> := OpName} | _]) ->
+operation_name(#{<<"operationName">> := OpName}) ->
     OpName;
-operation_name([_ | Next]) ->
-    operation_name(Next);
-operation_name([]) ->
+operation_name(#{}) ->
     undefined.
 
 make_error(Phase, Term) ->
