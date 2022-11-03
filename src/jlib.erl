@@ -395,8 +395,8 @@ parse_xdata_values([#xmlel{name = <<"value">> } = ValueEl | REls]) ->
 parse_xdata_values([_ | REls]) ->
     parse_xdata_values(REls).
 
--spec rsm_decode(exml:element() | iq()) -> 'none' | #rsm_in{}.
-rsm_decode(#iq{sub_el=SubEl})->
+-spec rsm_decode(exml:element() | iq()) -> none | #rsm_in{}.
+rsm_decode(#iq{sub_el = SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
     case xml:get_subtag(SubEl, <<"set">>) of
@@ -406,41 +406,36 @@ rsm_decode(#xmlel{}=SubEl) ->
             lists:foldl(fun rsm_parse_element/2, #rsm_in{}, SubEls)
     end.
 
-
 -spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
-rsm_parse_element(#xmlel{name = <<"max">>, attrs = []}=Elem, RsmIn) ->
+rsm_parse_element(#xmlel{name = <<"max">>, attrs = []} = Elem, RsmIn) ->
     CountStr = xml:get_tag_cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
-    RsmIn#rsm_in{max=Count};
-rsm_parse_element(#xmlel{name = <<"before">>,
-                         attrs = []}=Elem, RsmIn) ->
+    RsmIn#rsm_in{max = Count};
+rsm_parse_element(#xmlel{name = <<"before">>, attrs = []} = Elem, RsmIn) ->
     UID = xml:get_tag_cdata(Elem),
-    RsmIn#rsm_in{direction=before, id=UID};
-rsm_parse_element(#xmlel{name = <<"after">>, attrs = []}=Elem, RsmIn) ->
+    RsmIn#rsm_in{direction = before, id = UID};
+rsm_parse_element(#xmlel{name = <<"after">>, attrs = []} = Elem, RsmIn) ->
     UID = xml:get_tag_cdata(Elem),
-    RsmIn#rsm_in{direction=aft, id=UID};
-rsm_parse_element(#xmlel{name = <<"index">>, attrs = []}=Elem, RsmIn) ->
+    RsmIn#rsm_in{direction = aft, id = UID};
+rsm_parse_element(#xmlel{name = <<"index">>, attrs = []} = Elem, RsmIn) ->
     IndexStr = xml:get_tag_cdata(Elem),
     {Index, _} = string:to_integer(binary_to_list(IndexStr)),
-    RsmIn#rsm_in{index=Index};
+    RsmIn#rsm_in{index = Index};
 rsm_parse_element(_, RsmIn)->
     RsmIn.
 
-
--spec rsm_encode('none' | rsm_out()) -> [exml:element()].
-rsm_encode(none)->
+-spec rsm_encode(none | rsm_out()) -> [exml:element()].
+rsm_encode(none) ->
     [];
-rsm_encode(RsmOut)->
+rsm_encode(RsmOut) ->
     [#xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}],
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
-
 -spec rsm_encode_out(rsm_out()) -> [exml:element()].
-rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
+rsm_encode_out(#rsm_out{count = Count, index = Index, first = First, last = Last})->
     El = rsm_encode_first(First, Index, []),
     El2 = rsm_encode_last(Last, El),
     rsm_encode_count(Count, El2).
-
 
 -spec rsm_encode_first(First :: undefined | binary(),
                        Index :: 'undefined' | integer(),
@@ -448,22 +443,20 @@ rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
 rsm_encode_first(undefined, undefined, Arr) ->
     Arr;
 rsm_encode_first(First, undefined, Arr) ->
-    [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]}|Arr];
+    [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]} | Arr];
 rsm_encode_first(First, Index, Arr) ->
     [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2b(Index)}],
             children = [#xmlcdata{content = First}]}|Arr].
 
-
 -spec rsm_encode_last(Last :: 'undefined', Arr :: [exml:element()]) -> [exml:element()].
 rsm_encode_last(undefined, Arr) -> Arr;
 rsm_encode_last(Last, Arr) ->
-    [#xmlel{name = <<"last">>, children = [#xmlcdata{content = Last}]}|Arr].
-
+    [#xmlel{name = <<"last">>, children = [#xmlcdata{content = Last}]} | Arr].
 
 -spec rsm_encode_count(Count :: 'undefined' | pos_integer(),
                        Arr :: [exml:element()]) -> [exml:element()].
-rsm_encode_count(undefined, Arr)-> Arr;
-rsm_encode_count(Count, Arr)->
+rsm_encode_count(undefined, Arr) -> Arr;
+rsm_encode_count(Count, Arr) ->
     [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
 
 -spec i2b(integer()) -> binary().
