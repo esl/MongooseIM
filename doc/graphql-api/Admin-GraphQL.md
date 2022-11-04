@@ -6,6 +6,10 @@ We can distinguish two levels of the administration. A global admin (has access 
 
 There is only one schema for both admin types. Admin per domain simply has no permissions to execute global commands or commands with not owned domain. The API documentation clearly says which commands are global.
 
+**Queries** and **mutations** can be executed with the POST or GET method, as specified in the [GraphQL documentation](https://graphql.org/learn/serving-over-http/). The endpoint URL is as configured in the Listen section, e.g. `http://localhost:5551/api/graphql` for the global admin.
+
+**Subscriptions** can be executed with the GET method, and are handled with [Server-Sent Events (SSE)](https://html.spec.whatwg.org/multipage/server-sent-events.html). The endpoint URL is the same as for regular queries with the addition of `/sse`, e.g. `http://localhost:5551/api/graphql/sse` for the global admin.
+
 ## Domain admin configuration
 
 Out of the box, domains are created with a disabled admin account. Admin per domain can be enabled only by the global admin with the command

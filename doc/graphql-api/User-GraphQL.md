@@ -2,6 +2,10 @@
 
 The new GraphQL user API contains all commands from the client REST API and provides plenty of new ones. Multiple commands previously available only for the admin have their counterparts for the user.
 
+**Queries** and **mutations** can be executed with the POST or GET method, as specified in the [GraphQL documentation](https://graphql.org/learn/serving-over-http/). The endpoint URL is as configured in the Listen section, e.g. `http://localhost:5561/api/graphql`.
+
+**Subscriptions** can be executed with the GET method, and are handled with [Server-Sent Events (SSE)](https://html.spec.whatwg.org/multipage/server-sent-events.html). The endpoint URL is the same as for regular queries with the addition of `/sse`, e.g. `http://localhost:5561/api/graphql/sse`.
+
 ## Authentication
 
 MongooseIM uses *Basic Authentication* as the authentication method for the GraphQL API.
