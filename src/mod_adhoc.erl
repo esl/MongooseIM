@@ -40,17 +40,13 @@
 %% IQ and hook handlers
 -export([process_local_iq/5,
          process_sm_iq/5,
-         disco_local_items/1,
-         disco_local_identity/1,
+         disco_local_items/3,
+         disco_local_identity/3,
          disco_local_features/3,
-         disco_sm_items/1,
-         disco_sm_identity/1,
-         disco_sm_features/1,
-         ping_command/4]).
-
--ignore_xref([disco_local_identity/1, disco_local_items/1,
-              disco_sm_features/1, disco_sm_identity/1, disco_sm_items/1,
-              ping_command/4, process_local_iq/5, process_sm_iq/5]).
+         disco_sm_items/3,
+         disco_sm_identity/3,
+         disco_sm_features/3,
+         ping_command/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -61,12 +57,10 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component) ||
         {Component, _Fn} <- iq_handlers()],
@@ -76,16 +70,14 @@ iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
      {ejabberd_sm, fun ?MODULE:process_sm_iq/5}].
 
-legacy_hooks(HostType) ->
-    [{disco_local_identity, HostType, ?MODULE, disco_local_identity, 99},
-     {disco_local_items, HostType, ?MODULE, disco_local_items, 99},
-     {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 99},
-     {disco_sm_features, HostType, ?MODULE, disco_sm_features, 99},
-     {disco_sm_items, HostType, ?MODULE, disco_sm_items, 99},
-     {adhoc_local_commands, HostType, ?MODULE, ping_command, 100}].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+     {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 99},
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 99},
+     {disco_sm_identity, HostType, fun ?MODULE:disco_sm_identity/3, #{}, 99},
+     {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 99},
+     {disco_sm_items, HostType, fun ?MODULE:disco_sm_items/3, #{}, 99},
+     {adhoc_local_commands, HostType, fun ?MODULE:ping_command/3, #{}, 100}].
 
 %%%
 %%% config_spec
@@ -147,36 +139,42 @@ run_request_hook(adhoc_sm_commands, HostType, From, To, AdhocRequest) ->
 %%% Hooks handlers
 %%%
 
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = LServer}, node := <<>>, lang := Lang}) ->
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_disco:item_acc(),
+      Params :: map(),
+      Extra :: #{host_type := mongooseim:host_type()}.
+disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
                 _ ->
                     [item(LServer, ?NS_COMMANDS, <<"Commands">>, Lang)]
             end,
-    mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := ?NS_COMMANDS, lang := Lang}) ->
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := ?NS_COMMANDS, lang := Lang}, _, _) ->
     Items = [item(LServer, <<"ping">>, <<"Ping">>, Lang)],
-    mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc = #{node := <<"ping">>}) ->
-    Acc#{result := []}; % override the result
-disco_local_items(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_local_items(Acc = #{node := <<"ping">>}, _, _) ->
+    {ok, Acc#{result := []}}; % override the result
+disco_local_items(Acc, _, _) ->
+    {ok, Acc}.
 
 %%-------------------------------------------------------------------------
 
--spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_sm_items(Acc = #{host_type := HostType, to_jid := To, node := <<>>, lang := Lang}) ->
+-spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_disco:item_acc(),
+      Params :: map(),
+      Extra :: #{host_type := mongooseim:host_type()}.
+disco_sm_items(Acc = #{to_jid := To, node := <<>>, lang := Lang}, _, #{host_type := HostType}) ->
     Items = case are_commands_visible(HostType) of
                 false ->
                     [];
                 _ ->
                     [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>, Lang)]
             end,
-    mongoose_disco:add_items(Items, Acc);
-disco_sm_items(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_sm_items(Acc, _, _) ->
+    {ok, Acc}.
 
 are_commands_visible(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, report_commands_node).
@@ -187,22 +185,28 @@ item(LServer, Node, Name, Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_local_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}) ->
-    mongoose_disco:add_identities([command_list_identity(Lang)], Acc);
-disco_local_identity(Acc = #{node := <<"ping">>, lang := Lang}) ->
-    mongoose_disco:add_identities([ping_identity(Lang)], Acc);
-disco_local_identity(Acc) ->
-    Acc.
+-spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_disco:identity_acc(),
+      Params :: map(),
+      Extra :: map().
+disco_local_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
+    {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
+disco_local_identity(Acc = #{node := <<"ping">>, lang := Lang}, _, _) ->
+    {ok, mongoose_disco:add_identities([ping_identity(Lang)], Acc)};
+disco_local_identity(Acc, _, _) ->
+    {ok, Acc}.
 
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}) ->
-    mongoose_disco:add_identities([command_list_identity(Lang)], Acc);
-disco_sm_identity(Acc) ->
-    Acc.
+-spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_disco:identity_acc(),
+      Params :: map(),
+      Extra :: map().
+disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
+    {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
+disco_sm_identity(Acc, _, _) ->
+    {ok, Acc}.
 
 ping_identity(Lang) ->
     #{category => <<"automation">>,
@@ -216,9 +220,10 @@ command_list_identity(Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           map(),
-                           map()) -> {ok, mongoose_disco:feature_acc()}.
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
 disco_local_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
@@ -232,27 +237,29 @@ disco_local_features(Acc, _, _) ->
 
 %%-------------------------------------------------------------------------
 
--spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_sm_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_COMMANDS], Acc);
-disco_sm_features(Acc = #{node := ?NS_COMMANDS}) ->
+-spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_sm_features(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
+disco_sm_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
     %% override all lesser features...
-    Acc#{result := []};
-disco_sm_features(Acc) ->
-    Acc.
+    {ok, Acc#{result := []}};
+disco_sm_features(Acc, _, _) ->
+    {ok, Acc}.
 
 %%-------------------------------------------------------------------------
 
--spec ping_command(Acc :: command_hook_acc(),
-                   From :: jid:jid(),
-                   To :: jid:jid(),
-                   adhoc:request()) -> command_hook_acc().
-ping_command(empty, _From, _To,
-             #adhoc_request{lang = Lang,
-                            node = <<"ping">> = Node,
-                            session_id = SessionID,
-                            action = Action}) ->
-    case Action == <<"">> orelse Action == <<"execute">> of
+-spec ping_command(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: command_hook_acc(),
+    Params :: #{adhoc_request := adhoc:request()},
+    Extra :: map().
+ping_command(empty,
+             #{adhoc_request := #adhoc_request{lang = Lang, node = <<"ping">> = Node,
+                                               session_id = SessionID, action = Action}},
+             _) ->
+    NewAcc = case Action == <<"">> orelse Action == <<"execute">> of
         true ->
             adhoc:produce_response(
               #adhoc_response{lang = Lang,
@@ -262,7 +269,8 @@ ping_command(empty, _From, _To,
                               notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
         false ->
             {error, mongoose_xmpp_errors:bad_request()}
-    end;
-ping_command(Acc, _From, _To, _Request) ->
-    Acc.
+    end,
+    {ok, NewAcc};
+ping_command(Acc, _, _) ->
+    {ok, Acc}.
 
