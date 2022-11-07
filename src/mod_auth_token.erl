@@ -49,10 +49,10 @@
               token_type/0]).
 
 -ignore_xref([
-    behaviour_info/1, clean_tokens/3, datetime_to_seconds/1, deserialize/1,
+    behaviour_info/1, datetime_to_seconds/1, deserialize/1,
     expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
-    revoke/2, revoke_token_command/1, seconds_to_datetime/1, serialize/1, token/3,
-    token_with_mac/2
+    revoke/2, revoke_token_command/1, seconds_to_datetime/1,
+    serialize/1, token/3, token_with_mac/2
 ]).
 
 -type error() :: error | {error, any()}.
@@ -78,7 +78,6 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_auth_token_backend:start(HostType, Opts),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
@@ -89,15 +88,12 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm),
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
-legacy_hooks(HostType) ->
-    [{remove_user, HostType, ?MODULE, clean_tokens, 50}].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 90}].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 90},
+     {remove_user, HostType, fun ?MODULE:clean_tokens/3, #{}, 50}].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -429,22 +425,23 @@ revoke_token_command(Owner) ->
         {error, Error} -> Error
     end.
 
--spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) ->
-          mongoose_acc:t().
-clean_tokens(Acc, User, Server) ->
+-spec clean_tokens(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+clean_tokens(Acc, #{jid := Owner}, _) ->
     HostType = mongoose_acc:host_type(Acc),
-    Owner = jid:make(User, Server, <<>>),
     try
         mod_auth_token_backend:clean_tokens(HostType, Owner)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => auth_token_clean_tokens_failed,
                          text => <<"Error in clean_tokens backend">>,
-                         user => User, server => Server, acc => Acc,
-                         class => Class, reason => Reason, stacktrace => Stacktrace}),
+                         jid => jid:to_binary(Owner), acc => Acc, class => Class,
+                         reason => Reason, stacktrace => Stacktrace}),
                {error, {Class, Reason}}
     end,
-    Acc.
+    {ok, Acc}.
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
