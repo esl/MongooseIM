@@ -203,12 +203,7 @@ set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
     Opts = #{default => {error, not_allowed}},
     case ejabberd_auth:does_user_exist(jid:make(LUser, LServer, <<>>)) of
         true ->
-            case call_auth_modules_for_domain(LServer, F, Opts) of
-                {ok, Result} ->
-                    {ok, Result};
-                Error ->
-                    Error
-            end;
+            call_auth_modules_for_domain(LServer, F, Opts);
         false ->
             {error, not_allowed}
     end.

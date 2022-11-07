@@ -307,7 +307,7 @@ admin_register_user(Config) ->
     Resp2 = register_user(Domain, Username, Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)),
     % Try to register a user without any name
-    Resp3 = register_user(Domain, <<"">>, Password, Config),
+    Resp3 = register_user(Domain, <<>>, Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"Invalid JID">>)).
 
 admin_register_random_user(Config) ->
