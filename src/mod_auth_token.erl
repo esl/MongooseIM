@@ -437,7 +437,7 @@ clean_tokens(Acc, #{jid := Owner}, _) ->
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => auth_token_clean_tokens_failed,
                          text => <<"Error in clean_tokens backend">>,
-                         jid => Owner, acc => Acc, class => Class,
+                         jid => jid:to_binary(Owner), acc => Acc, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
                {error, {Class, Reason}}
     end,
