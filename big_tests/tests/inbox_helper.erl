@@ -400,9 +400,13 @@ rsm(Params) ->
     Max = maps:get(limit, Params, undefined),
     Before = maps:get(before, Params, undefined),
     After = maps:get('after', Params, undefined),
+    Index = maps:get(index, Params, undefined),
     Elems = [#xmlel{name = <<"max">>,
                     children = [#xmlcdata{content = to_bin(Max)}]}
              || _ <- [Max], undefined =/= Max ] ++
+            [#xmlel{name = <<"index">>,
+                    children = [#xmlcdata{content = to_bin(Index)}]}
+             || _ <- [Index], undefined =/= Index ] ++
             [#xmlel{name = <<"before">>,
                     children = [#xmlcdata{content = to_bin(Before)}]}
              || _ <- [Before], undefined =/= Before ] ++
