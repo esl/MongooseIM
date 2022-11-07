@@ -99,12 +99,16 @@ groups() ->
         properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
-        inbox_pagination_overrides_form,
-        inbox_can_paginate_forwards,
-        inbox_can_paginate_backwards,
+        timestamp_is_not_reset_with_setting_properties,
+        {group, pagination}
+      ]},
+     {pagination, [parallel], [
+        bad_id_throws_error,
+        pagination_overrides_form,
+        can_paginate_forwards,
+        can_paginate_backwards,
         max_queries_can_be_limited,
-        max_queries_can_fetch_ahead,
-        timestamp_is_not_reset_with_setting_properties
+        max_queries_can_fetch_ahead
       ]},
      {muclight, [], [
         groupchat_setunread_stanza_sets_inbox
@@ -669,7 +673,18 @@ properties_many_can_be_set(Config, QueryId) ->
                                                 end}], #{box => archive})
     end).
 
-inbox_pagination_overrides_form(Config) ->
+bad_id_throws_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        % We set start and end to return Convs with Mike, but using RSM we override that
+        TS = erlang:system_time(millisecond),
+        AliceJid = escalus_utils:get_short_jid(Alice),
+        IdNotDividing = <<(integer_to_binary(TS))/binary, (base64:encode(AliceJid))/binary>>,
+        verify_returns_error(Alice, #{box => inbox, 'after' => IdNotDividing}),
+        BadInt = <<(integer_to_binary(-10))/binary, "/", (base64:encode(AliceJid))/binary>>,
+        verify_returns_error(Alice, #{box => inbox, 'after' => BadInt})
+    end).
+
+pagination_overrides_form(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
@@ -687,7 +702,7 @@ inbox_pagination_overrides_form(Config) ->
         inbox_helper:check_inbox(Alice, AliceConvs, Params)
     end).
 
-inbox_can_paginate_forwards(Config) ->
+can_paginate_forwards(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
@@ -703,7 +718,7 @@ inbox_can_paginate_forwards(Config) ->
         inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob], Params2)
     end).
 
-inbox_can_paginate_backwards(Config) ->
+can_paginate_backwards(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
@@ -955,3 +970,7 @@ muted_status(MutedOrUnmuted, Outer) ->
             Diff = erlang:convert_time_unit(MutedDiff, second, microsecond),
             ?assert(Now + Diff < GivenMutedUntil)
     end.
+
+verify_returns_error(User, Params) ->
+    Stanza = inbox_helper:make_inbox_stanza(Params),
+    assert_invalid_request(User, Stanza, <<"bad-request">>).
