@@ -26,10 +26,10 @@
          supported_features/0]).
 
 %% Hook callbacks
--export([user_send_packet/3, user_send_iq/3]).
--export([iq_ping/5, user_ping_response/5]).
-
--ignore_xref([user_ping_response/5]).
+-export([user_send_packet/3,
+         user_send_iq/3,
+         user_ping_response/3,
+         iq_ping/5]).
 
 %% Record that will be stored in the c2s state when the server pings the client,
 %% in order to indentify the possible client's answer.
@@ -40,9 +40,8 @@
 %%====================================================================
 
 hooks(HostType) ->
-    [
-     {user_ping_response, HostType, ?MODULE, user_ping_response, 100}
-    ].
+    [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100}
+     | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
@@ -70,9 +69,8 @@ start(HostType, #{send_pings := SendPings, iqdisc := IQDisc}) ->
     maybe_add_hooks_handlers(HostType, SendPings).
 
 -spec maybe_add_hooks_handlers(mongooseim:host_type(), boolean()) -> ok.
-maybe_add_hooks_handlers(HostType, true) ->
-    gen_hook:add_handlers(c2s_hooks(HostType)),
-    ejabberd_hooks:add(hooks(HostType));
+maybe_add_hooks_handlers(Host, true) ->
+    gen_hook:add_handlers(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
@@ -80,8 +78,7 @@ maybe_add_hooks_handlers(_, _) ->
 stop(HostType) ->
 %%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
 %%    won't stop currently running timers. They'll run one more time, and then stop.
-    ejabberd_hooks:delete(hooks(HostType)),
-    gen_hook:delete_handlers(c2s_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm),
     ok.
@@ -182,18 +179,17 @@ ping_c2s_handler(ping_timeout, StateData) ->
         _ -> mongoose_c2s_acc:new()
     end.
 
--spec user_ping_response(Acc :: mongoose_acc:t(),
-                         HostType :: mongooseim:host_type(),
-                         JID :: jid:jid(),
-                         Response :: timeout | jlib:iq(),
-                         TDelta :: pos_integer()) -> mongoose_acc:t().
-user_ping_response(Acc, HostType, _JID, timeout, _TDelta) ->
+-spec user_ping_response(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer()},
+    Extra :: #{host_type := mongooseim:host_type()}.
+user_ping_response(Acc, #{response := timeout}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, [mod_ping, ping_response_timeout], 1),
-    Acc;
-user_ping_response(Acc, HostType, _JID, _Response, TDelta) ->
+    {ok, Acc};
+user_ping_response(Acc, #{time_delta := TDelta}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, [mod_ping, ping_response_time], TDelta),
     mongoose_metrics:update(HostType, [mod_ping, ping_response], 1),
-    Acc.
+    {ok, Acc}.
 
 %%====================================================================
 %% Stanzas

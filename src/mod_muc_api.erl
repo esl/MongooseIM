@@ -99,10 +99,9 @@ create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly receive stanzas as a
     %% consequence, even if their client(s) did not initiate this.
-    case ejabberd_auth:does_user_exist(OwnerJID) of
-        true ->
-            BareRoomJID = jid:make_bare(Name, MUCDomain),
-            UserRoomJID = jid:make(Name, MUCDomain, Nick),
+    case {ejabberd_auth:does_user_exist(OwnerJID), jid:make_bare(Name, MUCDomain)} of
+        {true, BareRoomJID = #jid{}} ->
+            UserRoomJID = jid:replace_resource(BareRoomJID, Nick),
             %% Send presence to create a room.
             ejabberd_router:route(OwnerJID, UserRoomJID,
                                   presence(OwnerJID, UserRoomJID, undefined)),
@@ -115,7 +114,9 @@ create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
                 Error ->
                     Error
             end;
-        false ->
+        {true, error} ->
+            {invalid_input, "Room name or domain is invalid"};
+        {false, _} ->
             ?USER_NOT_FOUND_RESULT
     end.
 

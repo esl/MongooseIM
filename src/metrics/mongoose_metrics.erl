@@ -83,8 +83,8 @@ create_global_metrics() ->
 -spec init_predefined_host_type_metrics(mongooseim:host_type()) -> ok.
 init_predefined_host_type_metrics(HostType) ->
     create_metrics(HostType),
-    ejabberd_hooks:add(mongoose_metrics_hooks:hooks(HostType)),
-    gen_hook:add_handlers(mongoose_metrics_hooks:c2s_hooks(HostType)).
+    Hooks = mongoose_metrics_hooks:get_hooks(HostType),
+    gen_hook:add_handlers(Hooks).
 
 init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),

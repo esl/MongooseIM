@@ -50,15 +50,11 @@ from_json(Req, State) ->
 handle_post(Req, State) ->
     Args = parse_body(Req),
     Stanza = get_stanza(Args),
-    From = get_from_jid(Stanza),
-    To = get_to_jid(Stanza),
-    case mongoose_stanza_helper:route(From, To, Stanza, true) of
-        {error, #{what := unknown_domain}} ->
-            throw_error(bad_request, <<"Unknown domain">>);
-        {error, #{what := unknown_user}} ->
-            throw_error(bad_request, <<"Unknown user">>);
+    case mongoose_stanza_api:send_stanza(undefined, Stanza) of
         {ok, _} ->
-            {true, Req, State}
+            {true, Req, State};
+        {_Error, Msg} ->
+            throw_error(bad_request, Msg)
     end.
 
 get_stanza(#{stanza := BinStanza}) ->
@@ -68,26 +64,5 @@ get_stanza(#{stanza := BinStanza}) ->
         {error, _} ->
             throw_error(bad_request, <<"Malformed stanza">>)
     end;
-get_stanza(#{}) -> throw_error(bad_request, <<"Missing stanza">>).
-
-get_from_jid(Stanza) ->
-    case exml_query:attr(Stanza, <<"from">>) of
-        undefined ->
-            throw_error(bad_request, <<"Missing sender JID">>);
-        JidBin ->
-            case jid:from_binary(JidBin) of
-                error -> throw_error(bad_request, <<"Invalid sender JID">>);
-                Jid -> Jid
-            end
-    end.
-
-get_to_jid(Stanza) ->
-    case exml_query:attr(Stanza, <<"to">>) of
-        undefined ->
-            throw_error(bad_request, <<"Missing recipient JID">>);
-        JidBin ->
-            case jid:from_binary(JidBin) of
-                error -> throw_error(bad_request, <<"Invalid recipient JID">>);
-                Jid -> Jid
-            end
-    end.
+get_stanza(#{}) ->
+    throw_error(bad_request, <<"Missing stanza">>).

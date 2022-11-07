@@ -340,6 +340,8 @@ set_status(Domain, Status) ->
                     case mongoose_domain_core:is_host_type_allowed(HostType) of
                         false ->
                             {error, unknown_host_type};
+                        true when deleting =:= CurrentStatus ->
+                            {error, domain_deleted};
                         true when Status =:= CurrentStatus ->
                             ok;
                         true ->

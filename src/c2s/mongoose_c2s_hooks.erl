@@ -75,7 +75,7 @@ user_receive_packet(HostType, Acc, #{c2s_data := C2SState} = Params) ->
     {From, To, El} = mongoose_acc:packet(Acc),
     Jid = mongoose_c2s:get_jid(C2SState),
     Args = [Jid, From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params#{jid => Jid}, Args),
     gen_hook:run_fold(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %% @doc Triggered when the user sends a stanza of type `message'

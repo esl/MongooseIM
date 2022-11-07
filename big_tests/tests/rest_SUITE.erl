@@ -267,9 +267,9 @@ message_errors(Config) ->
         send_message_bin(AliceJID, <<"@noway">>),
     {?BAD_REQUEST, <<"Invalid sender JID">>} =
         send_message_bin(<<"@noway">>, BobJID),
-    {?BAD_REQUEST, <<"Unknown user">>} =
+    {?BAD_REQUEST, <<"User does not exist">>} =
         send_message_bin(<<"baduser@", (domain())/binary>>, BobJID),
-    {?BAD_REQUEST, <<"Unknown domain">>} =
+    {?BAD_REQUEST, <<"User's domain does not exist">>} =
         send_message_bin(<<"baduser@baddomain">>, BobJID).
 
 stanzas_are_sent_and_received(Config) ->
@@ -297,9 +297,9 @@ stanza_errors(Config) ->
         send_stanza(extended_message([{<<"from">>, AliceJid}, {<<"to">>, <<"@invalid">>}])),
     {?BAD_REQUEST, <<"Invalid sender JID">>} =
         send_stanza(extended_message([{<<"from">>, <<"@invalid">>}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Unknown domain">>} =
+    {?BAD_REQUEST, <<"User's domain does not exist">>} =
         send_stanza(extended_message([{<<"from">>, <<"baduser@baddomain">>}, {<<"to">>, BobJid}])),
-    {?BAD_REQUEST, <<"Unknown user">>} =
+    {?BAD_REQUEST, <<"User does not exist">>} =
         send_stanza(extended_message([{<<"from">>, UnknownJid}, {<<"to">>, BobJid}])),
     {?BAD_REQUEST, <<"Malformed stanza">>} =
         send_stanza(broken_message([{<<"from">>, AliceJid}, {<<"to">>, BobJid}])),
@@ -347,10 +347,13 @@ messages_are_archived(Config) ->
 message_archive_errors(Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
     User = binary_to_list(escalus_users:get_username(Config1, alice)),
+    Domain = binary_to_list(domain_helper:domain()),
     {?NOT_FOUND, <<"Missing owner JID">>} =
         gett(admin, "/messages"),
     {?BAD_REQUEST, <<"Invalid owner JID">>} =
         gett(admin, "/messages/@invalid"),
+    {?BAD_REQUEST, <<"User does not exist">>} =
+        gett(admin, "/messages/baduser@" ++ Domain),
     {?BAD_REQUEST, <<"Invalid interlocutor JID">>} =
         gett(admin, "/messages/" ++ User ++ "/@invalid"),
     {?BAD_REQUEST, <<"Invalid limit">>} =

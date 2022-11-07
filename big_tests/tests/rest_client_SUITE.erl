@@ -19,10 +19,12 @@
 -import(config_parser_helper, [mod_config/2]).
 
 -define(OK, {<<"200">>, <<"OK">>}).
+-define(CREATED, {<<"201">>, <<"Created">>}).
 -define(NOCONTENT, {<<"204">>, <<"No Content">>}).
--define(NOT_FOUND, {<<"404">>, _}).
--define(NOT_IMPLEMENTED, {<<"501">>, _}).
+-define(NOT_FOUND, {<<"404">>, <<"Not Found">>}).
+-define(BAD_REQUEST, {<<"400">>, <<"Bad Request">>}).
 -define(UNAUTHORIZED, {<<"401">>, <<"Unauthorized">>}).
+-define(FORBIDDEN, {<<"403">>, <<"Forbidden">>}).
 
 %% --------------------------------------------------------------------
 %% Common Test stuff
@@ -32,43 +34,49 @@ all() ->
     [{group, messages},
      {group, muc},
      {group, muc_config},
+     {group, muc_disabled},
      {group, roster},
      {group, messages_with_props},
+     {group, messages_with_thread},
      {group, security}].
 
 groups() ->
     [{messages_with_props, [parallel], message_with_props_test_cases()},
      {messages_with_thread, [parallel], message_with_thread_test_cases()},
      {messages, [parallel], message_test_cases()},
-     {muc, [pararell], muc_test_cases()},
+     {muc, [parallel], muc_test_cases()},
      {muc_config, [], muc_config_cases()},
+     {muc_disabled, [parallel], muc_disabled_cases()},
      {roster, [parallel], roster_test_cases()},
      {security, [], security_test_cases()}].
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
      msg_is_sent_and_delivered_over_sse,
+     message_sending_errors,
      all_messages_are_archived,
      messages_with_user_are_archived,
-     messages_can_be_paginated].
+     messages_can_be_paginated,
+     message_query_errors].
 
 muc_test_cases() ->
      [room_is_created,
       room_is_created_with_given_identifier,
+      room_creation_errors,
+      room_query_errors,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
+      user_removal_errors,
       rooms_can_be_listed,
       owner_can_leave_a_room_and_auto_select_owner,
       user_can_leave_a_room,
-      invitation_to_room_is_forbidden_for_non_memeber,
+      invitation_to_room_is_forbidden_for_non_member,
       msg_is_sent_and_delivered_in_room,
-      sending_message_with_wrong_body_results_in_bad_request,
-      sending_message_with_no_body_results_in_bad_request,
-      sending_markable_message_with_no_body_results_in_bad_request,
-      sending_message_not_in_JSON_results_in_bad_request,
       sending_message_by_not_room_member_results_in_forbidden,
+      sending_invalid_message_to_room_results_in_bad_request,
       messages_are_archived_in_room,
       chat_markers_are_archived_in_room,
+      room_message_query_errors,
       markable_property_is_archived_in_room,
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
@@ -85,8 +93,13 @@ muc_config_cases() ->
     [
       config_can_be_changed_by_owner,
       config_cannot_be_changed_by_member,
+      config_cannot_be_changed_by_non_member,
+      config_change_errors,
       config_can_be_changed_by_all
     ].
+
+muc_disabled_cases() ->
+    [muc_disabled_errors].
 
 roster_test_cases() ->
     [add_contact_and_invite,
@@ -94,7 +107,7 @@ roster_test_cases() ->
      add_and_remove,
      add_and_remove_some_contacts_properly,
      add_and_remove_some_contacts_with_nonexisting,
-     break_stuff].
+     roster_errors].
 
 message_with_props_test_cases() ->
     [
@@ -108,7 +121,7 @@ message_with_thread_test_cases() ->
     [msg_with_thread_is_sent_and_delivered_over_xmpp,
      msg_with_thread_can_be_parsed,
      msg_with_thread_and_parent_is_sent_and_delivered_over_xmpp,
-     msg_with_thread_and_parent_can_be_parse,
+     msg_with_thread_and_parent_can_be_parsed,
      msg_without_thread_can_be_parsed,
      msg_without_thread_is_sent_and_delivered_over_xmpp].
 
@@ -135,11 +148,18 @@ init_modules(Config) ->
     dynamic_modules:ensure_modules(HostType, required_modules(suite)),
     Config2.
 
-init_per_group(_GN, C) ->
-    C.
+init_per_group(muc_disabled = GN, Config) ->
+    HostType = host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_modules(HostType, required_modules(GN)),
+    Config1;
+init_per_group(_GN, Config) ->
+    Config.
 
-end_per_group(_GN, C) ->
-    C.
+end_per_group(muc_disabled, Config) ->
+    dynamic_modules:restore_modules(Config);
+end_per_group(_GN, _Config) ->
+    ok.
 
 init_per_testcase(config_can_be_changed_by_all = TC, Config) ->
     HostType = host_type(),
@@ -161,9 +181,9 @@ init_per_testcase(TC, Config) ->
                     msg_with_malformed_props_can_be_parsed,
                     msg_with_malformed_props_is_sent_and_delivered_over_xmpp,
                     msg_with_thread_is_sent_and_delivered_over_xmpp,
-                    msg_with_thread_can_be_parse,
+                    msg_with_thread_can_be_parsed,
                     msg_with_thread_and_parent_is_sent_and_delivered_over_xmpp,
-                    msg_with_thread_and_parent_can_be_parse,
+                    msg_with_thread_and_parent_can_be_parsed,
                     msg_without_thread_can_be_parsed,
                     msg_without_thread_is_sent_and_delivered_over_xmpp
                    ],
@@ -178,6 +198,8 @@ end_per_testcase(TC, C) ->
 %% Module configuration - set up per suite and for special test cases
 %% TODO: include MAM configuration here
 
+required_modules(muc_disabled) ->
+    [{mod_muc_light, stopped}];
 required_modules(SuiteOrTC) ->
     Opts = maps:merge(common_muc_light_opts(), muc_light_opts(SuiteOrTC)),
     [{mod_muc_light, mod_config(mod_muc_light, Opts)}].
@@ -215,6 +237,19 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     assert_json_message(M, Data),
 
     stop_sse(Conn).
+
+message_sending_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJID = user_jid(Bob),
+        M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
+        Cred = credentials({alice, Alice}),
+        {?BAD_REQUEST, <<"Missing message body">>} =
+            post(client, <<"/messages">>, maps:remove(body, M), Cred),
+        {?BAD_REQUEST, <<"Missing recipient JID">>} =
+            post(client, <<"/messages">>, maps:remove(to, M), Cred),
+        {?BAD_REQUEST, <<"Invalid recipient JID">>} =
+            post(client, <<"/messages">>, M#{to => <<"@invalid">>}, Cred)
+    end).
 
 room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
@@ -255,7 +290,7 @@ all_messages_are_archived(Config) ->
         AliceJID = maps:get(to, M1),
         AliceCreds = {AliceJID, user_password(alice)},
         GetPath = lists:flatten("/messages/"),
-        {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(client, GetPath, AliceCreds),
+        {?OK, Msgs} = rest_helper:gett(client, GetPath, AliceCreds),
         Received = [_Msg1, _Msg2, _Msg3] = rest_helper:decode_maplist(Msgs),
         assert_messages(Sent, Received)
 
@@ -268,7 +303,7 @@ messages_with_user_are_archived(Config) ->
         KateJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Kate)),
         AliceCreds = {AliceJID, user_password(alice)},
         GetPath = lists:flatten(["/messages/", binary_to_list(KateJID)]),
-        {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(client, GetPath, AliceCreds),
+        {?OK, Msgs} = rest_helper:gett(client, GetPath, AliceCreds),
         Recv = [_Msg2] = rest_helper:decode_maplist(Msgs),
         assert_messages([M3], Recv)
 
@@ -299,11 +334,43 @@ messages_can_be_paginated(Config) ->
         <<"B">> = maps:get(body, Oldest2)
     end).
 
+message_query_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        Creds = credentials({alice, Alice}),
+        Path = <<"/messages/", BobJID/binary>>,
+        {?BAD_REQUEST, <<"Invalid interlocutor JID">>} =
+            rest_helper:gett(client, <<"/messages/@invalid">>, Creds),
+        {?BAD_REQUEST, <<"Invalid limit">>} =
+            rest_helper:gett(client, <<Path/binary, "?limit=x">>, Creds),
+        {?BAD_REQUEST, <<"Invalid value of 'before'">>} =
+            rest_helper:gett(client, <<Path/binary, "?before=x">>, Creds),
+        {?BAD_REQUEST, <<"Invalid query string">>} =
+            rest_helper:gett(client, <<Path/binary, "?kuropatwa">>, Creds)
+    end).
+
 room_is_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         RoomID = given_new_room({alice, Alice}),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_room_info(Alice, RoomInfo)
+    end).
+
+room_query_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, []),
+        Creds = credentials({bob, Bob}),
+        {?NOT_FOUND, <<"Room not found">>} =
+            rest_helper:gett(client, <<"/rooms/badroom">>, Creds),
+        {?FORBIDDEN, _} =
+            rest_helper:gett(client, <<"/rooms/", RoomID/binary>>, Creds)
+    end).
+
+muc_disabled_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Creds = credentials({alice, Alice}),
+        {?NOT_FOUND, <<"MUC Light server not found">>} =
+            rest_helper:gett(client, <<"/rooms/badroom">>, Creds)
     end).
 
 room_is_created_with_given_identifier(Config) ->
@@ -312,6 +379,26 @@ room_is_created_with_given_identifier(Config) ->
         GivenRoomID = given_new_room({alice, Alice}, GivenRoomID),
         RoomInfo = get_room_info({alice, Alice}, GivenRoomID),
         assert_room_info(Alice, RoomInfo)
+    end).
+
+room_creation_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = muc_helper:fresh_room_name(),
+        Room = #{name => <<"My Room">>, subject => <<"My Secrets">>},
+        Path = <<"/rooms/", RoomID/binary>>,
+        Creds = credentials({alice, Alice}),
+        {?BAD_REQUEST, <<"Missing room ID">>} =
+            putt(client, "/rooms", Room, Creds),
+        {?BAD_REQUEST, <<"Invalid room ID">>} =
+            putt(client, "/rooms/@invalid", Room, Creds),
+        {?BAD_REQUEST, <<"Missing room name">>} =
+            putt(client, Path, maps:remove(name, Room), Creds),
+        {?BAD_REQUEST, <<"Missing room subject">>} =
+            putt(client, Path, maps:remove(subject, Room), Creds),
+        {?CREATED, _} =
+            putt(client, Path, Room, Creds),
+        {?FORBIDDEN, _} =
+            putt(client, Path, Room, Creds)
     end).
 
 config_can_be_changed_by_owner(Config) ->
@@ -333,10 +420,32 @@ config_cannot_be_changed_by_member(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         RoomJID = room_jid(RoomID, Config),
-        {{<<"403">>,<<"Forbidden">>},<<>>} =
+        {?FORBIDDEN, _} =
             when_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({bob, Bob}, RoomID),
-        assert_property_value(<<"name">>,<<"new_room_name">>, NewRoomInfo)
+        assert_property_value(<<"name">>, <<"new_room_name">>, NewRoomInfo)
+    end).
+
+config_cannot_be_changed_by_non_member(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, []),
+        RoomJID = room_jid(RoomID, Config),
+        {?FORBIDDEN, _} =
+            when_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
+        NewRoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>, <<"new_room_name">>, NewRoomInfo)
+    end).
+
+config_change_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = given_new_room_with_users({alice, Alice}, []),
+        RoomJID = room_jid(RoomID, Config),
+        {?NOT_FOUND, _} =
+            when_config_change({alice, Alice}, <<"badroom">>, <<"other_name">>, <<"other_subject">>),
+        {?BAD_REQUEST, <<"Validation failed ", _/binary>>} =
+            when_config_change({alice, Alice}, RoomJID, <<"other_name">>, 123),
+        NewRoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>, <<"new_room_name">>, NewRoomInfo)
     end).
 
 config_can_be_changed_by_all(Config) ->
@@ -383,6 +492,20 @@ user_is_removed_from_a_room(Config) ->
         assert_aff_change_stanza(Stanza, Bob, <<"none">>)
     end).
 
+user_removal_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        Path = <<"/rooms/", RoomID/binary, "/users/">>,
+        BobJid = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        Creds = credentials({alice, Alice}),
+        {?BAD_REQUEST, <<"Invalid user JID: @invalid">>} =
+            rest_helper:delete(client, <<Path/binary, "@invalid">>, Creds),
+        {?BAD_REQUEST, <<"Missing JID">>} =
+            rest_helper:delete(client, Path, Creds),
+        {?NOT_FOUND, <<"Room does not exist">>} =
+            rest_helper:delete(client, <<"/rooms/badroom/users/", BobJid/binary>>, Creds)
+    end).
+
 owner_can_leave_a_room_and_auto_select_owner(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
@@ -400,11 +523,10 @@ user_can_leave_a_room(Config) ->
         assert_aff_change_stanza(Stanza, Bob, <<"none">>)
     end).
 
-invitation_to_room_is_forbidden_for_non_memeber(Config) ->
+invitation_to_room_is_forbidden_for_non_member(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room({alice, Alice}),
-        {{<<"403">>, <<"Forbidden">>}, _ } = invite_to_room({bob, Bob}, RoomID,
-                                                            <<"auser@domain.com">>)
+        {?FORBIDDEN, _ } = invite_to_room({bob, Bob}, RoomID, <<"auser@domain.com">>)
     end).
 
 msg_is_sent_and_delivered_in_room(Config) ->
@@ -412,53 +534,37 @@ msg_is_sent_and_delivered_in_room(Config) ->
         given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
     end).
 
-
 sending_message_by_not_room_member_results_in_forbidden(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Sender = {alice, Alice},
         RoomID = given_new_room_with_users(Sender, []),
         Result = given_message_sent_to_room(RoomID, {bob, Bob}, #{body => <<"Hello, I'm not member">>}),
-        ?assertMatch({{<<"403">>, <<"Forbidden">>}, _}, Result)
+        ?assertMatch({?FORBIDDEN, _}, Result)
 
     end).
 
-sending_message_with_wrong_body_results_in_bad_request(Config) ->
+sending_invalid_message_to_room_results_in_bad_request(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Sender = {alice, Alice},
         RoomID = given_new_room_with_users(Sender, []),
-        Result = given_message_sent_to_room(RoomID, Sender, #{body => #{nested => <<"structure">>}}),
-        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"Invalid body, it must be a string">>}, Result)
-    end).
-
-sending_message_with_no_body_results_in_bad_request(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Sender = {alice, Alice},
-        RoomID = given_new_room_with_users(Sender, []),
-        Result = given_message_sent_to_room(RoomID, Sender, #{no_body => <<"This should be in body element">>}),
-        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"No valid message elements">>}, Result)
-    end).
-
-sending_markable_message_with_no_body_results_in_bad_request(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Sender = {alice, Alice},
-        RoomID = given_new_room_with_users(Sender, []),
-        Result = given_message_sent_to_room(RoomID, Sender, #{markable => true}),
-        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"No valid message elements">>}, Result)
-    end).
-
-sending_message_not_in_JSON_results_in_bad_request(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Sender = {alice, Alice},
-        RoomID = given_new_room_with_users(Sender, []),
-        Result = given_message_sent_to_room(RoomID, Sender, <<"This is not JSON object">>),
-        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"Request body is not a valid JSON">>}, Result)
+        InvalidMarker = #{type => <<"bad">>, id => <<"some_id">>},
+        {?BAD_REQUEST, <<"Invalid message body">>} =
+            given_message_sent_to_room(RoomID, Sender, #{body => #{body => <<"Too nested">>}}),
+        {?BAD_REQUEST, <<"No valid message elements">>} =
+            given_message_sent_to_room(RoomID, Sender, #{no_body => <<"This should be in body">>}),
+        {?BAD_REQUEST, <<"No valid message elements">>} =
+            given_message_sent_to_room(RoomID, Sender, #{markable => true}),
+        {?BAD_REQUEST, <<"Invalid chat marker">>} =
+            given_message_sent_to_room(RoomID, Sender, #{chat_marker => InvalidMarker}),
+        {?BAD_REQUEST, <<"Invalid request body">>} =
+            given_message_sent_to_room(RoomID, Sender, <<"This is not JSON object">>)
     end).
 
 messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {RoomID, _Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_archive(Config),
-        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
+        {?OK, Result} = get_room_messages({alice, Alice}, RoomID),
         [Aff, _Msg1, _Msg2] = rest_helper:decode_maplist(Result),
         %% The oldest message is aff change
         <<"affiliation">> = maps:get(type, Aff),
@@ -475,14 +581,14 @@ chat_markers_are_archived_in_room(Config) ->
         Markers = [#{ chat_marker => #{ type => Type, id => MarkedID } } || Type <- MarkerTypes ],
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         lists:foreach(fun(Marker) ->
-                              {{<<"200">>, <<"OK">>}, {_Result}} =
+                              {?OK, {_Result}} =
                               given_message_sent_to_room(RoomID, {bob, Bob}, Marker),
                               [ escalus:wait_for_stanza(Client) || Client <- [Alice, Bob] ]
                       end, Markers),
         mam_helper:maybe_wait_for_archive(Config),
 
         % WHEN an archive is queried via HTTP
-        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
+        {?OK, Result} = get_room_messages({alice, Alice}, RoomID),
 
         % THEN these markers are retrieved and in proper order and with valid payload
         % (we discard remaining msg fields, they are tested by other cases)
@@ -497,13 +603,13 @@ markable_property_is_archived_in_room(Config) ->
         % GIVEN a markable message is sent in the room
         MarkableMsg = #{ markable => true, body => <<"Floor is lava!">> },
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        {{<<"200">>, <<"OK">>}, {_Result}}
+        {?OK, {_Result}}
         = given_message_sent_to_room(RoomID, {bob, Bob}, MarkableMsg),
         [ escalus:wait_for_stanza(Client) || Client <- [Alice, Bob] ],
         mam_helper:maybe_wait_for_archive(Config),
 
         % WHEN an archive is queried via HTTP
-        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
+        {?OK, Result} = get_room_messages({alice, Alice}, RoomID),
 
         % THEN the retrieved message has markable property
         [_Aff, Msg] = rest_helper:decode_maplist(Result),
@@ -513,7 +619,7 @@ markable_property_is_archived_in_room(Config) ->
 only_room_participant_can_read_messages(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room({alice, Alice}),
-        {{<<"403">>, <<"Forbidden">>}, _} = get_room_messages({bob, Bob}, RoomID),
+        {?FORBIDDEN, _} = get_room_messages({bob, Bob}, RoomID),
         ok
     end).
 
@@ -540,6 +646,19 @@ messages_can_be_paginated_in_room(Config) ->
         assert_room_messages(OldestMsg1, hd(lists:keysort(1, GenMsgs1))),
         [OldestMsg2 | _] = get_room_messages({alice, Alice}, RoomID, 2, PriorTo),
         assert_room_messages(OldestMsg2, hd(lists:keysort(1, GenMsgs2)))
+    end).
+
+room_message_query_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = given_new_room_with_users({alice, Alice}, []),
+        Creds = credentials({alice, Alice}),
+        Path = <<"/rooms/", RoomID/binary, "/messages">>,
+        {?BAD_REQUEST, <<"Invalid limit">>} =
+            rest_helper:gett(client, <<Path/binary, "?limit=x">>, Creds),
+        {?BAD_REQUEST, <<"Invalid value of 'before'">>} =
+            rest_helper:gett(client, <<Path/binary, "?before=x">>, Creds),
+        {?BAD_REQUEST, <<"Invalid query string">>} =
+            rest_helper:gett(client, <<Path/binary, "?kuropatwa">>, Creds)
     end).
 
 room_is_created_with_given_jid(Config) ->
@@ -776,7 +895,7 @@ assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
 
 get_room_info(User, RoomID) ->
     Creds = credentials(User),
-    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:gett(client, <<"/rooms/", RoomID/binary>>,
+    {?OK, {Result}} = rest_helper:gett(client, <<"/rooms/", RoomID/binary>>,
                                                          Creds),
     Result.
 
@@ -799,7 +918,7 @@ wait_for_room_msg(Msg, User) ->
 given_message_sent_to_room(RoomID, Sender) ->
     Body = #{body => <<"Hi all!">>},
     HTTPResult = given_message_sent_to_room(RoomID, Sender, Body),
-    {{<<"200">>, <<"OK">>}, {Result}} = HTTPResult,
+    {?OK, {Result}} = HTTPResult,
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
     {UserJID, _} = credentials(Sender),
@@ -832,7 +951,7 @@ given_new_room(Owner, RoomID, RoomName) ->
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = user_jid(Invitee),
-    {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
+    {?NOCONTENT, _} = invite_to_room(Owner, RoomID, JID),
     maybe_wait_for_aff_stanza(Invitee, Invitee),
     maybe_wait_for_aff_stanza(Inviter, Invitee).
 
@@ -878,7 +997,7 @@ send_message(User, From, To) ->
     BobJID = user_jid(To),
     M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
     Cred = credentials({User, From}),
-    {{<<"200">>, <<"OK">>}, {Result}} = post(client, <<"/messages">>, M, Cred),
+    {?OK, {Result}} = post(client, <<"/messages">>, M, Cred),
     ID = proplists:get_value(<<"id">>, Result),
     M#{id => ID, from => AliceJID}.
 
@@ -889,7 +1008,7 @@ get_messages(MeCreds, Other, Count) ->
     get_messages(GetPath, MeCreds).
 
 get_messages(Path, Creds) ->
-    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(client, Path, Creds),
+    {?OK, Msgs} = rest_helper:gett(client, Path, Creds),
     rest_helper:decode_maplist(Msgs).
 
 get_messages(MeCreds, Other, Before, Count) ->
@@ -906,7 +1025,7 @@ get_messages_with_props(MeCreds, Other, Count) ->
     get_messages_with_props(GetPath, MeCreds).
 
 get_messages_with_props(Path, Creds) ->
-    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(client, Path, Creds),
+    {?OK, Msgs} = rest_helper:gett(client, Path, Creds),
     Msgs.
 
 get_messages_with_props(MeCreds, Other, Before, Count) ->
@@ -929,13 +1048,13 @@ get_room_messages(Client, RoomID, Count, Before) ->
 create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
     Room = #{name => RoomName,
              subject => Subject},
-    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(client, <<"/rooms">>, Room, Creds),
+    {?CREATED, {Result}} = rest_helper:post(client, <<"/rooms">>, Room, Creds),
     proplists:get_value(<<"id">>, Result).
 
 create_room_with_id({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
     Res = create_room_with_id_request(Creds, RoomName, Subject, RoomID),
     case Res of
-        {{<<"201">>, <<"Created">>}, {Result}} ->
+        {?CREATED, {Result}} ->
             proplists:get_value(<<"id">>, Result);
         _ ->
             ct:fail(#{issue => create_room_with_id_failed,
@@ -954,7 +1073,7 @@ create_room_with_id_request(Creds, RoomName, Subject, RoomID) ->
 
 get_my_rooms(User) ->
     Creds = credentials(User),
-    {{<<"200">>, <<"OK">>}, Rooms} = rest_helper:gett(client, <<"/rooms">>, Creds),
+    {?OK, Rooms} = rest_helper:gett(client, <<"/rooms">>, Creds),
     Rooms.
 
 assert_messages([], []) ->
@@ -1307,31 +1426,28 @@ add_contact_check_roster_push(Contact, {_, RosterOwnerSpec} = RosterOwner) ->
     escalus:assert(is_roster_set, Push),
     ok.
 
+roster_errors(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun roster_errors_story/2).
 
-break_stuff(Config) ->
-    escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}],
-        fun(Alice, Bob) ->
-            AliceJID = escalus_utils:jid_to_lower(
-                escalus_client:short_jid(Alice)),
-            BCred = credentials({bob, Bob}),
-            AddContact = #{jid => AliceJID},
-            {?NOCONTENT, _} = post(client, <<"/contacts">>, AddContact,
-                BCred),
-            PutPath = lists:flatten(["/contacts/", binary_to_list(AliceJID)]),
-            {?NOT_IMPLEMENTED, _} = putt(client, PutPath,
-                                         #{action => <<"nosuchaction">>},
-                                         BCred),
-            BadPutPath = "/contacts/zorro@localhost",
-            {?NOT_FOUND, _} = putt(client, BadPutPath,
-                                   #{action => <<"invite">>},
-                                   BCred),
-            BadGetPath = "/contacts/zorro@localhost",
-            {?NOT_FOUND, _} = gett(client, BadGetPath, BCred),
-            ok
-        end
-    ),
-    ok.
+roster_errors_story(Alice, Bob) ->
+    AliceJID = user_jid(Alice),
+    BCred = credentials({bob, Bob}),
+    {?BAD_REQUEST, <<"Missing JID">>} =
+        post(client, <<"/contacts">>, #{}, BCred),
+    {?BAD_REQUEST, <<"Invalid JID: @invalid">>} =
+        post(client, <<"/contacts">>, #{jid => <<"@invalid">>}, BCred),
+    {?BAD_REQUEST, <<"Invalid action">>} =
+        putt(client, <<"/contacts/", AliceJID/binary>>, #{action => <<"nosuchaction">>}, BCred),
+    {?BAD_REQUEST, <<"Missing action">>} =
+        putt(client, <<"/contacts/", AliceJID/binary>>, #{}, BCred),
+    {?NOT_FOUND, _} =
+        post(client, <<"/contacts">>, #{jid => <<"zorro@localhost">>}, BCred),
+    {?NOT_FOUND, _} =
+        putt(client, <<"/contacts/zorro@localhost">>, #{action => <<"invite">>}, BCred),
+    {?NOT_FOUND, _} =
+        gett(client, <<"/contacts/zorro@localhost">>, BCred),
+    {?NOT_FOUND, _} =
+        delete(client, <<"/contacts/zorro@localhost">>, BCred).
 
 -spec room_jid(RoomID :: binary(), Config :: list()) -> RoomJID :: binary().
 room_jid(RoomID, Config) ->

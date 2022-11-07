@@ -3,18 +3,19 @@
 %%      apply for a given message.
 
 -export([check_condition/3,
-         verify_support/2
+         verify_support/3
         ]).
-
--ignore_xref([check_condition/3, verify_support/2]).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].
-verify_support(HookAcc, Rules) ->
-    HookAcc ++ [ verify_rule_support(Rule) || Rule <- Rules ].
+-spec verify_support(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [amp_rule_support()],
+    Params :: #{rules := amp_rules()},
+    Extra :: map().
+verify_support(HookAcc, #{rules := Rules}, _) ->
+    {ok, HookAcc ++ [ verify_rule_support(Rule) || Rule <- Rules ]}.
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
 verify_rule_support(#amp_rule{action = alert} = Rule) ->
@@ -24,12 +25,16 @@ verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->
 verify_rule_support(Rule) ->
     {supported, Rule}.
 
--spec check_condition(amp_match_result(), amp_strategy(), amp_rule()) -> amp_match_result().
-check_condition(HookAcc, Strategy, Rule) ->
-    case HookAcc of
+-spec check_condition(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: amp_match_result(),
+    Params :: #{strategy := amp_strategy(), rule := amp_rule()},
+    Extra :: map().
+check_condition(HookAcc, #{strategy := Strategy, rule := Rule}, _) ->
+    NewAcc = case HookAcc of
         no_match -> resolve(Strategy, Rule);
         MatchResult -> MatchResult
-    end.
+    end,
+    {ok, NewAcc}.
 
 -spec resolve(amp_strategy(), amp_rule()) -> amp_match_result().
 resolve(#amp_strategy{deliver = [Value]}, #amp_rule{condition = deliver, value = Value}) -> match;

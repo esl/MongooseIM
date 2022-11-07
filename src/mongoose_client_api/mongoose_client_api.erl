@@ -5,26 +5,22 @@
 %% mongoose_http_handler callbacks
 -export([config_spec/0, routes/1]).
 
--export([init/2]).
--export([content_types_provided/2]).
--export([is_authorized/2]).
--export([options/2]).
--export([allowed_methods/2]).
--export([to_json/2]).
--export([bad_request/2]).
--export([bad_request/3]).
--export([forbidden_request/2]).
--export([forbidden_request/3]).
--export([json_to_map/1]).
-
--ignore_xref([allowed_methods/2, content_types_provided/2, forbidden_request/3,
-              options/2, to_json/2]).
+%% Utilities for the handler modules
+-export([init/2,
+         is_authorized/2,
+         parse_body/1,
+         parse_qs/1,
+         try_handle_request/3,
+         throw_error/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
 -type handler_options() :: #{path := string(), handlers := [module()], docs := boolean(),
                              atom() => any()}.
+-type req() :: cowboy_req:req().
+-type state() :: #{atom() => any()}.
+-type error_type() :: bad_request | denied | not_found.
 
 -callback routes() -> mongoose_http_handler:routes().
 
@@ -88,53 +84,6 @@ set_cors_headers(Origin, Req) ->
 set_cors_header({Header, Value}, Req) ->
     cowboy_req:set_resp_header(Header, Value, Req).
 
-allowed_methods(Req, State) ->
-    {[<<"OPTIONS">>, <<"GET">>], Req, State}.
-
-content_types_provided(Req, State) ->
-    {[
-      {{<<"application">>, <<"json">>, '*'}, to_json}
-     ], Req, State}.
-
-options(Req, State) ->
-    {ok, Req, State}.
-
-to_json(Req, User) ->
-    {<<"{}">>, Req, User}.
-
-bad_request(Req, State) ->
-    bad_request(Req, <<"Bad request. The details are unknown.">>, State).
-
-bad_request(Req, Reason, State) ->
-    reply(400, Req, Reason, State).
-
-forbidden_request(Req, State) ->
-    forbidden_request(Req, <<>>, State).
-
-forbidden_request(Req, Reason, State) ->
-    reply(403, Req, Reason, State).
-
-reply(StatusCode, Req, Body, State) ->
-    maybe_report_error(StatusCode, Req, Body),
-    Req1 = set_resp_body_if_missing(Body, Req),
-    Req2 = cowboy_req:reply(StatusCode, Req1),
-    {stop, Req2, State#{was_replied => true}}.
-
-set_resp_body_if_missing(Body, Req) ->
-    case cowboy_req:has_resp_body(Req) of
-        true ->
-            Req;
-        false ->
-            cowboy_req:set_resp_body(Body, Req)
-    end.
-
-maybe_report_error(StatusCode, Req, Body) when StatusCode >= 400 ->
-    ?LOG_WARNING(#{what => reply_error,
-                   stacktrace => element(2, erlang:process_info(self(), current_stacktrace)),
-                   code => StatusCode, req => Req, reply_body => Body});
-maybe_report_error(_StatusCode, _Req, _Body) ->
-    ok.
-
 %%--------------------------------------------------------------------
 %% Authorization
 %%--------------------------------------------------------------------
@@ -174,17 +123,60 @@ do_authorize(AuthMethod, MaybeJID, Password, HTTPMethod) ->
 is_noauth_http_method(<<"OPTIONS">>) -> true;
 is_noauth_http_method(_) -> false.
 
-%% -------------------------------------------------------------------
-%% @doc
-%% Decode JSON binary into map
-%% @end
-%% -------------------------------------------------------------------
--spec json_to_map(JsonBin :: binary()) -> {ok, Map :: maps:map()} | {error, invalid_json}.
-
-json_to_map(JsonBin) ->
-    case catch jiffy:decode(JsonBin, [return_maps]) of
-        Map when is_map(Map) ->
-            {ok, Map};
-        _ ->
-            {error, invalid_json}
+-spec parse_body(req()) -> #{atom() => jiffy:json_value()}.
+parse_body(Req) ->
+    try
+        {ok, Body, _Req2} = cowboy_req:read_body(Req),
+        decoded_json_to_map(jiffy:decode(Body))
+    catch Class:Reason:Stacktrace ->
+            ?LOG_INFO(#{what => parse_body_failed,
+                        class => Class, reason => Reason, stacktrace => Stacktrace}),
+            throw_error(bad_request, <<"Invalid request body">>)
     end.
+
+decoded_json_to_map({L}) when is_list(L) ->
+    maps:from_list([{binary_to_existing_atom(K), decoded_json_to_map(V)} || {K, V} <- L]);
+decoded_json_to_map(V) ->
+    V.
+
+-spec parse_qs(req()) -> #{atom() => binary() | true}.
+parse_qs(Req) ->
+    try
+        maps:from_list([{binary_to_existing_atom(K), V} || {K, V} <- cowboy_req:parse_qs(Req)])
+    catch Class:Reason:Stacktrace ->
+            ?LOG_INFO(#{what => parse_qs_failed,
+                        class => Class, reason => Reason, stacktrace => Stacktrace}),
+            throw_error(bad_request, <<"Invalid query string">>)
+    end.
+
+-spec try_handle_request(req(), state(), fun((req(), state()) -> Result)) -> Result.
+try_handle_request(Req, State, F) ->
+    try
+        F(Req, State)
+    catch throw:#{error_type := ErrorType, message := Msg} ->
+            error_response(ErrorType, Msg, Req, State)
+    end.
+
+-spec throw_error(error_type(), iodata()) -> no_return().
+throw_error(ErrorType, Msg) ->
+    throw(#{error_type => ErrorType, message => Msg}).
+
+-spec error_response(error_type(), iodata(), req(), state()) -> {stop, req(), state()}.
+error_response(ErrorType, Message, Req, State) ->
+    BinMessage = iolist_to_binary(Message),
+    ?LOG(log_level(ErrorType), #{what => mongoose_client_api_error_response,
+                                 error_type => ErrorType,
+                                 message => BinMessage,
+                                 req => Req}),
+    Req1 = cowboy_req:reply(error_code(ErrorType), #{}, jiffy:encode(BinMessage), Req),
+    {stop, Req1, State}.
+
+-spec error_code(error_type()) -> non_neg_integer().
+error_code(bad_request) -> 400;
+error_code(denied) -> 403;
+error_code(not_found) -> 404.
+
+-spec log_level(error_type()) -> logger:level().
+log_level(bad_request) -> info;
+log_level(denied) -> info;
+log_level(not_found) -> info.

@@ -41,6 +41,7 @@ domain_tests() ->
      get_domains_by_host_type,
      get_domain_details,
      delete_domain,
+     request_delete_domain,
      get_domains_after_deletion,
      set_domain_password,
      set_nonexistent_domain_password,
@@ -177,6 +178,20 @@ delete_domain(Config) ->
                    <<"domain">> := #{<<"domain">> := ?SECOND_EXAMPLE_DOMAIN}},
                  ParsedResult2).
 
+request_delete_domain(Config) ->
+    Domain = <<"exampleDomain">>,
+    Result1 = request_remove_domain(Domain, ?HOST_TYPE, Config),
+    ParsedResult1 = get_ok_value([data, domain, requestRemoveDomain], Result1),
+    ?assertMatch(#{<<"msg">> := <<"Domain disabled and enqueued for deletion">>,
+                   <<"domain">> := #{<<"domain">> := Domain,
+                                     <<"status">> := <<"DELETING">>}},
+                 ParsedResult1),
+    F = fun() ->
+                Result = get_domain_details(Domain, Config),
+                domain_not_found_error_formatting(Result)
+        end,
+    mongoose_helper:wait_until(F, ok, #{time_left => timer:seconds(5)}).
+
 get_domains_after_deletion(Config) ->
     Result = get_domains_by_host_type(?HOST_TYPE, Config),
     ParsedResult = get_ok_value([data, domain, domainsByHostType], Result),
@@ -262,6 +277,10 @@ get_domain_details(Domain, Config) ->
 remove_domain(Domain, HostType, Config) ->
     Vars = #{domain => Domain, hostType => HostType},
     execute_command(<<"domain">>, <<"removeDomain">>, Vars, Config).
+
+request_remove_domain(Domain, HostType, Config) ->
+    Vars = #{domain => Domain, hostType => HostType},
+    execute_command(<<"domain">>, <<"requestRemoveDomain">>, Vars, Config).
 
 get_domains_by_host_type(HostType, Config) ->
     Vars = #{hostType => HostType},
