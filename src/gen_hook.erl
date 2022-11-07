@@ -32,12 +32,16 @@
 -type hook_acc() :: any().
 -type hook_params() :: map().
 -type hook_extra() :: map().
+-type extra() :: #{hook_name := hook_name(),
+                   hook_tag := hook_tag(),
+                   host_type => mongooseim:host_type(),
+                   _ => _}.
 
 -type hook_fn_ret_value() :: {ok | stop, NewAccumulator :: hook_acc()}.
 -type hook_fn() :: %% see run_fold/4 documentation
     fun((Accumulator :: hook_acc(),
          ExecutionParameters :: hook_params(),
-         ExtraParameters :: hook_extra()) -> hook_fn_ret_value()).
+         ExtraParameters :: extra()) -> hook_fn_ret_value()).
 
 -type key() :: {HookName :: atom(),
                 Tag :: any()}.
@@ -54,7 +58,7 @@
 
 -record(hook_handler, {prio :: pos_integer(),
                        hook_fn :: hook_fn(),
-                       extra :: map()}).
+                       extra :: extra()}).
 
 -define(TABLE, ?MODULE).
 %%%----------------------------------------------------------------------

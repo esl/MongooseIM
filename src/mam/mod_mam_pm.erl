@@ -112,7 +112,6 @@ archive_id(Server, User)
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
@@ -120,7 +119,6 @@ start(HostType, Opts) ->
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
@@ -664,10 +662,7 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec legacy_hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
-legacy_hooks(HostType) ->
-    mongoose_metrics_mam_hooks:get_mam_hooks(HostType).
-
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
@@ -678,6 +673,7 @@ hooks(HostType) ->
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
         {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
+        | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)
     ].
 
 add_iq_handlers(HostType, Opts) ->

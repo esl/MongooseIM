@@ -119,14 +119,16 @@ archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
 start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
     ensure_metrics(HostType),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
 
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
 
@@ -616,13 +618,16 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec hooks(host_type()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
+-spec legacy_hooks(host_type()) -> [ejabberd_hooks:hook()].
+legacy_hooks(HostType) ->
     [{disco_muc_features, HostType, ?MODULE, disco_muc_features, 99},
      {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
      {forget_room, HostType, ?MODULE, forget_room, 90},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
-     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType).
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
