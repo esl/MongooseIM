@@ -60,7 +60,7 @@ get_mam_muc_hooks(HostType) ->
 -spec mam_get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_get_prefs(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamPrefsGets, 1),
     {ok, Acc}.
@@ -68,7 +68,7 @@ mam_get_prefs(Acc, _, #{host_type := HostType}) ->
 -spec mam_set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_set_prefs(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamPrefsSets, 1),
     {ok, Acc}.
@@ -76,7 +76,7 @@ mam_set_prefs(Acc, _, #{host_type := HostType}) ->
 -spec mam_remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_remove_archive(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamArchiveRemoved, 1),
     {ok, Acc}.
@@ -84,7 +84,7 @@ mam_remove_archive(Acc, _, #{host_type := HostType}) ->
 -spec mam_lookup_messages(Result, Params, Extra) -> {ok, Result} when
     Result :: {ok | error, mod_mam:lookup_result()},
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
                     #{is_simple := IsSimple}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamForwarded, length(MessageRows)),
@@ -102,7 +102,7 @@ mam_lookup_messages(Result = {error, _}, _, _) ->
 -spec mam_archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: mod_mam:archive_message_params(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_archive_message(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamArchived, 1),
     {ok, Acc}.
@@ -110,7 +110,7 @@ mam_archive_message(Acc, _, #{host_type := HostType}) ->
 -spec mam_flush_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: #{message_count := integer()},
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_flush_messages(Acc, #{message_count := MessageCount}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMamFlushed, MessageCount),
     {ok, Acc}.
@@ -121,7 +121,7 @@ mam_flush_messages(Acc, #{message_count := MessageCount}, #{host_type := HostTyp
 -spec mam_muc_get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_get_prefs(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamPrefsGets, 1),
     {ok, Acc}.
@@ -129,7 +129,7 @@ mam_muc_get_prefs(Acc, _, #{host_type := HostType}) ->
 -spec mam_muc_set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_set_prefs(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamPrefsSets, 1),
     {ok, Acc}.
@@ -137,7 +137,7 @@ mam_muc_set_prefs(Acc, _, #{host_type := HostType}) ->
 -spec mam_muc_remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_remove_archive(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamArchiveRemoved, 1),
     {ok, Acc}.
@@ -145,7 +145,7 @@ mam_muc_remove_archive(Acc, _, #{host_type := HostType}) ->
 -spec mam_muc_lookup_messages(Result, Params, Extra) -> {ok, Result} when
     Result :: {ok | error, mod_mam:lookup_result()},
     Params :: map(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
                         _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamForwarded, length(MessageRows)),
@@ -157,7 +157,7 @@ mam_muc_lookup_messages(Result = {error, _}, _, _) ->
 -spec mam_muc_archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: mod_mam:archive_message_params(),
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_archive_message(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamArchived, 1),
     {ok, Acc}.
@@ -165,7 +165,7 @@ mam_muc_archive_message(Acc, _, #{host_type := HostType}) ->
 -spec mam_muc_flush_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: any(),
     Params :: #{message_count := integer()},
-    Extra :: #{host_type := mongooseim:host_type()}.
+    Extra :: gen_hook:extra().
 mam_muc_flush_messages(Acc, #{message_count := MessageCount}, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modMucMamFlushed, MessageCount),
     {ok, Acc}.
