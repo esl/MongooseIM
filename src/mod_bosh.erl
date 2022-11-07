@@ -89,12 +89,17 @@ start(_HostType, Opts) ->
         false ->
             mod_bosh_backend:start(Opts),
             {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-            gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50)
+            gen_hook:add_handlers(hooks())
     end.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    gen_hook:delete_handlers(hooks()),
     ok.
+
+-spec hooks() -> gen_hook:hook_list().
+hooks() ->
+    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
