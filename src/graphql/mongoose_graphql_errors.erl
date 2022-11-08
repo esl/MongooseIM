@@ -52,7 +52,8 @@ crash(_Ctx, Err = #{type := Type}) ->
 -spec format_error(term())-> {integer(), err_msg()}.
 format_error(#{phase := Phase, error_term := Term} = Err) when Phase =:= authorize;
                                                                Phase =:= decode;
-                                                               Phase =:= parse ->
+                                                               Phase =:= parse;
+                                                               Phase =:= verify ->
     Msg = #{extensions => #{code => err_code(Phase, Term)},
             message => iolist_to_binary(err_msg(Phase, Term))},
     {err_http_code(Phase), add_path(Err, Msg)};
@@ -91,7 +92,9 @@ err_msg(parse, Result) ->
 err_msg(decode, Result) ->
     decode_err_msg(Result);
 err_msg(authorize, Result) ->
-    authorize_err_msg(Result).
+    authorize_err_msg(Result);
+err_msg(verify, Result) ->
+    verify_err_msg(Result).
 
 authorize_err_msg({request_error, {header, <<"authorization">>}, _}) ->
     "Malformed authorization header. Please consult the relevant specification";
@@ -118,8 +121,14 @@ decode_err_msg(no_query_supplied) ->
     "The query was not supplied in the request body";
 decode_err_msg(invalid_json_body) ->
     "The request JSON body is invalid";
+decode_err_msg(invalid_query_parameters) ->
+    "The query string is invalid";
 decode_err_msg(variables_invalid_json) ->
     "The variables' JSON is invalid".
+
+verify_err_msg({unsupported_operation, Method, Operation}) ->
+    io_lib:format("The ~p execution method does not support ~p operations.",
+                  [Method, Operation]).
 
 add_path(#{path := Path}, ErrMsg) ->
     ErrMsg#{path => Path};

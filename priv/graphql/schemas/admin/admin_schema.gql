@@ -1,6 +1,7 @@
 schema{
   query: AdminQuery,
-  mutation: AdminMutation
+  mutation: AdminMutation,
+  subscription: AdminSubscription
 }
 
 """
@@ -79,4 +80,8 @@ type AdminMutation @protected{
   mnesia: MnesiaAdminMutation
   "Server info and management"
   server: ServerAdminMutation
+}
+
+type AdminSubscription {
+  stanza: StanzaAdminSubscription
 }

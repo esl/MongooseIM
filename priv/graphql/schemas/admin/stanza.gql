@@ -19,3 +19,9 @@ type StanzaAdminMutation @protected{
   sendStanza(stanza: Stanza): SendStanzaPayload
     @protected(type: GLOBAL)
 }
+
+type StanzaAdminSubscription @protected{
+  "Subscribe for the given user's incoming messages"
+  subscribeForMessages(caller: JID!): StanzaMap
+    @protected(type: DOMAIN, args: ["caller"])
+}

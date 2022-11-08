@@ -643,7 +643,7 @@ GraphQL API for administration, the listener is bound to 127.0.0.1 for increased
 ```toml
 [[listen.http]]
   ip_address = "127.0.0.1"
-  port = 8088
+  port = 5551
   transport.num_acceptors = 5
   transport.max_connections = 10
 
@@ -662,7 +662,7 @@ GraphQL API for the domain admin.
 ```toml
 [[listen.http]]
   ip_address = "0.0.0.0"
-  port = 5041
+  port = 5541
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
@@ -679,7 +679,7 @@ GraphQL API for the user.
 ```toml
 [[listen.http]]
   ip_address = "0.0.0.0"
-  port = 5061
+  port = 5561
   transport.num_acceptors = 10
   transport.max_connections = 1024
 

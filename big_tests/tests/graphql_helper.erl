@@ -17,19 +17,39 @@ execute(EpName, Body, Creds) ->
 -spec execute(node(), atom(), binary(), {binary(), binary()} | undefined) ->
     {Status :: tuple(), Data :: map()}.
 execute(Node, EpName, Body, Creds) ->
-    Request =
-      #{port => get_listener_port(Node, EpName),
-        role => {graphql, EpName},
-        method => <<"POST">>,
-        return_maps => true,
-        creds => Creds,
-        path => "/graphql",
-        body => Body},
+    Request = build_request(Node, EpName, Body, Creds),
     rest_helper:make_request(Request).
 
+build_request(Node, EpName, Body, Creds) ->
+    #{port => get_listener_port(Node, EpName),
+      role => {graphql, EpName},
+      method => <<"POST">>,
+      return_maps => true,
+      creds => Creds,
+      path => "/graphql",
+      body => Body}.
+
+execute_sse(EpName, Params, Creds) ->
+    #{node := Node} = mim(),
+    execute_sse(Node, EpName, Params, Creds).
+
+execute_sse(Node, EpName, Params, Creds) ->
+    Port = get_listener_port(Node, EpName),
+    Path = "/api/graphql/sse",
+    QS = uri_string:compose_query([{atom_to_binary(K), encode_sse_value(V)}
+                                   || {K, V} <- maps:to_list(Params)]),
+    sse_helper:connect_to_sse(Port, [Path, "?", QS], Creds, #{}).
+
+encode_sse_value(M) when is_map(M) -> jiffy:encode(M);
+encode_sse_value(V) when is_binary(V) -> V.
+
 execute_user_command(Category, Command, User, Args, Config) ->
-    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    Doc = get_doc(Category, Command),
     execute_user(#{query => Doc, variables => Args}, User, Config).
+
+execute_user_command_sse(Category, Command, User, Args, Config) ->
+    Doc = get_doc(Category, Command),
+    execute_user_sse(#{query => Doc, variables => Args}, User, Config).
 
 execute_command(Category, Command, Args, Config) ->
     #{node := Node} = mim(),
@@ -40,15 +60,23 @@ execute_command(Node, Category, Command, Args, Config) ->
     Protocol = ?config(protocol, Config),
     execute_command(Node, Category, Command, Args, Config, Protocol).
 
+execute_command_sse(Category, Command, Args, Config) ->
+    Doc = get_doc(Category, Command),
+    execute_auth_sse(#{query => Doc, variables => Args}, Config).
+
 %% Admin commands can be executed as GraphQL over HTTP or with CLI (mongooseimctl)
 execute_command(Node, Category, Command, Args, Config, http) ->
-    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    Doc = get_doc(Category, Command),
     execute_auth(Node, #{query => Doc, variables => Args}, Config);
 execute_command(Node, Category, Command, Args, Config, cli) ->
     CLIArgs = encode_cli_args(Args),
     {Result, Code}
         = mongooseimctl_helper:mongooseimctl(Node, Category, [Command | CLIArgs], Config),
     {{exit_status, Code}, rest_helper:decode(Result, #{return_maps => true})}.
+
+get_doc(Category, Command) ->
+    #{Category := #{commands := #{Command := #{doc := Doc}}}} = get_specs(),
+    Doc.
 
 encode_cli_args(Args) ->
     lists:flatmap(fun({Name, Value}) -> encode_cli_arg(Name, Value) end, maps:to_list(Args)).
@@ -71,20 +99,34 @@ execute_auth(Body, Config) ->
     execute_auth(Node, Body, Config).
 
 execute_auth(Node, Body, Config) ->
-    case Ep = ?config(schema_endpoint, Config) of
-        admin ->
-            #{username := Username, password := Password} = get_listener_opts(Ep),
-            execute(Node, Ep, Body, {Username, Password});
-        domain_admin ->
-            Creds = ?config(domain_admin, Config),
-            execute(Node, Ep, Body, Creds)
-    end.
+    Ep = ?config(schema_endpoint, Config),
+    execute(Node, Ep, Body, make_admin_creds(Ep, Config)).
+
+execute_auth_sse(Body, Config) ->
+    #{node := Node} = mim(),
+    execute_auth_sse(Node, Body, Config).
+
+execute_auth_sse(Node, Body, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    execute_sse(Node, Ep, Body, make_admin_creds(Ep, Config)).
+
+make_admin_creds(admin = Ep, _Config) ->
+    #{username := Username, password := Password} = get_listener_opts(Ep),
+    {Username, Password};
+make_admin_creds(domain_admin, Config) ->
+    ?config(domain_admin, Config).
 
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
     Creds = make_creds(User),
     #{node := Node} = mim(),
     execute(Node, Ep, Body, Creds).
+
+execute_user_sse(Body, User, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Creds = make_creds(User),
+    #{node := Node} = mim(),
+    execute_sse(Node, Ep, Body, Creds).
 
 -spec get_listener_port(binary()) -> integer().
 get_listener_port(EpName) ->
@@ -173,6 +215,9 @@ get_unauthorized({Code, #{<<"errors">> := Errors}}) ->
 get_bad_request({Code, _Msg}) ->
     assert_response_code(bad_request, Code).
 
+get_method_not_allowed({Code, _Msg}) ->
+    assert_response_code(method_not_allowed, Code).
+
 get_coercion_err_msg({Code, #{<<"errors">> := [Error]}}) ->
     assert_response_code(bad_request, Code),
     ?assertEqual(<<"input_coercion">>, get_value([extensions, code], Error)),
@@ -196,8 +241,14 @@ get_ok_value(Path, {Code, Data}) ->
 
 assert_response_code(bad_request, {<<"400">>, <<"Bad Request">>}) -> ok;
 assert_response_code(unauthorized, {<<"401">>, <<"Unauthorized">>}) -> ok;
+assert_response_code(method_not_allowed, {<<"405">>, <<"Method Not Allowed">>}) -> ok;
 assert_response_code(error, {<<"200">>, <<"OK">>}) -> ok;
 assert_response_code(ok, {<<"200">>, <<"OK">>}) -> ok;
+assert_response_code(bad_request, 400) -> ok;
+assert_response_code(unauthorized, 401) -> ok;
+assert_response_code(method_not_allowed, 405) -> ok;
+assert_response_code(error, 200) -> ok;
+assert_response_code(ok, 200) -> ok;
 assert_response_code(bad_request, {exit_status, 1}) -> ok;
 assert_response_code(error, {exit_status, 1}) -> ok;
 assert_response_code(ok, {exit_status, 0}) -> ok;

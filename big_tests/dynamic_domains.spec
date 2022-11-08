@@ -42,6 +42,7 @@
  "at the moment mod_pubsub doesn't support dynamic domains"}.
 
 {suites, "tests", graphql_SUITE}.
+{suites, "tests", graphql_sse_SUITE}.
 {suites, "tests", graphql_account_SUITE}.
 {suites, "tests", graphql_domain_SUITE}.
 {suites, "tests", graphql_inbox_SUITE}.
