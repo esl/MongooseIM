@@ -50,7 +50,8 @@ config_spec() ->
                  <<"schema_endpoint">> => #option{type = atom,
                                                   validate = {enum, [admin, domain_admin, user]}},
                  <<"allowed_categories">> => #list{items = #option{type = binary,
-                     validate = {enum, allowed_schemas()}}}},
+                                                                   validate = {enum, allowed_categories()}},
+                                                   validate = unique_non_empty}},
         format_items = map,
         required = [<<"schema_endpoint">>],
         process = fun ?MODULE:process_config/1}.
@@ -275,7 +276,7 @@ reply_error(Msg, Req, State) ->
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.
 
-allowed_schemas() ->
+allowed_categories() ->
     [<<"checkAuth">>, <<"account">>, <<"domain">>, <<"last">>, <<"muc">>, <<"muc_light">>,
      <<"session">>, <<"stanza">>, <<"roster">>, <<"vcard">>, <<"private">>, <<"metric">>,
      <<"stat">>, <<"gdpr">>, <<"mnesia">>, <<"server">>, <<"inbox">>, <<"http_upload">>,
