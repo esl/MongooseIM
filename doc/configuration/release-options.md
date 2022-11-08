@@ -217,10 +217,3 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 * **Option:** [`auth.methods`](auth.md#authmethods)
 * **Syntax:** comma-separated list of strings
 * **Example:** `{auth_method, "\"internal\""}.`
-
-### zlib
-
-* **Type:** parameter
-* **Option:** [`listen.c2s.zlib`](listen.md#listenc2szlib)
-* **Syntax:** positive integer
-* **Example:** `{zlib, "10_000"}.`

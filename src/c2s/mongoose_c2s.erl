@@ -449,7 +449,7 @@ stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServ
 
 -spec handle_bind_resource(c2s_data(), c2s_state(), exml:element(), jlib:iq()) -> fsm_res().
 handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
-    case jid:resourceprep(exml_query:path(SubEl, [{element, <<"resource">>}, cdata])) of
+    case jid:resourceprep(xml:get_path_s(SubEl, [{elem, <<"resource">>}, cdata])) of
         error ->
             Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
             send_element_from_server_jid(StateData, Err),

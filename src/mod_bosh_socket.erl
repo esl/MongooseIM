@@ -21,7 +21,6 @@
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
-         compress/1, compress/3,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -1038,16 +1037,6 @@ starttls(SocketData, TLSOpts) ->
 -spec starttls(mod_bosh:socket(), _, _) -> no_return().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, negotiate_tls_on_http_level}).
-
-
-%% @doc Should be negotiated on HTTP level.
--spec compress(mod_bosh:socket()) -> no_return().
-compress(SocketData) ->
-    compress(SocketData, <<>>, 0).
-
--spec compress(mod_bosh:socket(), _, integer()) -> no_return().
-compress(_SocketData, _Data, _InflateSizeLimit) ->
-    throw({error, negotiate_compression_on_http_level}).
 
 
 -spec send_xml(mod_bosh:socket(), mongoose_transport:send_xml_input()) -> ok.

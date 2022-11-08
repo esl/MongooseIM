@@ -56,7 +56,7 @@ stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
 determine_features(_, _, #{tls := #{mode := starttls_required}}, false, _StateData) ->
     [starttls_stanza(required)];
-determine_features(HostType, LServer, #{tls := #{mode := tls}}, _, StateData) ->
+determine_features(HostType, LServer, _, true, StateData) ->
     mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType, StateData);
 determine_features(HostType, LServer, _, _, StateData) ->
     [starttls_stanza(optional)
