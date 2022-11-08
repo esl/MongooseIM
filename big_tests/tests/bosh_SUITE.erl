@@ -51,8 +51,8 @@ all() ->
 groups() ->
     [
      {without_bosh, [], [reject_connection_when_mod_bosh_is_disabled]},
-     {essential, [shuffle], essential_test_cases()},
-     {essential_https, [shuffle], essential_test_cases()},
+     {essential, [sequence], essential_test_cases()},
+     {essential_https, [sequence], essential_test_cases()},
      {chat, [shuffle], chat_test_cases()},
      {chat_https, [shuffle], chat_test_cases()},
      {time, [parallel], time_test_cases()},

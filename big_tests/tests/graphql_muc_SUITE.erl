@@ -1140,10 +1140,15 @@ user_without_session_send_message_to_room(Config) ->
 user_without_session_send_message_to_room_story(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
-    ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [JID, <<"Kicked">>])),
+    terminate_user_session(JID),
     % Send message
     Res = user_send_message_to_room(Alice, RoomJID, <<"Hello!">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have any session">>)).
+
+terminate_user_session(Jid) ->
+    ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [Jid, <<"Kicked">>])),
+    F = fun() -> rpc(mim(), ejabberd_sm, get_user_resources, [Jid]) end,
+    mongoose_helper:wait_until(F, [], #{time_left => timer:seconds(5)}).
 
 user_get_room_config(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
