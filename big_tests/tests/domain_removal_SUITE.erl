@@ -172,7 +172,7 @@ cache_removal(Config) ->
     ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)),
     run_remove_domain(),
     %% Cache removed only for Alice's domain
-    ?assertEqual(false, does_cached_user_exist(FreshConfig, alice)),
+    ?assertEqual({ok, false}, does_cached_user_exist(FreshConfig, alice)),
     ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)).
 
 mam_pm_removal(Config) ->
@@ -472,7 +472,7 @@ connect_and_disconnect(Spec) ->
 does_cached_user_exist(Config, User) ->
     Jid = #jid{lserver = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
     HostType = domain_to_host_type(mim(), Domain),
-    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, HostType, Jid, stored]).
+    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, #{jid =>Jid, request_type => stored}, #{host_type => HostType}]).
 
 search_vcard_fields(DirJID, Filters) ->
     escalus_stanza:search_iq(DirJID, escalus_stanza:search_fields(Filters)).
