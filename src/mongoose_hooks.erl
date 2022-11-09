@@ -319,7 +319,10 @@ extend_inbox_message(MongooseAcc, InboxRes, IQ) ->
     KeyName :: atom(),
     Result :: mod_keystore:key_list().
 get_key(HostType, KeyName) ->
-    run_hook_for_host_type(get_key, HostType, [], [{KeyName, HostType}]).
+    Params = #{key_id => {KeyName, HostType}},
+    Args = [{KeyName, HostType}],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(get_key, HostType, [], ParamsWithLegacyArgs).
 
 -spec packet_to_component(Acc, From, To) -> Result when
     Acc :: mongoose_acc:t(),
