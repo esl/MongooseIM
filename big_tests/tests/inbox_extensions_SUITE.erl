@@ -103,7 +103,7 @@ groups() ->
         {group, pagination}
       ]},
      {pagination, [parallel], [
-        bad_id_throws_error,
+        pagination_error_conditions,
         pagination_overrides_form,
         can_paginate_forwards,
         can_paginate_backwards,
@@ -673,15 +673,16 @@ properties_many_can_be_set(Config, QueryId) ->
                                                 end}], #{box => archive})
     end).
 
-bad_id_throws_error(Config) ->
+pagination_error_conditions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         % We set start and end to return Convs with Mike, but using RSM we override that
         TS = erlang:system_time(millisecond),
         AliceJid = escalus_utils:get_short_jid(Alice),
         IdNotDividing = <<(integer_to_binary(TS))/binary, (base64:encode(AliceJid))/binary>>,
-        verify_returns_error(Alice, #{box => inbox, 'after' => IdNotDividing}),
+        verify_returns_error(Alice, #{box => inbox, 'after' => IdNotDividing}, <<"bad-request">>),
         BadInt = <<(integer_to_binary(-10))/binary, "/", (base64:encode(AliceJid))/binary>>,
-        verify_returns_error(Alice, #{box => inbox, 'after' => BadInt})
+        verify_returns_error(Alice, #{box => inbox, 'after' => BadInt}, <<"bad-request">>),
+        verify_returns_error(Alice, #{box => inbox, index => 10}, <<"feature-not-implemented">>)
     end).
 
 pagination_overrides_form(Config) ->
@@ -971,6 +972,10 @@ muted_status(MutedOrUnmuted, Outer) ->
             ?assert(Now + Diff < GivenMutedUntil)
     end.
 
-verify_returns_error(User, Params) ->
+verify_returns_error(User, Params, Error) ->
     Stanza = inbox_helper:make_inbox_stanza(Params),
-    assert_invalid_request(User, Stanza, <<"bad-request">>).
+    escalus:send(User, Stanza),
+    [ResIQ] = escalus:wait_for_stanzas(User, 1),
+    escalus:assert(is_iq_error, [Stanza], ResIQ),
+    Type = exml_query:path(ResIQ, [{element, <<"error">>}, {element, Error}]),
+    ?assertNotEqual(undefined, Type).

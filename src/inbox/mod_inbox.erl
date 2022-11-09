@@ -200,8 +200,8 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
     case query_to_params(HostType, QueryEl) of
-        {error, bad_request, Msg} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        {error, Error, Msg} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Error(<<"en">>, Msg)]}};
         Params ->
             List0 = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
             List = with_rsm(List0, Params),
@@ -464,18 +464,20 @@ text_single_form_field(Var, DefaultValue) ->
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
 -spec query_to_params(mongooseim:host_type(), QueryEl :: exml:element()) ->
-    get_inbox_params() | {error, bad_request, binary()}.
+    get_inbox_params() | {error, atom(), binary()}.
 query_to_params(HostType, QueryEl) ->
     Form = form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)),
     Rsm = jlib:rsm_decode(QueryEl),
     build_params(Form, Rsm).
 
--spec build_params(get_inbox_params() | {error, bad_request, binary()}, none | jlib:rsm_in()) ->
-    get_inbox_params() | {error, bad_request, binary()}.
-build_params({error, bad_request, Msg}, _) ->
-    {error, bad_request, Msg};
+-spec build_params(get_inbox_params() | {error, atom(), binary()}, none | jlib:rsm_in()) ->
+    get_inbox_params() | {error, atom(), binary()}.
+build_params({error, Error, Msg}, _) ->
+    {error, Error, Msg};
 build_params(_, #rsm_in{max = Max, index = Index}) when Max =:= error; Index =:= error ->
     {error, bad_request, <<"bad-request">>};
+build_params(_, #rsm_in{index = Index}) when Index =/= undefined ->
+    {error, feature_not_implemented, <<"Inbox does not expose a total count and indexes">>};
 build_params(Params, none) ->
     Params;
 build_params(Params, #rsm_in{max = Max, id = undefined}) when Max =/= undefined ->
