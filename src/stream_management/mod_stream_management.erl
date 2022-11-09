@@ -104,6 +104,8 @@ hooks(HostType) ->
 c2s_hooks(HostType) ->
     [
      {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 20},
+     %% TODO this should be xmpp_send_element,
+     %% as other handlers might stop the packet from being delivered
      {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 100},
      {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 50},
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50},
@@ -186,7 +188,7 @@ user_send_packet(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 -spec user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:hook_result().
 user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Params, Extra) ->
     Check1 = is_conflict_incoming_acc(Acc, StateData),
     Check2 = is_conflict_receiver_sid(Acc, StateData),

@@ -40,7 +40,7 @@
 %% Hooks
 -export([disco_local_features/3,
          user_send_message/3,
-         user_receive_packet/3,
+         user_receive_message/3,
          iq_handler2/5,
          iq_handler1/5,
          remove_connection/3
@@ -93,7 +93,7 @@ hooks(HostType) ->
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
      {unset_presence_hook, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
      {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 89},
-     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 89}
+     {user_receive_message, HostType, fun ?MODULE:user_receive_message/3, #{}, 89}
     ].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -145,11 +145,10 @@ user_send_message(Acc, _, _) ->
     check_and_forward(Acc, From, To, Packet, sent),
     {ok, Acc}.
 
--spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: #{jid := jid:jid()},
-    Extra :: map().
-user_receive_packet(Acc, #{jid := JID}, _) ->
+-spec user_receive_message(mongoose_acc:t(), Params, gen_hook:extra()) ->
+      mongoose_c2s_hooks:hook_result()
+        when Params :: #{jid := jid:jid()}.
+user_receive_message(Acc, #{jid := JID}, _) ->
     {_, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, JID, To, Packet, received),
     {ok, Acc}.
@@ -168,12 +167,11 @@ remove_connection(Acc, #{jid := JID}, _) ->
 % - do not support "private" message mode, and do not modify the original packet in any way
 % - we also replicate "read" notifications
 -spec check_and_forward(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), direction()) -> ok | stop.
-check_and_forward(Acc, JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
+check_and_forward(Acc, JID, To, Packet, Direction) ->
     case should_forward(Packet, To, Direction) of
         false -> stop;
         true -> send_copies(Acc, JID, To, Packet, Direction)
-    end;
-check_and_forward(_Acc, _JID, _To, _Packet, _) -> ok.
+    end.
 
 %%%===================================================================
 %%% Classification

@@ -54,11 +54,11 @@ user_send_packet(HostType, Acc, Params) ->
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_receive_packet(HostType, Acc, #{c2s_data := C2SState} = Params) ->
+user_receive_packet(HostType, Acc, #{c2s_data := C2SData} = Params) ->
     {From, To, El} = mongoose_acc:packet(Acc),
-    Jid = mongoose_c2s:get_jid(C2SState),
+    Jid = mongoose_c2s:get_jid(C2SData),
     Args = [Jid, From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params#{jid => Jid}, Args),
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     gen_hook:run_fold(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %% @doc Triggered when the user sends a stanza of type `message'
@@ -106,8 +106,9 @@ user_send_xmlel(HostType, Acc, Params) ->
     Acc :: mongoose_acc:t(),
     Params :: hook_params(),
     Result :: hook_result().
-user_receive_message(HostType, Acc, Params) ->
-    gen_hook:run_fold(user_receive_message, HostType, Acc, Params).
+user_receive_message(HostType, Acc, #{c2s_data := C2SData} = Params) ->
+    Jid = mongoose_c2s:get_jid(C2SData),
+    gen_hook:run_fold(user_receive_message, HostType, Acc, Params#{jid => Jid}).
 
 %% @doc Triggered when the user received a stanza of type `iq'
 -spec user_receive_iq(HostType, Acc, Params) -> Result when
