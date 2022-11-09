@@ -220,6 +220,8 @@ with_rsm(List, #{order := desc, 'end' := TS, filter_on_jid := BinJid}) ->
 with_rsm(List, _) ->
     List.
 
+%% As IDs must be unique but timestamps are not, and SQL queries and orders by timestamp alone,
+%% we query max+1 and then match to remove the entry that matches the ID given before.
 -spec drop_filter_on_jid([inbox_res()], binary(), integer(), [inbox_res()]) -> [inbox_res()].
 drop_filter_on_jid(_List, BinJid, TS, [#{remote_jid := BinJid, timestamp := TS} | Rest]) ->
     Rest;
@@ -489,7 +491,8 @@ build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = aft}) ->
     Params#{limit => Max};
 build_params_with_rsm(Params, #rsm_in{max = Max, id = Id, direction = Dir}) when is_binary(Id) ->
     case {mod_inbox_utils:decode_rsm_id(Id), Dir} of
-        {error, _} -> {error, bad_request, <<"bad-request">>};
+        {error, _} ->
+            {error, bad_request, <<"bad-request">>};
         {{Stamp, Jid}, aft} ->
             Params#{limit => expand_limit(Max), filter_on_jid => Jid, 'end' => Stamp};
         {{Stamp, Jid}, undefined} ->

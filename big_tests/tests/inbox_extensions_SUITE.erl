@@ -714,7 +714,7 @@ can_paginate_forwards(Config) ->
         #{respond_iq := Iq} = inbox_helper:check_inbox(Alice, [ConvWithMike], Params1),
         AfterPrevious = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
                                              {element, <<"set">>}, {element, <<"last">>}, cdata]),
-        Params2 = #{box => inbox, 'after' => AfterPrevious},
+        Params2 = #{box => inbox, 'after' => AfterPrevious, limit => 2},
         inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob], Params2)
     end).
 
