@@ -74,7 +74,8 @@ delete_resource(Req, State) ->
 handle_get(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),
     Users = mongoose_account_api:list_users(Domain),
-    {jiffy:encode(Users), Req, State}.
+    {_, UsersList} = Users,
+    {jiffy:encode(UsersList), Req, State}.
 
 handle_post(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),

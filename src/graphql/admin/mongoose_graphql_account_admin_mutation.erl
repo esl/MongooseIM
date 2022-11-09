@@ -55,7 +55,7 @@ format_user_payload(InResult, JID) ->
         {ok, Msg} ->
             {ok, make_user_payload(Msg, jid:to_binary(JID))};
         Result ->
-            make_error(Result, #{jid => JID})
+            make_error(Result, #{jid => jid:to_binary(JID)})
     end.
 
 -spec make_user_payload(string(), jid:literal_jid()) -> map().
