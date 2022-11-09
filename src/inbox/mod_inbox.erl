@@ -211,21 +211,21 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     end.
 
 -spec with_rsm([inbox_res()], get_inbox_params()) -> [inbox_res()].
-with_rsm(List, #{order := asc, filter_on_jid := BinJid, rsm := #rsm_in{}}) ->
-    lists:reverse(drop_filter_on_jid(List, BinJid, List));
+with_rsm(List, #{order := asc, start := TS, filter_on_jid := BinJid, rsm := #rsm_in{}}) ->
+    lists:reverse(drop_filter_on_jid(List, BinJid, TS, List));
 with_rsm(List, #{order := asc, rsm := #rsm_in{}}) ->
     lists:reverse(List);
-with_rsm(List, #{order := desc, filter_on_jid := BinJid}) ->
-    drop_filter_on_jid(List, BinJid, List);
+with_rsm(List, #{order := desc, 'end' := TS, filter_on_jid := BinJid}) ->
+    drop_filter_on_jid(List, BinJid, TS, List);
 with_rsm(List, _) ->
     List.
 
--spec drop_filter_on_jid([inbox_res()], binary(), [inbox_res()]) -> [inbox_res()].
-drop_filter_on_jid(_List, BinJid, [#{remote_jid := BinJid} | Rest]) ->
+-spec drop_filter_on_jid([inbox_res()], binary(), integer(), [inbox_res()]) -> [inbox_res()].
+drop_filter_on_jid(_List, BinJid, TS, [#{remote_jid := BinJid, timestamp := TS} | Rest]) ->
     Rest;
-drop_filter_on_jid(List, BinJid, [#{remote_jid := _OtherJid} | Rest]) ->
-    drop_filter_on_jid(List, BinJid, Rest);
-drop_filter_on_jid(List, _, []) ->
+drop_filter_on_jid(List, BinJid, TS, [_ | Rest]) ->
+    drop_filter_on_jid(List, BinJid, TS, Rest);
+drop_filter_on_jid(List, _, _, []) ->
     List.
 
 -spec forward_messages(Acc :: mongoose_acc:t(),
