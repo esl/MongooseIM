@@ -13,9 +13,9 @@
 
 %% utils
 -export([start_link/2, start/2, stop/2, exit/2, async/3]).
--export([get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
+-export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
-         get_ip/1, get_socket/1, get_lang/1, get_stream_id/1]).
+         get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
          reroute/2, merge_states/2]).
 
@@ -31,7 +31,7 @@
           socket :: undefined | mongoose_c2s_socket:socket(),
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
-          listener_opts :: listener_opts(),
+          listener_opts :: undefined | listener_opts(),
           auth_module :: undefined | module(),
           state_mod = #{} :: #{module() => term()}
          }).
@@ -935,6 +935,10 @@ exit(Pid, Reason) ->
 -spec async(pid(), fun(), [term()]) -> ok.
 async(Pid, Fun, Args) ->
     gen_statem:cast(Pid, {async, Fun, Args}).
+
+-spec create_data(#{host_type := mongooseim:host_type(), jid := jid:jid()}) -> c2s_data().
+create_data(#{host_type := HostType, jid := Jid}) ->
+    #c2s_data{host_type = HostType, jid = Jid}.
 
 -spec get_host_type(c2s_data()) -> mongooseim:host_type().
 get_host_type(#c2s_data{host_type = HostType}) ->

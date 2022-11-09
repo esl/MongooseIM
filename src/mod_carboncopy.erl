@@ -39,7 +39,7 @@
 
 %% Hooks
 -export([disco_local_features/3,
-         user_send_packet/3,
+         user_send_message/3,
          user_receive_packet/3,
          iq_handler2/5,
          iq_handler1/5,
@@ -92,7 +92,7 @@ hooks(HostType) ->
     [
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
      {unset_presence_hook, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
-     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 89},
+     {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 89},
      {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 89}
     ].
 
@@ -138,11 +138,9 @@ iq_handler(Acc, From, #iq{type = set,
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
--spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: map(),
-    Extra :: map().
-user_send_packet(Acc, _, _) ->
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_message(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, From, To, Packet, sent),
     {ok, Acc}.
@@ -166,7 +164,7 @@ remove_connection(Acc, #{jid := JID}, _) ->
 
 % Check if the traffic is local.
 % Modified from original version:
-% - registered to the user_send_packet hook, to be called only once even for multicast
+% - registered to the user_send_message hook, to be called only once even for multicast
 % - do not support "private" message mode, and do not modify the original packet in any way
 % - we also replicate "read" notifications
 -spec check_and_forward(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), direction()) -> ok | stop.

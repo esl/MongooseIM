@@ -8,7 +8,7 @@
 %%%
 %%%   Please be aware of the next implementation details:
 %%%
-%%%    1) Current implementation is based on user_send_packet hook.
+%%%    1) Current implementation is based on user_send_message hook.
 %%%       It doesn't work for s2s connections, but usage of another
 %%%       hook (e.g. filter_local_packet) makes implementation harder
 %%%       and results in multiple processing of one and the same
@@ -69,7 +69,7 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([process_iq/5, user_send_packet/3, filter_local_packet/3,
+-export([process_iq/5, user_send_message/3, filter_local_packet/3,
          remove_user/3, remove_domain/3, forget_room/3, room_new_affiliations/3]).
 -ignore_xref([process_iq/5]).
 
@@ -192,7 +192,7 @@ maybe_thread(Bin) ->
 %% HOOKS
 -spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> gen_hook:hook_list().
 hooks(HostType, #{keep_private := KeepPrivate}) ->
-    [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90} |
+    [{user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 90} |
     private_hooks(HostType, KeepPrivate) ++ removal_hooks(HostType)].
 
 private_hooks(_HostType, false) ->
@@ -206,25 +206,16 @@ removal_hooks(HostType) ->
      {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 85},
      {room_new_affiliations, HostType, fun ?MODULE:room_new_affiliations/3, #{}, 60}].
 
--spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: map().
-user_send_packet(Acc, _, _) ->
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_message(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
-    {ok, user_send_packet(Acc, From, To, Packet)}.
-
--spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
-	mongoose_acc:t().
-user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     case has_valid_markers(Acc, From, To, Packet) of
         {true, HostType, Markers} ->
-            update_chat_markers(Acc, HostType, Markers);
+            {ok, update_chat_markers(Acc, HostType, Markers)};
         _ ->
-            Acc
-    end;
-user_send_packet(Acc, _From, _To, _Packet) ->
-    Acc.
+            {ok, Acc}
+    end.
 
 -spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_hooks:filter_packet_acc() | drop,

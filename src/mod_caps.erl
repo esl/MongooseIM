@@ -45,8 +45,10 @@
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2, terminate/2, code_change/3]).
 
--export([user_send_packet/3, user_receive_packet/3,
-         user_receive_presence/3, c2s_broadcast_recipients/3]).
+-export([user_send_presence/3,
+         user_receive_packet/3,
+         user_receive_presence/3,
+         c2s_broadcast_recipients/3]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
@@ -169,24 +171,21 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
--spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
+-spec user_send_presence(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
-user_send_packet(Acc, _, _) ->
+user_send_presence(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
-    {ok, user_send_packet(Acc, From, To, Packet)}.
+    {ok, user_send_presence(Acc, From, To, Packet)}.
 
--spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
-user_send_packet(Acc,
-                 #jid{luser = User, lserver = LServer} = From,
-                 #jid{luser = User, lserver = LServer, lresource = <<>>},
-                 #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
+-spec user_send_presence(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+user_send_presence(Acc,
+                   #jid{luser = User, lserver = LServer} = From,
+                   #jid{luser = User, lserver = LServer, lresource = <<>>},
+                   #xmlel{attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    handle_presence(Acc, LServer, From, Type, Elements);
-user_send_packet(Acc, _From, _To, _Pkt) ->
-    Acc.
-
+    handle_presence(Acc, LServer, From, Type, Elements).
 
 -spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -205,7 +204,7 @@ user_receive_packet(Acc, LServer, From,
         {error, not_found} ->
             handle_presence(Acc, LServer, From, Type, Elements);
         {ok, _} ->
-            Acc %% it was already handled in 'user_send_packet'
+            Acc %% it was already handled in 'user_send_presence'
     end;
 user_receive_packet(Acc, _, _, _) ->
     Acc.
@@ -407,7 +406,7 @@ hooks(HostType) ->
     [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
      {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 1},
      {c2s_broadcast_recipients, HostType, fun ?MODULE:c2s_broadcast_recipients/3, #{}, 75},
-     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 75},
+     {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 75},
      {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 75},
      {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {s2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
