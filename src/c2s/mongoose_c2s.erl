@@ -661,17 +661,7 @@ handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LSer
 -spec handle_c2s_packet(c2s_data(), c2s_state(), exml:element()) -> fsm_res().
 handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
     HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
-    Acc0 = element_to_origin_accum(StateData, El),
-    case mongoose_c2s_hooks:c2s_preprocessing_hook(HostType, Acc0, HookParams) of
-        {ok, Acc1} ->
-            do_handle_c2s_packet(StateData, C2SState, Acc1, HookParams);
-        {stop, _Acc1} ->
-            {next_state, C2SState, StateData}
-    end.
-
--spec do_handle_c2s_packet(c2s_data(), c2s_state(), mongoose_acc:t(), mongoose_c2s_hooks:hook_params()) ->
-    fsm_res().
-do_handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, Acc, HookParams) ->
+    Acc = element_to_origin_accum(StateData, El),
     case mongoose_c2s_hooks:user_send_packet(HostType, Acc, HookParams) of
         {ok, Acc1} ->
             Acc2 = handle_stanza_from_client(StateData, HookParams, Acc1, mongoose_acc:stanza_name(Acc1)),

@@ -9,7 +9,7 @@
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1, supported_features/0]).
--export([run_initial_check/3,
+-export([user_send_packet/3,
          check_packet/2,
          disco_local_features/3,
          c2s_stream_features/3,
@@ -35,7 +35,7 @@ supported_features() -> [dynamic_domains].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
-    [{c2s_preprocessing_hook, HostType, fun ?MODULE:run_initial_check/3, #{}, 10}].
+    [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 5}].
 
 hooks(HostType) ->
     [
@@ -49,9 +49,9 @@ hooks(HostType) ->
 
 %% API
 
--spec run_initial_check(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
-run_initial_check(Acc, _, _) ->
+user_send_packet(Acc, _, _) ->
     case mongoose_acc:stanza_name(Acc) of
         <<"message">> -> run_initial_check(Acc);
         _ -> {ok, Acc}
