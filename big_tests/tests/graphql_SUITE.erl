@@ -56,7 +56,7 @@ common_tests() ->
 categories_disabled_tests() ->
     [category_disabled_error_test,
      admin_checks_auth,
-     category_does_not_exists_error,
+     category_does_not_exist_error,
      listener_reply_with_validation_error,
      multiple_categories_query_test].
 
@@ -165,7 +165,7 @@ category_disabled_error_test(Config) ->
     ?assertEqual(<<"category_disabled">>, get_value([extensions, code], Msg)),
     ?assertEqual([<<"server">>], get_value([path], Msg)).
 
-category_does_not_exists_error(Config) ->
+category_does_not_exist_error(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Status = execute(Ep, #{<<"query">> => <<"{ field ">>}, undefined),
     get_bad_request(Status),

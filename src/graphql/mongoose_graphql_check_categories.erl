@@ -25,19 +25,19 @@ process_ast(#document{definitions = Definitions} = Document, Categories) ->
     end.
 
 parse_schema(#object_type{fields = Fields} = Schema, Op, Categories) ->
-    Fields2 = lists:foldl(fun({Key, Value}, Acc) ->
+    Fields2 = maps:map(fun(Key, Value) ->
         case lists:member(Key, Categories) of
-            true -> maps:put(Key, Value, Acc);
+            true -> Value;
             false ->
                 case Value of
                     #schema_field{resolve = undefined} ->
                         Fun = category_disabled_fun(Key),
-                        maps:put(Key, Value#schema_field{resolve = Fun}, Acc);
+                        Value#schema_field{resolve = Fun};
                     _ ->
-                        maps:put(Key, Value, Acc)
+                        Value
                 end
         end
-    end, #{}, maps:to_list(Fields)),
+    end, Fields),
     Schema2 = Schema#object_type{fields = Fields2},
     Op#op{schema = Schema2};
 parse_schema(_, Op, _) ->

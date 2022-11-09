@@ -521,7 +521,13 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 * **Default:** not set
 * **Example:** `password = "secret"`
 
-Required to enable authentication for the admin API.
+#### `listen.http.handlers.mongoose_graphql_cowboy_handler.allowed_categories`
+* **Syntax:** non-empty array of strings. Allowed values: `"checkAuth", "account", "domain", "last", "muc", "muc_light", "session", "stanza", "roster", "vcard", "private", "metric", "stat", "gdpr", "mnesia", "server", "inbox", "http_upload", "offline", "token"`
+* **Default:** all GraphQL categories enabled
+* **Example:** `allowed_categories = ["domain", "last"]`
+
+By default, when the option is not included, all GraphQL categories are enabled, so you don't need to add this option.
+When this option is added, only listed GraphQL categories will be processed. For others, the error "category disabled" will be returned.
 
 ### Handler types: REST API - Admin - `mongoose_admin_api`
 
@@ -653,6 +659,7 @@ GraphQL API for administration, the listener is bound to 127.0.0.1 for increased
     schema_endpoint = "admin"
     username = "admin"
     password = "secret"
+    allowed_categories = ["server", "last", "vcard"]
 ```
 
 #### Example 3. Domain Admin GraphQL API
