@@ -148,6 +148,7 @@ It can happen that the amount of inbox entries is too big for a given user, even
 ```
 where `Max` is a non-negative integer.
 
+Inbox also has partial support for pagination as described in [XEP-0059](https://xmpp.org/extensions/xep-0059.html). If specifying `before` or `after`, the `start` and `end` form fields will be overridden.
 
 ## Properties of an entry
 Given an entry, certain properties are defined for such an entry:

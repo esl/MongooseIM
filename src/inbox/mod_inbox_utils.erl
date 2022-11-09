@@ -31,6 +31,8 @@
          get_option_remove_on_kicked/1,
          extract_attr_jid/1,
          maybe_binary_to_positive_integer/1,
+         encode_rsm_id/2,
+         decode_rsm_id/1,
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
@@ -195,6 +197,26 @@ maybe_binary_to_positive_integer(Bin) ->
         N when N >= 0 -> N;
         _ -> {error, non_positive_integer}
     catch error:badarg -> {error, 'NaN'}
+    end.
+
+-spec encode_rsm_id(integer(), binary()) -> binary().
+encode_rsm_id(Int, BinJid) ->
+    BinInt = integer_to_binary(Int),
+    EncodedJid = base64:encode(BinJid),
+    <<BinInt/binary, "/", EncodedJid/binary>>.
+
+-spec decode_rsm_id(binary()) -> {integer(), binary()} | error.
+decode_rsm_id(Bin) ->
+    case binary:split(Bin, <<"/">>) of
+        [BinInt, BinJid] ->
+            Int = maybe_binary_to_positive_integer(BinInt),
+            case Int of
+                Int when is_integer(Int) ->
+                    Jid = base64:decode(BinJid),
+                    {Int, Jid};
+                _ -> error
+            end;
+        _ -> error
     end.
 
 -spec binary_to_bool(binary()) -> true | false | error.

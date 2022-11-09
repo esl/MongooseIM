@@ -47,7 +47,8 @@
         hidden_read => true | false,
         box => binary(),
         limit => undefined | pos_integer(),
-        rsm => jlib:rsm_in()
+        rsm => jlib:rsm_in(),
+        filter_on_jid => binary()
        }.
 
 -type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
@@ -209,9 +210,24 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
             {Acc, Res}
     end.
 
+-spec with_rsm([inbox_res()], get_inbox_params()) -> [inbox_res()].
+with_rsm(List, #{order := asc, start := TS, filter_on_jid := BinJid, rsm := #rsm_in{}}) ->
+    lists:reverse(drop_filter_on_jid(List, BinJid, TS, List));
 with_rsm(List, #{order := asc, rsm := #rsm_in{}}) ->
     lists:reverse(List);
+with_rsm(List, #{order := desc, 'end' := TS, filter_on_jid := BinJid}) ->
+    drop_filter_on_jid(List, BinJid, TS, List);
 with_rsm(List, _) ->
+    List.
+
+%% As IDs must be unique but timestamps are not, and SQL queries and orders by timestamp alone,
+%% we query max+1 and then match to remove the entry that matches the ID given before.
+-spec drop_filter_on_jid([inbox_res()], binary(), integer(), [inbox_res()]) -> [inbox_res()].
+drop_filter_on_jid(_List, BinJid, TS, [#{remote_jid := BinJid, timestamp := TS} | Rest]) ->
+    Rest;
+drop_filter_on_jid(List, BinJid, TS, [_ | Rest]) ->
+    drop_filter_on_jid(List, BinJid, TS, Rest);
+drop_filter_on_jid(List, _, _, []) ->
     List.
 
 -spec forward_messages(Acc :: mongoose_acc:t(),
@@ -408,10 +424,10 @@ build_result_iq(List) ->
 -spec result_set([inbox_res()]) -> exml:element().
 result_set([]) ->
     #xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}]};
-result_set([#{timestamp := First} | _] = List) ->
-    #{timestamp := Last} = lists:last(List),
-    BFirst = integer_to_binary(First),
-    BLast = integer_to_binary(Last),
+result_set([#{remote_jid := FirstBinJid, timestamp := FirstTS} | _] = List) ->
+    #{remote_jid := LastBinJid, timestamp := LastTS} = lists:last(List),
+    BFirst = mod_inbox_utils:encode_rsm_id(FirstTS, FirstBinJid),
+    BLast = mod_inbox_utils:encode_rsm_id(LastTS, LastBinJid),
     mod_mam_utils:result_set(BFirst, BLast, undefined, undefined).
 
 %%%%%%%%%%%%%%%%%%%
@@ -473,14 +489,25 @@ build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = before})
 build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = aft}) ->
     Params#{limit => Max};
 build_params_with_rsm(Params, #rsm_in{max = Max, id = Id, direction = Dir}) when is_binary(Id) ->
-    case {mod_inbox_utils:maybe_binary_to_positive_integer(Id), Dir} of
-        {{error, _}, _} -> {error, bad_request, <<"bad-request">>};
-        {Stamp, aft} -> Params#{limit => Max, 'end' => Stamp - 1};
-        {Stamp, undefined} -> Params#{limit => Max, 'end' => Stamp - 1};
-        {Stamp, before} -> Params#{limit => Max, order => asc, start => Stamp + 1}
+    case {mod_inbox_utils:decode_rsm_id(Id), Dir} of
+        {error, _} ->
+            {error, bad_request, <<"bad-request">>};
+        {{Stamp, Jid}, aft} ->
+            Params#{limit => expand_limit(Max), filter_on_jid => Jid, 'end' => Stamp};
+        {{Stamp, Jid}, undefined} ->
+            Params#{limit => expand_limit(Max), filter_on_jid => Jid, 'end' => Stamp};
+        {{Stamp, Jid}, before} ->
+            Params#{limit => expand_limit(Max), order => asc, filter_on_jid => Jid, start => Stamp}
     end;
 build_params_with_rsm(Params, _Rsm) ->
     Params.
+
+-spec expand_limit(undefined) -> undefined;
+                  (integer()) -> integer().
+expand_limit(undefined) ->
+    undefined;
+expand_limit(Max) ->
+    Max + 1.
 
 -spec form_to_params(mongooseim:host_type(), FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.
