@@ -139,7 +139,7 @@ choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
 
 -spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:set_prefs_params(),
     Extra :: map().
 set_prefs(_Result,
           #{archive_id := UserID, default_mode := DefaultMode,
@@ -165,7 +165,7 @@ set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 -spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc ::  mod_mam:preference(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
     Extra :: map().
 get_prefs({GlobalDefaultMode, _, _}, #{archive_id := UserID}, #{host_type := HostType}) ->
     {selected, Rows} = mongoose_rdbms:execute(HostType, mam_prefs_select, [UserID]),

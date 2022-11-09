@@ -122,7 +122,7 @@ get_behaviour2(#mam_prefs{default_mode = roster,
 
 -spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:set_prefs_params(),
     Extra :: map().
 set_prefs(_Result,
           #{archive_id := ArcID, owner := ArcJID, default_mode := DefaultMode,
@@ -152,7 +152,7 @@ set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 -spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc ::  mod_mam:preference(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
     Extra :: map().
 get_prefs({GlobalDefaultMode, _, _}, #{owner := ArcJID}, _Extra) ->
 

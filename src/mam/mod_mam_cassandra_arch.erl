@@ -135,7 +135,7 @@ insert_query_cql() ->
     Acc :: ok,
     Params :: map(),
     Extra :: map().
-archive_message(_Result, #{params := Params}, #{host_type := HostType}) ->
+archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
     catch _Type:Reason ->
@@ -223,13 +223,13 @@ remove_archive(HostType, UserJID) ->
     Extra :: map().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
-lookup_messages(_Result, #{params := #{search_text := <<_/binary>>}}, _Extra) ->
+lookup_messages(_Result, #{search_text := <<_/binary>>}, _Extra) ->
     {ok, {error, 'not-supported'}};
 lookup_messages(_Result,
-                #{params := #{owner_jid := UserJID, rsm := RSM, borders := Borders,
-                              start_ts := Start, end_ts := End, with_jid := WithJID,
-                              search_text := undefined, page_size := PageSize,
-                              is_simple := IsSimple}},
+                #{owner_jid := UserJID, rsm := RSM, borders := Borders,
+                  start_ts := Start, end_ts := End, with_jid := WithJID,
+                  search_text := undefined, page_size := PageSize,
+                  is_simple := IsSimple},
                 #{host_type := HostType}) ->
     try
         {ok, lookup_messages2(pool_name(HostType), HostType,

@@ -101,11 +101,11 @@ mam_bucket_type(Host) ->
     Params :: map(),
     Extra :: map().
 archive_message(_Result,
-                #{params := #{message_id := MessId,
-                             local_jid := LocJID,
-                             remote_jid := RemJID,
-                             source_jid := SrcJID,
-                             packet := Packet} = Params},
+                #{message_id := MessId,
+                  local_jid := LocJID,
+                  remote_jid := RemJID,
+                  source_jid := SrcJID,
+                  packet := Packet} = Params,
                 #{host_type := Host}) ->
     try
         {ok, archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)}
@@ -126,11 +126,11 @@ archive_message(_Result,
 %% FromJID - "Real" sender JID
 %% SrcJID - Full JID of user within room (room@domain/user)
 archive_message_muc(_Result,
-                #{params := #{message_id := MessId,
-                             local_jid := LocJID,
-                             remote_jid := FromJID,
-                             source_jid := SrcJID,
-                             packet := Packet} = Params},
+                    #{message_id := MessId,
+                      local_jid := LocJID,
+                      remote_jid := FromJID,
+                      source_jid := SrcJID,
+                      packet := Packet} = Params,
                 #{host_type := Host}) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
@@ -156,7 +156,7 @@ maybe_muc_jid(Other) ->
     Extra :: map().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
-lookup_messages(_Result, #{params := Params}, #{host_type := Host}) ->
+lookup_messages(_Result, Params, #{host_type := Host}) ->
     try
         {ok, lookup_messages(Host, Params)}
     catch _Type:Reason:S ->
@@ -167,9 +167,9 @@ lookup_messages(_Result, #{params := Params}, #{host_type := Host}) ->
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
     Params :: map(),
     Extra :: map().
-lookup_messages_muc(Result, #{params := #{with_jid := WithJID} = Params} = Params0, Extra) ->
+lookup_messages_muc(Result, #{with_jid := WithJID} = Params, Extra) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
-    lookup_messages(Result, Params0#{params => Params#{with_jid => WithJIDMuc}}, Extra).
+    lookup_messages(Result, Params#{with_jid => WithJIDMuc}, Extra).
 
 
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when

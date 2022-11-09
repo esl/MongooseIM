@@ -1113,8 +1113,8 @@ mam_get_behaviour(HostType, ArchiveID, Owner, Remote) ->
       Owner :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
-    NeverJIDs :: [jid:literel_jid()],
-    Result :: any().
+      NeverJIDs :: [jid:literel_jid()],
+      Result :: any().
 mam_set_prefs(HostType,  ArchiveID, Owner, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Params = #{archive_id => ArchiveID, owner => Owner,
                default_mode => DefaultMode, always_jids => AlwaysJIDs, never_jids => NeverJIDs},
@@ -1159,9 +1159,8 @@ mam_remove_archive(HostType, ArchiveID, Owner) ->
       HostType :: jid:lserver(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
-mam_lookup_messages(HostType, Params0) ->
-    Params = #{params => Params0},
-    Args = [HostType, Params0],
+mam_lookup_messages(HostType, Params) ->
+    Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
     run_hook_for_host_type(mam_lookup_messages, HostType, {ok, InitialLookupValue},
@@ -1174,9 +1173,8 @@ mam_lookup_messages(HostType, Params0) ->
     HostType :: jid:lserver(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_archive_message(HostType, Params0) ->
-    Params = #{params => Params0},
-    Args = [HostType, Params0],
+mam_archive_message(HostType, Params) ->
+    Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mam_archive_message, HostType, ok, ParamsWithLegacyArgs).
 
@@ -1317,8 +1315,7 @@ mam_muc_remove_archive(HostType, ArchiveID, Room) ->
       HostType :: mongooseim:host_type(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
-mam_muc_lookup_messages(HostType, Params0) ->
-    Params = #{params => Params0},
+mam_muc_lookup_messages(HostType, Params) ->
     Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
@@ -1331,8 +1328,7 @@ mam_muc_lookup_messages(HostType, Params0) ->
     HostType :: mongooseim:host_type(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_muc_archive_message(HostType, Params0) ->
-    Params = #{params => Params0},
+mam_muc_archive_message(HostType, Params) ->
     Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mam_muc_archive_message, HostType, ok, ParamsWithLegacyArgs).

@@ -18,7 +18,7 @@
     Params :: map(),
     Extra :: map().
 archive_muc_message(Result,
-                    #{params := #{archive_id := RoomID} = Params0},
+                    #{archive_id := RoomID} = Params0,
                     #{host_type := HostType}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
     mongoose_async_pools:put_task(HostType, muc_mam, RoomID, Params),

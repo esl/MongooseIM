@@ -32,7 +32,7 @@ hooks(HostType) ->
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
 lookup_messages({ok, {TotalCount, Offset, MessageRows}},
-                #{params := #{owner_jid := ArcJID, caller_jid := _CallerJID} = _Params},
+                #{owner_jid := ArcJID, caller_jid := _CallerJID} = _Params,
                 #{host_type := Host}) ->
     MessageRows2 = [extend_message(Host, ArcJID, Row) || Row <- MessageRows],
     {ok, {ok, {TotalCount, Offset, MessageRows2}}}.

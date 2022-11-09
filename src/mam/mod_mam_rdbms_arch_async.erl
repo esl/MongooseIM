@@ -19,7 +19,7 @@
     Acc :: ok,
     Params :: map(),
     Extra :: map().
-archive_pm_message(_Result, #{params := #{archive_id := ArcID} = Params}, #{host_type := HostType}) ->
+archive_pm_message(_Result, #{archive_id := ArcID} = Params, #{host_type := HostType}) ->
     {ok, mongoose_async_pools:put_task(HostType, pm_mam, ArcID, Params)}.
 
 -spec mam_archive_sync(Acc, Params, Extra) -> {ok, Acc} when

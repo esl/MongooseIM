@@ -662,6 +662,7 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
@@ -672,7 +673,8 @@ hooks(HostType) ->
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
         {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
-    ] ++ mongoose_metrics_mam_hooks:get_mam_hooks(HostType).
+        | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)
+    ].
 
 add_iq_handlers(HostType, Opts) ->
     Component = ejabberd_sm,

@@ -254,7 +254,7 @@ archive_size(Size, #{archive_id := ArcID, owner := ArcJID}, #{host_type := HostT
     Acc :: ok,
     Params :: map(),
     Extra :: map().
-archive_message(_Result, #{params := Params = #{local_jid := ArcJID} = Params}, #{host_type := HostType}) ->
+archive_message(_Result, #{local_jid := ArcJID} = Params, #{host_type := HostType}) ->
     try
         assert_archive_id_provided(Params),
         Env = env_vars(HostType, ArcJID),
@@ -387,7 +387,7 @@ extract_gdpr_messages(Env, ArcID) ->
     Extra :: map().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
-lookup_messages(_Result, #{params := #{owner_jid := ArcJID} = Params}, #{host_type := HostType}) ->
+lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),

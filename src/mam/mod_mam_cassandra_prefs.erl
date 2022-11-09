@@ -108,7 +108,7 @@ get_behaviour(DefaultBehaviour,
 
 -spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:set_prefs_params(),
     Extra :: map().
 set_prefs(_Result,
           #{owner := UserJID, default_mode := DefaultMode, always_jids := AlwaysJIDs,
@@ -150,7 +150,7 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
 
 -spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc ::  mod_mam:preference(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
     Extra :: map().
 get_prefs({GlobalDefaultMode, _, _}, #{owner := UserJID}, #{host_type := HostType}) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),

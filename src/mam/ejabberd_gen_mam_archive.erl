@@ -1,26 +1,26 @@
 -module(ejabberd_gen_mam_archive).
 
--callback archive_size(Acc, Params, Extra) -> {ok | stop, Acc} when
+-callback archive_size(Acc, Params, Extra) -> gen_hook:hook_fn_ret(Acc) when
     Acc :: integer(),
     Params :: map(),
     Extra :: map().
 
--callback archive_message(Acc, Params, Extra) -> {ok | stop, Acc} when
+-callback archive_message(Acc, Params, Extra) -> gen_hook:hook_fn_ret(Acc) when
     Acc :: ok | {error, term()},
     Params :: map(),
     Extra :: map().
 
--callback lookup_messages(Acc, Params, Extra) -> {ok | stop, Acc} when
+-callback lookup_messages(Acc, Params, Extra) -> gen_hook:hook_fn_ret(Acc) when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
     Params :: map(),
     Extra :: map().
 
--callback get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok | stop, Acc} when
+-callback get_mam_pm_gdpr_data(Acc, Params, Extra) -> gen_hook:hook_fn_ret(Acc) when
     Acc :: mam_pm_gdpr_data(),
     Params :: map(),
     Extra :: map().
 
--callback get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok | stop, Acc} when
+-callback get_mam_muc_gdpr_data(Acc, Params, Extra) -> gen_hook:hook_fn_ret(Acc) when
     Acc :: mam_muc_gdpr_data(),
     Params :: map(),
     Extra :: map().

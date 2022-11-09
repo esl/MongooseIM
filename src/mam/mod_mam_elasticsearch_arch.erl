@@ -77,12 +77,13 @@ get_mam_pm_gdpr_data(Acc, #{jid := Owner}, _Extra) ->
     Acc :: ok | {error, term()},
     Params :: map(),
     Extra :: map().
-archive_message(_Result, #{params := Params}, #{host_type := Host}) ->
-    #{message_id := MessageId,
-      local_jid := LocalJid,
-      remote_jid := RemoteJid,
-      source_jid := SourceJid,
-      packet := Packet} = Params,
+archive_message(_Result,
+                #{message_id := MessageId,
+                  local_jid := LocalJid,
+                  remote_jid := RemoteJid,
+                  source_jid := SourceJid,
+                  packet := Packet},
+                #{host_type := Host}) ->
     Owner = mod_mam_utils:bare_jid(LocalJid),
     Remote = mod_mam_utils:bare_jid(RemoteJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
@@ -104,16 +105,16 @@ archive_message(_Result, #{params := Params}, #{host_type := Host}) ->
     Params :: map(),
     Extra :: map().
 lookup_messages(Result,
-                #{params := #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params},
+                #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params,
                 #{host_type := Host})
   when ID =/= undefined ->
     {ok, lookup_message_page(Result, Host, RSM, Params)};
 lookup_messages(Result,
-                #{params := #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params},
+                #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params,
                 #{host_type := Host})
   when ID =/= undefined ->
     {ok, lookup_message_page(Result, Host, RSM, Params)};
-lookup_messages(Result, #{params := Params}, #{host_type := Host}) ->
+lookup_messages(Result, Params, #{host_type := Host}) ->
     {ok, do_lookup_messages(Result, Host, Params)}.
 
 lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->

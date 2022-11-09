@@ -86,7 +86,7 @@ mam_remove_archive(Acc, _Params, #{host_type := Host}) ->
     Params :: map(),
     Extra :: map().
 mam_lookup_messages({ok, {_TotalCount, _Offset, MessageRows}} = Result,
-                    #{params := #{is_simple := IsSimple}},
+                    #{is_simple := IsSimple},
                     #{host_type := Host}) ->
     mongoose_metrics:update(Host, modMamForwarded, length(MessageRows)),
     mongoose_metrics:update(Host, modMamLookups, 1),

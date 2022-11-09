@@ -79,7 +79,7 @@ get_mam_muc_gdpr_data(Acc, #{jid := Source}, _Extra) ->
     Acc :: ok | {error, term()},
     Params :: map(),
     Extra :: map().
-archive_message(_Result, #{params := Params}, #{host_type := HostType}) ->
+archive_message(_Result, Params, #{host_type := HostType}) ->
     #{message_id := MessageId,
       local_jid := RoomJid,
       remote_jid := FromJID,
@@ -107,16 +107,16 @@ archive_message(_Result, #{params := Params}, #{host_type := HostType}) ->
     Params :: map(),
     Extra :: map().
 lookup_messages(Result,
-                #{params := #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params},
+                #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params,
                 #{host_type := HostType})
   when ID =/= undefined ->
     {ok, lookup_message_page(Result, HostType, RSM, Params)};
 lookup_messages(Result,
-                #{params := #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params},
+                #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params,
                 #{host_type := HostType})
   when ID =/= undefined ->
     {ok, lookup_message_page(Result, HostType, RSM, Params)};
-lookup_messages(Result, #{params := Params}, #{host_type := HostType}) ->
+lookup_messages(Result, Params, #{host_type := HostType}) ->
     {ok, do_lookup_messages(Result, HostType, Params)}.
 
 lookup_message_page(AccResult, Host, RSM, Params) ->
