@@ -612,6 +612,9 @@ listen_http_handlers_graphql(_Config) ->
     T = fun graphql_handler_raw/1,
     {P, _} = test_listen_http_handler(mongoose_graphql_cowboy_handler, T),
     test_listen_http_handler_creds(P, T),
+    ?cfg(P ++ [allowed_categories], [<<"muc">>, <<"inbox">>],
+         T(#{<<"allowed_categories">> => [<<"muc">>, <<"inbox">>]})),
+    ?err(T(#{<<"allowed_categories">> => [<<"invalid">>]})),
     ?err(T(#{<<"schema_endpoint">> => <<"wrong_endpoint">>})),
     ?err(http_handler_raw(mongoose_graphql_cowboy_handler, #{})).
 

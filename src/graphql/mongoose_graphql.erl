@@ -107,7 +107,9 @@ prepare_request(Ep, #{document := Doc,
                 error_module => mongoose_graphql_errors},
     Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
     mongoose_graphql_operations:verify_operations(Ctx2, Ast3),
-    Request#{ast => Ast3, ctx := Ctx2}.
+    AllowedCategories = maps:get(allowed_categories, Ctx2, []),
+    Ast4 = mongoose_graphql_check_categories:process_ast(Ast3, AllowedCategories),
+    Request#{ast => Ast4, ctx := Ctx2}.
 
 execute_graphql(Ep, #{ast := Ast, ctx := Ctx}) ->
     {ok, graphql:execute(Ep, Ctx, Ast)}.

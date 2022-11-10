@@ -48,8 +48,10 @@ config_spec() ->
        items = #{<<"username">> => #option{type = binary},
                  <<"password">> => #option{type = binary},
                  <<"schema_endpoint">> => #option{type = atom,
-                                                  validate = {enum, [admin, domain_admin, user]}}
-                },
+                                                  validate = {enum, [admin, domain_admin, user]}},
+                 <<"allowed_categories">> => #list{items = #option{type = binary,
+                                                                   validate = {enum, allowed_categories()}},
+                                                   validate = unique_non_empty}},
         format_items = map,
         required = [<<"schema_endpoint">>],
         process = fun ?MODULE:process_config/1}.
@@ -207,7 +209,10 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
     Ep = mongoose_graphql:get_endpoint(EpName),
     Ctx = maps:get(schema_ctx, State, #{}),
-    ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx#{method => http}},
+    AllowedCategories = maps:get(allowed_categories, State, []),
+    ReqCtx2 = ReqCtx#{authorized => AuthStatus,
+                      ctx => Ctx#{method => http,
+                                  allowed_categories => AllowedCategories}},
     case mongoose_graphql:execute(Ep, ReqCtx2) of
         {ok, Response} ->
             ResponseBody = mongoose_graphql_response:term_to_json(Response),
@@ -270,3 +275,9 @@ reply_error(Msg, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.
+
+allowed_categories() ->
+    [<<"checkAuth">>, <<"account">>, <<"domain">>, <<"last">>, <<"muc">>, <<"muc_light">>,
+     <<"session">>, <<"stanza">>, <<"roster">>, <<"vcard">>, <<"private">>, <<"metric">>,
+     <<"stat">>, <<"gdpr">>, <<"mnesia">>, <<"server">>, <<"inbox">>, <<"http_upload">>,
+     <<"offline">>, <<"token">>].
