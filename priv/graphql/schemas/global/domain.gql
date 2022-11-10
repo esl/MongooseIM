@@ -4,7 +4,7 @@ Some operation could return incomplete object i.e. some fields can be null.
 """
 type Domain{
   "Domain name"
-  domain: String
+  domain: DomainName
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
@@ -18,4 +18,6 @@ enum DomainStatus {
   DISABLED
   "Domain has been marked for deletion and is disabled until all data is removed"
   DELETING
+  "Domain is deleted and does not exist anymore"
+  DELETED
 }
