@@ -60,37 +60,6 @@
               delete_archive/2, disco_muc_features/1, filter_room_packet/3,
               forget_room/4, get_personal_data/3, start/2, stop/1, supported_features/0]).
 
-%% ----------------------------------------------------------------------
-%% Imports
-
-%% UID
--import(mod_mam_utils,
-        [generate_message_id/1,
-         decode_compact_uuid/1]).
-
-%% XML
--import(mod_mam_utils,
-        [maybe_add_arcid_elems/4,
-         replace_x_user_element/4,
-         delete_x_user_element/1,
-         packet_to_x_user_jid/1,
-         wrap_message/6,
-         result_set/4,
-         result_query/2,
-         result_prefs/4,
-         make_fin_element/7,
-         parse_prefs/1,
-         borders_decode/1,
-         features/2]).
-
-%% Forms
--import(mod_mam_utils,
-        [message_form/3]).
-
-%% Other
--import(mod_mam_utils,
-        [mess_id_to_external_binary/1]).
-
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -150,14 +119,16 @@ archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
 start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
     ensure_metrics(HostType),
-    ejabberd_hooks:add(hooks(HostType)),
+    ejabberd_hooks:add(legacy_hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
 
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(hooks(HostType)),
+    ejabberd_hooks:delete(legacy_hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
 
@@ -170,7 +141,7 @@ supported_features() ->
 
 -spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_muc_features(Acc = #{host_type := HostType, node := <<>>}) ->
-    mongoose_disco:add_features(features(?MODULE, HostType), Acc);
+    mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc);
 disco_muc_features(Acc) ->
     Acc.
 
@@ -209,8 +180,8 @@ archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
         end,
     case IsInteresting of
         true ->
-            MessID = generate_message_id(TS),
-            Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
+            MessID = mod_mam_utils:generate_message_id(TS),
+            Packet1 = mod_mam_utils:replace_x_user_element(FromJID, Role, Affiliation, Packet),
             OriginID = mod_mam_utils:get_origin_id(Packet),
             Params = #{message_id => MessID,
                        archive_id => ArcID,
@@ -225,9 +196,9 @@ archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
             Result = archive_message(HostType, Params),
             case Result of
                 ok ->
-                    ExtID = mess_id_to_external_binary(MessID),
+                    ExtID = mod_mam_utils:mess_id_to_external_binary(MessID),
                     ShouldAdd = mod_mam_params:add_stanzaid_element(?MODULE, HostType),
-                    maybe_add_arcid_elems(RoomJID, ExtID, Packet, ShouldAdd);
+                    mod_mam_utils:maybe_add_arcid_elems(RoomJID, ExtID, Packet, ShouldAdd);
                 {error, _} -> Packet
             end;
         false -> Packet
@@ -346,7 +317,7 @@ handle_mam_iq(HostType, Action, From, To, IQ) ->
                               jlib:iq() | {error, any(), jlib:iq()}.
 handle_set_prefs(HostType, ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
-    {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
+    {DefaultMode, AlwaysJIDs, NeverJIDs} = mod_mam_utils:parse_prefs(PrefsEl),
     ?LOG_DEBUG(#{what => mam_muc_set_prefs, archive_jid => ArcJID,
                  default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
@@ -355,7 +326,7 @@ handle_set_prefs(HostType, ArcJID = #jid{},
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
+    ResultPrefsEl = mod_mam_utils:result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
@@ -372,7 +343,7 @@ handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?LOG_DEBUG(#{what => mam_muc_get_prefs_result, archive_jid => ArcJID,
                  default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
+    ResultPrefsEl = mod_mam_utils:result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result(_ArcJID, {error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
@@ -431,9 +402,11 @@ send_messages_and_iq_result(#{total_count := TotalCount, offset := Offset,
                                                  QueryID, MessageRows, true),
     %% Make fin iq
     IsStable = true,
-    ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+    ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
     ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
-    FinElem = make_fin_element(HostType, Params, IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, ExtFinMod),
+    FinElem = mod_mam_utils:make_fin_element(HostType, Params, IQ#iq.xmlns,
+                                             IsComplete, IsStable,
+                                             ResultSetEl, ExtFinMod),
     IQ#iq{type = result, sub_el = [FinElem]}.
 
 forward_messages(HostType, From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
@@ -541,19 +514,19 @@ archive_message(HostType, Params) ->
                                 exml:element().
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs,
                    #{id := MessID, jid := SrcJID, packet := Packet}, QueryID) ->
-    {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
+    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     TS = calendar:system_time_to_rfc3339(Microseconds, [{offset, "Z"}, {unit, microsecond}]),
-    BExtMessID = mess_id_to_external_binary(MessID),
+    BExtMessID = mod_mam_utils:mess_id_to_external_binary(MessID),
     Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
     Packet2 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet1),
     Packet3 = replace_from_to_attributes(SrcJID, Packet2),
-    wrap_message(MamNs, Packet3, QueryID, BExtMessID, TS, SrcJID).
+    mod_mam_utils:wrap_message(MamNs, Packet3, QueryID, BExtMessID, TS, SrcJID).
 
 maybe_delete_x_user_element(true, ReceiverJID, Packet) ->
-    PacketJID = packet_to_x_user_jid(Packet),
+    PacketJID = mod_mam_utils:packet_to_x_user_jid(Packet),
     case jid:are_bare_equal(ReceiverJID, PacketJID) of
         false ->
-            delete_x_user_element(Packet);
+            mod_mam_utils:delete_x_user_element(Packet);
         true -> %% expose identity for user's own messages
             Packet
     end;
@@ -571,7 +544,7 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
 
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id(#{id := MessID}) ->
-    mess_id_to_external_binary(MessID).
+    mod_mam_utils:mess_id_to_external_binary(MessID).
 
 -spec handle_error_iq(mongoose_acc:t(), host_type(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
@@ -614,7 +587,8 @@ return_max_delay_reached_error_iq(IQ) ->
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 return_message_form_iq(HostType, IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(?MODULE, HostType, IQ#iq.xmlns)]}.
+    Form = mod_mam_utils:message_form(?MODULE, HostType, IQ#iq.xmlns),
+    IQ#iq{type = result, sub_el = [Form]}.
 
 % the stacktrace is a big lie
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
@@ -644,13 +618,16 @@ is_archivable_message(HostType, Dir, Packet) ->
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec hooks(host_type()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
+-spec legacy_hooks(host_type()) -> [ejabberd_hooks:hook()].
+legacy_hooks(HostType) ->
     [{disco_muc_features, HostType, ?MODULE, disco_muc_features, 99},
      {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
      {forget_room, HostType, ?MODULE, forget_room, 90},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
-     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType).
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),

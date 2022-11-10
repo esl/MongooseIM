@@ -4,27 +4,25 @@
 -export([routes/0]).
 
 -behaviour(cowboy_rest).
--export([trails/0]).
--export([init/2]).
--export([content_types_provided/2]).
--export([content_types_accepted/2]).
--export([is_authorized/2]).
--export([allowed_methods/2]).
+-export([trails/0,
+         init/2,
+         is_authorized/2,
+         content_types_provided/2,
+         content_types_accepted/2,
+         allowed_methods/2,
+         to_json/2,
+         from_json/2]).
 
--export([to_json/2]).
--export([send_message/2]).
-
+%% Used by mongoose_client_api_sse
 -export([encode/2]).
 
--export([maybe_integer/1]).
--export([maybe_before_to_us/2]).
+-ignore_xref([to_json/2, from_json/2, trails/0]).
 
--ignore_xref([send_message/2, to_json/2, trails/0,
-              maybe_before_to_us/2]).
+-import(mongoose_client_api, [parse_body/1, parse_qs/1, try_handle_request/3, throw_error/2]).
 
--include("mongoose.hrl").
--include("jlib.hrl").
--include("mongoose_rsm.hrl").
+-type req() :: cowboy_req:req().
+-type state() :: mongoose_admin_api:state().
+
 -include_lib("exml/include/exml.hrl").
 
 -spec routes() -> mongoose_http_handler:routes().
@@ -34,92 +32,95 @@ routes() ->
 trails() ->
     mongoose_client_api_messages_doc:trails().
 
-init(Req, Opts) ->
-    mongoose_client_api:init(Req, Opts).
+-spec init(req(), state()) -> {cowboy_rest, req(), state()}.
+init(Req, State) ->
+    mongoose_client_api:init(Req, State).
 
+-spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
 
+-spec content_types_provided(req(), state()) ->
+          {[{{binary(), binary(), '*'}, atom()}], req(), state()}.
 content_types_provided(Req, State) ->
     {[
       {{<<"application">>, <<"json">>, '*'}, to_json}
      ], Req, State}.
 
+-spec content_types_accepted(req(), state()) ->
+          {[{{binary(), binary(), '*'}, atom()}], req(), state()}.
 content_types_accepted(Req, State) ->
     {[
-      {{<<"application">>, <<"json">>, '*'}, send_message}
+      {{<<"application">>, <<"json">>, '*'}, from_json}
      ], Req, State}.
 
+-spec allowed_methods(req(), state()) -> {[binary()], req(), state()}.
 allowed_methods(Req, State) ->
     {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
-to_json(Req, #{jid := JID} = State) ->
-    With = cowboy_req:binding(with, Req),
-    WithJID = maybe_jid(With),
-    maybe_to_json_with_jid(WithJID, JID, Req, State).
+%% @doc Called for a method of type "GET"
+-spec to_json(req(), state()) -> {iodata() | stop, req(), state()}.
+to_json(Req, State) ->
+    try_handle_request(Req, State, fun handle_get/2).
 
-maybe_to_json_with_jid(error, _, Req, State) ->
-    Req2 = cowboy_req:reply(404, Req),
-    {stop, Req2, State};
-maybe_to_json_with_jid(WithJID, #jid{} = JID, Req, State = #{creds := Creds}) ->
-    HostType = mongoose_credentials:host_type(Creds),
-    Now = os:system_time(microsecond),
-    ArchiveID = mod_mam_pm:archive_id_int(HostType, JID),
-    QS = cowboy_req:parse_qs(Req),
-    PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
-    Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
-    End = maybe_before_to_us(Before, Now),
-    RSM = #rsm_in{direction = before, id = undefined},
-    R = mod_mam_pm:lookup_messages(HostType,
-                                #{archive_id => ArchiveID,
-                                  owner_jid => JID,
-                                  rsm => RSM,
-                                  borders => undefined,
-                                  start_ts => undefined,
-                                  end_ts => End,
-                                  now => Now,
-                                  with_jid => WithJID,
-                                  search_text => undefined,
-                                  page_size => PageSize,
-                                  limit_passed => true,
-                                  max_result_limit => 50,
-                                  is_simple => true}),
-    {ok, {_, _, Msgs}} = R,
-    Resp = [make_json_msg(Msg, MAMId) || #{id := MAMId, packet := Msg} <- Msgs],
+%% @doc Called for a method of type "POST"
+-spec from_json(req(), state()) -> {true | stop, req(), state()}.
+from_json(Req, State) ->
+    try_handle_request(Req, State, fun handle_post/2).
+
+handle_get(Req, State = #{jid := OwnerJid}) ->
+    Bindings = cowboy_req:bindings(Req),
+    WithJid = get_with_jid(Bindings),
+    Args = parse_qs(Req),
+    Limit = get_limit(Args),
+    Before = get_before(Args),
+    {ok, {Rows, _Limit}} =
+        mongoose_stanza_api:lookup_recent_messages(OwnerJid, WithJid, Before, Limit, false),
+    Resp = [make_json_msg(Msg, MAMId) || #{id := MAMId, packet := Msg} <- Rows],
     {jiffy:encode(Resp), Req, State}.
 
-send_message(Req, #{user := RawUser, jid := FromJID, creds := Creds} = State) ->
-    {ok, Body, Req2} = cowboy_req:read_body(Req),
-    case mongoose_client_api:json_to_map(Body) of
-        {ok, #{<<"to">> := To, <<"body">> := MsgBody}} when is_binary(To), is_binary(MsgBody) ->
-            ToJID = jid:from_binary(To),
-            UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-            XMLMsg0 = build_message(RawUser, To, UUID, MsgBody),
-            Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                                       host_type => mongoose_credentials:host_type(Creds),
-                                       lserver => FromJID#jid.lserver,
-                                       from_jid => FromJID,
-                                       to_jid => ToJID,
-                                       element => XMLMsg0 }),
-            Acc1 = mongoose_hooks:rest_user_send_packet(Acc0, FromJID, ToJID, XMLMsg0),
-            XMLMsg1 = mongoose_acc:element(Acc1),
-            ejabberd_router:route(FromJID, ToJID, Acc1, XMLMsg1),
-            Resp = #{<<"id">> => UUID},
-            Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
-            {true, Req3, State};
-        _ ->
-            mongoose_client_api:bad_request(Req2, State)
-    end.
+handle_post(Req, State = #{jid := UserJid}) ->
+    Args = parse_body(Req),
+    To = get_to(Args),
+    Body = get_body(Args),
+    {ok, Resp} = mongoose_stanza_api:send_chat_message(UserJid, undefined, To, Body),
+    Req2 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
+    {true, Req2, State}.
 
-build_message(From, To, Id, Body) ->
-    Attrs = [{<<"from">>, From},
-             {<<"to">>, To},
-             {<<"id">>, Id},
-             {<<"type">>, <<"chat">>}],
-    #xmlel{name = <<"message">>,
-           attrs = Attrs,
-           children = [#xmlel{name = <<"body">>,
-                              children = [#xmlcdata{content = Body}]}]}.
+get_limit(#{limit := LimitBin}) ->
+    try
+        Limit = binary_to_integer(LimitBin),
+        true = Limit >= 0,
+        Limit
+    catch
+        _:_ -> throw_error(bad_request, <<"Invalid limit">>)
+    end;
+get_limit(#{}) -> 50.
+
+get_before(#{before := BeforeBin}) ->
+    try
+        1000 * binary_to_integer(BeforeBin)
+    catch
+        _:_ -> throw_error(bad_request, <<"Invalid value of 'before'">>)
+    end;
+get_before(#{}) -> undefined.
+
+get_with_jid(#{with := With}) ->
+    case jid:from_binary(With) of
+        error -> throw_error(bad_request, <<"Invalid interlocutor JID">>);
+        WithJid -> WithJid
+    end;
+get_with_jid(#{}) -> undefined.
+
+get_to(#{to := To}) ->
+    case jid:from_binary(To) of
+        error -> throw_error(bad_request, <<"Invalid recipient JID">>);
+        ToJid -> ToJid
+    end;
+get_to(#{}) -> throw_error(bad_request, <<"Missing recipient JID">>).
+
+get_body(#{body := Body}) -> Body;
+get_body(#{}) -> throw_error(bad_request, <<"Missing message body">>).
 
 make_json_msg(Msg, MAMId) ->
     {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMId),
@@ -127,55 +128,38 @@ make_json_msg(Msg, MAMId) ->
 
 -spec encode(exml:item(), integer()) -> map().
 encode(Msg, Timestamp) ->
-
-    %Smack library specific query for properties.
-    RawMsgProps = exml_query:subelement_with_name_and_ns(
-                                        Msg,
-                                        <<"properties">>,
-                                        <<"http://www.jivesoftware.com/xmlns/xmpp/properties">>),
-
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-    ExtensionList =
-      case RawMsgProps of
-           #xmlel{children = Children} ->
-                                        Props = [convert_prop_child(Child) || Child <- Children],
-                                        [{<<"properties">>, maps:from_list(Props)}];
-                                     _ ->
-                                        []
-      end,
-    Thread = exml_query:path(Msg, [{element, <<"thread">>}, cdata]), 
-    ThreadParent = exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}]),
-    ThreadAndThreadParentList = case {Thread, ThreadParent} of
-                {undefined, undefined} -> 
-                                        [];
-                {Thread, undefined}    ->
-                                        [{<<"thread">>, Thread}];
-                {Thread, ThreadParent} ->
-                                        [{<<"thread">>, Thread}, {<<"parent">>, ThreadParent}]
-    end,
     L = [{<<"from">>, exml_query:attr(Msg, <<"from">>)},
           {<<"to">>, exml_query:attr(Msg, <<"to">>)},
           {<<"id">>, exml_query:attr(Msg, <<"id">>)},
           {<<"body">>, exml_query:cdata(BodyTag)},
-          {<<"timestamp">>, Timestamp} | ExtensionList] ++ ThreadAndThreadParentList,
+          {<<"timestamp">>, Timestamp}] ++ extensions(Msg) ++ thread_and_parent(Msg),
     maps:from_list(L).
+
+extensions(Msg) ->
+    SmackNS = <<"http://www.jivesoftware.com/xmlns/xmpp/properties">>,
+    RawMsgProps = exml_query:subelement_with_name_and_ns(Msg, <<"properties">>, SmackNS),
+    case RawMsgProps of
+        #xmlel{children = Children} ->
+            Props = [convert_prop_child(Child) || Child <- Children],
+            [{<<"properties">>, maps:from_list(Props)}];
+        _ ->
+            []
+    end.
+
+thread_and_parent(Msg) ->
+    case exml_query:path(Msg, [{element, <<"thread">>}, cdata]) of
+        undefined -> [];
+        Thread -> [{<<"thread">>, Thread} | parent(Msg)]
+    end.
+
+parent(Msg) ->
+    case exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}]) of
+        undefined -> [];
+        ThreadParent -> [{<<"parent">>, ThreadParent}]
+    end.
 
 convert_prop_child(Child)->
     Name = exml_query:path(Child, [{element, <<"name">>}, cdata]),
     Value = exml_query:path(Child, [{element, <<"value">>}, cdata]),
     {Name, Value}.
-
-maybe_jid(undefined) ->
-    undefined;
-maybe_jid(JID) ->
-    jid:from_binary(JID).
-
-maybe_integer(undefined) ->
-    undefined;
-maybe_integer(Val) ->
-    binary_to_integer(Val).
-
-maybe_before_to_us(undefined, Now) ->
-    Now;
-maybe_before_to_us(Timestamp, _) ->
-   Timestamp * 1000.

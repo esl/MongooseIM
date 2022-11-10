@@ -767,7 +767,20 @@ paths:
               host_type:
                 example: "type1"
                 type: string
+        - in: body
+          name: request
+          description: Flag to indicate if the request should be async.
+          required: false
+          schema:
+            title: request
+            type: object
+            properties:
+              request:
+                example: true
+                type: boolean
       responses:
+        202:
+          description: "The domain has been disabled and is enqueued for removal."
         204:
           description: "The domain is removed or not found."
         403:

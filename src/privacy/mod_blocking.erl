@@ -12,16 +12,12 @@
 -export([config_spec/0]).
 
 -export([
-         process_iq_get/5,
-         process_iq_set/4,
-         disco_local_features/3
-        ]).
-
--export([user_send_iq/3,
+         process_iq_get/3,
+         process_iq_set/3,
+         disco_local_features/3,
+         user_send_iq/3,
          foreign_event/3
         ]).
-
--ignore_xref([disco_local_features/1, process_iq_get/5, process_iq_set/4]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
@@ -31,13 +27,11 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
-    ejabberd_hooks:delete(legacy_hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 deps(_HostType, Opts) ->
     [{mod_privacy, Opts, hard}].
@@ -49,16 +43,12 @@ supported_features() ->
 config_spec() ->
     mod_privacy:config_spec().
 
--spec legacy_hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-legacy_hooks(HostType) ->
-    [
-     {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
-     {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50}].
-
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98}
-     | c2s_hooks(HostType)].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+     {privacy_iq_get, HostType, fun ?MODULE:process_iq_get/3, #{}, 50},
+     {privacy_iq_set, HostType, fun ?MODULE:process_iq_set/3, #{}, 50}
+    | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
@@ -135,8 +125,12 @@ disco_local_features(Acc = #{node := <<>>}, _, _) ->
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
-process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
-               _, #iq{xmlns = ?NS_BLOCKING}, _) ->
+-spec process_iq_get(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(), iq := jlib:iq()},
+    Extra :: map().
+process_iq_get(Acc, #{from := #jid{luser = LUser, lserver = LServer},
+               iq := #iq{xmlns = ?NS_BLOCKING}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     Res = case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
@@ -152,11 +146,15 @@ process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                 {error, _} ->
                     {error, mongoose_xmpp_errors:internal_server_error()}
             end,
-    mongoose_acc:set(hook, result, IqRes, Acc);
-process_iq_get(Val, _, _, _, _) ->
-    Val.
+    {ok, mongoose_acc:set(hook, result, IqRes, Acc)};
+process_iq_get(Acc, _, _) ->
+    {ok, Acc}.
 
-process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
+-spec process_iq_set(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(), iq := jlib:iq()},
+    Extra :: map().
+process_iq_set(Acc, #{from := From, iq := #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}}, _) ->
     %% collect needed data
     HostType = mongoose_acc:host_type(Acc),
     #jid{luser = LUser, lserver = LServer} = From,
@@ -175,9 +173,9 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     {Acc1, Res} = process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs),
     %% respond / notify
     {Acc2, Res1} = complete_iq_set(blocking_command, Acc1, LUser, LServer, Res),
-    mongoose_acc:set(hook, result, Res1, Acc2);
-process_iq_set(Val, _, _, _) ->
-    Val.
+    {ok, mongoose_acc:set(hook, result, Res1, Acc2)};
+process_iq_set(Acc, _, _) ->
+    {ok, Acc}.
 
 parse_command_type(<<"block">>) -> block;
 parse_command_type(<<"unblock">>) -> unblock.

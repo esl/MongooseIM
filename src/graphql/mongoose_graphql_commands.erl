@@ -344,7 +344,7 @@ execute(Ep, Doc, Vars) ->
                                    operation_name => undefined,
                                    vars => Vars,
                                    authorized => true,
-                                   ctx => #{}}).
+                                   ctx => #{method => cli}}).
 
 field_type_query() ->
     nested_type_query("name kind possibleTypes {name kind}").

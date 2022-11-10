@@ -6,25 +6,25 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 -module(amp_strategy).
 
--export([determine_strategy/5,
+-export([determine_strategy/3,
          null_strategy/0]).
-
--ignore_xref([determine_strategy/5]).
 
 -include("amp.hrl").
 -include("jlib.hrl").
 
--spec determine_strategy(amp_strategy(), jid:jid() | undefined, jid:jid() | undefined, #xmlel{}, amp_event()) ->
-                                amp_strategy().
-determine_strategy(_, _, undefined, _, _) -> null_strategy();
-determine_strategy(_, _, To, _, Event) ->
+-spec determine_strategy(StrategyAcc, Params, Extra) -> {ok, StrategyAcc} when
+      StrategyAcc :: mod_amp:amp_strategy(),
+      Params :: #{to := jid:jid() | undefined, event := mod_amp:amp_event()},
+      Extra :: map().
+determine_strategy(_, #{to := undefined}, _) -> {ok, null_strategy()};
+determine_strategy(_, #{to := To, event := Event}, _) ->
     TargetResources = get_target_resources(To),
     Deliver = deliver_strategy(TargetResources, Event),
     MatchResource = match_resource_strategy(TargetResources),
 
-    #amp_strategy{deliver = Deliver,
-                  'match-resource' = MatchResource,
-                  'expire-at' = undefined}.
+    {ok, #amp_strategy{deliver = Deliver,
+                       'match-resource' = MatchResource,
+                       'expire-at' = undefined}}.
 
 %% @doc This strategy will never be matched by any amp_rules.
 %% Use it as a seed parameter to `mongoose_hooks'.

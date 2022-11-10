@@ -38,15 +38,13 @@
 %% IQ and hooks handlers
 -export([process_iq/5,
          process_disco_iq/5,
-         disco_local_items/1]).
+         disco_local_items/3]).
 
 %% API
 -export([get_urls/5]).
 
 %% mongoose_module_metrics callbacks
 -export([config_metrics/1]).
-
--ignore_xref([behaviour_info/1, disco_local_items/1, process_disco_iq/5, process_iq/5]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -62,14 +60,14 @@ start(HostType, Opts = #{iqdisc := IQDisc}) ->
                                                  Component, Fn, #{}, IQDisc) ||
         {Component, Namespace, Fn} <- iq_handlers()],
     mod_http_upload_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
 
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace,
                                                     Component) ||
         {Component, Namespace, _Fn} <- iq_handlers()],
@@ -82,7 +80,7 @@ iq_handlers() ->
      {ejabberd_local, ?NS_DISCO_INFO, fun ?MODULE:process_disco_iq/5}].
 
 hooks(HostType) ->
-    [{disco_local_items, HostType, ?MODULE, disco_local_items, 90}].
+    [{disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 90}].
 
 %%--------------------------------------------------------------------
 %% config_spec
@@ -183,11 +181,14 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = Domain}, node := <<>>, lang := Lang}) ->
-    mongoose_disco:add_items([#{jid => subdomain(HostType, Domain), name => my_disco_name(Lang)}], Acc);
-disco_local_items(Acc) ->
-    Acc.
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = Domain}, node := <<>>, lang := Lang}, _, _) ->
+    {ok, mongoose_disco:add_items([#{jid => subdomain(HostType, Domain), name => my_disco_name(Lang)}], Acc)};
+disco_local_items(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec get_urls(HostType :: mongooseim:host_type(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->

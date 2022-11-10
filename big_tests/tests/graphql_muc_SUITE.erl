@@ -43,6 +43,7 @@ user_muc_tests() ->
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
+     user_try_create_instant_room_with_invalid_name,
      user_list_rooms,
      user_list_room_users,
      user_list_room_users_without_anonymous_mode,
@@ -982,6 +983,14 @@ user_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
     Res = user_create_instant_room(Alice, <<"unknown">>, rand_name(), <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
+user_try_create_instant_room_with_invalid_name(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_create_instant_room_with_invalid_name_story/2).
+
+user_try_create_instant_room_with_invalid_name_story(Config, Alice) ->
+    Res = user_create_instant_room(Alice, muc_helper:muc_host(), <<"test room">>, <<"Ali">>, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain is invalid">>)).
+
 user_try_delete_nonexistent_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun user_try_delete_nonexistent_room_story/2).
@@ -1131,10 +1140,15 @@ user_without_session_send_message_to_room(Config) ->
 user_without_session_send_message_to_room_story(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
-    ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [JID, <<"Kicked">>])),
+    terminate_user_session(JID),
     % Send message
     Res = user_send_message_to_room(Alice, RoomJID, <<"Hello!">>, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have any session">>)).
+
+terminate_user_session(Jid) ->
+    ?assertEqual(ok, rpc(mim(), ejabberd_sm, terminate_session, [Jid, <<"Kicked">>])),
+    F = fun() -> rpc(mim(), ejabberd_sm, get_user_resources, [Jid]) end,
+    mongoose_helper:wait_until(F, [], #{time_left => timer:seconds(5)}).
 
 user_get_room_config(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],

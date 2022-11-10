@@ -116,6 +116,7 @@ admin_muc_light_tests() ->
      admin_get_room_config,
      admin_get_room_config_non_existent_domain,
      admin_blocking_list,
+     admin_blocking_list_null,
      admin_blocking_list_errors
     ].
 
@@ -878,6 +879,30 @@ admin_blocking_list_story(Config, Alice, Bob) ->
     Res4 = set_blocking(AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}], Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
                                           <<"successfully">>)),
+    Res5 = get_user_blocking(AliceBin, Config),
+    ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)).
+
+admin_blocking_list_null(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_blocking_list_null_story/3).
+
+admin_blocking_list_null_story(Config, Alice, Bob) ->
+    AliceBin = escalus_client:full_jid(Alice),
+    BobBin = escalus_client:full_jid(Bob),
+    BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    Res = get_user_blocking(AliceBin, Config),
+    ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res)),
+    Res2 = set_blocking(AliceBin, [{<<"USER">>, null, BobBin}], Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
+                                            <<"successfully">>)),
+    Res3 = get_user_blocking(AliceBin, Config),
+    ?assertEqual([#{<<"entityType">> => <<"USER">>,
+                    <<"action">> => <<"DENY">>,
+                    <<"entity">> => BobShortBin}],
+                    get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
+    Res4 = set_blocking(AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}], Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
+                                            <<"successfully">>)),
     Res5 = get_user_blocking(AliceBin, Config),
     ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)).
 

@@ -114,17 +114,17 @@ connection_opts() ->
 %% despite lack of global_distrib structure in Acc.
 missing_struct_in_message_from_user(_Config) ->
     From = jid:make(<<"user">>, global_host(), <<"resource">>),
-    {Acc, To} = fake_acc_to_component(From),
+    {Acc, _To} = fake_acc_to_component(From),
     % The handler must not crash and return unchanged Acc
-    Acc = mod_global_distrib_mapping:packet_to_component(Acc, From, To).
+    {ok, Acc} = mod_global_distrib_mapping:packet_to_component(Acc, #{from => From}, #{}).
 
 %% Update logic has two separate paths: when a packet is sent by a user or by another
 %% component. This test covers the latter.
 missing_struct_in_message_from_component(_Config) ->
     From = jid:make(<<"">>, <<"from_service.", (global_host())/binary>>, <<"">>),
-    {Acc, To} = fake_acc_to_component(From),
+    {Acc, _To} = fake_acc_to_component(From),
     % The handler must not crash and return unchanged Acc
-    Acc = mod_global_distrib_mapping:packet_to_component(Acc, From, To).
+    {ok, Acc} = mod_global_distrib_mapping:packet_to_component(Acc, #{from => From}, #{}).
 
 %%--------------------------------------------------------------------
 %% Helpers

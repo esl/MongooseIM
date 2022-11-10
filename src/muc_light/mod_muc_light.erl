@@ -42,18 +42,19 @@
 -export([process_packet/5]).
 
 %% Hook handlers
--export([prevent_service_unavailable/4,
-         disco_local_items/1,
+-export([prevent_service_unavailable/3,
+         disco_local_items/3,
          remove_user/3,
          remove_domain/3,
-         add_rooms_to_roster/2,
-         process_iq_get/5,
-         process_iq_set/4,
-         is_muc_room_owner/4,
-         can_access_room/4,
-         acc_room_affiliations/2,
+         add_rooms_to_roster/3,
+         process_iq_get/3,
+         process_iq_set/3,
+         is_muc_room_owner/3,
+         can_access_room/3,
+         acc_room_affiliations/3,
          room_exists/3,
-         can_access_identity/4]).
+         can_access_identity/3]).
+
 -export([get_acc_room_affiliations/2]).
 
 %% For propEr
@@ -70,11 +71,7 @@
          force_clear_from_ct/1]).
 
 -ignore_xref([
-    add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
-    default_schema/0, disco_local_items/1, acc_room_affiliations/2, room_exists/3,
-    force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
-    process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
-    server_host_to_muc_host/2
+    apply_rsm/3, default_schema/0, force_clear_from_ct/1, server_host_to_muc_host/2
 ]).
 
 -type muc_server() :: jid:lserver().
@@ -175,7 +172,7 @@ start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
     mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),
     PacketHandler = mongoose_packet_handler:new(?MODULE),
@@ -186,7 +183,7 @@ start(HostType, Opts) ->
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     mod_muc_light_codec_backend:stop(HostType),
     mod_muc_light_db_backend:stop(HostType),
     ok.
@@ -281,29 +278,30 @@ process_config_schema_item(#{field := FieldName} = FieldSpec) ->
 schema_field_types() ->
     #{string_value => binary, integer_value => integer, float_value => float}.
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     Codec = host_type_to_codec(HostType),
     Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters),
-    [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
-     {can_access_room, HostType, ?MODULE, can_access_room, 50},
-     {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
-     {room_exists, HostType, ?MODULE, room_exists, 50},
-     {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
+    [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
+     {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
+     {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
+     {room_exists, HostType, fun ?MODULE:room_exists/3, #{}, 50},
+     {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
       %% Prevent sending service-unavailable on groupchat messages
-     {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
-     {remove_user, HostType, ?MODULE, remove_user, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {disco_local_items, HostType, ?MODULE, disco_local_items, 50}] ++
+     {offline_groupchat_message_hook, HostType, fun ?MODULE:prevent_service_unavailable/3, #{}, 90},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 50}] ++
     case Codec of
         legacy ->
-            [{privacy_iq_get, HostType, ?MODULE, process_iq_get, 1},
-             {privacy_iq_set, HostType, ?MODULE, process_iq_set, 1}];
+            [{privacy_iq_get, HostType, fun ?MODULE:process_iq_get/3, #{}, 1},
+             {privacy_iq_set, HostType, fun ?MODULE:process_iq_set/3, #{}, 1}];
         _ ->
             []
     end ++
     case Roster of
         false -> [];
-        true -> [{roster_get, HostType, ?MODULE, add_rooms_to_roster, 50}]
+        true -> [{roster_get, HostType, fun ?MODULE:add_rooms_to_roster/3, #{}, 50}]
     end.
 
 %%====================================================================
@@ -378,51 +376,60 @@ make_err(From, To, El, Acc, Reason) ->
 %% Hook handlers
 %%====================================================================
 
--spec prevent_service_unavailable(Acc :: map(), From ::jid:jid(), To ::jid:jid(),
-                                  Packet :: exml:element()) -> map() | {stop, map()}.
-prevent_service_unavailable(Acc, _From, _To, Packet) ->
+-spec prevent_service_unavailable(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+prevent_service_unavailable(Acc, #{packet := Packet}, _Extra) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
         <<"groupchat">> -> {stop, Acc};
-        _Type -> Acc
+        _Type -> {ok, Acc}
     end.
 
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
 disco_local_items(Acc = #{host_type := HostType,
                           to_jid := #jid{lserver = ServerHost},
-                          node := <<>>}) ->
+                          node := <<>>},
+                  _Params,
+                  _Extra) ->
     XMLNS = case legacy_mode(HostType) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Items = [#{jid => MUCHost, node => XMLNS}],
-    mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_local_items(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 legacy_mode(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode).
 
--spec remove_user(Acc :: mongoose_acc:t(), User :: binary(), Server :: binary()) ->
-    mongoose_acc:t().
-remove_user(Acc, User, Server) ->
-    HostType = mongoose_acc:host_type(Acc),
-    UserJid = jid:make(User, Server, <<>>),
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+remove_user(Acc, #{jid := UserJid}, #{host_type := HostType}) ->
     Version = mongoose_bin:gen_from_timestamp(),
     case mod_muc_light_db_backend:remove_user(HostType, jid:to_lus(UserJid), Version) of
         {error, Reason} ->
             ?LOG_ERROR(#{what => muc_remove_user_failed,
                          reason => Reason, acc => Acc}),
-            Acc;
+            {ok, Acc};
         AffectedRooms ->
             bcast_removed_user(Acc, UserJid, AffectedRooms, Version),
             maybe_forget_rooms(Acc, AffectedRooms, Version),
-            Acc
+            {ok, Acc}
     end.
 
--spec remove_domain(mongoose_domain_api:remove_domain_acc(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_domain_api:remove_domain_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_domain_api:remove_domain_acc(),
+    Params :: map(),
+    Extra :: map().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             MUCHost = server_host_to_muc_host(HostType, Domain),
             mod_muc_light_db_backend:remove_domain(HostType, MUCHost, Domain),
@@ -430,14 +437,17 @@ remove_domain(Acc, HostType, Domain) ->
         end,
     mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
--spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserJID :: jid:jid()) -> mongoose_acc:t().
-add_rooms_to_roster(Acc, UserJID) ->
+-spec add_rooms_to_roster(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+add_rooms_to_roster(Acc, #{jid := UserJID}, _Extra) ->
     Items = mongoose_acc:get(roster, items, [], Acc),
     HostType = mongoose_acc:host_type(Acc),
     RoomList = mod_muc_light_db_backend:get_user_rooms(HostType, jid:to_lus(UserJID), undefined),
     Info = get_rooms_info(HostType, lists:sort(RoomList)),
     NewItems = [make_roster_item(Item) || Item <- Info] ++ Items,
-    mongoose_acc:set(roster, items, NewItems, Acc).
+    {ok, mongoose_acc:set(roster, items, NewItems, Acc)}.
 
 make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
     JID = jid:make_noprep(RoomU, RoomS, <<>>),
@@ -451,11 +461,11 @@ make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
             groups = [?NS_MUC_LIGHT],
             xs = [VerEl] }.
 
--spec process_iq_get(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                     IQ :: jlib:iq(), ActiveList :: binary()) ->
-    {stop, mongoose_acc:t()} | mongoose_acc:t().
-process_iq_get(Acc, #jid{lserver = FromS} = From, To, #iq{} = IQ, _ActiveList) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+-spec process_iq_get(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+process_iq_get(Acc, #{from := #jid{lserver = FromS} = From, to := To, iq := IQ}, #{host_type := HostType}) ->
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
           gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of
@@ -473,14 +483,15 @@ process_iq_get(Acc, #jid{lserver = FromS} = From, To, #iq{} = IQ, _ActiveList) -
             {stop, mongoose_acc:set(hook, result, Result, Acc)};
         _ ->
             Result = {error, mongoose_xmpp_errors:bad_request()},
-            mongoose_acc:set(hook, result, Result, Acc)
+            {ok, mongoose_acc:set(hook, result, Result, Acc)}
     end.
 
 %% Blocking is done using your local domain
--spec process_iq_set(Acc :: mongoose_acc:t(), From :: jid:jid(),
-                     To :: jid:jid(), IQ :: jlib:iq()) ->
-    {stop, mongoose_acc:t()} | mongoose_acc:t().
-process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
+-spec process_iq_set(Acc, Params, Extra) -> {ok | stop, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+process_iq_set(Acc, #{from := #jid{ lserver = FromS } = From, to := To, iq := IQ}, _Extra) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
@@ -502,42 +513,51 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             {stop, mongoose_acc:set(hook, result,
                                     {error, mongoose_xmpp_errors:bad_request()}, Acc)};
         _ ->
-            mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
+            {ok, mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)}
     end.
 
--spec is_muc_room_owner(boolean(), Acc :: mongoose_acc:t(),
-                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_muc_room_owner(true, _Acc, _Room, _User) ->
-    true;
-is_muc_room_owner(_, Acc, Room, User) ->
-    owner == get_affiliation(Acc, Room, User).
+-spec is_muc_room_owner(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+is_muc_room_owner(true, _Params, _Extra) ->
+    {ok, true};
+is_muc_room_owner(_, #{acc := Acc, room := Room, user := User}, _Extra) ->
+    {ok, owner == get_affiliation(Acc, Room, User)}.
 
--spec can_access_room(boolean(), Acc :: mongoose_acc:t(),
-                      Room :: jid:jid(), User :: jid:jid()) ->
-    boolean().
-can_access_room(true, _Acc, _Room, _User) ->
-    true;
-can_access_room(_, Acc, Room, User) ->
-    none =/= get_affiliation(Acc, Room, User).
+-spec can_access_room(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+can_access_room(true, _Params, _Extra) ->
+    {ok, true};
+can_access_room(_, #{acc := Acc, room := Room, user := User}, _Extra) ->
+    {ok, none =/= get_affiliation(Acc, Room, User)}.
 
--spec acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
-acc_room_affiliations(Acc1, RoomJid) ->
+-spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: map(),
+    Extra :: map().
+acc_room_affiliations(Acc1, #{room := RoomJid}, _Extra) ->
     case get_room_affs_from_acc(Acc1, RoomJid) of
         {error, _} ->
             HostType = mongoose_acc:host_type(Acc1),
             case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJid)) of
                 {error, not_exists} ->
-                    Acc1;
+                    {ok, Acc1};
                 {ok, _Affs, _Version} = Res ->
-                    set_room_affs_from_acc(Acc1, RoomJid, Res)
+                    {ok, set_room_affs_from_acc(Acc1, RoomJid, Res)}
             end;
         _Affs ->
-            Acc1
+            {ok, Acc1}
     end.
 
--spec room_exists(boolean(), mongooseim:host_type(), jid:jid()) -> boolean().
-room_exists(_, HostType, RoomJid) ->
-    mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid)).
+-spec room_exists(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+room_exists(_, #{room := RoomJid}, #{host_type := HostType}) ->
+    {ok, mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid))}.
 
 -spec get_acc_room_affiliations(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), versioned_affs() | {error, not_exists}}.
@@ -558,15 +578,16 @@ get_room_affs_from_acc(Acc, RoomJid) ->
 set_room_affs_from_acc(Acc, RoomJid, Affs) ->
     mongoose_acc:set(?MODULE, {affiliations, RoomJid}, Affs, Acc).
 
--spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
-                          Room :: jid:jid(), User :: jid:jid()) ->
-    boolean().
-can_access_identity(true, _HostType, _Room, _User) ->
-    true;
-can_access_identity(_Acc, _HostType, _Room, _User) ->
+-spec can_access_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: map(),
+    Extra :: map().
+can_access_identity(true, _Params, _Extra) ->
+    {ok, true};
+can_access_identity(_Acc, _Params, _Extra) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
     %% 0045 MUC element with user identity and we don't want it
-    false.
+    {ok, false}.
 
 %%====================================================================
 %% Internal functions

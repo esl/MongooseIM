@@ -31,14 +31,13 @@
 -export([for_domain/1, insert_for_domain/1, insert_for_domain/2, insert_for_domain/3,
          cache_domain/2, delete_for_domain/1, all_domains/0, public_domains/0]).
 -export([for_jid/1, insert_for_jid/1, cache_jid/2, delete_for_jid/1, clear_cache/1]).
--export([register_subhost/3, unregister_subhost/2, packet_to_component/3,
-         session_opened/5, session_closed/5]).
+-export([register_subhost/3, unregister_subhost/3, packet_to_component/3,
+         session_opened/3, session_closed/3]).
 -export([endpoints/1, hosts/0]).
 
 -ignore_xref([
     delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
-    insert_for_domain/2, insert_for_domain/3, insert_for_jid/1, packet_to_component/3,
-    register_subhost/3, session_closed/5, session_opened/5, unregister_subhost/2
+    insert_for_domain/2, insert_for_domain/3, insert_for_jid/1
 ]).
 
 -type endpoint() :: mod_global_distrib_utils:endpoint().
@@ -148,7 +147,7 @@ start(HostType, Opts = #{cache := CacheOpts}) ->
     DomainLifetime = timer:seconds(DomainLifetimeSec),
     JidLifetime = timer:seconds(JidLifeTimeSec),
 
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
 
     ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
     ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
@@ -158,7 +157,7 @@ start(HostType, Opts = #{cache := CacheOpts}) ->
 stop(HostType) ->
     ets_cache:delete(?JID_TAB),
     ets_cache:delete(?DOMAIN_TAB),
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     mod_global_distrib_mapping_backend:stop().
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
@@ -170,31 +169,35 @@ deps(_HostType, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(Acc, binary(), ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
-    Acc when Acc :: any().
-session_opened(Acc, _HostType, _SID, UserJid, _Info) ->
+-spec session_opened(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: any(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+session_opened(Acc, #{jid := UserJid}, _) ->
     insert_for_jid(UserJid),
-    Acc.
+    {ok, Acc}.
 
--spec session_closed(mongoose_acc:t(),
-                     ejabberd_sm:sid(),
-                     UserJID :: jid:jid(),
-                     Info :: list(),
-                     _Status :: any()) ->
-    mongoose_acc:t().
-session_closed(Acc, _SID, UserJid, _Info, _Reason) ->
+-spec session_closed(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: map().
+session_closed(Acc, #{jid := UserJid}, _) ->
     delete_for_jid(UserJid),
-    Acc.
+    {ok, Acc}.
 
--spec packet_to_component(Acc :: mongoose_acc:t(),
-                          From :: jid:jid(),
-                          To :: jid:jid()) -> mongoose_acc:t().
-packet_to_component(Acc, From, _To) ->
+-spec packet_to_component(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{from := jid:jid()},
+      Extra :: map().
+packet_to_component(Acc, #{from := From}, _) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
-    Acc.
+    {ok, Acc}.
 
--spec register_subhost(any(), SubHost :: binary(), IsHidden :: boolean()) -> ok.
-register_subhost(_, SubHost, IsHidden) ->
+-spec register_subhost(Acc, Params, Extra) -> {ok, ok} when
+      Acc :: any(),
+      Params :: #{ldomain := binary(), is_hidden := boolean()},
+      Extra :: map().
+register_subhost(_, #{ldomain := SubHost, is_hidden := IsHidden}, _) ->
     IsSubhostOf =
         fun(Host) ->
                 case binary:match(SubHost, Host) of
@@ -204,25 +207,29 @@ register_subhost(_, SubHost, IsHidden) ->
         end,
 
     GlobalHost = opt(global_host),
-    case lists:filter(IsSubhostOf, ?MYHOSTS) of
+    NewAcc = case lists:filter(IsSubhostOf, ?MYHOSTS) of
         [GlobalHost] -> insert_for_domain(SubHost, IsHidden);
         _ -> ok
-    end.
+    end,
+    {ok, NewAcc}.
 
--spec unregister_subhost(any(), SubHost :: binary()) -> ok.
-unregister_subhost(_, SubHost) ->
-    delete_for_domain(SubHost).
+-spec unregister_subhost(Acc, Params, Extra) -> {ok, ok} when
+      Acc :: any(),
+      Params :: #{ldomain := binary()},
+      Extra :: map().
+unregister_subhost(_, #{ldomain := SubHost}, _) ->
+    {ok, delete_for_domain(SubHost)}.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
 hooks(HostType) ->
-    [{register_subhost, global, ?MODULE, register_subhost, 90},
-     {unregister_subhost, global, ?MODULE, unregister_subhost, 90},
-     {packet_to_component, global, ?MODULE, packet_to_component, 90},
-     {sm_register_connection_hook, HostType, ?MODULE, session_opened, 90},
-     {sm_remove_connection_hook, HostType, ?MODULE, session_closed, 90}].
+    [{register_subhost, global, fun ?MODULE:register_subhost/3, #{}, 90},
+     {unregister_subhost, global, fun ?MODULE:unregister_subhost/3, #{}, 90},
+     {packet_to_component, global, fun ?MODULE:packet_to_component/3, #{}, 90},
+     {sm_register_connection_hook, HostType, fun ?MODULE:session_opened/3, #{}, 90},
+     {sm_remove_connection_hook, HostType, fun ?MODULE:session_closed/3, #{}, 90}].
 
 -spec normalize_jid(jid:ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->

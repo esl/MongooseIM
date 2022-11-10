@@ -9,6 +9,7 @@
          change_affiliation/4,
          remove_user_from_room/3,
          send_message/3,
+         send_message/4,
          delete_room/2,
          delete_room/1,
          get_room_messages/3,
@@ -19,6 +20,7 @@
          get_room_info/2,
          get_room_aff/1,
          get_room_aff/2,
+         get_room_user_aff/3,
          get_blocking_list/1,
          set_blocking/2
         ]).
@@ -105,7 +107,7 @@ change_room_config(#jid{luser = RoomID, lserver = MUCServer} = RoomJID,
                     {not_allowed, "Given user does not have permission to change config"};
                 {error, not_exists} ->
                     ?ROOM_NOT_FOUND_RESULT;
-                {error, {error, {Key, Reason}}} ->
+                {error, {Key, Reason}} ->
                     ?VALIDATION_ERROR_RESULT(Key, Reason)
             end;
         {error, not_found} ->
@@ -130,20 +132,23 @@ remove_user_from_room(RoomJID, SenderJID, RecipientJID) ->
 
 -spec send_message(jid:jid(), jid:jid(), binary()) ->
     {ok | not_room_member | muc_server_not_found, iolist()}.
-send_message(#jid{lserver = MUCServer} = RoomJID, SenderJID, Message) ->
+send_message(RoomJID, SenderJID, Text) when is_binary(Text) ->
+    Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
+    send_message(RoomJID, SenderJID, [Body], []).
+
+-spec send_message(jid:jid(), jid:jid(), [exml:element()], [exml:attr()]) ->
+    {ok | not_room_member | muc_server_not_found, iolist()}.
+send_message(#jid{lserver = MUCServer} = RoomJID, SenderJID, Children, ExtraAttrs) ->
     case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
         {ok, HostType} ->
-            Body = #xmlel{name = <<"body">>,
-                          children = [ #xmlcdata{ content = Message } ]
-                         },
-            Stanza = #xmlel{name = <<"message">>,
-                            attrs = [{<<"type">>, <<"groupchat">>}],
-                            children = [ Body ]
-                           },
             SenderBare = jid:to_bare(SenderJID),
+            RoomBare = jid:to_bare(RoomJID),
+            Stanza = #xmlel{name = <<"message">>,
+                            attrs = [{<<"type">>, <<"groupchat">>} | ExtraAttrs],
+                            children = Children
+                           },
             case is_user_room_member(HostType, jid:to_lus(SenderBare), jid:to_lus(RoomJID)) of
                 true ->
-                    RoomBare = jid:to_bare(RoomJID),
                     ejabberd_router:route(SenderBare, RoomBare, Stanza),
                     {ok, "Message sent successfully"};
                 false ->

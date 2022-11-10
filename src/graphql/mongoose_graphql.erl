@@ -10,7 +10,8 @@
          get_endpoint/1,
          create_endpoint/3,
          execute/2,
-         execute/3]).
+         execute/3,
+         execute_cli/3]).
 
 -ignore_xref([create_endpoint/3]).
 
@@ -74,7 +75,8 @@ execute(Ep, #{document := Doc,
         {ok, #{ast := Ast2,
                fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
         ok = graphql:validate(Ast2),
-        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars),
+        Vars2 = remove_null_args(Vars),
+        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
         Ctx2 = Ctx#{params => Coerced,
                     operation_name => OpName,
                     authorized => AuthStatus,
@@ -103,6 +105,16 @@ execute(Ep, OpName, Doc)  ->
             ctx => #{}},
     execute(Ep, Req).
 
+-spec execute_cli(graphql:endpoint_context(), undefined | binary(), binary()) ->
+    {ok, map()} | {error, term()}.
+execute_cli(Ep, OpName, Doc)  ->
+    Req = #{document => Doc,
+            operation_name => OpName,
+            vars => #{},
+            authorized => true,
+            ctx => #{method => cli}},
+    execute(Ep, Req).
+
 % Internal
 
 -spec schema_global_patterns(file:name_all()) -> [file:filename_all()].
@@ -124,6 +136,9 @@ graphql_parse(Doc) ->
         {error, Err} ->
             graphql_err:abort([], parse, Err)
     end.
+
+remove_null_args(Vars) ->
+    maps:filter(fun(_Key, Value) -> Value /= null end, Vars).
 
 admin_mapping_rules() ->
     #{objects => #{

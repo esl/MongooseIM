@@ -3,8 +3,9 @@ type StanzaAdminQuery @protected{
   Get last 50 messages to/from a given contact, optionally you can change the limit,
   specify a date or select only messages exchanged with a specific contact
   """
-  getLastMessages(caller: JID!, with: JID, limit: Int = 50, before: DateTime): StanzasPayload
+  getLastMessages(caller: JID!, with: JID, limit: PosInt = 50, before: DateTime): StanzasPayload
     @protected(type: DOMAIN, args: ["caller"])
+    @use(modules: ["mod_mam_pm"], arg: "caller")
 }
 
 type StanzaAdminMutation @protected{

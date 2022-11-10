@@ -25,14 +25,14 @@
          terminate/3]).
 
 %% Hooks callbacks
--export([node_cleanup/2]).
+-export([node_cleanup/3]).
 
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
 
 -export([config_metrics/1]).
 
--ignore_xref([get_session_socket/1, node_cleanup/2, store_session/2]).
+-ignore_xref([get_session_socket/1, store_session/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -89,12 +89,17 @@ start(_HostType, Opts) ->
         false ->
             mod_bosh_backend:start(Opts),
             {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-            ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
+            gen_hook:add_handlers(hooks())
     end.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    gen_hook:delete_handlers(hooks()),
     ok.
+
+-spec hooks() -> gen_hook:hook_list().
+hooks() ->
+    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -123,9 +128,13 @@ supported_features() ->
 %% Hooks handlers
 %%--------------------------------------------------------------------
 
-node_cleanup(Acc, Node) ->
+-spec node_cleanup(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: map(),
+    Params :: #{node := node()},
+    Extra :: map().
+node_cleanup(Acc, #{node := Node}, _) ->
     Res = mod_bosh_backend:node_cleanup(Node),
-    maps:put(?MODULE, Res, Acc).
+    {ok, maps:put(?MODULE, Res, Acc)}.
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks

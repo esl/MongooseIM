@@ -13,9 +13,7 @@
          check_packet/2,
          disco_local_features/3,
          c2s_stream_features/3,
-         xmpp_send_element/2]).
-
--ignore_xref([c2s_stream_features/3, xmpp_send_element/2]).
+         xmpp_send_element/3]).
 
 -include("amp.hrl").
 -include("mongoose.hrl").
@@ -23,48 +21,39 @@
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
--define(AMP_RESOLVER, amp_resolver).
--define(AMP_STRATEGY, amp_strategy).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
-    ejabberd_hooks:delete(legacy_hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
-
--spec legacy_hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-legacy_hooks(HostType) ->
-    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-     {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
-     {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
-     {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10},
-     {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 10}].
-
--spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
-hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99}
-     | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
     [{c2s_preprocessing_hook, HostType, fun ?MODULE:run_initial_check/3, #{}, 10}].
 
+hooks(HostType) ->
+    [
+     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+     {c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
+     {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 10},
+     {amp_verify_support, HostType, fun amp_resolver:verify_support/3, #{}, 10},
+     {amp_check_condition, HostType, fun amp_resolver:check_condition/3, #{}, 10},
+     {amp_determine_strategy, HostType, fun amp_strategy:determine_strategy/3, #{}, 10}
+     | c2s_hooks(HostType)].
+
 %% API
 
--spec run_initial_check(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
-run_initial_check(#{result := drop} = Acc, _Params, _Extra) ->
-    {ok, Acc};
-run_initial_check(Acc, _Params, _Extra) ->
+-spec run_initial_check(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+run_initial_check(Acc, _, _) ->
     case mongoose_acc:stanza_name(Acc) of
-        <<"message">> -> {ok, run_initial_check(Acc)};
+        <<"message">> -> run_initial_check(Acc);
         _ -> {ok, Acc}
     end.
 
@@ -85,14 +74,24 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
     end,
     {ok, NewAcc}.
 
--spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-c2s_stream_features(Acc, _HostType, _Lserver) ->
-    lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE).
+-spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: map(),
+    Extra :: map().
+c2s_stream_features(Acc, _, _) ->
+    {ok, lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE)}.
 
+-spec xmpp_send_element(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+xmpp_send_element(Acc, _Params, _Extra) ->
+    Event = case mongoose_acc:get(c2s, send_result, undefined, Acc) of
+                ok -> delivered;
+                _ -> delivery_failed
+            end,
+    {ok, check_packet(Acc, Event)}.
 %% Internal
 
--spec run_initial_check(mongoose_acc:t()) -> mongoose_acc:t().
+-spec run_initial_check(mongoose_acc:t()) -> gen_hook:hook_fn_ret(mongoose_acc:t()).
 run_initial_check(Acc) ->
     Packet = mongoose_acc:element(Acc),
     From = mongoose_acc:from_jid(Acc),
@@ -104,14 +103,14 @@ run_initial_check(Acc) ->
              end,
     case Result of
         nothing_to_do ->
-            Acc;
+            {ok, Acc};
         drop ->
-            mongoose_acc:set(hook, result, drop, Acc);
+            {stop, Acc};
         NewRules ->
             Acc1 = mongoose_acc:set_permanent(amp, rules, NewRules, Acc),
-            mongoose_acc:update_stanza(#{element => amp:strip_amp_el(Packet),
-                                         from_jid => From,
-                                         to_jid => To}, Acc1)
+            Acc2 = mongoose_acc:update_stanza(#{element => amp:strip_amp_el(Packet),
+                                                from_jid => From, to_jid => To}, Acc1),
+            {ok, Acc2}
     end.
 
 -spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) ->
@@ -250,11 +249,3 @@ find(Pred, [H|T]) ->
         true -> {found, H};
         false -> find(Pred, T)
     end.
-
--spec xmpp_send_element(mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
-xmpp_send_element(Acc, _El) ->
-    Event = case mongoose_acc:get(c2s, send_result, undefined, Acc) of
-                ok -> delivered;
-                _ -> delivery_failed
-            end,
-    check_packet(Acc, Event).

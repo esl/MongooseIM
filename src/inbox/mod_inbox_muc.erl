@@ -11,9 +11,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export([update_inbox_for_muc/1, start/1, stop/1]).
-
--ignore_xref([update_inbox_for_muc/1]).
+-export([update_inbox_for_muc/3, start/1, stop/1]).
 
 %% User jid example is "alice@localhost"
 -type user_jid() :: jid:jid().
@@ -22,25 +20,29 @@
 -type packet() :: exml:element().
 
 start(HostType) ->
-    ejabberd_hooks:add(update_inbox_for_muc, HostType, ?MODULE, update_inbox_for_muc, 90),
+    gen_hook:add_handlers(hooks(HostType)),
     % TODO check ooptions: if system messages stored ->
     % add hook handler for system messages on hook ie. invitation_sent
     ok.
 
 stop(HostType) ->
-    ejabberd_hooks:delete(update_inbox_for_muc, HostType, ?MODULE, update_inbox_for_muc, 90),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
+hooks(HostType) ->
+    [{update_inbox_for_muc, HostType, fun ?MODULE:update_inbox_for_muc/3, #{}, 90}].
 
--spec update_inbox_for_muc(Acc) -> Acc when
-      Acc :: mod_muc_room:update_inbox_for_muc_payload().
+-spec update_inbox_for_muc(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mod_muc_room:update_inbox_for_muc_payload(),
+      Params :: map(),
+      Extra :: map().
 update_inbox_for_muc(
     #{host_type := HostType,
       room_jid := Room,
       from_jid := From,
       from_room_jid := FromRoomJid,
       packet := Packet,
-      affiliations_map := AffsMap} = Acc) ->
+      affiliations_map := AffsMap} = Acc, _, _) ->
     F = fun(AffLJID, Affiliation) ->
             case is_allowed_affiliation(Affiliation) of
                 true ->
@@ -54,7 +56,7 @@ update_inbox_for_muc(
             end
         end,
     mongoose_lib:maps_foreach(F, AffsMap),
-    Acc.
+    {ok, Acc}.
 
 -spec is_allowed_affiliation(mod_muc:affiliation()) -> boolean().
 is_allowed_affiliation(outcast) -> false;
