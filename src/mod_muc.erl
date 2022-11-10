@@ -61,12 +61,12 @@
 -export([process_packet/5]).
 
 %% Hooks handlers
--export([is_muc_room_owner/4,
-         can_access_room/4,
+-export([is_muc_room_owner/3,
+         can_access_room/3,
          remove_domain/3,
-         acc_room_affiliations/2,
-         can_access_identity/4,
-         disco_local_items/1]).
+         acc_room_affiliations/3,
+         can_access_identity/3,
+         disco_local_items/3]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -75,9 +75,9 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    broadcast_service_message/2, can_access_identity/4, can_access_room/4, acc_room_affiliations/2,
-    create_instant_room/6, disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4,
-    remove_domain/3, online_rooms_number/0, register_room/4, restore_room/3, start_link/2]).
+    broadcast_service_message/2, create_instant_room/6, hibernated_rooms_number/0,
+    online_rooms_number/0, register_room/4, restore_room/3, start_link/2
+]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -478,7 +478,7 @@ init({HostType, Opts}) ->
                        hibernated_room_check_interval = CheckInterval,
                        hibernated_room_timeout = HibernatedTimeout},
     %% Hooks
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     %% Handler
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
     case SubdomainPattern of
@@ -509,7 +509,7 @@ set_persistent_rooms_timer(#muc_state{hibernated_room_check_interval = Timeout})
     timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
 handle_call(stop, _From, State) ->
-    ejabberd_hooks:delete(hooks(State#muc_state.host_type)),
+    gen_hook:delete_handlers(hooks(State#muc_state.host_type)),
     {stop, normal, ok, State};
 handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
             _From,
@@ -1259,56 +1259,81 @@ clean_table_from_bad_node(Node, HostType) ->
 %% Hooks handlers
 %%====================================================================
 
--spec is_muc_room_owner(Acc :: boolean(), Acc :: mongoose_acc:t(),
-                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_muc_room_owner(true, _Acc, _Room, _User) ->
-    true;
-is_muc_room_owner(_, _Acc, Room, User) ->
-    mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
+-spec is_muc_room_owner(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: #{room := jid:jid(), user := jid:jid()},
+    Extra :: gen_hook:extra().
+is_muc_room_owner(true, _, _) ->
+    {ok, true};
+is_muc_room_owner(_, #{room := Room, user := User}, _) ->
+    Result = mod_muc_room:is_room_owner(Room, User) =:= {ok, true},
+    {ok, Result}.
 
--spec can_access_room(Acc :: boolean(), Acc :: mongoose_acc:t(),
-                      Room :: jid:jid(), User :: jid:jid()) ->
-    boolean().
-can_access_room(true, _Acc, _Room, _User) ->
-    true;
-can_access_room(_, _Acc, Room, User) ->
-    case mod_muc_room:can_access_room(Room, User) of
+-spec can_access_room(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: #{room := jid:jid(), user := jid:jid()},
+    Extra :: gen_hook:extra().
+can_access_room(true, _, _) ->
+    {ok, true};
+can_access_room(_, #{room := Room, user := User}, _) ->
+    Result = case mod_muc_room:can_access_room(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
-    end.
+    end,
+    {ok, Result}.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_hooks:simple_acc(),
+    Params :: #{domain := jid:lserver()},
+    Extra :: gen_hook:extra().
+ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = server_host_to_muc_host(HostType, Domain),
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
-    Acc.
+    {ok, Acc}.
 
--spec acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
-acc_room_affiliations(Acc1, Room) ->
-    case mongoose_acc:get(?MODULE, {affiliations, Room}, {error, not_found}, Acc1) of
+-spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(), 
+    Params :: #{room := jid:jid()},
+    Extra :: gen_hook:extra().
+acc_room_affiliations(Acc, #{room := Room}, _) ->
+    NewAcc = case mongoose_acc:get(?MODULE, {affiliations, Room}, {error, not_found}, Acc) of
         {error, _} ->
             case mod_muc_room:get_room_users(Room) of
                 {error, not_found} ->
-                    Acc1;
+                    Acc;
                 {ok, _Affs} = Res ->
-                    mongoose_acc:set(?MODULE, {affiliations, Room}, Res, Acc1)
+                    mongoose_acc:set(?MODULE, {affiliations, Room}, Res, Acc)
             end;
         _Affs ->
-            Acc1
-    end.
+            Acc
+    end,
+    {ok, NewAcc}.
 
--spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
-                          Room :: jid:jid(), User :: jid:jid()) ->
-    boolean().
-can_access_identity(true, _HostType, _Room, _User) ->
-    true;
-can_access_identity(_, _HostType, Room, User) ->
-    case mod_muc_room:can_access_identity(Room, User) of
+-spec can_access_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: boolean(),
+    Params :: #{room := jid:jid(), user := jid:jid()},
+    Extra :: gen_hook:extra().
+can_access_identity(true, _, _) ->
+    {ok, true};
+can_access_identity(_, #{room := Room, user := User}, _) ->
+    Result = case mod_muc_room:can_access_identity(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
-    end.
+    end,
+    {ok, Result}.
+
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+disco_local_items(Acc = #{host_type := HostType,
+                          to_jid := #jid{lserver = ServerHost},
+                          node := <<>>}, _, _) ->
+    MUCHost = server_host_to_muc_host(HostType, ServerHost),
+    Items = [#{jid => MUCHost, node => ?NS_MUC}],
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_local_items(Acc, _, _) ->
+    {ok, Acc}.
 
 online_rooms_number() ->
     lists:sum([online_rooms_number(HostType)
@@ -1368,28 +1393,18 @@ config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 hooks(HostType) ->
-    [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
-     {can_access_room, HostType, ?MODULE, can_access_room, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
-     {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
-     {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
+    [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
+     {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
+     {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250}].
 
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host).
 
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
-
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_local_items(Acc = #{host_type := HostType,
-                          to_jid := #jid{lserver = ServerHost},
-                          node := <<>>}) ->
-    MUCHost = server_host_to_muc_host(HostType, ServerHost),
-    Items = [#{jid => MUCHost, node => ?NS_MUC}],
-    mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc) ->
-    Acc.
 
 make_server_host(To, #muc_state{host_type = HostType,
                                 subdomain_pattern = SubdomainPattern}) ->
