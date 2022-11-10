@@ -104,11 +104,11 @@ auth_anonymous(_Config) ->
 
 last(_Config) ->
     HostType = host_type(),
-    {U, S, R, _JID, SID} = get_fake_session(),
+    {U, S, R, JID, SID} = get_fake_session(),
     mod_last:start(HostType, config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
     not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
-    #{} = mod_last:on_presence_update(new_acc(S), U, S, R, Status1),
+    {ok, #{}} = mod_last:on_presence_update(new_acc(S), #{jid => JID, status => Status1}, #{}),
     {ok, TS1, Status1} = mod_last:get_last_info(HostType, U, S),
     async_helper:wait_until(
       fun() ->

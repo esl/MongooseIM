@@ -416,7 +416,8 @@ resend_offline_messages_hook(Acc, JID) ->
     SID :: ejabberd_sm:sid(),
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
-    Params = #{user => User, server => Server, resource => Resource, sid => SID},
+    JID = jid:make(User, Server, Resource),
+    Params = #{jid => JID, sid => SID},
     Args = [User, Server, Resource, SID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -838,7 +839,7 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unset_presence_hook(Acc, JID, Status) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    Params = #{jid => JID},
+    Params = #{jid => JID, status => Status},
     Args = [LUser, LServer, LResource, Status],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
