@@ -5,8 +5,7 @@
 -export([insert_domain/2,
          delete_domain/2,
          set_domain_for_deletion/2,
-         disable_domain/1,
-         enable_domain/1]).
+         set_status/2]).
 
 -export([select_domain_admin/1,
          set_domain_admin/2,
@@ -121,8 +120,6 @@ prepare_test_queries() ->
 insert_domain(Domain, HostType) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
-                {ok, #{host_type := HT}} when HT =:= HostType ->
-                    ok; %% ignore second call
                 {error, not_found} ->
                     insert_domain_settings(Pool, Domain, HostType),
                     insert_domain_event(Pool, Domain),
@@ -138,7 +135,7 @@ select_domain(Domain) ->
         {selected, []} ->
             {error, not_found};
         {selected, [Row]} ->
-             {ok, row_to_map(Row)}
+            {ok, row_to_map(Row)}
     end.
 
 delete_domain(Domain, HostType) ->
@@ -165,15 +162,9 @@ set_domain_for_deletion(Domain, HostType) ->
                 {ok, _} ->
                     {error, wrong_host_type};
                 {error, not_found} ->
-                    ok
+                    {error, not_found}
             end
         end).
-
-disable_domain(Domain) ->
-    set_status(Domain, disabled).
-
-enable_domain(Domain) ->
-    set_status(Domain, enabled).
 
 select_domain_admin(Domain) ->
     Pool = get_db_pool(),
@@ -181,7 +172,7 @@ select_domain_admin(Domain) ->
         {selected, []} ->
             {error, not_found};
         {selected, [Row]} ->
-             {ok, Row}
+            {ok, Row}
     end.
 
 set_domain_admin(Domain, Password) ->
@@ -206,7 +197,7 @@ delete_domain_admin(Domain) ->
                             {updated, 1} = delete_domain_admin(Pool, Domain),
                             ok;
                         {error, not_found} ->
-                            ok
+                            {error, not_found}
                     end
                 end).
 
@@ -330,7 +321,7 @@ set_domain_for_deletion_settings(Pool, Domain) ->
     ExtStatus = status_to_int(deleting),
     execute_successfully(Pool, domain_update_settings_status, [ExtStatus, Domain]).
 
--spec set_status(domain(), mongoose_domain_api:status()) -> ok | {error, term()}.
+-spec set_status(domain(), enabled | disabled) -> ok | {error, term()}.
 set_status(Domain, Status) ->
     transaction(fun(Pool) ->
             case select_domain(Domain) of
