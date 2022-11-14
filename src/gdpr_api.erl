@@ -34,11 +34,25 @@ retrieve_all(Username, Domain, ResultFilePath) ->
                 DataToWrite),
 
             LogFiles = get_all_logs(Username, Domain, TmpDir),
-
             ZipFile = binary_to_list(ResultFilePath),
-            {ok, ZipFile} = zip:create(ZipFile, CsvFiles ++ LogFiles, [{cwd, TmpDir}]),
-            remove_tmp_dir(TmpDir),
-            ok;
+            try
+                {ok, ZipFile} = zip:create(ZipFile, CsvFiles ++ LogFiles, [{cwd, TmpDir}]),
+                remove_tmp_dir(TmpDir),
+                ok
+            catch
+                _:{badmatch, {error, enoent}} ->
+                    ErrorMessage = "It is impossible to create file named '" ++ ZipFile ++ "'",
+                    {wrong_filename_error, ErrorMessage};
+                _:{badmatch, {error, ErrorCode}} when ErrorCode =:= eacces orelse ErrorCode =:= erofs ->
+                    ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",
+                    {file_creation_permission_denied_error, ErrorMessage};
+                _:{badmatch, {error, eisdir}} ->
+                    ErrorMessage = "Given location '" ++ ZipFile ++ "' is a directory",
+                    {location_is_a_directory_error, ErrorMessage};
+                _:{badmatch, {error, {'EXIT', {{badmatch, {error, erofs}}, _}}}} ->
+                    ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",
+                    {file_creation_permission_denied_error, ErrorMessage}
+            end;
         false ->
             {user_does_not_exist_error, "User does not exist"}
     end.
