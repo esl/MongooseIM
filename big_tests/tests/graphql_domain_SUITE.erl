@@ -6,7 +6,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_msg/1, skip_null_fields/1,
-                         execute_domain_admin_command/4, get_unauthorized/1]).
+                         execute_domain_admin_command/4, get_unauthorized/1, get_coercion_err_msg/1]).
 
 -define(HOST_TYPE, <<"dummy auth">>).
 -define(SECOND_HOST_TYPE, <<"test type">>).
@@ -36,6 +36,7 @@ domain_tests() ->
      domain_not_found_error_formatting_after_mutation_enable_domain,
      domain_not_found_error_formatting_after_query,
      wrong_host_type_error_formatting,
+     invalid_domain_name_error,
      disable_domain,
      enable_domain,
      get_domains_by_host_type,
@@ -45,7 +46,8 @@ domain_tests() ->
      get_domains_after_deletion,
      set_domain_password,
      set_nonexistent_domain_password,
-     delete_domain_password
+     delete_domain_password,
+     delete_nonexistent_domain_password
     ].
 
 domain_admin_tests() ->
@@ -110,7 +112,9 @@ unknown_host_type_error_formatting(Config) ->
     DomainName = ?EXAMPLE_DOMAIN,
     HostType = <<"NonExistingHostType">>,
     Result = add_domain(DomainName, HostType, Config),
-    ?assertEqual(<<"Unknown host type">>, get_err_msg(Result)).
+    ?assertEqual(<<"Unknown host type">>, get_err_msg(Result)),
+    Result2 = get_domains_by_host_type(HostType, Config),
+    ?assertEqual(<<"Unknown host type">>, get_err_msg(Result2)).
 
 static_domain_error_formatting(Config) ->
     DomainName = <<"localhost">>,
@@ -140,6 +144,14 @@ domain_not_found_error_formatting_after_query(Config) ->
 wrong_host_type_error_formatting(Config) ->
     Result = remove_domain(?EXAMPLE_DOMAIN, ?SECOND_HOST_TYPE, Config),
     ?assertEqual(<<"Wrong host type was provided">>, get_err_msg(Result)).
+
+invalid_domain_name_error(Config) ->
+    %% One operation tested, because they all use the DomainName type
+    Result1 = add_domain(<<>>, ?HOST_TYPE, Config),
+    get_coercion_err_msg(Result1),
+    TooLong = binary:copy(<<$a>>, 1024),
+    Result2 = add_domain(TooLong, ?HOST_TYPE, Config),
+    get_coercion_err_msg(Result2).
 
 disable_domain(Config) ->
     Result = disable_domain(?EXAMPLE_DOMAIN, Config),
@@ -209,7 +221,14 @@ set_nonexistent_domain_password(Config) ->
 delete_domain_password(Config) ->
     Result = delete_domain_password(domain_helper:domain(), Config),
     ParsedResult = get_ok_value([data, domain, deleteDomainPassword], Result),
-    ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)).
+    ?assertNotEqual(nomatch, binary:match(ParsedResult, <<"successfully">>)),
+    Result2 = delete_domain_password(domain_helper:domain(), Config),
+    domain_password_not_found_error_formatting(Result2).
+
+delete_nonexistent_domain_password(Config) ->
+    Domain = <<"unknown-domain.com">>,
+    Result = delete_domain_password(Domain, Config),
+    domain_password_not_found_error_formatting(Result).
 
 domain_admin_get_domain_details(Config) ->
     Result = get_domain_details(?DOMAIN_ADMIN_EXAMPLE_DOMAIN, Config),
@@ -297,3 +316,6 @@ delete_domain_password(Domain, Config) ->
 
 domain_not_found_error_formatting(Result) ->
     ?assertMatch(<<"Given domain does not exist", _/binary>>, get_err_msg(Result)).
+
+domain_password_not_found_error_formatting(Result) ->
+    ?assertEqual(<<"Domain password does not exist">>, get_err_msg(Result)).

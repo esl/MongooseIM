@@ -147,6 +147,7 @@ rest_cases() ->
      rest_can_enable_domain,
      rest_can_select_domain,
      rest_cannot_select_domain_if_domain_not_found,
+     rest_cannot_select_domain_when_it_is_static,
      rest_cannot_put_domain_without_host_type,
      rest_cannot_put_domain_without_body,
      rest_cannot_put_domain_with_invalid_json,
@@ -874,7 +875,9 @@ rest_cannot_delete_domain_without_correct_type(Config) ->
 
 rest_cannot_delete_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>),
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
+        domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 rest_cannot_enable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
@@ -956,7 +959,6 @@ rest_cannot_select_domain_without_auth(Config) ->
     {{<<"401">>, <<"Unauthorized">>}, _} =
         rest_select_domain(set_no_creds(Config), <<"example.db">>).
 
-
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_patch_enabled(Config, <<"example.db">>, false).
@@ -977,6 +979,10 @@ rest_can_select_domain(Config) ->
 rest_cannot_select_domain_if_domain_not_found(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_select_domain(Config, <<"example.db">>).
+
+rest_cannot_select_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
+        rest_select_domain(Config, <<"example.cfg">>).
 
 rest_cannot_put_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>}, <<"'host_type' field is missing">>} =
@@ -1012,7 +1018,9 @@ rest_cannot_delete_domain_with_invalid_json(Config) ->
 
 rest_cannot_delete_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>),
+    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
+        domain_rest_helper:request_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
 
 rest_cannot_patch_domain_without_enabled_field(Config) ->
     {{<<"400">>, <<"Bad Request">>}, <<"'enabled' field is missing">>} =
