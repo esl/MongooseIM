@@ -147,7 +147,7 @@ do_lookup_messages(_Result, Host, Params) ->
 
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
     Extra :: gen_hook:extra().
 archive_size(_Size, #{room := RoomJid}, _Extra) ->
     SearchQuery = build_search_query(#{owner_jid => RoomJid}),

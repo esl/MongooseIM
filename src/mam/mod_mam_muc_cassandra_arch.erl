@@ -115,7 +115,7 @@ prepared_queries() ->
 
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
     Extra :: gen_hook:extra().
 archive_size(Size, #{room := RoomJID}, #{host_type := HostType}) when is_integer(Size) ->
     PoolName = pool_name(HostType),

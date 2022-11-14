@@ -213,7 +213,7 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
     Extra :: gen_hook:extra().
 archive_size(Size, #{archive_id := ArcID, room := ArcJID}, #{host_type := HostType}) when is_integer(Size) ->
     Filter = [{equal, room_id, ArcID}],

@@ -174,7 +174,7 @@ lookup_messages_muc(Result, #{with_jid := WithJID} = Params, Extra) ->
 
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
     Extra :: gen_hook:extra().
 archive_size(_Size, #{owner := ArchiveJID}, #{host_type := HostType}) ->
     archive_size(ArchiveJID, HostType);
