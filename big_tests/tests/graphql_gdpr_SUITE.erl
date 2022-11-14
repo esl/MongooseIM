@@ -119,14 +119,14 @@ admin_gdpr_access_denied_exit(Config, Alice) ->
     ?assertEqual(<<"file_creation_permission_denied_error">>, get_err_code(Res)).
 
 admin_gdpr_access_denied_filename_is_a_directory(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_access_denied_filename_is_a_directory/2).
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_gdpr_access_denied_filename_is_a_directory/2).
 
 admin_gdpr_access_denied_filename_is_a_directory(Config, Alice) ->
     Filename = "//",
     Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
                                        list_to_binary(Filename), Config),
     ?assertEqual(<<"location_is_a_directory_error">>, get_err_code(Res)).
-
 
 domain_admin_retrieve_user_data_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
