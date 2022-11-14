@@ -517,7 +517,7 @@ determine_amp_strategy(Strategy, _Params, _Extra) ->
 
 -spec get_personal_data(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc ::  gdpr:personal_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := JID}, #{host_type := HostType}) ->
     {ok, Messages} = mod_offline_backend:fetch_messages(HostType, JID),

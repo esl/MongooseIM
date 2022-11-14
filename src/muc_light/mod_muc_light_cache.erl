@@ -102,7 +102,7 @@ post_room_exists(Status, _, _) ->
 
 -spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: map(),
+    Params :: #{muc_host := jid:server(), room := jid:luser()},
     Extra :: gen_hook:extra().
 forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, jid:make_noprep(RoomU, RoomS, <<>>)),

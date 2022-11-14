@@ -83,11 +83,18 @@ prepared_queries() ->
 
 -spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_behaviour(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_behaviour_params(),
     Extra :: gen_hook:extra().
 get_behaviour(DefaultBehaviour,
               #{owner := LocJID, remote := RemJID},
               #{host_type := HostType}) ->
+    get_behaviour2(DefaultBehaviour, LocJID, RemJID, HostType);
+get_behaviour(DefaultBehaviour,
+              #{room := LocJID, remote := RemJID},
+              #{host_type := HostType}) ->
+    get_behaviour2(DefaultBehaviour, LocJID, RemJID, HostType).
+
+get_behaviour2(DefaultBehaviour, LocJID, RemJID, HostType) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
     BRemBareJID = mod_mam_utils:bare_jid(RemJID),
     BRemJID = mod_mam_utils:full_jid(RemJID),

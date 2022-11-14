@@ -80,33 +80,40 @@ hooks(_HostType, _Opt, _Opts) ->
 
 -spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_behaviour(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_behaviour_params(),
     Extra :: gen_hook:extra().
 get_behaviour(DefaultBehaviour,
               #{owner := LocJID, remote := RemJID},
               _Extra) ->
+    get_behaviour2(DefaultBehaviour, LocJID, RemJID);
+get_behaviour(DefaultBehaviour,
+              #{room := LocJID, remote := RemJID},
+              _Extra) ->
+    get_behaviour2(DefaultBehaviour, LocJID, RemJID).
+
+get_behaviour2(DefaultBehaviour, LocJID, RemJID) ->
     SU = su_key(LocJID),
     case mnesia:dirty_read(mam_prefs, SU) of
         [] -> {ok, DefaultBehaviour};
-        [User] -> {ok, get_behaviour2(User, LocJID, RemJID)}
+        [User] -> {ok, get_behaviour3(User, LocJID, RemJID)}
     end.
 
 
--spec get_behaviour2(mam_prefs(), LocJID :: jid:jid(),
+-spec get_behaviour3(mam_prefs(), LocJID :: jid:jid(),
                     RemJID :: jid:jid()) -> behaviour().
-get_behaviour2(#mam_prefs{default_mode = always, never_rules = NeverJIDs}, LocJID, RemJID) ->
+get_behaviour3(#mam_prefs{default_mode = always, never_rules = NeverJIDs}, LocJID, RemJID) ->
     IsNever = match_jid(LocJID, RemJID, NeverJIDs),
     case IsNever of
         true -> never;
         false -> always
     end;
-get_behaviour2(#mam_prefs{default_mode = never, always_rules = AlwaysJIDs}, LocJID, RemJID) ->
+get_behaviour3(#mam_prefs{default_mode = never, always_rules = AlwaysJIDs}, LocJID, RemJID) ->
     IsAlways = match_jid(LocJID, RemJID, AlwaysJIDs),
     case IsAlways of
         true -> always;
         false -> never
     end;
-get_behaviour2(#mam_prefs{default_mode = roster,
+get_behaviour3(#mam_prefs{default_mode = roster,
                           never_rules = NeverJIDs,
                           always_rules = AlwaysJIDs}, LocJID, RemJID) ->
     IsNever = match_jid(LocJID, RemJID, NeverJIDs),

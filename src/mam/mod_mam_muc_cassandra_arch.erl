@@ -437,7 +437,7 @@ row_to_message_id(#{id := MsgID}) ->
 
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := Jid}, #{host_type := HostType}) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),

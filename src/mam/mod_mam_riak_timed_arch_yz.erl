@@ -368,7 +368,7 @@ get_message2(Host, MsgId, Bucket, Key) ->
 
 -spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_mam_pm_gdpr_data(Acc, #{jid := OwnerJid}, _Extra) ->
     Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
@@ -377,7 +377,7 @@ get_mam_pm_gdpr_data(Acc, #{jid := OwnerJid}, _Extra) ->
 
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := JID}, _Extra) ->
     Messages = get_mam_gdpr_data(JID, <<"muc">>),

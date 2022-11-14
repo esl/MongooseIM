@@ -104,7 +104,7 @@ order_by_remote_jid_in_delete(HostType) ->
 
 -spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_behaviour(),
-    Params :: map(),
+    Params :: ejabberd_gen_mam_prefs:get_behaviour_params(),
     Extra :: gen_hook:extra().
 get_behaviour(DefaultBehaviour,
               #{archive_id := UserID, remote := RemJID},

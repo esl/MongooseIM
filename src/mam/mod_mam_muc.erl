@@ -84,7 +84,7 @@
 
 -spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: gdpr:personal_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := ArcJID}, #{host_type := HostType}) ->
     Schema = ["id", "message"],
@@ -243,7 +243,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
 
 -spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: #{muc_host := jid:server(), room := jid:luser()},
     Extra :: gen_hook:extra().
 forget_room(Acc, #{muc_host := MucServer, room := RoomName}, _Extra) ->
     delete_archive(MucServer, RoomName),

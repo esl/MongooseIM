@@ -99,7 +99,7 @@
 
 -spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: gdpr:personal_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Jid = jid:to_binary({LUser, LServer}),

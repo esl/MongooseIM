@@ -74,7 +74,7 @@ muc_hooks(HostType) ->
 %%====================================================================
 -spec cached_archive_id(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_id() | undefined,
-    Params :: map(),
+    Params :: #{owner := jid:jid()},
     Extra :: gen_hook:extra().
 cached_archive_id(undefined, #{owner := ArcJid}, #{host_type := HostType}) ->
     case mongoose_user_cache:get_entry(HostType, ?MODULE, ArcJid) of
@@ -87,7 +87,7 @@ cached_archive_id(undefined, #{owner := ArcJid}, #{host_type := HostType}) ->
 
 -spec store_archive_id(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_id() | undefined,
-    Params :: map(),
+    Params :: #{owner := jid:jid()},
     Extra :: gen_hook:extra().
 store_archive_id(ArchId, #{owner := ArcJid}, #{host_type := HostType}) ->
     case erase(mam_not_cached_flag) of

@@ -64,7 +64,7 @@ supported_features() ->
 
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-    Params :: map(),
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     case mod_mam_pm:archive_id(LServer, LUser) of
