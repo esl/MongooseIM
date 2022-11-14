@@ -172,7 +172,7 @@ deps(_HostType, Opts) ->
 -spec session_opened(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: any(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 session_opened(Acc, #{jid := UserJid}, _) ->
     insert_for_jid(UserJid),
     {ok, Acc}.
@@ -180,7 +180,7 @@ session_opened(Acc, #{jid := UserJid}, _) ->
 -spec session_closed(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 session_closed(Acc, #{jid := UserJid}, _) ->
     delete_for_jid(UserJid),
     {ok, Acc}.
@@ -188,7 +188,7 @@ session_closed(Acc, #{jid := UserJid}, _) ->
 -spec packet_to_component(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{from := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 packet_to_component(Acc, #{from := From}, _) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     {ok, Acc}.
@@ -196,7 +196,7 @@ packet_to_component(Acc, #{from := From}, _) ->
 -spec register_subhost(Acc, Params, Extra) -> {ok, ok} when
       Acc :: any(),
       Params :: #{ldomain := binary(), is_hidden := boolean()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 register_subhost(_, #{ldomain := SubHost, is_hidden := IsHidden}, _) ->
     IsSubhostOf =
         fun(Host) ->
@@ -216,7 +216,7 @@ register_subhost(_, #{ldomain := SubHost, is_hidden := IsHidden}, _) ->
 -spec unregister_subhost(Acc, Params, Extra) -> {ok, ok} when
       Acc :: any(),
       Params :: #{ldomain := binary()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 unregister_subhost(_, #{ldomain := SubHost}, _) ->
     {ok, delete_for_domain(SubHost)}.
 

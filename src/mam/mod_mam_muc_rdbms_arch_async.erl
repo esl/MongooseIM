@@ -16,7 +16,7 @@
 -spec archive_muc_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()},
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_muc_message(Result,
                     #{archive_id := RoomID} = Params0,
                     #{host_type := HostType}) ->
@@ -27,7 +27,7 @@ archive_muc_message(Result,
 -spec mam_muc_archive_sync(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 mam_muc_archive_sync(Result, _Params, #{host_type := HostType}) ->
     mongoose_async_pools:sync(HostType, muc_mam),
     {ok, Result}.

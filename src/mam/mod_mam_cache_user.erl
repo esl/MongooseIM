@@ -75,7 +75,7 @@ muc_hooks(HostType) ->
 -spec cached_archive_id(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_id() | undefined,
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 cached_archive_id(undefined, #{owner := ArcJid}, #{host_type := HostType}) ->
     case mongoose_user_cache:get_entry(HostType, ?MODULE, ArcJid) of
         #{id := ArchId} ->
@@ -88,7 +88,7 @@ cached_archive_id(undefined, #{owner := ArcJid}, #{host_type := HostType}) ->
 -spec store_archive_id(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_id() | undefined,
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 store_archive_id(ArchId, #{owner := ArcJid}, #{host_type := HostType}) ->
     case erase(mam_not_cached_flag) of
         undefined ->
@@ -100,9 +100,12 @@ store_archive_id(ArchId, #{owner := ArcJid}, #{host_type := HostType}) ->
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{owner := ArcJid}, #{host_type := HostType}) ->
+    mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
+    {ok, Acc};
+remove_archive(Acc, #{room := ArcJid}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
     {ok, Acc}.
 

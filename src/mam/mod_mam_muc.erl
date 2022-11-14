@@ -85,7 +85,7 @@
 -spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: gdpr:personal_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := ArcJID}, #{host_type := HostType}) ->
     Schema = ["id", "message"],
     Entries = mongoose_hooks:get_mam_muc_gdpr_data(HostType, ArcJID),
@@ -142,7 +142,7 @@ supported_features() ->
 -spec disco_muc_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_muc_features(Acc = #{host_type := HostType, node := <<>>}, _Params, _Extra) ->
     {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_muc_features(Acc, _Params, _Extra) ->
@@ -152,7 +152,7 @@ disco_muc_features(Acc, _Params, _Extra) ->
 -spec filter_room_packet(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: exml:element(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 filter_room_packet(Packet, #{event_data := #{} = EventData}, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
@@ -219,7 +219,7 @@ archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
                           From :: jid:jid(),
                           To :: jid:jid(),
                           IQ :: jlib:iq(),
-                          Extra :: map()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
+                          Extra :: gen_hook:extra()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
@@ -244,7 +244,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
 -spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 forget_room(Acc, #{muc_host := MucServer, room := RoomName}, _Extra) ->
     delete_archive(MucServer, RoomName),
     {ok, Acc}.

@@ -154,7 +154,7 @@ setup_meck(suite) ->
 setup_meck(mam_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {ok, {error, simulated}}]);
 setup_meck(offline_failure) ->
-ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 4, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 4, {error, simulated}]);
 setup_meck(_) -> ok.
 
 save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];

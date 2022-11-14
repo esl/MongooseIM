@@ -152,7 +152,7 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 -spec handle_remote_hook(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: #{tag := atom(), args := term(), c2s_state := ejabberd_c2s:state()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 handle_remote_hook(HandlerState, #{tag := mod_ping, hook_args := Args, c2s_state := C2SState}, _) ->
     {ok, handle_remote_call(Args,
                        ejabberd_c2s_state:jid(C2SState),
@@ -165,7 +165,7 @@ handle_remote_hook(HandlerState, _, _) ->
 -spec user_online(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
     Params :: #{sid := ejabberd_sm:sid()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 user_online(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
     {ok, Acc}.
@@ -173,7 +173,7 @@ user_online(Acc, #{sid := {_, Pid}}, _) ->
 -spec user_offline(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{sid := ejabberd_sm:sid()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 user_offline(Acc, #{sid := {_, Pid}}, _) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, remove_timer),
     {ok, Acc}.
@@ -181,7 +181,7 @@ user_offline(Acc, #{sid := {_, Pid}}, _) ->
 -spec user_send(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_send(Acc, _, _) ->
     ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
     {ok, Acc}.
@@ -189,7 +189,7 @@ user_send(Acc, _, _) ->
 -spec user_keep_alive(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_keep_alive(Acc, _, _) ->
     ejabberd_c2s:run_remote_hook(self(), mod_ping, init),
     {ok, Acc}.

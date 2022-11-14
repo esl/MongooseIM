@@ -428,7 +428,7 @@ revoke_token_command(Owner) ->
 -spec clean_tokens(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 clean_tokens(Acc, #{jid := Owner}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     try

@@ -17,15 +17,15 @@
 
 -spec archive_pm_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_pm_message(_Result, #{archive_id := ArcID} = Params, #{host_type := HostType}) ->
     {ok, mongoose_async_pools:put_task(HostType, pm_mam, ArcID, Params)}.
 
 -spec mam_archive_sync(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 mam_archive_sync(Result, _Params, #{host_type := HostType}) ->
     mongoose_async_pools:sync(HostType, pm_mam),
     {ok, Result}.

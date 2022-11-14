@@ -60,7 +60,7 @@ stop(HostType) ->
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := Source}, _Extra) ->
     BinSource = mod_mam_utils:bare_jid(Source),
     Filter = #{term => #{from_jid => BinSource}},
@@ -77,8 +77,8 @@ get_mam_muc_gdpr_data(Acc, #{jid := Source}, _Extra) ->
 
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result, Params, #{host_type := HostType}) ->
     #{message_id := MessageId,
       local_jid := RoomJid,
@@ -104,8 +104,8 @@ archive_message(_Result, Params, #{host_type := HostType}) ->
 
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages(Result,
                 #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params,
                 #{host_type := HostType})
@@ -148,15 +148,15 @@ do_lookup_messages(_Result, Host, Params) ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_size(_Size, #{room := RoomJid}, _Extra) ->
     SearchQuery = build_search_query(#{owner_jid => RoomJid}),
     {ok, archive_size(SearchQuery)}.
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
     SearchQuery = build_search_query(#{owner_jid => RoomJid}),
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of

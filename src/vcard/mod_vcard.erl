@@ -100,7 +100,7 @@
 -spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: gdpr:personal_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
@@ -390,7 +390,7 @@ process_local_iq(Acc, _From, _To, IQ = #iq{type = get}, _Extra) ->
                     From :: jid:jid(),
                     To :: jid:jid(),
                     IQ :: jlib:iq(),
-                    Extra :: map()) ->
+                    Extra :: gen_hook:extra()) ->
      {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq(Acc, From, To, IQ = #iq{type = set, sub_el = VCARD}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -459,7 +459,7 @@ unsafe_set_vcard(HostType, From, VCARD) ->
 -spec set_vcard(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, term()},
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 set_vcard(ok, _Params, _Extra) ->
     ?LOG_DEBUG(#{what => hook_call_already_handled}),
     {ok, ok};
@@ -481,7 +481,7 @@ set_vcard({error, _} = Error, _Params, _Extra) ->
 -spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_vcard_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
@@ -489,7 +489,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),

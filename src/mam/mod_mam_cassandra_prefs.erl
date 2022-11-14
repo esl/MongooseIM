@@ -84,7 +84,7 @@ prepared_queries() ->
 -spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_behaviour(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_behaviour(DefaultBehaviour,
               #{owner := LocJID, remote := RemJID},
               #{host_type := HostType}) ->
@@ -109,7 +109,7 @@ get_behaviour(DefaultBehaviour,
 -spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: ejabberd_gen_mam_prefs:set_prefs_params(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 set_prefs(_Result,
           #{owner := UserJID, default_mode := DefaultMode, always_jids := AlwaysJIDs,
             never_jids := NeverJIDs},
@@ -151,7 +151,7 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
 -spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc ::  mod_mam:preference(),
     Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_prefs({GlobalDefaultMode, _, _}, #{owner := UserJID}, #{host_type := HostType}) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
@@ -162,9 +162,12 @@ get_prefs({GlobalDefaultMode, _, _}, #{owner := UserJID}, #{host_type := HostTyp
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{owner := UserJID}, #{host_type := HostType}) ->
+    remove_archive(HostType, UserJID),
+    {ok, Acc};
+remove_archive(Acc, #{room := UserJID}, #{host_type := HostType}) ->
     remove_archive(HostType, UserJID),
     {ok, Acc}.
 

@@ -98,30 +98,30 @@ mam_bucket_type(Host) ->
 %% SrcJID - "Real" sender JID
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result,
                 #{message_id := MessId,
                   local_jid := LocJID,
                   remote_jid := RemJID,
                   source_jid := SrcJID,
                   packet := Packet} = Params,
-                #{host_type := Host}) ->
+                #{host_type := HostType}) ->
     try
-        {ok, archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)}
+        {ok, archive_message(HostType, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)}
     catch Class:Reason:StackTrace ->
             ?LOG_WARNING(maps:merge(Params,
                          #{what => archive_message_failed,
                            text => <<"Could not write message to archive">>,
                            class => Class, reason => Reason, stacktrace => StackTrace})),
-            mongoose_metrics:update(Host, modMamDropped, 1),
+            mongoose_metrics:update(HostType, modMamDropped, 1),
             {ok, {error, Reason}}
     end.
 
 -spec archive_message_muc(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 %% LocJID - MUC/MUC Light room's JID
 %% FromJID - "Real" sender JID
 %% SrcJID - Full JID of user within room (room@domain/user)
@@ -131,16 +131,16 @@ archive_message_muc(_Result,
                       remote_jid := FromJID,
                       source_jid := SrcJID,
                       packet := Packet} = Params,
-                #{host_type := Host}) ->
+                #{host_type := HostType}) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
-        {ok, archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)}
+        {ok, archive_message(HostType, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)}
     catch Class:Reason:StackTrace ->
         ?LOG_WARNING(maps:merge(Params,
                      #{what => archive_muc_message_failed,
                        text => <<"Could not write MUC message to archive">>,
                        class => Class, reason => Reason, stacktrace => StackTrace})),
-        mongoose_metrics:update(Host, modMamDropped, 1),
+        mongoose_metrics:update(HostType, modMamDropped, 1),
         {ok, {error, Reason}}
     end.
 
@@ -152,21 +152,21 @@ maybe_muc_jid(Other) ->
 
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
-lookup_messages(_Result, Params, #{host_type := Host}) ->
+lookup_messages(_Result, Params, #{host_type := HostType}) ->
     try
-        {ok, lookup_messages(Host, Params)}
+        {ok, lookup_messages(HostType, Params)}
     catch _Type:Reason:S ->
         {ok, {error, {Reason, {stacktrace, S}}}}
     end.
 
 -spec lookup_messages_muc(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages_muc(Result, #{with_jid := WithJID} = Params, Extra) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
     lookup_messages(Result, Params#{with_jid => WithJIDMuc}, Extra).
@@ -175,11 +175,11 @@ lookup_messages_muc(Result, #{with_jid := WithJID} = Params, Extra) ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
-archive_size(_Size, #{owner := ArchiveJID}, #{host_type := Host}) ->
-    archive_size(ArchiveJID, Host);
-archive_size(_Size, #{room := ArchiveJID}, #{host_type := Host}) ->
-    archive_size(ArchiveJID, Host).
+    Extra :: gen_hook:extra().
+archive_size(_Size, #{owner := ArchiveJID}, #{host_type := HostType}) ->
+    archive_size(ArchiveJID, HostType);
+archive_size(_Size, #{room := ArchiveJID}, #{host_type := HostType}) ->
+    archive_size(ArchiveJID, HostType).
 
 archive_size(ArchiveJID, Host) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
@@ -369,7 +369,7 @@ get_message2(Host, MsgId, Bucket, Key) ->
 -spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_pm_gdpr_data(Acc, #{jid := OwnerJid}, _Extra) ->
     Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
     {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)}
@@ -378,7 +378,7 @@ get_mam_pm_gdpr_data(Acc, #{jid := OwnerJid}, _Extra) ->
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := JID}, _Extra) ->
     Messages = get_mam_gdpr_data(JID, <<"muc">>),
     {ok, [{MsgId, exml:to_binary(Packet)} || #{id := MsgId, packet := Packet} <- Messages] ++ Acc}.
@@ -392,13 +392,13 @@ get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
-remove_archive(Acc, #{owner := ArchiveJID}, #{host_type := Host}) ->
-    remove_archive(Host, ArchiveJID),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{owner := ArchiveJID}, #{host_type := HostType}) ->
+    remove_archive(HostType, ArchiveJID),
     {ok, Acc};
-remove_archive(Acc, #{room := ArchiveJID}, #{host_type := Host}) ->
-    remove_archive(Host, ArchiveJID),
+remove_archive(Acc, #{room := ArchiveJID}, #{host_type := HostType}) ->
+    remove_archive(HostType, ArchiveJID),
     {ok, Acc}.
 
 remove_archive(Host, ArchiveJID) ->

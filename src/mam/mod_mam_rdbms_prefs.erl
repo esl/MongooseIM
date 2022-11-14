@@ -105,7 +105,7 @@ order_by_remote_jid_in_delete(HostType) ->
 -spec get_behaviour(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_behaviour(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_behaviour(DefaultBehaviour,
               #{archive_id := UserID, remote := RemJID},
               #{host_type := HostType})
@@ -140,7 +140,7 @@ choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
 -spec set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: ejabberd_gen_mam_prefs:set_prefs_params(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 set_prefs(_Result,
           #{archive_id := UserID, default_mode := DefaultMode,
             always_jids := AlwaysJIDs, never_jids := NeverJIDs},
@@ -166,15 +166,15 @@ set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 -spec get_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc ::  mod_mam:preference(),
     Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_prefs({GlobalDefaultMode, _, _}, #{archive_id := UserID}, #{host_type := HostType}) ->
     {selected, Rows} = mongoose_rdbms:execute(HostType, mam_prefs_select, [UserID]),
     {ok, decode_prefs_rows(Rows, GlobalDefaultMode, [], [])}.
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{archive_id := UserID}, #{host_type := HostType}) ->
     remove_archive(HostType, UserID),
     {ok, Acc}.

@@ -65,7 +65,7 @@ supported_features() ->
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     case mod_mam_pm:archive_id(LServer, LUser) of
         undefined ->
@@ -214,7 +214,7 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_size(Size, #{archive_id := ArcID, room := ArcJID}, #{host_type := HostType}) when is_integer(Size) ->
     Filter = [{equal, room_id, ArcID}],
     Env = env_vars(HostType, ArcJID),
@@ -228,8 +228,8 @@ extend_params_with_sender_id(HostType, Params = #{remote_jid := SenderJID}) ->
 
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result, #{local_jid := ArcJID} = Params0, #{host_type := HostType}) ->
     try
         Params = extend_params_with_sender_id(HostType, Params0),
@@ -311,8 +311,8 @@ prepare_insert(Name, NumRows) ->
 %% Removal logic
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{archive_id := ArcID}, #{host_type := HostType}) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_archive_remove, [ArcID]),
     {ok, Acc}.
@@ -320,7 +320,7 @@ remove_archive(Acc, #{archive_id := ArcID}, #{host_type := HostType}) ->
 -spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             case gen_mod:get_module_opt(HostType, ?MODULE, delete_domain_limit) of
@@ -372,8 +372,8 @@ extract_gdpr_messages(HostType, SenderID) ->
 %% Lookup logic
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
 lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->

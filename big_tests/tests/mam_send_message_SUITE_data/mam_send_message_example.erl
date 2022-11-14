@@ -33,11 +33,11 @@ lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
 lookup_messages({ok, {TotalCount, Offset, MessageRows}},
                 #{owner_jid := ArcJID, caller_jid := _CallerJID} = _Params,
-                #{host_type := Host}) ->
-    MessageRows2 = [extend_message(Host, ArcJID, Row) || Row <- MessageRows],
+                #{host_type := HostType}) ->
+    MessageRows2 = [extend_message(HostType, ArcJID, Row) || Row <- MessageRows],
     {ok, {ok, {TotalCount, Offset, MessageRows2}}}.
 
-extend_message(_Host, _ArcJID, Row = #{}) ->
+extend_message(_HostType, _ArcJID, Row = #{}) ->
     %% Extend a message with a new field
     %% Usually extracted from a DB
     Row#{some_hash => erlang:phash2(Row, 32)}.

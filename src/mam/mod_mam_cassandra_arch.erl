@@ -116,7 +116,7 @@ prepared_queries() ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_size(Size, #{owner := UserJID}, #{host_type := HostType}) when is_integer(Size) ->
     Borders = Start = End = WithJID = undefined,
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
@@ -133,8 +133,8 @@ insert_query_cql() ->
 
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
@@ -193,8 +193,8 @@ select_for_removal_query_cql() ->
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner := jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{owner := UserJID}, #{host_type := HostType}) ->
     remove_archive(HostType, UserJID),
     {ok, Acc}.
@@ -219,8 +219,8 @@ remove_archive(HostType, UserJID) ->
 
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
 lookup_messages(_Result, #{search_text := <<_/binary>>}, _Extra) ->
@@ -429,7 +429,7 @@ row_to_message_id(#{id := MsgID}) ->
 -spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_pm_gdpr_data(Acc, #{jid := JID}, #{host_type := HostType}) ->
     BinJID = jid:to_binary(jid:to_lower(JID)),
     FilterMap = #{user_jid => BinJID, with_jid => <<"">>},

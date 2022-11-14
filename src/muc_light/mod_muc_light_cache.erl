@@ -51,7 +51,7 @@ hooks(HostType) ->
 -spec pre_acc_room_affiliations(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 pre_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
     case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
@@ -68,7 +68,7 @@ pre_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
 -spec post_acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 post_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
     case mod_muc_light:get_room_affs_from_acc(Acc, RoomJid) of
         {error, _} ->
@@ -81,7 +81,7 @@ post_acc_room_affiliations(Acc, #{room := RoomJid}, #{host_type := HostType}) ->
 -spec pre_room_exists(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: boolean(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 pre_room_exists(false, #{room := RoomJid}, #{host_type := HostType}) ->
     case mongoose_user_cache:is_member(HostType, ?MODULE, RoomJid) of
         true -> {stop, true};
@@ -93,7 +93,7 @@ pre_room_exists(Status, _, _) ->
 -spec post_room_exists(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: boolean(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 post_room_exists(true, #{room := RoomJid}, #{host_Type := HostType}) ->
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{}),
     {ok, true};
@@ -103,7 +103,7 @@ post_room_exists(Status, _, _) ->
 -spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, jid:make_noprep(RoomU, RoomS, <<>>)),
     {ok, Acc}.
@@ -111,7 +111,7 @@ forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) 
 -spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     MUCHost = mod_muc_light:server_host_to_muc_host(HostType, Domain),
     mongoose_user_cache:delete_domain(HostType, ?MODULE, MUCHost),
@@ -120,7 +120,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 -spec room_new_affiliations(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 room_new_affiliations(Acc, #{room := RoomJid, new_affs := NewAffs, version := NewVersion}, _Extra) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     % make sure other nodes forget about stale values

@@ -71,7 +71,7 @@ prepare_queries() ->
 -spec archive_id(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_mam:archive_id() | undefined,
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_id(undefined,
            #{owner := #jid{lserver = LServer, luser = LUser}},
            #{host_type := HostType}) ->
@@ -82,7 +82,7 @@ archive_id(ArcID, _Params, _Extra) ->
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_archive(Acc,
                #{owner := #jid{lserver = LServer, luser = LUser}},
                #{host_type := HostType}) ->

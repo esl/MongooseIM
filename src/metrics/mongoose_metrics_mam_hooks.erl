@@ -61,38 +61,38 @@ get_mam_muc_hooks(Host) ->
     Acc :: mod_mam:preference() | {error, Reason :: term()},
     Params :: map(),
     Extra :: map().
-mam_get_prefs(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamPrefsGets, 1),
+mam_get_prefs(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamPrefsGets, 1),
     {ok, Result}.
 
 -spec mam_set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: map(),
     Extra :: map().
-mam_set_prefs(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamPrefsSets, 1),
+mam_set_prefs(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamPrefsSets, 1),
     {ok, Result}.
 
 -spec mam_remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner := jid:jid()},
     Extra :: map().
-mam_remove_archive(Acc, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamArchiveRemoved, 1),
+mam_remove_archive(Acc, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamArchiveRemoved, 1),
     {ok, Acc}.
 
 -spec mam_lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
+    Params :: mam_iq:lookup_params(),
     Extra :: map().
 mam_lookup_messages({ok, {_TotalCount, _Offset, MessageRows}} = Result,
                     #{is_simple := IsSimple},
-                    #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamForwarded, length(MessageRows)),
-    mongoose_metrics:update(Host, modMamLookups, 1),
+                    #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamForwarded, length(MessageRows)),
+    mongoose_metrics:update(HostType, modMamLookups, 1),
     case IsSimple of
         true ->
-            mongoose_metrics:update(Host, [modMamLookups, simple], 1);
+            mongoose_metrics:update(HostType, [modMamLookups, simple], 1);
         _ ->
             ok
     end,
@@ -102,18 +102,18 @@ mam_lookup_messages(Result = {error, _}, _Params, _Extra) ->
 
 -spec mam_archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, timeout},
-    Params :: map(),
+    Params :: mod_mam:archive_message_params(),
     Extra :: map().
-mam_archive_message(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamArchived, 1),
+mam_archive_message(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamArchived, 1),
     {ok, Result}.
 
 -spec mam_flush_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
     Params :: map(),
     Extra :: map().
-mam_flush_messages(Acc, #{count := MessageCount}, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMamFlushed, MessageCount),
+mam_flush_messages(Acc, #{count := MessageCount}, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMamFlushed, MessageCount),
     {ok, Acc}.
 
 %% ----------------------------------------------------------------------------
@@ -123,51 +123,51 @@ mam_flush_messages(Acc, #{count := MessageCount}, #{host_type := Host}) ->
     Acc :: mod_mam:preference() | {error, Reason :: term()},
     Params :: map(),
     Extra :: map().
-mam_muc_get_prefs(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamPrefsGets, 1),
+mam_muc_get_prefs(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamPrefsGets, 1),
     {ok, Result}.
 
 -spec mam_muc_set_prefs(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
     Params :: map(),
     Extra :: map().
-mam_muc_set_prefs(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamPrefsSets, 1),
+mam_muc_set_prefs(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamPrefsSets, 1),
     {ok, Result}.
 
 -spec mam_muc_remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
     Extra :: map().
-mam_muc_remove_archive(Acc, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamArchiveRemoved, 1),
+mam_muc_remove_archive(Acc, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamArchiveRemoved, 1),
     {ok, Acc}.
 
 -spec mam_muc_lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
+    Params :: mam_iq:lookup_params(),
     Extra :: map().
 mam_muc_lookup_messages({ok, {_TotalCount, _Offset, MessageRows}} = Result,
                         _Params,
-                        #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamForwarded, length(MessageRows)),
-    mongoose_metrics:update(Host, modMucMamLookups, 1),
+                        #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamForwarded, length(MessageRows)),
+    mongoose_metrics:update(HostType, modMucMamLookups, 1),
     {ok, Result};
 mam_muc_lookup_messages(Result = {error, _}, _Params, _Extra) ->
     {ok, Result}.
 
 -spec mam_muc_archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, timeout},
-    Params :: map(),
+    Params :: mod_mam:archive_message_params(),
     Extra :: map().
-mam_muc_archive_message(Result, _Params, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamArchived, 1),
+mam_muc_archive_message(Result, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamArchived, 1),
     {ok, Result}.
 
 -spec mam_muc_flush_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok,
     Params :: map(),
     Extra :: map().
-mam_muc_flush_messages(Acc, #{count := MessageCount}, #{host_type := Host}) ->
-    mongoose_metrics:update(Host, modMucMamFlushed, MessageCount),
+mam_muc_flush_messages(Acc, #{count := MessageCount}, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, modMucMamFlushed, MessageCount),
     {ok, Acc}.

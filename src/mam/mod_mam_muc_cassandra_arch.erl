@@ -116,7 +116,7 @@ prepared_queries() ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_size(Size, #{room := RoomJID}, #{host_type := HostType}) when is_integer(Size) ->
     PoolName = pool_name(HostType),
     Borders = Start = End = WithNick = undefined,
@@ -134,8 +134,8 @@ insert_query_cql() ->
 
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
@@ -193,8 +193,8 @@ select_for_removal_query_cql() ->
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
+    Extra :: gen_hook:extra().
 remove_archive(Acc, #{room := RoomJID}, #{host_type := HostType}) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     PoolName = pool_name(HostType),
@@ -218,8 +218,8 @@ remove_archive(Acc, #{room := RoomJID}, #{host_type := HostType}) ->
 
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
     {ok, Result};
 lookup_messages(_Result, #{search_text := <<_/binary>>}, _Extra) ->
@@ -438,7 +438,7 @@ row_to_message_id(#{id := MsgID}) ->
 -spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_muc_gdpr_data(Acc, #{jid := Jid}, #{host_type := HostType}) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),
     PoolName = pool_name(HostType),

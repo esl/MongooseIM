@@ -173,7 +173,7 @@ hooks(HostType) ->
 -spec amp_failed_event(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 amp_failed_event(Acc, _Params, _Extra) ->
     {ok, mod_amp:check_packet(Acc, offline_failed)}.
 
@@ -317,7 +317,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec inspect_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 inspect_packet(Acc, #{from := From, to := To, packet := Packet}, _Extra) ->
     case check_event_chatstates(Acc, From, To, Packet) of
         true ->
@@ -440,7 +440,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
 -spec pop_offline_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 pop_offline_messages(Acc, #{jid := JID}, _Extra) ->
     {ok, mongoose_acc:append(offline, messages, offline_messages(Acc, JID), Acc)}.
 
@@ -473,7 +473,7 @@ pop_messages(HostType, JID) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     mod_offline_backend:remove_user(HostType, LUser, LServer),
     {ok, Acc}.
@@ -481,7 +481,7 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type :
 -spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     case backend_module:is_exported(mod_offline_backend, remove_domain, 2) of
          true ->
@@ -494,7 +494,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 -spec disco_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_features(Acc = #{node := <<>>}, _Params, _Extra) ->
     {ok, mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc)};
 disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}, _Params, _Extra) ->
@@ -506,7 +506,7 @@ disco_features(Acc, _Params, _Extra) ->
 -spec determine_amp_strategy(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mod_amp:amp_strategy(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]}, #{to := ToJID, event := initial_check}, _Params) ->
     case ejabberd_auth:does_user_exist(ToJID) of
         true -> {ok, Strategy#amp_strategy{deliver = [stored, none]}};
@@ -518,7 +518,7 @@ determine_amp_strategy(Strategy, _Params, _Extra) ->
 -spec get_personal_data(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc ::  gdpr:personal_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_personal_data(Acc, #{jid := JID}, #{host_type := HostType}) ->
     {ok, Messages} = mod_offline_backend:fetch_messages(HostType, JID),
     {ok, [{offline, ["timestamp", "from", "to", "packet"],

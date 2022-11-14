@@ -53,6 +53,6 @@ hooks(HostType) ->
 -spec stop_hook_processing(Acc, Params, Extra) -> {stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 stop_hook_processing(Acc, _Params, _Extra) ->
     {stop, Acc}.

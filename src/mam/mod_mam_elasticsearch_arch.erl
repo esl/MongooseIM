@@ -58,7 +58,7 @@ stop(HostType) ->
 -spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 get_mam_pm_gdpr_data(Acc, #{jid := Owner}, _Extra) ->
     BinOwner = mod_mam_utils:bare_jid(Owner),
     Filter = #{term => #{owner => BinOwner}},
@@ -75,8 +75,8 @@ get_mam_pm_gdpr_data(Acc, #{jid := Owner}, _Extra) ->
 
 -spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ok | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 archive_message(_Result,
                 #{message_id := MessageId,
                   local_jid := LocalJid,
@@ -102,20 +102,20 @@ archive_message(_Result,
 
 -spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
-    Params :: map(),
-    Extra :: map().
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
 lookup_messages(Result,
                 #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params,
-                #{host_type := Host})
+                #{host_type := HostType})
   when ID =/= undefined ->
-    {ok, lookup_message_page(Result, Host, RSM, Params)};
+    {ok, lookup_message_page(Result, HostType, RSM, Params)};
 lookup_messages(Result,
                 #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params,
-                #{host_type := Host})
+                #{host_type := HostType})
   when ID =/= undefined ->
-    {ok, lookup_message_page(Result, Host, RSM, Params)};
-lookup_messages(Result, Params, #{host_type := Host}) ->
-    {ok, do_lookup_messages(Result, Host, Params)}.
+    {ok, lookup_message_page(Result, HostType, RSM, Params)};
+lookup_messages(Result, Params, #{host_type := HostType}) ->
+    {ok, do_lookup_messages(Result, HostType, Params)}.
 
 lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->
     PageSize = maps:get(page_size, Params),
@@ -145,17 +145,17 @@ do_lookup_messages(_Result, Host, Params) ->
 -spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: integer(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 archive_size(_Size, #{owner := OwnerJid}, _Extra)->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     {ok, archive_size(SearchQuery)}.
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: map(),
-    Extra :: map().
-remove_archive(Acc, #{owner := OwnerJid}, #{host_type := Host}) ->
-    remove_archive(Host, OwnerJid),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{owner := OwnerJid}, #{host_type := HostType}) ->
+    remove_archive(HostType, OwnerJid),
     {ok, Acc}.
 
 remove_archive(Host, OwnerJid) ->

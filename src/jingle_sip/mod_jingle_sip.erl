@@ -126,7 +126,7 @@ hooks(Host) ->
 -spec intercept_jingle_stanza(Acc, Params, Extra) -> {ok, Acc} when
        Acc :: mongoose_acc:t(),
        Params :: map(),
-       Extra :: map().
+       Extra :: gen_hook:extra().
 intercept_jingle_stanza(Acc, _, _) ->
     NewAcc = case mongoose_acc:get(hook, result, undefined, Acc) of
         drop ->

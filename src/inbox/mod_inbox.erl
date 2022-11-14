@@ -180,7 +180,7 @@ stop_cleaner(HostType) ->
                  From :: jid:jid(),
                  To :: jid:jid(),
                  IQ :: jlib:iq(),
-                 Extra :: map()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+                 Extra :: gen_hook:extra()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{host_type := HostType}) ->
     Form = build_inbox_form(HostType),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
@@ -232,7 +232,7 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
 -spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_send_packet(Acc, _, _) ->
     {From, To, Msg} = mongoose_acc:packet(Acc),
     NewAcc = case Msg of
@@ -244,7 +244,7 @@ user_send_packet(Acc, _, _) ->
 -spec inbox_unread_count(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{user := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 inbox_unread_count(Acc, #{user := User}, _) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
     NewAcc = get_inbox_unread(Res, Acc, User),
@@ -254,7 +254,7 @@ inbox_unread_count(Acc, #{user := User}, _) ->
                          (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
     Acc0 = maybe_process_message(Acc, From, To, Msg, incoming),
     {ok, {From, To, Acc0, Msg}};
@@ -264,7 +264,7 @@ filter_local_packet(FPacketAcc, _, _) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_inbox_utils:clear_inbox(HostType, User, Server),
@@ -284,7 +284,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:feature_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_ESL_INBOX], Acc)};
 disco_local_features(Acc, _, _) ->
