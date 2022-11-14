@@ -133,7 +133,7 @@ num_active_users(Domain, Days) ->
 -spec delete_old_users(integer()) -> {ok, iolist()}.
 delete_old_users(Days) ->
     Timestamp = days_to_timestamp(Days),
-    OldUsers = mod_last_api:remove_old_users(Timestamp),
+    {ok, OldUsers} = mod_last_api:remove_old_users(Timestamp),
     {ok, format_deleted_users(OldUsers)}.
 
 -spec delete_old_users_for_domain(jid:server(), integer()) -> {ok | domain_not_found, iolist()}.

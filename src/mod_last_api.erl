@@ -57,11 +57,12 @@ count_active_users(Domain, Timestamp) ->
             ?DOMAIN_NOT_FOUND_RESULT
     end.
 
--spec list_old_users(timestamp()) -> [old_user()].
+-spec list_old_users(timestamp()) -> {ok, [old_user()]}.
 list_old_users(Timestamp) ->
-    lists:append([list_old_users(HostType, Domain, Timestamp) ||
-                  HostType <- ?ALL_HOST_TYPES,
-                  Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]).
+    OldUsers = lists:append([list_old_users(HostType, Domain, Timestamp) ||
+                             HostType <- ?ALL_HOST_TYPES,
+                             Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]),
+    {ok, OldUsers}.
 
 -spec list_old_users(jid:server(), timestamp()) ->
     {ok, [old_user()]} | {domain_not_found, binary()}.
@@ -74,11 +75,11 @@ list_old_users(Domain, Timestamp) ->
             ?DOMAIN_NOT_FOUND_RESULT
     end.
 
--spec remove_old_users(timestamp()) -> [old_user()].
+-spec remove_old_users(timestamp()) -> {ok, [old_user()]}.
 remove_old_users(Timestamp) ->
-    OldUsers = list_old_users(Timestamp),
+    {ok, OldUsers} = list_old_users(Timestamp),
     ok = remove_users(OldUsers),
-    OldUsers.
+    {ok, OldUsers}.
 
 -spec remove_old_users(jid:server(), timestamp()) ->
     {ok, [old_user()]} | {domain_not_found, binary()}.
