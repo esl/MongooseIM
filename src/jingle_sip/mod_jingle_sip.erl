@@ -31,7 +31,7 @@
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0]).
 
--export([user_send_packet/3]).
+-export([user_send_iq/3]).
 
 -export([content_to_nksip_media/1]).
 
@@ -119,36 +119,27 @@ process_u2p(#{username := U, phone := P}) ->
     {U, P}.
 
 hooks(Host) ->
-    [{user_send_packet, Host, fun ?MODULE:user_send_packet/3, #{}, 10}].
+    [{user_send_iq, Host, fun ?MODULE:user_send_iq/3, #{}, 10}].
 
--spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
-user_send_packet(Acc, _, _) ->
-    case mongoose_acc:stanza_name(Acc) of
-        <<"iq">> ->
-            maybe_iq_to_other_user(Acc);
-        _ ->
-            {ok, Acc}
-    end.
-
-maybe_iq_to_other_user(Acc) ->
-    #jid{luser = StanzaTo} = mongoose_acc:to_jid(Acc),
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_iq(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
+    #jid{luser = StanzaTo} = To,
     #jid{luser = LUser} = mongoose_acc:get(c2s, origin_jid, Acc),
     case LUser of
         StanzaTo ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
+            QueryInfo = jlib:iq_query_info(Packet),
             maybe_jingle_get_stanza_to_self(QueryInfo, Acc);
         _ ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
-            maybe_jingle_stanza(QueryInfo, Acc)
+            QueryInfo = jlib:iq_query_info(Packet),
+            maybe_jingle_stanza(QueryInfo, From, To, Acc)
     end.
 
-maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, Acc) ->
+maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, From, To, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
-maybe_jingle_stanza(_, Acc) ->
+maybe_jingle_stanza(_, _, _, Acc) ->
     {ok, Acc}.
 
 maybe_jingle_get_stanza_to_self(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = get} = IQ, Acc) ->
