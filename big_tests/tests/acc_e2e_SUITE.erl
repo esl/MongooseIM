@@ -74,26 +74,26 @@ end_per_suite(Config) ->
 
 init_per_group(message, Config) ->
     % saves ref, timestamp and some attrs of acc in ets
-    add_handler(c2s_preprocessing_hook, test_save_acc, 50),
+    add_handler(user_send_packet, test_save_acc, 5),
     % checks it is the same acc
     add_handler(filter_local_packet, test_check_acc, 50),
     % checks it is the same acc and it has been stripped but keeps persistent props
     add_handler(user_receive_packet, test_check_final_acc, 50),
     Config;
 init_per_group(cache_and_strip, Config) ->
-    add_handler(c2s_preprocessing_hook, save_my_jid, 50),
+    add_handler(user_send_packet, save_my_jid, 5),
     add_handler(filter_local_packet, drop_if_jid_not_mine, 1),
     Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(message, _Config) ->
-    remove_handler(c2s_preprocessing_hook, test_save_acc, 50),
+    remove_handler(user_send_packet, test_save_acc, 5),
     remove_handler(filter_local_packet, test_check_acc, 50),
     remove_handler(user_receive_packet, test_check_final_acc, 50),
     ok;
 end_per_group(cache_and_strip, _Config) ->
-    remove_handler(c2s_preprocessing_hook, save_my_jid, 50),
+    remove_handler(user_send_packet, save_my_jid, 5),
     remove_handler(filter_local_packet, drop_if_jid_not_mine, 1),
     ok;
 end_per_group(_GroupName, _Config) ->

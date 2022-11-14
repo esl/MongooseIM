@@ -164,7 +164,6 @@ This is the perfect place to plug in custom security control.
 * auth_failed
 * c2s_broadcast_recipients
 * c2s_filter_packet
-* c2s_preprocessing_hook
 * c2s_presence_in
 * c2s_remote_hook
 * c2s_stream_features

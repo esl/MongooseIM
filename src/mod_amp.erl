@@ -9,7 +9,7 @@
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1, supported_features/0]).
--export([run_initial_check/3,
+-export([user_send_message/3,
          check_packet/2,
          disco_local_features/3,
          c2s_stream_features/3,
@@ -35,7 +35,7 @@ supported_features() -> [dynamic_domains].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
 c2s_hooks(HostType) ->
-    [{c2s_preprocessing_hook, HostType, fun ?MODULE:run_initial_check/3, #{}, 10}].
+    [{user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 5}].
 
 hooks(HostType) ->
     [
@@ -49,13 +49,11 @@ hooks(HostType) ->
 
 %% API
 
--spec run_initial_check(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
-run_initial_check(Acc, _, _) ->
-    case mongoose_acc:stanza_name(Acc) of
-        <<"message">> -> run_initial_check(Acc);
-        _ -> {ok, Acc}
-    end.
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_message(Acc, _, _) ->
+    {From, To, Element} = mongoose_acc:packet(Acc),
+    run_initial_check(Acc, From, To, Element).
 
 -spec check_packet(mongoose_acc:t(), amp_event()) -> mongoose_acc:t().
 check_packet(Acc, Event) ->
@@ -89,13 +87,11 @@ xmpp_send_element(Acc, _Params, _Extra) ->
                 _ -> delivery_failed
             end,
     {ok, check_packet(Acc, Event)}.
-%% Internal
 
--spec run_initial_check(mongoose_acc:t()) -> gen_hook:hook_fn_ret(mongoose_acc:t()).
-run_initial_check(Acc) ->
-    Packet = mongoose_acc:element(Acc),
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
+%% Internal
+-spec run_initial_check(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
+    mongoose_c2s_hooks:hook_result().
+run_initial_check(Acc, From, To, Packet) ->
     Result = case amp:extract_requested_rules(Packet) of
                  none -> nothing_to_do;
                  {rules, Rules} -> validate_and_process_rules(Packet, From, Rules, Acc);

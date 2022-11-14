@@ -24,16 +24,14 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
--include_lib("nklib/include/nklib.hrl").
 -include_lib("nksip/include/nksip.hrl").
--include_lib("nksip/include/nksip_call.hrl").
 
 -define(SERVICE, "mim_sip").
 
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0]).
 
--export([intercept_jingle_stanza/3]).
+-export([user_send_iq/3]).
 
 -export([content_to_nksip_media/1]).
 
@@ -121,60 +119,40 @@ process_u2p(#{username := U, phone := P}) ->
     {U, P}.
 
 hooks(Host) ->
-    [{c2s_preprocessing_hook, Host, fun ?MODULE:intercept_jingle_stanza/3, #{}, 75}].
+    [{user_send_iq, Host, fun ?MODULE:user_send_iq/3, #{}, 10}].
 
--spec intercept_jingle_stanza(Acc, Params, Extra) -> {ok, Acc} when
-       Acc :: mongoose_acc:t(),
-       Params :: map(),
-       Extra :: map().
-intercept_jingle_stanza(Acc, _, _) ->
-    NewAcc = case mongoose_acc:get(hook, result, undefined, Acc) of
-        drop ->
-            Acc;
-        _ ->
-            maybe_iq_stanza(Acc)
-    end,
-    {ok, NewAcc}.
-
-maybe_iq_stanza(Acc) ->
-    case mongoose_acc:stanza_name(Acc) of
-        <<"iq">> ->
-            maybe_iq_to_other_user(Acc);
-        _ ->
-            Acc
-    end.
-
-maybe_iq_to_other_user(Acc) ->
-    #jid{luser = StanzaTo} = mongoose_acc:to_jid(Acc),
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:hook_result().
+user_send_iq(Acc, _, _) ->
+    {From, To, Packet} = mongoose_acc:packet(Acc),
+    #jid{luser = StanzaTo} = To,
     #jid{luser = LUser} = mongoose_acc:get(c2s, origin_jid, Acc),
     case LUser of
         StanzaTo ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
+            QueryInfo = jlib:iq_query_info(Packet),
             maybe_jingle_get_stanza_to_self(QueryInfo, Acc);
         _ ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
-            maybe_jingle_stanza(QueryInfo, Acc)
+            QueryInfo = jlib:iq_query_info(Packet),
+            maybe_jingle_stanza(QueryInfo, From, To, Acc)
     end.
 
-maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, Acc) ->
+maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, From, To, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
-maybe_jingle_stanza(_, Acc) ->
-    Acc.
+maybe_jingle_stanza(_, _, _, Acc) ->
+    {ok, Acc}.
 
 maybe_jingle_get_stanza_to_self(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = get} = IQ, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
     case JingleAction of
         <<"existing-session-initiate">> ->
             resend_session_initiate(IQ, Acc),
-            mongoose_acc:set(hook, result, drop, Acc);
+            {stop, Acc};
         _ ->
-            Acc
+            {ok, Acc}
     end;
 maybe_jingle_get_stanza_to_self(_, Acc) ->
-    Acc.
+    {ok, Acc}.
 
 maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
   when JingleAction =:= <<"session-initiate">>;
@@ -193,12 +171,12 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
             ?LOG_ERROR(#{what => sip_translate_failed, acc => Acc,
                          class => Class, reason => Error, stacktrace => StackTrace})
     end,
-    mongoose_acc:set(hook, result, drop, Acc);
+    {stop, Acc};
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
     ?LOG_WARNING(#{what => sip_unknown_action,
                    text => <<"Forwarding unknown action to SIP">>,
                    jingle_action => JingleAction, acc => Acc}),
-    Acc.
+    {ok, Acc}.
 
 route_result(ok, From, To, IQ)  ->
     route_ok_result(From, To, IQ);
@@ -610,4 +588,3 @@ nksip_uac_bye(Node, DialogHandle, Args) ->
         _ ->
             rpc:call(Node, nksip_uac, bye, [DialogHandle, Args], timer:seconds(5))
     end.
-
