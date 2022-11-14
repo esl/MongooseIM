@@ -10,7 +10,7 @@
 -export([config_spec/0]).
 
 %% Hook handlers
--export([get_key/2]).
+-export([get_key/3]).
 
 -export([process_key/1]).
 
@@ -20,8 +20,6 @@
               key_list/0,
               key_name/0,
               raw_key/0]).
-
--ignore_xref([get_key/2]).
 
 -include("mod_keystore.hrl").
 -include("mongoose.hrl").
@@ -53,18 +51,19 @@ start(HostType, Opts) ->
     create_keystore_ets(),
     mod_keystore_backend:init(HostType, Opts),
     init_keys(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     clear_keystore_ets(HostType),
     ok.
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
-     {get_key, HostType, ?MODULE, get_key, 50}
+     {get_key, HostType, fun ?MODULE:get_key/3, #{}, 50}
     ].
 
 -spec supported_features() -> [atom()].
@@ -105,12 +104,12 @@ process_key(#{name := Name, type := ram}) ->
 %% Hook handlers
 %%
 
--spec get_key(HandlerAcc, KeyID) -> Result when
+-spec get_key(HandlerAcc, Params, Extra) -> {ok, HandlerAcc} when
       HandlerAcc :: key_list(),
-      KeyID :: key_id(),
-      Result :: key_list().
-get_key(HandlerAcc, KeyID) ->
-    try
+      Params :: #{key_id := key_id()},
+      Extra :: gen_hook:extra().
+get_key(HandlerAcc, #{key_id := KeyID}, _) ->
+    NewAcc = try
         %% This is OK, because the key is
         %% EITHER stored in ETS
         %% OR stored in BACKEND,
@@ -124,7 +123,8 @@ get_key(HandlerAcc, KeyID) ->
             ?LOG_ERROR(#{what => get_key_failed,
                          error => E, reason => R, stacktrace => S}),
             HandlerAcc
-    end.
+    end,
+    {ok, NewAcc}.
 
 %%
 %% Internal functions
