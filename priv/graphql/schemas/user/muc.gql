@@ -4,7 +4,7 @@ Allow user to manage Multi-User Chat rooms.
 type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   "Create a MUC room under the given XMPP hostname"
   #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
-  createInstantRoom(mucDomain: String!, name: String!, nick: String!): MUCRoomDesc
+  createInstantRoom(mucDomain: DomainName!, name: String!, nick: String!): MUCRoomDesc
   "Invite a user to a MUC room"
   inviteUser(room: JID!, recipient: JID!, reason: String): String @use(arg: "room")
   "Kick a user from a MUC room"
@@ -33,7 +33,7 @@ Allow user to get information about Multi-User Chat rooms.
 type MUCUserQuery @protected @use(modules: ["mod_muc"]){
   "Get MUC rooms under the given MUC domain"
   #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
-  listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
+  listRooms(mucDomain: DomainName!, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
   getRoomConfig(room: JID!): MUCRoomConfig @use(arg: "room")
   "Get the user list of a given MUC room"

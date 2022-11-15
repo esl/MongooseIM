@@ -6,13 +6,13 @@ type LastAdminQuery @use(modules: ["mod_last"]) @protected{
   getLast(user: JID!): LastActivity
     @use(arg: "user") @protected(type: DOMAIN, args: ["user"])
   "Get the number of users active from the given timestamp"
-  countActiveUsers(domain: String!, timestamp: DateTime): Int
+  countActiveUsers(domain: DomainName!, timestamp: DateTime): Int
     @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
   """
   List users that didn't log in the last days or have never logged in.
   Globally or for a specified domain
   """
-  listOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
+  listOldUsers(domain: DomainName, timestamp: DateTime!): [OldUser!]
    @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 }
 
@@ -27,7 +27,7 @@ type LastAdminMutation @use(modules: ["mod_last"]) @protected{
   Delete users that didn't log in the last days or have never logged in.
   Globally or for a specified domain. Please use listOldUsers to check which users will be deleted
   """
-  removeOldUsers(domain: String, timestamp: DateTime!): [OldUser!]
+  removeOldUsers(domain: DomainName, timestamp: DateTime!): [OldUser!]
     @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 }
 
