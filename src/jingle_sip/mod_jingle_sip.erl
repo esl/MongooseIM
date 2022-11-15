@@ -121,8 +121,8 @@ process_u2p(#{username := U, phone := P}) ->
 hooks(Host) ->
     [{user_send_iq, Host, fun ?MODULE:user_send_iq/3, #{}, 10}].
 
--spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_iq(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     #jid{luser = StanzaTo} = To,

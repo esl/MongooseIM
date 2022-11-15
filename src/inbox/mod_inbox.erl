@@ -229,8 +229,8 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
--spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_message(Acc, _, _) ->
     {From, To, Msg} = mongoose_acc:packet(Acc),
     Acc1 = maybe_process_message(Acc, From, To, Msg, outgoing),

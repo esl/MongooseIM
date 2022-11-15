@@ -99,7 +99,7 @@ hooks(HostType) ->
      {session_cleanup, HostType, ?MODULE, session_cleanup, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50}].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [
      {user_receive_iq, HostType, fun ?MODULE:user_receive_iq/3, #{}, 50}
@@ -252,7 +252,7 @@ remove_domain(Acc, HostType, Domain) ->
     Acc.
 
 -spec user_receive_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+    mongoose_c2s_hooks:result().
 user_receive_iq(Acc, _Params, _Extra) ->
     case mongoose_iq:info(Acc) of
         {#iq{type = get, xmlns = ?NS_LAST}, Acc1} ->
@@ -261,7 +261,7 @@ user_receive_iq(Acc, _Params, _Extra) ->
             {ok, Acc1}
     end.
 
--spec maybe_forward_last(mongoose_acc:t()) -> mongoose_c2s_hooks:hook_result().
+-spec maybe_forward_last(mongoose_acc:t()) -> mongoose_c2s_hooks:result().
 maybe_forward_last(Acc) ->
     HostType = mongoose_acc:host_type(Acc),
     {From, To, _} = mongoose_acc:packet(Acc),

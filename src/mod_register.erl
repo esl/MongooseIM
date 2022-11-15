@@ -75,7 +75,7 @@ iq_handlers() ->
 hooks(HostType) ->
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50}].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [{user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 30}].
 
@@ -141,8 +141,8 @@ c2s_stream_features(Acc, _HostType, _LServer) ->
     [#xmlel{name = <<"register">>,
             attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
 
--spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_xmlel(Acc, Params, Extra) ->
     case mongoose_acc:stanza_name(Acc) of
         <<"iq">> ->
@@ -152,8 +152,8 @@ user_send_xmlel(Acc, Params, Extra) ->
     end.
 
 -spec handle_unauthenticated_iq(
-        mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra(), atom() | jlib:iq()) ->
-    mongoose_c2s_hooks:hook_result().
+        mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra(), atom() | jlib:iq()) ->
+    mongoose_c2s_hooks:result().
 handle_unauthenticated_iq(Acc,
                           #{c2s_data := StateData},
                           #{host_type := HostType},

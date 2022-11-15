@@ -43,7 +43,7 @@ hooks(HostType) ->
     [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100}
      | c2s_hooks(HostType)].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [
      {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 100},
@@ -120,8 +120,8 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 %% Hook callbacks
 %%====================================================================
 
--spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case {mongoose_acc:stanza_type(Acc),
           mongoose_c2s:get_mod_state(StateData, ?MODULE)} of
@@ -142,8 +142,8 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             {ok, Acc}
     end.
 
--spec user_send_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
-    {ok, mongoose_acc:t()}.
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_packet(Acc, _Params, #{host_type := HostType}) ->
     Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),
     Action = {{timeout, ping}, Interval, fun ping_c2s_handler/2},

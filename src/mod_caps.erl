@@ -271,8 +271,8 @@ disco_info(Acc = #{node := Node}, _, _) ->
     end,
     {ok, NewAcc}.
 
--spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     {From, To, #xmlel{attrs = Attrs, children = Els} = Packet} = mongoose_acc:packet(Acc),
     ?LOG_DEBUG(#{what => user_receive_presence,

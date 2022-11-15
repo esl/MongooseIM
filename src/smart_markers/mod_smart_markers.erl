@@ -206,8 +206,8 @@ removal_hooks(HostType) ->
      {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 85},
      {room_new_affiliations, HostType, fun ?MODULE:room_new_affiliations/3, #{}, 60}].
 
--spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_message(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     case has_valid_markers(Acc, From, To, Packet) of

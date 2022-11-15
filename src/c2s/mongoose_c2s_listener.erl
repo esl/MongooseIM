@@ -31,8 +31,8 @@ start_listener(Opts) ->
     ok.
 
 %% Hooks and handlers
--spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 handle_user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType, access := Access}) ->
     Jid = mongoose_c2s:get_jid(StateData),
     LServer = mongoose_c2s:get_lserver(StateData),

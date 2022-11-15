@@ -33,7 +33,7 @@ stop(HostType) ->
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [{user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 5}].
 
@@ -49,8 +49,8 @@ hooks(HostType) ->
 
 %% API
 
--spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_message(Acc, _, _) ->
     {From, To, Element} = mongoose_acc:packet(Acc),
     run_initial_check(Acc, From, To, Element).
@@ -79,7 +79,7 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 c2s_stream_features(Acc, _, _) ->
     {ok, lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE)}.
 
--spec xmpp_send_element(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
+-spec xmpp_send_element(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 xmpp_send_element(Acc, _Params, _Extra) ->
     Event = case mongoose_acc:get(c2s, send_result, undefined, Acc) of
@@ -90,7 +90,7 @@ xmpp_send_element(Acc, _Params, _Extra) ->
 
 %% Internal
 -spec run_initial_check(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
-    mongoose_c2s_hooks:hook_result().
+    mongoose_c2s_hooks:result().
 run_initial_check(Acc, From, To, Packet) ->
     Result = case amp:extract_requested_rules(Packet) of
                  none -> nothing_to_do;

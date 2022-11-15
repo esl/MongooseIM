@@ -138,15 +138,15 @@ iq_handler(Acc, From, #iq{type = set,
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
--spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_message(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, From, To, Packet, sent),
     {ok, Acc}.
 
 -spec user_receive_message(mongoose_acc:t(), Params, gen_hook:extra()) ->
-      mongoose_c2s_hooks:hook_result()
+      mongoose_c2s_hooks:result()
         when Params :: #{jid := jid:jid()}.
 user_receive_message(Acc, #{jid := JID}, _) ->
     {_, To, Packet} = mongoose_acc:packet(Acc),

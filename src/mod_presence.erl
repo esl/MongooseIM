@@ -70,7 +70,7 @@ get_presence(Pid) ->
 set_presence(Pid, Message) ->
     gen_statem:cast(Pid, {set_presence, Message}).
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [
      {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 50},
@@ -79,8 +79,8 @@ c2s_hooks(HostType) ->
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
     ].
 
--spec user_send_presence(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc),
     StanzaType = mongoose_acc:stanza_type(Acc),
@@ -93,8 +93,8 @@ user_send_presence(Acc, #{c2s_data := StateData}, _Extra) ->
             {ok, Acc1}
     end.
 
--spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
@@ -103,7 +103,7 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
             handle_user_received_presence(Acc, Presences, mongoose_acc:stanza_type(Acc))
     end.
 
--spec user_terminate(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+-spec user_terminate(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 user_terminate(Acc, #{c2s_data := StateData, reason := Reason}, _Extra) ->
     case get_mod_state(StateData) of
@@ -127,9 +127,9 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
       Acc :: mongoose_acc:t(),
-      Params :: mongoose_c2s:hook_params(),
+      Params :: mongoose_c2s_hooks:params(),
       Extra :: gen_hook:extra(),
-      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+      Result :: mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := info,
                      event_content := {broadcast, {item, IJID, ISubscription}}}, _Extra) ->
@@ -236,7 +236,7 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
     end.
 
 -spec handle_user_received_presence(mongoose_acc:t(), presences_state(), binary()) ->
-    mongoose_c2s_hooks:hook_result().
+    mongoose_c2s_hooks:result().
 handle_user_received_presence(Acc, Presences, <<"probe">>) ->
     {stop, handle_received_probe(Acc, Presences)};
 handle_user_received_presence(Acc, Presences, <<"error">>) ->

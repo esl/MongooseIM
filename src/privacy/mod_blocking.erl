@@ -50,7 +50,7 @@ hooks(HostType) ->
      {privacy_iq_set, HostType, fun ?MODULE:process_iq_set/3, #{}, 50}
     | c2s_hooks(HostType)].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [
      {user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
@@ -58,7 +58,7 @@ c2s_hooks(HostType) ->
     ].
 
 -spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case mongoose_iq:info(Acc) of
         {#iq{xmlns = ?NS_BLOCKING, type = Type} = IQ, Acc1} when Type == get; Type == set ->
@@ -67,11 +67,8 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             {ok, Acc}
     end.
 
--spec foreign_event(Acc, Params, Extra) -> Result when
-      Acc :: mongoose_acc:t(),
-      Params :: mongoose_c2s:hook_params(),
-      Extra :: gen_hook:extra(),
-      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+-spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+      mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := info,
                      event_content := {broadcast, {blocking, UserList, Action, Changed}}}, _Extra) ->
