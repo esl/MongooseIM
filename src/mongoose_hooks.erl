@@ -1091,7 +1091,7 @@ mam_archive_size(HostType, ArchiveID, Owner) ->
 %%% should be archived or not based on a given pair of JIDs.
 -spec mam_get_behaviour(HostType, ArchiveID,
                         Owner, Remote) -> Result when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       Owner :: jid:jid(),
       Remote :: jid:jid(),
@@ -1108,7 +1108,7 @@ mam_get_behaviour(HostType, ArchiveID, Owner, Remote) ->
 %%% It's possible to set which JIDs are always or never allowed in the archive
 -spec mam_set_prefs(HostType, ArchiveId, Owner,
                     DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       ArchiveId :: undefined | mod_mam:archive_id(),
       Owner :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
@@ -1127,7 +1127,7 @@ mam_set_prefs(HostType,  ArchiveID, Owner, DefaultMode, AlwaysJIDs, NeverJIDs) -
 %%% @doc The `mam_get_prefs' hook is called to read
 %%% the archive settings for a given user.
 -spec mam_get_prefs(HostType, DefaultMode, ArchiveID, Owner) -> Result when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       DefaultMode :: mod_mam:archive_behaviour(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       Owner :: jid:jid(),
@@ -1143,7 +1143,7 @@ mam_get_prefs(HostType, DefaultMode, ArchiveID, Owner) ->
 %%% @doc The `mam_remove_archive' hook is called in order to
 %%% remove the entire archive for a particular user.
 -spec mam_remove_archive(HostType, ArchiveID, Owner) -> any() when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       Owner :: jid:jid().
 mam_remove_archive(HostType, ArchiveID, Owner) ->
@@ -1156,7 +1156,7 @@ mam_remove_archive(HostType, ArchiveID, Owner) ->
 %%% @doc The `mam_lookup_messages' hook is to retrieve
 %%% archived messages for given search parameters.
 -spec mam_lookup_messages(HostType, Params) -> Result when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
 mam_lookup_messages(HostType, Params) ->
@@ -1170,7 +1170,7 @@ mam_lookup_messages(HostType, Params) ->
 %%% to store the message in the archive.
 -spec mam_archive_message(HostType, Params) ->
     Result when
-    HostType :: mongosoeim:host_type(),
+    HostType :: mongooseim:host_type(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_archive_message(HostType, Params) ->
@@ -1180,7 +1180,7 @@ mam_archive_message(HostType, Params) ->
 
 %%% @doc The `mam_flush_messages' hook is run after the async bulk write
 %%% happens for messages despite the result of the write.
--spec mam_flush_messages(HostType :: mongosoeim:host_type(),
+-spec mam_flush_messages(HostType :: mongooseim:host_type(),
                          MessageCount :: integer()) -> ok.
 mam_flush_messages(HostType, MessageCount) ->
     Params = #{count => MessageCount},
@@ -1218,7 +1218,7 @@ mam_retraction(HostType, RetractionInfo, Env) ->
 %%% If a MAM backend doesn't support or doesn't require archive IDs,
 %%% `undefined' may be returned.
 -spec mam_muc_archive_id(HostType, Owner) -> Result when
-      HostType :: mongosoeim:host_type(),
+      HostType :: mongooseim:host_type(),
       Owner :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
 mam_muc_archive_id(HostType, Owner) ->
@@ -1335,7 +1335,7 @@ mam_muc_archive_message(HostType, Params) ->
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.
--spec mam_muc_flush_messages(HostType :: mongosoeim:host_type(),
+-spec mam_muc_flush_messages(HostType :: mongooseim:host_type(),
                              MessageCount :: integer()) -> ok.
 mam_muc_flush_messages(HostType, MessageCount) ->
     Params = #{count => MessageCount},
