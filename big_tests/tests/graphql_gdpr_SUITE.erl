@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(distributed_helper, [mim/0, rpc/4, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
@@ -25,6 +26,7 @@ groups() ->
 
 admin_gdpr_tests() ->
     [admin_retrieve_user_data,
+     admin_retrieve_user_data_for_unprepped_domain,
      admin_gdpr_no_user_test,
      admin_gdpr_empty_filename_test,
      admin_gdpr_access_denied_erofs,
@@ -34,6 +36,7 @@ admin_gdpr_tests() ->
 
 domain_admin_gdpr_tests() ->
     [admin_retrieve_user_data,
+     admin_retrieve_user_data_for_unprepped_domain,
      admin_gdpr_no_user_test,
      domain_admin_retrieve_user_data_no_permission].
 
@@ -65,11 +68,17 @@ end_per_testcase(CaseName, Config) ->
 % Admin test cases
 
 admin_retrieve_user_data(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_retrieve_user_data/2).
+    Config1 = [{domain, domain()} | Config],
+    escalus:fresh_story_with_config(Config1, [{alice, 1}], fun admin_retrieve_user_data/2).
+
+admin_retrieve_user_data_for_unprepped_domain(Config) ->
+    Config1 = [{domain, unprep(domain())} | Config],
+    escalus:fresh_story_with_config(Config1, [{alice, 1}], fun admin_retrieve_user_data/2).
 
 admin_retrieve_user_data(Config, Alice) ->
     Filename = random_filename(Config),
-    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+    Domain = ?config(domain, Config),
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), Domain,
                                        list_to_binary(Filename), Config),
     ParsedResult = get_ok_value([data, gdpr, retrievePersonalData], Res),
     ?assertEqual(<<"Data retrieved">>, ParsedResult),
