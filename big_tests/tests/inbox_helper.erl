@@ -106,6 +106,9 @@
                                Expected :: binary(),
                                AttrName :: binary()) -> any() | no_return()).
 
+-type inbox_result() :: #{respond_iq := exml:element(),
+                          respond_messages := [exml:element()]}.
+
 -type conv() :: #conv{}.
 
 %% ---------------------------------------------------------
@@ -177,43 +180,41 @@ foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
          check_inbox(U, [#conv{unread = Unread, from = SenderJid, to = UserJid, content = Msg}])
      end || U <- Users].
 
--spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> ok | no_return().
+-spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> inbox_result().
 check_inbox(Client, Convs) ->
     check_inbox(Client, Convs, #{}, #{}).
 
--spec check_inbox(escalus:client(), [conv()], inbox_query_params()) -> ok | no_return().
+-spec check_inbox(escalus:client(), [conv()], inbox_query_params()) -> inbox_result().
 check_inbox(Client, Convs, QueryOpts) ->
     check_inbox(Client, Convs, QueryOpts, #{}).
 
 -spec check_inbox(Client :: escalus:client(),
                   Convs :: [conv()],
                   QueryOpts :: inbox_query_params(),
-                  CheckOpts :: inbox_check_params()) -> ok | no_return().
+                  CheckOpts :: inbox_check_params()) -> inbox_result().
 check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
-    {ok, Res} = mongoose_helper:wait_until(
-                  fun() -> do_check_inbox(Client, Convs, QueryOpts, CheckOpts) end,
-                  ok, #{name => inbox_size, validator => fun(_) -> true end}),
-    Res.
-
-do_check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
     ExpectedSortedConvs = case maps:get(order, QueryOpts, undefined) of
                               asc -> lists:reverse(Convs);
                               _ -> Convs
                           end,
-    Inbox = #{respond_messages := ResultStanzas}
-        = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
+    F = fun(#{respond_messages := ResultStanzas} = InboxResult) ->
+                do_check_inbox(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs),
+                InboxResult
+        end,
+    get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}, F).
+
+do_check_inbox(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs) ->
     try
-        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs),
-        Inbox
+        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs)
     catch
         _:Reason:StackTrace ->
-            ct:fail(#{ reason => inbox_mismatch,
-                       inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
-                       expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
-                       query_params => QueryOpts,
-                       check_params => CheckOpts,
-                       error => Reason,
-                       stacktrace => StackTrace })
+            error(#{ reason => inbox_mismatch,
+                     inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
+                     expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
+                     query_params => QueryOpts,
+                     check_params => CheckOpts,
+                     error => Reason,
+                     stacktrace => StackTrace })
     end.
 
 check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, MsgCheckList) ->
@@ -252,21 +253,23 @@ maybe_check_queryid(Children, #{queryid := QueryId}) ->
 maybe_check_queryid(_Children, #{}) ->
     ok.
 
--spec get_inbox(Client :: escalus:client(),
-                ExpectedResult :: inbox_result_params()) ->
-    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
+-spec get_inbox(escalus:client(), inbox_result_params()) -> inbox_result().
 get_inbox(Client, ExpectedResult) ->
     get_inbox(Client, #{}, ExpectedResult).
 
+-spec get_inbox(escalus:client(), inbox_query_params(), inbox_result_params()) -> inbox_result().
+get_inbox(Client, GetParams, ExpectedResult) ->
+    get_inbox(Client, GetParams, ExpectedResult, fun(R) -> R end).
+
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
-                ExpectedResult :: inbox_result_params()) ->
-    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
-get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
+                ExpectedResult :: inbox_result_params(),
+                Check :: fun((inbox_result()) -> inbox_result())) -> inbox_result().
+get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult, Check) ->
     GetInbox = make_inbox_stanza(GetParams),
     Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
     {ok, Inbox} = mongoose_helper:wait_until(
-                    fun() -> do_get_inbox(Client, GetInbox) end,
+                    fun() -> Check(do_get_inbox(Client, GetInbox)) end,
                     ExpectedCount, #{validator => Validator, name => inbox_size}),
     #{respond_iq := ResIQ} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
