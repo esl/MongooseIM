@@ -105,9 +105,8 @@ user_send_xmlel(HostType, Acc, Params) ->
     Acc :: mongoose_acc:t(),
     Params :: params(),
     Result :: result().
-user_receive_message(HostType, Acc, #{c2s_data := C2SData} = Params) ->
-    Jid = mongoose_c2s:get_jid(C2SData),
-    gen_hook:run_fold(user_receive_message, HostType, Acc, Params#{jid => Jid}).
+user_receive_message(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_receive_message, HostType, Acc, Params).
 
 %% @doc Triggered when the user received a stanza of type `iq'
 -spec user_receive_iq(HostType, Acc, Params) -> Result when

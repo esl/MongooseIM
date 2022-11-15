@@ -145,10 +145,10 @@ user_send_message(Acc, _, _) ->
     check_and_forward(Acc, From, To, Packet, sent),
     {ok, Acc}.
 
--spec user_receive_message(mongoose_acc:t(), Params, gen_hook:extra()) ->
-      mongoose_c2s_hooks:result()
-        when Params :: #{jid := jid:jid()}.
-user_receive_message(Acc, #{jid := JID}, _) ->
+-spec user_receive_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+      mongoose_c2s_hooks:result().
+user_receive_message(Acc, #{c2s_data := C2SData}, _) ->
+    JID = mongoose_c2s:get_jid(C2SData),
     {_, To, Packet} = mongoose_acc:packet(Acc),
     check_and_forward(Acc, JID, To, Packet, received),
     {ok, Acc}.
