@@ -8,20 +8,26 @@
          stop/0,
          get_host_type/1]).
 
-%% domain API
+%% external domain API for GraphQL or REST handlers
 -export([insert_domain/2,
          delete_domain/2,
          request_delete_domain/2,
          disable_domain/1,
          enable_domain/1,
-         get_domain_host_type/1,
+         get_domain_details/1,
+         check_host_type_and_get_domains/1]).
+
+%% external domain admin API for GraphQL or REST handlers
+-export([set_domain_password/2,
+         delete_domain_password/1]).
+
+%% domain API
+-export([get_domain_host_type/1,
          get_all_static/0,
          get_domains_by_host_type/1]).
 
 %% domain admin API
--export([check_domain_password/2,
-         set_domain_password/2,
-         delete_domain_password/1]).
+-export([check_domain_password/2]).
 
 %% subdomain API
 -export([register_subdomain/3,
@@ -32,7 +38,7 @@
 
 %% Helper for remove_domain
 -export([remove_domain_wrapper/3,
-         do_delete_domain_in_progress/3]).
+         do_delete_domain_in_progress/2]).
 
 %% For testing
 -export([get_all_dynamic/0]).
@@ -46,6 +52,17 @@
 -type host_type() :: mongooseim:host_type().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
 -type remove_domain_acc() :: #{failed := [module()]}.
+
+-type domain_info() :: #{domain := domain(), host_type => host_type(), status => status()}.
+
+-type insert_result() :: {ok, domain_info()} |
+                         {static | unknown_host_type | duplicate, iodata()}.
+-type delete_result() :: {ok, domain_info()} |
+                         {static | unknown_host_type | not_found | wrong_host_type, iodata()}.
+-type set_status_result() :: {ok, domain_info()} |
+                             {static | unknown_host_type | not_found | deleted, iodata()}.
+-type get_domains_result() :: {ok, [domain()]} | {unknown_host_type, iodata()}.
+-type get_domain_details_result() :: {ok, domain_info()} | {static | not_found, iodata()}.
 
 -export_type([status/0, remove_domain_acc/0]).
 
@@ -64,98 +81,125 @@ stop() ->
     catch mongoose_lazy_routing:stop(),
     ok.
 
-%% Domain should be nameprepped using `jid:nameprep'.
--spec insert_domain(domain(), host_type()) ->
-    ok  | {error, duplicate} | {error, static} | {error, {db_error, term()}}
-    | {error, service_disabled} | {error, unknown_host_type}.
+-spec insert_domain(domain(), host_type()) -> insert_result().
 insert_domain(Domain, HostType) ->
-    case check_domain(Domain, HostType) of
-        ok ->
-            check_db(mongoose_domain_sql:insert_domain(Domain, HostType));
-        Other ->
-            Other
-    end.
+    M = #{domain => Domain, host_type => HostType},
+    fold(M, [fun check_domain/1, fun check_host_type/1,
+             fun do_insert_domain/1, fun force_check/1, fun return_domain/1]).
 
--type delete_domain_return() ::
-    ok | {error, static} | {error, unknown_host_type} | {error, service_disabled}
-    | {error, {db_error, term()}} | {error, wrong_host_type} | {error, {modules_failed, [module()]}}.
-
-%% Returns ok, if domain not found.
-%% Domain should be nameprepped using `jid:nameprep'.
--spec delete_domain(domain(), host_type()) -> delete_domain_return().
+-spec delete_domain(domain(), host_type()) -> delete_result().
 delete_domain(Domain, HostType) ->
-    do_delete_domain(Domain, HostType, sync).
+    delete_domain(Domain, HostType, sync).
 
--spec request_delete_domain(domain(), host_type()) -> delete_domain_return().
+-spec request_delete_domain(domain(), host_type()) -> delete_result().
 request_delete_domain(Domain, HostType) ->
-    do_delete_domain(Domain, HostType, async).
+    delete_domain(Domain, HostType, async).
 
-do_delete_domain(Domain, HostType, RequestType) ->
-    case check_domain(Domain, HostType) of
-        ok ->
-            Res0 = check_db(mongoose_domain_sql:set_domain_for_deletion(Domain, HostType)),
-            case Res0 of
-                ok ->
-                    delete_domain_password(Domain),
-                    do_delete_domain_in_progress(Domain, HostType, RequestType);
-                Other ->
-                    Other
-            end;
-        Other ->
-            Other
-    end.
+-spec delete_domain(domain(), host_type(), sync | async) -> delete_result().
+delete_domain(Domain, HostType, RequestType) ->
+    M = #{domain => Domain, host_type => HostType, request_type => RequestType},
+    fold(M, [fun check_domain/1, fun check_host_type/1, fun set_domain_for_deletion/1,
+             fun force_check/1, fun do_delete_domain/1, fun return_domain/1]).
 
-%% This is ran only in the context of `do_delete_domain',
-%% so it can already skip some checks
--spec do_delete_domain_in_progress(domain(), host_type(), sync | async) -> delete_domain_return().
-do_delete_domain_in_progress(Domain, HostType, async) ->
-    mongoose_domain_db_cleaner:request_delete_domain(Domain, HostType);
-do_delete_domain_in_progress(Domain, HostType, sync) ->
-    case mongoose_hooks:remove_domain(HostType, Domain) of
-        #{failed := []} ->
-            check_db(mongoose_domain_sql:delete_domain(Domain, HostType));
-        #{failed := Failed} ->
-            {error, {modules_failed, Failed}}
-    end.
-
--spec disable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, service_disabled}
-    | {error, {db_error, term()}}.
+-spec disable_domain(domain()) -> set_status_result().
 disable_domain(Domain) ->
-    case mongoose_domain_core:is_static(Domain) of
-        true ->
-            {error, static};
-        false ->
-            case service_domain_db:enabled() of
-                true ->
-                    check_db(mongoose_domain_sql:disable_domain(Domain));
-                false ->
-                    {error, service_disabled}
-            end
-    end.
+    M = #{domain => Domain, status => disabled},
+    fold(M, [fun check_domain/1, fun set_status/1, fun force_check/1, fun return_domain/1]).
 
--spec enable_domain(domain()) ->
-    ok | {error, not_found} | {error, static} | {error, service_disabled}
-    | {error, {db_error, term()}}.
+-spec enable_domain(domain()) -> set_status_result().
 enable_domain(Domain) ->
+    M = #{domain => Domain, status => enabled},
+    fold(M, [fun check_domain/1, fun set_status/1, fun force_check/1, fun return_domain/1]).
+
+-spec check_host_type_and_get_domains(host_type()) -> get_domains_result().
+check_host_type_and_get_domains(HostType) ->
+    M = #{host_type => HostType},
+    fold(M, [fun check_host_type/1, fun get_domains/1]).
+
+-spec get_domain_details(domain()) -> get_domain_details_result().
+get_domain_details(Domain) ->
+    M = #{domain => Domain},
+    fold(M, [fun check_domain/1, fun select_domain/1, fun return_domain/1]).
+
+check_domain(M = #{domain := Domain}) ->
     case mongoose_domain_core:is_static(Domain) of
         true ->
-            {error, static};
+            {static, <<"Domain is static">>};
         false ->
-            case service_domain_db:enabled() of
-                true ->
-                    check_db(mongoose_domain_sql:enable_domain(Domain));
-                false ->
-                    {error, service_disabled}
-            end
+            M
     end.
 
-check_db(ok) ->
-    %% Speedup the next check.  %% It's async.
+check_host_type(M = #{host_type := HostType}) ->
+    case mongoose_domain_core:is_host_type_allowed(HostType) of
+        true ->
+            M;
+        false ->
+            {unknown_host_type, <<"Unknown host type">>}
+    end.
+
+select_domain(M = #{domain := Domain}) ->
+    case mongoose_domain_sql:select_domain(Domain) of
+        {ok, DomainDetails} ->
+            maps:merge(M, DomainDetails);
+        {error, not_found} ->
+            {not_found, <<"Given domain does not exist">>}
+    end.
+
+do_insert_domain(M = #{domain := Domain, host_type := HostType}) ->
+    case mongoose_domain_sql:insert_domain(Domain, HostType) of
+        ok ->
+            M;
+        {error, duplicate} ->
+            {duplicate, <<"Domain already exists">>}
+    end.
+
+set_domain_for_deletion(M = #{domain := Domain, host_type := HostType}) ->
+    case mongoose_domain_sql:set_domain_for_deletion(Domain, HostType) of
+        ok ->
+            M;
+        {error, wrong_host_type} ->
+            {wrong_host_type, <<"Wrong host type was provided">>};
+        {error, not_found} ->
+            {not_found, <<"Given domain does not exist">>}
+    end.
+
+force_check(M) ->
     service_domain_db:force_check_for_updates(),
-    ok;
-check_db(Result) ->
-    Result.
+    M.
+
+do_delete_domain(M = #{domain := Domain, host_type := HostType, request_type := RequestType}) ->
+    mongoose_domain_sql:delete_domain_admin(Domain),
+    case RequestType of
+        sync ->
+            do_delete_domain_in_progress(Domain, HostType),
+            M#{status => deleted};
+        async ->
+            mongoose_domain_db_cleaner:request_delete_domain(Domain, HostType),
+            M#{status => deleting}
+    end.
+
+set_status(M = #{domain := Domain, status := Status}) ->
+    case mongoose_domain_sql:set_status(Domain, Status) of
+        {error, unknown_host_type} ->
+            {unknown_host_type, <<"Unknown host type">>};
+        {error, domain_deleted} ->
+            {deleted, <<"Domain has been deleted">>};
+        {error, not_found} ->
+            {not_found, <<"Given domain does not exist">>};
+        ok ->
+            M
+    end.
+
+return_domain(M) ->
+    {ok, maps:with([domain, host_type, status], M)}.
+
+get_domains(#{host_type := HostType}) ->
+    {ok, get_domains_by_host_type(HostType)}.
+
+-spec do_delete_domain_in_progress(domain(), host_type()) -> ok.
+do_delete_domain_in_progress(Domain, HostType) ->
+    #{failed := []} = mongoose_hooks:remove_domain(HostType, Domain),
+    ok = mongoose_domain_sql:delete_domain(Domain, HostType).
 
 %% Domain should be nameprepped using `jid:nameprep'
 -spec get_host_type(domain()) ->
@@ -202,21 +246,6 @@ get_all_dynamic() ->
 get_domains_by_host_type(HostType) ->
     mongoose_domain_core:get_domains_by_host_type(HostType).
 
-check_domain(Domain, HostType) ->
-    Static = mongoose_domain_core:is_static(Domain),
-    Allowed = mongoose_domain_core:is_host_type_allowed(HostType),
-    HasDb = service_domain_db:enabled(),
-    if
-        Static ->
-            {error, static};
-        not Allowed ->
-            {error, unknown_host_type};
-        not HasDb ->
-            {error, service_disabled};
-        true ->
-            ok
-    end.
-
 -type password() :: binary().
 
 -spec check_domain_password(domain(), password()) -> ok | {error, wrong_password | not_found}.
@@ -241,18 +270,24 @@ do_check_domain_password(Password, PassDetails) ->
             false
     end.
 
--spec set_domain_password(domain(), password()) -> ok | {error, not_found}.
+-spec set_domain_password(domain(), password()) ->  {ok | not_found, iodata()}.
 set_domain_password(Domain, Password) ->
     case get_host_type(Domain) of
         {ok, _} ->
-            mongoose_domain_sql:set_domain_admin(Domain, Password);
+            ok = mongoose_domain_sql:set_domain_admin(Domain, Password),
+            {ok, <<"Domain password set successfully">>};
         {error, not_found} ->
-            {error, not_found}
+            {not_found, <<"Given domain does not exist or is disabled">>}
     end.
 
--spec delete_domain_password(domain()) -> ok.
+-spec delete_domain_password(domain()) -> {ok, iodata()}.
 delete_domain_password(Domain) ->
-    mongoose_domain_sql:delete_domain_admin(Domain).
+    case mongoose_domain_sql:delete_domain_admin(Domain) of
+        ok ->
+            {ok, <<"Domain password deleted successfully">>};
+        {error, not_found} ->
+            {not_found, <<"Domain password does not exist">>}
+    end.
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->
@@ -282,3 +317,8 @@ remove_domain_wrapper(Acc, F, Module) ->
                      class => C, reason => R, stacktrace => S}),
         {stop, Acc#{failed := [Module | maps:get(failed, Acc)]}}
     end.
+
+fold({_, _} = Result, _) ->
+    Result;
+fold(M, [Step | Rest]) when is_map(M) ->
+    fold(Step(M), Rest).

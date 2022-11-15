@@ -15,26 +15,6 @@
 
 %% callback invoked when resolver returns error tuple
 -spec err(map(), term()) -> err_msg().
-err(_Ctx, #{jid := Jid, what := unknown_user}) when is_binary(Jid) ->
-    #{message => <<"Given user does not exist">>, extensions => #{code => unknown_user, jid => Jid}};
-err(_Ctx, #{domain := Domain, what := unknown_domain}) when is_binary(Domain) ->
-    #{message => <<"Given domain does not exist">>, extensions => #{code => unknown_domain, domain => Domain}};
-err(_Ctx, #{what := bad_from_jid}) ->
-    #{message => <<"Sending from this JID is not allowed">>, extensions => #{code => bad_from_jid}};
-err(_Ctx, #{domain := Domain, what := domain_not_found}) ->
-    #{message => <<"Given domain does not exist">>, extensions => #{code => domain_not_found, domain => Domain}};
-err(_Ctx, #{domain := Domain, what := domain_duplicate}) when is_binary(Domain) ->
-    #{message => <<"Domain already exists">>, extensions => #{code => domain_duplicate, domain => Domain}};
-err(_Ctx, #{domain := Domain, what := domain_static}) when is_binary(Domain) ->
-    #{message => <<"Domain static">>, extensions => #{code => domain_static, domain => Domain}};
-err(_Ctx, #{host_type := HostType, what := unknown_host_type}) when is_binary(HostType) ->
-    #{message => <<"Unknown host type">>, extensions => #{code => unknown_host_type, hostType => HostType}};
-err(_Ctx, #{host_type := HostType, what := wrong_host_type}) when is_binary(HostType) ->
-    #{message => <<"Wrong host type">>, extensions => #{code => wrong_host_type, hostType => HostType}};
-err(_Ctx, #{term := Term, what := db_error}) ->
-    #{message => <<"Database error">>, extensions => #{code => db_error, term => Term}};
-err(_Ctx, #{host_type := HostType, what := service_disabled}) when is_binary(HostType) ->
-    #{message => <<"Service disabled">>, extensions => #{code => service_disabled, hostType => HostType}};
 err(_Ctx, #resolver_error{reason = Code, msg = Msg, context = Ext}) ->
     #{message => iolist_to_binary(Msg), extensions => Ext#{code => Code}};
 err(_Ctx, ErrorTerm) ->

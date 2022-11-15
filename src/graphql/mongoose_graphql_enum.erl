@@ -4,8 +4,6 @@
 
 -ignore_xref([input/2, output/2]).
 
-input(<<"DomainStatus">>, Type) ->
-    {ok, list_to_binary(string:to_lower(binary_to_list(Type)))};
 input(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_lower(binary_to_list(Show)))};
 input(<<"PresenceType">>, Type) ->

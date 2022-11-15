@@ -1,6 +1,7 @@
 -module(service_domain_db_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4]).
@@ -56,7 +57,7 @@ db_cases() -> [
      db_disabled_domain_not_in_core,
      db_reenabled_domain_is_in_db,
      db_reenabled_domain_is_in_core,
-     db_can_insert_domain_twice_with_the_same_host_type,
+     db_cannot_insert_domain_twice_with_the_same_host_type,
      db_cannot_insert_domain_twice_with_another_host_type,
      db_cannot_insert_domain_with_unknown_host_type,
      db_cannot_delete_domain_with_unknown_host_type,
@@ -137,7 +138,7 @@ rest_cases() ->
      rest_can_delete_domain,
      rest_request_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
-     rest_delete_missing_domain,
+     rest_cannot_delete_missing_domain,
      rest_cannot_insert_domain_twice_with_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_delete_domain_with_unknown_host_type,
@@ -146,6 +147,7 @@ rest_cases() ->
      rest_can_enable_domain,
      rest_can_select_domain,
      rest_cannot_select_domain_if_domain_not_found,
+     rest_cannot_select_domain_when_it_is_static,
      rest_cannot_put_domain_without_host_type,
      rest_cannot_put_domain_without_body,
      rest_cannot_put_domain_with_invalid_json,
@@ -327,13 +329,13 @@ api_lookup_not_found(_) ->
     {error, not_found} = get_host_type(mim(), <<"example.missing">>).
 
 api_cannot_insert_static(_) ->
-    {error, static} = insert_domain(mim(), <<"example.cfg">>, <<"type1">>).
+    {static, <<"Domain is static">>} = insert_domain(mim(), <<"example.cfg">>, <<"type1">>).
 
 api_cannot_disable_static(_) ->
-    {error, static} = disable_domain(mim(), <<"example.cfg">>).
+    {static, <<"Domain is static">>} = disable_domain(mim(), <<"example.cfg">>).
 
 api_cannot_enable_static(_) ->
-    {error, static} = enable_domain(mim(), <<"example.cfg">>).
+    {static, <<"Domain is static">>} = enable_domain(mim(), <<"example.cfg">>).
 
 %% See also db_get_all_static
 api_get_all_static(_) ->
@@ -351,7 +353,7 @@ api_get_domains_by_host_type(_) ->
 
 %% Similar to as api_get_all_static, just with DB service enabled
 db_get_all_static(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
@@ -360,141 +362,141 @@ db_get_all_static(_) ->
         lists:sort(get_all_static(mim())).
 
 db_get_all_dynamic(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = insert_domain(mim(), <<"example2.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example2.db">>, <<"type1">>),
     sync(),
     [{<<"example.db">>, <<"type1">>},
      {<<"example2.db">>, <<"type1">>}] =
         lists:sort(get_all_dynamic(mim())).
 
 db_inserted_domain_is_in_db(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_inserted_domain_is_in_core(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
 
 rest_cannot_enable_deleting(Config) ->
     HostType = ?config(host_type, Config),
     Domain = <<"example.db">>,
-    ok = insert_domain(mim(), Domain, HostType),
+    {ok, _} = insert_domain(mim(), Domain, HostType),
     {ok, #{status := enabled}} = select_domain(mim(), Domain),
-    ok = request_delete_domain(mim(), Domain, HostType),
+    {ok, _} = request_delete_domain(mim(), Domain, HostType),
     {ok, #{status := deleting}} = select_domain(mim(), Domain),
-    {error, domain_deleted} = enable_domain(mim(), Domain),
+    {deleted, _} = enable_domain(mim(), Domain),
     Server = ?config(server, Config),
     Server ! continue,
     F = fun () -> select_domain(mim(), <<"example.db">>) end,
     mongoose_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
 
 db_deleted_domain_from_db(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = delete_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = delete_domain(mim(), <<"example.db">>, <<"type1">>),
     {error, not_found} = select_domain(mim(), <<"example.db">>).
 
 db_deleted_domain_fails_with_wrong_host_type(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {error, wrong_host_type} =
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {wrong_host_type, _} =
         delete_domain(mim(), <<"example.db">>, <<"type2">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
         select_domain(mim(), <<"example.db">>).
 
 db_deleted_domain_from_core(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
-    ok = delete_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = delete_domain(mim(), <<"example.db">>, <<"type1">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
 db_disabled_domain_is_in_db(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.db">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = disable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, status := disabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_disabled_domain_not_in_core(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.db">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = disable_domain(mim(), <<"example.db">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.db">>).
 
 db_reenabled_domain_is_in_db(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.db">>),
-    ok = enable_domain(mim(), <<"example.db">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = disable_domain(mim(), <<"example.db">>),
+    {ok, _} = enable_domain(mim(), <<"example.db">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
        select_domain(mim(), <<"example.db">>).
 
 db_reenabled_domain_is_in_core(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = disable_domain(mim(), <<"example.db">>),
-    ok = enable_domain(mim(), <<"example.db">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = disable_domain(mim(), <<"example.db">>),
+    {ok, _} = enable_domain(mim(), <<"example.db">>),
     sync(),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
 
-db_can_insert_domain_twice_with_the_same_host_type(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>).
+db_cannot_insert_domain_twice_with_the_same_host_type(_) ->
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {duplicate, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>).
 
 db_cannot_insert_domain_twice_with_another_host_type(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {error, duplicate} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {duplicate, _} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
 
 db_cannot_insert_domain_with_unknown_host_type(_) ->
-    {error, unknown_host_type} = insert_domain(mim(), <<"example.db">>, <<"type6">>).
+    {unknown_host_type, _} = insert_domain(mim(), <<"example.db">>, <<"type6">>).
 
 db_cannot_delete_domain_with_unknown_host_type(_) ->
-    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
     sync(),
-    {error, unknown_host_type} = delete_domain(mim(), <<"example.db">>, <<"mim2only">>).
+    {unknown_host_type, _} = delete_domain(mim(), <<"example.db">>, <<"mim2only">>).
 
 db_cannot_enable_domain_with_unknown_host_type(_) ->
-    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
-    ok = disable_domain(mim2(), <<"example.db">>),
+    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    {ok, _} = disable_domain(mim2(), <<"example.db">>),
     sync(),
-    {error, unknown_host_type} = enable_domain(mim(), <<"example.db">>).
+    {unknown_host_type, _} = enable_domain(mim(), <<"example.db">>).
 
 db_cannot_disable_domain_with_unknown_host_type(_) ->
-    ok = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
     sync(),
-    {error, unknown_host_type} = disable_domain(mim(), <<"example.db">>).
+    {unknown_host_type, _} = disable_domain(mim(), <<"example.db">>).
 
 db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
-    ok = insert_domain(mim2(), <<"example.com">>, <<"mim2only">>),
-    ok = insert_domain(mim2(), <<"example.org">>, <<"type1">>),
+    {ok, _} = insert_domain(mim2(), <<"example.com">>, <<"mim2only">>),
+    {ok, _} = insert_domain(mim2(), <<"example.org">>, <<"type1">>),
     sync(),
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
 db_can_insert_update_delete_dynamic_domain_password(_) ->
     Domain = <<"password-example.com">>,
-    ok = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     sync(),
-    ok = set_domain_password(mim(), Domain, <<"rocky1">>),
+    {ok, _} = set_domain_password(mim(), Domain, <<"rocky1">>),
     ok = check_domain_password(mim(), Domain, <<"rocky1">>),
-    ok = set_domain_password(mim(), Domain, <<"rocky2">>),
+    {ok, _} = set_domain_password(mim(), Domain, <<"rocky2">>),
     ok = check_domain_password(mim(), Domain, <<"rocky2">>),
-    ok = delete_domain_password(mim(), Domain),
+    {ok, _} = delete_domain_password(mim(), Domain),
     {error, not_found} = select_domain_admin(mim(), Domain).
 
 db_can_insert_update_delete_static_domain_password(_) ->
     StaticDomain = <<"example.cfg">>,
-    ok = set_domain_password(mim(), StaticDomain, <<"rocky1">>),
+    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky1">>),
     ok = check_domain_password(mim(), StaticDomain, <<"rocky1">>),
-    ok = set_domain_password(mim(), StaticDomain, <<"rocky2">>),
+    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky2">>),
     ok = check_domain_password(mim(), StaticDomain, <<"rocky2">>),
-    ok = delete_domain_password(mim(), StaticDomain),
+    {ok, _} = delete_domain_password(mim(), StaticDomain),
     {error, not_found} = select_domain_admin(mim(), StaticDomain).
 
 db_cannot_set_password_for_unknown_domain(_) ->
-    {error, not_found} = set_domain_password(mim(), <<"unknown_domain">>, <<>>).
+    {not_found, _} = set_domain_password(mim(), <<"unknown_domain">>, <<>>).
 
 db_can_check_domain_password(_) ->
     StaticDomain = <<"example.cfg">>,
-    ok = set_domain_password(mim(), StaticDomain, <<"myrock">>),
+    {ok, _} = set_domain_password(mim(), StaticDomain, <<"myrock">>),
     ok = check_domain_password(mim(), StaticDomain, <<"myrock">>),
     {error, wrong_password} = check_domain_password(mim(), StaticDomain, <<"wrongrock">>).
 
@@ -503,14 +505,14 @@ db_cannot_check_password_for_unknown_domain(_) ->
 
 db_deleting_domain_deletes_domain_admin(_) ->
     Domain = <<"password-del-example.db">>,
-    ok = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     sync(),
-    ok = set_domain_password(mim(), Domain, <<"deleteme">>),
-    ok = delete_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = set_domain_password(mim(), Domain, <<"deleteme">>),
+    {ok, _} = delete_domain(mim(), Domain, <<"type1">>),
     {error, not_found} = select_domain_admin(mim(), Domain).
 
 sql_select_from(_) ->
-    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
@@ -533,7 +535,7 @@ find_gaps_between(From, To) ->
     rpc(mim(), mongoose_domain_loader, find_gaps_between, [From, To]).
 
 db_records_are_restored_on_mim_restart(_) ->
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
     service_disabled(mim()),
     restart_domain_core(mim(), [], [<<"type1">>]),
@@ -546,8 +548,8 @@ db_records_are_restored_on_mim_restart(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.com">>).
 
 db_record_is_ignored_if_domain_static(_) ->
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
-    ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     %% Simulate MIM restart
     service_disabled(mim()),
     %% Only one domain is static
@@ -564,10 +566,10 @@ db_record_is_ignored_if_domain_static(_) ->
 
 db_events_table_gets_truncated(_) ->
     %% Configure service with a very short interval
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
-    ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
-    ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
-    ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
     Max = get_max_event_id(mim()),
     true = is_integer(Max),
     true = Max > 0,
@@ -576,18 +578,18 @@ db_events_table_gets_truncated(_) ->
     mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}).
 
 db_could_sync_between_nodes(_) ->
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
 
 db_deleted_from_one_node_while_service_disabled_on_another(_) ->
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     %% Service is disable on the second node
     service_disabled(mim2()),
     %% Removed from the first node
-    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync_local(mim()),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
@@ -598,7 +600,7 @@ db_deleted_from_one_node_while_service_disabled_on_another(_) ->
 db_inserted_from_one_node_while_service_disabled_on_another(_) ->
     %% Service is disable on the second node
     service_disabled(mim2()),
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     %% Sync is working again
     service_enabled(mim2()),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
@@ -606,15 +608,15 @@ db_inserted_from_one_node_while_service_disabled_on_another(_) ->
 db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     %% This test shows the behaviour when someone
     %% reinserts a domain with a different host type.
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync(),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     %% Service is disable on the second node
     service_disabled(mim2()),
     %% Removed from the first node
-    ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    {ok, _} = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
     sync_local(mim()),
-    ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
     sync_local(mim()),
     %% Sync is working again
     service_enabled(mim2()),
@@ -624,7 +626,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     {ok, <<"dbgroup2">>} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup2">>} = get_host_type(mim2(), <<"example.com">>),
     %% check deleting
-    ok = delete_domain(mim2(), <<"example.com">>, <<"dbgroup2">>),
+    {ok, _} = delete_domain(mim2(), <<"example.com">>, <<"dbgroup2">>),
     sync(),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {error, not_found} = get_host_type(mim2(), <<"example.com">>).
@@ -636,13 +638,13 @@ db_crash_on_initial_load_restarts_service(_) ->
     ok.
 
 db_out_of_sync_restarts_service(_) ->
-    ok = insert_domain(mim2(), <<"example1.com">>, <<"type1">>),
-    ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim2(), <<"example1.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
     %% Pause processing events on one node
     suspend_service(mim()),
-    ok = insert_domain(mim2(), <<"example3.com">>, <<"type1">>),
-    ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim2(), <<"example3.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
     sync_local(mim2()),
     %% Truncate events table, keep only one event
     MaxId = get_max_event_id(mim2()),
@@ -673,8 +675,8 @@ db_keeps_syncing_after_cluster_join(Config) ->
     %% (and mongooseim application gets restarted on mim1)
     leave_cluster(Config),
     service_enabled(mim()),
-    ok = insert_domain(mim(), <<"example1.com">>, HostType),
-    ok = insert_domain(mim2(), <<"example2.com">>, HostType),
+    {ok, _} = insert_domain(mim(), <<"example1.com">>, HostType),
+    {ok, _} = insert_domain(mim2(), <<"example2.com">>, HostType),
     sync(),
     %% Nodes don't have to be clustered to sync the domains.
     assert_domains_are_equal(HostType),
@@ -683,13 +685,13 @@ db_keeps_syncing_after_cluster_join(Config) ->
     join_cluster(Config),
     service_enabled(mim()),
     %% THEN Sync is successful
-    ok = insert_domain(mim(), <<"example3.com">>, HostType),
-    ok = insert_domain(mim2(), <<"example4.com">>, HostType),
+    {ok, _} = insert_domain(mim(), <<"example3.com">>, HostType),
+    {ok, _} = insert_domain(mim2(), <<"example4.com">>, HostType),
     sync(),
     assert_domains_are_equal(HostType).
 
 db_gaps_are_getting_filled_automatically(_Config) ->
-    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     sync(),
     Max = get_max_event_id(mim()),
     %% Create a gap in events by manually adding an event
@@ -755,7 +757,7 @@ cli_can_delete_domain(Config) ->
 cli_cannot_delete_domain_without_correct_type(Config) ->
     {"Added\n", 0} =
         mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"Wrong host type\"\n", 1} =
+    {"Error: \"Wrong host type was provided\"\n", 1} =
         mongooseimctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
@@ -774,11 +776,11 @@ cli_cannot_delete_domain_with_unknown_host_type(Config) ->
         mongooseimctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
 
 cli_cannot_enable_missing_domain(Config) ->
-    {"Error: \"Domain not found\"\n", 1} =
+    {"Error: \"Given domain does not exist\"\n", 1} =
         mongooseimctl("enable_domain", [<<"example.db">>], Config).
 
 cli_cannot_disable_missing_domain(Config) ->
-    {"Error: \"Domain not found\"\n", 1} =
+    {"Error: \"Given domain does not exist\"\n", 1} =
         mongooseimctl("disable_domain", [<<"example.db">>], Config).
 
 cli_cannot_insert_domain_when_it_is_static(Config) ->
@@ -798,39 +800,40 @@ cli_cannot_disable_domain_when_it_is_static(Config) ->
         mongooseimctl("disable_domain", [<<"example.cfg">>], Config).
 
 cli_insert_domain_fails_if_db_fails(Config) ->
-    {"Error: \"Database error\"\n", 1} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+    Res = mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    assert_cli_db_error(Res).
 
 cli_insert_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {"Error: \"Service disabled\"\n", 1} =
+    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
         mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_delete_domain_fails_if_db_fails(Config) ->
-    {"Error: \"Database error\"\n", 1} =
-        mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Res = mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
+    assert_cli_db_error(Res).
 
 cli_delete_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {"Error: \"Service disabled\"\n", 1} =
+    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
         mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_enable_domain_fails_if_db_fails(Config) ->
-    {"Error: \"Database error\"\n", 1} =
-        mongooseimctl("enable_domain", [<<"example.db">>], Config).
+    Res = mongooseimctl("enable_domain", [<<"example.db">>], Config),
+    assert_cli_db_error(Res).
 
 cli_enable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {"Error: \"Service disabled\"\n", 1} =
+    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
         mongooseimctl("enable_domain", [<<"example.db">>], Config).
 
 cli_disable_domain_fails_if_db_fails(Config) ->
-    {"Error: \"Database error\"\n", 1} =
-        mongooseimctl("disable_domain", [<<"example.db">>], Config).
+    Res = mongooseimctl("disable_domain", [<<"example.db">>], Config),
+    assert_cli_db_error(Res).
 
 cli_disable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {"Error: \"Service disabled\"\n", 1} =
+    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
         mongooseimctl("disable_domain", [<<"example.db">>], Config).
 
 rest_can_insert_domain(Config) ->
@@ -851,7 +854,7 @@ rest_request_can_delete_domain(Config) ->
     %% Request delete domain
     {{<<"202">>, _}, _} = domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>),
     %% Wait until it is not found anymore
-    Return = {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>},
+    Return = {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>},
     F1 = fun() -> rest_select_domain(Config, <<"example.db">>) end,
     mongoose_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
     %% Double-check
@@ -866,21 +869,23 @@ rest_can_delete_domain(Config) ->
 
 rest_cannot_delete_domain_without_correct_type(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    {{<<"403">>, <<"Forbidden">>}, <<"Wrong host type">>} =
+    {{<<"403">>, <<"Forbidden">>}, <<"Wrong host type was provided">>} =
         rest_delete_domain(Config, <<"example.db">>, <<"type2">>),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
-rest_delete_missing_domain(Config) ->
-    {{<<"204">>, _}, _} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
+rest_cannot_delete_missing_domain(Config) ->
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>),
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
+        domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 rest_cannot_enable_missing_domain(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    {{<<"409">>, <<"Conflict">>}, <<"Duplicate domain">>} =
+    {{<<"409">>, <<"Conflict">>}, <<"Domain already exists">>} =
         rest_put_domain(Config, <<"example.db">>, <<"type2">>).
 
 rest_cannot_insert_domain_with_unknown_host_type(Config) ->
@@ -954,9 +959,8 @@ rest_cannot_select_domain_without_auth(Config) ->
     {{<<"401">>, <<"Unauthorized">>}, _} =
         rest_select_domain(set_no_creds(Config), <<"example.db">>).
 
-
 rest_cannot_disable_missing_domain(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_patch_enabled(Config, <<"example.db">>, false).
 
 rest_can_enable_domain(Config) ->
@@ -973,8 +977,12 @@ rest_can_select_domain(Config) ->
         rest_select_domain(Config, <<"example.db">>).
 
 rest_cannot_select_domain_if_domain_not_found(Config) ->
-    {{<<"404">>, <<"Not Found">>}, <<"Domain not found">>} =
+    {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_select_domain(Config, <<"example.db">>).
+
+rest_cannot_select_domain_when_it_is_static(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
+        rest_select_domain(Config, <<"example.cfg">>).
 
 rest_cannot_put_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>}, <<"'host_type' field is missing">>} =
@@ -1010,7 +1018,9 @@ rest_cannot_delete_domain_with_invalid_json(Config) ->
 
 rest_cannot_delete_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
-        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>),
+    {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
+        domain_rest_helper:request_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
 
 rest_cannot_patch_domain_without_enabled_field(Config) ->
     {{<<"400">>, <<"Bad Request">>}, <<"'enabled' field is missing">>} =
@@ -1026,32 +1036,30 @@ rest_cannot_patch_domain_with_invalid_json(Config) ->
 
 %% SQL query is mocked to fail
 rest_insert_domain_fails_if_db_fails(Config) ->
-    {{<<"500">>, <<"Internal Server Error">>}, <<"Database error">>} =
-        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
+    assert_rest_db_error(rest_put_domain(Config, <<"example.db">>, <<"type1">>)).
 
 rest_insert_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Service disabled">>} =
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
         rest_put_domain(Config, <<"example.db">>, <<"type1">>).
 
 %% SQL query is mocked to fail
 rest_delete_domain_fails_if_db_fails(Config) ->
-    {{<<"500">>, <<"Internal Server Error">>}, <<"Database error">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    assert_rest_db_error(rest_delete_domain(Config, <<"example.db">>, <<"type1">>)).
 
 rest_delete_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Service disabled">>} =
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
         rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 %% SQL query is mocked to fail
 rest_enable_domain_fails_if_db_fails(Config) ->
-    {{<<"500">>, <<"Internal Server Error">>}, <<"Database error">>} =
-        rest_patch_enabled(Config, <<"example.db">>, true).
+    assert_rest_db_error(rest_patch_enabled(Config, <<"example.db">>, true)).
 
 rest_enable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Service disabled">>} =
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
         rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_cannot_enable_domain_when_it_is_static(Config) ->
@@ -1257,13 +1265,10 @@ maybe_setup_meck(TC) when TC =:= rest_delete_domain_fails_if_db_fails;
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2,
                                    {error, {db_error, simulated_db_error}}]);
 maybe_setup_meck(TC) when TC =:= rest_enable_domain_fails_if_db_fails;
-                          TC =:= cli_enable_domain_fails_if_db_fails ->
+                          TC =:= cli_enable_domain_fails_if_db_fails;
+                          TC =:= cli_disable_domain_fails_if_db_fails ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, enable_domain, 1,
-                                   {error, {db_error, simulated_db_error}}]);
-maybe_setup_meck(cli_disable_domain_fails_if_db_fails) ->
-    ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
-    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, disable_domain, 1,
+    ok = rpc(mim(), meck, expect, [mongoose_domain_sql, set_status, 2,
                                    {error, {db_error, simulated_db_error}}]);
 maybe_setup_meck(db_crash_on_initial_load_restarts_service) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
@@ -1300,6 +1305,13 @@ assert_domains_are_equal(HostType) ->
         true -> ok;
         false -> ct:fail({Domains1, Domains2})
     end.
+
+assert_cli_db_error({Msg, 1}) ->
+    ?assertMatch([_|_], string:find(Msg, "simulated_db_error")).
+
+assert_rest_db_error({Result, Msg}) ->
+    ?assertEqual({<<"500">>, <<"Internal Server Error">>}, Result),
+    ?assertEqual(<<>>, Msg). % shouldn't leak out the DB error, it's in the logs anyway
 
 dummy_auth_host_type() ->
     <<"dummy auth">>. %% specified in the TOML config file
