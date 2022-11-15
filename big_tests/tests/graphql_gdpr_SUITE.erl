@@ -25,7 +25,12 @@ groups() ->
 
 admin_gdpr_tests() ->
     [admin_retrieve_user_data,
-     admin_gdpr_no_user_test].
+     admin_gdpr_no_user_test,
+     admin_gdpr_empty_filename_test,
+     admin_gdpr_access_denied_erofs,
+     admin_gdpr_access_denied_eacces,
+     admin_gdpr_access_denied_exit,
+     admin_gdpr_access_denied_filename_is_a_directory].
 
 domain_admin_gdpr_tests() ->
     [admin_retrieve_user_data,
@@ -76,6 +81,52 @@ admin_retrieve_user_data(Config, Alice) ->
 admin_gdpr_no_user_test(Config) ->
     Res = admin_retrieve_personal_data(<<"AAAA">>, domain(), <<"AAA">>, Config),
     ?assertEqual(<<"user_does_not_exist_error">>, get_err_code(Res)).
+
+admin_gdpr_empty_filename_test(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_empty_filename_test/2).
+
+admin_gdpr_empty_filename_test(Config, Alice) ->
+    Filename = "",
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+                                       list_to_binary(Filename), Config),
+    ?assertEqual(<<"wrong_filename_error">>, get_err_code(Res)).
+
+admin_gdpr_access_denied_erofs(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_access_denied_erofs/2).
+
+admin_gdpr_access_denied_erofs(Config, Alice) ->
+    Filename = "/non_existing_file!",
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+                                       list_to_binary(Filename), Config),
+    ?assertEqual(<<"file_creation_permission_denied_error">>, get_err_code(Res)).
+
+admin_gdpr_access_denied_eacces(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_access_denied_eacces/2).
+
+admin_gdpr_access_denied_eacces(Config, Alice) ->
+    Filename = "/etc/new_file.txt",
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+                                       list_to_binary(Filename), Config),
+    ?assertEqual(<<"file_creation_permission_denied_error">>, get_err_code(Res)).
+
+admin_gdpr_access_denied_exit(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_gdpr_access_denied_exit/2).
+
+admin_gdpr_access_denied_exit(Config, Alice) ->
+    Filename = "/new_directory!/new_file.txt",
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+                                       list_to_binary(Filename), Config),
+    ?assertEqual(<<"file_creation_permission_denied_error">>, get_err_code(Res)).
+
+admin_gdpr_access_denied_filename_is_a_directory(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_gdpr_access_denied_filename_is_a_directory/2).
+
+admin_gdpr_access_denied_filename_is_a_directory(Config, Alice) ->
+    Filename = "//",
+    Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
+                                       list_to_binary(Filename), Config),
+    ?assertEqual(<<"location_is_a_directory_error">>, get_err_code(Res)).
 
 domain_admin_retrieve_user_data_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],

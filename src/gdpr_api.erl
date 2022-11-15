@@ -11,8 +11,11 @@
 
 -define(CMD_TIMEOUT, 300000).
 
+-type error_code() :: user_does_not_exist_error | wrong_filename_error |
+                      file_creation_permission_denied_error | location_is_a_directory_error.
+
 -spec retrieve_all(jid:user(), jid:server(), Path :: binary()) ->
-    ok | {user_does_not_exist_error, Reason :: string()}.
+    ok | {error_code(), Reason :: string()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     JID = jid:make(Username, Domain, <<>>),
     case user_exists(JID) of
@@ -34,11 +37,15 @@ retrieve_all(Username, Domain, ResultFilePath) ->
                 DataToWrite),
 
             LogFiles = get_all_logs(Username, Domain, TmpDir),
-
             ZipFile = binary_to_list(ResultFilePath),
-            {ok, ZipFile} = zip:create(ZipFile, CsvFiles ++ LogFiles, [{cwd, TmpDir}]),
-            remove_tmp_dir(TmpDir),
-            ok;
+            try
+                {ok, ZipFile} = zip:create(ZipFile, CsvFiles ++ LogFiles, [{cwd, TmpDir}]),
+                remove_tmp_dir(TmpDir),
+                ok
+            catch
+                _:Reason ->
+                    process_error(Reason, ZipFile)
+            end;
         false ->
             {user_does_not_exist_error, "User does not exist"}
     end.
@@ -46,6 +53,21 @@ retrieve_all(Username, Domain, ResultFilePath) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                       Private funs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+process_error({badmatch, {error, enoent}}, ZipFile) ->
+    ErrorMessage = "It is impossible to create file named '" ++ ZipFile ++ "'",
+    {wrong_filename_error, ErrorMessage};
+process_error({badmatch, {error, ErrorCode}}, ZipFile)
+    when ErrorCode =:= eacces orelse ErrorCode =:= erofs ->
+        ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",
+        {file_creation_permission_denied_error, ErrorMessage};
+process_error({badmatch, {error, eisdir}}, ZipFile) ->
+    ErrorMessage = "Given location '" ++ ZipFile ++ "' is a directory",
+    {location_is_a_directory_error, ErrorMessage};
+process_error({badmatch, {error, {'EXIT', {{badmatch, {error, ErrorCode}}, _}}}}, ZipFile)
+    when ErrorCode =:= eacces orelse ErrorCode =:= erofs ->
+        ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",
+        {file_creation_permission_denied_error, ErrorMessage}.
 
 -spec get_data_from_modules(jid:user(), jid:server()) -> gdpr:personal_data().
 get_data_from_modules(Username, Domain) ->
