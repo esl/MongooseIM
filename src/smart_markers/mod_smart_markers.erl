@@ -209,7 +209,7 @@ removal_hooks(HostType) ->
 -spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_send_packet(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     {ok, user_send_packet(Acc, From, To, Packet)}.
@@ -229,7 +229,7 @@ user_send_packet(Acc, _From, _To, _Packet) ->
 -spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_hooks:filter_packet_acc() | drop,
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 filter_local_packet(Filter = {_From, _To, _Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
     NewFilter = case mongoose_chat_markers:has_chat_markers(Msg) of
         false -> Filter;
@@ -242,7 +242,7 @@ filter_local_packet(Filter, _, _) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_smart_markers_backend:remove_user(HostType, jid:make_bare(User, Server)),
@@ -268,7 +268,7 @@ forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) 
 -spec room_new_affiliations(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_domain_api:simple_acc(),
       Params :: #{room := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 room_new_affiliations(Acc, #{room := RoomJID}, _) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     Packet = mongoose_acc:element(Acc),

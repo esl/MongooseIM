@@ -58,7 +58,7 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
 -spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Args :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_send_packet(Acc, _, _) ->
     Packet = mongoose_acc:packet(Acc),
     ChatType = chat_type(Acc),
@@ -72,7 +72,7 @@ user_send_packet(Acc, _, _) ->
 -spec user_present(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Args :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_present(Acc, #{jid := UserJID = #jid{}}, _) ->
     Event = #user_status_event{jid = UserJID, status = online},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
@@ -81,7 +81,7 @@ user_present(Acc, #{jid := UserJID = #jid{}}, _) ->
 -spec user_not_present(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Args :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 user_not_present(Acc, #{jid := UserJID}, _) ->
     Event = #user_status_event{jid = UserJID, status = offline},
     NewAcc = mod_event_pusher:push_event(Acc, Event),
@@ -90,7 +90,7 @@ user_not_present(Acc, #{jid := UserJID}, _) ->
 -spec unacknowledged_message(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Args :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 unacknowledged_message(Acc, #{jid := Jid}, _) ->
     Event = #unack_msg_event{to = Jid},
     NewAcc = mod_event_pusher:push_event(Acc, Event),

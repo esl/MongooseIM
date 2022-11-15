@@ -174,7 +174,7 @@ read_caps([], Result) -> Result.
 -spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 user_send_packet(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     {ok, user_send_packet(Acc, From, To, Packet)}.
@@ -193,7 +193,7 @@ user_send_packet(Acc, _From, _To, _Pkt) ->
 -spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{jid := jid:jid()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 user_receive_packet(Acc, #{jid := #jid{lserver = LServer}}, _) ->
     {From, _, Packet} = mongoose_acc:packet(Acc),
     {ok, user_receive_packet(Acc, LServer, From, Packet)}.
@@ -255,7 +255,7 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_identity(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
@@ -266,7 +266,7 @@ disco_local_identity(Acc = #{node := Node}, _, _) ->
 -spec disco_info(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_info(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
@@ -277,7 +277,7 @@ disco_info(Acc = #{node := Node}, _, _) ->
 -spec c2s_presence_in(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: ejabberd_c2s:state(),
     Params :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 c2s_presence_in(C2SState, #{from := From, to := To, packet := Packet = #xmlel{attrs = Attrs, children = Els}}, _) ->
     ?LOG_DEBUG(#{what => caps_c2s_presence_in,
                  to => jid:to_binary(To), from => jid:to_binary(From),
@@ -325,7 +325,7 @@ upsert_caps(LFrom, Caps, Rs) ->
 -spec c2s_filter_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: boolean(),
     Params :: #{state := ejabberd_c2s:state(), feature := {atom(), binary()}, to := jid:jid()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 c2s_filter_packet(InAcc, #{state := C2SState, feature := {pep_message, Feature}, to := To}, _) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
@@ -347,7 +347,7 @@ c2s_filter_packet(Acc, _, _) -> {ok, Acc}.
 -spec c2s_broadcast_recipients(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [jid:simple_jid()],
     Params :: #{state := ejabberd_c2s:state(), type := {atom(), binary()}},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 c2s_broadcast_recipients(InAcc, #{state := C2SState, type := {pep_message, Feature}}, _) ->
     HostType = ejabberd_c2s_state:host_type(C2SState),
     NewAcc = case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
