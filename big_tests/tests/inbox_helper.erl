@@ -200,9 +200,11 @@ do_check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                               asc -> lists:reverse(Convs);
                               _ -> Convs
                           end,
-    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
+    Inbox = #{respond_messages := ResultStanzas}
+        = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
     try
-        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs),
+        Inbox
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -251,23 +253,25 @@ maybe_check_queryid(_Children, #{}) ->
     ok.
 
 -spec get_inbox(Client :: escalus:client(),
-                ExpectedResult :: inbox_result_params()) -> [exml:element()].
+                ExpectedResult :: inbox_result_params()) ->
+    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
 get_inbox(Client, ExpectedResult) ->
     get_inbox(Client, #{}, ExpectedResult).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
-                ExpectedResult :: inbox_result_params()) -> [exml:element()].
+                ExpectedResult :: inbox_result_params()) ->
+    #{respond_iq := exml:element(), respond_messages := [exml:element()]}.
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
     GetInbox = make_inbox_stanza(GetParams),
     Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
     {ok, Inbox} = mongoose_helper:wait_until(
                     fun() -> do_get_inbox(Client, GetInbox) end,
                     ExpectedCount, #{validator => Validator, name => inbox_size}),
-    #{respond_iq := ResIQ, respond_messages := Stanzas} = Inbox,
+    #{respond_iq := ResIQ} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),
-    Stanzas.
+    Inbox.
 
 do_get_inbox(Client, GetInbox) ->
     escalus:send(Client, GetInbox),
@@ -368,7 +372,7 @@ make_inbox_stanza(GetParams) ->
     GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
-                      children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
+                      children = [make_inbox_form(GetParams) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
@@ -376,7 +380,7 @@ make_inbox_stanza(GetParams, Verify) ->
     GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
-                      children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
+                      children = [make_inbox_form(GetParams, Verify) | rsm(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 inbox_iq(#{iq_id := IqId}) ->
@@ -392,15 +396,32 @@ maybe_query_params(#{queryid := QueryId}) ->
 maybe_query_params(_) ->
     [].
 
-rsm_max(#{limit := Value}) ->
-    [#xmlel{name = <<"set">>,
-            attrs = [{<<"xmlns">>, ?NS_RSM}],
-            children = [#xmlel{name = <<"max">>,
-                               children = [#xmlcdata{content = itb(Value)}]}]}];
-rsm_max(_) -> [].
+rsm(Params) ->
+    Max = maps:get(limit, Params, undefined),
+    Before = maps:get(before, Params, undefined),
+    After = maps:get('after', Params, undefined),
+    Index = maps:get(index, Params, undefined),
+    Elems = [#xmlel{name = <<"max">>,
+                    children = [#xmlcdata{content = to_bin(Max)}]}
+             || _ <- [Max], undefined =/= Max ] ++
+            [#xmlel{name = <<"index">>,
+                    children = [#xmlcdata{content = to_bin(Index)}]}
+             || _ <- [Index], undefined =/= Index ] ++
+            [#xmlel{name = <<"before">>,
+                    children = [#xmlcdata{content = to_bin(Before)}]}
+             || _ <- [Before], undefined =/= Before ] ++
+            [#xmlel{name = <<"after">>,
+                    children = [#xmlcdata{content = to_bin(After)}]}
+             || _ <- [After], undefined =/= After ],
+    case Elems of
+        [] -> [];
+        _ -> [#xmlel{name = <<"set">>,
+                     attrs = [{<<"xmlns">>, ?NS_RSM}],
+                     children = Elems}]
+    end.
 
-itb(N) when is_integer(N) -> integer_to_binary(N);
-itb(Bin) when is_binary(Bin) -> Bin.
+to_bin(N) when is_integer(N) -> integer_to_binary(N);
+to_bin(Bin) when is_binary(Bin) -> Bin.
 
 
 -spec reset_inbox(
@@ -669,7 +690,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
     mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-    Stanzas = get_inbox(User, #{}, #{count => ExpectedCount}),
+    #{respond_messages := Stanzas} = get_inbox(User, #{}, #{count => ExpectedCount}),
     LastMsg = lists:last(Stanzas),
     [InnerMsg] = get_inner_msg(LastMsg),
     MsgId = exml_query:attr(InnerMsg, <<"id">>),

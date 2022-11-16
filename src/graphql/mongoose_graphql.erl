@@ -9,7 +9,7 @@
 -export([init/0,
          get_endpoint/1,
          create_endpoint/3,
-         execute/2,
+         execute/2, prepare/2,
          execute/3,
          execute_cli/3]).
 
@@ -19,13 +19,14 @@
                      operation_name := binary() | undefined,
                      vars := map(),
                      authorized := boolean(),
-                     ctx := map()}.
+                     ctx := map(),
+                     ast => graphql:document()}.
 -type context() :: map().
 -type object() :: term().
 -type field() :: binary().
 -type args() :: map().
 
--type result() :: {ok, term()} | {error, term()}.
+-type result() :: {ok, term()} | {ok, term(), Aux :: term()} | {error, term()}.
 -callback execute(Ctx :: context(), Obj :: object(), Field :: field(), Args :: args()) ->
             result().
 
@@ -65,24 +66,19 @@ create_endpoint(Name, Mapping, Patterns) ->
 %% @doc Execute request on a given endpoint.
 -spec execute(graphql:endpoint_context(), request()) ->
     {ok, map()} | {error, term()}.
-execute(Ep, #{document := Doc,
-              operation_name := OpName,
-              authorized := AuthStatus,
-              vars := Vars,
-              ctx := Ctx}) ->
-    try
-        {ok, Ast} = graphql_parse(Doc),
-        {ok, #{ast := Ast2,
-               fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
-        ok = graphql:validate(Ast2),
-        Vars2 = remove_null_args(Vars),
-        Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
-        Ctx2 = Ctx#{params => Coerced,
-                    operation_name => OpName,
-                    authorized => AuthStatus,
-                    error_module => mongoose_graphql_errors},
-        Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
-        {ok, graphql:execute(Ep, Ctx2, Ast3)}
+execute(Ep, Req = #{ast := _}) ->
+    execute_graphql(Ep, Req);
+execute(Ep, Req) ->
+    case prepare(Ep, Req) of
+        {error, _} = Error ->
+            Error;
+        {ok, Req1} ->
+            execute_graphql(Ep, Req1)
+    end.
+
+-spec prepare(graphql:endpoint_context(), request()) -> {ok, request()} | {error, term()}.
+prepare(Ep, Req) ->
+    try {ok, prepare_request(Ep, Req)}
     catch
         throw:{error, Err} ->
             {error, Err};
@@ -93,6 +89,30 @@ execute(Ep, #{document := Doc,
             ?LOG_ERROR(Err),
             {error, internal_crash}
     end.
+
+prepare_request(Ep, #{document := Doc,
+                      operation_name := OpName,
+                      authorized := AuthStatus,
+                      vars := Vars,
+                      ctx := Ctx} = Request) ->
+    {ok, Ast} = graphql_parse(Doc),
+    {ok, #{ast := Ast2,
+           fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
+    ok = graphql:validate(Ast2),
+    Vars2 = remove_null_args(Vars),
+    Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars2),
+    Ctx2 = Ctx#{params => Coerced,
+                operation_name => OpName,
+                authorized => AuthStatus,
+                error_module => mongoose_graphql_errors},
+    Ast3 = mongoose_graphql_directive:process_directives(Ctx2, Ast2),
+    mongoose_graphql_operations:verify_operations(Ctx2, Ast3),
+    AllowedCategories = maps:get(allowed_categories, Ctx2, []),
+    Ast4 = mongoose_graphql_check_categories:process_ast(Ast3, AllowedCategories),
+    Request#{ast => Ast4, ctx := Ctx2}.
+
+execute_graphql(Ep, #{ast := Ast, ctx := Ctx}) ->
+    {ok, graphql:execute(Ep, Ctx, Ast)}.
 
 %% @doc Execute selected operation on a given endpoint with authorization.
 -spec execute(graphql:endpoint_context(), undefined | binary(), binary()) ->
@@ -143,10 +163,11 @@ remove_null_args(Vars) ->
 admin_mapping_rules() ->
     #{objects => #{
         'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminMutation' => mongoose_graphql_admin_mutation,
+        'AdminSubscription' => mongoose_graphql_admin_subscription,
         'AdminAuthInfo' => mongoose_graphql_admin_auth_info,
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'GdprAdminQuery' => mongoose_graphql_gdpr_admin_query,
-        'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
         'InboxAdminMutation' => mongoose_graphql_inbox_admin_mutation,
         'SessionAdminMutation' => mongoose_graphql_session_admin_mutation,
@@ -157,6 +178,7 @@ admin_mapping_rules() ->
         'GlobalStats' => mongoose_graphql_stats_global,
         'DomainStats' => mongoose_graphql_stats_domain,
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
+        'StanzaAdminSubscription' => mongoose_graphql_stanza_admin_subscription,
         'ServerAdminQuery' => mongoose_graphql_server_admin_query,
         'ServerAdminMutation' => mongoose_graphql_server_admin_mutation,
         'LastAdminMutation' => mongoose_graphql_last_admin_mutation,
@@ -189,6 +211,7 @@ user_mapping_rules() ->
     #{objects => #{
         'UserQuery' => mongoose_graphql_user_query,
         'UserMutation' => mongoose_graphql_user_mutation,
+        'UserSubscription' => mongoose_graphql_user_subscription,
         'AccountUserQuery' => mongoose_graphql_account_user_query,
         'AccountUserMutation' => mongoose_graphql_account_user_mutation,
         'InboxUserMutation' => mongoose_graphql_inbox_user_mutation,
@@ -208,6 +231,7 @@ user_mapping_rules() ->
         'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
         'TokenUserMutation' => mongoose_graphql_token_user_mutation,
         'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
+        'StanzaUserSubscription' => mongoose_graphql_stanza_user_subscription,
         'HttpUploadUserMutation' => mongoose_graphql_http_upload_user_mutation,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},

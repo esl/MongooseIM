@@ -104,7 +104,7 @@ config_spec() ->
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     NewAcc = mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc),
     {ok, NewAcc};
@@ -156,7 +156,7 @@ user_receive_message(Acc, #{c2s_data := C2SData}, _) ->
 -spec remove_connection(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{jid := jid:jid()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_connection(Acc, #{jid := JID}, _) ->
     disable(JID),
     {ok, Acc}.

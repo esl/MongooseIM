@@ -5,7 +5,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1, user_to_jid/1,
                          get_ok_value/2, get_err_msg/1, get_err_code/1, get_unauthorized/1,
-                         get_not_loaded/1]).
+                         get_not_loaded/1, get_coercion_err_msg/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -13,7 +13,10 @@
 -define(assertErrCode(Res, Code), assert_err_code(Code, Res)).
 
 -define(NONEXISTENT_JID, <<"user@user.com">>).
+-define(NONEXISTENT_NAME, <<"user@", (domain_helper:domain())/binary>>).
+-define(EMPTY_NAME_JID, <<"@", (domain_helper:domain())/binary>>).
 -define(DEFAULT_DT, <<"2022-04-17T12:58:30.000000Z">>).
+-define(INVALID_TIMESTAMP, <<"20222-04-17T12:58:30.000000Z">>).
 -define(NONEXISTENT_DOMAIN, <<"nonexistent">>).
 
 suite() ->
@@ -73,18 +76,22 @@ user_last_not_configured() ->
 admin_last_tests() ->
     [admin_set_last,
      admin_try_set_nonexistent_user_last,
+     admin_try_set_last_invalid_timestamp,
      admin_get_last,
      admin_get_nonexistent_user_last,
      admin_try_get_nonexistent_last,
      admin_count_active_users,
-     admin_try_count_nonexistent_domain_active_users].
+     admin_try_count_nonexistent_domain_active_users,
+     admin_try_count_active_users_invalid_timestamp].
 
 admin_old_users_tests() ->
     [admin_list_old_users_domain,
      admin_try_list_old_users_nonexistent_domain,
+     admin_try_list_old_users_invalid_timestamp,
      admin_list_old_users_global,
      admin_remove_old_users_domain,
      admin_try_remove_old_users_nonexistent_domain,
+     admin_try_remove_old_users_invalid_timestamp,
      admin_remove_old_users_global,
      admin_user_without_last_info_is_old_user,
      admin_logged_user_is_not_old_user].
@@ -92,14 +99,18 @@ admin_old_users_tests() ->
 domain_admin_last_tests() ->
     [admin_set_last,
      domain_admin_set_user_last_no_permission,
+     admin_try_set_last_invalid_timestamp,
      admin_get_last,
      domain_admin_get_user_last_no_permission,
      admin_try_get_nonexistent_last,
      admin_count_active_users,
-     domain_admin_try_count_external_domain_active_users].
+     domain_admin_try_count_external_domain_active_users,
+     admin_try_count_active_users_invalid_timestamp].
 
 domain_admin_old_users_tests() ->
     [admin_list_old_users_domain,
+     admin_try_list_old_users_invalid_timestamp,
+     admin_try_remove_old_users_invalid_timestamp,
      domain_admin_try_list_old_users_external_domain,
      domain_admin_list_old_users_global,
      domain_admin_remove_old_users_global,
@@ -244,7 +255,20 @@ admin_set_last_story(Config, Alice) ->
 admin_try_set_nonexistent_user_last(Config) ->
     Res = admin_set_last(?NONEXISTENT_JID, <<"status">>, null, Config),
     ?assertErrMsg(Res, <<"not exist">>),
-    ?assertErrCode(Res, user_does_not_exist).
+    ?assertErrCode(Res, user_does_not_exist),
+    Res2 = admin_set_last(?NONEXISTENT_NAME, <<"status">>, null, Config),
+    ?assertErrMsg(Res2, <<"not exist">>),
+    ?assertErrCode(Res2, user_does_not_exist),
+    Res3 = admin_set_last(?EMPTY_NAME_JID, <<"status">>, null, Config),
+    get_coercion_err_msg(Res3).
+
+admin_try_set_last_invalid_timestamp(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun admin_try_set_last_invalid_timestamp_story/2).
+
+admin_try_set_last_invalid_timestamp_story(Config, Alice) ->
+    Res = admin_set_last(Alice, <<"status">>, ?INVALID_TIMESTAMP, Config),
+    get_coercion_err_msg(Res).
 
 admin_get_last(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -261,7 +285,12 @@ admin_get_last_story(Config, Alice) ->
 admin_get_nonexistent_user_last(Config) ->
     Res = admin_get_last(?NONEXISTENT_JID, Config),
     ?assertErrMsg(Res, <<"not exist">>),
-    ?assertErrCode(Res, user_does_not_exist).
+    ?assertErrCode(Res, user_does_not_exist),
+    Res2 = admin_get_last(?NONEXISTENT_NAME, Config),
+    ?assertErrMsg(Res2, <<"not exist">>),
+    ?assertErrCode(Res2, user_does_not_exist),
+    Res3 = admin_get_last(?EMPTY_NAME_JID, Config),
+    get_coercion_err_msg(Res3).
 
 admin_try_get_nonexistent_last(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -290,6 +319,11 @@ admin_try_count_nonexistent_domain_active_users(Config) ->
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
 
+admin_try_count_active_users_invalid_timestamp(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_count_active_users(Domain, ?INVALID_TIMESTAMP, Config),
+    get_coercion_err_msg(Res).
+
 %% Admin old users test cases
 
 admin_remove_old_users_domain(Config) ->
@@ -314,6 +348,11 @@ admin_try_remove_old_users_nonexistent_domain(Config) ->
     Res = admin_remove_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
+
+admin_try_remove_old_users_invalid_timestamp(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_remove_old_users(Domain, ?INVALID_TIMESTAMP, Config),
+    get_coercion_err_msg(Res).
 
 admin_remove_old_users_global(Config) ->
     jids_with_config(Config, [alice, alice_bis, bob], fun admin_remove_old_users_global_story/4).
@@ -354,6 +393,11 @@ admin_try_list_old_users_nonexistent_domain(Config) ->
     Res = admin_list_old_users(?NONEXISTENT_DOMAIN, now_dt_with_offset(0), Config),
     ?assertErrMsg(Res, <<"not found">>),
     ?assertErrCode(Res, domain_not_found).
+
+admin_try_list_old_users_invalid_timestamp(Config) ->
+    Domain = domain_helper:domain(),
+    Res = admin_list_old_users(Domain, ?INVALID_TIMESTAMP, Config),
+    get_coercion_err_msg(Res).
 
 admin_list_old_users_global(Config) ->
     jids_with_config(Config, [alice, alice_bis, bob], fun admin_list_old_users_global_story/4).

@@ -4,14 +4,13 @@
 -include("jlib.hrl").
 
 -behaviour(mongoose_packet_handler).
+-behaviour(gen_mod).
 
 %% API
 -export([start/2, stop/1,
          config_spec/0,
          supported_features/0]).
 -export([process_packet/5, process_iq/5]).
-
--ignore_xref([config_spec/0, process_packet/5, start/2, stop/1, supported_features/0]).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -88,13 +87,13 @@ stop(HostType) ->
     ok.
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                     El :: exml:element(), Extra :: map()) -> mongoose_acc:t().
+                     El :: exml:element(), Extra :: gen_hook:extra()) -> mongoose_acc:t().
 process_packet(Acc, _From, _To, _El, _Extra) ->
     %% do nothing, just ignore the packet
     Acc.
 
 -spec process_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                 IQ :: jlib:iq(), Extra :: map()) -> {NewAcc :: mongoose_acc:t(),
+                 IQ :: jlib:iq(), Extra :: gen_hook:extra()) -> {NewAcc :: mongoose_acc:t(),
                                                       IQResp :: ignore | jlib:iq()}.
 process_iq(Acc, _From, _To, IQ, _Extra) ->
     %% reply with empty result IQ stanza

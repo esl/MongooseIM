@@ -27,17 +27,17 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ensure_metrics(HostType),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
 hooks(HostType) ->
-    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 60}].
+    [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 60}].
 
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [HostType, modCSIInactive], spiral),
@@ -63,10 +63,12 @@ supported_features() ->
 %%% Hook handlers
 %%%
 
--spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-c2s_stream_features(Acc, _HostType, _Lserver) ->
-    lists:keystore(<<"csi">>, #xmlel.name, Acc, csi()).
+-spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: map(),
+    Extra :: map().
+c2s_stream_features(Acc, _, _) ->
+    {ok, lists:keystore(<<"csi">>, #xmlel.name, Acc, csi())}.
 
 csi() ->
     #xmlel{name = <<"csi">>,

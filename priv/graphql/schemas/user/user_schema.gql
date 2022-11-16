@@ -1,6 +1,7 @@
 schema{
   query: UserQuery,
-  mutation: UserMutation
+  mutation: UserMutation,
+  subscription: UserSubscription
 }
 
 """
@@ -57,4 +58,8 @@ type UserMutation @protected{
   httpUpload: HttpUploadUserMutation
   "OAUTH token management"
   token: TokenUserMutation
+}
+
+type UserSubscription {
+  stanza: StanzaUserSubscription
 }

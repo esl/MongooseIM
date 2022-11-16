@@ -99,9 +99,16 @@ groups() ->
         properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
+        timestamp_is_not_reset_with_setting_properties,
+        {group, pagination}
+      ]},
+     {pagination, [parallel], [
+        pagination_error_conditions,
+        pagination_overrides_form,
+        can_paginate_forwards,
+        can_paginate_backwards,
         max_queries_can_be_limited,
-        max_queries_can_fetch_ahead,
-        timestamp_is_not_reset_with_setting_properties
+        max_queries_can_fetch_ahead
       ]},
      {muclight, [], [
         groupchat_setunread_stanza_sets_inbox
@@ -666,6 +673,72 @@ properties_many_can_be_set(Config, QueryId) ->
                                                 end}], #{box => archive})
     end).
 
+pagination_error_conditions(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        % We set start and end to return Convs with Mike, but using RSM we override that
+        TS = erlang:system_time(millisecond),
+        AliceJid = escalus_utils:get_short_jid(Alice),
+        IdNotDividing = <<(integer_to_binary(TS))/binary, (base64:encode(AliceJid))/binary>>,
+        verify_returns_error(Alice, #{box => inbox, 'after' => IdNotDividing}, <<"bad-request">>),
+        BadInt = <<(integer_to_binary(-10))/binary, "/", (base64:encode(AliceJid))/binary>>,
+        verify_returns_error(Alice, #{box => inbox, 'after' => BadInt}, <<"bad-request">>),
+        verify_returns_error(Alice, #{box => inbox, index => 10}, <<"feature-not-implemented">>)
+    end).
+
+pagination_overrides_form(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % Extract all the helper values
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        TimeAfterKate = ConvWithKate#conv.time_after,
+        TimeAfterMike = ConvWithMike#conv.time_after,
+        % We set start and end to return Convs with Mike, but using RSM we override that
+        Params = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike, before => <<>>},
+        inbox_helper:check_inbox(Alice, AliceConvs, Params)
+    end).
+
+can_paginate_forwards(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := [ConvWithMike, ConvWithKate, ConvWithBob] = AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        Params1 = #{box => inbox, limit => 1},
+        #{respond_iq := Iq} = inbox_helper:check_inbox(Alice, [ConvWithMike], Params1),
+        AfterPrevious = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                                             {element, <<"set">>}, {element, <<"last">>}, cdata]),
+        Params2 = #{box => inbox, 'after' => AfterPrevious, limit => 2},
+        inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob], Params2)
+    end).
+
+can_paginate_backwards(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % Extract all the helper values
+        ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
+        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
+        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        Params1 = #{box => inbox, limit => 1, before => <<>>},
+        #{respond_iq := Iq} = inbox_helper:check_inbox(Alice, [ConvWithBob], Params1),
+        BeforeLast = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                                          {element, <<"set">>}, {element, <<"first">>}, cdata]),
+        Params2 = #{box => inbox, before => BeforeLast},
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params2)
+    end).
+
 max_queries_can_be_limited(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
@@ -677,10 +750,12 @@ max_queries_can_be_limited(Config) ->
         % Then Alice queries her inbox setting a limit to only one conversation,
         % and she gets the newest one
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => inbox}),
+        Inbox1 = inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => inbox}),
+        verify_rsm(Inbox1),
         % And a limit to two also works fine
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => inbox})
+        Inbox2 = inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => inbox}),
+        verify_rsm(Inbox2)
     end).
 
 max_queries_can_fetch_ahead(Config) ->
@@ -701,12 +776,12 @@ timestamp_is_not_reset_with_setting_properties(Config) ->
         % Alice sends a message to Bob
         inbox_helper:send_msg(Alice, Bob),
         %% We capture the timestamp
-        [Item1] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        #{respond_messages := [Item1]} = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp1 = inbox_helper:timestamp_from_item(Item1),
         % Bob sets a bunch of properties
         set_inbox_properties(Bob, Alice, [{read, true}, {mute, 24*?HOUR}]),
         % Bob gets the inbox again, and timestamp should be the same
-        [Item2] = inbox_helper:get_inbox(Bob, #{count => 1}),
+        #{respond_messages := [Item2]} = inbox_helper:get_inbox(Bob, #{count => 1}),
         TStamp2 = inbox_helper:timestamp_from_item(Item2),
         ?assertEqual(TStamp1, TStamp2)
   end).
@@ -750,6 +825,15 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 
 -type maybe_client() :: undefined | escalus:client().
+
+verify_rsm(#{respond_iq := Iq}) ->
+    Set = exml_query:path(Iq, [{element_with_ns, <<"fin">>, inbox_helper:inbox_ns()},
+                               {element_with_ns, <<"set">>, ?NS_RSM}]),
+    ?assertNotEqual(undefined, exml_query:subelement(Set, <<"first">>)),
+    ?assertNotEqual(undefined, exml_query:subelement(Set, <<"last">>)).
+
+to_int(Bin) ->
+    calendar:rfc3339_to_system_time(binary_to_list(Bin), [{unit, microsecond}]).
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
@@ -887,3 +971,11 @@ muted_status(MutedOrUnmuted, Outer) ->
             Diff = erlang:convert_time_unit(MutedDiff, second, microsecond),
             ?assert(Now + Diff < GivenMutedUntil)
     end.
+
+verify_returns_error(User, Params, Error) ->
+    Stanza = inbox_helper:make_inbox_stanza(Params),
+    escalus:send(User, Stanza),
+    [ResIQ] = escalus:wait_for_stanzas(User, 1),
+    escalus:assert(is_iq_error, [Stanza], ResIQ),
+    Type = exml_query:path(ResIQ, [{element, <<"error">>}, {element, Error}]),
+    ?assertNotEqual(undefined, Type).

@@ -75,7 +75,7 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 -spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [exml:element()],
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 c2s_stream_features(Acc, _, _) ->
     {ok, lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE)}.
 

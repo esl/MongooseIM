@@ -43,12 +43,12 @@
          process_sm_iq_info/5]).
 
 %% hook handlers
--export([disco_local_identity/1,
-         disco_sm_identity/1,
-         disco_local_items/1,
-         disco_sm_items/1,
+-export([disco_local_identity/3,
+         disco_sm_identity/3,
+         disco_local_items/3,
+         disco_sm_items/3,
          disco_local_features/3,
-         disco_info/1]).
+         disco_info/3]).
 
 -ignore_xref([disco_info/1, disco_local_identity/1, disco_local_items/1,
               disco_sm_identity/1, disco_sm_items/1]).
@@ -64,26 +64,22 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, NS, Component, Handler, #{}, IQDisc) ||
         {Component, NS, Handler} <- iq_handlers()],
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, NS, Component) ||
         {Component, NS, _Handler} <- iq_handlers()],
     ok.
 
-legacy_hooks(HostType) ->
-    [{disco_local_items, HostType, ?MODULE, disco_local_items, 100},
-     {disco_local_identity, HostType, ?MODULE, disco_local_identity, 100},
-     {disco_sm_items, HostType, ?MODULE, disco_sm_items, 100},
-     {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 100},
-     {disco_info, HostType, ?MODULE, disco_info, 100}].
-
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 100}].
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 100},
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 100},
+     {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 100},
+     {disco_sm_items, HostType, fun ?MODULE:disco_sm_items/3, #{}, 100},
+     {disco_sm_identity, HostType, fun ?MODULE:disco_sm_identity/3, #{}, 100},
+     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 100}].
 
 iq_handlers() ->
     [{ejabberd_local, ?NS_DISCO_ITEMS, fun ?MODULE:process_local_iq_items/5},
@@ -197,57 +193,74 @@ process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} =
 
 %% Hook handlers
 
--spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_local_identity(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_identities([#{category => <<"server">>,
-                                     type => <<"im">>,
-                                     name => <<"MongooseIM">>}], Acc);
-disco_local_identity(Acc) ->
-    Acc.
+-spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:identity_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_local_identity(Acc = #{node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_identities([#{category => <<"server">>,
+                                          type => <<"im">>,
+                                          name => <<"MongooseIM">>}], Acc)};
+disco_local_identity(Acc, _, _) ->
+    {ok, Acc}.
 
--spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{to_jid := JID}) ->
-    case ejabberd_auth:does_user_exist(JID) of
+-spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:identity_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_sm_identity(Acc = #{to_jid := JID}, _, _) ->
+    NewAcc = case ejabberd_auth:does_user_exist(JID) of
         true -> mongoose_disco:add_identities([#{category => <<"account">>,
                                                  type => <<"registered">>}], Acc);
         false -> Acc
-    end.
+    end,
+    {ok, NewAcc}.
 
--spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}) ->
+-spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}, _, _) ->
     ReturnHidden = should_return_hidden(HostType, From),
     Subdomains = get_subdomains(To#jid.lserver),
     Components = get_external_components(To#jid.lserver, ReturnHidden),
     ExtraDomains = get_extra_domains(HostType),
     Domains = Subdomains ++ Components ++ ExtraDomains,
-    mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc);
-disco_local_items(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc)};
+disco_local_items(Acc, _, _) ->
+    {ok, Acc}.
 
--spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_sm_items(Acc = #{to_jid := To, node := <<>>}) ->
+-spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_sm_items(Acc = #{to_jid := To, node := <<>>}, _, _) ->
     Items = get_user_resources(To),
-    mongoose_disco:add_items(Items, Acc);
-disco_sm_items(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_items(Items, Acc)};
+disco_sm_items(Acc, _, _) ->
+    {ok, Acc}.
 
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           map(),
-                           map()) -> {ok, mongoose_disco:feature_acc()}.
+-spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc)};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
 %% @doc Support for: XEP-0157 Contact Addresses for XMPP Services
--spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
-disco_info(Acc = #{host_type := HostType, module := Module, node := <<>>}) ->
+-spec disco_info(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:info_acc(),
+    Params :: map(),
+    Extra :: map().
+disco_info(Acc = #{host_type := HostType, module := Module, node := <<>>}, _, _) ->
     ServerInfoList = gen_mod:get_module_opt(HostType, ?MODULE, server_info),
     Fields = [server_info_to_field(ServerInfo) || ServerInfo <- ServerInfoList,
                                                   is_module_allowed(Module, ServerInfo)],
-    mongoose_disco:add_info([#{xmlns => ?NS_SERVERINFO, fields => Fields}], Acc);
-disco_info(Acc) ->
-    Acc.
+    {ok, mongoose_disco:add_info([#{xmlns => ?NS_SERVERINFO, fields => Fields}], Acc)};
+disco_info(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
 get_extra_domains(HostType) ->

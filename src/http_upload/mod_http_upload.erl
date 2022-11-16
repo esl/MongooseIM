@@ -184,7 +184,7 @@ process_disco_iq(Acc, _From, _To, #iq{type = get, lang = Lang, sub_el = SubEl} =
 -spec disco_local_items(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:item_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_items(Acc = #{host_type := HostType, to_jid := #jid{lserver = Domain}, node := <<>>, lang := Lang}, _, _) ->
     {ok, mongoose_disco:add_items([#{jid => subdomain(HostType, Domain), name => my_disco_name(Lang)}], Acc)};
 disco_local_items(Acc, _, _) ->

@@ -15,26 +15,6 @@
 
 %% callback invoked when resolver returns error tuple
 -spec err(map(), term()) -> err_msg().
-err(_Ctx, #{jid := Jid, what := unknown_user}) when is_binary(Jid) ->
-    #{message => <<"Given user does not exist">>, extensions => #{code => unknown_user, jid => Jid}};
-err(_Ctx, #{domain := Domain, what := unknown_domain}) when is_binary(Domain) ->
-    #{message => <<"Given domain does not exist">>, extensions => #{code => unknown_domain, domain => Domain}};
-err(_Ctx, #{what := bad_from_jid}) ->
-    #{message => <<"Sending from this JID is not allowed">>, extensions => #{code => bad_from_jid}};
-err(_Ctx, #{domain := Domain, what := domain_not_found}) ->
-    #{message => <<"Given domain does not exist">>, extensions => #{code => domain_not_found, domain => Domain}};
-err(_Ctx, #{domain := Domain, what := domain_duplicate}) when is_binary(Domain) ->
-    #{message => <<"Domain already exists">>, extensions => #{code => domain_duplicate, domain => Domain}};
-err(_Ctx, #{domain := Domain, what := domain_static}) when is_binary(Domain) ->
-    #{message => <<"Domain static">>, extensions => #{code => domain_static, domain => Domain}};
-err(_Ctx, #{host_type := HostType, what := unknown_host_type}) when is_binary(HostType) ->
-    #{message => <<"Unknown host type">>, extensions => #{code => unknown_host_type, hostType => HostType}};
-err(_Ctx, #{host_type := HostType, what := wrong_host_type}) when is_binary(HostType) ->
-    #{message => <<"Wrong host type">>, extensions => #{code => wrong_host_type, hostType => HostType}};
-err(_Ctx, #{term := Term, what := db_error}) ->
-    #{message => <<"Database error">>, extensions => #{code => db_error, term => Term}};
-err(_Ctx, #{host_type := HostType, what := service_disabled}) when is_binary(HostType) ->
-    #{message => <<"Service disabled">>, extensions => #{code => service_disabled, hostType => HostType}};
 err(_Ctx, #resolver_error{reason = Code, msg = Msg, context = Ext}) ->
     #{message => iolist_to_binary(Msg), extensions => Ext#{code => Code}};
 err(_Ctx, ErrorTerm) ->
@@ -52,7 +32,8 @@ crash(_Ctx, Err = #{type := Type}) ->
 -spec format_error(term())-> {integer(), err_msg()}.
 format_error(#{phase := Phase, error_term := Term} = Err) when Phase =:= authorize;
                                                                Phase =:= decode;
-                                                               Phase =:= parse ->
+                                                               Phase =:= parse;
+                                                               Phase =:= verify ->
     Msg = #{extensions => #{code => err_code(Phase, Term)},
             message => iolist_to_binary(err_msg(Phase, Term))},
     {err_http_code(Phase), add_path(Err, Msg)};
@@ -91,7 +72,9 @@ err_msg(parse, Result) ->
 err_msg(decode, Result) ->
     decode_err_msg(Result);
 err_msg(authorize, Result) ->
-    authorize_err_msg(Result).
+    authorize_err_msg(Result);
+err_msg(verify, Result) ->
+    verify_err_msg(Result).
 
 authorize_err_msg({request_error, {header, <<"authorization">>}, _}) ->
     "Malformed authorization header. Please consult the relevant specification";
@@ -118,8 +101,14 @@ decode_err_msg(no_query_supplied) ->
     "The query was not supplied in the request body";
 decode_err_msg(invalid_json_body) ->
     "The request JSON body is invalid";
+decode_err_msg(invalid_query_parameters) ->
+    "The query string is invalid";
 decode_err_msg(variables_invalid_json) ->
     "The variables' JSON is invalid".
+
+verify_err_msg({unsupported_operation, Method, Operation}) ->
+    io_lib:format("The ~p execution method does not support ~p operations.",
+                  [Method, Operation]).
 
 add_path(#{path := Path}, ErrMsg) ->
     ErrMsg#{path => Path};

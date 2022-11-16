@@ -51,28 +51,29 @@ delete_domain(Node, Domain) ->
     ok = rpc(Node, mongoose_domain_core, delete, [Domain]).
 
 insert_persistent_domain(Node, Domain, HostType) ->
-    ok = rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
+    {ok, _} = rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
 
 delete_persistent_domain(Node, Domain, HostType) ->
-    ok = rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
+    {ok, _} = rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
 
 set_domain_password(Node, Domain, Password) ->
-    ok = rpc(Node, mongoose_domain_api, set_domain_password, [Domain, Password]).
+    {ok, _} = rpc(Node, mongoose_domain_api, set_domain_password, [Domain, Password]).
 
 delete_domain_password(Node, Domain) ->
-    ok = rpc(Node, mongoose_domain_api, delete_domain_password, [Domain]).
+    {ok, _} = rpc(Node, mongoose_domain_api, delete_domain_password, [Domain]).
 
 for_each_configured_domain(F) ->
     [for_each_configured_domain(F, Opts) || {_, Opts} <- ct:get_config(hosts)],
     ok.
 
 for_each_configured_domain(F, Opts) ->
-    case proplists:get_value(dynamic_domains, Opts, []) of
-        [] ->
-            ok;
+    case proplists:get_value(dynamic_domains, Opts) of
+        undefined ->
+            ok; % no dynamic domains required
         DomainsByHostType ->
             Node = #{node => proplists:get_value(node, Opts)},
             [F(Node, Domain, HostType) || {HostType, Domains} <- DomainsByHostType,
                                           Domain <- Domains],
+            rpc(Node, service_domain_db, force_check_for_updates, []),
             rpc(Node, service_domain_db, sync_local, [])
     end.

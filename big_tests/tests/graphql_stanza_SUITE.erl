@@ -1,6 +1,5 @@
 -module(graphql_stanza_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -8,7 +7,9 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,
-                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_coercion_err_msg/1,
+                         execute_user_command_sse/5, execute_command_sse/4,
+                         get_ok_value/2, get_value/2,
+                         get_err_code/1, get_err_msg/1, get_coercion_err_msg/1,
                          get_unauthorized/1, get_not_loaded/1]).
 
 suite() ->
@@ -22,18 +23,24 @@ all() ->
 
 groups() ->
     [{admin_stanza_http, [], [{group, admin_mam},
-                              {group, admin_no_mam}]},
+                              {group, admin_no_mam_http}]},
      {admin_stanza_cli, [], [{group, admin_mam},
-                             {group, admin_no_mam}]},
+                             {group, admin_no_mam_cli}]},
      {domain_admin_stanza, [], [{group, admin_mam}, % same as for admin
                                 {group, domain_admin_no_mam}]},
      {user_stanza, [], [{group, user_mam},
                         {group, user_no_mam}]},
      {admin_mam, [parallel], admin_mam_cases()},
-     {admin_no_mam, [parallel], admin_stanza_cases() ++ admin_no_mam_cases()},
+     {admin_no_mam_http, [parallel], admin_stanza_cases(http) ++ admin_no_mam_cases()},
+     {admin_no_mam_cli, [], admin_stanza_cases(cli) ++ admin_no_mam_cases()},
      {domain_admin_no_mam, [parallel], domain_admin_stanza_cases() ++ admin_no_mam_cases()},
      {user_mam, [parallel], user_mam_cases()},
      {user_no_mam, [parallel], user_stanza_cases() ++ user_no_mam_cases()}].
+
+admin_stanza_cases(cli) ->
+    admin_stanza_cases();
+admin_stanza_cases(http) ->
+    admin_stanza_cases() ++ admin_sse_cases().
 
 admin_stanza_cases() ->
     [admin_send_message,
@@ -43,6 +50,10 @@ admin_stanza_cases() ->
      admin_send_unparsable_stanza,
      admin_send_stanza_from_unknown_user,
      admin_send_stanza_from_unknown_domain].
+
+admin_sse_cases() ->
+    [admin_subscribe_for_messages,
+     admin_subscribe_for_messages_to_unknown_user].
 
 admin_mam_cases() ->
     [admin_get_last_messages,
@@ -69,6 +80,7 @@ domain_admin_stanza_cases() ->
 
 user_stanza_cases() ->
     [user_send_message,
+     user_subscribe_for_messages,
      user_send_message_without_from,
      user_send_message_with_spoofed_from,
      user_send_message_headline,
@@ -89,7 +101,6 @@ init_per_suite(Config) ->
     dynamic_modules:save_modules(domain_helper:host_type(), Config2).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
@@ -105,7 +116,8 @@ init_per_group(GN, Config) when GN =:= admin_mam;
                                 GN =:= domain_admin_mam;
                                 GN =:= user_mam ->
     init_mam(Config);
-init_per_group(GN, Config) when GN =:= admin_no_mam;
+init_per_group(GN, Config) when GN =:= admin_no_mam_http;
+                                GN =:= admin_no_mam_cli;
                                 GN =:= domain_admin_no_mam;
                                 GN =:= user_no_mam ->
     Mods = [{mod_mam, stopped}],
@@ -118,7 +130,7 @@ end_per_group(GN, _Config) when GN =:= admin_stanza_http;
                                 GN =:= user_stanza ->
     graphql_helper:clean();
 end_per_group(_GN, _Config) ->
-    ok.
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -153,6 +165,31 @@ admin_send_message_story(Config, Alice, Bob) ->
     assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
+admin_subscribe_for_messages_to_unknown_user(Config) ->
+    Domain = domain_helper:domain(),
+    Res = subscribe_for_messages(<<"baduser@", Domain/binary>>, Config),
+    ?assertEqual(<<"unknown_user">>, get_err_code(Res)),
+    ?assertEqual(<<"User does not exist">>, get_err_msg(Res)).
+
+admin_subscribe_for_messages(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun admin_subscribe_for_messages_story/3).
+
+admin_subscribe_for_messages_story(Config, Alice, Bob) ->
+    From = escalus_client:full_jid(Alice),
+    To = escalus_client:short_jid(Bob),
+    {200, Stream} = subscribe_for_messages(To, Config),
+    %% Presence should be skipped
+    escalus:send(Alice, escalus_stanza:presence_direct(To, <<"available">>)),
+    %% Message should be delivered
+    escalus:send(Alice, escalus_stanza:chat(From, To, <<"Hi!">>)),
+    Event = sse_helper:wait_for_event(Stream),
+    #{<<"stanza">> := StanzaBin, <<"sender">> := From} =
+        graphql_helper:get_value([data, stanza, subscribeForMessages], Event),
+    {ok, Stanza} = exml:parse(StanzaBin),
+    escalus:assert(is_message, Stanza),
+    sse_helper:stop_sse(Stream).
+
 user_send_message(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun user_send_message_story/3).
@@ -164,6 +201,22 @@ user_send_message_story(Config, Alice, Bob) ->
     #{<<"id">> := StanzaId} = get_ok_value([data, stanza, sendMessage], Res),
     assert_not_empty(StanzaId),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+
+user_subscribe_for_messages(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_subscribe_for_messages_story/3).
+
+user_subscribe_for_messages_story(Config, Alice, Bob) ->
+    From = escalus_client:full_jid(Alice),
+    To = escalus_client:short_jid(Bob),
+    {200, Stream} = user_subscribe_for_messages(Bob, Config),
+    escalus:send(Alice, escalus_stanza:chat(From, To, <<"Hi!">>)),
+    Event = sse_helper:wait_for_event(Stream),
+    #{<<"stanza">> := StanzaBin, <<"sender">> := From} =
+        graphql_helper:get_value([data, stanza, subscribeForMessages], Event),
+    {ok, Stanza} = exml:parse(StanzaBin),
+    escalus:assert(is_message, Stanza),
+    sse_helper:stop_sse(Stream).
 
 user_send_message_without_from(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -526,6 +579,13 @@ send_stanza(Stanza, Config) ->
 user_send_stanza(User, Stanza, Config) ->
     Vars = #{stanza => Stanza},
     execute_user_command(<<"stanza">>, <<"sendStanza">>, User, Vars, Config).
+
+subscribe_for_messages(Caller, Config) ->
+    Vars = #{caller => Caller},
+    execute_command_sse(<<"stanza">>, <<"subscribeForMessages">>, Vars, Config).
+
+user_subscribe_for_messages(User, Config) ->
+    execute_user_command_sse(<<"stanza">>, <<"subscribeForMessages">>, User, #{}, Config).
 
 get_last_messages(Caller, With, Before, Config) ->
     Vars = #{caller => Caller, with => With, before => Before},

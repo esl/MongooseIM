@@ -11,64 +11,73 @@
 -export([supported_features/0]).
 
 %% hooks
--export([filter_local_packet/1]).
-
--ignore_xref([filter_local_packet/1]).
-
--type fpacket() :: {From :: jid:jid(),
-                    To :: jid:jid(),
-                    Acc :: mongoose_acc:t(),
-                    Packet :: exml:element()}.
+-export([filter_local_packet/3]).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{}}.
 
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(filter_local_packet, HostType, ?MODULE, filter_local_packet, 10).
+    gen_hook:add_handlers(hooks(HostType)).
 
 stop(HostType) ->
-    ejabberd_hooks:delete(filter_local_packet, HostType, ?MODULE, filter_local_packet, 10).
+    gen_hook:delete_handlers(hooks(HostType)).
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 10}].
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
--spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_local_packet(drop) ->
-    drop;
-filter_local_packet({#jid{lserver = Server},
-                     #jid{lserver = Server}, _Acc, _Packet} = Arg) ->
-    Arg;
-filter_local_packet({#jid{lserver = FromServer} = From,
-                     #jid{lserver = ToServer} = To, Acc, _Packet} = Arg) ->
+-spec filter_local_packet(drop, _, _) -> {ok, drop};
+                         (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+      FPacketAcc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: gen_hook:extra().
+filter_local_packet(drop, _, _) ->
+    {ok, drop};
+filter_local_packet({#jid{lserver = Server}, #jid{lserver = Server}, _Acc, _Packet} = FPacketAcc, _, _) ->
+    {ok, FPacketAcc};
+filter_local_packet({#jid{lserver = FromServer}, #jid{lserver = ToServer}, _Acc, _Packet} = FPacketAcc, _, _) ->
     FromHost = domain_to_host(FromServer),
     ToHost = domain_to_host(ToServer),
-    case FromHost =:= ToHost of
+    NewAcc = resolve_hosts(FromHost, ToHost, FPacketAcc),
+    {ok, NewAcc}.
+
+-spec resolve_hosts(Host, Host, FPacketAcc) -> FPacketAcc | drop when
+    Host :: jid:lserver(),
+    FPacketAcc :: mongoose_hooks:filter_packet_acc().
+resolve_hosts(Host, Host, FPacketAcc) ->
+    FPacketAcc;
+resolve_hosts(_FromHost, _ToHost, {From, To, Acc, _Packet} = FPacketAcc) ->
+    %% Allow errors from this module to be passed
+    case mongoose_acc:get(domain_isolation, ignore, false, Acc) of
         true ->
-            Arg;
+            FPacketAcc;
         false ->
-            %% Allow errors from this module to be passed
-            case mongoose_acc:get(domain_isolation, ignore, false, Acc) of
-                true ->
-                    Arg;
-                false ->
-                    maybe_send_back_error(From, To, Acc, Arg),
-                    drop
-            end
-     end.
+            maybe_send_back_error(From, To, Acc, FPacketAcc),
+            drop
+    end.
 
 %% muc.localhost becomes localhost.
 %% localhost stays localhost.
+-spec domain_to_host(jid:lserver()) -> jid:lserver().
 domain_to_host(Domain) ->
     case mongoose_domain_api:get_subdomain_info(Domain) of
         {ok, #{parent_domain := Parent}} when is_binary(Parent) -> Parent;
         _ -> Domain
     end.
 
-maybe_send_back_error(From, To, Acc, Arg) ->
+-spec maybe_send_back_error(From, To, Acc, FPacketAcc) -> FPacketAcc | drop when
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Acc :: mongoose_acc:t(),
+    FPacketAcc :: mongoose_hooks:filter_packet_acc().
+maybe_send_back_error(From, To, Acc, FPacketAcc) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> %% Never reply to the errors
-            Arg;
+            FPacketAcc;
         _ ->
             Err = mongoose_xmpp_errors:service_unavailable(<<"en">>,
                     <<"Filtered by the domain isolation">>),
@@ -77,6 +86,11 @@ maybe_send_back_error(From, To, Acc, Arg) ->
             drop
    end.
 
+-spec send_back_error(Etype, From, To, Acc) -> Acc when
+    Etype :: exml:element(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Acc :: mongoose_acc:t().
 send_back_error(Etype, From, To, Acc) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Etype),
     ejabberd_router:route(To, From, Acc1, Err).

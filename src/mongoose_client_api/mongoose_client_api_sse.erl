@@ -23,14 +23,9 @@ init(_InitArgs, _LastEvtId, Req) ->
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State#{id => 1}).
 
-maybe_init(true, Req, #{jid := JID, creds := Creds} = State) ->
-    SID = ejabberd_sm:make_new_sid(),
-    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    Resource = <<"sse-", UUID/binary>>,
-    NewJid = jid:replace_resource(JID, Resource),
-    HostType = mongoose_credentials:host_type(Creds),
-    ejabberd_sm:open_session(HostType, SID, NewJid, 1, #{}),
-    {ok, Req, State#{sid => SID, jid => NewJid}};
+maybe_init(true, Req, #{jid := JID} = State) ->
+    Session = mongoose_stanza_api:open_session(JID, false),
+    {ok, Req, State#{session => Session}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method
     {shutdown, 200, #{}, <<>>, Req, State};
@@ -58,20 +53,11 @@ handle_error(Msg, Reason, State) ->
     ?LOG_WARNING(#{what => sse_handle_error, msg => Msg, reason => Reason}),
     {nosend, State}.
 
-terminate(_Reason, _Req, #{creds := Creds} = State) ->
-    case maps:get(sid, State, undefined) of
-        undefined ->
-            ok;
-        SID ->
-            JID = #jid{lserver = S} = maps:get(jid, State),
-            Acc = mongoose_acc:new(
-                    #{location => ?LOCATION,
-                      lserver => S,
-                      host_type => mongoose_credentials:host_type(Creds),
-                      element => undefined}),
-            ejabberd_sm:close_session(Acc, SID, JID, normal)
-    end,
-    State.
+terminate(_Reason, _Req, #{session := Session}) ->
+    mongoose_stanza_api:close_session(Session),
+    ok;
+terminate(_Reason, _Req, _State) ->
+    ok.
 
 maybe_send_message_event(<<"chat">>, Packet, Timestamp, #{id := ID} = State) ->
     Data = jiffy:encode(mongoose_client_api_messages:encode(Packet, Timestamp)),

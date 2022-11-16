@@ -131,7 +131,7 @@ supported_features() ->
 -spec node_cleanup(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: map(),
     Params :: #{node := node()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 node_cleanup(Acc, #{node := Node}, _) ->
     Res = mod_bosh_backend:node_cleanup(Node),
     {ok, maps:put(?MODULE, Res, Acc)}.

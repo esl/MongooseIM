@@ -228,15 +228,12 @@ msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
 
-    Conn = connect_to_sse({alice, Alice}),
+    {200, Conn} = connect_to_sse({alice, Alice}),
     M = send_message(bob, Bob, Alice),
 
-    Event = wait_for_event(Conn),
-    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
-
-    assert_json_message(M, Data),
-
-    stop_sse(Conn).
+    Event = sse_helper:wait_for_event(Conn),
+    assert_json_message(M, Event),
+    sse_helper:stop_sse(Conn).
 
 message_sending_errors(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -258,31 +255,27 @@ room_msg_is_sent_and_delivered_over_sse(ConfigIn) ->
     RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
     RoomInfo = get_room_info({alice, Alice}, RoomID),
     true = is_participant(Bob, <<"member">>, RoomInfo),
-    Conn = connect_to_sse({bob, Bob}),
+    {200, Conn} = connect_to_sse({bob, Bob}),
     Message = given_message_sent_to_room(RoomID, {alice, Alice}),
-    Event = wait_for_event(Conn),
-    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
-    assert_json_room_sse_message(Message#{room => RoomID, type => <<"message">>},
-                                 Data),
-    stop_sse(Conn).
+    Event = sse_helper:wait_for_event(Conn),
+    assert_json_room_sse_message(Message#{room => RoomID, type => <<"message">>}, Event),
+    sse_helper:stop_sse(Conn).
 
 aff_change_msg_is_delivered_over_sse(ConfigIn) ->
     Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}, {bob, 1}]),
     Bob = escalus_users:get_userspec(Config, bob),
     Alice = escalus_users:get_userspec(Config, alice),
     RoomID = given_new_room({alice, Alice}),
-    Conn = connect_to_sse({bob, Bob}),
+    {200, Conn} = connect_to_sse({bob, Bob}),
     given_user_invited({alice, Alice}, RoomID, Bob),
-    Event = wait_for_event(Conn),
-    Data = jiffy:decode(maps:get(data, Event), [return_maps]),
+    Event = sse_helper:wait_for_event(Conn),
     BobJID = user_jid(Bob),
     RoomJID = room_jid(RoomID, Config),
     assert_json_room_sse_message(#{room => RoomID,
                                    from => RoomJID,
                                    type => <<"affiliation">>,
-                                   user => BobJID},
-                                 Data),
-    stop_sse(Conn).
+                                   user => BobJID}, Event),
+    sse_helper:stop_sse(Conn).
 
 all_messages_are_archived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -1132,32 +1125,7 @@ is_participant(User, Role, RoomInfo) ->
 
 connect_to_sse(User) ->
     Port = ct:get_config({hosts, mim, http_api_client_endpoint_port}),
-    {Username, Password} = credentials(User),
-    Base64 = base64:encode(binary_to_list(Username) ++ [$: | binary_to_list(Password)]),
-    Headers = [{<<"authorization">>, <<"basic ", Base64/binary>>},
-               {<<"host">>, <<"localhost">>},
-               {<<"accept">>, <<"text/event-stream">>}],
-    {ok, ConnPid} = gun:open("localhost", Port, #{
-        transport => tls,
-        protocols => [http],
-        http_opts => #{content_handlers => [gun_sse_h, gun_data_h]}
-    }),
-    {ok, _} = gun:await_up(ConnPid),
-    StreamRef = gun:get(ConnPid, "/api/sse", Headers),
-    #{pid => ConnPid, stream_ref => StreamRef}.
-
-wait_for_event(#{pid := Pid, stream_ref := StreamRef} = Opts) ->
-    case gun:await(Pid, StreamRef) of
-        {response, nofin, _Status, _} ->
-            wait_for_event(Opts);
-        {sse, #{data := [Response]}} ->
-          Opts#{data => Response};
-        Error ->
-            Error
-    end.
-
-stop_sse(#{pid := Pid}) ->
-    gun:close(Pid).
+    sse_helper:connect_to_sse(Port, "/api/sse", credentials(User), #{transport => tls}).
 
 assert_json_message(Sent, Received) ->
     #{<<"body">> := Body,

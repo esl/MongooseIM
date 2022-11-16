@@ -26,7 +26,7 @@ set_last(#{<<"user">> := JID, <<"timestamp">> := Timestamp, <<"status">> := Stat
 -spec remove_old_users(args()) -> {ok, old_users()} | {error, resolver_error()}.
 remove_old_users(#{<<"domain">> := null, <<"timestamp">> := Timestamp}) ->
     Timestamp2 = mongoose_graphql_last_helper:microseconds_to_seconds(Timestamp),
-    OldUsers = mod_last_api:remove_old_users(Timestamp2),
+    {ok, OldUsers} = mod_last_api:remove_old_users(Timestamp2),
     {ok, format_old_users(OldUsers)};
 remove_old_users(#{<<"domain">> := Domain, <<"timestamp">> := Timestamp}) ->
     Timestamp2 = mongoose_graphql_last_helper:microseconds_to_seconds(Timestamp),

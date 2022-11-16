@@ -11,6 +11,7 @@
 -behaviour(mongoose_module_metrics).
 
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 -include("mod_inbox.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
@@ -44,7 +45,10 @@
         'end' => integer(),
         order => asc | desc,
         hidden_read => true | false,
-        box => binary()
+        box => binary(),
+        limit => undefined | pos_integer(),
+        rsm => jlib:rsm_in(),
+        filter_on_jid => binary()
        }.
 
 -type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
@@ -180,7 +184,7 @@ stop_cleaner(HostType) ->
                  From :: jid:jid(),
                  To :: jid:jid(),
                  IQ :: jlib:iq(),
-                 Extra :: map()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+                 Extra :: gen_hook:extra()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{host_type := HostType}) ->
     Form = build_inbox_form(HostType),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
@@ -196,19 +200,40 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
     case query_to_params(HostType, QueryEl) of
-        {error, bad_request, Msg} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        {error, Error, Msg} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Error(<<"en">>, Msg)]}};
         Params ->
-            List = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
+            List0 = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
+            List = with_rsm(List0, Params),
             forward_messages(Acc, List, IQ, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
 
+-spec with_rsm([inbox_res()], get_inbox_params()) -> [inbox_res()].
+with_rsm(List, #{order := asc, start := TS, filter_on_jid := BinJid, rsm := #rsm_in{}}) ->
+    lists:reverse(drop_filter_on_jid(List, BinJid, TS, List));
+with_rsm(List, #{order := asc, rsm := #rsm_in{}}) ->
+    lists:reverse(List);
+with_rsm(List, #{order := desc, 'end' := TS, filter_on_jid := BinJid}) ->
+    drop_filter_on_jid(List, BinJid, TS, List);
+with_rsm(List, _) ->
+    List.
+
+%% As IDs must be unique but timestamps are not, and SQL queries and orders by timestamp alone,
+%% we query max+1 and then match to remove the entry that matches the ID given before.
+-spec drop_filter_on_jid([inbox_res()], binary(), integer(), [inbox_res()]) -> [inbox_res()].
+drop_filter_on_jid(_List, BinJid, TS, [#{remote_jid := BinJid, timestamp := TS} | Rest]) ->
+    Rest;
+drop_filter_on_jid(List, BinJid, TS, [_ | Rest]) ->
+    drop_filter_on_jid(List, BinJid, TS, Rest);
+drop_filter_on_jid(List, _, _, []) ->
+    List.
+
 -spec forward_messages(Acc :: mongoose_acc:t(),
                        List :: [inbox_res()],
                        QueryEl :: jlib:iq(),
-                       To :: jid:jid()) -> list(mongoose_acc:t()).
+                       To :: jid:jid()) -> [mongoose_acc:t()].
 forward_messages(Acc, List, QueryEl, To) when is_list(List) ->
     Msgs = [ build_inbox_message(Acc, El, QueryEl) || El <- List],
     [ send_message(Acc, To, Msg) || Msg <- Msgs].
@@ -239,7 +264,7 @@ user_send_message(Acc, _, _) ->
 -spec inbox_unread_count(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{user := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 inbox_unread_count(Acc, #{user := User}, _) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
     NewAcc = get_inbox_unread(Res, Acc, User),
@@ -249,7 +274,7 @@ inbox_unread_count(Acc, #{user := User}, _) ->
                          (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
     Acc0 = maybe_process_message(Acc, From, To, Msg, incoming),
     {ok, {From, To, Acc0, Msg}};
@@ -259,7 +284,7 @@ filter_local_packet(FPacketAcc, _, _) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_inbox_utils:clear_inbox(HostType, User, Server),
@@ -279,7 +304,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:feature_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_ESL_INBOX], Acc)};
 disco_local_features(Acc, _, _) ->
@@ -387,8 +412,18 @@ build_result_iq(List) ->
     ResultBinary = maps:map(fun(K, V) ->
                                     #xmlel{name = K, children = [#xmlcdata{content = integer_to_binary(V)}]}
                             end, Result),
+    ResultSetEl = result_set(List),
     #xmlel{name = <<"fin">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-           children = maps:values(ResultBinary)}.
+           children = [ResultSetEl | maps:values(ResultBinary)]}.
+
+-spec result_set([inbox_res()]) -> exml:element().
+result_set([]) ->
+    #xmlel{name = <<"set">>, attrs = [{<<"xmlns">>, ?NS_RSM}]};
+result_set([#{remote_jid := FirstBinJid, timestamp := FirstTS} | _] = List) ->
+    #{remote_jid := LastBinJid, timestamp := LastTS} = lists:last(List),
+    BFirst = mod_inbox_utils:encode_rsm_id(FirstTS, FirstBinJid),
+    BLast = mod_inbox_utils:encode_rsm_id(LastTS, LastBinJid),
+    mod_mam_utils:result_set(BFirst, BLast, undefined, undefined).
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-get
@@ -424,36 +459,52 @@ text_single_form_field(Var, DefaultValue) ->
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
 -spec query_to_params(mongooseim:host_type(), QueryEl :: exml:element()) ->
-    get_inbox_params() | {error, bad_request, Msg :: binary()}.
+    get_inbox_params() | {error, atom(), binary()}.
 query_to_params(HostType, QueryEl) ->
-    case form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
-        {error, bad_request, Msg} ->
-            {error, bad_request, Msg};
-        Params ->
-            case maybe_rsm(exml_query:subelement_with_ns(QueryEl, ?NS_RSM)) of
-                {error, Msg} -> {error, bad_request, Msg};
-                undefined -> Params;
-                Rsm -> Params#{limit => Rsm}
-            end
-    end.
+    Form = form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)),
+    Rsm = jlib:rsm_decode(QueryEl),
+    build_params(Form, Rsm).
 
--spec maybe_rsm(exml:element() | undefined) ->
-    undefined | non_neg_integer() | {error, binary()}.
-maybe_rsm(#xmlel{name = <<"set">>,
-                 children = [#xmlel{name = <<"max">>,
-                                    children = [#xmlcdata{content = Bin}]}]}) ->
-    case mod_inbox_utils:maybe_binary_to_positive_integer(Bin) of
-        {error, _} -> {error, wrong_rsm_message()};
-        0 -> undefined;
-        N -> N
+-spec build_params(get_inbox_params() | {error, atom(), binary()}, none | jlib:rsm_in()) ->
+    get_inbox_params() | {error, atom(), binary()}.
+build_params({error, Error, Msg}, _) ->
+    {error, Error, Msg};
+build_params(_, #rsm_in{max = Max, index = Index}) when Max =:= error; Index =:= error ->
+    {error, bad_request, <<"bad-request">>};
+build_params(_, #rsm_in{index = Index}) when Index =/= undefined ->
+    {error, feature_not_implemented, <<"Inbox does not expose a total count and indexes">>};
+build_params(Params, none) ->
+    Params;
+build_params(Params, #rsm_in{max = Max, id = undefined}) when Max =/= undefined ->
+    Params#{limit => Max};
+build_params(Params0, Rsm) ->
+    Params = maps:without([start, 'end'], Params0),
+    build_params_with_rsm(Params#{rsm => Rsm}, Rsm).
+
+build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = before}) ->
+    Params#{limit => Max, order => asc, start => 0};
+build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = aft}) ->
+    Params#{limit => Max};
+build_params_with_rsm(Params, #rsm_in{max = Max, id = Id, direction = Dir}) when is_binary(Id) ->
+    case {mod_inbox_utils:decode_rsm_id(Id), Dir} of
+        {error, _} ->
+            {error, bad_request, <<"bad-request">>};
+        {{Stamp, Jid}, aft} ->
+            Params#{limit => expand_limit(Max), filter_on_jid => Jid, 'end' => Stamp};
+        {{Stamp, Jid}, undefined} ->
+            Params#{limit => expand_limit(Max), filter_on_jid => Jid, 'end' => Stamp};
+        {{Stamp, Jid}, before} ->
+            Params#{limit => expand_limit(Max), order => asc, filter_on_jid => Jid, start => Stamp}
     end;
-maybe_rsm(undefined) ->
-    undefined;
-maybe_rsm(_) ->
-    {error, wrong_rsm_message()}.
+build_params_with_rsm(Params, _Rsm) ->
+    Params.
 
-wrong_rsm_message() ->
-    <<"bad-request">>.
+-spec expand_limit(undefined) -> undefined;
+                  (integer()) -> integer().
+expand_limit(undefined) ->
+    undefined;
+expand_limit(Max) ->
+    Max + 1.
 
 -spec form_to_params(mongooseim:host_type(), FormEl :: exml:element() | undefined) ->
     get_inbox_params() | {error, bad_request, Msg :: binary()}.

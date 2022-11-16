@@ -99,7 +99,7 @@ handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->
 
 handle_delete_domain(Domain, HostType, State) ->
     try
-        mongoose_domain_api:do_delete_domain_in_progress(Domain, HostType, sync)
+        mongoose_domain_api:do_delete_domain_in_progress(Domain, HostType)
     catch Class:Reason:Stacktrace ->
               ?LOG_ERROR(#{what => domain_deletion_failed,
                            domain => Domain, host_type => HostType,

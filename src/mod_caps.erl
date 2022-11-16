@@ -216,7 +216,7 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_identity(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
@@ -227,7 +227,7 @@ disco_local_identity(Acc = #{node := Node}, _, _) ->
 -spec disco_info(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_info(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
