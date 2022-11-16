@@ -43,81 +43,77 @@
 
 all() ->
     [
-     {group, session_replacement},
-     {group, security},
-     {group, incorrect_behaviors},
-     {group, proxy_protocol},
-     %% these groups must be last, as they really... complicate configuration
-     {group, fast_tls},
-     {group, just_tls}
+        {group, session_replacement},
+        {group, security},
+        {group, incorrect_behaviors},
+        {group, proxy_protocol},
+        %% these groups must be last, as they really... complicate configuration
+        {group, fast_tls},
+        {group, just_tls}
     ].
 
 groups() ->
-    [ {c2s_noproc, [], [bad_xml,
-                        invalid_host,
-                        invalid_stream_namespace,
-                        deny_pre_xmpp_1_0_stream]},
+    [
+        {c2s_noproc, [], [bad_xml,
+                          invalid_host,
+                          invalid_stream_namespace,
+                          deny_pre_xmpp_1_0_stream]},
         {starttls, [], [should_fail_to_authenticate_without_starttls,
                         should_not_send_other_features_with_starttls_required,
                         auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
         {tls, [parallel], auth_bind_pipelined_cases() ++
-                        protocol_test_cases() ++
-                        cipher_test_cases()},
+                          protocol_test_cases() ++
+                          cipher_test_cases()},
         {feature_order, [parallel], [stream_features_test,
                                      tls_authenticate,
                                      bind_server_generated_resource,
-                                     cannot_connect_with_proxy_header
-                                    ]},
+                                     cannot_connect_with_proxy_header]},
         {just_tls, tls_groups()},
         {fast_tls, tls_groups()},
-        {session_replacement, [], [
-                                    same_resource_replaces_session,
-                                    clean_close_of_replaced_session,
-                                    replaced_session_cannot_terminate
-                                ]},
-        {security, [], [
-                        return_proper_stream_error_if_service_is_not_hidden,
-                        close_connection_if_service_type_is_hidden
-                        ]},
+        {session_replacement, [], [same_resource_replaces_session,
+                                   clean_close_of_replaced_session,
+                                   replaced_session_cannot_terminate]},
+        {security, [], [return_proper_stream_error_if_service_is_not_hidden,
+                        close_connection_if_service_type_is_hidden]},
         {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
-                                            close_connection_if_protocol_violation_after_authentication,
-                                            close_connection_if_protocol_violation_after_binding]},
+                                           close_connection_if_protocol_violation_after_authentication,
+                                           close_connection_if_protocol_violation_after_binding]},
         {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
-                                    connect_with_proxy_header]}
+                                      connect_with_proxy_header]}
     ].
 
 tls_groups()->
     [
-     {group, starttls},
-     {group, c2s_noproc},
-     {group, feature_order},
-     {group, tls}
+        {group, starttls},
+        {group, c2s_noproc},
+        {group, feature_order},
+        {group, tls}
     ].
 
 auth_bind_pipelined_cases() ->
     [
-     auth_bind_pipelined_session,
-     auth_bind_pipelined_auth_failure
+        auth_bind_pipelined_session,
+        auth_bind_pipelined_auth_failure
     ].
 
 protocol_test_cases() ->
     [
-     should_fail_with_sslv3,
-     should_fail_with_tlsv1,
-     should_fail_with_tlsv1_1,
-     should_pass_with_tlsv1_2
+        should_fail_with_sslv3,
+        should_fail_with_tlsv1,
+        should_fail_with_tlsv1_1,
+        should_pass_with_tlsv1_2
     ].
 
 cipher_test_cases() ->
     [
-     %% Server certificate is signed only with RSA for now, don't try to use ECDSA!
-     clients_can_connect_with_advertised_ciphers,
-     % String cipher
-     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
-     %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
-     %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
-     %%      exclusively with just_tls on alternative port
-     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
+        %% Server certificate is signed only with RSA for now, don't try to use ECDSA!
+        clients_can_connect_with_advertised_ciphers,
+        % String cipher
+        'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
+        %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
+        %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
+        %%      exclusively with just_tls on alternative port
+        'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
     ].
 
 suite() ->
