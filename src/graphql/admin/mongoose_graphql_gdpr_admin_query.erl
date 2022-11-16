@@ -13,10 +13,7 @@
 
 execute(_Ctx, gdpr, <<"retrievePersonalData">>, #{<<"username">> := User, <<"domain">> := Domain,
                                                   <<"resultFilepath">> := FilePath}) ->
-    try gdpr_api:retrieve_all(User, Domain, FilePath) of
+    case gdpr_api:retrieve_all(User, Domain, FilePath) of
         ok -> {ok, "Data retrieved"};
         Error -> make_error(Error, #{user => User, domain => Domain})
-    catch
-        _ -> make_error({internal_server_error, "Internal server error"},
-                        #{user => User, domain => Domain, filePath => FilePath})
     end.

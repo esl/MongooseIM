@@ -241,7 +241,7 @@ unregister(User, Host) ->
     mongoose_account_api:unregister_user(User, Host).
 
 
--spec registered_users(Host :: jid:server()) -> [binary()].
+-spec registered_users(Host :: jid:server()) -> mongoose_account_api:list_user_result().
 registered_users(Host) ->
     mongoose_account_api:list_users(Host).
 

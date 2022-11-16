@@ -197,7 +197,7 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
     run_hook_for_host_type(anonymous_purge_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec auth_failed(HostType, Server, Username) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Server :: jid:server(),
     Username :: jid:user() | unknown,
     Result :: ok.
@@ -219,7 +219,7 @@ does_user_exist(HostType, Jid, RequestType) ->
     run_hook_for_host_type(does_user_exist, HostType, false, ParamsWithLegacyArgs).
 
 -spec remove_domain(HostType, Domain) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Domain :: jid:lserver(),
     Result :: mongoose_domain_api:remove_domain_acc().
 remove_domain(HostType, Domain) ->
@@ -294,7 +294,10 @@ extend_inbox_message(MongooseAcc, InboxRes, IQ) ->
     KeyName :: atom(),
     Result :: mod_keystore:key_list().
 get_key(HostType, KeyName) ->
-    run_hook_for_host_type(get_key, HostType, [], [{KeyName, HostType}]).
+    Params = #{key_id => {KeyName, HostType}},
+    Args = [{KeyName, HostType}],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(get_key, HostType, [], ParamsWithLegacyArgs).
 
 -spec packet_to_component(Acc, From, To) -> Result when
     Acc :: mongoose_acc:t(),
@@ -308,7 +311,7 @@ packet_to_component(Acc, From, To) ->
     run_global_hook(packet_to_component, Acc, ParamsWithLegacyArgs).
 
 -spec presence_probe_hook(HostType, Acc, From, To, Pid) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
@@ -346,7 +349,7 @@ register_subhost(LDomain, IsHidden) ->
 %%% @doc The `register_user' hook is called when a user is successfully
 %%% registered in an authentication backend.
 -spec register_user(HostType, LServer, LUser) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     LUser :: jid:luser(),
     Result :: any().
@@ -476,7 +479,7 @@ vcard_set(HostType, Server, LUser, VCard) ->
     run_hook_for_host_type(vcard_set, HostType, ok, [HostType, LUser, Server, VCard]).
 
 -spec xmpp_send_element(HostType, Acc, El) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     El :: exml:element(),
     Result :: mongoose_acc:t().
@@ -568,14 +571,14 @@ privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
                            ParamsWithLegacyArgs).
 
 -spec privacy_get_user_list(HostType, JID) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     JID :: jid:jid(),
     Result :: mongoose_privacy:userlist().
 privacy_get_user_list(HostType, JID) ->
     run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [HostType, JID]).
 
 -spec privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
@@ -589,7 +592,7 @@ privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) ->
     run_hook_for_host_type(privacy_iq_get, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec privacy_iq_set(HostType, Acc, From, To, IQ) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
@@ -602,7 +605,7 @@ privacy_iq_set(HostType, Acc, From, To, IQ) ->
     run_hook_for_host_type(privacy_iq_set, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec privacy_updated_list(HostType, OldList, NewList) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     OldList :: mongoose_privacy:userlist(),
     NewList :: mongoose_privacy:userlist(),
     Result :: false | mongoose_privacy:userlist().
@@ -663,7 +666,7 @@ sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
     run_hook_for_host_type(sm_broadcast, HostType, Acc, ParamsWithLegacyArgs).
 
 -spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
@@ -676,7 +679,7 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
                            ParamsWithLegacyArgs).
 
 -spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
@@ -765,7 +768,7 @@ roster_get_jid_info(HostType, ToJID, RemBareJID) ->
 %%% @doc The `roster_get_subscription_lists' hook is called to extract
 %%% user's subscription list.
 -spec roster_get_subscription_lists(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc ::mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
@@ -776,7 +779,7 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
 -spec roster_get_versioning_feature(HostType) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Result :: [exml:element()].
 roster_get_versioning_feature(HostType) ->
     run_hook_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
@@ -935,125 +938,138 @@ room_new_affiliations(Acc, Room, NewAffs, Version) ->
 %%%
 %%% If a MAM backend doesn't support or doesn't require archive IDs,
 %%% `undefined' may be returned.
--spec mam_archive_id(HostType, OwnerJID) -> Result when
+-spec mam_archive_id(HostType, Owner) -> Result when
       HostType :: mongooseim:host_type(),
-      OwnerJID :: jid:jid(),
+      Owner :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
-mam_archive_id(HostType, OwnerJID) ->
-    run_hook_for_host_type(mam_archive_id, HostType, undefined, [HostType, OwnerJID]).
+mam_archive_id(HostType, Owner) ->
+    Params = #{owner => Owner},
+    Args = [HostType, Owner],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_archive_id, HostType, undefined, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_archive_size' hook is called to determine the size
 %%% of the archive for a given JID
--spec mam_archive_size(HostType, ArchiveID, OwnerJID) -> Result when
+-spec mam_archive_size(HostType, ArchiveID, Owner) -> Result when
       HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      OwnerJID :: jid:jid(),
+      Owner :: jid:jid(),
       Result :: integer().
-mam_archive_size(HostType, ArchiveID, OwnerJID) ->
+mam_archive_size(HostType, ArchiveID, Owner) ->
+    Params = #{archive_id => ArchiveID, owner => Owner},
+    Args = [HostType, ArchiveID, Owner],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(mam_archive_size, HostType, 0,
-                           [HostType, ArchiveID, OwnerJID]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_get_behaviour' hooks is called to determine if a message
 %%% should be archived or not based on a given pair of JIDs.
--spec mam_get_behaviour(HookServer, ArchiveID,
-                        OwnerJID, RemoteJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_get_behaviour(HostType, ArchiveID,
+                        Owner, Remote) -> Result when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      OwnerJID :: jid:jid(),
-      RemoteJID :: jid:jid(),
+      Owner :: jid:jid(),
+      Remote :: jid:jid(),
       Result :: mod_mam:archive_behaviour().
-mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
-    run_hook_for_host_type(mam_get_behaviour, HookServer, always,
-                           [HookServer, ArchiveID, OwnerJID, RemoteJID]).
+mam_get_behaviour(HostType, ArchiveID, Owner, Remote) ->
+    Params = #{archive_id => ArchiveID, owner => Owner, remote => Remote},
+    Args = [HostType, ArchiveID, Owner, Remote],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_get_behaviour, HostType, always,
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_set_prefs' hook is called to set a user's archive preferences.
 %%%
 %%% It's possible to set which JIDs are always or never allowed in the archive
--spec mam_set_prefs(HookServer, ArchiveId, OwnerJID,
+-spec mam_set_prefs(HostType, ArchiveId, Owner,
                     DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
-      HookServer :: jid:lserver(),
+      HostType :: mongooseim:host_type(),
       ArchiveId :: undefined | mod_mam:archive_id(),
-      OwnerJID :: jid:jid(),
+      Owner :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
-    NeverJIDs :: [jid:literel_jid()],
-    Result :: any().
-mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID, default_mode => DefaultMode,
-               always_jids => AlwaysJIDs, never_jids => NeverJIDs},
-    Args = [HookServer, ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs],
+      NeverJIDs :: [jid:literel_jid()],
+      Result :: any().
+mam_set_prefs(HostType,  ArchiveID, Owner, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    Params = #{archive_id => ArchiveID, owner => Owner,
+               default_mode => DefaultMode, always_jids => AlwaysJIDs, never_jids => NeverJIDs},
+    Args = [HostType, ArchiveID, Owner,
+            DefaultMode, AlwaysJIDs, NeverJIDs],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_set_prefs, HookServer, {error, not_implemented},
+    run_hook_for_host_type(mam_set_prefs, HostType, {error, not_implemented},
                            ParamsWithLegacyArgs).
 
 %%% @doc The `mam_get_prefs' hook is called to read
 %%% the archive settings for a given user.
--spec mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_get_prefs(HostType, DefaultMode, ArchiveID, Owner) -> Result when
+      HostType :: mongooseim:host_type(),
       DefaultMode :: mod_mam:archive_behaviour(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      OwnerJID :: jid:jid(),
+      Owner :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
-mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
-    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID},
-    Args = [HookServer, ArchiveID, OwnerJID],
+mam_get_prefs(HostType, DefaultMode, ArchiveID, Owner) ->
+    Params = #{archive_id => ArchiveID, owner => Owner},
+    Args = [HostType, ArchiveID, Owner],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAccValue = {DefaultMode, [], []}, %% mod_mam:preference() type
-    run_hook_for_host_type(mam_get_prefs, HookServer, InitialAccValue,
+    run_hook_for_host_type(mam_get_prefs, HostType, InitialAccValue,
                            ParamsWithLegacyArgs).
 
 %%% @doc The `mam_remove_archive' hook is called in order to
 %%% remove the entire archive for a particular user.
--spec mam_remove_archive(HookServer, ArchiveID, OwnerJID) -> any() when
-      HookServer :: jid:lserver(),
+-spec mam_remove_archive(HostType, ArchiveID, Owner) -> any() when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      OwnerJID :: jid:jid().
-mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
-    Params = #{archive_id => ArchiveID, owner_jid => OwnerJID},
-    Args = [HookServer, ArchiveID, OwnerJID],
+      Owner :: jid:jid().
+mam_remove_archive(HostType, ArchiveID, Owner) ->
+    Params = #{archive_id => ArchiveID, owner => Owner},
+    Args = [HostType, ArchiveID, Owner],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_remove_archive, HookServer, ok,
+    run_hook_for_host_type(mam_remove_archive, HostType, ok,
                            ParamsWithLegacyArgs).
 
 %%% @doc The `mam_lookup_messages' hook is to retrieve
 %%% archived messages for given search parameters.
--spec mam_lookup_messages(HookServer, Params) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_lookup_messages(HostType, Params) -> Result when
+      HostType :: mongooseim:host_type(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
-mam_lookup_messages(HookServer, Params) ->
-    Args = [HookServer, Params],
+mam_lookup_messages(HostType, Params) ->
+    Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
-    run_hook_for_host_type(mam_lookup_messages, HookServer, {ok, InitialLookupValue},
+    run_hook_for_host_type(mam_lookup_messages, HostType, {ok, InitialLookupValue},
                            ParamsWithLegacyArgs).
 
 %%% @doc The `mam_archive_message' hook is called in order
 %%% to store the message in the archive.
--spec mam_archive_message(HookServer, Params) ->
+-spec mam_archive_message(HostType, Params) ->
     Result when
-    HookServer :: jid:lserver(),
+    HostType :: mongooseim:host_type(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_archive_message(HookServer, Params) ->
-    Args = [HookServer, Params],
+mam_archive_message(HostType, Params) ->
+    Args = [HostType, Params],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_archive_message, HookServer, ok, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_archive_message, HostType, ok, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_flush_messages' hook is run after the async bulk write
 %%% happens for messages despite the result of the write.
--spec mam_flush_messages(HookServer :: jid:lserver(),
+-spec mam_flush_messages(HostType :: mongooseim:host_type(),
                          MessageCount :: integer()) -> ok.
-mam_flush_messages(HookServer, MessageCount) ->
-    Params = #{message_count => MessageCount},
-    Args = [HookServer, MessageCount],
+mam_flush_messages(HostType, MessageCount) ->
+    Params = #{count => MessageCount},
+    Args = [HostType, MessageCount],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_flush_messages, HookServer, ok, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_flush_messages, HostType, ok,
+                           ParamsWithLegacyArgs).
 
 %% @doc Waits until all pending messages are written
 -spec mam_archive_sync(HostType :: mongooseim:host_type()) -> ok.
 mam_archive_sync(HostType) ->
-    run_hook_for_host_type(mam_archive_sync, HostType, ok, [HostType]).
+    Args = [HostType],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_hook_for_host_type(mam_archive_sync, HostType, ok, ParamsWithLegacyArgs).
 
 %% @doc Notifies of a message retraction
 -spec mam_retraction(mongooseim:host_type(),
@@ -1076,85 +1092,97 @@ mam_retraction(HostType, RetractionInfo, Env) ->
 %%%
 %%% If a MAM backend doesn't support or doesn't require archive IDs,
 %%% `undefined' may be returned.
--spec mam_muc_archive_id(HookServer, OwnerJID) -> Result when
-      HookServer :: jid:lserver(),
-      OwnerJID :: jid:jid(),
+-spec mam_muc_archive_id(HostType, Owner) -> Result when
+      HostType :: mongooseim:host_type(),
+      Owner :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
-mam_muc_archive_id(HookServer, OwnerJID) ->
-    run_hook_for_host_type(mam_muc_archive_id, HookServer, undefined,
-                           [HookServer, OwnerJID]).
+mam_muc_archive_id(HostType, Owner) ->
+    Params = #{owner => Owner},
+    Args = [HostType, Owner],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_muc_archive_id, HostType, undefined,
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_archive_size' hook is called to determine
 %%% the archive size for a given room.
--spec mam_muc_archive_size(HostType, ArchiveID, RoomJID) -> Result when
+-spec mam_muc_archive_size(HostType, ArchiveID, Room) -> Result when
       HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      RoomJID :: jid:jid(),
+      Room :: jid:jid(),
       Result :: integer().
-mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
-    run_hook_for_host_type(mam_muc_archive_size, HostType, 0,
-                           [HostType, ArchiveID, RoomJID]).
+mam_muc_archive_size(HostType, ArchiveID, Room) ->
+    Params = #{archive_id => ArchiveID, room => Room},
+    Args = [HostType, ArchiveID, Room],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(mam_muc_archive_size, HostType, 0, ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_get_behaviour' hooks is called to determine if a message should
 %%% be archived or not based on the given room and user JIDs.
 -spec mam_muc_get_behaviour(HostType, ArchiveID,
-                            RoomJID, RemoteJID) -> Result when
+                            Room, Remote) -> Result when
       HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      RoomJID :: jid:jid(),
-      RemoteJID :: jid:jid(),
+      Room :: jid:jid(),
+      Remote :: jid:jid(),
       Result :: mod_mam:archive_behaviour().
-mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
+mam_muc_get_behaviour(HostType, ArchiveID, Room, Remote) ->
+    Params = #{archive_id => ArchiveID, room => Room, remote => Remote},
+    Args = [HostType, ArchiveID, Room, Remote],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     DefaultBehaviour = always, %% mod_mam:archive_behaviour() type
     run_hook_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
-                           [HostType, ArchiveID, RoomJID, RemoteJID]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_set_prefs' hook is called to set a room's archive preferences.
 %%%
 %%% It's possible to set which JIDs are always or never allowed in the archive
--spec mam_muc_set_prefs(HostType, ArchiveId, RoomJID,
+-spec mam_muc_set_prefs(HostType, ArchiveId, Room,
                         DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
       HostType :: mongooseim:host_type(),
       ArchiveId :: undefined | mod_mam:archive_id(),
-      RoomJID :: jid:jid(),
+      Room :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
       NeverJIDs :: [jid:literel_jid()],
       Result :: any().
-mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    Params = #{archive_id => ArchiveID, room_jid => RoomJID, default_mode => DefaultMode,
+mam_muc_set_prefs(HostType, ArchiveID, Room, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    Params = #{archive_id => ArchiveID, room => Room, default_mode => DefaultMode,
                always_jids => AlwaysJIDs, never_jids => NeverJIDs},
-    Args = [HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs],
+    Args = [HostType, ArchiveID, Room, DefaultMode,
+            AlwaysJIDs, NeverJIDs],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAcc = {error, not_implemented},
-    run_hook_for_host_type(mam_muc_set_prefs, HostType, InitialAcc, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_get_prefs' hook is called to read
 %%% the archive settings for a given room.
--spec mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) -> Result when
+-spec mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, Room) -> Result when
       HostType :: mongooseim:host_type(),
       DefaultMode :: mod_mam:archive_behaviour(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      RoomJID :: jid:jid(),
+      Room :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
-mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
-    Params = #{archive_id => ArchiveID, room_jid => RoomJID},
-    Args = [HostType, ArchiveID, RoomJID],
+mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, Room) ->
+    Params = #{archive_id => ArchiveID, room => Room},
+    Args = [HostType, ArchiveID, Room],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
-    run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_remove_archive' hook is called in order to remove the entire
 %%% archive for a particular user.
--spec mam_muc_remove_archive(HostType, ArchiveID, RoomJID) -> any() when
+-spec mam_muc_remove_archive(HostType, ArchiveID, Room) -> any() when
       HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
-      RoomJID :: jid:jid().
-mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
-    Params = #{archive_id => ArchiveID, room_jid => RoomJID},
-    Args = [HostType, ArchiveID, RoomJID],
+      Room :: jid:jid().
+mam_muc_remove_archive(HostType, ArchiveID, Room) ->
+    Params = #{archive_id => ArchiveID, room => Room},
+    Args = [HostType, ArchiveID, Room],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_muc_remove_archive, HostType, ok, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_muc_remove_archive, HostType, ok,
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `mam_muc_lookup_messages' hook is to retrieve archived
 %%% MUC messages for any given search parameters.
@@ -1182,18 +1210,21 @@ mam_muc_archive_message(HostType, Params) ->
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.
--spec mam_muc_flush_messages(HookServer :: jid:lserver(),
+-spec mam_muc_flush_messages(HostType :: mongooseim:host_type(),
                              MessageCount :: integer()) -> ok.
-mam_muc_flush_messages(HookServer, MessageCount) ->
-    Params = #{message_count => MessageCount},
-    Args = [HookServer, MessageCount],
+mam_muc_flush_messages(HostType, MessageCount) ->
+    Params = #{count => MessageCount},
+    Args = [HostType, MessageCount],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok, ParamsWithLegacyArgs).
+    run_hook_for_host_type(mam_muc_flush_messages, HostType, ok,
+                           ParamsWithLegacyArgs).
 
 %% @doc Waits until all pending messages are written
 -spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.
 mam_muc_archive_sync(HostType) ->
-    run_hook_for_host_type(mam_muc_archive_sync, HostType, ok, [HostType]).
+    Args = [HostType],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_hook_for_host_type(mam_muc_archive_sync, HostType, ok, ParamsWithLegacyArgs).
 
 %% @doc Notifies of a muc message retraction
 -spec mam_muc_retraction(mongooseim:host_type(),
@@ -1212,7 +1243,10 @@ mam_muc_retraction(HostType, RetractionInfo, Env) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(HostType, JID) ->
-    run_hook_for_host_type(get_mam_pm_gdpr_data, HostType, [], [HostType, JID]).
+    Params = #{jid => JID},
+    Args = [HostType, JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(get_mam_pm_gdpr_data, HostType, [], ParamsWithLegacyArgs).
 
 %%% @doc `get_mam_muc_gdpr_data' hook is called to provide
 %%% a user's archive for GDPR purposes.
@@ -1221,12 +1255,15 @@ get_mam_pm_gdpr_data(HostType, JID) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(HostType, JID) ->
-    run_hook_for_host_type(get_mam_muc_gdpr_data, HostType, [], [HostType, JID]).
+    Params = #{jid => JID},
+    Args = [HostType, JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(get_mam_muc_gdpr_data, HostType, [], ParamsWithLegacyArgs).
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.
 -spec get_personal_data(HostType, JID) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
 get_personal_data(HostType, JID) ->
@@ -1404,7 +1441,10 @@ amp_verify_support(HostType, Rules) ->
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
 filter_room_packet(HostType, Packet, EventData) ->
-    run_hook_for_host_type(filter_room_packet, HostType, Packet, [HostType, EventData]).
+    Params = #{packet => Packet, event_data => EventData},
+    Args = [HostType, EventData],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(filter_room_packet, HostType, Packet, ParamsWithLegacyArgs).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
 -spec forget_room(HostType, MucHost, Room) -> Result when

@@ -291,7 +291,7 @@ revoke_token_cmd_when_no_token(Config) ->
     %% when revoking token
     R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, bob)]),
     %% then no token was found
-    "User or token not found.\n" = R.
+    "Error: \"User or token not found.\"\n" = R.
 
 revoke_token_cmd(Config) ->
     %% given existing user and token present in the database

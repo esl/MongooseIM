@@ -35,7 +35,7 @@ hooks(HostType) ->
 -spec update_inbox_for_muc(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mod_muc_room:update_inbox_for_muc_payload(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 update_inbox_for_muc(
     #{host_type := HostType,
       room_jid := Room,

@@ -125,7 +125,7 @@ disco_local_features(Acc, _, _) ->
 -spec process_iq_get(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{from := jid:jid(), iq := jlib:iq()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 process_iq_get(Acc, #{from := #jid{luser = LUser, lserver = LServer},
                iq := #iq{xmlns = ?NS_BLOCKING}}, _) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -150,7 +150,7 @@ process_iq_get(Acc, _, _) ->
 -spec process_iq_set(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{from := jid:jid(), iq := jlib:iq()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 process_iq_set(Acc, #{from := From, iq := #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}}, _) ->
     %% collect needed data
     HostType = mongoose_acc:host_type(Acc),

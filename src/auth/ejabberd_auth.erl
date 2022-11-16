@@ -201,12 +201,19 @@ set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
                 end
         end,
     Opts = #{default => {error, not_allowed}},
-    call_auth_modules_for_domain(LServer, F, Opts).
+    case ejabberd_auth:does_user_exist(jid:make(LUser, LServer, <<>>)) of
+        true ->
+            call_auth_modules_for_domain(LServer, F, Opts);
+        false ->
+            {error, not_allowed}
+    end.
 
 -spec try_register(jid:jid() | error, binary()) ->
     ok | {error, exists | not_allowed | invalid_jid | null_password}.
-try_register(_, <<"">>) ->
+try_register(_, <<>>) ->
     {error, null_password};
+try_register(#jid{luser = <<>>}, _) ->
+    {error, invalid_jid};
 try_register(error, _) ->
     {error, invalid_jid};
 try_register(JID, Password) ->
@@ -354,30 +361,36 @@ does_method_support(AuthMethod, Feature) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(JID :: jid:jid()) -> ok | {error, not_allowed};
+-spec remove_user(JID :: jid:jid()) -> ok | {error, not_allowed | user_does_not_exist};
                  (error) -> error.
 remove_user(error) -> error;
 remove_user(#jid{luser = LUser, lserver = LServer}) ->
+    JID = jid:make(LUser, LServer, <<>>),
     F = fun(HostType, Mod) ->
                 case mongoose_gen_auth:remove_user(Mod, HostType, LUser, LServer) of
                     ok -> {continue, {ok, HostType}};
                     {error, _Error} -> continue
                 end
         end,
-    case call_auth_modules_for_domain(LServer, F, #{default => {error, not_allowed}}) of
-        {ok, HostType} ->
-            Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                                       host_type => HostType,
-                                       lserver => LServer,
-                                       element => undefined }),
-            mongoose_hooks:remove_user(Acc, LServer, LUser),
-            ok;
-        Error ->
-            ?LOG_ERROR(#{what => backend_disallows_user_removal,
-                         user => LUser, server => LServer,
-                         reason => Error}),
-            Error
-    end.
+    case ejabberd_auth:does_user_exist(JID) of
+        true ->
+            case call_auth_modules_for_domain(LServer, F, #{default => {error, not_allowed}}) of
+                {ok, HostType} ->
+                    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                                                host_type => HostType,
+                                                lserver => LServer,
+                                                element => undefined}),
+                    mongoose_hooks:remove_user(Acc, LServer, LUser),
+                    ok;
+                Error ->
+                    ?LOG_ERROR(#{what => backend_disallows_user_removal,
+                    user => LUser, server => LServer,
+                    reason => Error}),
+                    Error
+                end;
+        false ->
+            {error, user_does_not_exist}
+        end.
 
 %% @doc Calculate informational entropy.
 -spec entropy(iolist()) -> float().

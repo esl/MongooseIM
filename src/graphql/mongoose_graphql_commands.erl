@@ -181,12 +181,17 @@ execute(#{doc := Doc, vars := Vars} = Ctx) ->
 
 -spec get_category_specs(ep()) -> [{category(), category_spec()}].
 get_category_specs(Ep) ->
-    CSQuery = category_spec_query(),
-    Doc = iolist_to_binary(["{ __schema { queryType ", CSQuery, " mutationType ", CSQuery, " } }"]),
-    {ok, #{data := #{<<"__schema">> := Schema}}} = mongoose_graphql:execute(Ep, undefined, Doc),
-    #{<<"queryType">> := #{<<"fields">> := Queries},
-      <<"mutationType">> := #{<<"fields">> := Mutations}} = Schema,
-    get_category_specs(Ep, <<"query">>, Queries) ++ get_category_specs(Ep, <<"mutation">>, Mutations).
+    lists:flatmap(fun(OpType) -> get_category_specs(Ep, OpType) end, op_types()).
+
+get_category_specs(Ep, OpType) ->
+    OpTypeName = <<OpType/binary, "Type">>,
+    Doc = iolist_to_binary(["{ __schema { ", OpTypeName, " ", category_spec_query(), " } }"]),
+    {ok, #{data := #{<<"__schema">> := Schema}}} =  mongoose_graphql:execute(Ep, undefined, Doc),
+    #{OpTypeName := #{<<"fields">> := Categories}} = Schema,
+    get_category_specs(Ep, OpType, Categories).
+
+op_types() ->
+    [<<"query">>, <<"mutation">>, <<"subscription">>].
 
 -spec get_category_specs(ep(), op_type(), [json_map()]) -> [{category(), category_spec()}].
 get_category_specs(Ep, OpType, Categories) ->

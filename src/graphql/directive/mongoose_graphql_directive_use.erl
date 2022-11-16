@@ -50,21 +50,14 @@
 %% are not loaded.
 handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Field, Ctx) ->
     #{modules := Modules, services := Services} = UseCtx = aggregate_use_ctx(Args, Ctx),
-    ArgValue = get_arg_value(UseCtx, Ctx),
-    % Assume that loaded modules can be checked only when host type can be obtained
-    case host_type_from_arg(ArgValue) of
-        {ok, HostType} ->
-            UnloadedModules = filter_unloaded_modules(HostType, Modules),
-            UnloadedServices = filter_unloaded_services(Services),
-            case {UnloadedModules, UnloadedServices} of
-                {[], []} ->
-                    Field;
-                {_, _} ->
-                    Fun = resolve_not_loaded_fun(UnloadedModules, UnloadedServices),
-                    Field#schema_field{resolve = Fun}
-            end;
-        {error, not_found} ->
-            Field
+    UnloadedServices = filter_unloaded_services(Services),
+    UnloadedModules = filter_unloaded_modules(UseCtx, Ctx, Modules),
+    case {UnloadedModules, UnloadedServices} of
+        {[], []} ->
+            Field;
+        {_, _} ->
+            Fun = resolve_not_loaded_fun(UnloadedModules, UnloadedServices),
+            Field#schema_field{resolve = Fun}
     end.
 
 %% @doc Collect the used modules and services to be checked for each field separately.
@@ -74,8 +67,7 @@ handle_object_directive(#directive{id = <<"use">>, args = Args}, Object, Ctx) ->
 
 %% Internal
 
--spec get_arg_value(use_ctx(), ctx()) ->
-                       jid:jid() | jid:lserver() | mongooseim:host_type().
+-spec get_arg_value(use_ctx(), ctx()) -> jid:jid() | jid:lserver() | mongooseim:host_type().
 get_arg_value(#{arg := DomainArg}, #{field_args := FieldArgs}) ->
     get_arg(DomainArg, FieldArgs);
 get_arg_value(_UseCtx, #{user := #jid{lserver = Domain}}) ->
@@ -111,6 +103,19 @@ host_type_from_arg(ArgValue) ->
                 false ->
                     {error, not_found}
             end
+    end.
+
+-spec filter_unloaded_modules(use_ctx(), ctx(), [binary()]) -> [binary()].
+filter_unloaded_modules(_UseCtx, _Ctx, []) ->
+    [];
+filter_unloaded_modules(UseCtx, Ctx, Modules) ->
+    ArgValue = get_arg_value(UseCtx, Ctx),
+    % Assume that loaded modules can be checked only when host type can be obtained
+    case host_type_from_arg(ArgValue) of
+        {ok, HostType} ->
+            filter_unloaded_modules(HostType, Modules);
+        {error, not_found} ->
+            []
     end.
 
 -spec filter_unloaded_modules(host_type(), [binary()]) -> [binary()].

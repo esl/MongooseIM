@@ -16,7 +16,7 @@
 
 -ignore_xref([to_json/2, from_json/2]).
 
--import(mongoose_admin_api, [parse_body/1, try_handle_request/3, throw_error/2, resource_created/4]).
+-import(mongoose_admin_api, [parse_body/1, throw_error/2, resource_created/4]).
 
 -type req() :: cowboy_req:req().
 -type state() :: mongoose_admin_api:state().
@@ -78,14 +78,25 @@ delete_completed(Req, State) ->
 
 %% Internal functions
 
+try_handle_request(Req, State, Handler) ->
+    F = fun(ReqIn, StateIn) ->
+                case service_domain_db:enabled() of
+                    true -> Handler(ReqIn, StateIn);
+                    false -> throw_error(denied, <<"Dynamic domains service is disabled">>)
+                end
+        end,
+    mongoose_admin_api:try_handle_request(Req, State, F).
+
 handle_get(Req, State) ->
     Bindings = cowboy_req:bindings(Req),
     Domain = get_domain(Bindings),
-    case mongoose_domain_sql:select_domain(Domain) of
+    case mongoose_domain_api:get_domain_details(Domain) of
         {ok, Props} ->
-            {jiffy:encode(Props), Req, State};
-        {error, not_found} ->
-            throw_error(not_found, <<"Domain not found">>)
+            {jiffy:encode(maps:with([host_type, status], Props)), Req, State};
+        {not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {_, Msg} ->
+            throw_error(denied, Msg)
     end.
 
 handle_put(Req, State) ->
@@ -94,18 +105,12 @@ handle_put(Req, State) ->
     Args = parse_body(Req),
     HostType = get_host_type(Args),
     case mongoose_domain_api:insert_domain(Domain, HostType) of
-        ok ->
+        {ok, _} ->
             {true, Req, State};
-        {error, duplicate} ->
-            throw_error(duplicate, <<"Duplicate domain">>);
-        {error, static} ->
-            throw_error(denied, <<"Domain is static">>);
-        {error, {db_error, _}} ->
-            throw_error(internal, <<"Database error">>);
-        {error, service_disabled} ->
-            throw_error(denied, <<"Service disabled">>);
-        {error, unknown_host_type} ->
-            throw_error(denied, <<"Unknown host type">>)
+        {duplicate, Msg} ->
+            throw_error(duplicate, Msg);
+        {_, Msg} ->
+            throw_error(denied, Msg)
     end.
 
 handle_patch(Req, State) ->
@@ -119,16 +124,12 @@ handle_patch(Req, State) ->
                      mongoose_domain_api:disable_domain(Domain)
              end,
     case Result of
-        ok ->
+        {ok, _} ->
             {true, Req, State};
-        {error, not_found} ->
-            throw_error(not_found, <<"Domain not found">>);
-        {error, static} ->
-            throw_error(denied, <<"Domain is static">>);
-        {error, service_disabled} ->
-            throw_error(denied, <<"Service disabled">>);
-        {error, {db_error, _}} ->
-            throw_error(internal, <<"Database error">>)
+        {not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {_, Msg} ->
+            throw_error(denied, Msg)
     end.
 
 handle_delete(Req, State) ->
@@ -145,23 +146,23 @@ handle_delete(_Req, _State, _Domain, #{}) ->
     throw_error(bad_request, <<"'host_type' field is missing">>).
 
 async_delete(Req, State, Domain, HostType) ->
-    mongoose_domain_api:request_delete_domain(Domain, HostType),
-    {true, Req, State#{deletion => in_process}}.
+    case mongoose_domain_api:request_delete_domain(Domain, HostType) of
+        {ok, _} ->
+            {true, Req, State#{deletion => in_process}};
+        {not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {_Reason, Msg} ->
+            throw_error(denied, Msg)
+    end.
 
 sync_delete(Req, State, Domain, HostType) ->
     case mongoose_domain_api:delete_domain(Domain, HostType) of
-        ok ->
+        {ok, _} ->
             {true, Req, State};
-        {error, {db_error, _}} ->
-            throw_error(internal, <<"Database error">>);
-        {error, static} ->
-            throw_error(denied, <<"Domain is static">>);
-        {error, service_disabled} ->
-            throw_error(denied, <<"Service disabled">>);
-        {error, wrong_host_type} ->
-            throw_error(denied, <<"Wrong host type">>);
-        {error, unknown_host_type} ->
-            throw_error(denied, <<"Unknown host type">>)
+        {not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {_Reason, Msg} ->
+            throw_error(denied, Msg)
     end.
 
 get_domain(#{domain := Domain}) ->

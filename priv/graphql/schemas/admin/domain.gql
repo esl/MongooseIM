@@ -1,40 +1,32 @@
-type DomainAdminQuery @protected{
+type DomainAdminQuery @use(services: ["service_domain_db"]) @protected{
   "Get all enabled domains by hostType. Only for global admin"
   domainsByHostType(hostType: String!): [String!]
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Get information about the domain"
-  domainDetails(domain: String!): Domain
-    @protected(type: DOMAIN, args: ["domain"])
+  domainDetails(domain: DomainName!): Domain
+    @protected(type: DOMAIN, args: ["domain"]) @use
 }
 
-type DomainAdminMutation @protected{
+type DomainAdminMutation @use(services: ["service_domain_db"]) @protected{
   "Add new domain. Only for global admin"
-  addDomain(domain: String!, hostType: String!): Domain
-    @protected(type: GLOBAL)
+  addDomain(domain: DomainName!, hostType: String!): Domain
+    @protected(type: GLOBAL) @use
   "Remove domain. Only for global admin"
-  removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
-    @protected(type: GLOBAL)
+  removeDomain(domain: DomainName!, hostType: String!): Domain
+    @protected(type: GLOBAL) @use
   "Remove domain asynchronously. Only for global admin"
-  requestRemoveDomain(domain: String!, hostType: String!): RemoveDomainPayload
-    @protected(type: GLOBAL)
+  requestRemoveDomain(domain: DomainName!, hostType: String!): Domain
+    @protected(type: GLOBAL) @use
   "Enable domain. Only for global admin"
-  enableDomain(domain: String!): Domain
-    @protected(type: GLOBAL)
+  enableDomain(domain: DomainName!): Domain
+    @protected(type: GLOBAL) @use
   "Disable domain. Only for global admin"
-  disableDomain(domain: String!): Domain
-    @protected(type: GLOBAL)
+  disableDomain(domain: DomainName!): Domain
+    @protected(type: GLOBAL) @use
   "Create or update domain admin password"
-  setDomainPassword(domain: String!, password: String!): String
-    @protected(type: DOMAIN, args: ["domain"])
+  setDomainPassword(domain: DomainName!, password: NonEmptyString!): String
+    @protected(type: DOMAIN, args: ["domain"]) @use
   "Delete domain admin password. Only for global admin"
-  deleteDomainPassword(domain: String!): String
-    @protected(type: GLOBAL)
-}
-
-"A result of domain removal"
-type RemoveDomainPayload{
-  "Success message"
-  msg: String
-  "Removed domain data"
-  domain: Domain
+  deleteDomainPassword(domain: DomainName!): String
+    @protected(type: GLOBAL) @use
 }

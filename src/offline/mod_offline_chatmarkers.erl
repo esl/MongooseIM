@@ -104,7 +104,7 @@ config_spec() ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
     mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<>>)),
     {ok, Acc}.
@@ -112,14 +112,14 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := 
 -spec pop_offline_messages(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 pop_offline_messages(Acc, #{jid := JID}, _Extra) ->
     {ok, mongoose_acc:append(offline, messages, offline_chatmarkers(Acc, JID), Acc)}.
 
 -spec inspect_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 inspect_packet(Acc, #{from := From, to := To, packet := Packet}, _Extra) ->
     case maybe_store_chat_marker(Acc, From, To, Packet) of
         true ->

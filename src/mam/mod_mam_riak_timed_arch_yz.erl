@@ -30,14 +30,14 @@
 %% API
 -export([start/2,
          stop/1,
-         archive_size/4,
-         lookup_messages/2,
-         remove_archive/4]).
+         archive_size/3,
+         lookup_messages/2]).
 
 -export([archive_message/3,
          archive_message_muc/3,
          lookup_messages/3,
-         lookup_messages_muc/3]).
+         lookup_messages_muc/3,
+         remove_archive/3]).
 
 -export([key/3]).
 
@@ -47,9 +47,8 @@
 
 -export([get_mam_muc_gdpr_data/3, get_mam_pm_gdpr_data/3]).
 
--ignore_xref([archive_message_muc/3, behaviour_info/1, bucket/2, create_obj/6,
-              key/3, list_mam_buckets/1, lookup_messages/2, lookup_messages_muc/3,
-              read_archive/8, remove_archive/4, remove_bucket/1]).
+-ignore_xref([bucket/2, create_obj/6, key/3, list_mam_buckets/1, lookup_messages/2,
+              read_archive/8, remove_bucket/1]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
@@ -62,28 +61,29 @@
 %% Use both options `pm, muc' to archive both MUC and private messages
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    ejabberd_hooks:add(hooks(HostType, Opts)).
+    gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
-    ejabberd_hooks:delete(hooks(HostType, Opts)).
+    gen_hook:delete_handlers(hooks(HostType, Opts)).
 
+-spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> gen_hook:hook_list().
 hooks(HostType, Opts) ->
     lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
 hooks(HostType, pm, #{pm := true}) ->
-    [{mam_archive_message, HostType, ?MODULE, archive_message, 50},
-     {mam_archive_size, HostType, ?MODULE, archive_size, 50},
-     {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
-     {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}];
+    [{mam_archive_message, HostType, fun ?MODULE:archive_message/3, #{}, 50},
+     {mam_archive_size, HostType, fun ?MODULE:archive_size/3, #{}, 50},
+     {mam_lookup_messages, HostType, fun ?MODULE:lookup_messages/3, #{}, 50},
+     {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50},
+     {get_mam_pm_gdpr_data, HostType, fun ?MODULE:get_mam_pm_gdpr_data/3, #{}, 50}];
 hooks(HostType, muc, #{muc := true}) ->
-    [{mam_muc_archive_message, HostType, ?MODULE, archive_message_muc, 50},
-     {mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
-     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages_muc, 50},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50},
-     {get_mam_muc_gdpr_data, HostType, ?MODULE, get_mam_muc_gdpr_data, 50}];
+    [{mam_muc_archive_message, HostType, fun ?MODULE:archive_message_muc/3, #{}, 50},
+     {mam_muc_archive_size, HostType, fun ?MODULE:archive_size/3, #{}, 50},
+     {mam_muc_lookup_messages, HostType, fun ?MODULE:lookup_messages_muc/3, #{}, 50},
+     {mam_muc_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50},
+     {get_mam_muc_gdpr_data, HostType, fun ?MODULE:get_mam_muc_gdpr_data/3, #{}, 50}];
 hooks(_HostType, _Opt, _Opts) ->
     [].
 
@@ -96,40 +96,52 @@ mam_bucket_type(Host) ->
 %% LocJID - archive owner's JID
 %% RemJID - interlocutor's JID
 %% SrcJID - "Real" sender JID
-archive_message(_Result, Host, #{message_id := MessId,
-                                 local_jid := LocJID,
-                                 remote_jid := RemJID,
-                                 source_jid := SrcJID,
-                                 packet := Packet} = Params) ->
+-spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok,
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
+archive_message(_Result,
+                #{message_id := MessId,
+                  local_jid := LocJID,
+                  remote_jid := RemJID,
+                  source_jid := SrcJID,
+                  packet := Packet} = Params,
+                #{host_type := HostType}) ->
     try
-        archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
+        {ok, archive_message(HostType, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)}
     catch Class:Reason:StackTrace ->
             ?LOG_WARNING(maps:merge(Params,
                          #{what => archive_message_failed,
                            text => <<"Could not write message to archive">>,
                            class => Class, reason => Reason, stacktrace => StackTrace})),
-            mongoose_metrics:update(Host, modMamDropped, 1),
-            {error, Reason}
+            mongoose_metrics:update(HostType, modMamDropped, 1),
+            {ok, {error, Reason}}
     end.
 
+-spec archive_message_muc(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok,
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
 %% LocJID - MUC/MUC Light room's JID
 %% FromJID - "Real" sender JID
 %% SrcJID - Full JID of user within room (room@domain/user)
-archive_message_muc(_Result, Host, #{message_id := MessId,
-                                     local_jid := LocJID,
-                                     remote_jid := FromJID,
-                                     source_jid := SrcJID,
-                                     packet := Packet} = Params) ->
+archive_message_muc(_Result,
+                    #{message_id := MessId,
+                      local_jid := LocJID,
+                      remote_jid := FromJID,
+                      source_jid := SrcJID,
+                      packet := Packet} = Params,
+                #{host_type := HostType}) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
-        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)
+        {ok, archive_message(HostType, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)}
     catch Class:Reason:StackTrace ->
         ?LOG_WARNING(maps:merge(Params,
                      #{what => archive_muc_message_failed,
                        text => <<"Could not write MUC message to archive">>,
                        class => Class, reason => Reason, stacktrace => StackTrace})),
-        mongoose_metrics:update(Host, modMamDropped, 1),
-        {error, Reason}
+        mongoose_metrics:update(HostType, modMamDropped, 1),
+        {ok, {error, Reason}}
     end.
 
 maybe_muc_jid(#jid{lresource = RemRes}) ->
@@ -138,22 +150,38 @@ maybe_muc_jid(Other) ->
     Other.
 
 
-lookup_messages({error, _Reason} = Result, _Host, _Params) ->
-    Result;
-lookup_messages(_Result, Host, Params) ->
+-spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
+lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
+    {ok, Result};
+lookup_messages(_Result, Params, #{host_type := HostType}) ->
     try
-        lookup_messages(Host, Params)
+        {ok, lookup_messages(HostType, Params)}
     catch _Type:Reason:S ->
-              {error, {Reason, {stacktrace, S}}}
+        {ok, {error, {Reason, {stacktrace, S}}}}
     end.
 
-
-lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
+-spec lookup_messages_muc(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()} | {error, term()},
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
+lookup_messages_muc(Result, #{with_jid := WithJID} = Params, Extra) ->
     WithJIDMuc = maybe_muc_jid(WithJID),
-    lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
+    lookup_messages(Result, Params#{with_jid => WithJIDMuc}, Extra).
 
 
-archive_size(_Size, Host, _ArchiveID, ArchiveJID) ->
+-spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: integer(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
+archive_size(_Size, #{owner := ArchiveJID}, #{host_type := HostType}) ->
+    archive_size(ArchiveJID, HostType);
+archive_size(_Size, #{room := ArchiveJID}, #{host_type := HostType}) ->
+    archive_size(ArchiveJID, HostType).
+
+archive_size(ArchiveJID, Host) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
@@ -162,7 +190,7 @@ archive_size(_Size, Host, _ArchiveID, ArchiveJID) ->
     {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
                                    [{rows, 1}], F),
-    TotalCount.
+    {ok, TotalCount}.
 
 %% use correct bucket for given date
 
@@ -337,19 +365,23 @@ get_message2(Host, MsgId, Bucket, Key) ->
         _ ->
             []
     end.
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-                           mongooseim:host_type(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, _HostType, OwnerJid) ->
-    Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
-    [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || #{id := Id, jid := Jid, packet := Packet} <- Messages] ++ Acc.
 
--spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-                            mongooseim:host_type(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(Acc, _HostType, JID) ->
+-spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_mam_pm_gdpr_data(Acc, #{jid := OwnerJid}, _Extra) ->
+    Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
+    {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)}
+          || #{id := Id, jid := Jid, packet := Packet} <- Messages] ++ Acc}.
+
+-spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_mam_muc_gdpr_data(Acc, #{jid := JID}, _Extra) ->
     Messages = get_mam_gdpr_data(JID, <<"muc">>),
-    [{MsgId, exml:to_binary(Packet)} || #{id := MsgId, packet := Packet} <- Messages] ++ Acc.
+    {ok, [{MsgId, exml:to_binary(Packet)} || #{id := MsgId, packet := Packet} <- Messages] ++ Acc}.
 
 get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
     BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),
@@ -358,9 +390,16 @@ get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
     {ok, _Cnt, _, MsgIds} = fold_archive(LServer, fun get_msg_id_key/3, Query, SearchOpts, []),
     get_messages(LServer, MsgIds).
 
-remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
-    remove_archive(Host, ArchiveJID),
-    Acc.
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{owner := ArchiveJID}, #{host_type := HostType}) ->
+    remove_archive(HostType, ArchiveJID),
+    {ok, Acc};
+remove_archive(Acc, #{room := ArchiveJID}, #{host_type := HostType}) ->
+    remove_archive(HostType, ArchiveJID),
+    {ok, Acc}.
 
 remove_archive(Host, ArchiveJID) ->
     {ok, TotalCount, _, _} = R = remove_chunk(Host, ArchiveJID, 0),

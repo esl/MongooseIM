@@ -12,6 +12,7 @@
 -module(mod_mam_cache_user).
 
 -behaviour(mongoose_module_metrics).
+-behaviour(gen_mod).
 
 %% gen_mod handlers
 -export([start/2, stop/1, supported_features/0]).
@@ -19,10 +20,7 @@
 %% ejabberd handlers
 -export([cached_archive_id/3,
          store_archive_id/3,
-         remove_archive/4]).
-
--ignore_xref([start/2, stop/1, supported_features/0,
-              cached_archive_id/3, store_archive_id/3, remove_archive/4]).
+         remove_archive/3]).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -31,12 +29,12 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     start_cache(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType, Opts)),
+    gen_hook:add_handlers(hooks(HostType, Opts)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     stop_cache(HostType),
     ok.
 
@@ -44,7 +42,7 @@ stop(HostType) ->
 supported_features() ->
     [dynamic_domains].
 
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
     hooks(HostType, Opts).
@@ -62,44 +60,54 @@ maybe_muc_hooks(true, HostType) -> muc_hooks(HostType);
 maybe_muc_hooks(false, _HostType) -> [].
 
 pm_hooks(HostType) ->
-    [{mam_archive_id, HostType, ?MODULE, cached_archive_id, 30},
-     {mam_archive_id, HostType, ?MODULE, store_archive_id, 70},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 100}].
+    [{mam_archive_id, HostType, fun ?MODULE:cached_archive_id/3, #{}, 30},
+     {mam_archive_id, HostType, fun ?MODULE:store_archive_id/3, #{}, 70},
+     {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 100}].
 
 muc_hooks(HostType) ->
-    [{mam_muc_archive_id, HostType, ?MODULE, cached_archive_id, 30},
-     {mam_muc_archive_id, HostType, ?MODULE, store_archive_id, 70},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 100}].
+    [{mam_muc_archive_id, HostType, fun ?MODULE:cached_archive_id/3, #{}, 30},
+     {mam_muc_archive_id, HostType, fun ?MODULE:store_archive_id/3, #{}, 70},
+     {mam_muc_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 100}].
 
 %%====================================================================
 %% API
 %%====================================================================
--spec cached_archive_id(undefined, mongooseim:host_type(), jid:jid()) ->
-    mod_mam:archive_id().
-cached_archive_id(undefined, HostType, ArcJid) ->
+-spec cached_archive_id(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:archive_id() | undefined,
+    Params :: #{owner := jid:jid()},
+    Extra :: gen_hook:extra().
+cached_archive_id(undefined, #{owner := ArcJid}, #{host_type := HostType}) ->
     case mongoose_user_cache:get_entry(HostType, ?MODULE, ArcJid) of
-        #{id := ArchId} -> ArchId;
+        #{id := ArchId} ->
+            {ok, ArchId};
         _ ->
             put(mam_not_cached_flag, true),
-            undefined
+            {ok, undefined}
     end.
 
--spec store_archive_id(mod_mam:archive_id(), mongooseim:host_type(), jid:jid())
-        -> mod_mam:archive_id().
-store_archive_id(ArchId, HostType, ArcJid) ->
+-spec store_archive_id(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:archive_id() | undefined,
+    Params :: #{owner := jid:jid()},
+    Extra :: gen_hook:extra().
+store_archive_id(ArchId, #{owner := ArcJid}, #{host_type := HostType}) ->
     case erase(mam_not_cached_flag) of
         undefined ->
-            ArchId;
+            {ok, ArchId};
         true ->
             mongoose_user_cache:merge_entry(HostType, ?MODULE, ArcJid, #{id => ArchId}),
-            ArchId
+            {ok, ArchId}
     end.
 
--spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
-                     ArchId :: mod_mam:archive_id(), ArcJid :: jid:jid()) -> map().
-remove_archive(Acc, HostType, _UserID, ArcJid) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner => jid:jid(), room => jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{owner := ArcJid}, #{host_type := HostType}) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
-    Acc.
+    {ok, Acc};
+remove_archive(Acc, #{room := ArcJid}, #{host_type := HostType}) ->
+    mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
+    {ok, Acc}.
 
 %%====================================================================
 %% internal

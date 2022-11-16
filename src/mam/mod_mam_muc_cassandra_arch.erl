@@ -7,22 +7,20 @@
 -module(mod_mam_muc_cassandra_arch).
 -behaviour(mongoose_cassandra).
 -behaviour(ejabberd_gen_mam_archive).
+-behaviour(gen_mod).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
--export([archive_size/4,
+-export([archive_size/3,
          archive_message/3,
          lookup_messages/3,
-         remove_archive/4]).
+         remove_archive/3,
+         get_mam_muc_gdpr_data/3]).
 
 %% mongoose_cassandra callbacks
--export([prepared_queries/0, get_mam_muc_gdpr_data/3]).
-
--ignore_xref([
-    behaviour_info/1, remove_archive/4, start/2, stop/1
-]).
+-export([prepared_queries/0]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -74,21 +72,22 @@
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{mam_muc_archive_message, HostType, ?MODULE, archive_message, 50},
-     {mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
-     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50},
-     {get_mam_muc_gdpr_data, HostType, ?MODULE, get_mam_muc_gdpr_data, 50}].
+    [{mam_muc_archive_message, HostType, fun ?MODULE:archive_message/3, #{}, 50},
+     {mam_muc_archive_size, HostType, fun ?MODULE:archive_size/3, #{}, 50},
+     {mam_muc_lookup_messages, HostType, fun ?MODULE:lookup_messages/3, #{}, 50},
+     {mam_muc_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50},
+     {get_mam_muc_gdpr_data, HostType, fun ?MODULE:get_mam_muc_gdpr_data/3, #{}, 50}].
 
 %% ----------------------------------------------------------------------
 %% mongoose_cassandra_worker callbacks
@@ -114,11 +113,15 @@ prepared_queries() ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-archive_size(Size, HostType, _RoomID, RoomJID) when is_integer(Size) ->
+-spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: integer(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
+    Extra :: gen_hook:extra().
+archive_size(Size, #{room := RoomJID}, #{host_type := HostType}) when is_integer(Size) ->
     PoolName = pool_name(HostType),
     Borders = Start = End = WithNick = undefined,
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    calc_count(PoolName, RoomJID, HostType, Filter).
+    {ok, calc_count(PoolName, RoomJID, HostType, Filter)}.
 
 
 %% ----------------------------------------------------------------------
@@ -129,11 +132,15 @@ insert_query_cql() ->
         "(id, room_jid, from_jid, nick_name, with_nick, message) "
         "VALUES (?, ?, ?, ?, ?, ?)".
 
-archive_message(_Result, HostType, Params) ->
+-spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok | {error, term()},
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
+archive_message(_Result, Params, #{host_type := HostType}) ->
     try
-        archive_message2(Params, HostType)
+        {ok, archive_message2(Params, HostType)}
     catch _Type:Reason ->
-            {error, Reason}
+        {ok, {error, Reason}}
     end.
 
 archive_message2(#{message_id := MessID,
@@ -184,7 +191,11 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(Acc, HostType, _RoomID, RoomJID) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, room := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{room := RoomJID}, #{host_type := HostType}) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     PoolName = pool_name(HostType),
     Params = #{room_jid => BRoomJID},
@@ -200,31 +211,34 @@ remove_archive(Acc, HostType, _RoomID, RoomJID) ->
 
     mongoose_cassandra:cql_foldl(PoolName, RoomJID, ?MODULE,
                                  select_for_removal_query, Params, DeleteFun, []),
-    Acc.
+    {ok, Acc}.
 
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
-  {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
-    Result;
-lookup_messages(_Result, _HostType, #{search_text := <<_/binary>>}) ->
-    {error, 'not-supported'};
-lookup_messages(_Result, HostType,
+-spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()},
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
+lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
+    {ok, Result};
+lookup_messages(_Result, #{search_text := <<_/binary>>}, _Extra) ->
+    {ok, {error, 'not-supported'}};
+lookup_messages(_Result,
                 #{owner_jid := RoomJID, rsm := RSM, borders := Borders,
                   start_ts := Start, end_ts := End, with_jid := WithJID,
                   search_text := undefined, page_size := PageSize,
-                  is_simple := IsSimple}) ->
+                  is_simple := IsSimple},
+                #{host_type := HostType}) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
         PoolName = pool_name(HostType),
-        lookup_messages2(PoolName, HostType,
+        {ok, lookup_messages2(PoolName, HostType,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
-                         PageSize, IsSimple)
-    catch _Type:Reason:S ->
-            {error, {Reason, {stacktrace, S}}}
+                         PageSize, IsSimple)}
+    catch _Type:Reason:Stacktrace ->
+            {ok, {error, {Reason, {stacktrace, Stacktrace}}}}
     end.
 
 maybe_jid_to_nick(#jid{lresource = BNick}) -> BNick;
@@ -421,17 +435,18 @@ row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID},
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
--spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-                            host_type(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(Acc, HostType, Jid) ->
+-spec get_mam_muc_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_mam_muc_gdpr_data(Acc, #{jid := Jid}, #{host_type := HostType}) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),
     PoolName = pool_name(HostType),
     FilterMap = #{from_jid  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
     Messages = [{Id, exml:to_binary(stored_binary_to_packet(HostType, Data))}
                 || #{message := Data, id:= Id} <- Rows],
-    Messages ++ Acc.
+    {ok, Messages ++ Acc}.
 
 %% Offset is not supported
 %% Each record is a tuple of form

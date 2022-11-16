@@ -426,7 +426,7 @@ format_error(Error) ->
 -spec format_result(In :: tuple() | atom() | integer() | string() | binary(),
                     {_, 'atom'|'integer'|'string'|'binary'}
                     ) -> string() | {string(), _}.
-format_result({error, Error}, _) ->
+format_result({Atom, Error}, _) when Atom =/= ok ->
     {io_lib:format("Error: ~ts", [format_error(Error)]), make_status(error)};
 format_result(Atom, {_Name, atom}) ->
     io_lib:format("~p", [Atom]);
@@ -464,8 +464,9 @@ format_result(ElementsTuple, {_Name, {tuple, ElementsDef}}) ->
        fun({Element, ElementDef}) ->
                ["\t" | format_result(Element, ElementDef)]
        end,
-       ElementsAndDef)].
-
+       ElementsAndDef)];
+format_result({ok, List}, ListDef) ->
+    format_result(List, ListDef).
 
 -spec make_status(ok | true | _) -> 0 | 1.
 make_status(ok) -> ?STATUS_SUCCESS;

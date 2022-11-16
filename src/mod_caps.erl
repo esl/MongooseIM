@@ -184,7 +184,9 @@ user_send_presence(Acc,
                    #jid{luser = User, lserver = LServer, lresource = <<>>},
                    #xmlel{attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    handle_presence(Acc, LServer, From, Type, Elements).
+    handle_presence(Acc, LServer, From, Type, Elements);
+user_send_presence(Acc, _, _, _) ->
+    Acc.
 
 -spec caps_stream_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [exml:element()],
@@ -216,7 +218,7 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_identity(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};
@@ -227,7 +229,7 @@ disco_local_identity(Acc = #{node := Node}, _, _) ->
 -spec disco_info(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:identity_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_info(Acc = #{node := Node}, _, _) ->
     NewAcc = case is_valid_node(Node) of
         true -> Acc#{node := <<>>};

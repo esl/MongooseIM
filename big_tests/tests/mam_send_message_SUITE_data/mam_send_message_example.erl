@@ -16,27 +16,28 @@
 
 
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 supported_features() ->
     [dynamic_domains].
 
 hooks(HostType) ->
-    [{mam_lookup_messages, HostType, ?MODULE, lookup_messages, 60},
-     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages, 60}].
+    [{mam_lookup_messages, HostType, fun ?MODULE:lookup_messages/3, #{}, 60},
+     {mam_muc_lookup_messages, HostType, fun ?MODULE:lookup_messages/3, #{}, 60}].
 
 %% caller_jid could be used for privacy checking or per-user customization
-lookup_messages({error, _Reason} = Result, _Host, _Params) ->
-    Result;
+lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
+    {ok, Result};
 lookup_messages({ok, {TotalCount, Offset, MessageRows}},
-                Host, _Params = #{owner_jid := ArcJID, caller_jid := _CallerJID}) ->
-    MessageRows2 = [extend_message(Host, ArcJID, Row) || Row <- MessageRows],
-    {ok, {TotalCount, Offset, MessageRows2}}.
+                #{owner_jid := ArcJID, caller_jid := _CallerJID} = _Params,
+                #{host_type := HostType}) ->
+    MessageRows2 = [extend_message(HostType, ArcJID, Row) || Row <- MessageRows],
+    {ok, {ok, {TotalCount, Offset, MessageRows2}}}.
 
-extend_message(_Host, _ArcJID, Row = #{}) ->
+extend_message(_HostType, _ArcJID, Row = #{}) ->
     %% Extend a message with a new field
     %% Usually extracted from a DB
     Row#{some_hash => erlang:phash2(Row, 32)}.

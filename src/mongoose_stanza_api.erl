@@ -1,9 +1,18 @@
 -module(mongoose_stanza_api).
+
+%% API
 -export([send_chat_message/4, send_headline_message/5, send_stanza/2, lookup_recent_messages/5]).
+
+%% Event API
+-export([open_session/2, close_session/1]).
 
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include("mongoose_logger.hrl").
+
+-type stream() :: #{jid := jid:jid(),
+                    sid := ejabberd_sm:sid(),
+                    host_type := mongooseim:host_type()}.
 
 %% API
 
@@ -39,6 +48,23 @@ send_stanza(User, Stanza) ->
 lookup_recent_messages(User, With, Before, Limit, CheckUser) ->
     M = #{user => User, with => With, before => Before, limit => Limit, check_user => CheckUser},
     fold(M, [fun get_host_type/1, fun check_user/1, fun lookup_messages/1]).
+
+%% Event API
+
+-spec open_session(jid:jid(), boolean()) -> {unknown_user, iodata()} | {ok, stream()}.
+open_session(User, CheckUser) ->
+    M = #{user => User, check_user => CheckUser},
+    fold(M, [fun get_host_type/1, fun check_user/1, fun do_open_session/1]).
+
+-spec close_session(stream()) -> {ok, closed}.
+close_session(#{jid := Jid = #jid{lserver = S}, sid := Sid, host_type := HostType}) ->
+    Acc = mongoose_acc:new(
+            #{location => ?LOCATION,
+              lserver => S,
+              host_type => HostType,
+              element => undefined}),
+    ejabberd_sm:close_session(Acc, Sid, Jid, normal),
+    {ok, closed}.
 
 %% Steps
 
@@ -147,6 +173,14 @@ lookup_messages(#{user := UserJid, with := WithJid, before := Before, limit := L
                is_simple => true},
     {ok, {_, _, Rows}} = mod_mam_pm:lookup_messages(HostType, Params),
     {ok, {Rows, Limit2}}.
+
+do_open_session(#{host_type := HostType, user := JID}) ->
+    SID = ejabberd_sm:make_new_sid(),
+    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    Resource = <<"sse-", UUID/binary>>,
+    NewJid = jid:replace_resource(JID, Resource),
+    ejabberd_sm:open_session(HostType, SID, NewJid, 1, #{}),
+    {ok, #{sid => SID, jid => NewJid, host_type => HostType}}.
 
 %% Helpers
 

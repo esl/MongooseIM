@@ -188,7 +188,7 @@ item(LServer, Node, Name, Lang) ->
 -spec disco_local_identity(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:identity_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 disco_local_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
     {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
 disco_local_identity(Acc = #{node := <<"ping">>, lang := Lang}, _, _) ->
@@ -202,7 +202,7 @@ disco_local_identity(Acc, _, _) ->
 -spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_disco:identity_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}, _, _) ->
     {ok, mongoose_disco:add_identities([command_list_identity(Lang)], Acc)};
 disco_sm_identity(Acc, _, _) ->
@@ -223,7 +223,7 @@ command_list_identity(Lang) ->
 -spec disco_local_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
 disco_local_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
@@ -240,7 +240,7 @@ disco_local_features(Acc, _, _) ->
 -spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_disco:feature_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 disco_sm_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_COMMANDS], Acc)};
 disco_sm_features(Acc = #{node := ?NS_COMMANDS}, _, _) ->
@@ -254,7 +254,7 @@ disco_sm_features(Acc, _, _) ->
 -spec ping_command(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: command_hook_acc(),
     Params :: #{adhoc_request := adhoc:request()},
-    Extra :: map().
+    Extra :: gen_hook:extra().
 ping_command(empty,
              #{adhoc_request := #adhoc_request{lang = Lang, node = <<"ping">> = Node,
                                                session_id = SessionID, action = Action}},

@@ -9,19 +9,18 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_rdbms_user).
+-behaviour(gen_mod).
 
 %% gen_mod handlers
 -export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([archive_id/3,
-         remove_archive/4]).
+         remove_archive/3]).
 
 %% For debugging ONLY
 -export([create_user_archive/3]).
-
--ignore_xref([archive_id/3, create_user_archive/3, remove_archive/4, start/2,
-              stop/1, supported_features/0]).
+-ignore_xref([create_user_archive/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -31,12 +30,12 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     prepare_queries(),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
 -spec supported_features() -> [atom()].
@@ -44,7 +43,7 @@ supported_features() ->
     [dynamic_domains].
 
 hooks(HostType) ->
-    [{Hook, HostType, ?MODULE, Fun, N}
+    [{Hook, HostType, Fun, #{}, N}
      || {true, Hook, Fun, N} <- hooks2(HostType)].
 
 hooks2(HostType) ->
@@ -52,10 +51,10 @@ hooks2(HostType) ->
     AR = gen_mod:get_module_opt(HostType, ?MODULE, auto_remove, false),
     PM = gen_mod:get_module_opt(HostType, ?MODULE, pm, false),
     MUC = gen_mod:get_module_opt(HostType, ?MODULE, muc, false),
-    [{PM, mam_archive_id, archive_id, 50},
-     {PM and AR, mam_remove_archive, remove_archive, 90},
-     {MUC, mam_muc_archive_id, archive_id, 50},
-     {MUC and AR, mam_muc_remove_archive, remove_archive, 90}].
+    [{PM, mam_archive_id, fun ?MODULE:archive_id/3, 50},
+     {PM and AR, mam_remove_archive, fun ?MODULE:remove_archive/3, 90},
+     {MUC, mam_muc_archive_id, fun ?MODULE:archive_id/3, 50},
+     {MUC and AR, mam_muc_remove_archive, fun ?MODULE:remove_archive/3, 90}].
 
 prepare_queries() ->
     mongoose_rdbms:prepare(mam_user_insert, mam_server_user, [server, user_name],
@@ -69,20 +68,26 @@ prepare_queries() ->
 %%====================================================================
 %% API
 %%====================================================================
--spec archive_id(ArcID :: undefined | mod_mam:archive_id(),
-                 HostType :: mongooseim:host_type(),
-                 ArchiveJID :: jid:jid()) -> mod_mam:archive_id().
-archive_id(undefined, HostType, _ArcJID=#jid{lserver = LServer, luser = LUser}) ->
-    query_archive_id(HostType, LServer, LUser);
-archive_id(ArcID, _Host, _ArcJID) ->
-    ArcID.
+-spec archive_id(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mod_mam:archive_id() | undefined,
+    Params :: map(),
+    Extra :: gen_hook:extra().
+archive_id(undefined,
+           #{owner := #jid{lserver = LServer, luser = LUser}},
+           #{host_type := HostType}) ->
+    {ok, query_archive_id(HostType, LServer, LUser)};
+archive_id(ArcID, _Params, _Extra) ->
+    {ok, ArcID}.
 
--spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
-                     ArchiveID :: mod_mam:archive_id(),
-                     ArchiveJID :: jid:jid()) -> map().
-remove_archive(Acc, HostType, _ArcID, _ArcJID = #jid{lserver = LServer, luser = LUser}) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+remove_archive(Acc,
+               #{owner := #jid{lserver = LServer, luser = LUser}},
+               #{host_type := HostType}) ->
     execute_user_remove(HostType, LServer, LUser),
-    Acc.
+    {ok, Acc}.
 
 %%====================================================================
 %% Internal functions

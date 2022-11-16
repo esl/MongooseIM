@@ -5,16 +5,17 @@
 
 -ignore_xref([execute/4]).
 
+-import(mongoose_graphql_helper, [format_result/2]).
+
 -include("../mongoose_graphql_types.hrl").
 
 execute(_Ctx, admin, <<"domainsByHostType">>, #{<<"hostType">> := HostType}) ->
-    Domains = mongoose_domain_api:get_domains_by_host_type(HostType),
-    Domains2 = lists:map(fun(D) -> {ok, D} end, Domains),
-    {ok, Domains2};
+    case mongoose_domain_api:check_host_type_and_get_domains(HostType) of
+        {ok, Domains} ->
+            Domains2 = lists:map(fun(D) -> {ok, D} end, Domains),
+            {ok, Domains2};
+        Error ->
+            format_result(Error, #{hostType => HostType})
+    end;
 execute(_Ctx, admin, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
-    case mongoose_domain_sql:select_domain(Domain) of
-        {ok, #{host_type := HostType, status := Status}} ->
-            {ok, #domain{host_type = HostType, domain = Domain, status = Status}};
-        {error, not_found} ->
-            {error, #{what => domain_not_found, domain => Domain}}
-    end.
+    format_result(mongoose_domain_api:get_domain_details(Domain), #{domain => Domain}).

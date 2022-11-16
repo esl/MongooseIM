@@ -20,18 +20,15 @@
 -callback encode(term()) -> binary().
 -callback decode(binary()) -> term().
 
--export([archive_size/4,
+-export([archive_size/3,
          archive_message/3,
          lookup_messages/3,
-         remove_archive/4,
-         remove_domain/3]).
-
--export([get_mam_pm_gdpr_data/3]).
+         remove_archive/3,
+         remove_domain/3,
+         get_mam_pm_gdpr_data/3]).
 
 %% Called from mod_mam_rdbms_async_pool_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
-
--ignore_xref([behaviour_info/1, remove_archive/4]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -80,18 +77,20 @@ stop(HostType) ->
 supported_features() ->
     [dynamic_domains].
 
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-                           host_type(), jid:jid()) ->
-    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, HostType,
-                     #jid{luser = LUser, lserver = LServer} = ArcJID) ->
+-spec get_mam_pm_gdpr_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_mam_pm_gdpr_data(Acc,
+                     #{jid := #jid{luser = LUser, lserver = LServer} = ArcJID},
+                     #{host_type := HostType}) ->
     case mod_mam_pm:archive_id(LServer, LUser) of
         undefined ->
-            Acc;
+            {ok, Acc};
         ArcID ->
             Env = env_vars(HostType, ArcJID),
             {selected, Rows} = extract_gdpr_messages(Env, ArcID),
-            [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
+            {ok, [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc}
     end.
 
 -spec uniform_to_gdpr(mod_mam:message_row()) -> tuple().
@@ -103,31 +102,25 @@ uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
 
 -spec start_hooks(host_type()) -> ok.
 start_hooks(HostType) ->
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop_hooks(host_type()) -> ok.
 stop_hooks(HostType) ->
-    ejabberd_hooks:delete(legacy_hooks(HostType)),
     gen_hook:delete_handlers(hooks(HostType)).
 
-legacy_hooks(HostType) ->
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, no_writer) of
         true ->
             [];
         false ->
-            [{mam_archive_message, HostType, ?MODULE, archive_message, 50}]
+            [{mam_archive_message, HostType, fun ?MODULE:archive_message/3, #{}, 50}]
     end ++
-    [{mam_archive_size, HostType, ?MODULE, archive_size, 50},
-     {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
-     {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}].
-
--spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
-hooks(HostType) ->
-    [
-        {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}
-    ].
+    [{mam_archive_size, HostType, fun ?MODULE:archive_size/3, #{}, 50},
+     {mam_lookup_messages, HostType, fun ?MODULE:lookup_messages/3, #{}, 50},
+     {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50},
+     {get_mam_pm_gdpr_data, HostType, fun ?MODULE:get_mam_pm_gdpr_data/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
 
 %% ----------------------------------------------------------------------
 %% SQL queries
@@ -247,27 +240,32 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec archive_size(Size :: integer(), HostType :: host_type(),
-                   ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, HostType, ArcID, ArcJID) when is_integer(Size) ->
+-spec archive_size(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: integer(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner := jid:jid()},
+    Extra :: gen_hook:extra().
+archive_size(Size, #{archive_id := ArcID, owner := ArcJID}, #{host_type := HostType}) when is_integer(Size) ->
     Filter = [{equal, user_id, ArcID}],
     Env = env_vars(HostType, ArcJID),
     Result = lookup_query(count, Env, Filter, unordered, all),
-    mongoose_rdbms:selected_to_integer(Result).
+    {ok, mongoose_rdbms:selected_to_integer(Result)}.
 
--spec archive_message(_Result, host_type(), mod_mam:archive_message_params()) -> ok.
-archive_message(_Result, HostType, Params = #{local_jid := ArcJID}) ->
+-spec archive_message(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: ok,
+    Params :: mod_mam:archive_message_params(),
+    Extra :: gen_hook:extra().
+archive_message(_Result, #{local_jid := ArcJID} = Params, #{host_type := HostType}) ->
     try
         assert_archive_id_provided(Params),
         Env = env_vars(HostType, ArcJID),
         do_archive_message(HostType, Params, Env),
         retract_message(HostType, Params, Env),
-        ok
+        {ok, ok}
     catch error:Reason:StackTrace ->
-              ?LOG_ERROR(#{what => archive_message_failed,
-                           host_type => HostType, mam_params => Params,
-                           reason => Reason, stacktrace => StackTrace}),
-              erlang:raise(error, Reason, StackTrace)
+        ?LOG_ERROR(#{what => archive_message_failed,
+                    host_type => HostType, mam_params => Params,
+                    reason => Reason, stacktrace => StackTrace}),
+        erlang:raise(error, Reason, StackTrace)
     end.
 
 do_archive_message(HostType, Params, Env) ->
@@ -340,17 +338,18 @@ prepare_insert(Name, NumRows) ->
     ok.
 
 %% Removal logic
--spec remove_archive(Acc :: mongoose_acc:t(), HostType :: host_type(),
-                     ArcID :: mod_mam:archive_id(),
-                     RoomJID :: jid:jid()) -> mongoose_acc:t().
-remove_archive(Acc, HostType, ArcID, _ArcJID) ->
+-spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{archive_id := mod_mam:archive_id() | undefined, owner := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_archive(Acc, #{archive_id := ArcID}, #{host_type := HostType}) ->
     mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
-    Acc.
+    {ok, Acc}.
 
 -spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
     Acc :: mongoose_domain_api:remove_domain_acc(),
     Params :: map(),
-    Extra :: map().
+    Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             case gen_mod:get_module_opt(HostType, ?MODULE, delete_domain_limit) of
@@ -382,15 +381,17 @@ extract_gdpr_messages(Env, ArcID) ->
     lookup_query(lookup, Env, Filters, asc, all).
 
 %% Lookup logic
--spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
-                             {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason}=Result, _HostType, _Params) ->
-    Result;
-lookup_messages(_Result, HostType, Params = #{owner_jid := ArcJID}) ->
+-spec lookup_messages(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {ok, mod_mam:lookup_result()},
+    Params :: mam_iq:lookup_params(),
+    Extra :: gen_hook:extra().
+lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
+    {ok, Result};
+lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
-    mam_lookup:lookup(Env, Filter, ExdParams).
+    {ok, mam_lookup:lookup(Env, Filter, ExdParams)}.
 
 lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order, OffsetLimit).

@@ -7,7 +7,8 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, execute_user/3]).
+-import(graphql_helper, [execute/3, execute_auth/2, execute_user/3,
+                         get_value/2, get_bad_request/1]).
 
 -define(assertAdminAuth(Domain, Type, Auth, Data),
         assert_auth(#{<<"domain">> => Domain,
@@ -24,13 +25,15 @@ all() ->
     [{group, cowboy_handler},
      {group, admin_handler},
      {group, domain_admin_handler},
-     {group, user_handler}].
+     {group, user_handler},
+     {group, categories_disabled}].
 
 groups() ->
     [{cowboy_handler, [parallel], cowboy_handler()},
      {user_handler, [parallel], user_handler()},
      {domain_admin_handler, [parallel], domain_admin_handler()},
-     {admin_handler, [parallel], admin_handler()}].
+     {admin_handler, [parallel], admin_handler()},
+     {categories_disabled, [parallel], categories_disabled_tests()}].
 
 cowboy_handler() ->
     [can_connect_to_admin,
@@ -49,6 +52,13 @@ domain_admin_handler() ->
 
 common_tests() ->
     [can_load_graphiql].
+
+categories_disabled_tests() ->
+    [category_disabled_error_test,
+     admin_checks_auth,
+     category_does_not_exist_error,
+     listener_reply_with_validation_error,
+     multiple_categories_query_test].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -71,6 +81,15 @@ init_per_group(domain_admin_handler, Config) ->
 init_per_group(user_handler, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
     [{schema_endpoint, user} | Config1];
+init_per_group(categories_disabled, Config) ->
+    #{node := Node} = mim(),
+    CowboyGraphqlListenerConfig = graphql_helper:get_listener_config(Node, admin),
+    #{handlers := [SchemaConfig]} = CowboyGraphqlListenerConfig,
+    UpdatedSchemaConfig = maps:put(allowed_categories, [<<"vcard">>, <<"checkAuth">>], SchemaConfig),
+    UpdatedListenerConfig = maps:put(handlers, [UpdatedSchemaConfig], CowboyGraphqlListenerConfig),
+    mongoose_helper:restart_listener(mim(), UpdatedListenerConfig),
+    Config1 = [{admin_listener_config, CowboyGraphqlListenerConfig} | Config],
+    graphql_helper:init_admin_handler(Config1);
 init_per_group(cowboy_handler, Config) ->
     Config.
 
@@ -78,6 +97,10 @@ end_per_group(user_handler, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(domain_admin_handler, Config) ->
     graphql_helper:end_domain_admin_handler(Config);
+end_per_group(categories_disabled, Config) ->
+    ListenerConfig = ?config(admin_listener_config, Config),
+    mongoose_helper:restart_listener(mim(), ListenerConfig),
+    Config;
 end_per_group(_, _Config) ->
     ok.
 
@@ -136,6 +159,32 @@ auth_domain_admin_checks_auth(Config) ->
     Res = execute_auth(admin_check_auth_body(), Config),
     ?assertAdminAuth(Domain, 'DOMAIN_ADMIN', 'AUTHORIZED', Res).
 
+category_disabled_error_test(Config) ->
+    Status = execute_auth(admin_server_get_loglevel_body(), Config),
+    {_Code, #{<<"errors">> := [Msg]}} = Status,
+    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], Msg)),
+    ?assertEqual([<<"server">>], get_value([path], Msg)).
+
+category_does_not_exist_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Status = execute(Ep, #{<<"query">> => <<"{ field ">>}, undefined),
+    get_bad_request(Status),
+    {_Code, #{<<"errors">> := [Msg]}} = Status,
+    ?assertEqual(<<"parser_error">>, get_value([extensions, code], Msg)).
+
+listener_reply_with_validation_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>,
+             <<"operationName">> => <<"Q1">>},
+    {Status, Data} = execute(Ep, Body, undefined).
+
+multiple_categories_query_test(Config) ->
+    Status = execute_auth(user_check_auth_multiple(), Config),
+    {_Code, #{<<"errors">> := [ErrorMsg], <<"data">> := DataMsg}} = Status,
+    ?assertEqual(<<"category_disabled">>, get_value([extensions, code], ErrorMsg)),
+    ?assertEqual([<<"server">>], get_value([path], ErrorMsg)),
+    ?assertEqual(<<"AUTHORIZED">>, get_value([checkAuth, authStatus], DataMsg)).
+
 %% Helpers
 
 assert_auth(Auth, {Status, Data}) ->
@@ -158,5 +207,11 @@ maybe_atom_to_bin(X) -> atom_to_binary(X).
 admin_check_auth_body() ->
     #{query => "{ checkAuth { domain authType authStatus } }"}.
 
+admin_server_get_loglevel_body() ->
+    #{query => "{ server { getLoglevel } }"}.
+
 user_check_auth_body() ->
     #{query => "{ checkAuth { username authStatus } }"}.
+
+user_check_auth_multiple() ->
+    #{query => "{ checkAuth { authStatus } server { getLoglevel } }"}.

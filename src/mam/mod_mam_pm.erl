@@ -175,7 +175,7 @@ disco_local_features(Acc, _, _) ->
 -spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
        Acc :: mongoose_acc:t(),
        Args :: map(),
-       Extra :: map().
+       Extra :: gen_hook:extra().
 user_send_packet(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
     ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
@@ -193,7 +193,7 @@ user_send_packet(Acc, _, _) ->
                    (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
-      Extra :: map().
+      Extra :: gen_hook:extra().
 filter_packet(drop, _, _) ->
     {ok, drop};
 filter_packet({From, To, Acc1, Packet}, _, _) ->
@@ -228,7 +228,7 @@ process_incoming_packet(From, To, Packet, Acc) ->
 -spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
       Params :: #{jid := jid:jid()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := JID}, _) ->
     delete_archive(JID),
     {ok, Acc}.
@@ -236,7 +236,7 @@ remove_user(Acc, #{jid := JID}, _) ->
 -spec determine_amp_strategy(StrategyAcc, Params, Extra) -> {ok, StrategyAcc} when
       StrategyAcc :: mod_amp:amp_strategy(),
       Params :: #{from := jid:jid(), to := jid:jid(), packet := exml:element(), event := mod_amp:amp_event()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 determine_amp_strategy(Strategy = #amp_strategy{deliver = Deliver},
                        #{from := FromJID, to := ToJID, packet := Packet, event := initial_check},
                        _) ->
@@ -255,7 +255,7 @@ determine_amp_strategy(Strategy, _, _) ->
 -spec sm_filter_offline_message(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: boolean(),
       Params :: #{packet := exml:element()},
-      Extra :: map().
+      Extra :: gen_hook:extra().
 sm_filter_offline_message(_Drop=false, #{packet := Packet}, _) ->
     %% If ...
     {ok, mod_mam_utils:is_mam_result_message(Packet)};

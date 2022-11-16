@@ -2,7 +2,10 @@
 
 -import(mongoose_graphql_helper, [null_to_undefined/1, make_error/2]).
 
--export([get_last_messages/5, row_to_map/1]).
+-export([get_last_messages/5, row_to_map/1, handle_event/1]).
+
+-include("mongoose.hrl").
+-include("jlib.hrl").
 
 -spec get_last_messages(Caller :: jid:jid(),
                         Limit :: null | non_neg_integer(),
@@ -20,10 +23,28 @@ get_last_messages(Caller, Limit, With, Before, CheckUser) ->
             Error
     end.
 
+-spec handle_event(term()) -> {ok, map() | null}.
+handle_event({route, Acc}) ->
+    {From, _To, Packet} = mongoose_acc:packet(Acc),
+    case Packet of
+        Stanza = #xmlel{name = <<"message">>} ->
+            StanzaID = exml_query:attr(Stanza, <<"id">>, <<>>),
+            Timestamp = os:system_time(microsecond),
+            stanza_result(From, Timestamp, StanzaID, Stanza);
+        _ ->
+            {ok, null} % Skip other stanza types
+    end;
+handle_event(Msg) ->
+    ?UNEXPECTED_INFO(Msg),
+    {ok, null}.
+
 -spec row_to_map(mod_mam:message_row()) -> {ok, map()}.
-row_to_map(#{id := Id, jid := From, packet := Msg}) ->
+row_to_map(#{id := Id, jid := From, packet := Stanza}) ->
     {Microseconds, _} = mod_mam_utils:decode_compact_uuid(Id),
     StanzaID = mod_mam_utils:mess_id_to_external_binary(Id),
-    Map = #{<<"sender">> => From, <<"timestamp">> => Microseconds,
-            <<"stanza_id">> => StanzaID, <<"stanza">> => Msg},
+    stanza_result(From, Microseconds, StanzaID, Stanza).
+
+stanza_result(From, Timestamp, StanzaID, Stanza) ->
+    Map = #{<<"sender">> => From, <<"timestamp">> => Timestamp,
+            <<"stanza_id">> => StanzaID, <<"stanza">> => Stanza},
     {ok, Map}.

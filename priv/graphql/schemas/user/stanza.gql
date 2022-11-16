@@ -18,3 +18,8 @@ type StanzaUserMutation @protected{
   "Send an arbitrary stanza"
   sendStanza(stanza: Stanza): SendStanzaPayload
 }
+
+type StanzaUserSubscription @protected{
+  "Subscribe to incoming messages"
+  subscribeForMessages: StanzaMap
+}
