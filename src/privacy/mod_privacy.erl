@@ -140,7 +140,7 @@ hooks(HostType) ->
     [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98}
      | c2s_hooks(HostType)].
 
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:hook_fn()).
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
     [
      {user_send_message, HostType, fun ?MODULE:user_send_message_or_presence/3, #{}, 10},
@@ -156,13 +156,13 @@ c2s_hooks(HostType) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
--spec user_send_message_or_presence(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_message_or_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_message_or_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     do_privacy_check_send(Acc, StateData).
 
--spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
+    mongoose_c2s_hooks:result().
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case mongoose_iq:info(Acc) of
         {#iq{xmlns = ?NS_PRIVACY, type = Type} = IQ, Acc1} when Type == get; Type == set ->
@@ -171,13 +171,13 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             do_privacy_check_send(Acc, StateData)
     end.
 
--spec user_receive_message(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_receive_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_receive_message(Acc, #{c2s_data := StateData}, _Extra) ->
     do_privacy_check_receive(Acc, StateData, send).
 
--spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), map()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
+    mongoose_c2s_hooks:result().
 user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> {ok, Acc};
@@ -186,8 +186,8 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
         _ -> do_privacy_check_receive(Acc, StateData, ignore)
     end.
 
--spec user_receive_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec user_receive_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
     From = mongoose_acc:from_jid(Acc),
     Me = mongoose_c2s:get_jid(StateData),
@@ -200,8 +200,8 @@ user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
             do_privacy_check_receive(Acc1, StateData, ignore)
     end.
 
--spec foreign_event(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := info,
                      event_content := {broadcast, {privacy_list, PrivList, PrivListName}}},
@@ -211,7 +211,7 @@ foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 -spec do_privacy_check_send(mongoose_acc:t(), mongoose_c2s:c2s_data()) ->
-    mongoose_c2s_hooks:hook_result().
+    mongoose_c2s_hooks:result().
 do_privacy_check_send(Acc, StateData) ->
     case s_privacy_check_packet(Acc, StateData, out) of
         {allow, Acc1} ->
@@ -223,7 +223,7 @@ do_privacy_check_send(Acc, StateData) ->
     end.
 
 -spec do_privacy_check_receive(mongoose_acc:t(), mongoose_c2s:c2s_data(), maybe_send()) ->
-    mongoose_c2s_hooks:hook_result().
+    mongoose_c2s_hooks:result().
 do_privacy_check_receive(Acc, StateData, MaybeSendError) ->
     case s_privacy_check_packet(Acc, StateData, in) of
         {allow, Acc1} ->
@@ -232,8 +232,8 @@ do_privacy_check_receive(Acc, StateData, MaybeSendError) ->
             {stop, send_back_error(Acc1, service_unavailable, MaybeSendError)}
     end.
 
--spec do_user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), mongooseim:host_type(), jlib:iq()) ->
-    mongoose_c2s_hooks:hook_result().
+-spec do_user_send_iq(mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), jlib:iq()) ->
+    mongoose_c2s_hooks:result().
 do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ) ->
     FromJid = mongoose_acc:from_jid(Acc1),
     ToJid = mongoose_acc:to_jid(Acc1),

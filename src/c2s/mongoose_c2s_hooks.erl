@@ -1,15 +1,14 @@
 %% @doc This module builds an interface to c2s event handling
 -module(mongoose_c2s_hooks).
 
--type hook_fn() :: fun((mongoose_acc:t(), mongoose_c2s_hooks:hook_params(), gen_hook:hook_extra()) ->
-                            hook_result()).
--type hook_params() :: #{c2s_data := mongoose_c2s:state(),
+-type fn() :: fun((mongoose_acc:t(), params(), gen_hook:hook_extra()) -> result()).
+-type params() :: #{c2s_data := mongoose_c2s:state(),
                          c2s_state := mongoose_c2s:c2s_state(),
                          event_type := undefined | gen_statem:event_type(),
                          event_content := undefined | term(),
                          reason := undefined | term()}.
--type hook_result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).
--export_type([hook_fn/0, hook_params/0, hook_result/0]).
+-type result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+-export_type([fn/0, params/0, result/0]).
 
 %% XML handlers
 -export([user_send_packet/3,
@@ -39,8 +38,8 @@
 -spec user_send_packet(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_send_packet(HostType, Acc, Params) ->
     {From, To, El} = mongoose_acc:packet(Acc),
     Args = [From, To, El],
@@ -52,21 +51,21 @@ user_send_packet(HostType, Acc, Params) ->
 -spec user_receive_packet(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
-user_receive_packet(HostType, Acc, #{c2s_data := C2SState} = Params) ->
+    Params :: params(),
+    Result :: result().
+user_receive_packet(HostType, Acc, #{c2s_data := C2SData} = Params) ->
     {From, To, El} = mongoose_acc:packet(Acc),
-    Jid = mongoose_c2s:get_jid(C2SState),
+    Jid = mongoose_c2s:get_jid(C2SData),
     Args = [Jid, From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params#{jid => Jid}, Args),
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     gen_hook:run_fold(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %% @doc Triggered when the user sends a stanza of type `message'
 -spec user_send_message(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_send_message(HostType, Acc, Params) ->
     gen_hook:run_fold(user_send_message, HostType, Acc, Params).
 
@@ -74,8 +73,8 @@ user_send_message(HostType, Acc, Params) ->
 -spec user_send_iq(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_send_iq(HostType, Acc, Params) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
     gen_hook:run_fold(user_send_iq, HostType, Acc1, Params).
@@ -84,8 +83,8 @@ user_send_iq(HostType, Acc, Params) ->
 -spec user_send_presence(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_send_presence(HostType, Acc, Params) ->
     gen_hook:run_fold(user_send_presence, HostType, Acc, Params).
 
@@ -94,8 +93,8 @@ user_send_presence(HostType, Acc, Params) ->
 -spec user_send_xmlel(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_send_xmlel(HostType, Acc, Params) ->
     gen_hook:run_fold(user_send_xmlel, HostType, Acc, Params).
 
@@ -104,8 +103,8 @@ user_send_xmlel(HostType, Acc, Params) ->
 -spec user_receive_message(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_receive_message(HostType, Acc, Params) ->
     gen_hook:run_fold(user_receive_message, HostType, Acc, Params).
 
@@ -113,8 +112,8 @@ user_receive_message(HostType, Acc, Params) ->
 -spec user_receive_iq(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_receive_iq(HostType, Acc, Params) ->
     Acc1 = mongoose_iq:update_acc_info(Acc),
     gen_hook:run_fold(user_receive_iq, HostType, Acc1, Params).
@@ -123,8 +122,8 @@ user_receive_iq(HostType, Acc, Params) ->
 -spec user_receive_presence(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_receive_presence(HostType, Acc, Params) ->
     gen_hook:run_fold(user_receive_presence, HostType, Acc, Params).
 
@@ -133,8 +132,8 @@ user_receive_presence(HostType, Acc, Params) ->
 -spec user_receive_xmlel(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_receive_xmlel(HostType, Acc, Params) ->
     gen_hook:run_fold(user_receive_xmlel, HostType, Acc, Params).
 
@@ -146,7 +145,7 @@ user_receive_xmlel(HostType, Acc, Params) ->
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Result :: hook_result().
+    Result :: result().
 foreign_event(HostType, Acc, Params) ->
     gen_hook:run_fold(foreign_event, HostType, Acc, Params).
 
@@ -157,8 +156,8 @@ foreign_event(HostType, Acc, Params) ->
 -spec user_open_session(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_open_session(HostType, Acc, Params) ->
     gen_hook:run_fold(user_open_session, HostType, Acc, Params).
 
@@ -167,7 +166,7 @@ user_open_session(HostType, Acc, Params) ->
 -spec user_terminate(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
+    Params :: params(),
     Result :: mongoose_acc:t().
 user_terminate(HostType, Acc, Params) ->
     {_, Res} = gen_hook:run_fold(user_terminate, HostType, Acc, Params),
@@ -178,7 +177,7 @@ user_terminate(HostType, Acc, Params) ->
 -spec reroute_unacked_messages(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
+    Params :: params(),
     Result :: mongoose_acc:t().
 reroute_unacked_messages(HostType, Acc, Params) ->
     {_, Res} = gen_hook:run_fold(reroute_unacked_messages, HostType, Acc, Params),
@@ -193,8 +192,8 @@ reroute_unacked_messages(HostType, Acc, Params) ->
 -spec user_stop_request(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_stop_request(HostType, Acc, Params) ->
     gen_hook:run_fold(user_stop_request, HostType, Acc, Params).
 
@@ -202,8 +201,8 @@ user_stop_request(HostType, Acc, Params) ->
 -spec user_socket_closed(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_socket_closed(HostType, Acc, Params) ->
     gen_hook:run_fold(user_socket_closed, HostType, Acc, Params).
 
@@ -211,7 +210,7 @@ user_socket_closed(HostType, Acc, Params) ->
 -spec user_socket_error(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: hook_params(),
-    Result :: hook_result().
+    Params :: params(),
+    Result :: result().
 user_socket_error(HostType, Acc, Params) ->
     gen_hook:run_fold(user_socket_error, HostType, Acc, Params).

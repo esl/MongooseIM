@@ -22,7 +22,7 @@
 -export([process_iq/5]).
 
 %% hook handlers
--export([user_send_packet/3,
+-export([user_send_message/3,
          filter_local_packet/3,
          inbox_unread_count/3,
          remove_user/3,
@@ -229,17 +229,12 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
--spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Args :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
-      Extra :: map().
-user_send_packet(Acc, _, _) ->
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_send_message(Acc, _, _) ->
     {From, To, Msg} = mongoose_acc:packet(Acc),
-    NewAcc = case Msg of
-        #xmlel{name = <<"message">>} -> maybe_process_message(Acc, From, To, Msg, outgoing);
-        _ -> Acc
-    end,
-    {ok, NewAcc}.
+    Acc1 = maybe_process_message(Acc, From, To, Msg, outgoing),
+    {ok, Acc1}.
 
 -spec inbox_unread_count(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
@@ -570,7 +565,7 @@ hooks(HostType) ->
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 70},
+        {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 70},
         {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 90},
         {inbox_unread_count, HostType, fun ?MODULE:inbox_unread_count/3, #{}, 80},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
@@ -606,6 +601,6 @@ should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) ->
 inbox_owner_exists(Acc, _, To, incoming, MessageType) -> % filter_local_packet
     HostType = mongoose_acc:host_type(Acc),
     mongoose_lib:does_local_user_exist(HostType, To, MessageType);
-inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
+inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_message
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, From, stored).

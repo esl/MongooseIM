@@ -35,7 +35,6 @@
          unregister_subhost/1,
          user_available_hook/2,
          user_ping_response/5,
-         user_send_packet/4,
          vcard_set/4,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
@@ -464,23 +463,6 @@ user_ping_response(HostType, Acc, JID, Response, TDelta) ->
     Args = [HostType, JID, Response, TDelta],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(user_ping_response, HostType, Acc, ParamsWithLegacyArgs).
-
-%%% @doc A hook called when a user sends an XMPP stanza.
-%%% The hook's handler is expected to accept four parameters:
-%%% `Acc', `From', `To' and `Packet'
-%%% The arguments and the return value types correspond to the following spec.
--spec user_send_packet(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: mongoose_acc:t().
-user_send_packet(Acc, From, To, Packet) ->
-    Params = #{},
-    Args = [From, To, Packet],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
