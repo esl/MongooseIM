@@ -34,7 +34,6 @@
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
-         compress/1, compress/3,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -290,14 +289,6 @@ starttls(SocketData, TLSOpts) ->
 -spec starttls(socket(), _, _) -> no_return().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, tls_not_allowed_on_websockets}).
-
--spec compress(socket()) -> no_return().
-compress(SocketData) ->
-    compress(SocketData, <<>>, 0).
-
--spec compress(socket(), _, _) -> no_return().
-compress(_SocketData, _Data, _InflateSizeLimit) ->
-    throw({error, compression_not_allowed_on_websockets}).
 
 -spec send_xml(socket(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, {xmlstreamraw, Text}) ->

@@ -20,7 +20,7 @@
          }).
 
 -type state() :: #state{}.
--type transport() :: ranch_tcp | ranch_ssl | fast_tls.
+-type transport() :: ranch_tcp | just_tls | fast_tls. % just_tls = ranch_ssl
 
 -spec socket_new(term(), mongoose_listener:options()) -> state().
 socket_new({ranch_tcp, RanchRef}, #{proxy_protocol := true}) ->
@@ -78,7 +78,7 @@ socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _Sock
         {error, Reason} ->
             {error, Reason}
     end;
-socket_handle_data(#state{transport = ranch_ssl, socket = Socket}, {ssl, Socket, Data}) ->
+socket_handle_data(#state{transport = just_tls, socket = Socket}, {ssl, Socket, Data}) ->
     mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
@@ -87,7 +87,7 @@ socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket,
 -spec socket_activate(state()) -> ok.
 socket_activate(#state{transport = fast_tls, socket = Socket}) ->
     fast_tls:setopts(Socket, [{active, once}]);
-socket_activate(#state{transport = ranch_ssl, socket = Socket}) ->
+socket_activate(#state{transport = just_tls, socket = Socket}) ->
     ranch_ssl:setopts(Socket, [{active, once}]);
 socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
@@ -95,7 +95,7 @@ socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
 -spec socket_close(state()) -> ok.
 socket_close(#state{transport = fast_tls, socket = Socket}) ->
     fast_tls:close(Socket);
-socket_close(#state{transport = ranch_ssl, socket = Socket}) ->
+socket_close(#state{transport = just_tls, socket = Socket}) ->
     ranch_ssl:close(Socket);
 socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:close(Socket).
@@ -104,13 +104,20 @@ socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
     ok | {error, term()}.
 socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
     Text = exml:to_iolist(XML),
-    case Transport:send(Socket, Text) of
+    case send(Transport, Socket, Text) of
         ok ->
             mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], iolist_size(Text)),
             ok;
         Error ->
             Error
         end.
+
+send(fast_tls, Socket, Data) ->
+    fast_tls:send(Socket, Data);
+send(just_tls, Socket, Data) ->
+    ranch_ssl:send(Socket, Data);
+send(ranch_tcp, Socket, Data) ->
+    ranch_tcp:send(Socket, Data).
 
 -spec has_peer_cert(mongoose_c2s_socket:state(), mongoose_listener:options()) -> boolean().
 has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
@@ -121,7 +128,7 @@ has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) 
         {_, {ok, _}, _} -> false;
         {_, error, _} -> false
     end;
-has_peer_cert(#state{transport = ranch_ssl, socket = Socket}, _) ->
+has_peer_cert(#state{transport = just_tls, socket = Socket}, _) ->
     case ssl:peercert(Socket) of
         {ok, _PeerCert} -> true;
         _ -> false

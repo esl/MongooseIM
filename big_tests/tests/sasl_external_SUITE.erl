@@ -102,9 +102,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(just_tls, Config) ->
-    [{tls_module, "just_tls"} | Config];
+    [{tls_module, just_tls} | Config];
 init_per_group(fast_tls, Config) ->
-    [{tls_module, "fast_tls"} | Config];
+    [{tls_module, fast_tls} | Config];
 init_per_group(ca_signed, Config) ->
     [{signed, ca},
      {ssl_options, "\n  tls.disconnect_on_failure = false"},
@@ -143,11 +143,11 @@ init_per_group(_, Config) ->
     Config.
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    TLSModule = escalus_config:get_config(tls_module, Config, "just_tls"),
+    TLSModule = escalus_config:get_config(tls_module, Config, just_tls),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
     SSLOpts = case TLSModule of
-                  "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
-                  "fast_tls" -> ""
+                  just_tls -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
+                  fast_tls -> ""
               end,
     AuthMethods = escalus_config:get_config(auth_methods, Config,
                                             [{auth_method, "pki"}, {auth_method_opts, false}]),
