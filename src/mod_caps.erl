@@ -184,7 +184,9 @@ user_send_presence(Acc,
                    #jid{luser = User, lserver = LServer, lresource = <<>>},
                    #xmlel{attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    handle_presence(Acc, LServer, From, Type, Elements).
+    handle_presence(Acc, LServer, From, Type, Elements);
+user_send_presence(Acc, _, _, _) ->
+    Acc.
 
 -spec caps_stream_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [exml:element()],
