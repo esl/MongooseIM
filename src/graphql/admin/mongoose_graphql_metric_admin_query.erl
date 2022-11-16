@@ -5,8 +5,6 @@
 
 -ignore_xref([execute/4]).
 
--include("mongoose_logger.hrl").
-
 execute(_Ctx, _Obj, <<"getMetrics">>, Args) ->
     Name = get_name(Args),
     mongoose_metrics_api:get_metrics(Name);

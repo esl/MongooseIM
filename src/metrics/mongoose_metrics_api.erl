@@ -4,6 +4,7 @@
          get_cluster_metrics_as_dicts/3]).
 
 -include("mongoose_logger.hrl").
+-include("mongoose.hrl").
 
 -type name() :: [atom() | integer()].
 -type key() :: atom().
@@ -18,21 +19,31 @@
 
 -spec get_metrics(Name :: name()) -> {ok, [metric_result()]}.
 get_metrics(Name) ->
-    Values = exometer:get_values(Name),
+    PrepName = prepare_host_types(Name),
+    Values = mongoose_metrics:get_metric_values(PrepName),
     {ok, lists:map(fun make_metric_result/1, Values)}.
 
 -spec get_metrics_as_dicts(Name :: name(), Keys :: [key()]) ->
     {ok, [metric_dict_result()]}.
 get_metrics_as_dicts(Name, Keys) ->
-    Values = exometer:get_values(Name),
+    PrepName = prepare_host_types(Name),
+    Values = mongoose_metrics:get_metric_values(PrepName),
     {ok, [make_metric_dict_result(V, Keys) || V <- Values]}.
 
 -spec get_cluster_metrics_as_dicts(Name :: name(), Keys :: [key()],
                                    Nodes :: [node()]) ->
     {ok, [metric_node_dict_result()]}.
 get_cluster_metrics_as_dicts(Name, Keys, Nodes) ->
-    Nodes2 = existing_nodes(Nodes),
-    F = fun(Node) -> rpc:call(Node, exometer, get_values, [Name]) end,
+    PrepName = prepare_host_types(Name),
+    Nodes2 = prepare_nodes_arg(Nodes),
+    F = fun(Node) ->
+            case rpc:call(Node, mongoose_metrics, get_metric_values, [PrepName]) of
+            {badrpc, Reason} ->
+                [{[error, Reason], []}];
+            Result ->
+                Result
+            end
+        end,
     Results = mongoose_lib:pmap(F, Nodes2),
     {ok, [make_node_result(Node, Result, Keys)
           || {Node, Result} <- lists:zip(Nodes2, Results)]}.
@@ -50,14 +61,10 @@ filter_keys(Dict, []) ->
 filter_keys(Dict, Keys) ->
     [KV || KV = {Key, _} <- Dict, lists:member(Key, Keys)].
 
-existing_nodes(Nodes) ->
-    AllNodes = [node()|nodes()],
-    filter_nodes(AllNodes, Nodes).
-
-filter_nodes(AllNodes, []) ->
-    AllNodes;
-filter_nodes(AllNodes, AllowedNodes) ->
-    [Node || Node <- AllNodes, lists:member(Node, AllowedNodes)].
+prepare_nodes_arg([]) ->
+    [node()|nodes()];
+prepare_nodes_arg(Nodes) ->
+    Nodes.
 
 make_metric_result({Name, Dict}) ->
     PreparedName = format_name(Name),
@@ -154,3 +161,15 @@ format_vm_system_info(#{port_count := PortCount, port_limit := PortLimit,
 format_probe_queues(#{fsm := FSM, regular := Regular, total := Total}) ->
     #{<<"type">> => <<"probe_queues">>,
       <<"fsm">> => FSM, <<"regular">> => Regular, <<"total">> => Total}.
+
+prepare_host_types(Name) ->
+    lists:map(
+        fun(Ele) ->
+            case lists:member(atom_to_binary(Ele), ?ALL_HOST_TYPES) of
+                true ->
+                    binary:replace(atom_to_binary(Ele), <<" ">>, <<"_">>);
+                false ->
+                    Ele
+            end
+        end,
+    Name).
