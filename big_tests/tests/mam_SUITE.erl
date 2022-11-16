@@ -36,6 +36,7 @@
          muc_service_discovery/1,
          easy_archive_request/1,
          easy_archive_request_for_the_receiver/1,
+         message_sent_to_yourself/1,
          text_search_query_fails_if_disabled/1,
          pagination_simple_enforced/1,
          text_search_is_not_available/1,
@@ -383,6 +384,7 @@ mam_cases() ->
     [mam_service_discovery,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
+     message_sent_to_yourself,
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
@@ -1225,6 +1227,20 @@ easy_archive_request_for_the_receiver(Config) ->
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+message_sent_to_yourself(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Alice, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Alice), %% Receive that message
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Res = wait_archive_respond(Alice),
+        assert_respond_size(1, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}], F).
 
 text_search_is_not_available(Config) ->
     P = ?config(props, Config),
