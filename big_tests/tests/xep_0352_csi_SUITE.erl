@@ -15,7 +15,7 @@ all() ->
 
 
 groups() ->
-    [{basic, [parallel, shuffle], all_tests()}].
+    [{basic, [parallel], all_tests()}].
 
 all_tests() ->
     [
@@ -60,20 +60,15 @@ end_per_testcase(CaseName, Config) ->
 server_announces_csi(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     Spec = escalus_users:get_userspec(NewConfig, alice),
-    Steps = [start_stream,
-             stream_features,
-             maybe_use_ssl,
-             authenticate,
-             bind,
-             session],
+    Steps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind, session],
     {ok, _Client, Features} = escalus_connection:start(Spec, Steps),
     true = proplists:get_value(client_state_indication, Features).
 
 alice_is_inactive_and_no_stanza_arrived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        given_client_is_inactive_and_messages_sent(Alice, Bob, 1),
-
-        escalus_assert:has_no_stanzas(Alice)
+        given_client_is_inactive(Alice),
+        given_messages_are_sent(Alice, Bob, 1),
+        then_client_does_not_receive_any_message(Alice)
     end).
 
 alice_gets_msgs_after_activate(Config) ->
@@ -84,12 +79,10 @@ alice_gets_msgs_after_activate_in_order(Config) ->
 
 alice_gets_msgs_after_activate(Config, N) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        %%Given
-        Msgs = given_client_is_inactive_and_messages_sent(Alice, Bob, N),
-
-        %%When client becomes active again
-        escalus:send(Alice, csi_stanza(<<"active">>)),
-
+        given_client_is_inactive(Alice),
+        Msgs = given_messages_are_sent(Alice, Bob, N),
+        then_client_does_not_receive_any_message(Alice),
+        given_client_is_active(Alice),
         then_client_receives_message(Alice, Msgs)
     end).
 
@@ -104,7 +97,7 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
 
     given_client_is_inactive(Alice),
 
-    MsgsToAlice = given_client_is_inactive_and_messages_sent(Alice, Bob, 5),
+    MsgsToAlice = given_messages_are_sent(Alice, Bob, 5),
 
     %% then Alice disconnects
 
@@ -119,17 +112,11 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
     ok.
 
 alice_gets_buffered_messages_after_stream_resumption(Config) ->
-    ConnSteps = [start_stream,
-                 stream_features,
-                 authenticate,
-                 bind,
-                 session,
-                 stream_resumption],
+    ConnSteps = [start_stream, stream_features, authenticate, bind, session, stream_resumption],
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
-    {ok, Alice0 = #client{props = AliceProps}, _} = escalus_connection:start(AliceSpec,
-                                                                             ConnSteps),
+    {ok, Alice0 = #client{props = AliceProps}, _} = escalus_connection:start(AliceSpec, ConnSteps),
     JID = make_jid_from_spec(AliceProps),
     Alice = Alice0#client{jid = JID},
 
@@ -139,18 +126,14 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
 
     given_client_is_inactive(Alice),
 
-    MsgsToAlice = given_client_is_inactive_and_messages_sent(Alice, Bob, 5),
+    MsgsToAlice = given_messages_are_sent(Alice, Bob, 5),
 
     %% then Alice disconnects
 
     escalus_connection:kill(Alice),
 
     SMID = proplists:get_value(smid, AliceProps),
-    ResumeSession = [start_stream,
-                     stream_features,
-                     authenticate,
-                     mk_resume_stream(SMID, 1)],
-
+    ResumeSession = [start_stream, stream_features, authenticate, mk_resume_stream(SMID, 1)],
     {ok, Alice2, _} = escalus_connection:start(AliceSpec, ResumeSession),
 
     escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
@@ -174,15 +157,16 @@ mk_resume_stream(SMID, PrevH) ->
 
 alice_gets_message_after_buffer_overflow(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Msgs = given_client_is_inactive_and_messages_sent(Alice, Bob, ?CSI_BUFFER_MAX+5),
+        given_client_is_inactive(Alice),
+        Msgs = given_messages_are_sent(Alice, Bob, ?CSI_BUFFER_MAX + 5),
 
         {Flushed, Awaiting} = lists:split(?CSI_BUFFER_MAX+1, Msgs),
 
         then_client_receives_message(Alice, Flushed),
         %% and no other stanza
-        escalus_assert:has_no_stanzas(Alice),
+        then_client_does_not_receive_any_message(Alice),
         %% Alice activates
-        escalus:send(Alice, csi_stanza(<<"active">>)),
+        given_client_is_active(Alice),
         %% ands gets remaining stanzas
         then_client_receives_message(Alice, Awaiting)
     end).
@@ -206,38 +190,35 @@ alice_is_inactive_but_sends_sm_req_and_recives_ack(Config) ->
 
 given_client_is_inactive_but_sends_messages(Alice, Bob, N) ->
     %%Given
-    MsgsToAlice = given_client_is_inactive_and_messages_sent(Alice, Bob, N),
+    given_client_is_inactive(Alice),
+    MsgsToAlice = given_messages_are_sent(Alice, Bob, N),
 
     MsgsToBob = gen_msgs(<<"Hi, Bob">>, N),
     send_msgs(Alice, Bob, MsgsToBob),
     timer:sleep(1),
     {MsgsToAlice, MsgsToBob}.
 
+then_client_does_not_receive_any_message(Alice) ->
+    [] = escalus:wait_for_stanzas(Alice, 1, 100),
+    escalus_assert:has_no_stanzas(Alice).
 
 then_client_receives_message(Alice, Msgs) ->
     [escalus:assert(is_chat_message, [Msg], escalus:wait_for_stanza(Alice)) ||
      Msg <- Msgs].
 
-
-given_client_is_inactive_and_messages_sent(Alice, Bob, N) ->
-    %%Given
-    given_client_is_inactive(Alice),
-
-    timer:sleep(1000),
-
-    %%When
+given_messages_are_sent(Alice, Bob, N) ->
     Msgs = gen_msgs(<<"Hi, Alice">>, N),
     send_msgs(Bob, Alice, Msgs),
-    timer:sleep(timer:seconds(1)),
     Msgs.
 
 send_msgs(From, To, Msgs) ->
-    [escalus:send(From, escalus_stanza:chat_to(To, Msg)) ||
-     Msg <- Msgs].
-
+    [escalus:send(From, escalus_stanza:chat_to(To, Msg)) || Msg <- Msgs].
 
 gen_msgs(Prefix, N) ->
-    [<<Prefix/binary, (integer_to_binary(I))/binary>> || I <- lists:seq(1, N)].
+    [<<Prefix/binary, ": ", (integer_to_binary(I))/binary>> || I <- lists:seq(1, N)].
+
+given_client_is_active(Alice) ->
+    escalus:send(Alice, csi_stanza(<<"active">>)).
 
 given_client_is_inactive(Alice) ->
     escalus:send(Alice, csi_stanza(<<"inactive">>)).
