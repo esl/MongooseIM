@@ -21,6 +21,7 @@ all_tests() ->
     [
      server_announces_csi,
      alice_is_inactive_and_no_stanza_arrived,
+     inactive_twice_does_not_reset_buffer,
      alice_gets_msgs_after_activate,
      alice_gets_msgs_after_activate_in_order,
      alice_gets_message_after_buffer_overflow,
@@ -81,6 +82,15 @@ alice_gets_msgs_after_activate(Config, N) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive_and_no_messages_arrive(Alice),
         Msgs = given_messages_are_sent(Alice, Bob, N),
+        given_client_is_active(Alice),
+        then_client_receives_message(Alice, Msgs)
+    end).
+
+inactive_twice_does_not_reset_buffer(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        given_client_is_inactive_and_no_messages_arrive(Alice),
+        Msgs = given_messages_are_sent(Alice, Bob, 2),
+        given_client_is_inactive_and_no_messages_arrive(Alice),
         given_client_is_active(Alice),
         then_client_receives_message(Alice, Msgs)
     end).
