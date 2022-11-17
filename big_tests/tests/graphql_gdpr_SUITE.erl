@@ -26,7 +26,7 @@ groups() ->
 
 admin_gdpr_tests() ->
     [admin_retrieve_user_data,
-     admin_retrieve_user_data_for_unprepped_domain,
+     admin_retrieve_user_data_with_unprepped_name,
      admin_gdpr_no_user_test,
      admin_gdpr_empty_filename_test,
      admin_gdpr_access_denied_erofs,
@@ -36,7 +36,7 @@ admin_gdpr_tests() ->
 
 domain_admin_gdpr_tests() ->
     [admin_retrieve_user_data,
-     admin_retrieve_user_data_for_unprepped_domain,
+     admin_retrieve_user_data_with_unprepped_name,
      admin_gdpr_no_user_test,
      domain_admin_retrieve_user_data_no_permission].
 
@@ -68,22 +68,22 @@ end_per_testcase(CaseName, Config) ->
 % Admin test cases
 
 admin_retrieve_user_data(Config) ->
-    Config1 = [{domain, domain()} | Config],
-    escalus:fresh_story_with_config(Config1, [{alice, 1}], fun admin_retrieve_user_data/2).
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    User = escalus_users:get_username(Config1, alice),
+    admin_retrieve_user_data(Config1, User, domain()).
 
-admin_retrieve_user_data_for_unprepped_domain(Config) ->
-    Config1 = [{domain, unprep(domain())} | Config],
-    escalus:fresh_story_with_config(Config1, [{alice, 1}], fun admin_retrieve_user_data/2).
+admin_retrieve_user_data_with_unprepped_name(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    User = escalus_users:get_username(Config1, alice),
+    admin_retrieve_user_data(Config1, unprep(User), unprep(domain())).
 
-admin_retrieve_user_data(Config, Alice) ->
+admin_retrieve_user_data(Config, User, Domain) ->
     Filename = random_filename(Config),
-    Domain = ?config(domain, Config),
-    Res = admin_retrieve_personal_data(escalus_client:username(Alice), Domain,
-                                       list_to_binary(Filename), Config),
+    Res = admin_retrieve_personal_data(User, Domain, list_to_binary(Filename), Config),
     ParsedResult = get_ok_value([data, gdpr, retrievePersonalData], Res),
     ?assertEqual(<<"Data retrieved">>, ParsedResult),
     FullPath = get_mim_cwd() ++ "/" ++ Filename,
-    Dir = make_dir_name(Filename, escalus_client:username(Alice)),
+    Dir = make_dir_name(Filename, User),
     ct:log("extracting logs ~s", [Dir]),
     ?assertMatch({ok, _}, zip:extract(FullPath, [{cwd, Dir}])).
 
