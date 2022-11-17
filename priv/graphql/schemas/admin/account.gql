@@ -24,7 +24,7 @@ Allow admin to manage user accounts.
 """
 type AccountAdminMutation @protected{
   "Register a user. Username will be generated when skipped"
-  registerUser(domain: DomainName!, username: String, password: String!): UserPayload
+  registerUser(domain: DomainName!, username: UserName, password: String!): UserPayload
     @protected(type: DOMAIN, args: ["domain"])
   "Remove the user's account along with all the associated personal data"
   removeUser(user: JID!): UserPayload

@@ -13,6 +13,7 @@
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
 input(<<"Stanza">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
+input(<<"UserName">>, User) -> user_from_binary(User);
 input(<<"DomainName">>, Domain) -> domain_from_binary(Domain);
 input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
@@ -30,6 +31,7 @@ input(Ty, V) ->
 output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
 output(<<"Stanza">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
+output(<<"UserName">>, User) -> {ok, User};
 output(<<"DomainName">>, Domain) -> {ok, Domain};
 output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
 output(<<"PosInt">>, Value) -> validate_pos_integer(Value);
@@ -43,6 +45,16 @@ jid_from_binary(Value) ->
             {error, failed_to_parse_jid};
         Jid ->
             {ok, Jid}
+    end.
+
+user_from_binary(<<>>) ->
+    {error, empty_user_name};
+user_from_binary(Value) ->
+    case jid:nodeprep(Value) of
+        error ->
+            {error, failed_to_parse_user_name};
+        User ->
+            {ok, User}
     end.
 
 domain_from_binary(<<>>) ->
