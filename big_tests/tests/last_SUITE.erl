@@ -62,7 +62,7 @@ init_per_group(valid_queries, Config0) ->
     %% This check uses ejabberd_sm to get information about sessions.
     escalus_ejabberd:wait_for_session_count(Config2, 0),
     %% Kick "friendly" users
-    %% kick_everyone uses ejabberd_c2s_sup to information about client processes.
+    %% kick_everyone uses mongoose_c2s_sup to information about client processes.
     mongoose_helper:kick_everyone(),
     Config2;
 init_per_group(invalid_queries, Config) ->
