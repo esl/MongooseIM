@@ -416,13 +416,14 @@ key_name(refresh)   -> token_secret;
 key_name(provision) -> provision_pre_shared.
 
 -spec revoke_token_command(Owner) -> ResTuple when
-      Owner :: jid:jid(),
+      Owner :: binary(),
       ResCode :: ok | not_found | error,
       ResTuple :: {ResCode, string()}.
 revoke_token_command(Owner) ->
-    case mod_auth_token_api:revoke_token_command(Owner) of
+    JID = jid:from_binary(Owner),
+    case mod_auth_token_api:revoke_token_command(JID) of
         {ok, _} = Result -> Result;
-        {error, Error} -> Error
+        Error -> Error
     end.
 
 -spec clean_tokens(Acc, Params, Extra) -> {ok, Acc} when

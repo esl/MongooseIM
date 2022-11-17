@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
                          get_ok_value/2, get_err_code/1, get_unauthorized/1, get_not_loaded/1]).
@@ -46,17 +47,21 @@ user_token_not_configured_tests() ->
 
 domain_admin_tests() ->
     [admin_request_token_test,
+     admin_request_token_test_unprep,
      domain_admin_request_token_no_permission_test,
      domain_admin_revoke_token_no_permission_test,
      admin_revoke_token_no_token_test,
-     admin_revoke_token_test].
+     admin_revoke_token_test,
+     admin_revoke_token_test_unprep].
 
 admin_tests() ->
     [admin_request_token_test,
+     admin_request_token_test_unprep,
      admin_request_token_no_user_test,
      admin_revoke_token_no_user_test,
      admin_revoke_token_no_token_test,
-     admin_revoke_token_test].
+     admin_revoke_token_test,
+     admin_revoke_token_test_unprep].
 
 admin_token_not_configured_tests() ->
     [admin_request_token_test_not_configured,
@@ -155,7 +160,7 @@ user_revoke_token_test(Config, Alice) ->
     user_request_token(Alice, Config),
     Res2 = user_revoke_token(Alice, Config),
     ParsedRes = get_ok_value([data, token, revokeToken], Res2),
-    ?assertEqual(<<"Revoked.">>, ParsedRes).
+    ?assertEqual(<<"Revoked">>, ParsedRes).
 
 % User test cases mod_token not configured
 
@@ -213,6 +218,16 @@ admin_request_token_test(Config, Alice) ->
     ?assert(is_binary(Refresh)),
     ?assert(is_binary(Access)).
 
+admin_request_token_test_unprep(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_request_token_test_unprep/2).
+
+admin_request_token_test_unprep(Config, Alice) ->
+    Res = admin_request_token(unprep(user_to_bin(Alice)), Config),
+    #{<<"refresh">> := Refresh, <<"access">> := Access} =
+        get_ok_value([data, token, requestToken], Res),
+    ?assert(is_binary(Refresh)),
+    ?assert(is_binary(Access)).
+
 admin_request_token_no_user_test(Config) ->
     Res = admin_request_token(<<"AAAAA">>, Config),
     ?assertEqual(<<"not_found">>, get_err_code(Res)).
@@ -235,7 +250,16 @@ admin_revoke_token_test(Config, Alice) ->
     admin_request_token(user_to_bin(Alice), Config),
     Res2 = admin_revoke_token(user_to_bin(Alice), Config),
     ParsedRes = get_ok_value([data, token, revokeToken], Res2),
-    ?assertEqual(<<"Revoked.">>, ParsedRes).
+    ?assertEqual(<<"Revoked">>, ParsedRes).
+
+admin_revoke_token_test_unprep(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_revoke_token_test_unprep/2).
+
+admin_revoke_token_test_unprep(Config, Alice) ->
+    admin_request_token(unprep(user_to_bin(Alice)), Config),
+    Res2 = admin_revoke_token(unprep(user_to_bin(Alice)), Config),
+    ParsedRes = get_ok_value([data, token, revokeToken], Res2),
+    ?assertEqual(<<"Revoked">>, ParsedRes).
 
 % Admin test cases token not configured
 
