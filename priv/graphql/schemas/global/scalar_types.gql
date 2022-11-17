@@ -8,6 +8,9 @@ scalar JID @spectaql(options: [{ key: "example", value: "alice@localhost" }])
 scalar FullJID @spectaql(options: [{ key: "example", value: "alice@localhost/res1" }])
 "XMPP user name (local part of a JID)"
 scalar UserName @spectaql(options: [{ key: "example", value: "alice" }])
+"XMPP room name (local part of a JID)"
+scalar RoomName @spectaql(options: [{ key: "example", value: "my-chat-room" }])
+"XMPP domain name (domain part of a JID)"
 scalar DomainName @spectaql(options: [{ key: "example", value: "localhost" }])
 "String that contains at least one character"
 scalar NonEmptyString @spectaql(options: [{ key: "example", value: "xyz789" }])
