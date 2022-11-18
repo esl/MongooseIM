@@ -12,6 +12,8 @@ scalar UserName @spectaql(options: [{ key: "example", value: "alice" }])
 scalar RoomName @spectaql(options: [{ key: "example", value: "my-chat-room" }])
 "XMPP domain name (domain part of a JID)"
 scalar DomainName @spectaql(options: [{ key: "example", value: "localhost" }])
+"XMPP resource name (resource part of a JID)"
+scalar ResourceName @spectaql(options: [{ key: "example", value: "res1" }])
 "String that contains at least one character"
 scalar NonEmptyString @spectaql(options: [{ key: "example", value: "xyz789" }])
 "Integer that has a value above zero"

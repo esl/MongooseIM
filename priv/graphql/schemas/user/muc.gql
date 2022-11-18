@@ -10,9 +10,9 @@ type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   "Kick a user from a MUC room"
   kickUser(room: JID!, nick: String!, reason: String): String @use(arg: "room")
   "Send a message to a MUC room"
-  sendMessageToRoom(room: JID!, body: String!, resource: String): String @use(arg: "room")
+  sendMessageToRoom(room: JID!, body: String!, resource: ResourceName): String @use(arg: "room")
   "Send a private message to a MUC room user from the given resource"
-  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String @use(arg: "room")
+  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: ResourceName): String @use(arg: "room")
   "Remove a MUC room"
   deleteRoom(room: JID!, reason: String): String @use(arg: "room")
   "Change configuration of a MUC room"
@@ -22,9 +22,9 @@ type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   "Change a user affiliation"
   setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String @use(arg: "room")
   "Enter the room with given resource and nick"
-  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String @use(arg: "room")
+  enterRoom(room: JID!, nick: String!, resource: ResourceName!, password: String): String @use(arg: "room")
   "Exit the room with given resource and nick"
-  exitRoom(room: JID!, nick: String!, resource: String!): String @use(arg: "room")
+  exitRoom(room: JID!, nick: String!, resource: ResourceName!): String @use(arg: "room")
 }
 
 """
