@@ -74,6 +74,7 @@ user_muc_tests() ->
      user_participant_set_user_role,
      user_try_set_nonexistent_room_role,
      user_can_enter_room,
+     user_cannot_enter_room_with_invalid_resource,
      user_can_enter_room_with_password,
      user_can_exit_room,
      user_list_room_affiliations,
@@ -1118,8 +1119,8 @@ user_send_message_to_room_with_specified_res_story(Config, _Alice, Bob, Bob2) ->
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob2, BobNick),
     escalus:wait_for_stanza(Bob2),
-    % Send message
-    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res₂"/utf8>>, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -1155,8 +1156,8 @@ user_send_private_message_with_specified_res(Config, Alice, Alice2, Bob) ->
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice2, AliceNick),
     escalus:wait_for_stanzas(Bob, 2),
-    % Send message
-    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res₂"/utf8>>, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -1451,10 +1452,22 @@ user_can_enter_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_utils:jid_to_lower(escalus_client:full_jid(Alice))),
-    Resource = escalus_client:resource(Alice),
-    Res = user_enter_room(Alice, RoomJID, Nick, Resource, null, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_enter_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)).
+
+user_cannot_enter_room_with_invalid_resource(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}],
+                               fun user_cannot_enter_room_with_invalid_resource/2).
+
+user_cannot_enter_room_with_invalid_resource(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Nick = <<"ali">>,
+    Res1 = user_enter_room(Alice, RoomJID, Nick, <<"\n">>, null, Config),
+    assert_coercion_err(Res1, <<"failed_to_parse_resource_name">>),
+    Res2 = user_enter_room(Alice, RoomJID, Nick, <<>>, null, Config),
+    assert_coercion_err(Res2, <<"empty_resource_name">>).
 
 user_can_enter_room_with_password(Config) ->
     muc_helper:story_with_room(Config, [{password_protected, true}, {password, ?PASSWORD}],
@@ -1486,10 +1499,10 @@ user_can_exit_room(Config) ->
 user_can_exit_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
-    Resource = escalus_client:resource(Alice),
     enter_room(RoomJID, Alice, Nick),
     ?assertMatch([_], get_room_users(RoomJID)),
-    Res = user_exit_room(Alice, RoomJID, Nick, Resource, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_exit_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
 
