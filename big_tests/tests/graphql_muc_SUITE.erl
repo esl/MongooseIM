@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
                          get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1,
@@ -40,6 +41,7 @@ admin_groups() ->
 
 user_muc_tests() ->
     [user_create_and_delete_room,
+     user_create_room_with_unprepped_domain,
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
@@ -97,6 +99,7 @@ user_muc_not_configured_tests() ->
 
 admin_muc_tests() ->
     [admin_create_and_delete_room,
+     admin_create_room_with_unprepped_domain,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_create_instant_room_with_nonexistent_user,
      admin_try_delete_nonexistent_room,
@@ -151,6 +154,7 @@ admin_muc_not_configured_tests() ->
 
 domain_admin_muc_tests() ->
     [admin_create_and_delete_room,
+     admin_create_room_with_unprepped_domain,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_delete_nonexistent_room,
      domain_admin_create_and_delete_room_no_permission,
@@ -287,8 +291,10 @@ admin_list_rooms_story(Config, Alice, Bob) ->
     BobRoom = rand_name(),
     muc_helper:create_instant_room(AliceRoom, AliceJID, <<"Ali">>, []),
     muc_helper:create_instant_room(BobRoom, BobJID, <<"Bob">>, [{public_list, false}]),
-    Res = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
-    #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res),
+    Res1 = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
+    #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res1),
+    Res2 = list_rooms(unprep(muc_helper:muc_host()), Alice, null, null, Config),
+    #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res2),
     ?assert(contain_room(AliceRoom, Rooms)),
     ?assert(contain_room(BobRoom, Rooms)).
 
@@ -311,6 +317,15 @@ admin_create_and_delete_room_story(Config, Alice) ->
                                           <<"successfully">>)),
     Res4 = list_rooms(MUCServer, Alice, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
+
+admin_create_room_with_unprepped_domain(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(FreshConfig, alice),
+    Name = rand_name(),
+    MUCServer = unprep(muc_helper:muc_host()),
+    Res = create_instant_room(MUCServer, Name, AliceJid, <<"Ali">>, FreshConfig),
+    ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
+                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)).
 
 admin_try_create_instant_room_with_nonexistent_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -974,6 +989,17 @@ user_create_and_delete_room_story(Config, Alice) ->
                                           <<"successfully">>)),
     Res4 = user_list_rooms(Alice, MUCServer, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
+
+user_create_room_with_unprepped_domain(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_create_room_with_unprepped_domain_story/2).
+
+user_create_room_with_unprepped_domain_story(Config, Alice) ->
+    Name = rand_name(),
+    MUCServer = unprep(muc_helper:muc_host()),
+    Res = user_create_instant_room(Alice, MUCServer, Name, <<"Ali">>, Config),
+    ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
+                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)).
 
 user_try_create_instant_room_with_nonexistent_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],

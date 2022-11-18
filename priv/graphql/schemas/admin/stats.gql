@@ -4,7 +4,7 @@ type StatsAdminQuery @protected{
     globalStats: GlobalStats
       @protected(type: GLOBAL)
     "Get statistics from a specific domain"
-    domainStats(domain: String!): DomainStats
+    domainStats(domain: DomainName!): DomainStats
       @protected(type: DOMAIN, args: ["domain"])
 }
 

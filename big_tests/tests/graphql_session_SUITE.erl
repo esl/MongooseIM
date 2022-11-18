@@ -4,7 +4,9 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(domain_helper, [domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,  get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1]).
 
@@ -224,7 +226,6 @@ domain_admin_list_users_with_status(Config) ->
 
 domain_admin_list_users_with_status_story(Config, Alice, _AliceB) ->
     AliceJID = escalus_client:full_jid(Alice),
-    Path = [data, session, listUsersWithStatus],
     AwayStatus = <<"away">>,
     AwayPresence = escalus_stanza:presence_show(AwayStatus),
     DndStatus = <<"dnd">>,
@@ -234,10 +235,8 @@ domain_admin_list_users_with_status_story(Config, Alice, _AliceB) ->
     Res = list_users_with_status(null, AwayStatus, Config),
     get_unauthorized(Res),
     % List users with away status for a domain
-    Res2 = list_users_with_status(domain_helper:domain(), AwayStatus, Config),
-    StatusUsers = get_ok_value(Path, Res2),
-    ?assertEqual(1, length(StatusUsers)),
-    check_users([AliceJID], StatusUsers),
+    assert_list_users_with_status([AliceJID], domain(), AwayStatus, Config),
+    assert_list_users_with_status([AliceJID], unprep(domain()), AwayStatus, Config),
     % List users with away status for an external domain
     Res3 = list_users_with_status(domain_helper:secondary_domain(), AwayStatus, Config),
     get_unauthorized(Res3),
@@ -246,10 +245,7 @@ domain_admin_list_users_with_status_story(Config, Alice, _AliceB) ->
     Res4 = list_users_with_status(null, DndStatus, Config),
     get_unauthorized(Res4),
     % List users with dnd status for a domain
-    Res5 = list_users_with_status(domain_helper:domain(), DndStatus, Config),
-    StatusUsers2 = get_ok_value(Path, Res5),
-    ?assertEqual(1, length(StatusUsers2)),
-    check_users([AliceJID], StatusUsers2),
+    assert_list_users_with_status([AliceJID], domain(), DndStatus, Config),
     % List users with dnd status for an external domain
     Res6 = list_users_with_status(domain_helper:secondary_domain(), AwayStatus, Config),
     get_unauthorized(Res6).
@@ -259,7 +255,6 @@ domain_admin_count_users_with_status(Config) ->
                                     fun domain_admin_count_users_with_status_story/3).
 
 domain_admin_count_users_with_status_story(Config, Alice, _AliceB) ->
-    Path = [data, session, countUsersWithStatus],
     AwayStatus = <<"away">>,
     AwayPresence = escalus_stanza:presence_show(AwayStatus),
     DndStatus = <<"dnd">>,
@@ -269,15 +264,14 @@ domain_admin_count_users_with_status_story(Config, Alice, _AliceB) ->
     Res = count_users_with_status(null, AwayStatus, Config),
     get_unauthorized(Res),
     % Count users with away status for a domain
-    Res2 = count_users_with_status(domain_helper:domain(), AwayStatus, Config),
-    ?assertEqual(1, get_ok_value(Path, Res2)),
+    assert_count_users_with_status(1, domain_helper:domain(), AwayStatus, Config),
+    assert_count_users_with_status(1, unprep(domain_helper:domain()), AwayStatus, Config),
     % Count users with dnd status globally
     escalus_client:send(Alice, DndPresence),
     Res3 = count_users_with_status(null, DndStatus, Config),
     get_unauthorized(Res3),
     % Count users with dnd status for a domain
-    Res4 = count_users_with_status(domain_helper:domain(), DndStatus, Config),
-    ?assertEqual(1, get_ok_value(Path, Res4)).
+    assert_count_users_with_status(1, domain_helper:domain(), DndStatus, Config).
 
 admin_list_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
@@ -293,7 +287,10 @@ admin_list_sessions_story(Config, _Alice, AliceB, _Bob) ->
     % List sessions for a domain
     Res2 = list_sessions(BisDomain, Config),
     Sessions2 = get_ok_value(Path, Res2),
-    ?assertEqual(1, length(Sessions2)).
+    ?assertEqual(1, length(Sessions2)),
+    Res3 = list_sessions(unprep(BisDomain), Config),
+    Sessions3 = get_ok_value(Path, Res3),
+    ?assertEqual(1, length(Sessions3)).
 
 admin_count_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
@@ -308,8 +305,9 @@ admin_count_sessions_story(Config, _Alice, AliceB, _Bob) ->
     ?assertEqual(3, Number),
     % Count sessions for a domain
     Res2 = count_sessions(BisDomain, Config),
-    Number2 = get_ok_value(Path, Res2),
-    ?assertEqual(1, Number2).
+    ?assertEqual(1,  get_ok_value(Path, Res2)),
+    Res3 = count_sessions(unprep(BisDomain), Config),
+    ?assertEqual(1,  get_ok_value(Path, Res3)).
 
 admin_list_user_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 2}, {bob, 1}],
@@ -352,7 +350,6 @@ admin_count_users_with_status(Config) ->
                                     fun admin_count_users_with_status_story/3).
 
 admin_count_users_with_status_story(Config, Alice, AliceB) ->
-    Path = [data, session, countUsersWithStatus],
     AwayStatus = <<"away">>,
     AwayPresence = escalus_stanza:presence_show(AwayStatus),
     DndStatus = <<"dnd">>,
@@ -360,15 +357,13 @@ admin_count_users_with_status_story(Config, Alice, AliceB) ->
     % Count users with away status globally
     escalus_client:send(Alice, AwayPresence),
     escalus_client:send(AliceB, AwayPresence),
-    Res = count_users_with_status(null, AwayStatus, Config),
-    ?assertEqual(2, get_ok_value(Path, Res)),
+    assert_count_users_with_status(2, null, AwayStatus, Config),
     % Count users with away status for a domain
-    Res2 = count_users_with_status(domain_helper:domain(), AwayStatus, Config),
-    ?assertEqual(1, get_ok_value(Path, Res2)),
+    assert_count_users_with_status(1, domain_helper:domain(), AwayStatus, Config),
+    assert_count_users_with_status(1, unprep(domain_helper:domain()), AwayStatus, Config),
     % Count users with dnd status globally
     escalus_client:send(AliceB, DndPresence),
-    Res3 = count_users_with_status(null, DndStatus, Config),
-    ?assertEqual(1, get_ok_value(Path, Res3)).
+    assert_count_users_with_status(1, null, DndStatus, Config).
 
 admin_list_users_with_status(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
@@ -377,7 +372,6 @@ admin_list_users_with_status(Config) ->
 admin_list_users_with_status_story(Config, Alice, AliceB) ->
     AliceJID = escalus_client:full_jid(Alice),
     AliceBJID = escalus_client:full_jid(AliceB),
-    Path = [data, session, listUsersWithStatus],
     AwayStatus = <<"away">>,
     AwayPresence = escalus_stanza:presence_show(AwayStatus),
     DndStatus = <<"dnd">>,
@@ -385,21 +379,13 @@ admin_list_users_with_status_story(Config, Alice, AliceB) ->
     % List users with away status globally
     escalus_client:send(Alice, AwayPresence),
     escalus_client:send(AliceB, AwayPresence),
-    Res = list_users_with_status(null, AwayStatus, Config),
-    StatusUsers = get_ok_value(Path, Res),
-    ?assertEqual(2, length(StatusUsers)),
-    check_users([AliceJID, AliceBJID], StatusUsers),
+    assert_list_users_with_status([AliceJID, AliceBJID], null, AwayStatus, Config),
     % List users with away status for a domain
-    Res2 = list_users_with_status(domain_helper:domain(), AwayStatus, Config),
-    StatusUsers2 = get_ok_value(Path, Res2),
-    ?assertEqual(1, length(StatusUsers2)),
-    check_users([AliceJID], StatusUsers2),
+    assert_list_users_with_status([AliceJID], domain(), AwayStatus, Config),
+    assert_list_users_with_status([AliceJID], unprep(domain()), AwayStatus, Config),
     % List users with dnd status globally
     escalus_client:send(AliceB, DndPresence),
-    Res3 = list_users_with_status(null, DndStatus, Config),
-    StatusUsers3 = get_ok_value(Path, Res3),
-    ?assertEqual(1, length(StatusUsers3)),
-    check_users([AliceBJID], StatusUsers3).
+    assert_list_users_with_status([AliceBJID], null, DndStatus, Config).
 
 admin_kick_session(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_session_story/3).
@@ -524,6 +510,16 @@ set_presence(JID, Type, Show, Status, Priority, Config) ->
     execute_command(<<"session">>, <<"setPresence">>, Vars, Config).
 
 %% Helpers
+
+assert_list_users_with_status(ExpectedUsers, Domain, Status, Config) ->
+    Res = list_users_with_status(Domain, Status, Config),
+    Users = get_ok_value([data, session, listUsersWithStatus], Res),
+    check_users(ExpectedUsers, Users).
+
+assert_count_users_with_status(ExpectedCount, Domain, Status, Config) ->
+    Res = count_users_with_status(Domain, Status, Config),
+    Count = get_ok_value([data, session, countUsersWithStatus], Res),
+    ?assertEqual(ExpectedCount, Count).
 
 -spec check_users([jid:literal_jid()], [#{user := jid:literal_jid()}]) -> boolean().
 check_users(Expected, ActualUsers) ->

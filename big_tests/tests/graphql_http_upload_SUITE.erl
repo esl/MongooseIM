@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0, domain/0, secondary_domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2,
@@ -190,7 +191,11 @@ user_http_upload_not_configured(Config, Alice) ->
 % Admin test cases
 
 admin_get_url_test(Config) ->
-    Result = admin_get_url(domain(), <<"test">>, 123, <<"Test">>, 123, Config),
+    admin_get_url_test(Config, domain()),
+    admin_get_url_test(Config, unprep(domain())).
+
+admin_get_url_test(Config, Domain) ->
+    Result = admin_get_url(Domain, <<"test">>, 123, <<"Test">>, 123, Config),
     ParsedResult = get_ok_value([data, httpUpload, getUrl], Result),
     #{<<"PutUrl">> := PutURL, <<"GetUrl">> := GetURL, <<"Header">> := _Headers} = ParsedResult,
     ?assertMatch({_, _}, binary:match(PutURL, [?S3_HOSTNAME])),
@@ -217,7 +222,11 @@ admin_get_url_no_domain(Config) ->
     ?assertEqual(<<"domain does not exist">>, get_err_msg(Result)).
 
 admin_http_upload_not_configured(Config) ->
-    Result = admin_get_url(domain(), <<"test">>, 123, <<"Test">>, 123, Config),
+    admin_http_upload_not_configured(Config, domain()),
+    admin_http_upload_not_configured(Config, unprep(domain())).
+
+admin_http_upload_not_configured(Config, Domain) ->
+    Result = admin_get_url(Domain, <<"test">>, 123, <<"Test">>, 123, Config),
     ?assertEqual(<<"deps_not_loaded">>, get_err_code(Result)),
     ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Result)).
 

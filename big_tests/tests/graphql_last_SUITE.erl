@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1, user_to_jid/1,
                          get_ok_value/2, get_err_msg/1, get_err_code/1, get_unauthorized/1,
@@ -311,6 +312,8 @@ admin_count_active_users_story(Config, Alice, Bob) ->
     set_last(Bob, now_dt_with_offset(10), Config),
     Res = admin_count_active_users(Domain, null, Config),
     ?assertEqual(2, get_ok_value(p(countActiveUsers), Res)),
+    Res1 = admin_count_active_users(unprep(Domain), null, Config),
+    ?assertEqual(2, get_ok_value(p(countActiveUsers), Res1)),
     Res2 = admin_count_active_users(Domain, now_dt_with_offset(30), Config),
     ?assertEqual(0, get_ok_value(p(countActiveUsers), Res2)).
 
@@ -561,13 +564,13 @@ admin_get_last_not_configured_story(Config, Alice) ->
 
 admin_count_active_users_last_not_configured(Config) ->
     Domain = domain_helper:domain(),
-    Res = admin_count_active_users(Domain, null, Config),
-    get_not_loaded(Res).
+    get_not_loaded(admin_count_active_users(Domain, null, Config)),
+    get_not_loaded(admin_count_active_users(unprep(Domain), null, Config)).
 
 admin_remove_old_users_domain_last_not_configured(Config) ->
     Domain = domain_helper:domain(),
-    Res = admin_remove_old_users(Domain, now_dt_with_offset(150), Config),
-    get_not_loaded(Res).
+    get_not_loaded(admin_remove_old_users(Domain, now_dt_with_offset(150), Config)),
+    get_not_loaded(admin_remove_old_users(unprep(Domain), now_dt_with_offset(150), Config)).
 
 admin_remove_old_users_global_last_not_configured(Config) ->
     Res = admin_remove_old_users(null, now_dt_with_offset(150), Config),
@@ -575,8 +578,8 @@ admin_remove_old_users_global_last_not_configured(Config) ->
 
 admin_list_old_users_domain_last_not_configured(Config) ->
     Domain = domain_helper:domain(),
-    Res = admin_list_old_users(Domain, now_dt_with_offset(150), Config),
-    get_not_loaded(Res).
+    get_not_loaded(admin_list_old_users(Domain, now_dt_with_offset(150), Config)),
+    get_not_loaded(admin_list_old_users(unprep(Domain), now_dt_with_offset(150), Config)).
 
 admin_list_old_users_global_last_not_configured(Config) ->
     Res = admin_list_old_users(null, now_dt_with_offset(150), Config),

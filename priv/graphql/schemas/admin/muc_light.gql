@@ -4,7 +4,7 @@ Allow admin to manage Multi-User Chat Light rooms.
 type MUCLightAdminMutation @use(modules: ["mod_muc_light"]) @protected{
   "Create a MUC light room under the given XMPP hostname"
   #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
-  createRoom(mucDomain: String!, name: String!, owner: JID!, subject: String!, id: NonEmptyString, options: [RoomConfigDictEntryInput!]): Room
+  createRoom(mucDomain: DomainName!, name: String!, owner: JID!, subject: String!, id: NonEmptyString, options: [RoomConfigDictEntryInput!]): Room
     @protected(type: DOMAIN, args: ["owner"])
   "Change configuration of a MUC Light room"
   changeRoomConfiguration(room: JID!, owner: JID!, name: String!, subject: String!, options: [RoomConfigDictEntryInput!]): Room

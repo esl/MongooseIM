@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1,
@@ -129,9 +130,13 @@ admin_delete_expired_messages2_test(Config) ->
                                     fun admin_delete_expired_messages2_test/3).
 
 admin_delete_expired_messages2_test(Config, JidMike, JidKate) ->
+    admin_delete_expired_messages2(Config, JidMike, JidKate, domain()),
+    admin_delete_expired_messages2(Config, JidMike, JidKate, unprep(domain())).
+
+admin_delete_expired_messages2(Config, JidMike, JidKate, Domain) ->
     generate_message(JidMike, JidKate, 2, 1),
     generate_message(JidMike, JidKate, 5, -1), % not expired yet
-    Result = delete_expired_messages(domain(), Config),
+    Result = delete_expired_messages(Domain, Config),
     ParsedResult = get_ok_value([data, offline, deleteExpiredMessages], Result),
     ?assertEqual(<<"Removed 1 messages">>, ParsedResult).
 
@@ -140,10 +145,14 @@ admin_delete_old_messages2_test(Config) ->
                                     fun admin_delete_old_messages2_test/3).
 
 admin_delete_old_messages2_test(Config, JidMike, JidKate) ->
+    admin_delete_old_messages2(Config, JidMike, JidKate, domain()),
+    admin_delete_old_messages2(Config, JidMike, JidKate, unprep(domain())).
+
+admin_delete_old_messages2(Config, JidMike, JidKate, Domain) ->
     generate_message(JidMike, JidKate, 2, 1), % not old enough
     generate_message(JidMike, JidKate, 5, -1),
     generate_message(JidMike, JidKate, 7, 5),
-    Result = delete_old_messages(domain(), 3, Config),
+    Result = delete_old_messages(Domain, 3, Config),
     ParsedResult = get_ok_value([data, offline, deleteOldMessages], Result),
     ?assertEqual(<<"Removed 2 messages">>, ParsedResult).
 
@@ -156,12 +165,12 @@ admin_delete_old_messages_no_domain_test(Config) ->
     ?assertEqual(<<"domain_not_found">>, get_err_code(Result)).
 
 admin_delete_expired_messages_offline_not_configured_test(Config) ->
-    Result = delete_expired_messages(domain(), Config),
-    get_not_loaded(Result).
+    get_not_loaded(delete_expired_messages(domain(), Config)),
+    get_not_loaded(delete_expired_messages(unprep(domain()), Config)).
 
 admin_delete_old_messages_offline_not_configured_test(Config) ->
-    Result = delete_old_messages(domain(), 2, Config),
-    get_not_loaded(Result).
+    get_not_loaded(delete_old_messages(domain(), 2, Config)),
+    get_not_loaded(delete_old_messages(unprep(domain()), 2, Config)).
 
 %% Domain admin test cases
 

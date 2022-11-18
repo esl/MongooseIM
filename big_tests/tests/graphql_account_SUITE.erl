@@ -4,6 +4,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
@@ -199,9 +200,11 @@ admin_list_users(Config) ->
     Domain = domain_helper:domain(),
     Username = jid:nameprep(escalus_users:get_username(Config, alice)),
     JID = <<Username/binary, "@", Domain/binary>>,
-    Resp2 = list_users(Domain, Config),
-    Users = get_ok_value([data, account, listUsers], Resp2),
-    ?assert(lists:member(JID, Users)).
+    Resp1 = list_users(Domain, Config),
+    Users = get_ok_value([data, account, listUsers], Resp1),
+    ?assert(lists:member(JID, Users)),
+    Resp2 = list_users(unprep(Domain), Config),
+    ?assertEqual(Users, get_ok_value([data, account, listUsers], Resp2)).
 
 admin_list_users_unknown_domain(Config) ->
     Resp = list_users(<<"unknown-domain">>, Config),
@@ -210,8 +213,11 @@ admin_list_users_unknown_domain(Config) ->
 admin_count_users(Config) ->
     % A domain with at least one user
     Domain = domain_helper:domain(),
-    Resp2 = count_users(Domain, Config),
-    ?assert(0 < get_ok_value([data, account, countUsers], Resp2)).
+    Resp1 = count_users(Domain, Config),
+    Count = get_ok_value([data, account, countUsers], Resp1),
+    ?assert(0 < Count),
+    Resp2 = count_users(unprep(Domain), Config),
+    ?assertEqual(Count, get_ok_value([data, account, countUsers], Resp2)).
 
 admin_count_users_unknown_domain(Config) ->
     Resp = count_users(<<"unknown-domain">>, Config),
@@ -306,9 +312,12 @@ admin_register_user(Config) ->
     % Try to register a user with existing name
     Resp2 = register_user(Domain, Username, Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)),
+    % Try again, this time with a domain name that is not stringprepped
+    Resp3 = register_user(unprep(Domain), Username, Password, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"already registered">>)),
     % Try to register a user without any name
-    Resp3 = register_user(Domain, <<>>, Password, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"Invalid JID">>)).
+    Resp4 = register_user(Domain, <<>>, Password, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp4), <<"Invalid JID">>)).
 
 admin_register_random_user(Config) ->
     Password = <<"my_password">>,
