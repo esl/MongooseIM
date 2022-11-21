@@ -247,7 +247,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
 
 -spec on_presence_update(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{jid := jid:jid(), status := binary()},
+    Params :: #{jid := jid:jid(), status := status()},
     Extra :: gen_hook:extra().
 on_presence_update(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
     {ok, store_last_info(Acc, LUser, LServer, Status)}.
