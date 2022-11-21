@@ -334,16 +334,16 @@ do_register(List) ->
 %%% Purge DB
 %%%
 
--spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
+-spec delete_expired_messages(binary()) -> {ok, iolist()} | {error, iolist()}.
 delete_expired_messages(Domain) ->
-    case mod_offline_api:delete_expired_messages(Domain) of
+    case mod_offline_api:delete_expired_messages(jid:nameprep(Domain)) of
         {ok, _} = Result -> Result;
         {_, Message} -> {error, Message}
     end.
 
--spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
+-spec delete_old_messages(binary(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
 delete_old_messages(Domain, Days) ->
-    case mod_offline_api:delete_old_messages(Domain, Days) of
+    case mod_offline_api:delete_old_messages(jid:nameprep(Domain), Days) of
         {ok, _} = Result -> Result;
         {_, Message} -> {error, Message}
     end.

@@ -6,6 +6,6 @@ type OfflineAdminMutation @protected @use(modules: ["mod_offline"]){
     deleteExpiredMessages(domain: DomainName!): String @use(arg: "domain")
       @protected(type: DOMAIN, args: ["domain"])
     "Delete messages at least as old as the number of days specified in the parameter"
-    deleteOldMessages(domain: DomainName!, days: Int!): String
+    deleteOldMessages(domain: DomainName!, days: PosInt!): String
       @protected(type: DOMAIN, args: ["domain"]) @use(arg: "domain")
 }
