@@ -353,8 +353,7 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
 push_notifications(HostType, Acc, NotificationForms, Options) ->
-    Params = #{host_type => HostType, options => Options,
-               notification_forms => NotificationForms},
+    Params = #{options => Options, notification_forms => NotificationForms},
     Args = [HostType, NotificationForms, Options],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(push_notifications, HostType, Acc, ParamsWithLegacyArgs).
