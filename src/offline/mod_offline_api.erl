@@ -2,17 +2,17 @@
 
 -export([delete_expired_messages/1, delete_old_messages/2]).
 
--type(api_result()) :: {ok, string()} | {domain_not_found | server_error, string()}.
+-type(api_result()) :: {ok, string()} | {domain_not_found | server_error, iolist()}.
 
 -spec delete_expired_messages(jid:lserver()) -> api_result().
 delete_expired_messages(Domain) ->
-    call_for_loaded_module(Domain, fun remove_expired_messages/2, [Domain]).
+    call_for_host_type(Domain, fun remove_expired_messages/2, [Domain]).
 
--spec delete_old_messages(jid:lserver(), Days :: integer()) -> api_result().
+-spec delete_old_messages(jid:lserver(), Days :: pos_integer()) -> api_result().
 delete_old_messages(Domain, Days) ->
-    call_for_loaded_module(Domain, fun remove_old_messages/3, [Domain, Days]).
+    call_for_host_type(Domain, fun remove_old_messages/3, [Domain, Days]).
 
-call_for_loaded_module(Domain, Function, Args) ->
+call_for_host_type(Domain, Function, Args) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             apply(Function, [HostType | Args]);
