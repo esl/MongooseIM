@@ -2,7 +2,7 @@
 
 -export([delete_expired_messages/1, delete_old_messages/2]).
 
--type(api_result()) :: {ok, string()} | {domain_not_found | server_error, iolist()}.
+-type(api_result()) :: {ok | domain_not_found | server_error, iolist()}.
 
 -spec delete_expired_messages(jid:lserver()) -> api_result().
 delete_expired_messages(Domain) ->
