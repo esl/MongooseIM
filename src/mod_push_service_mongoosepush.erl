@@ -25,13 +25,13 @@
 -export([start/2, stop/1, config_spec/0]).
 
 %% Hooks and IQ handlers
--export([push_notifications/4]).
+-export([push_notifications/3]).
 
 -export([http_notification/5]).
 
 -export([config_metrics/1]).
 
--ignore_xref([http_notification/5, push_notifications/4]).
+-ignore_xref([http_notification/5]).
 
 %%--------------------------------------------------------------------
 %% Module callbacks
@@ -42,7 +42,7 @@ start(Host, Opts) ->
     ?LOG_INFO(#{what => push_service_starting, server => Host}),
     start_pool(Host, Opts),
     %% Hooks
-    ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
+    gen_hook:add_handlers(hooks(Host)),
     ok.
 
 -spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
@@ -56,7 +56,7 @@ pool_opts(#{max_http_connections := MaxHTTPConnections}) ->
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
-    ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
+    gen_hook:delete_handlers(hooks(Host)),
     mongoose_wpool:stop(generic, Host, mongoosepush_service),
     ok.
 
@@ -79,12 +79,18 @@ config_spec() ->
 %% Hooks
 %%--------------------------------------------------------------------
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [{push_notifications, HostType, fun ?MODULE:push_notifications/3, #{}, 10}].
+
 %% Hook 'push_notifications'
--spec push_notifications(AccIn :: ok | mongoose_acc:t(), Host :: jid:server(),
-                         Notifications :: [#{binary() => binary()}],
-                         Options :: #{binary() => binary()}) ->
-    ok | {error, Reason :: term()}.
-push_notifications(AccIn, Host, Notifications, Options = #{<<"device_id">> := DeviceId}) ->
+-spec push_notifications(Acc, Params, Extra) -> {ok, ok | {error, Reason :: term()}} when
+    Acc :: ok | mongoose_acc:t(),
+    Params :: #{notification_forms := [#{atom() => binary()}], options := #{binary() => binary()}},
+    Extra :: gen_hook:extra().
+push_notifications(AccIn,
+                   #{notification_forms := Notifications, options := Options = #{<<"device_id">> := DeviceId}},
+                   #{host_type := Host}) ->
     ?LOG_DEBUG(#{what => push_notifications, notifications => Notifications,
                  opts => Options, acc => AccIn}),
 
@@ -97,7 +103,7 @@ push_notifications(AccIn, Host, Notifications, Options = #{<<"device_id">> := De
             Payload = jiffy:encode(JSON),
             call(Host, ?MODULE, http_notification, [Host, post, Path, ReqHeaders, Payload])
         end,
-    send_push_notifications(Notifications, Fun, ok).
+    {ok, send_push_notifications(Notifications, Fun, ok)}.
 
 send_push_notifications([], _, Result) ->
     Result;
