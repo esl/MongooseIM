@@ -5,7 +5,7 @@
 -import(common_helper, [unprep/1]).
 -import(distributed_helper, [require_rpc_nodes/1, mim/0]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
-                         get_ok_value/2, get_err_code/1, get_unauthorized/1, get_not_loaded/1]).
+                         get_ok_value/2, get_err_code/1, get_err_msg/1, get_unauthorized/1, get_not_loaded/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -57,8 +57,8 @@ domain_admin_tests() ->
 admin_tests() ->
     [admin_request_token_test,
      admin_request_token_test_unprep,
-     admin_request_token_no_user_test,
-     admin_revoke_token_no_user_test,
+     admin_request_token_no_host_test,
+     admin_revoke_token_no_host_test,
      admin_revoke_token_no_token_test,
      admin_revoke_token_test,
      admin_revoke_token_test_unprep].
@@ -190,8 +190,8 @@ domain_admin_request_token_no_permission_test(Config, AliceBis) ->
     % External domain user
     Res = admin_request_token(user_to_bin(AliceBis), Config),
     get_unauthorized(Res),
-    % Non-existing user
-    Res2 = admin_request_token(<<"AAAAA">>, Config),
+    % Non-existing domain
+    Res2 = admin_request_token(<<"eddie@otherhost">>, Config),
     get_unauthorized(Res2).
 
 domain_admin_revoke_token_no_permission_test(Config) ->
@@ -202,8 +202,8 @@ domain_admin_revoke_token_no_permission_test(Config, AliceBis) ->
     % External domain user
     Res = admin_revoke_token(user_to_bin(AliceBis), Config),
     get_unauthorized(Res),
-    % Non-existing user
-    Res2 = admin_revoke_token(<<"AAAAA">>, Config),
+    % Non-existing domain
+    Res2 = admin_revoke_token(<<"eddie@otherhost">>, Config),
     get_unauthorized(Res2).
 
 % Admin tests
@@ -228,13 +228,13 @@ admin_request_token_test_unprep(Config, Alice) ->
     ?assert(is_binary(Refresh)),
     ?assert(is_binary(Access)).
 
-admin_request_token_no_user_test(Config) ->
-    Res = admin_request_token(<<"AAAAA">>, Config),
-    ?assertEqual(<<"not_found">>, get_err_code(Res)).
+admin_request_token_no_host_test(Config) ->
+    Res = admin_request_token(<<"eddie@otherhost">>, Config),
+    ?assertEqual(<<"Unknown domain">>, get_err_msg(Res)).
 
-admin_revoke_token_no_user_test(Config) ->
-    Res = admin_revoke_token(<<"AAAAA">>, Config),
-    ?assertEqual(<<"not_found">>, get_err_code(Res)).
+admin_revoke_token_no_host_test(Config) ->
+    Res = admin_revoke_token(<<"eddie@otherhost">>, Config),
+    ?assertEqual(<<"Unknown domain">>, get_err_msg(Res)).
 
 admin_revoke_token_no_token_test(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_revoke_token_no_token_test/2).

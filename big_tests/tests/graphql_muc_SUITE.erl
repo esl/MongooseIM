@@ -1615,7 +1615,7 @@ user_owner_set_user_affiliation_muc_not_configured(Config) ->
         fun user_owner_set_user_affiliation_muc_not_configured_story/2).
 
 user_owner_set_user_affiliation_muc_not_configured_story(Config, Alice) ->
-    Res = user_set_user_affiliation(Alice, get_room_name(), <<"ali">>, member, Config),
+    Res = user_set_user_affiliation(Alice, get_room_name(), <<"eddie@localhost">>, member, Config),
     get_not_loaded(Res).
 
 user_moderator_set_user_role_muc_not_configured(Config) ->

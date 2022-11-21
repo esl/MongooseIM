@@ -41,6 +41,8 @@ jid_from_binary(Value) ->
     case jid:from_binary(Value) of
         error ->
             {error, failed_to_parse_jid};
+        #jid{luser = <<>>} ->
+            {error, jid_without_user};
         Jid ->
             {ok, Jid}
     end.
