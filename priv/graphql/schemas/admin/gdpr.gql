@@ -1,6 +1,6 @@
 "Retrieve user's presonal data"
 type GdprAdminQuery @protected{
     "Retrieves all personal data from MongooseIM for a given user"
-    retrievePersonalData(username: String!, domain: DomainName!, resultFilepath: String!): String
+    retrievePersonalData(username: UserName!, domain: DomainName!, resultFilepath: String!): String
       @protected(type: DOMAIN, args: ["domain"])
 }

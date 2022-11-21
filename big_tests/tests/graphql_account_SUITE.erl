@@ -312,12 +312,15 @@ admin_register_user(Config) ->
     % Try to register a user with existing name
     Resp2 = register_user(Domain, Username, Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)),
-    % Try again, this time with a domain name that is not stringprepped
-    Resp3 = register_user(unprep(Domain), Username, Password, Config),
+    % Try again, this time with a name that is not stringprepped
+    Resp3 = register_user(unprep(Domain), unprep(Username), Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"already registered">>)),
     % Try to register a user without any name
     Resp4 = register_user(Domain, <<>>, Password, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp4), <<"Invalid JID">>)).
+    ?assertMatch({_, _}, binary:match(get_coercion_err_msg(Resp4), <<"empty_user_name">>)),
+    % Try to register a user with an invalid name
+    Resp5 = register_user(Domain, <<"@invalid">>, Password, Config),
+    ?assertMatch({_, _}, binary:match(get_coercion_err_msg(Resp5), <<"failed_to_parse_user_name">>)).
 
 admin_register_random_user(Config) ->
     Password = <<"my_password">>,

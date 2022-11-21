@@ -15,7 +15,7 @@ type SessionAdminQuery @protected{
   countUserResources(user: JID!): Int
     @protected(type: DOMAIN, args: ["user"])
   "Get the resource string of the n-th session of a user"
-  getUserResource(user: JID!, number: Int): String
+  getUserResource(user: JID!, number: Int): ResourceName
     @protected(type: DOMAIN, args: ["user"])
   "Get the list of logged users with this status for a specified domain or globally"
   listUsersWithStatus(domain: DomainName, status: String!): [UserStatus!]

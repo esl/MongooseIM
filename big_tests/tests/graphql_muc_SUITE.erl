@@ -41,7 +41,7 @@ admin_groups() ->
 
 user_muc_tests() ->
     [user_create_and_delete_room,
-     user_create_room_with_unprepped_domain,
+     user_create_room_with_unprepped_name,
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
@@ -74,6 +74,7 @@ user_muc_tests() ->
      user_participant_set_user_role,
      user_try_set_nonexistent_room_role,
      user_can_enter_room,
+     user_cannot_enter_room_with_invalid_resource,
      user_can_enter_room_with_password,
      user_can_exit_room,
      user_list_room_affiliations,
@@ -99,7 +100,7 @@ user_muc_not_configured_tests() ->
 
 admin_muc_tests() ->
     [admin_create_and_delete_room,
-     admin_create_room_with_unprepped_domain,
+     admin_create_room_with_unprepped_name,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_create_instant_room_with_nonexistent_user,
      admin_try_delete_nonexistent_room,
@@ -154,7 +155,7 @@ admin_muc_not_configured_tests() ->
 
 domain_admin_muc_tests() ->
     [admin_create_and_delete_room,
-     admin_create_room_with_unprepped_domain,
+     admin_create_room_with_unprepped_name,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_delete_nonexistent_room,
      domain_admin_create_and_delete_room_no_permission,
@@ -318,14 +319,16 @@ admin_create_and_delete_room_story(Config, Alice) ->
     Res4 = list_rooms(MUCServer, Alice, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
-admin_create_room_with_unprepped_domain(Config) ->
+admin_create_room_with_unprepped_name(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
     AliceJid = escalus_users:get_jid(FreshConfig, alice),
-    Name = rand_name(),
-    MUCServer = unprep(muc_helper:muc_host()),
-    Res = create_instant_room(MUCServer, Name, AliceJid, <<"Ali">>, FreshConfig),
+    Name = <<$a, (rand_name())/binary>>, % make it start with a letter
+    MUCServer = muc_helper:muc_host(),
+    Res = create_instant_room(unprep(MUCServer), unprep(Name), AliceJid, <<"Ali">>, FreshConfig),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
-                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)).
+                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
+    Res2 = list_rooms(MUCServer, AliceJid, null, null, Config),
+    ?assert(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res2))).
 
 admin_try_create_instant_room_with_nonexistent_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -990,14 +993,14 @@ user_create_and_delete_room_story(Config, Alice) ->
     Res4 = user_list_rooms(Alice, MUCServer, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
-user_create_room_with_unprepped_domain(Config) ->
+user_create_room_with_unprepped_name(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_create_room_with_unprepped_domain_story/2).
+                                    fun user_create_room_with_unprepped_name_story/2).
 
-user_create_room_with_unprepped_domain_story(Config, Alice) ->
-    Name = rand_name(),
-    MUCServer = unprep(muc_helper:muc_host()),
-    Res = user_create_instant_room(Alice, MUCServer, Name, <<"Ali">>, Config),
+user_create_room_with_unprepped_name_story(Config, Alice) ->
+    Name = <<$a, (rand_name())/binary>>, % make it start with a letter
+    MUCServer = muc_helper:muc_host(),
+    Res = user_create_instant_room(Alice, unprep(MUCServer), unprep(Name), <<"Ali">>, Config),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
                  get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)).
 
@@ -1015,7 +1018,7 @@ user_try_create_instant_room_with_invalid_name(Config) ->
 
 user_try_create_instant_room_with_invalid_name_story(Config, Alice) ->
     Res = user_create_instant_room(Alice, muc_helper:muc_host(), <<"test room">>, <<"Ali">>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain is invalid">>)).
+    assert_coercion_err(Res, <<"failed_to_parse_room_name">>).
 
 user_try_delete_nonexistent_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -1116,8 +1119,8 @@ user_send_message_to_room_with_specified_res_story(Config, _Alice, Bob, Bob2) ->
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob2, BobNick),
     escalus:wait_for_stanza(Bob2),
-    % Send message
-    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res₂"/utf8>>, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -1153,8 +1156,8 @@ user_send_private_message_with_specified_res(Config, Alice, Alice2, Bob) ->
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice2, AliceNick),
     escalus:wait_for_stanzas(Bob, 2),
-    % Send message
-    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res₂"/utf8>>, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -1449,10 +1452,22 @@ user_can_enter_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_utils:jid_to_lower(escalus_client:full_jid(Alice))),
-    Resource = escalus_client:resource(Alice),
-    Res = user_enter_room(Alice, RoomJID, Nick, Resource, null, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_enter_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)).
+
+user_cannot_enter_room_with_invalid_resource(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}],
+                               fun user_cannot_enter_room_with_invalid_resource/2).
+
+user_cannot_enter_room_with_invalid_resource(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Nick = <<"ali">>,
+    Res1 = user_enter_room(Alice, RoomJID, Nick, <<"\n">>, null, Config),
+    assert_coercion_err(Res1, <<"failed_to_parse_resource_name">>),
+    Res2 = user_enter_room(Alice, RoomJID, Nick, <<>>, null, Config),
+    assert_coercion_err(Res2, <<"empty_resource_name">>).
 
 user_can_enter_room_with_password(Config) ->
     muc_helper:story_with_room(Config, [{password_protected, true}, {password, ?PASSWORD}],
@@ -1484,10 +1499,10 @@ user_can_exit_room(Config) ->
 user_can_exit_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
-    Resource = escalus_client:resource(Alice),
     enter_room(RoomJID, Alice, Nick),
     ?assertMatch([_], get_room_users(RoomJID)),
-    Res = user_exit_room(Alice, RoomJID, Nick, Resource, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_exit_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
 
@@ -1655,8 +1670,11 @@ user_list_room_affiliations_muc_not_configured_story(Config, Alice) ->
 
 %% Helpers
 
+assert_coercion_err(Res, Code) ->
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res), Code)).
+
 assert_no_full_jid(Res) ->
-    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res), <<"jid_without_resource">>)).
+    assert_coercion_err(Res, <<"jid_without_resource">>).
 
 assert_no_permission(Res) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
