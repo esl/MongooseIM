@@ -37,7 +37,8 @@ markdown_extensions:
       linenums: true
   - pymdownx.superfences
   - admonition
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true
 
 nav:
   - 'Home': 'index.md'
