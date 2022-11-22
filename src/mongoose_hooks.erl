@@ -648,7 +648,10 @@ c2s_stream_features(HostType, LServer) ->
     IP :: {inet:ip_address(), inet:port_number()} | undefined,
     Result :: exml:element() | empty.
 c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
-    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, [HostType, Server, IQ, IP]).
+    Params = #{server => Server, iq => IQ, ip => IP},
+    Args = [HostType, Server, IQ, IP],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, ParamsWithLegacyArgs).
 
 -spec c2s_update_presence(HostType, Acc) -> Result when
     HostType :: mongooseim:host_type(),
