@@ -37,7 +37,7 @@
 
 %% IQ and hook handlers
 -export([c2s_stream_features/3,
-         unauthenticated_iq_register/5,
+         unauthenticated_iq_register/3,
          process_iq/5]).
 
 %% API
@@ -45,7 +45,7 @@
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([c2s_stream_features/3, process_iq/5, try_register/6, unauthenticated_iq_register/5]).
+-ignore_xref([process_iq/5, try_register/6]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -55,7 +55,7 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
 
     mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
@@ -66,7 +66,7 @@ start(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_REGISTER, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
@@ -75,8 +75,8 @@ iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
 
 hooks(HostType) ->
-    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-     {c2s_unauthenticated_iq, HostType, ?MODULE, unauthenticated_iq_register, 50}].
+    [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
+     {c2s_unauthenticated_iq, HostType, fun ?MODULE:unauthenticated_iq_register/3, #{}, 50}].
 
 %%%
 %%% config_spec
@@ -134,17 +134,24 @@ process_welcome_message(#{subject := Subject, body := Body}) ->
 %%% Hooks and IQ handlers
 %%%
 
--spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-c2s_stream_features(Acc, _HostType, _LServer) ->
-    [#xmlel{name = <<"register">>,
-            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
+-spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: map(),
+    Extra :: gen_hook:extra().
+c2s_stream_features(Acc, _, _) ->
+    NewAcc = [#xmlel{name = <<"register">>,
+                     attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc],
+    {ok, NewAcc}.
 
--spec unauthenticated_iq_register(exml:element() | empty, mongooseim:host_type(), 
-                                  jid:server(), jlib:iq(), 
-                                  {inet:ip_address(), inet:port_number()} | undefined) -> 
-    exml:element() | empty.
-unauthenticated_iq_register(_Acc, HostType, Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
+-spec unauthenticated_iq_register(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: exml:element() | empty,
+    Params :: #{server := jid:server(),
+                iq := jlib:iq(),
+                ip := {inet:ip_address(), inet:port_number()} | undefined},
+    Extra :: gen_hook:extra().
+unauthenticated_iq_register(_Acc,
+                            #{server := Server, iq := #iq{xmlns = ?NS_REGISTER} = IQ, ip := IP},
+                            #{host_type := HostType}) ->
     Address = case IP of
                   {A, _Port} -> A;
                   _ -> undefined
@@ -158,9 +165,9 @@ unauthenticated_iq_register(_Acc, HostType, Server, #iq{xmlns = ?NS_REGISTER} = 
                                        make_host_only_jid(Server),
                                        IQ,
                                        Address),
-    set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(Server));
-unauthenticated_iq_register(Acc, _HostType, _Server, _IQ, _IP) ->
-    Acc.
+    {ok, set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(Server))};
+unauthenticated_iq_register(Acc, _, _) ->
+    {ok, Acc}.
 
 %% Clients must register before being able to authenticate.
 process_unauthenticated_iq(HostType, From, To, #iq{type = set} = IQ, IPAddr) ->
