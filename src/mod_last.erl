@@ -42,8 +42,8 @@
 -export([process_local_iq/5,
          process_sm_iq/5,
          remove_user/3,
-         on_presence_update/5,
-         session_cleanup/5,
+         on_presence_update/3,
+         session_cleanup/3,
          remove_domain/3,
          remove_unused_backend_opts/1]).
 
@@ -53,11 +53,6 @@
          count_active_users/3]).
 
 -export([config_metrics/1]).
-
--ignore_xref([
-    behaviour_info/1, on_presence_update/5, process_local_iq/4,
-    process_sm_iq/4, remove_user/3, session_cleanup/5, remove_domain/3
-]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
@@ -74,15 +69,14 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
-
     mod_last_backend:init(HostType, Opts),
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
@@ -91,12 +85,13 @@ iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
      {ejabberd_sm, fun ?MODULE:process_sm_iq/5}].
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{remove_user, HostType, ?MODULE, remove_user, 50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
-     {unset_presence_hook, HostType, ?MODULE, on_presence_update, 50},
-     {session_cleanup, HostType, ?MODULE, session_cleanup, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50}].
+    [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {unset_presence_hook, HostType, fun ?MODULE:on_presence_update/3, #{}, 50},
+     {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
 
 %%%
 %%% config_spec
@@ -229,31 +224,40 @@ get_last_info(HostType, LUser, LServer) ->
         Res -> Res
     end.
 
--spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
-remove_user(Acc, User, Server) ->
-    HostType = mongoose_acc:host_type(Acc),
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+%%%
+%%% Hook handlers
+%%%
+
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     R = mod_last_backend:remove_user(HostType, LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
+    {ok, Acc}.
 
--spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_hooks:simple_acc(),
+    Params :: #{domain := jid:lserver()},
+    Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_last_backend:remove_domain(HostType, Domain),
-    Acc.
+    {ok, Acc}.
 
--spec on_presence_update(mongoose_acc:t(), jid:luser(), jid:lserver(), jid:lresource(), status()) ->
-          mongoose_acc:t().
-on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
-    store_last_info(Acc, LUser, LServer, Status).
+-spec on_presence_update(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid(), status := status()},
+    Extra :: gen_hook:extra().
+on_presence_update(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
+    {ok, store_last_info(Acc, LUser, LServer, Status)}.
 
--spec session_cleanup(mongoose_acc:t(), jid:luser(), jid:lserver(), jid:lresource(),
-                      ejabberd_sm:sid()) ->
-          mongoose_acc:t().
-session_cleanup(Acc, LUser, LServer, _LResource, _SID) ->
-    store_last_info(Acc, LUser, LServer, <<>>).
+-spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+session_cleanup(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
+    {ok, store_last_info(Acc, LUser, LServer, <<>>)}.
 
 -spec store_last_info(mongoose_acc:t(), jid:luser(), jid:lserver(), status()) -> mongoose_acc:t().
 store_last_info(Acc, LUser, LServer, Status) ->

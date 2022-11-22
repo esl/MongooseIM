@@ -180,7 +180,7 @@ purge_hook(true, HostType, LUser, LServer) ->
     Acc :: mongoose_acc:t(),
     Params :: map(),
     Extra :: map().
-session_cleanup(Acc, #{sid := SID, user := LUser, server := LServer}, _Extra) ->
+session_cleanup(Acc, #{sid := SID, jid := #jid{luser = LUser, lserver = LServer}}, _Extra) ->
     remove_connection(SID, LUser, LServer),
     {ok, Acc}.
 
