@@ -39,7 +39,8 @@ all() ->
      dead_pool_is_restarted,
      dead_pool_is_stopped_before_restarted,
      riak_pool_cant_be_started_with_available_worker_strategy,
-     redis_pool_cant_be_started_with_available_worker_strategy
+     redis_pool_cant_be_started_with_available_worker_strategy,
+     cassandra_prepare_opts
     ].
 
 %%--------------------------------------------------------------------
@@ -268,6 +269,13 @@ pool_cant_be_started_with_available_worker_strategy(Type) ->
                  conn_opts => #{address => "localhost", port => 1805}}],
     ?assertError({strategy_not_supported, Type, Host, Tag, available_worker},
                  mongoose_wpool:start_configured_pools(PoolDef)).
+
+cassandra_prepare_opts(_Config) ->
+    %% Check that we pass auth options in the correct format to the Cassandra driver
+    AuthCfg = #{auth => #{plain => #{username => <<"user">>, password => <<"password">>}}},
+    ?assertEqual([{auth, {cqerl_auth_plain_handler, [{<<"user">>, <<"password">>}]}},
+                  {tcp_opts, [{keepalive, true}]}],
+                  mongoose_wpool_cassandra:prepare_cqerl_opts(AuthCfg)).
 
 %%--------------------------------------------------------------------
 %% Helpers
