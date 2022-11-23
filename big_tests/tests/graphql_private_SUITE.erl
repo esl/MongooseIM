@@ -201,11 +201,11 @@ admin_get_private(Config, Alice) ->
 
 no_user_error_set(Config) ->
     ElemStr = exml:to_binary(private_input()),
-    Result = admin_set_private(<<"AAAAA">>, ElemStr, Config),
+    Result = admin_set_private(<<"eddie@otherhost">>, ElemStr, Config),
     ?assertEqual(<<"not_found">>, get_err_code(Result)).
 
 no_user_error_get(Config) ->
-    Result = admin_get_private(<<"AAAAA">>, <<"my_element">>, <<"alice:private:ns">>, Config),
+    Result = admin_get_private(<<"eddie@otherhost">>, <<"my_element">>, <<"alice:private:ns">>, Config),
     ?assertEqual(<<"not_found">>, get_err_code(Result)).
 
 private_input() ->
@@ -241,7 +241,7 @@ domain_admin_user_set_private_no_permission(Config, AliceBis) ->
     ElemStr = exml:to_binary(private_input()),
     Result = admin_set_private(user_to_bin(AliceBis), ElemStr, Config),
     get_unauthorized(Result),
-    Result2 = admin_set_private(<<"AAAAA">>, ElemStr, Config),
+    Result2 = admin_set_private(<<"eddie@otherhost">>, ElemStr, Config),
     get_unauthorized(Result2).
 
 domain_admin_user_get_private_no_permission(Config) ->
@@ -252,7 +252,7 @@ domain_admin_user_get_private_no_permission(Config, AliceBis) ->
     AliceBisBin = user_to_bin(AliceBis),
     Result = admin_get_private(AliceBisBin, <<"my_element">>, <<"alice:private:ns">>, Config),
     get_unauthorized(Result),
-    Result2 = admin_get_private(<<"AAAAA">>, <<"my_element">>, <<"alice:private:ns">>, Config),
+    Result2 = admin_get_private(<<"eddie@otherhost">>, <<"my_element">>, <<"alice:private:ns">>, Config),
     get_unauthorized(Result2).
 
 %% Commands

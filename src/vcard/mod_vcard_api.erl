@@ -24,7 +24,7 @@ set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
                     {internal, "Internal server error"}
             end;
         _ ->
-            {not_found, "User does not exist"}
+            {not_found, "Host does not exist"}
     end.
 
 -spec get_vcard(jid:jid()) ->
@@ -40,7 +40,7 @@ get_vcard(#jid{luser = LUser, lserver = LServer}) ->
                     {vcard_not_configured_error, "Mod_vcard is not loaded for this host"}
             end;
         _ ->
-            {not_found, "User does not exist"}
+            {not_found, "Host does not exist"}
     end.
 
 set_vcard(HostType, UserJID, Vcard) ->

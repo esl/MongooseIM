@@ -11,7 +11,7 @@
 
  -type token_info() :: map().
  -type args() :: mongoose_graphql:args().
- -type ctx() :: mongoose_graphql:ctx().
+ -type ctx() :: mongoose_graphql:context().
 
  execute(Ctx, token, <<"requestToken">>, Args) ->
     request_token(Ctx, Args);
@@ -22,12 +22,12 @@
  request_token(#{user := JID}, #{}) ->
     case mod_auth_token_api:create_token(JID) of
         {ok, _} = Result -> Result;
-        {error, Error} -> make_error(Error, #{user => JID})
+        Error -> make_error(Error, #{user => JID})
     end.
 
  -spec revoke_token(ctx(), args()) -> {ok, string()} | {error, resolver_error()}.
  revoke_token(#{user := JID}, #{}) ->
     case mod_auth_token_api:revoke_token_command(JID) of
         {ok, _} = Result -> Result;
-        {error, Error} -> make_error(Error, #{user => JID})
+        Error -> make_error(Error, #{user => JID})
     end.
