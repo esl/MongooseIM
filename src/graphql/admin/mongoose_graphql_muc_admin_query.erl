@@ -26,8 +26,12 @@ list_rooms(#{<<"mucDomain">> := MUCDomain, <<"from">> := FromJID,
              <<"limit">> := Limit, <<"index">> := Index}) ->
     Limit2 = null_to_undefined(Limit),
     Index2 = null_to_undefined(Index),
-    {Rooms, RSM} = mod_muc_api:get_rooms(MUCDomain, FromJID, Limit2, Index2),
-    {ok, mongoose_graphql_muc_helper:make_rooms_payload(Rooms, RSM)}.
+    case mod_muc_api:get_rooms(MUCDomain, FromJID, Limit2, Index2) of
+        {ok, {Rooms, RSM}} ->
+            {ok, mongoose_graphql_muc_helper:make_rooms_payload(Rooms, RSM)};
+        Error ->
+            make_error(Error, #{mucDomain => MUCDomain})
+    end.
 
 -spec list_room_users(map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
 list_room_users(#{<<"room">> := RoomJID}) ->
