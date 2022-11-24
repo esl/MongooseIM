@@ -84,9 +84,8 @@ handle_post(Req, State, #{domain := Domain}) ->
     RoomName = get_room_name(Args),
     OwnerJid = get_owner_jid(Args),
     Nick = get_nick(Args),
-    %% TODO This check should be done in the API module to work for GraphQL as well
-    #jid{lserver = MUCDomain} = make_room_jid(RoomName, get_muc_domain(Domain)),
-    case mod_muc_api:create_instant_room(MUCDomain, RoomName, OwnerJid, Nick) of
+    RoomJid = make_room_jid(RoomName, get_muc_domain(Domain)),
+    case mod_muc_api:create_instant_room(RoomJid, OwnerJid, Nick) of
         {ok, #{title := R}} ->
             Path = [cowboy_req:uri(Req), "/", R],
             resource_created(Req, State, Path, R);
