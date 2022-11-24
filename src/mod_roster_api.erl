@@ -107,7 +107,7 @@ subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
                                        lserver => LServer,
                                        element => El }),
             Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJID, ContactJID, Type),
-            ejabberd_router:route(CallerJID, ContactJID, Acc2),
+            ejabberd_router:route(CallerJID, jid:to_bare(ContactJID), Acc2),
             {ok, io_lib:format("Subscription stanza with type ~s sent successfully", [StanzaType])};
         {error, not_found} ->
             ?UNKNOWN_DOMAIN_RESULT
