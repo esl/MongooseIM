@@ -904,8 +904,13 @@ roster_get_jid_info(HostType, ToJID, RemBareJID) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 roster_get_subscription_lists(HostType, Acc, JID) ->
+    BareJID = jid:to_bare(JID),
+    Params = #{jid => BareJID},
+    Args = [BareJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc,
-                           [jid:to_bare(JID)]).
+                           ParamsWithLegacyArgs).
 
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
@@ -952,7 +957,10 @@ roster_out_subscription(Acc, From, To, Type) ->
     Item :: mod_roster:roster(),
     Result :: mod_roster:roster().
 roster_process_item(HostType, LServer, Item) ->
-    run_hook_for_host_type(roster_process_item, HostType, Item, [LServer]).
+    Params = #{lserver => LServer},
+    Args = [LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_process_item, HostType, Item, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_push' hook is called when a roster item is
 %%% being pushed and roster versioning is not enabled.
