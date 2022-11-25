@@ -55,14 +55,14 @@
 
 % Hook handlers
 -export([
-         get_user_roster/2,
-         in_subscription/5,
-         out_subscription/4,
-         get_subscription_lists/2,
-         get_jid_info/4,
+         get_user_roster/3,
+         in_subscription/3,
+         out_subscription/3,
+         get_subscription_lists/3,
+         get_jid_info/3,
          remove_user/3,
          remove_domain/3,
-         get_versioning_feature/2,
+         get_versioning_feature/3,
          get_personal_data/3
         ]).
 
@@ -72,12 +72,10 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([
-    get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
-    get_user_roster/2, get_user_rosters_length/2, get_versioning_feature/2,
-    in_subscription/5, item_to_xml/1, out_subscription/4, process_subscription_t/6,
-    remove_user/3, remove_domain/3, transaction/2
-]).
+-ignore_xref([get_user_rosters_length/2,
+              item_to_xml/1,
+              process_subscription_t/6,
+              transaction/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -107,13 +105,15 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
-          gdpr:personal_data().
-get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: gdpr:personal_data(),
+      Params :: #{jid := jid:jid()},
+      Extra :: gen_hook:extra().
+get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
     Records = get_roster(HostType, LUser, LServer),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
-    [{roster, Schema, SerializedRecords} | Acc].
+    {ok, [{roster, Schema, SerializedRecords} | Acc]}.
 
 -spec roster_record_to_gdpr_entry(roster()) -> gdpr:entry().
 roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
@@ -136,13 +136,13 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts = #{iqdisc := IQDisc}) ->
     mod_roster_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -178,16 +178,16 @@ remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 supported_features() -> [dynamic_domains].
 
 hooks(HostType) ->
-    [{roster_get, HostType, ?MODULE, get_user_roster, 50},
-     {roster_in_subscription, HostType, ?MODULE, in_subscription, 50},
-     {roster_out_subscription, HostType, ?MODULE, out_subscription, 50},
-     {roster_get_subscription_lists, HostType, ?MODULE, get_subscription_lists, 50},
-     {roster_get_jid_info, HostType, ?MODULE, get_jid_info, 50},
-     {remove_user, HostType, ?MODULE, remove_user, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
-     {roster_get_versioning_feature, HostType, ?MODULE, get_versioning_feature, 50},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
+    [{roster_get, HostType, fun ?MODULE:get_user_roster/3, #{}, 50},
+     {roster_in_subscription, HostType, fun ?MODULE:in_subscription/3, #{}, 50},
+     {roster_out_subscription, HostType, fun ?MODULE:out_subscription/3, #{}, 50},
+     {roster_get_subscription_lists, HostType, fun ?MODULE:get_subscription_lists/3, #{}, 50},
+     {roster_get_jid_info, HostType, fun ?MODULE:get_jid_info/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {roster_get_versioning_feature, HostType, fun ?MODULE:get_versioning_feature/3, #{}, 50},
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
@@ -225,14 +225,19 @@ roster_version_on_db(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, store_current_id, false).
 
 %% Returns a list that may contain an xmlel with the XEP-237 feature if it's enabled.
-get_versioning_feature(Acc, HostType) ->
-    case roster_versioning_enabled(HostType) of
+-spec get_versioning_feature(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [jlib:xmlel()],
+    Params :: map(),
+    Extra :: gen_hook:extra().
+get_versioning_feature(Acc, _, #{host_type := HostType}) ->
+    NewAcc = case roster_versioning_enabled(HostType) of
         true ->
             Feature = #xmlel{name = <<"ver">>,
                              attrs = [{<<"xmlns">>, ?NS_ROSTER_VER}]},
             [Feature | Acc];
         false -> []
-    end.
+    end,
+    {ok, NewAcc}.
 
 roster_version(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
     case roster_version_on_db(HostType) of
@@ -324,11 +329,12 @@ create_sub_el(Items, Version) ->
                      {<<"ver">>, Version}],
             children = Items}].
 
--spec get_user_roster(mongoose_acc:t(), jid:jid() | {jid:luser(), jid:lserver()}) ->
-          mongoose_acc:t().
-get_user_roster(Acc, #jid{luser = LUser, lserver = LServer}) ->
-    HostType = mongoose_acc:host_type(Acc),
-    case mongoose_acc:get(roster, show_full_roster, false, Acc) of
+-spec get_user_roster(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_user_roster(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
+    NewAcc = case mongoose_acc:get(roster, show_full_roster, false, Acc) of
         true ->
             Roster = get_roster(HostType, LUser, LServer),
             mongoose_acc:append(roster, items, Roster, Acc);
@@ -339,7 +345,8 @@ get_user_roster(Acc, #jid{luser = LUser, lserver = LServer}) ->
                                           true
                                   end, get_roster(HostType, LUser, LServer)),
             mongoose_acc:append(roster, items, Roster, Acc)
-    end.
+    end,
+    {ok, NewAcc}.
 
 item_to_xml(Item) ->
     Attrs1 = [{<<"jid">>,
@@ -530,12 +537,14 @@ push_item_final(JID, From, Item, RosterVersion) ->
                         children = [item_to_xml(Item)]}]},
     ejabberd_router:route(From, JID, jlib:iq_to_xml(ResIQ)).
 
--spec get_subscription_lists(Acc :: mongoose_acc:t(), JID :: jid:jid()) ->
-    mongoose_acc:t().
-get_subscription_lists(Acc, #jid{luser = LUser, lserver = LServer} = JID) ->
+-spec get_subscription_lists(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_subscription_lists(Acc, #{jid := #jid{luser = LUser, lserver = LServer} = JID}, _) ->
     Items = mod_roster_backend:get_subscription_lists(Acc, LUser, LServer),
     SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
-    mongoose_acc:set(roster, subscription_lists, SubLists, Acc).
+    {ok, mongoose_acc:set(roster, subscription_lists, SubLists, Acc)}.
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
@@ -573,26 +582,30 @@ ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
 
--spec in_subscription(Acc :: mongoose_acc:t(),
-                      ToJID :: jid:jid(),
-                      FromJID :: jid:jid(),
-                      Type :: sub_presence(),
-                      Reason :: iodata()) ->
-    mongoose_acc:t().
-in_subscription(Acc, ToJID, FromJID, Type, Reason) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec in_subscription(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{to_jid := jid:jid(),
+                from_jid := jid:jid(),
+                type := mod_roster:sub_presence(),
+                reason := iodata()},
+    Extra :: gen_hook:extra().
+in_subscription(Acc,
+                #{to_jid := ToJID, from_jid := FromJID, type := Type, reason := Reason},
+                #{host_type := HostType}) ->
     Res = process_subscription(HostType, in, ToJID, FromJID, Type, Reason),
-    mongoose_acc:set(hook, result, Res, Acc).
+    {ok, mongoose_acc:set(hook, result, Res, Acc)}.
 
--spec out_subscription(Acc :: mongoose_acc:t(),
-                       FromJID :: jid:jid(),
-                       ToJID :: jid:jid(),
-                       Type :: sub_presence()) ->
-    mongoose_acc:t().
-out_subscription(Acc, FromJID, ToJID, Type) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec out_subscription(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{to_jid := jid:jid(),
+                from_jid := jid:jid(),
+                type := mod_roster:sub_presence()},
+    Extra :: gen_hook:extra().
+out_subscription(Acc,
+                #{to_jid := ToJID, from_jid := FromJID, type := Type},
+                #{host_type := HostType}) ->
     Res = process_subscription(HostType, out, FromJID, ToJID, Type, <<>>),
-    mongoose_acc:set(hook, result, Res, Acc).
+    {ok, mongoose_acc:set(hook, result, Res, Acc)}.
 
 -spec process_subscription(mongooseim:host_type(), in | out, jid:jid(), jid:jid(),
                            sub_presence(), iodata()) ->
@@ -782,10 +795,11 @@ in_auto_reply(_, _, _) -> none.
 get_user_rosters_length(HostType, JID) ->
     length(get_roster_old(HostType, JID)).
 
--spec remove_user(mongoose_acc:t(), jid:luser(), jid:lserver()) -> mongoose_acc:t().
-remove_user(Acc, LUser, LServer) ->
-    HostType = mongoose_acc:host_type(Acc),
-    JID = jid:make_noprep(LUser, LServer, <<>>),
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer} = JID}, #{host_type := HostType}) ->
     Acc1 = try_send_unsubscription_to_rosteritems(Acc, JID),
     F = fun() -> mod_roster_backend:remove_user_t(HostType, LUser, LServer) end,
     case transaction(HostType, F) of
@@ -794,8 +808,9 @@ remove_user(Acc, LUser, LServer) ->
         Result ->
             ?LOG_ERROR(#{what => remove_user_transaction_failed, reason => Result})
     end,
-    Acc1.
+    {ok, Acc1}.
 
+-spec try_send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 try_send_unsubscription_to_rosteritems(Acc, JID) ->
     try
         send_unsubscription_to_rosteritems(Acc, JID)
@@ -809,8 +824,9 @@ try_send_unsubscription_to_rosteritems(Acc, JID) ->
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
+-spec send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 send_unsubscription_to_rosteritems(Acc, JID) ->
-    Acc1 = get_user_roster(Acc, JID),
+    {ok, Acc1} = get_user_roster(Acc, #{jid => JID}, #{host_type => mongoose_acc:host_type(Acc)}),
     RosterItems = mongoose_acc:get(roster, items, [], Acc1),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(JID, RosterItem)
@@ -839,10 +855,11 @@ send_presence_type(From, To, Type) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok , Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     case backend_module:is_exported(mod_roster_backend, remove_domain_t, 2) of
          true ->
             F = fun() -> mod_roster_backend:remove_domain_t(HostType, Domain) end,
@@ -856,7 +873,7 @@ remove_domain(Acc, HostType, Domain) ->
         false ->
             ok
     end,
-    Acc.
+    {ok, Acc}.
 
 -spec set_items(mongooseim:host_type(), jid:jid(), exml:element()) -> ok | {error, any()}.
 set_items(HostType, #jid{luser = LUser, lserver = LServer}, SubEl) ->
@@ -932,22 +949,24 @@ process_item_attrs_ws(Item, []) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec get_jid_info(HookAcc, mongooseim:host_type(),
-                   ToJID :: jid:jid(),
-                   JID :: jid:jid() | jid:ljid()) -> HookAcc
-              when HookAcc :: {subscription_state(), [binary()]}.
-get_jid_info(_, HostType, ToJID, JID) ->
-    case get_roster_entry(HostType, ToJID, JID, full) of
-        error -> {none, []};
-        does_not_exist ->
-            LRJID = jid:to_bare(jid:to_lower(JID)),
-            case get_roster_entry(HostType, ToJID, LRJID, full) of
-                error -> {none, []};
-                does_not_exist -> {none, []};
-                R -> {R#roster.subscription, R#roster.groups}
-            end;
-        Re -> {Re#roster.subscription, Re#roster.groups}
-    end.
+-spec get_jid_info(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: {subscription_state(), [binary()]},
+    Params :: #{to_jid := jid:jid(), remote_jid := jid:jid() | jid:simple_jid()},
+    Extra :: gen_hook:extra().
+get_jid_info(_, #{to_jid := ToJID, remote_jid := JID}, #{host_type := HostType}) ->
+    ToRosterEntry = get_roster_entry(HostType, ToJID, JID, full),
+    RemoteRosterEntryGetter = fun() -> get_roster_entry(HostType, ToJID, jid:to_bare(jid:to_lower(JID)), full) end,
+    NewAcc = determine_subscription_state(ToRosterEntry, RemoteRosterEntryGetter),
+    {ok, NewAcc}.
+
+-spec determine_subscription_state(RosterEntry, RosterEntryGetter) -> SubscriptionState when
+    RosterEntry :: roster() | does_not_exist | error,
+    RosterEntryGetter :: fun(() -> RosterEntry) | undefined,
+    SubscriptionState :: {subscription_state(), [binary()]}.
+determine_subscription_state(error, _) -> {none, []};
+determine_subscription_state(does_not_exist, undefined) -> {none, []};
+determine_subscription_state(does_not_exist, Getter) -> determine_subscription_state(Getter(), undefined);
+determine_subscription_state(R, _) -> {R#roster.subscription, R#roster.groups}.
 
 get_roster_old(HostType, #jid{lserver = LServer} = JID) ->
     get_roster_old(HostType, LServer, JID).
