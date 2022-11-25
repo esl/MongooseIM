@@ -39,12 +39,12 @@
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--export([get_user_roster/2, get_subscription_lists/2,
-         get_jid_info/4, process_item/2, in_subscription/5,
-         out_subscription/4]).
+%% Hook handlers
+-export([get_user_roster/3, get_subscription_lists/3,
+         get_jid_info/3, process_item/3, in_subscription/3,
+         out_subscription/3]).
 
--ignore_xref([config_change/4, get_jid_info/4, get_subscription_lists/2, get_user_roster/2,
-              in_subscription/5, out_subscription/4, process_item/2, start_link/2]).
+-ignore_xref([start_link/2]).
 
 -include("jlib.hrl").
 -include("mod_roster.hrl").
@@ -149,7 +149,11 @@ process_ldap_options(Opts = #{groupattr := GroupAttr}) ->
 %%--------------------------------------------------------------------
 %% Hooks
 %%--------------------------------------------------------------------
-get_user_roster(Acc, #jid{luser = U, lserver = S} = JID) ->
+-spec get_user_roster(Acc, Params, Extra) -> {ok, Acc} when
+     Acc :: mongoose_acc:t(),
+     Params :: #{jid := jid:jid()},
+     Extra :: gen_hook:extra().
+get_user_roster(Acc, #{jid := #jid{luser = U, lserver = S} = JID}, _) ->
     US = jid:to_lus(JID),
     Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
@@ -172,16 +176,20 @@ get_user_roster(Acc, #jid{luser = U, lserver = S} = JID) ->
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
-    mongoose_acc:set(roster, items, SRItems ++ NewItems1, Acc).
+    {ok, mongoose_acc:set(roster, items, SRItems ++ NewItems1, Acc)}.
 
 %% This function in use to rewrite the roster entries when moving or renaming
 %% them in the user contact list.
-process_item(RosterItem, _Host) ->
+-spec process_item(Acc, Params, Extra) -> {ok, Acc} when
+     Acc :: mod_roster:roster(),
+     Params :: map(),
+     Extra :: gen_hook:extra().
+process_item(RosterItem, _, _) ->
     USFrom = RosterItem#roster.us,
     {User, Server, _Resource} = RosterItem#roster.jid,
     USTo = {User, Server},
     Map = get_user_to_groups_map(USFrom, false),
-    case dict:find(USTo, Map) of
+    NewRosterItem = case dict:find(USTo, Map) of
         error -> RosterItem;
         {ok, []} -> RosterItem;
         {ok, GroupNames}
@@ -189,9 +197,14 @@ process_item(RosterItem, _Host) ->
             RosterItem#roster{subscription = both, ask = none,
                               groups = GroupNames};
         _ -> RosterItem#roster{subscription = both, ask = none}
-    end.
+    end,
+    {ok, NewRosterItem}.
 
-get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
+-spec get_subscription_lists(Acc, Params, Extra) -> {ok, Acc} when
+     Acc ::mongoose_acc:t(),
+     Params :: #{jid := jid:jid()},
+     Extra :: gen_hook:extra().
+get_subscription_lists(Acc, #{jid := #jid{lserver = LServer} = JID}, _) ->
     {F, T, P} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc),
     US = jid:to_lus(JID),
     DisplayedGroups = get_user_displayed_groups(US),
@@ -201,13 +214,17 @@ get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
                                         DisplayedGroups)),
     SRJIDs = [{U1, S1, <<>>} || {U1, S1} <- SRUsers],
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
-    mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
+    {ok, mongoose_acc:set(roster, subscription_lists, NewLists, Acc)}.
 
-get_jid_info({Subscription, Groups}, _HostType, ToJID, JID) ->
+-spec get_jid_info(Acc, Params, Extra) -> {ok, Acc} when
+     Acc :: {mod_roster:subscription_state(), [binary()]},
+     Params :: #{to_jid := jid:jid(), remote_jid := jid:jid() | jid:simple_jid()},
+     Extra :: gen_hook:extra().
+get_jid_info({Subscription, Groups}, #{to_jid := ToJID, remote_jid := JID}, _) ->
     ToUS = jid:to_lus(ToJID),
     US1 = jid:to_lus(JID),
     SRUsers = get_user_to_groups_map(ToUS, false),
-    case dict:find(US1, SRUsers) of
+    NewAcc = case dict:find(US1, SRUsers) of
         {ok, GroupNames} ->
             NewGroups = case Groups of
                             [] -> GroupNames;
@@ -215,35 +232,37 @@ get_jid_info({Subscription, Groups}, _HostType, ToJID, JID) ->
                         end,
             {both, NewGroups};
         error -> {Subscription, Groups}
-    end.
+    end,
+    {ok, NewAcc}.
 
--spec in_subscription(Acc :: mongoose_acc:t(),
-                      ToJID :: jid:jid(),
-                      FromJID :: jid:jid(),
-                      Type :: mod_roster:sub_presence(),
-                      _Reason :: any()) ->
-    mongoose_acc:t() | {stop, mongoose_acc:t()}.
-in_subscription(Acc, ToJID, FromJID, Type, _Reason) ->
+-spec in_subscription(Acc, Params, Extra) -> {ok | stop, Acc} when
+     Acc :: mongoose_acc:t(),
+     Params :: #{to_jid := jid:jid(),
+                 from_jid := jid:jid(),
+                 type := mod_roster:sub_presence()},
+     Extra :: gen_hook:extra().
+in_subscription(Acc, #{to_jid := ToJID, from_jid := FromJID, type := Type}, _) ->
     case process_subscription(in, ToJID, FromJID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
             {stop, mongoose_acc:set(hook, result, false, Acc)};
-        _ -> Acc
+        _ -> {ok, Acc}
     end.
 
--spec out_subscription(Acc :: mongoose_acc:t(),
-                       FromJID :: jid:jid(),
-                       ToJID :: jid:jid(),
-                       Type :: mod_roster:sub_presence()) ->
-    mongoose_acc:t() | {stop, mongoose_acc:t()}.
-out_subscription(Acc, FromJID, ToJID, Type) ->
+-spec out_subscription(Acc, Params, Extra) -> {ok | stop, Acc} when
+     Acc :: mongoose_acc:t(),
+     Params :: #{to_jid := jid:jid(),
+                 from_jid := jid:jid(),
+                 type := mod_roster:sub_presence()},
+     Extra :: gen_hook:extra().
+ out_subscription(Acc, #{to_jid := ToJID, from_jid := FromJID, type := Type}, _) ->
     case process_subscription(out, FromJID, ToJID, Type) of
         stop ->
             {stop, Acc};
         {stop, false} ->
             {stop, Acc};
-        false -> Acc
+        false -> {ok, Acc}
     end.
 
 process_subscription(Direction, #jid{luser = LUser, lserver = LServer}, ToJID, _Type) ->
@@ -278,18 +297,7 @@ init([Host, Opts]) ->
     cache_tab:new(shared_roster_ldap_group,
                   [{max_size, State#state.group_cache_size}, {lru, false},
                    {life_time, State#state.group_cache_validity}]),
-    ejabberd_hooks:add(roster_get, Host, ?MODULE,
-                       get_user_roster, 70),
-    ejabberd_hooks:add(roster_in_subscription, Host, ?MODULE,
-                       in_subscription, 30),
-    ejabberd_hooks:add(roster_out_subscription, Host, ?MODULE,
-                       out_subscription, 30),
-    ejabberd_hooks:add(roster_get_subscription_lists, Host, ?MODULE,
-                       get_subscription_lists, 70),
-    ejabberd_hooks:add(roster_get_jid_info, Host, ?MODULE,
-                       get_jid_info, 70),
-    ejabberd_hooks:add(roster_process_item, Host, ?MODULE,
-                       process_item, 50),
+    gen_hook:add_handlers(hooks(Host)),
     {ok, State}.
 
 handle_call(get_state, _From, State) ->
@@ -303,20 +311,20 @@ handle_info(_Info, State) -> {noreply, State}.
 
 terminate(_Reason, State) ->
     Host = State#state.host,
-    ejabberd_hooks:delete(roster_get, Host, ?MODULE,
-                          get_user_roster, 70),
-    ejabberd_hooks:delete(roster_in_subscription, Host,
-                          ?MODULE, in_subscription, 30),
-    ejabberd_hooks:delete(roster_out_subscription, Host,
-                          ?MODULE, out_subscription, 30),
-    ejabberd_hooks:delete(roster_get_subscription_lists,
-                          Host, ?MODULE, get_subscription_lists, 70),
-    ejabberd_hooks:delete(roster_get_jid_info, Host,
-                          ?MODULE, get_jid_info, 70),
-    ejabberd_hooks:delete(roster_process_item, Host,
-                          ?MODULE, process_item, 50).
+    gen_hook:delete_handlers(hooks(Host)).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
+hooks(HostType) ->
+    [
+        {roster_get, HostType, fun ?MODULE:get_user_roster/3, #{}, 70},
+        {roster_in_subscription, HostType, fun ?MODULE:in_subscription/3, #{}, 70},
+        {roster_out_subscription, HostType, fun ?MODULE:out_subscription/3, #{}, 70},
+        {roster_get_subscription_lists, HostType, fun ?MODULE:get_subscription_lists/3, #{}, 70},
+        {roster_get_jid_info, HostType, fun ?MODULE:get_jid_info/3, #{}, 70},
+        {roster_process_item, HostType, fun ?MODULE:process_item/3, #{}, 70}
+    ].
 
 %%--------------------------------------------------------------------
 %%% Internal functions
