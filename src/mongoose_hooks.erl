@@ -893,7 +893,7 @@ roster_groups(LServer) ->
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
 roster_get_jid_info(HostType, ToJID, RemBareJID) ->
-    Params = #{to_jid => ToJID, remote_jid => RemBareJID},
+    Params = #{to => ToJID, remote => RemBareJID},
     Args = [HostType, ToJID, RemBareJID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(roster_get_jid_info, HostType, {none, []}, ParamsWithLegacyArgs).
@@ -933,7 +933,7 @@ roster_get_versioning_feature(HostType) ->
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
     ToJID = jid:to_bare(To),
-    Params = #{to_jid => ToJID, from_jid => From, type => Type, reason => Reason},
+    Params = #{to => ToJID, from => From, type => Type, reason => Reason},
     Args = [ToJID, From, Type, Reason],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -949,7 +949,7 @@ roster_in_subscription(Acc, To, From, Type, Reason) ->
     Result :: mongoose_acc:t().
 roster_out_subscription(Acc, From, To, Type) ->
     FromJID = jid:to_bare(From),
-    Params = #{to_jid => To, from_jid => FromJID, type => Type},
+    Params = #{to => To, from => FromJID, type => Type},
     Args = [FromJID, To, Type],
     HostType = mongoose_acc:host_type(Acc),
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),

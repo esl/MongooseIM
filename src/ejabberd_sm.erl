@@ -449,9 +449,9 @@ node_cleanup(Acc, #{node := Node}, _) ->
 
 -spec check_in_subscription(Acc, Args, Extra)-> {ok, Acc} | {stop, false} when
       Acc :: any(),
-      Args :: #{to_jid := jid:jid()},
+      Args :: #{to := jid:jid()},
       Extra :: map().
-check_in_subscription(Acc, #{to_jid := ToJID}, _) ->
+check_in_subscription(Acc, #{to := ToJID}, _) ->
     case ejabberd_auth:does_user_exist(ToJID) of
         true ->
             {ok, Acc};

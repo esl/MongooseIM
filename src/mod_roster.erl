@@ -584,25 +584,25 @@ ask_to_pending(Ask) -> Ask.
 
 -spec in_subscription(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{to_jid := jid:jid(),
-                from_jid := jid:jid(),
-                type := mod_roster:sub_presence(),
+    Params :: #{to := jid:jid(),
+                from := jid:jid(),
+                type := sub_presence(),
                 reason := iodata()},
     Extra :: gen_hook:extra().
 in_subscription(Acc,
-                #{to_jid := ToJID, from_jid := FromJID, type := Type, reason := Reason},
+                #{to := ToJID, from := FromJID, type := Type, reason := Reason},
                 #{host_type := HostType}) ->
     Res = process_subscription(HostType, in, ToJID, FromJID, Type, Reason),
     {ok, mongoose_acc:set(hook, result, Res, Acc)}.
 
 -spec out_subscription(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{to_jid := jid:jid(),
-                from_jid := jid:jid(),
-                type := mod_roster:sub_presence()},
+    Params :: #{to := jid:jid(),
+                from := jid:jid(),
+                type := sub_presence()},
     Extra :: gen_hook:extra().
 out_subscription(Acc,
-                #{to_jid := ToJID, from_jid := FromJID, type := Type},
+                #{to := ToJID, from := FromJID, type := Type},
                 #{host_type := HostType}) ->
     Res = process_subscription(HostType, out, FromJID, ToJID, Type, <<>>),
     {ok, mongoose_acc:set(hook, result, Res, Acc)}.
@@ -951,9 +951,9 @@ process_item_attrs_ws(Item, []) ->
 
 -spec get_jid_info(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: {subscription_state(), [binary()]},
-    Params :: #{to_jid := jid:jid(), remote_jid := jid:jid() | jid:simple_jid()},
+    Params :: #{to := jid:jid(), remote := jid:jid() | jid:simple_jid()},
     Extra :: gen_hook:extra().
-get_jid_info(_, #{to_jid := ToJID, remote_jid := JID}, #{host_type := HostType}) ->
+get_jid_info(_, #{to := ToJID, remote := JID}, #{host_type := HostType}) ->
     ToRosterEntry = get_roster_entry(HostType, ToJID, JID, full),
     RemoteRosterEntryGetter = fun() -> get_roster_entry(HostType, ToJID, jid:to_bare(jid:to_lower(JID)), full) end,
     NewAcc = determine_subscription_state(ToRosterEntry, RemoteRosterEntryGetter),
