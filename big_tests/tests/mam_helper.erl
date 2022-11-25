@@ -16,7 +16,6 @@
 -module(mam_helper).
 
 -include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").

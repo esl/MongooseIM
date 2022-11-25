@@ -7,6 +7,8 @@
 
 -ignore_xref(format_user/1).
 
+-import(mongoose_graphql_helper, [undefined_to_null/1]).
+
 -include("mongoose_rsm.hrl").
 -include("mod_muc_room.hrl").
 
@@ -24,8 +26,9 @@ add_user_resource(JID, Resource) ->
 
 make_rooms_payload(Rooms, #rsm_out{count = Count, index = Index, first = First, last = Last}) ->
     Rooms2 = [{ok, make_room_desc(R)} || R <- Rooms],
-    #{<<"rooms">> => Rooms2, <<"count">> => Count, <<"index">> => Index,
-      <<"first">> => First, <<"last">> => Last}.
+    #{<<"rooms">> => Rooms2,
+      <<"count">> => undefined_to_null(Count), <<"index">> => undefined_to_null(Index),
+      <<"first">> => undefined_to_null(First), <<"last">> => undefined_to_null(Last)}.
 
 make_room_desc(#{jid := JID, title := Title} = Room) ->
     Private = maps:get(private, Room, null),

@@ -49,7 +49,7 @@ type MUCRoomDesc{
   "Is the room private?"
   private: Boolean
   "Number of the users"
-  usersNumber: Int
+  usersNumber: NonNegInt
 }
 
 "MUC room configuration"
@@ -93,7 +93,7 @@ type MUCRoomConfig{
   "Array of roles and/or privileges that enable retrieving the room's member list"
   mayGetMemberList: [String!]!
   "Maximum number of users in the room"
-  maxUsers: Int,
+  maxUsers: PosInt,
   "Does the room enabled logging events to a file on the disk?"
   logging: Boolean!,
 }
@@ -139,7 +139,7 @@ input MUCRoomConfigInput{
   "Array of roles and/or privileges that enable retrieving the room's member list"
   mayGetMemberList: [String!],
   "Maximum number of users in the room"
-  maxUsers: Int
+  maxUsers: PosInt
   "Does the room enabled logging events to a file on the disk?"
   logging: Boolean,
 }
@@ -149,9 +149,9 @@ type MUCRoomsPayload{
   "List of rooms descriptions"
   rooms: [MUCRoomDesc!]
   "Number of the rooms"
-  count: Int
+  count: NonNegInt
   "Index of the room"
-  index: Int
+  index: NonNegInt
   "First room title"
   first: String
   "Last room title"

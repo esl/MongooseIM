@@ -1,6 +1,6 @@
 -module(mongoose_graphql_helper).
 
--export([null_to_default/2, null_to_undefined/1]).
+-export([null_to_default/2, null_to_undefined/1, undefined_to_null/1]).
 
 -export([format_result/2, make_error/2, make_error/3]).
 
@@ -32,3 +32,6 @@ null_to_default(Value, _Default) ->
 
 null_to_undefined(null) -> undefined;
 null_to_undefined(V) -> V.
+
+undefined_to_null(undefined) -> null;
+undefined_to_null(V) -> V.
