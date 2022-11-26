@@ -707,8 +707,8 @@ handle_stanza_to_client(StateData = #c2s_data{host_type = HostType}, C2SState, A
             Res = process_stanza_to_client(StateData, HookParams, Acc2, StanzaName),
             Acc3 = maybe_deliver(StateData, Res),
             handle_state_after_packet(StateData, C2SState, Acc3);
-        {stop, _Acc1} ->
-            keep_state_and_data
+        {stop, Acc2} ->
+            handle_state_after_packet(StateData, C2SState, Acc2)
     end.
 
 %% @doc Process packets sent to the user (coming to user on c2s XMPP connection)
