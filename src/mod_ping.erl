@@ -151,7 +151,7 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 
 -spec handle_remote_hook(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
-    Params :: #{tag := atom(), args := term(), c2s_state := ejabberd_c2s:state()},
+    Params :: #{tag := atom(), hook_args := term(), c2s_state := ejabberd_c2s:state()},
     Extra :: gen_hook:extra().
 handle_remote_hook(HandlerState, #{tag := mod_ping, hook_args := Args, c2s_state := C2SState}, _) ->
     {ok, handle_remote_call(Args,

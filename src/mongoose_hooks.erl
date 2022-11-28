@@ -343,7 +343,10 @@ packet_to_component(Acc, From, To) ->
     Pid :: pid(),
     Result :: mongoose_acc:t().
 presence_probe_hook(HostType, Acc, From, To, Pid) ->
-    run_hook_for_host_type(presence_probe_hook, HostType, Acc, [From, To, Pid]).
+    Params = #{from => From, to => To, pid => Pid},
+    Args = [From, To, Pid],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(presence_probe_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
@@ -1672,8 +1675,11 @@ update_inbox_for_muc(HostType, Info) ->
     Features :: unknown | list(),
     Result :: mongoose_acc:t().
 caps_recognised(Acc, From, Pid, Features) ->
+    Params = #{from => From, pid => Pid, features => Features},
+    Args = [From, Pid, Features],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(caps_recognised, HostType, Acc, [From, Pid, Features]).
+    run_hook_for_host_type(caps_recognised, HostType, Acc, ParamsWithLegacyArgs).
 
 %% PubSub related hooks
 
