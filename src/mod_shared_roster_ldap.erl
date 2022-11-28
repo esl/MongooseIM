@@ -218,9 +218,9 @@ get_subscription_lists(Acc, #{jid := #jid{lserver = LServer} = JID}, _) ->
 
 -spec get_jid_info(Acc, Params, Extra) -> {ok, Acc} when
      Acc :: {mod_roster:subscription_state(), [binary()]},
-     Params :: #{to_jid := jid:jid(), remote_jid := jid:jid() | jid:simple_jid()},
+     Params :: #{to := jid:jid(), remote := jid:jid() | jid:simple_jid()},
      Extra :: gen_hook:extra().
-get_jid_info({Subscription, Groups}, #{to_jid := ToJID, remote_jid := JID}, _) ->
+get_jid_info({Subscription, Groups}, #{to := ToJID, remote := JID}, _) ->
     ToUS = jid:to_lus(ToJID),
     US1 = jid:to_lus(JID),
     SRUsers = get_user_to_groups_map(ToUS, false),
@@ -237,11 +237,11 @@ get_jid_info({Subscription, Groups}, #{to_jid := ToJID, remote_jid := JID}, _) -
 
 -spec in_subscription(Acc, Params, Extra) -> {ok | stop, Acc} when
      Acc :: mongoose_acc:t(),
-     Params :: #{to_jid := jid:jid(),
-                 from_jid := jid:jid(),
+     Params :: #{to := jid:jid(),
+                 from := jid:jid(),
                  type := mod_roster:sub_presence()},
      Extra :: gen_hook:extra().
-in_subscription(Acc, #{to_jid := ToJID, from_jid := FromJID, type := Type}, _) ->
+in_subscription(Acc, #{to := ToJID, from := FromJID, type := Type}, _) ->
     case process_subscription(in, ToJID, FromJID, Type) of
         stop ->
             {stop, Acc};
@@ -252,11 +252,11 @@ in_subscription(Acc, #{to_jid := ToJID, from_jid := FromJID, type := Type}, _) -
 
 -spec out_subscription(Acc, Params, Extra) -> {ok | stop, Acc} when
      Acc :: mongoose_acc:t(),
-     Params :: #{to_jid := jid:jid(),
-                 from_jid := jid:jid(),
+     Params :: #{to := jid:jid(),
+                 from := jid:jid(),
                  type := mod_roster:sub_presence()},
      Extra :: gen_hook:extra().
- out_subscription(Acc, #{to_jid := ToJID, from_jid := FromJID, type := Type}, _) ->
+ out_subscription(Acc, #{to := ToJID, from := FromJID, type := Type}, _) ->
     case process_subscription(out, FromJID, ToJID, Type) of
         stop ->
             {stop, Acc};

@@ -899,8 +899,10 @@ roster_groups(LServer) ->
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
 roster_get_jid_info(HostType, ToJID, RemBareJID) ->
-    run_hook_for_host_type(roster_get_jid_info, HostType, {none, []},
-                           [HostType, ToJID, RemBareJID]).
+    Params = #{to => ToJID, remote => RemBareJID},
+    Args = [HostType, ToJID, RemBareJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_get_jid_info, HostType, {none, []}, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract
 %%% user's subscription list.
@@ -914,9 +916,7 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
     Params = #{jid => BareJID},
     Args = [BareJID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc,
-                           ParamsWithLegacyArgs).
+    run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
@@ -924,7 +924,9 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
     HostType :: mongooseim:host_type(),
     Result :: [exml:element()].
 roster_get_versioning_feature(HostType) ->
-    run_hook_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
+    Args = [HostType],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_hook_for_host_type(roster_get_versioning_feature, HostType, [], ParamsWithLegacyArgs).
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
@@ -937,7 +939,7 @@ roster_get_versioning_feature(HostType) ->
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
     ToJID = jid:to_bare(To),
-    Params = #{to_jid => ToJID, from => From, type => Type, reason => Reason},
+    Params = #{to => ToJID, from => From, type => Type, reason => Reason},
     Args = [ToJID, From, Type, Reason],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -952,9 +954,12 @@ roster_in_subscription(Acc, To, From, Type, Reason) ->
     Type :: mod_roster:sub_presence(),
     Result :: mongoose_acc:t().
 roster_out_subscription(Acc, From, To, Type) ->
+    FromJID = jid:to_bare(From),
+    Params = #{to => To, from => FromJID, type => Type},
+    Args = [FromJID, To, Type],
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_out_subscription, HostType, Acc,
-                           [jid:to_bare(From), To, Type]).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_out_subscription, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
 -spec roster_process_item(HostType, LServer, Item) -> Result when
