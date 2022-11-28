@@ -706,7 +706,10 @@ privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
     JID :: jid:jid(),
     Result :: mongoose_privacy:userlist().
 privacy_get_user_list(HostType, JID) ->
-    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [HostType, JID]).
+    Params = #{jid => JID},
+    Args = [HostType, JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, ParamsWithLegacyArgs).
 
 -spec privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) -> Result when
     HostType :: mongooseim:host_type(),
@@ -741,7 +744,10 @@ privacy_iq_set(HostType, Acc, From, To, IQ) ->
     NewList :: mongoose_privacy:userlist(),
     Result :: false | mongoose_privacy:userlist().
 privacy_updated_list(HostType, OldList, NewList) ->
-    run_hook_for_host_type(privacy_updated_list, HostType, false, [OldList, NewList]).
+    Params = #{old_list => OldList, new_list => NewList},
+    Args = [OldList, NewList],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_updated_list, HostType, false, ParamsWithLegacyArgs).
 
 %% Session management related hooks
 
