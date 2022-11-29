@@ -480,7 +480,7 @@ do_handle_enable(Acc, StateData, false) ->
     HostType = mongoose_c2s:get_host_type(StateData),
     SmState = build_sm_handler(HostType),
     ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {ok, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
+    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
 
 do_handle_enable(Acc, StateData, true) ->
     SMID = make_smid(),
@@ -490,7 +490,7 @@ do_handle_enable(Acc, StateData, true) ->
     Stanza = stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]),
     SmState = build_sm_handler(HostType),
     ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {ok, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}.
+    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}.
 
 -spec handle_resume(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
