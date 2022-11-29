@@ -369,10 +369,7 @@ maybe_handle_stream_mgmt_reroute(Acc, _StateData, _HostType, _Reason, {error, no
 handle_user_terminate(SmState = #sm_state{buffer = Buffer, counter_in = H}, StateData, HostType) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
-    Jid = mongoose_c2s:get_jid(StateData),
-    OrderedBuffer = lists:reverse(Buffer),
-    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
-    [mongoose_c2s:reroute(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer],
+    mongoose_c2s:reroute_buffer(StateData, Buffer),
     SmState#sm_state{buffer = [], buffer_size = 0}.
 
 -spec terminate(term(), c2s_state(), mongoose_c2s:c2s_data()) -> term().

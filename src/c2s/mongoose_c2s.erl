@@ -17,7 +17,7 @@
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
-         reroute/2, merge_states/2]).
+         route/2, reroute_buffer/2, reroute_buffer_to_peer/3, merge_states/2]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -837,18 +837,41 @@ send_element_from_server_jid(StateData, El) ->
 bounce_messages(StateData) ->
     receive
         {route, Acc} ->
-            reroute(StateData, Acc),
+            reroute_one(StateData, Acc),
             bounce_messages(StateData);
         _ ->
             bounce_messages(StateData)
     after 0 -> ok
     end.
 
-reroute(#c2s_data{sid = Sid}, Acc) ->
+-spec reroute_one(c2s_data(), mongoose_acc:t()) -> mongoose_acc:t().
+reroute_one(#c2s_data{sid = Sid}, Acc) ->
     {From, To, _El} = mongoose_acc:packet(Acc),
     Acc2 = patch_acc_for_reroute(Acc, Sid),
     ejabberd_router:route(From, To, Acc2).
 
+-spec reroute_buffer(c2s_data(), [mongoose_acc:t()]) -> term().
+reroute_buffer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Buffer) ->
+    OrderedBuffer = lists:reverse(Buffer),
+    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    [reroute_one(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+
+-spec reroute_buffer_to_peer(c2s_data(), pid(), [mongoose_acc:t()]) -> term().
+reroute_buffer_to_peer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Pid, Buffer) ->
+    OrderedBuffer = lists:reverse(Buffer),
+    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    [reroute_one_to_pid(StateData, Pid, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+
+-spec reroute_one_to_pid(c2s_data(), pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
+reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->
+    Acc2 = patch_acc_for_reroute(Acc, Sid),
+    route(Pid, Acc2).
+
+-spec route(pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
+route(Pid, Acc) ->
+    Pid ! {route, Acc}.
+
+-spec patch_acc_for_reroute(mongoose_acc:t(), ejabberd_sm:sid()) -> mongoose_acc:t().
 patch_acc_for_reroute(Acc, Sid) ->
     case mongoose_acc:stanza_name(Acc) of
         <<"message">> ->
