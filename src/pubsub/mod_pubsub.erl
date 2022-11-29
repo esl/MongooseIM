@@ -66,13 +66,18 @@
 -define(PUSHNODE, <<"push">>).
 
 %% exports for hooks
--export([presence_probe/4, caps_recognised/4,
-         in_subscription/5, out_subscription/4,
-         on_user_offline/5, remove_user/3,
+-export([presence_probe/3,
+         caps_recognised/3,
+         in_subscription/3,
+         out_subscription/3,
+         on_user_offline/3,
+         remove_user/3,
          disco_local_features/3,
-         disco_sm_identity/1,
-         disco_sm_features/1, disco_sm_items/1, handle_pep_authorization_response/1,
-         handle_remote_hook/4]).
+         disco_sm_identity/3,
+         disco_sm_features/3,
+         disco_sm_items/3,
+         handle_pep_authorization_response/3,
+         handle_remote_hook/3]).
 
 %% exported iq handlers
 -export([iq_sm/4]).
@@ -119,15 +124,31 @@
     {?MOD_PUBSUB_DB_BACKEND, start, 0},
     {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
     {?MOD_PUBSUB_DB_BACKEND, stop, 0},
-    affiliation_to_string/1, caps_recognised/4, create_node/7, default_host/0,
-    delete_item/4, delete_node/3, disco_sm_features/1,
-    disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
-    get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
-    handle_remote_hook/4, host/2, in_subscription/5, iq_sm/4, node_action/4, node_call/4,
-    on_user_offline/5, out_subscription/4, plugin/2, plugin/1, presence_probe/4,
-    publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
-    string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
-    subscription_to_string/1, tree_action/3, unsubscribe_node/5,
+    affiliation_to_string/1,
+    create_node/7,
+    default_host/0,
+    delete_item/4,
+    delete_node/3,
+    extended_error/3,
+    get_cached_item/2,
+    get_item/3,
+    get_items/2,
+    host/2,
+    iq_sm/4,
+    node_action/4,
+    node_call/4,
+    plugin/2,
+    plugin/1,
+    publish_item/6,
+    send_items/7,
+    serverhost/1,
+    start_link/2,
+    string_to_affiliation/1,
+    string_to_subscription/1,
+    subscribe_node/5,
+    subscription_to_string/1,
+    tree_action/3,
+    unsubscribe_node/5,
     handle_msg/1
 ]).
 
@@ -376,15 +397,19 @@ process_packet(Acc, From, To, El, #{state := State}) ->
 %% GDPR callback
 %%====================================================================
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
-     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
-     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
-     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: gdpr:personal_data(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
+    Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
+    Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
+    Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
 
-     [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
-      {pubsub_nodes, ["node_name", "type"], Nodes},
-      {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc].
+    NewAcc = [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
+              {pubsub_nodes, ["node_name", "type"], Nodes},
+              {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc],
+    {ok, NewAcc}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -398,11 +423,10 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     init_backend(ServerHost, Opts),
     Plugins = init_plugins(Host, ServerHost, Opts),
 
-    add_hooks(ServerHost, legacy_hooks()),
     gen_hook:add_handlers(hooks(ServerHost)),
     case lists:member(?PEPNODE, Plugins) of
         true ->
-            add_hooks(ServerHost, pep_hooks()),
+            gen_hook:add_handlers(pep_hooks(ServerHost)),
             add_pep_iq_handlers(ServerHost, Opts);
         false ->
             ok
@@ -430,34 +454,24 @@ init_backend(ServerHost, Opts = #{backend := Backend}) ->
     mod_pubsub_db_backend:start(),
     maybe_start_cache_module(ServerHost, Opts).
 
-add_hooks(ServerHost, Hooks) ->
-    [ ejabberd_hooks:add(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
-
-delete_hooks(ServerHost, Hooks) ->
-    [ ejabberd_hooks:delete(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
-
-legacy_hooks() ->
-    [
-     {sm_remove_connection_hook, on_user_offline, 75},
-     {presence_probe_hook, presence_probe, 80},
-     {roster_in_subscription, in_subscription, 50},
-     {roster_out_subscription, out_subscription, 50},
-     {remove_user, remove_user, 50},
-     {anonymous_purge_hook, remove_user, 50},
-     {get_personal_data, get_personal_data, 50}
-    ].
-
 hooks(ServerHost) ->
-    [{disco_local_features, ServerHost, fun ?MODULE:disco_local_features/3, #{}, 75}].
+    [{disco_local_features, ServerHost, fun ?MODULE:disco_local_features/3, #{}, 75},
+     {sm_remove_connection_hook, ServerHost, fun ?MODULE:on_user_offline/3, #{}, 75},
+     {presence_probe_hook, ServerHost, fun ?MODULE:presence_probe/3, #{}, 80},
+     {roster_in_subscription, ServerHost, fun ?MODULE:in_subscription/3, #{}, 50},
+     {roster_out_subscription, ServerHost, fun ?MODULE:out_subscription/3, #{}, 50},
+     {remove_user, ServerHost, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge_hook, ServerHost, fun ?MODULE:remove_user/3, #{}, 50},
+     {get_personal_data, ServerHost, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
-pep_hooks() ->
+pep_hooks(ServerHost) ->
     [
-     {caps_recognised, caps_recognised, 80},
-     {disco_sm_identity, disco_sm_identity, 75},
-     {disco_sm_features, disco_sm_features, 75},
-     {disco_sm_items, disco_sm_items, 75},
-     {filter_local_packet, handle_pep_authorization_response, 1},
-     {c2s_remote_hook, handle_remote_hook, 100}
+     {caps_recognised, ServerHost, fun ?MODULE:caps_recognised/3, #{}, 80},
+     {disco_sm_identity, ServerHost, fun ?MODULE:disco_sm_identity/3, #{}, 75},
+     {disco_sm_features, ServerHost, fun ?MODULE:disco_sm_features/3, #{}, 75},
+     {disco_sm_items, ServerHost, fun ?MODULE:disco_sm_items/3, #{}, 75},
+     {filter_local_packet, ServerHost, fun ?MODULE:handle_pep_authorization_response/3, #{}, 1},
+     {c2s_remote_hook, ServerHost, fun ?MODULE:handle_remote_hook/3, #{}, 100}
     ].
 
 add_pep_iq_handlers(ServerHost, #{iqdisc := IQDisc}) ->
@@ -629,10 +643,13 @@ disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}, _
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
--spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
+-spec disco_sm_identity(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:identity_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
     Identities = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From),
-    mongoose_disco:add_identities(Identities, Acc).
+    {ok, mongoose_disco:add_identities(Identities, Acc)}.
 
 disco_identity(error, _Node, _From) ->
     [];
@@ -662,10 +679,13 @@ pep_identity(Options) ->
 pep_identity() ->
     #{category => <<"pubsub">>, type => <<"pep">>}.
 
--spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
+-spec disco_sm_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:feature_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
     Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
-    mongoose_disco:add_features(Features, Acc).
+    {ok, mongoose_disco:add_features(Features, Acc)}.
 
 -spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _Node, _From) ->
@@ -686,10 +706,13 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
+-spec disco_sm_items(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}, _, _) ->
     Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
-    mongoose_disco:add_items(Items, Acc).
+    {ok, mongoose_disco:add_items(Items, Acc)}.
 
 -spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
 disco_items(Host, <<>>, From) ->
@@ -747,9 +770,13 @@ disco_item(Host, ItemId) ->
 %% callback that prevents routing subscribe authorizations back to the sender
 %%
 
-handle_pep_authorization_response({From, To, Acc, #xmlel{ name = Name } = Packet}) ->
+-spec handle_pep_authorization_response(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: gen_hook:extra().
+handle_pep_authorization_response({From, To, Acc, #xmlel{ name = Name } = Packet}, _, _) ->
     Type = mongoose_acc:stanza_type(Acc),
-    handle_pep_authorization_response(Name, Type, From, To, Acc, Packet).
+    {ok, handle_pep_authorization_response(Name, Type, From, To, Acc, Packet)}.
 
 handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->
     {From, To, Acc, Packet};
@@ -768,68 +795,85 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
 %% -------
 %% callback for remote hook calls, to distribute pep messages from the node owner c2s process
 %%
-
-handle_remote_hook(HandlerState, pep_message, {Feature, From, Packet}, C2SState) ->
+-spec handle_remote_hook(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: term(),
+    Params :: #{tag := atom(), hook_args := term(), c2s_state := ejabberd_c2s:state()},
+    Extra :: gen_hook:extra().
+handle_remote_hook(HandlerState,
+                   #{tag := pep_message, hook_args := {Feature, From, Packet}, c2s_state := C2SState},
+                   _) ->
     Recipients = mongoose_hooks:c2s_broadcast_recipients(C2SState,
                                                          {pep_message, Feature},
                                                          From, Packet),
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
                   lists:usort(Recipients)),
-    HandlerState;
-handle_remote_hook(HandlerState, _, _, _) ->
-    HandlerState.
+    {ok, HandlerState};
+handle_remote_hook(HandlerState, _, _) ->
+    {ok, HandlerState}.
 
 %% -------
 %% presence hooks handling functions
 %%
 
-caps_recognised(Acc, #jid{ luser = U, lserver = S } = JID, Pid, _Features) ->
+-spec caps_recognised(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(), pid := pid()},
+    Extra :: gen_hook:extra().
+caps_recognised(Acc, #{from := #jid{ luser = U, lserver = S } = JID, pid := Pid}, _) ->
     Host = host(S, S),
     IgnorePepFromOffline = gen_mod:get_module_opt(S, ?MODULE, ignore_pep_from_offline),
     notify_worker(S, U, {send_last_pep_items, Host, IgnorePepFromOffline, JID, Pid}),
-    Acc.
+    {ok, Acc}.
 
-presence_probe(Acc, #jid{luser = U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
+-spec presence_probe(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(), to := jid:jid()},
+    Extra :: gen_hook:extra().
+presence_probe(Acc, #{from := #jid{luser = U, lserver = S, lresource = _R} = JID, to := JID}, _) ->
     %% Get subdomain
     Host = host(S, S),
     Plugins = plugins(S),
     notify_worker(S, U, {send_last_pubsub_items, Host, _Recipient = JID, Plugins}),
-    Acc;
-presence_probe(Acc, _Host, _JID, _Pid) ->
-    Acc.
+    {ok, Acc};
+presence_probe(Acc, _, _) ->
+    {ok, Acc}.
 
 %% -------
 %% subscription hooks handling functions
 %%
 
--spec out_subscription(Acc :: mongoose_acc:t(),
-                       FromJID :: jid:jid(),
-                       ToJID :: jid:jid(),
-                       Type :: mod_roster:sub_presence()) ->
-    mongoose_acc:t().
-out_subscription(Acc, #jid{lserver = LServer, luser = LUser} = FromJID, ToJID, subscribed) ->
-    {PUser, PServer, PResource} = jid:to_lower(ToJID),
+-spec out_subscription(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{to := jid:jid(),
+                from := jid:jid(),
+                type := mod_roster:sub_presence()},
+    Extra :: gen_hook:extra().
+out_subscription(Acc,
+                 #{to := #jid{luser = PUser, lserver = PServer, lresource = PResource},
+                   from := #jid{luser = LUser, lserver = LServer} = FromJID,
+                   type := subscribed},
+                 _) ->
     PResources = case PResource of
                      <<>> -> user_resources(PUser, PServer);
                      _ -> [PResource]
                  end,
     Host = host(LServer, LServer),
     notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID, {PUser, PServer, PResources}}),
-    Acc;
-out_subscription(Acc, _, _, _) ->
-    Acc.
+    {ok, Acc};
+out_subscription(Acc, _, _) ->
+    {ok, Acc}.
 
--spec in_subscription(Acc:: mongoose_acc:t(),
-                      ToJID :: jid:jid(),
-                      OwnerJID ::jid:jid(),
-                      Type :: mod_roster:sub_presence(),
-                      _:: any()) ->
-    mongoose_acc:t().
-in_subscription(Acc, ToJID, OwnerJID, unsubscribed, _) ->
+-spec in_subscription(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{to := jid:jid(),
+                from := jid:jid(),
+                type := mod_roster:sub_presence()},
+    Extra :: gen_hook:extra().
+in_subscription(Acc, #{to := ToJID, from := OwnerJID, type := unsubscribed}, _) ->
     unsubscribe_user(ToJID, OwnerJID),
-    Acc;
-in_subscription(Acc, _, _, _, _) ->
-    Acc.
+    {ok, Acc};
+in_subscription(Acc, _, _) ->
+    {ok, Acc}.
 
 unsubscribe_user(Entity, Owner) ->
     ServerHosts = lists:usort(lists:foldl(
@@ -867,14 +911,15 @@ unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
 %% -------
 %% user remove hook handling function
 %%
-
-remove_user(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
     lists:foreach(fun(PType) ->
                           remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
                   end, plugins(LServer)),
-    Acc.
+    {ok, Acc}.
 
 remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
     try
@@ -930,11 +975,10 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
     mongoose_domain_api:unregister_subdomain(ServerHost, SubdomainPattern),
     case lists:member(?PEPNODE, Plugins) of
         true ->
-            delete_hooks(ServerHost, pep_hooks()),
+            gen_hook:delete_handlers(pep_hooks(ServerHost)),
             delete_pep_iq_handlers(ServerHost);
         false -> ok
     end,
-    delete_hooks(ServerHost, legacy_hooks()),
     gen_hook:delete_handlers(hooks(ServerHost)),
     case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
         undefined ->
@@ -4400,19 +4444,18 @@ extended_headers(Jids) ->
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
      || Jid <- Jids].
 
--spec on_user_offline(Acc :: mongoose_acc:t(),
-                      SID :: 'undefined' | ejabberd_sm:sid(),
-                      JID :: jid:jid(),
-                      Info :: ejabberd_sm:info(),
-                      Reason :: ejabberd_sm:close_reason()) -> Result :: mongoose_acc:t().
-on_user_offline(Acc, _, JID, _, _) ->
-    HT = mongoose_acc:host_type(Acc),
-    {User, Server, Resource} = jid:to_lower(JID),
+-spec on_user_offline(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+on_user_offline(Acc,
+                #{jid := #jid{luser = User, lserver = Server, lresource = Resource}},
+                #{host_type := HostType}) ->
     case user_resources(User, Server) of
-        [] -> purge_offline(HT, {User, Server, Resource});
+        [] -> purge_offline(HostType, {User, Server, Resource});
         _ -> true
     end,
-    Acc.
+    {ok, Acc}.
 
 purge_offline(HT, {_, LServer, _} = LJID) ->
     Host = host(HT, LServer),
