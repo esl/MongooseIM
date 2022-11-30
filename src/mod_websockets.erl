@@ -30,6 +30,7 @@
          socket_send_xml/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
+         get_tls_last_message/1,
          is_ssl/1]).
 
 %% ejabberd_socket compatibility
@@ -493,6 +494,10 @@ has_peer_cert(Socket, _LOpts) ->
 -spec is_channel_binding_supported(socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->
     false.
+
+-spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
+get_tls_last_message(_Socket) ->
+    {error, undefined}.
 
 -spec is_ssl(socket()) -> boolean().
 is_ssl(_Socket) ->

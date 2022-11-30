@@ -10,6 +10,7 @@
          socket_send_xml/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
+         get_tls_last_message/1,
          is_ssl/1]).
 
 -record(state, {
@@ -119,7 +120,7 @@ send(just_tls, Socket, Data) ->
 send(ranch_tcp, Socket, Data) ->
     ranch_tcp:send(Socket, Data).
 
--spec has_peer_cert(mongoose_c2s_socket:state(), mongoose_listener:options()) -> boolean().
+-spec has_peer_cert(state(), mongoose_listener:options()) -> boolean().
 has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
     case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket), TlsOpts} of
         {0, {ok, _}, _} -> true;
@@ -136,10 +137,16 @@ has_peer_cert(#state{transport = just_tls, socket = Socket}, _) ->
 has_peer_cert(#state{transport = ranch_tcp}, _) ->
     false.
 
--spec is_channel_binding_supported(mongoose_c2s_socket:state()) -> boolean().
+-spec is_channel_binding_supported(state()) -> boolean().
 is_channel_binding_supported(#state{transport = Transport}) ->
     fast_tls == Transport.
 
--spec is_ssl(mongoose_c2s_socket:state()) -> boolean().
+-spec get_tls_last_message(state()) -> {ok, binary()} | {error, term()}.
+get_tls_last_message(#state{transport = fast_tls, socket = Socket}) ->
+    fast_tls:get_tls_last_message(peer, Socket);
+get_tls_last_message(_) ->
+    {error, undefined}.
+
+-spec is_ssl(state()) -> boolean().
 is_ssl(#state{transport = Transport}) ->
     ranch_tcp /= Transport.

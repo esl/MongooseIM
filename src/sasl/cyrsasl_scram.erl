@@ -97,7 +97,7 @@ calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech) ->
     end.
 
 maybe_get_tls_last_message(Socket, true) ->
-    case mongoose_tls:get_tls_last_message(ejabberd_socket:get_socket(Socket)) of
+    case mongoose_c2s_socket:get_tls_last_message(Socket) of
         {error, _Error} ->
             {none, <<>>};
         {ok, Msg} ->

@@ -42,8 +42,7 @@
          get_peer_certificate/1,
          close/1,
          sockname/1,
-         peername/1,
-         get_socket/1]).
+         peername/1]).
 
 -ignore_xref([change_shaper/2, compress/3, connect/3, get_peer_certificate/1,
               get_sockmod/1, sockname/1]).
@@ -288,7 +287,3 @@ peername(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
     inet:peername(Socket);
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
     SockMod:peername(Socket).
-
--spec get_socket(socket_state()) -> term().
-get_socket(#socket_state{socket = Socket}) ->
-    Socket.
