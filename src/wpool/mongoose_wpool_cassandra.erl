@@ -5,6 +5,10 @@
 -export([start/4]).
 -export([stop/2]).
 
+-ifdef(TEST).
+-export([prepare_cqerl_opts/1]).
+-endif.
+
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
 -spec init() -> ok.
@@ -50,7 +54,7 @@ prepare_cqerl_opts(ConnOpts) ->
 cqerl_opts(keyspace, #{keyspace := Keyspace}) ->
     [{keyspace, Keyspace}];
 cqerl_opts(auth, #{auth := #{plain := #{username := UserName, password := Password}}}) ->
-    [{cqerl_auth_plain_handler, [{UserName, Password}]}];
+    [{auth, {cqerl_auth_plain_handler, [{UserName, Password}]}}];
 cqerl_opts(tcp, #{}) ->
     [{tcp_opts, [{keepalive, true}]}]; % always set
 cqerl_opts(tls, #{tls := TLSOpts}) ->
