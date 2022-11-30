@@ -77,7 +77,7 @@ commands() ->
                         args = [], result = {res, rescode}},
      #ejabberd_commands{name = get_loglevel, tags = [logs, server],
                         desc = "Get the current loglevel",
-                        module = mongoose_server_api, function = get_loglevel,
+                        module = mongoose_server_api, function = get_loglevel_mongooseimctl,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],

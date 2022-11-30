@@ -163,7 +163,7 @@ leave_but_no_cluster(Config) ->
 join_twice(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
     get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
-    get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
+    ?assertEqual(<<"already_joined">>, get_err_code(join_cluster(atom_to_binary(Node2), Config))),
     distributed_helper:verify_result(RPCSpec2, add).
 
 remove_dead_from_cluster(Config) ->
