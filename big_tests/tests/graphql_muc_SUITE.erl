@@ -270,7 +270,7 @@ maybe_enable_mam() ->
         Backend ->
             MAMOpts = mam_helper:config_opts(
                         #{backend => Backend,
-                          muc => #{host => subhost_pattern(muc_light_helper:muc_host_pattern())},
+                          muc => #{host => subhost_pattern(muc_helper:muc_host_pattern())},
                           async_writer => #{enabled => false}}),
             dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MAMOpts}]),
             true
