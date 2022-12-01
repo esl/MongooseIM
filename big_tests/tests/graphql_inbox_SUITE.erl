@@ -2,12 +2,14 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, user_to_bin/1,
                          get_ok_value/2, get_err_msg/1, get_err_code/1, get_not_loaded/1,
                          get_unauthorized/1]).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("inbox.hrl").
 
@@ -55,6 +57,7 @@ admin_inbox_tests() ->
      admin_try_flush_nonexistent_user_bin,
      admin_try_flush_user_bin_nonexistent_domain,
      admin_flush_domain_bin,
+     admin_flush_unprepped_domain_bin,
      admin_try_flush_nonexistent_domain_bin,
      admin_flush_global_bin,
      admin_flush_global_bin_after_days,
@@ -155,13 +158,18 @@ admin_try_flush_user_bin_nonexistent_domain(Config) ->
     ?assertErrCode(Res, domain_not_found).
 
 admin_flush_domain_bin(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
+    Config1 = [{domain, domain()} | Config],
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
+                                    fun admin_flush_domain_bin/4).
+
+admin_flush_unprepped_domain_bin(Config) ->
+    Config1 = [{domain, unprep(domain())} | Config],
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {alice_bis, 1}, {kate, 1}],
                                     fun admin_flush_domain_bin/4).
 
 admin_flush_domain_bin(Config, Alice, AliceBis, Kate) ->
     RoomBinJID = create_room_and_make_users_leave(Alice, AliceBis, Kate),
-    Domain = domain_helper:domain(),
-    Res = flush_domain_bin(Domain, Config),
+    Res = flush_domain_bin(?config(domain, Config), Config),
     NumOfRows = get_ok_value(p(flushDomainBin), Res),
     ?assertEqual(1, NumOfRows),
     inbox_helper:check_inbox(Kate, [], #{box => bin}),
@@ -213,7 +221,8 @@ admin_flush_user_bin_inbox_not_configured(Config, Alice) ->
     get_not_loaded(flush_user_bin(Alice, Config)).
 
 admin_flush_domain_bin_inbox_not_configured(Config) ->
-    get_not_loaded(flush_domain_bin(domain(), Config)).
+    get_not_loaded(flush_domain_bin(domain(), Config)),
+    get_not_loaded(flush_domain_bin(unprep(domain()), Config)).
 
 admin_flush_global_bin_inbox_not_configured(Config) ->
     get_not_loaded(flush_global_bin(host_type(), 10, Config)).

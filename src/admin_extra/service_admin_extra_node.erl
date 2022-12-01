@@ -43,7 +43,7 @@ commands() ->
                            desc = "Get the Erlang cookie of this node",
                            module = mongoose_server_api, function = get_cookie,
                            args = [],
-                           result = {cookie, string}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = remove_node, tags = [erlang],
                            desc = "Remove a MongooseIM node from Mnesia clustering config",
                            module = mongoose_server_api, function = remove_node,

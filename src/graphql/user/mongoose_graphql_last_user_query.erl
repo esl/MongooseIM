@@ -11,7 +11,7 @@
 
 -type last_info() :: mongoose_graphql_last_helper:last_info().
 -type args() :: mongoose_graphql:args().
--type ctx() :: mongoose_graphql:ctx().
+-type ctx() :: mongoose_graphql:context().
 
 execute(Ctx, last, <<"getLast">>, Args) ->
     get_last(Ctx, Args).

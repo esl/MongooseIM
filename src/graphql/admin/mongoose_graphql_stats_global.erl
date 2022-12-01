@@ -12,14 +12,20 @@
 -include("jlib.hrl").
 
 execute(_Ctx, globalStats, <<"uptimeSeconds">>, _Args) ->
-    {ok, stats_api:stats(<<"uptimeseconds">>)};
+    globalStats(<<"uptimeseconds">>);
 execute(_Ctx, globalStats, <<"registeredUsers">>, _Args) ->
-    {ok, stats_api:stats(<<"registeredusers">>)};
+    globalStats(<<"registeredusers">>);
 execute(_Ctx, globalStats, <<"onlineUsersNode">>, _Args) ->
-    {ok, stats_api:stats(<<"onlineusersnode">>)};
+    globalStats(<<"onlineusersnode">>);
 execute(_Ctx, globalStats, <<"onlineUsers">>, _Args) ->
-    {ok, stats_api:stats(<<"onlineusers">>)};
+    globalStats(<<"onlineusers">>);
 execute(_Ctx, globalStats, <<"incomingS2S">>, _Args) ->
-    {ok, stats_api:incoming_s2s_number()};
+    stats_api:incoming_s2s_number();
 execute(_Ctx, globalStats, <<"outgoingS2S">>, _Args) ->
-    {ok, stats_api:outgoing_s2s_number()}.
+    stats_api:outgoing_s2s_number().
+
+globalStats(Name) ->
+    case stats_api:stats(Name) of
+        {ok, _} = Result -> Result;
+        Error -> make_error(Error, #{})
+    end.

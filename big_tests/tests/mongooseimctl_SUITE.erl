@@ -1227,7 +1227,7 @@ expect_existing_commands(Res) ->
     ?assertMatch({match, _}, re:run(Res, "countUsers")).
 
 expect_command_arguments(Res) ->
-    ?assertMatch({match, _}, re:run(Res, "domain\s+String!")).
+    ?assertMatch({match, _}, re:run(Res, "domain\s+DomainName!")).
 
 %%-----------------------------------------------------------------
 %% Help tests

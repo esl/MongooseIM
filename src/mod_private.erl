@@ -42,10 +42,6 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([
-    behaviour_info/1, get_personal_data/3, remove_user/3, remove_domain/3
-]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
@@ -55,17 +51,21 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: gdpr:personal_data(),
+      Params :: #{jid := jid:jid()},
+      Extra :: gen_hook:extra().
+get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     Schema = ["ns", "xml"],
     NSs = mod_private_backend:get_all_nss(HostType, LUser, LServer),
     Entries = lists:map(
                 fun(NS) ->
                         Data = mod_private_backend:multi_get_data(
                                  HostType, LUser, LServer, [{NS, default}]),
-                        { NS, exml:to_binary(Data) }
+                        {NS, exml:to_binary(Data)}
                 end, NSs),
-    [{private, Schema, Entries} | Acc].
+    NewAcc = [{private, Schema, Entries} | Acc],
+    {ok, NewAcc}.
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
@@ -73,22 +73,23 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok | {error, atom()}.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_private_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok | {error, not_registered}.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm).
 
 supported_features() -> [dynamic_domains].
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{remove_user, HostType, ?MODULE, remove_user, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
+    [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 config_spec() ->
     #section{
@@ -116,20 +117,22 @@ riak_config_spec() ->
 %% ------------------------------------------------------------------
 %% Handlers
 
-remove_user(Acc, User, Server) ->
-    HostType = mongoose_acc:host_type(Acc),
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: gen_hook:extra().
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     R = mod_private_backend:remove_user(HostType, LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
+    {ok, Acc}.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok , Acc} when
+      Acc :: mongoose_domain_api:remove_domain_acc(),
+      Params :: #{domain := jid:lserver()},
+      Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_private_backend:remove_domain(HostType, Domain),
-    Acc.
+    {ok, Acc}.
 
 process_iq(Acc,
            From = #jid{lserver = LServer, luser = LUser},

@@ -12,6 +12,12 @@
 -include("jlib.hrl").
 
 execute(_Ctx, Domain, <<"registeredUsers">>, _Args) ->
-    {ok, stats_api:stats(<<"registeredusers">>, Domain)};
+    domainStats(<<"registeredusers">>, Domain);
 execute(_Ctx, Domain, <<"onlineUsers">>, _Args) ->
-    {ok, stats_api:stats(<<"onlineusers">>, Domain)}.
+    domainStats(<<"onlineusers">>, Domain).
+
+domainStats(Name, Domain) ->
+    case stats_api:stats(Name, Domain) of
+        {ok, _} = Result -> Result;
+        Error -> make_error(Error, #{domain => Domain})
+    end.

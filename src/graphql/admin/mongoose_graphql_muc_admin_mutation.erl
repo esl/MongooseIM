@@ -34,14 +34,12 @@ execute(_Ctx, _Obj, <<"exitRoom">>, Args) ->
     exit_room(Args).
 
 -spec create_instant_room(map()) -> {ok, map()} | {error, resolver_error()}.
-create_instant_room(#{<<"mucDomain">> := MUCDomain, <<"name">> := Name,
-                      <<"owner">> := OwnerJID, <<"nick">> := Nick}) ->
-    case mod_muc_api:create_instant_room(MUCDomain, Name, OwnerJID, Nick) of
+create_instant_room(#{<<"room">> := RoomJID, <<"owner">> := OwnerJID, <<"nick">> := Nick}) ->
+    case mod_muc_api:create_instant_room(RoomJID, OwnerJID, Nick) of
         {ok, Room} ->
             {ok, mongoose_graphql_muc_helper:make_room_desc(Room)};
         Error ->
-            make_error(Error, #{mucDomain => MUCDomain,
-                                owner => jid:to_binary(OwnerJID)})
+            make_error(Error, #{room => jid:to_binary(RoomJID), owner => jid:to_binary(OwnerJID)})
     end.
 
 -spec invite_user(map()) -> {ok, binary()} | {error, resolver_error()}.

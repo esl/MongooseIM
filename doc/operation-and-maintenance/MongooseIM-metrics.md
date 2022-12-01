@@ -74,7 +74,6 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
 | `[HostType, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
-| `[HostType, c2s_unauthenticated_iq]` | spiral | An IQ sent from a user to a server without authentication. |
 | `[HostType, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
 | `[HostType, disco_local_features]` | spiral | A list of server features is gathered. |
 | `[HostType, disco_local_identity]` | spiral | A list of server identities is gathered. |

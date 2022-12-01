@@ -3,6 +3,6 @@ Allow admin to generate upload/download URL for a file on user's behalf".
 """
 type HttpUploadAdminMutation @use(modules: ["mod_http_upload"]) @protected{
     "Allow admin to generate upload/download URLs for a file on user's behalf"
-    getUrl(domain: String!, filename: String!, size: Int!, contentType: String!, timeout: Int!): FileUrls
+    getUrl(domain: DomainName!, filename: NonEmptyString!, size: PosInt!, contentType: String, timeout: PosInt!): FileUrls
       @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])
 }

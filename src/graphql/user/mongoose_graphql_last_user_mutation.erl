@@ -11,7 +11,7 @@
 
 -type last_info() :: map().
 -type args() :: mongoose_graphql:args().
--type ctx() :: mongoose_graphql:ctx().
+-type ctx() :: mongoose_graphql:context().
 
 execute(Ctx, last, <<"setLast">>, Args) ->
    set_last(Ctx, Args).

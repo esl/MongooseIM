@@ -3,10 +3,10 @@ Allow admin to get information about accounts.
 """
 type AccountAdminQuery @protected{
   "List users per domain"
-  listUsers(domain: String!): [String!]
+  listUsers(domain: DomainName!): [String!]
     @protected(type: DOMAIN, args: ["domain"])
   "Get number of users per domain"
-  countUsers(domain: String!): Int
+  countUsers(domain: DomainName!): Int
     @protected(type: DOMAIN, args: ["domain"])
   "Check if a password is correct"
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
@@ -24,7 +24,7 @@ Allow admin to manage user accounts.
 """
 type AccountAdminMutation @protected{
   "Register a user. Username will be generated when skipped"
-  registerUser(domain: String!, username: String, password: String!): UserPayload
+  registerUser(domain: DomainName!, username: UserName, password: String!): UserPayload
     @protected(type: DOMAIN, args: ["domain"])
   "Remove the user's account along with all the associated personal data"
   removeUser(user: JID!): UserPayload

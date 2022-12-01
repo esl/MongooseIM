@@ -449,7 +449,8 @@ handle_package(Dir, ReturnMessID,
                LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
     HostType = acc_to_host_type(Acc),
     case is_archivable_message(HostType, Dir, Packet)
-         andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>)) of
+         andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>))
+         andalso should_archive_if_sent_to_yourself(LocJID, RemJID, Dir) of
         true ->
             ArcID = archive_id_int(HostType, LocJID),
             OriginID = mod_mam_utils:get_origin_id(Packet),
@@ -477,6 +478,12 @@ handle_package(Dir, ReturnMessID,
 should_archive_if_groupchat(HostType, <<"groupchat">>) ->
     gen_mod:get_module_opt(HostType, ?MODULE, archive_groupchats);
 should_archive_if_groupchat(_, _) ->
+    true.
+
+%% Only store messages sent to yourself in user_send_packet.
+should_archive_if_sent_to_yourself(LocJID, RemJID, incoming) ->
+    not jid:are_bare_equal(LocJID, RemJID);
+should_archive_if_sent_to_yourself(LocJID, RemJID, _Dir) ->
     true.
 
 -spec return_external_message_id_if_ok(ReturnMessID :: boolean(),

@@ -53,20 +53,20 @@ user_vcard_not_configured_tests() ->
 domain_admin_vcard_tests() ->
     [admin_set_vcard,
      admin_set_vcard_incomplete_fields,
+     domain_admin_set_vcard_no_host,
      domain_admin_set_vcard_no_permission,
-     domain_admin_set_vcard_no_user,
      admin_get_vcard,
      admin_get_vcard_no_vcard,
-     domain_admin_get_vcard_no_user,
+     domain_admin_get_vcard_no_host,
      domain_admin_get_vcard_no_permission].
 
 admin_vcard_tests() ->
     [admin_set_vcard,
      admin_set_vcard_incomplete_fields,
-     admin_set_vcard_no_user,
+     admin_set_vcard_no_host,
      admin_get_vcard,
      admin_get_vcard_no_vcard,
-     admin_get_vcard_no_user].
+     admin_get_vcard_no_host].
 
 admin_vcard_not_configured_tests() ->
     [admin_set_vcard_not_configured,
@@ -199,8 +199,8 @@ user_get_others_vcard_no_user(Config) ->
                                     fun user_get_others_vcard_no_user/2).
 
 user_get_others_vcard_no_user(Config, Alice) ->
-    Result = user_get_vcard(Alice, <<"AAAAA">>, Config),
-    ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
+    Result = user_get_vcard(Alice, <<"eddie@otherhost">>, Config),
+    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
 
 % User VCard not configured test cases
 
@@ -231,12 +231,12 @@ user_get_their_vcard_not_configured(Config, Alice) ->
 
 %% Domain admin test cases
 
-domain_admin_set_vcard_no_user(Config) ->
+domain_admin_set_vcard_no_host(Config) ->
     Vcard = complete_vcard_input(),
-    get_unauthorized(set_vcard(Vcard, <<"AAAAA">>, Config)).
+    get_unauthorized(set_vcard(Vcard, <<"eddie@otherhost">>, Config)).
 
-domain_admin_get_vcard_no_user(Config) ->
-    get_unauthorized(get_vcard(<<"AAAAA">>, Config)).
+domain_admin_get_vcard_no_host(Config) ->
+    get_unauthorized(get_vcard(<<"eddie@otherhost">>, Config)).
 
 domain_admin_get_vcard_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
@@ -276,10 +276,10 @@ admin_set_vcard(Config, Alice, _Bob) ->
     ParsedResultGet = get_ok_value([data, vcard, getVcard], ResultGet),
     ?assertEqual(Vcard, skip_null_fields(ParsedResultGet)).
 
-admin_set_vcard_no_user(Config) ->
+admin_set_vcard_no_host(Config) ->
     Vcard = complete_vcard_input(),
-    Result = set_vcard(Vcard, <<"AAAAA">>, Config),
-    ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
+    Result = set_vcard(Vcard, <<"eddie@otherhost">>, Config),
+    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -308,9 +308,9 @@ admin_get_vcard_no_vcard(Config, Alice) ->
     Result = get_vcard(user_to_bin(Alice), Config),
     ?assertEqual(<<"Vcard for user not found">>, get_err_msg(Result)).
 
-admin_get_vcard_no_user(Config) ->
-    Result = get_vcard(<<"AAAAA">>, Config),
-    ?assertEqual(<<"User does not exist">>, get_err_msg(Result)).
+admin_get_vcard_no_host(Config) ->
+    Result = get_vcard(<<"eddie@otherhost">>, Config),
+    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
 
 %% Admin VCard not configured test cases
 

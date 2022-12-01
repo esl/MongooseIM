@@ -9,7 +9,7 @@ type RosterAdminMutation @protected{
   addContacts(user: JID!, contacts: [ContactInput!]!) : [String]!
     @protected(type: DOMAIN, args: ["user"])
   "Manage the user's subscription to the contact"
-  subscription(user: JID!, contact: JID!, action: SubAction): String
+  subscription(user: JID!, contact: JID!, action: SubAction!): String
     @protected(type: DOMAIN, args: ["user"])
   "Delete user's contact"
   deleteContact(user: JID!, contact: JID!): String

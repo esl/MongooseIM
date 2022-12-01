@@ -2,7 +2,8 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(common_helper, [unprep/1]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, get_ok_value/2, get_err_msg/1,
                          get_coercion_err_msg/1, user_to_bin/1, user_to_full_bin/1, user_to_jid/1,
                          get_unauthorized/1, get_not_loaded/1]).
@@ -10,6 +11,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("jid/include/jid.hrl").
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -25,26 +27,32 @@ groups() ->
      {admin_http, [], admin_groups()},
      {admin_cli, [], admin_groups()},
      {admin_muc_configured, [], admin_muc_tests()},
+     {admin_muc_and_mam_configured, [], admin_muc_with_mam_tests()},
      {admin_muc_not_configured, [], admin_muc_not_configured_tests()},
-     {user_muc_not_configured, [parallel], user_muc_not_configured_tests()},
      {user_muc_configured, [parallel], user_muc_tests()},
+     {user_muc_and_mam_configured, [parallel], user_muc_with_mam_tests()},
+     {user_muc_not_configured, [parallel], user_muc_not_configured_tests()},
      {domain_admin_muc, [], domain_admin_muc_tests()}].
 
 user_groups() ->
     [{group, user_muc_configured},
+     {group, user_muc_and_mam_configured},
      {group, user_muc_not_configured}].
 
 admin_groups() ->
     [{group, admin_muc_configured},
+     {group, admin_muc_and_mam_configured},
      {group, admin_muc_not_configured}].
 
 user_muc_tests() ->
     [user_create_and_delete_room,
+     user_create_room_with_unprepped_name,
      user_try_delete_nonexistent_room,
      user_try_delete_room_by_not_owner,
      user_try_create_instant_room_with_nonexistent_domain,
-     user_try_create_instant_room_with_invalid_name,
+     user_try_create_instant_room_with_invalid_args,
      user_list_rooms,
+     user_try_list_rooms_for_nonexistent_domain,
      user_list_room_users,
      user_list_room_users_without_anonymous_mode,
      user_try_list_room_users_without_permission,
@@ -61,9 +69,6 @@ user_muc_tests() ->
      user_send_message_to_room_with_specified_res,
      user_send_private_message,
      user_without_session_send_message_to_room,
-     user_get_room_messages,
-     user_try_get_nonexistent_room_messages,
-     user_try_get_room_messages_without_permission,
      user_owner_set_user_affiliation,
      user_admin_set_user_affiliation,
      user_member_set_user_affiliation,
@@ -72,12 +77,19 @@ user_muc_tests() ->
      user_participant_set_user_role,
      user_try_set_nonexistent_room_role,
      user_can_enter_room,
+     user_cannot_enter_room_with_invalid_resource,
      user_can_enter_room_with_password,
      user_can_exit_room,
      user_list_room_affiliations,
      user_try_list_room_affiliations_without_permission,
-     user_try_list_nonexistent_room_affiliations
+     user_try_list_nonexistent_room_affiliations,
+     user_get_room_messages_muc_or_mam_not_configured
     ].
+
+user_muc_with_mam_tests() ->
+    [user_get_room_messages,
+     user_try_get_nonexistent_room_messages,
+     user_try_get_room_messages_without_permission].
 
 user_muc_not_configured_tests() ->
     [user_delete_room_muc_not_configured,
@@ -88,7 +100,7 @@ user_muc_not_configured_tests() ->
      user_kick_user_muc_not_configured,
      user_send_message_to_room_muc_not_configured,
      user_send_private_message_muc_not_configured,
-     user_get_room_messages_muc_not_configured,
+     user_get_room_messages_muc_or_mam_not_configured,
      user_owner_set_user_affiliation_muc_not_configured,
      user_moderator_set_user_role_muc_not_configured,
      user_can_enter_room_muc_not_configured,
@@ -96,12 +108,16 @@ user_muc_not_configured_tests() ->
      user_list_room_affiliations_muc_not_configured].
 
 admin_muc_tests() ->
-    [admin_create_and_delete_room,
+    [admin_list_rooms,
+     admin_list_rooms_with_invalid_args,
+     admin_create_and_delete_room,
+     admin_create_room_with_unprepped_name,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_create_instant_room_with_nonexistent_user,
+     admin_try_create_instant_room_with_invalid_args,
      admin_try_delete_nonexistent_room,
      admin_try_delete_room_with_nonexistent_domain,
-     admin_list_rooms,
+     admin_try_list_rooms_for_nonexistent_domain,
      admin_list_room_users,
      admin_try_list_users_from_nonexistent_room,
      admin_change_room_config,
@@ -116,8 +132,6 @@ admin_muc_tests() ->
      admin_try_kick_user_from_room_without_moderators,
      admin_send_message_to_room,
      admin_send_private_message,
-     admin_get_room_messages,
-     admin_try_get_nonexistent_room_messages,
      admin_set_user_affiliation,
      admin_try_set_nonexistent_room_user_affiliation,
      admin_set_user_role,
@@ -130,8 +144,13 @@ admin_muc_tests() ->
      admin_make_user_exit_room,
      admin_make_user_exit_room_bare_jid,
      admin_list_room_affiliations,
-     admin_try_list_nonexistent_room_affiliations
+     admin_try_list_nonexistent_room_affiliations,
+     admin_get_room_messages_muc_or_mam_not_configured
     ].
+
+admin_muc_with_mam_tests() ->
+    [admin_get_room_messages,
+     admin_try_get_nonexistent_room_messages].
 
 admin_muc_not_configured_tests() ->
     [admin_delete_room_muc_not_configured,
@@ -142,7 +161,7 @@ admin_muc_not_configured_tests() ->
      admin_kick_user_muc_not_configured,
      admin_send_message_to_room_muc_not_configured,
      admin_send_private_message_muc_not_configured,
-     admin_get_room_messages_muc_not_configured,
+     admin_get_room_messages_muc_or_mam_not_configured,
      admin_set_user_affiliation_muc_not_configured,
      admin_set_user_role_muc_not_configured,
      admin_make_user_enter_room_muc_not_configured,
@@ -150,11 +169,12 @@ admin_muc_not_configured_tests() ->
      admin_list_room_affiliations_muc_not_configured].
 
 domain_admin_muc_tests() ->
-    [admin_create_and_delete_room,
+    [admin_list_rooms,
+     admin_create_and_delete_room,
+     admin_create_room_with_unprepped_name,
      admin_try_create_instant_room_with_nonexistent_domain,
      admin_try_delete_nonexistent_room,
      domain_admin_create_and_delete_room_no_permission,
-     admin_list_rooms,
      domain_admin_list_rooms_no_permission,
      admin_list_room_users,
      domain_admin_list_room_users_no_permission,
@@ -198,11 +218,10 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(HostType, Config2),
     Config4 = dynamic_modules:save_modules(SecondaryHostType, Config3),
-    Config5 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config4),
-    Config6 = ejabberd_node_utils:init(mim(), Config5),
+    Config5 = ejabberd_node_utils:init(mim(), Config4),
     dynamic_modules:restart(HostType, mod_disco,
                             config_parser_helper:default_mod_config(mod_disco)),
-    Config6.
+    Config5.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -216,29 +235,57 @@ init_per_group(admin_http, Config) ->
 init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin_muc, Config) ->
-    Config1 = ensure_muc_started(Config),
-    graphql_helper:init_domain_admin_handler(Config1);
+    maybe_enable_mam(),
+    ensure_muc_started(),
+    graphql_helper:init_domain_admin_handler(Config);
+init_per_group(user, Config) ->
+    graphql_helper:init_user(Config);
 init_per_group(Group, Config) when Group =:= admin_muc_configured;
                                    Group =:= user_muc_configured ->
-    ensure_muc_started(Config);
+    disable_mam(),
+    ensure_muc_started(),
+    Config;
+init_per_group(Group, Config) when Group =:= admin_muc_and_mam_configured;
+                                   Group =:= user_muc_and_mam_configured ->
+    case maybe_enable_mam() of
+        true ->
+            ensure_muc_started(),
+            Config;
+        false ->
+            {skip, "No MAM backend available"}
+    end;
 init_per_group(Group, Config) when Group =:= admin_muc_not_configured;
                                    Group =:= user_muc_not_configured ->
-    ensure_muc_stopped(Config);
-init_per_group(user, Config) ->
-    graphql_helper:init_user(Config).
+    maybe_enable_mam(),
+    ensure_muc_stopped(),
+    Config.
 
-ensure_muc_started(Config) ->
+disable_mam() ->
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, stopped}]).
+
+maybe_enable_mam() ->
+    case mam_helper:backend() of
+        disabled ->
+            false;
+        Backend ->
+            MAMOpts = mam_helper:config_opts(
+                        #{backend => Backend,
+                          muc => #{host => subhost_pattern(muc_light_helper:muc_host_pattern())},
+                          async_writer => #{enabled => false}}),
+            dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_mam, MAMOpts}]),
+            true
+    end.
+
+ensure_muc_started() ->
     SecondaryHostType = domain_helper:secondary_host_type(),
     muc_helper:load_muc(),
     muc_helper:load_muc(SecondaryHostType),
-    mongoose_helper:ensure_muc_clean(),
-    Config.
+    mongoose_helper:ensure_muc_clean().
 
-ensure_muc_stopped(Config) ->
+ensure_muc_stopped() ->
     SecondaryHostType = domain_helper:secondary_host_type(),
     muc_helper:unload_muc(),
-    muc_helper:unload_muc(SecondaryHostType),
-    Config.
+    muc_helper:unload_muc(SecondaryHostType).
 
 end_per_group(Group, _Config) when Group =:= user;
                                    Group =:= admin_http;
@@ -249,8 +296,7 @@ end_per_group(_Group, _Config) ->
     escalus_fresh:clean().
 
 init_per_testcase(TC, Config) ->
-    rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,
-                                               admin_get_room_messages], Config).
+    escalus:init_per_testcase(TC, Config).
 
 end_per_testcase(TC, Config) ->
     escalus:end_per_testcase(TC, Config).
@@ -281,16 +327,41 @@ admin_list_rooms(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun admin_list_rooms_story/3).
 
 admin_list_rooms_story(Config, Alice, Bob) ->
+    Res0 = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
+    ?assertEqual([], extract_rooms(get_ok_value(?LIST_ROOMS_PATH, Res0))),
     AliceJID = jid:from_binary(escalus_client:short_jid(Alice)),
     BobJID = jid:from_binary(escalus_client:short_jid(Bob)),
     AliceRoom = rand_name(),
     BobRoom = rand_name(),
     muc_helper:create_instant_room(AliceRoom, AliceJID, <<"Ali">>, []),
     muc_helper:create_instant_room(BobRoom, BobJID, <<"Bob">>, [{public_list, false}]),
-    Res = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
-    #{<<"rooms">> := Rooms } = get_ok_value(?LIST_ROOMS_PATH, Res),
-    ?assert(contain_room(AliceRoom, Rooms)),
-    ?assert(contain_room(BobRoom, Rooms)).
+    Res1 = list_rooms(muc_helper:muc_host(), Alice, null, null, Config),
+    Rooms1 = [_, RoomB] = extract_rooms(get_ok_value(?LIST_ROOMS_PATH, Res1)),
+    ?assertEqual(lists:sort([AliceRoom, BobRoom]), lists:sort(Rooms1)),
+    Res2 = list_rooms(unprep(muc_helper:muc_host()), Alice, null, null, Config),
+    ?assertEqual(Rooms1, extract_rooms(get_ok_value(?LIST_ROOMS_PATH, Res2))),
+    Res3 = list_rooms(muc_helper:muc_host(), Alice, 1, 1, Config),
+    ?assertEqual([RoomB], extract_rooms(get_ok_value(?LIST_ROOMS_PATH, Res3))).
+
+admin_list_rooms_with_invalid_args(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    AliceDomain = escalus_users:get_host(Config1, alice),
+    Res1 = list_rooms(muc_helper:muc_host(), AliceDomain, null, null, Config1),
+    assert_coercion_err(Res1, <<"jid_without_local_part">>),
+    Res2 = list_rooms(muc_helper:muc_host(), AliceJid, 0, null, Config1),
+    assert_coercion_err(Res2, <<"Value is not a positive integer">>),
+    Res3 = list_rooms(muc_helper:muc_host(), AliceJid, null, -1, Config1),
+    assert_coercion_err(Res3, <<"Value is not a non-negative integer">>).
+
+admin_try_list_rooms_for_nonexistent_domain(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJID = escalus_users:get_jid(Config1, alice),
+    Res1 = list_rooms(<<"baddomain">>, AliceJID, null, null, Config1),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Res1), <<"not found">>)),
+    %% Domain instead of the MUC subdomain
+    Res2 = list_rooms(domain_helper:domain(), AliceJID, null, null, Config1),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Res2), <<"not found">>)).
 
 admin_create_and_delete_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_create_and_delete_room_story/2).
@@ -300,7 +371,7 @@ admin_create_and_delete_room_story(Config, Alice) ->
     MUCServer = muc_helper:muc_host(),
     RoomJID = jid:make_bare(Name, MUCServer),
     % Create instant room
-    Res = create_instant_room(MUCServer, Name, Alice, <<"Ali">>, Config),
+    Res = create_instant_room(RoomJID, Alice, <<"Ali">>, Config),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
                  get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
     Res2 = list_rooms(MUCServer, Alice, null, null, Config),
@@ -312,20 +383,47 @@ admin_create_and_delete_room_story(Config, Alice) ->
     Res4 = list_rooms(MUCServer, Alice, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
+admin_create_room_with_unprepped_name(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(FreshConfig, alice),
+    Name = <<$a, (rand_name())/binary>>, % make it start with a letter
+    MUCServer = muc_helper:muc_host(),
+    RoomJID = jid:make_noprep(unprep(Name), unprep(MUCServer), <<>>),
+    Res = create_instant_room(RoomJID, AliceJid, <<"Ali">>, FreshConfig),
+    ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
+                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
+    Res2 = list_rooms(MUCServer, AliceJid, null, null, Config),
+    ?assert(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res2))).
+
 admin_try_create_instant_room_with_nonexistent_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun admin_try_create_instant_room_with_nonexistent_domain_story/2).
 
 admin_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
-    Res = create_instant_room(<<"unknown">>, rand_name(), Alice, <<"Ali">>, Config),
+    Res = create_instant_room(jid:make_bare(rand_name(), <<"unknown">>), Alice, <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_create_instant_room_with_nonexistent_user(Config) ->
-    Name = rand_name(),
-    MUCServer = muc_helper:muc_host(),
+    RoomJID = jid:make_bare(rand_name(), muc_helper:muc_host()),
     JID = <<(rand_name())/binary, "@localhost">>,
-    Res = create_instant_room(MUCServer, Name, JID, <<"Ali">>, Config),
+    Res = create_instant_room(RoomJID, JID, <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+
+admin_try_create_instant_room_with_invalid_args(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceJid = escalus_users:get_jid(Config1, alice),
+    AliceDomain = escalus_users:get_host(Config1, alice),
+    Domain = muc_helper:muc_host(),
+    Res1 = create_instant_room(<<"test room@", Domain/binary>>, AliceJid, <<"Ali">>, Config1),
+    assert_coercion_err(Res1, <<"failed_to_parse_jid">>),
+    Res2 = create_instant_room(<<"testroom@", Domain/binary, "/res1">>, AliceJid, <<"Ali">>, Config1),
+    assert_coercion_err(Res2, <<"jid_with_resource">>),
+    Res3 = create_instant_room(Domain, AliceJid, <<"Ali">>, Config1),
+    assert_coercion_err(Res3, <<"jid_without_local_part">>),
+    Res4 = create_instant_room(<<"testroom@", Domain/binary>>, AliceDomain, <<"Ali">>, Config1),
+    assert_coercion_err(Res4, <<"jid_without_local_part">>),
+    Res5 = create_instant_room(<<"testroom@", Domain/binary>>, AliceJid, <<>>, Config1),
+    assert_coercion_err(Res5, <<"empty_resource_name">>).
 
 admin_try_delete_nonexistent_room(Config) ->
     RoomJID = jid:make_bare(<<"unknown">>, muc_helper:muc_host()),
@@ -447,9 +545,12 @@ admin_send_private_message(Config, Alice, Bob) ->
     BareAlice = escalus_client:short_jid(Alice),
     Res = send_private_message(RoomJID, BareAlice, BobNick, Message, Config),
     assert_no_full_jid(Res),
+    % Try send private message to empty nick
+    Res1 = send_private_message(RoomJID, Alice, <<>>, Message, Config),
+    assert_coercion_err(Res1, <<"empty_resource_name">>),
     % Send message
-    Res1 = send_private_message(RoomJID, Alice, BobNick, Message, Config),
-    assert_success(?SEND_PRIV_MESG_PATH, Res1),
+    Res2 = send_private_message(RoomJID, Alice, BobNick, Message, Config),
+    assert_success(?SEND_PRIV_MESG_PATH, Res2),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
 
@@ -508,13 +609,14 @@ admin_get_room_messages(Config) ->
                                fun admin_get_room_messages_story/3).
 
 admin_get_room_messages_story(Config, Alice, Bob) ->
-    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    RoomJID = #jid{luser = RoomName, lserver = MUCDomain} =
+        jid:from_binary(?config(room_jid, Config)),
     enter_room(RoomJID, Bob, <<"Bobek">>),
     enter_room(RoomJID, Alice, <<"Ali">>),
     escalus:wait_for_stanzas(Bob, 2),
     send_message_to_room(RoomJID, Bob, <<"Hi!">>, Config),
     escalus:wait_for_stanzas(Bob, 1),
-    mam_helper:maybe_wait_for_archive(Config),
+    mam_helper:wait_for_room_archive_size(MUCDomain, RoomName, 1),
     Res = get_room_messages(RoomJID, 50, null, Config),
     #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := 50} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
@@ -741,15 +843,15 @@ admin_send_message_to_room_muc_not_configured_story(Config, Alice) ->
     get_not_loaded(Res).
 
 admin_send_private_message_muc_not_configured(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
-        fun admin_send_private_message_muc_not_configured_story/3).
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+        fun admin_send_private_message_muc_not_configured_story/2).
 
-admin_send_private_message_muc_not_configured_story(Config, Alice, Bob) ->
+admin_send_private_message_muc_not_configured_story(Config, Alice) ->
     Nick = <<"ali">>,
     Res = send_private_message(get_room_name(), Alice, Nick, <<"body">>, Config),
     get_not_loaded(Res).
 
-admin_get_room_messages_muc_not_configured(Config) ->
+admin_get_room_messages_muc_or_mam_not_configured(Config) ->
     Res = get_room_messages(get_room_name(), 4, null, Config),
     get_not_loaded(Res).
 
@@ -802,17 +904,16 @@ domain_admin_create_and_delete_room_no_permission(Config) ->
                                     fun domain_admin_create_and_delete_room_no_permission_story/2).
 
 domain_admin_create_and_delete_room_no_permission_story(Config, AliceBis) ->
-    Name = rand_name(),
     ExternalDomain = domain_helper:secondary_domain(),
     UnknownDomain = <<"unknown">>,
-    MUCServer = muc_helper:muc_host(),
+    RoomJid = jid:make_bare(rand_name(), muc_helper:muc_host()),
     ExternalServer = <<"muc.", ExternalDomain/binary>>,
     % Create instant room with a non-existent domain
     UnknownJID = <<(rand_name())/binary, "@", UnknownDomain/binary>>,
-    Res = create_instant_room(MUCServer, Name, UnknownJID, <<"Ali">>, Config),
+    Res = create_instant_room(RoomJid, UnknownJID, <<"Ali">>, Config),
     get_unauthorized(Res),
     % Create instant room with an external domain
-    Res2 = create_instant_room(MUCServer, Name, AliceBis, <<"Ali">>, Config),
+    Res2 = create_instant_room(RoomJid, AliceBis, <<"Ali">>, Config),
     get_unauthorized(Res2),
     % Delete instant room with a non-existent domain
     UnknownRoomJID = jid:make_bare(<<"unknown_room">>, UnknownDomain),
@@ -955,6 +1056,17 @@ user_list_rooms_story(Config, Alice, Bob) ->
     ?assert(contain_room(AliceRoom, Rooms)),
     ?assert(contain_room(BobRoom, Rooms)).
 
+user_try_list_rooms_for_nonexistent_domain(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_list_rooms_for_nonexistent_domain_story/2).
+
+user_try_list_rooms_for_nonexistent_domain_story(Config, Alice) ->
+    Res1 = user_list_rooms(Alice, <<"baddomain">>, null, null, Config),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Res1), <<"not found">>)),
+    %% Domain instead of the MUC subdomain
+    Res2 = user_list_rooms(Alice, domain_helper:domain(), null, null, Config),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Res2), <<"not found">>)).
+
 user_create_and_delete_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_create_and_delete_room_story/2).
 
@@ -963,7 +1075,7 @@ user_create_and_delete_room_story(Config, Alice) ->
     MUCServer = muc_helper:muc_host(),
     RoomJID = jid:make_bare(Name, MUCServer),
     % Create instant room
-    Res = user_create_instant_room(Alice, MUCServer, Name, <<"Ali">>, Config),
+    Res = user_create_instant_room(Alice, RoomJID, <<"Ali">>, Config),
     ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
                  get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)),
     Res2 = user_list_rooms(Alice, MUCServer, null, null, Config),
@@ -975,21 +1087,39 @@ user_create_and_delete_room_story(Config, Alice) ->
     Res4 = user_list_rooms(Alice, MUCServer, null, null, Config),
     ?assertNot(contain_room(Name, get_ok_value(?LIST_ROOMS_PATH, Res4))).
 
+user_create_room_with_unprepped_name(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_create_room_with_unprepped_name_story/2).
+
+user_create_room_with_unprepped_name_story(Config, Alice) ->
+    Name = <<$a, (rand_name())/binary>>, % make it start with a letter
+    MUCServer = muc_helper:muc_host(),
+    RoomJid = jid:make_noprep(unprep(Name), unprep(MUCServer), <<>>),
+    Res = user_create_instant_room(Alice, RoomJid, <<"Ali">>, Config),
+    ?assertMatch(#{<<"title">> := Name, <<"private">> := false, <<"usersNumber">> := 0},
+                 get_ok_value(?CREATE_INSTANT_ROOM_PATH, Res)).
+
 user_try_create_instant_room_with_nonexistent_domain(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun user_try_create_instant_room_with_nonexistent_domain_story/2).
 
 user_try_create_instant_room_with_nonexistent_domain_story(Config, Alice) ->
-    Res = user_create_instant_room(Alice, <<"unknown">>, rand_name(), <<"Ali">>, Config),
+    RoomJID = jid:make_bare(rand_name(), <<"unknown">>),
+    Res = user_create_instant_room(Alice, RoomJID, <<"Ali">>, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
-user_try_create_instant_room_with_invalid_name(Config) ->
+user_try_create_instant_room_with_invalid_args(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-                                    fun user_try_create_instant_room_with_invalid_name_story/2).
+                                    fun user_try_create_instant_room_with_invalid_args_story/2).
 
-user_try_create_instant_room_with_invalid_name_story(Config, Alice) ->
-    Res = user_create_instant_room(Alice, muc_helper:muc_host(), <<"test room">>, <<"Ali">>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"Room name or domain is invalid">>)).
+user_try_create_instant_room_with_invalid_args_story(Config, Alice) ->
+    Domain = muc_helper:muc_host(),
+    Res1 = user_create_instant_room(Alice, <<"test room@", Domain/binary>>, <<"Ali">>, Config),
+    assert_coercion_err(Res1, <<"failed_to_parse_jid">>),
+    Res2 = user_create_instant_room(Alice, <<"testroom@", Domain/binary, "/res1">>, <<"Ali">>, Config),
+    assert_coercion_err(Res2, <<"jid_with_resource">>),
+    Res3 = user_create_instant_room(Alice, <<"testroom@", Domain/binary>>, <<>>, Config),
+    assert_coercion_err(Res3, <<"empty_resource_name">>).
 
 user_try_delete_nonexistent_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -1090,8 +1220,8 @@ user_send_message_to_room_with_specified_res_story(Config, _Alice, Bob, Bob2) ->
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob2, BobNick),
     escalus:wait_for_stanza(Bob2),
-    % Send message
-    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_message_to_room(Bob, RoomJID, Message, <<"res₂"/utf8>>, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
@@ -1127,8 +1257,8 @@ user_send_private_message_with_specified_res(Config, Alice, Alice2, Bob) ->
     enter_room(RoomJID, Bob, BobNick),
     enter_room(RoomJID, Alice2, AliceNick),
     escalus:wait_for_stanzas(Bob, 2),
-    % Send message
-    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res2">>, Config),
+    % Send message, the resource should be normalized to "res2"
+    Res = user_send_private_message(Alice, RoomJID, Message, BobNick, <<"res₂"/utf8>>, Config),
     assert_success(?SEND_PRIV_MESG_PATH, Res),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -1249,13 +1379,14 @@ user_get_room_messages(Config) ->
                                fun user_get_room_messages_story/3).
 
 user_get_room_messages_story(Config, Alice, Bob) ->
-    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    RoomJID = #jid{luser = RoomName, lserver = MUCDomain} =
+        jid:from_binary(?config(room_jid, Config)),
     enter_room(RoomJID, Bob, <<"Bobek">>),
     enter_room(RoomJID, Alice, <<"Ali">>),
     escalus:wait_for_stanzas(Bob, 2),
     user_send_message_to_room(Bob, RoomJID, <<"Hi!">>, null, Config),
     escalus:wait_for_stanzas(Bob, 1),
-    mam_helper:maybe_wait_for_archive(Config),
+    mam_helper:wait_for_room_archive_size(MUCDomain, RoomName, 1),
     Res = user_get_room_messages(Alice, RoomJID, 50, null, Config),
     #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := 50} =
         get_ok_value(?GET_MESSAGES_PATH, Res),
@@ -1428,10 +1559,22 @@ user_can_enter_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
     JID = jid:from_binary(escalus_utils:jid_to_lower(escalus_client:full_jid(Alice))),
-    Resource = escalus_client:resource(Alice),
-    Res = user_enter_room(Alice, RoomJID, Nick, Resource, null, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_enter_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, null, Config),
     assert_success(?ENTER_ROOM_PATH, Res),
     ?assertMatch([#{nick := Nick, jid := JID}], get_room_users(RoomJID)).
+
+user_cannot_enter_room_with_invalid_resource(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}],
+                               fun user_cannot_enter_room_with_invalid_resource/2).
+
+user_cannot_enter_room_with_invalid_resource(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    Nick = <<"ali">>,
+    Res1 = user_enter_room(Alice, RoomJID, Nick, <<"\n">>, null, Config),
+    assert_coercion_err(Res1, <<"failed_to_parse_resource_name">>),
+    Res2 = user_enter_room(Alice, RoomJID, Nick, <<>>, null, Config),
+    assert_coercion_err(Res2, <<"empty_resource_name">>).
 
 user_can_enter_room_with_password(Config) ->
     muc_helper:story_with_room(Config, [{password_protected, true}, {password, ?PASSWORD}],
@@ -1463,10 +1606,10 @@ user_can_exit_room(Config) ->
 user_can_exit_room(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Nick = <<"ali">>,
-    Resource = escalus_client:resource(Alice),
     enter_room(RoomJID, Alice, Nick),
     ?assertMatch([_], get_room_users(RoomJID)),
-    Res = user_exit_room(Alice, RoomJID, Nick, Resource, Config),
+    % Resource should be normalized to "res1", which is Alice's connected resource
+    Res = user_exit_room(Alice, RoomJID, Nick, <<"res₁"/utf8>>, Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
 
@@ -1581,11 +1724,11 @@ user_send_private_message_muc_not_configured_story(Config, Alice) ->
     Res = user_send_private_message(Alice, get_room_name(), Message, BobNick, null, Config),
     get_not_loaded(Res).
 
-user_get_room_messages_muc_not_configured(Config) ->
+user_get_room_messages_muc_or_mam_not_configured(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
-        fun user_get_room_messages_muc_not_configured_story/2).
+        fun user_get_room_messages_muc_or_mam_not_configured_story/2).
 
-user_get_room_messages_muc_not_configured_story(Config, Alice) ->
+user_get_room_messages_muc_or_mam_not_configured_story(Config, Alice) ->
     Res = user_get_room_messages(Alice, get_room_name(), 10, null, Config),
     get_not_loaded(Res).
 
@@ -1594,7 +1737,7 @@ user_owner_set_user_affiliation_muc_not_configured(Config) ->
         fun user_owner_set_user_affiliation_muc_not_configured_story/2).
 
 user_owner_set_user_affiliation_muc_not_configured_story(Config, Alice) ->
-    Res = user_set_user_affiliation(Alice, get_room_name(), <<"ali">>, member, Config),
+    Res = user_set_user_affiliation(Alice, get_room_name(), Alice, member, Config),
     get_not_loaded(Res).
 
 user_moderator_set_user_role_muc_not_configured(Config) ->
@@ -1634,8 +1777,11 @@ user_list_room_affiliations_muc_not_configured_story(Config, Alice) ->
 
 %% Helpers
 
+assert_coercion_err(Res, Code) ->
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res), Code)).
+
 assert_no_full_jid(Res) ->
-    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res), <<"jid_without_resource">>)).
+    assert_coercion_err(Res, <<"jid_without_resource">>).
 
 assert_no_permission(Res) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
@@ -1693,6 +1839,21 @@ contain_room(Name, #{<<"rooms">> := Rooms}) ->
 contain_room(Name, Rooms) when is_list(Rooms) ->
     lists:any(fun(#{<<"title">> := T}) -> T =:= Name end, Rooms).
 
+extract_rooms(#{<<"rooms">> := [], <<"index">> := null, <<"count">> := 0,
+                <<"first">> := null, <<"last">> := null}) ->
+    [];
+extract_rooms(#{<<"rooms">> := Rooms, <<"index">> := Index, <<"count">> := Count,
+                <<"first">> := First, <<"last">> := Last}) ->
+    Titles = lists:map(fun(#{<<"title">> := Title}) -> Title end, Rooms),
+    ?assertEqual(hd(Titles), First),
+    ?assertEqual(lists:last(Titles), Last),
+    ?assert(is_integer(Count) andalso Count >= length(Titles)),
+    ?assert(is_integer(Index) andalso Index >= 0),
+    Titles.
+
+returned_rooms(#{<<"rooms">> := Rooms}) ->
+    [Title || #{<<"title">> := Title} <- Rooms].
+
 assert_default_room_config(Response) ->
     ?assertMatch(#{<<"title">> := <<>>,
                    <<"description">> := <<>>,
@@ -1725,8 +1886,8 @@ get_room_name() ->
 
 %% Commands
 
-create_instant_room(MUCDomain, Name, Owner, Nick, Config) ->
-    Vars = #{mucDomain => MUCDomain, name => Name, owner => user_to_bin(Owner), nick => Nick},
+create_instant_room(Room, Owner, Nick, Config) ->
+    Vars = #{room => room_to_bin(Room), owner => user_to_bin(Owner), nick => Nick},
     execute_command(<<"muc">>, <<"createInstantRoom">>, Vars, Config).
 
 invite_user(Room, Sender, Recipient, Reason, Config) ->
@@ -1836,8 +1997,8 @@ user_send_private_message(User, Room, Body, ToNick, Resource, Config) ->
     Vars = #{room => jid:to_binary(Room), body => Body, toNick => ToNick, resource => Resource},
     execute_user_command(<<"muc">>, <<"sendPrivateMessage">>, User, Vars, Config).
 
-user_create_instant_room(User, MUCDomain, Name, Nick, Config) ->
-    Vars = #{mucDomain => MUCDomain, name => Name, nick => Nick},
+user_create_instant_room(User, Room, Nick, Config) ->
+    Vars = #{room => room_to_bin(Room), nick => Nick},
     execute_user_command(<<"muc">>, <<"createInstantRoom">>, User, Vars, Config).
 
 user_invite_user(User, Room, Recipient, Reason, Config) ->
@@ -1861,3 +2022,6 @@ user_exit_room(User, Room, Nick, Resource, Config) ->
 user_list_room_affiliations(User, Room, Aff, Config) ->
     Vars = #{room => jid:to_binary(Room), affiliation => atom_to_enum_item(Aff)},
     execute_user_command(<<"muc">>, <<"listRoomAffiliations">>, User, Vars, Config).
+
+room_to_bin(RoomJIDBin) when is_binary(RoomJIDBin) ->RoomJIDBin;
+room_to_bin(RoomJID) -> jid:to_binary(RoomJID).

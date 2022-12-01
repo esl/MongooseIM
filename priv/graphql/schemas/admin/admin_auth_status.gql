@@ -1,7 +1,7 @@
 "Information about user request authorization"
 type AdminAuthInfo{
   "Authorized for a domain"
-  domain: String
+  domain: DomainName
   "Authorization status"
   authStatus: AuthStatus!
   "Authorization as a "

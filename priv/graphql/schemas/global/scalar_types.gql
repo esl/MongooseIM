@@ -2,13 +2,23 @@
 scalar DateTime
 "Body of a data structure exchanged by XMPP entities in XML streams"
 scalar Stanza @spectaql(options: [{ key: "example", value: "Hi!" }])
-"Unique identifier in the form of **node@domain**"
+"Unique XMPP identifier in the form of **node@domain** or **node@domain/resource"
 scalar JID @spectaql(options: [{ key: "example", value: "alice@localhost" }])
-"The JID with resource"
+"JID without a resource"
+scalar BareJID @spectaql(options: [{ key: "example", value: "alice@localhost" }])
+"JID with a resource"
 scalar FullJID @spectaql(options: [{ key: "example", value: "alice@localhost/res1" }])
-"XMPP Domain name (domain part of a JID)"
+"XMPP user name (local part of a JID)"
+scalar UserName @spectaql(options: [{ key: "example", value: "alice" }])
+"XMPP room name (local part of a JID)"
+scalar RoomName @spectaql(options: [{ key: "example", value: "my-chat-room" }])
+"XMPP domain name (domain part of a JID)"
 scalar DomainName @spectaql(options: [{ key: "example", value: "localhost" }])
+"XMPP resource name (resource part of a JID)"
+scalar ResourceName @spectaql(options: [{ key: "example", value: "res1" }])
 "String that contains at least one character"
 scalar NonEmptyString @spectaql(options: [{ key: "example", value: "xyz789" }])
 "Integer that has a value above zero"
 scalar PosInt @spectaql(options: [{ key: "example", value: "2" }])
+"Integer that has a value above or equal to zero"
+scalar NonNegInt @spectaql(options: [{ key: "example", value: "0" }])

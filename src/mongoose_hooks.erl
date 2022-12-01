@@ -318,7 +318,10 @@ packet_to_component(Acc, From, To) ->
     Pid :: pid(),
     Result :: mongoose_acc:t().
 presence_probe_hook(HostType, Acc, From, To, Pid) ->
-    run_hook_for_host_type(presence_probe_hook, HostType, Acc, [From, To, Pid]).
+    Params = #{from => From, to => To, pid => Pid},
+    Args = [From, To, Pid],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(presence_probe_hook, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
@@ -328,8 +331,7 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
 push_notifications(HostType, Acc, NotificationForms, Options) ->
-    Params = #{host_type => HostType, options => Options,
-               notification_forms => NotificationForms},
+    Params = #{options => Options, notification_forms => NotificationForms},
     Args = [HostType, NotificationForms, Options],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_hook_for_host_type(push_notifications, HostType, Acc, ParamsWithLegacyArgs).
@@ -394,7 +396,8 @@ resend_offline_messages_hook(Acc, JID) ->
     SID :: ejabberd_sm:sid(),
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
-    Params = #{user => User, server => Server, resource => Resource, sid => SID},
+    JID = jid:make(User, Server, Resource),
+    Params = #{jid => JID, sid => SID},
     Args = [User, Server, Resource, SID],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -575,7 +578,10 @@ privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
     JID :: jid:jid(),
     Result :: mongoose_privacy:userlist().
 privacy_get_user_list(HostType, JID) ->
-    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [HostType, JID]).
+    Params = #{jid => JID},
+    Args = [HostType, JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, ParamsWithLegacyArgs).
 
 -spec privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) -> Result when
     HostType :: mongooseim:host_type(),
@@ -610,7 +616,10 @@ privacy_iq_set(HostType, Acc, From, To, IQ) ->
     NewList :: mongoose_privacy:userlist(),
     Result :: false | mongoose_privacy:userlist().
 privacy_updated_list(HostType, OldList, NewList) ->
-    run_hook_for_host_type(privacy_updated_list, HostType, false, [OldList, NewList]).
+    Params = #{old_list => OldList, new_list => NewList},
+    Args = [OldList, NewList],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(privacy_updated_list, HostType, false, ParamsWithLegacyArgs).
 
 %% Session management related hooks
 
@@ -713,7 +722,7 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     Result :: mongoose_acc:t().
 unset_presence_hook(Acc, JID, Status) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    Params = #{jid => JID},
+    Params = #{jid => JID, status => Status},
     Args = [LUser, LServer, LResource, Status],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -762,8 +771,10 @@ roster_groups(LServer) ->
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
 roster_get_jid_info(HostType, ToJID, RemBareJID) ->
-    run_hook_for_host_type(roster_get_jid_info, HostType, {none, []},
-                           [HostType, ToJID, RemBareJID]).
+    Params = #{to => ToJID, remote => RemBareJID},
+    Args = [HostType, ToJID, RemBareJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_get_jid_info, HostType, {none, []}, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract
 %%% user's subscription list.
@@ -773,8 +784,11 @@ roster_get_jid_info(HostType, ToJID, RemBareJID) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 roster_get_subscription_lists(HostType, Acc, JID) ->
-    run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc,
-                           [jid:to_bare(JID)]).
+    BareJID = jid:to_bare(JID),
+    Params = #{jid => BareJID},
+    Args = [BareJID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
@@ -782,7 +796,9 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
     HostType :: mongooseim:host_type(),
     Result :: [exml:element()].
 roster_get_versioning_feature(HostType) ->
-    run_hook_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
+    Args = [HostType],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_hook_for_host_type(roster_get_versioning_feature, HostType, [], ParamsWithLegacyArgs).
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
@@ -795,7 +811,7 @@ roster_get_versioning_feature(HostType) ->
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
     ToJID = jid:to_bare(To),
-    Params = #{to_jid => ToJID, from => From, type => Type, reason => Reason},
+    Params = #{to => ToJID, from => From, type => Type, reason => Reason},
     Args = [ToJID, From, Type, Reason],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
@@ -810,9 +826,12 @@ roster_in_subscription(Acc, To, From, Type, Reason) ->
     Type :: mod_roster:sub_presence(),
     Result :: mongoose_acc:t().
 roster_out_subscription(Acc, From, To, Type) ->
+    FromJID = jid:to_bare(From),
+    Params = #{to => To, from => FromJID, type => Type},
+    Args = [FromJID, To, Type],
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(roster_out_subscription, HostType, Acc,
-                           [jid:to_bare(From), To, Type]).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_out_subscription, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
 -spec roster_process_item(HostType, LServer, Item) -> Result when
@@ -821,7 +840,10 @@ roster_out_subscription(Acc, From, To, Type) ->
     Item :: mod_roster:roster(),
     Result :: mod_roster:roster().
 roster_process_item(HostType, LServer, Item) ->
-    run_hook_for_host_type(roster_process_item, HostType, Item, [LServer]).
+    Params = #{lserver => LServer},
+    Args = [LServer],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(roster_process_item, HostType, Item, ParamsWithLegacyArgs).
 
 %%% @doc The `roster_push' hook is called when a roster item is
 %%% being pushed and roster versioning is not enabled.
@@ -1522,8 +1544,11 @@ update_inbox_for_muc(HostType, Info) ->
     Features :: unknown | list(),
     Result :: mongoose_acc:t().
 caps_recognised(Acc, From, Pid, Features) ->
+    Params = #{from => From, pid => Pid, features => Features},
+    Args = [From, Pid, Features],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(caps_recognised, HostType, Acc, [From, Pid, Features]).
+    run_hook_for_host_type(caps_recognised, HostType, Acc, ParamsWithLegacyArgs).
 
 %% PubSub related hooks
 

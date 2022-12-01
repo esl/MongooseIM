@@ -2,6 +2,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-import(common_helper, [unprep/1]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
@@ -48,7 +49,7 @@ groups() ->
      {admin_cli, [], admin_groups()},
      {user_muc_light, [parallel], user_muc_light_tests()},
      {user_muc_light_not_configured, [], user_muc_light_not_configured_tests()},
-     {admin_muc_light, [parallel], admin_muc_light_tests()},
+     {admin_muc_light, [], admin_muc_light_tests()},
      {domain_admin_muc_light, [], domain_admin_muc_light_tests()},
      {admin_muc_light_not_configured, [], admin_muc_light_not_configured_tests()}].
 
@@ -62,8 +63,10 @@ admin_groups() ->
 
 user_muc_light_tests() ->
     [user_create_room,
+     user_create_room_with_unprepped_domain,
      user_create_room_with_custom_fields,
      user_create_identified_room,
+     user_create_room_with_unprepped_id,
      user_change_room_config,
      user_change_room_config_errors,
      user_invite_user,
@@ -94,8 +97,10 @@ user_muc_light_not_configured_tests() ->
 
 admin_muc_light_tests() ->
     [admin_create_room,
+     admin_create_room_with_unprepped_domain,
      admin_create_room_with_custom_fields,
      admin_create_identified_room,
+     admin_create_room_with_unprepped_id,
      admin_change_room_config,
      admin_change_room_config_with_custom_fields,
      admin_change_room_config_errors,
@@ -122,9 +127,11 @@ admin_muc_light_tests() ->
 
 domain_admin_muc_light_tests() ->
     [admin_create_room,
+     admin_create_room_with_unprepped_domain,
      admin_create_room_with_custom_fields,
      domain_admin_create_room_no_permission,
      admin_create_identified_room,
+     admin_create_room_with_unprepped_id,
      domain_admin_create_identified_room_no_permission,
      admin_change_room_config,
      admin_change_room_config_with_custom_fields,
@@ -258,6 +265,19 @@ user_create_room_story(Config, Alice) ->
     Res2 = user_create_room(Alice, ?UNKNOWN_DOMAIN, Name, Subject, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
+user_create_room_with_unprepped_domain(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_create_room_with_unprepped_domain_story/2).
+
+user_create_room_with_unprepped_domain_story(Config, Alice) ->
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"room with unprepped domain">>,
+    Subject = <<"testing">>,
+    Res = user_create_room(Alice, unprep(MucServer), Name, Subject, null, Config),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
+    ?assertMatch(#jid{lserver = MucServer}, jid:from_binary_noprep(JID)).
+
 user_create_room_with_custom_fields(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_create_room_with_custom_fields_story/2).
 
@@ -296,7 +316,21 @@ user_create_identified_room_story(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with an empty string passed as ID
     Res4 = user_create_room(Alice, MucServer, <<"name">>, Subject, <<>>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res4), <<"Given string is empty">>)).
+    ?assertMatch({_, _}, binary:match(get_coercion_err_msg(Res4), <<"empty_room_name">>)).
+
+user_create_room_with_unprepped_id(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_create_room_with_unprepped_id_story/2).
+
+user_create_room_with_unprepped_id_story(Config, Alice) ->
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Id = <<"user_room_with_unprepped_id">>,
+    Res = user_create_room(Alice, unprep(MucServer), Name, Subject, unprep(Id), Config),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
+    ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary_noprep(JID)).
 
 user_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_room_config_story/2).
@@ -931,6 +965,17 @@ admin_create_room_story(Config, Alice) ->
     Res2 = create_room(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
+admin_create_room_with_unprepped_domain(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceBin = escalus_users:get_jid(FreshConfig, alice),
+    MucServer = ?config(muc_light_host, Config),
+    Name = <<"room with unprepped domain">>,
+    Subject = <<"testing">>,
+    Res = create_room(unprep(MucServer), Name, AliceBin, Subject, null, Config),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
+    ?assertMatch(#jid{lserver = MucServer}, jid:from_binary_noprep(JID)).
+
 admin_create_room_with_custom_fields(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_create_room_with_custom_fields_story/2).
 
@@ -973,7 +1018,19 @@ admin_create_identified_room_story(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with an empty string passed as ID
     Res4 = create_room(MucServer, <<"name">>, AliceBin, Subject, <<>>, Config),
-    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res4), <<"Given string is empty">>)).
+    ?assertMatch({_, _}, binary:match(get_coercion_err_msg(Res4), <<"empty_room_name">>)).
+
+admin_create_room_with_unprepped_id(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}]),
+    AliceBin = escalus_users:get_jid(FreshConfig, alice),
+    MucServer = ?config(muc_light_host, FreshConfig),
+    Name = <<"first room">>,
+    Subject = <<"testing">>,
+    Id = <<"room_with_unprepped_id">>,
+    Res = create_room(unprep(MucServer), Name, AliceBin, Subject, unprep(Id), FreshConfig),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
+    ?assertMatch(#jid{luser = Id, lserver = MucServer}, jid:from_binary_noprep(JID)).
 
 admin_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_change_room_config_story/2).

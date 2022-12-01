@@ -81,6 +81,8 @@ do_subscribe_to_all(User, Contacts) ->
 
 -spec do_subscribe_all_to_all([mongoose_graphql_roster:contact_input()]) ->
     [mongoose_graphql_roster:binary_result()].
+do_subscribe_all_to_all([]) ->
+    [];
 do_subscribe_all_to_all([_]) ->
     [];
 do_subscribe_all_to_all([User | Contacts]) ->

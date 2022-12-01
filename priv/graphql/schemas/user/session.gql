@@ -3,7 +3,7 @@ Allow user to get information about sessions.
 """
 type SessionUserQuery @protected{
   "List connected resources"
-  listResources: [String!]
+  listResources: [ResourceName!]
   "Count connected resources"
   countResources: Int
   "Get information about all sessions"
