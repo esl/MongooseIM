@@ -12,8 +12,8 @@
 
 %% hooks handlers
 -export([c2s_stream_features/3,
-         remove_smid/5,
-         session_cleanup/5]).
+         remove_smid/3,
+         session_cleanup/3]).
 
 %% API for `ejabberd_c2s'
 -export([make_smid/0,
@@ -29,8 +29,10 @@
          register_stale_smid_h/3,
          remove_stale_smid_h/2]).
 
--ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2, remove_smid/5,
-              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5]).
+-ignore_xref([get_sid/2,
+              get_stale_h/2,
+              register_stale_smid_h/3,
+              remove_stale_smid_h/2]).
 
 -type smid() :: base64:ascii_binary().
 
@@ -49,18 +51,19 @@
 start(HostType, Opts) ->
     mod_stream_management_backend:init(HostType, Opts),
     ?LOG_INFO(#{what => stream_management_starting}),
-    ejabberd_hooks:add(hooks(HostType)),
+    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 stop(HostType) ->
     ?LOG_INFO(#{what => stream_management_stopping}),
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{sm_remove_connection_hook, HostType, ?MODULE, remove_smid, 50},
-     {c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
-     {session_cleanup, HostType, ?MODULE, session_cleanup, 50}].
+    [{sm_remove_connection_hook, HostType, fun ?MODULE:remove_smid/3, #{}, 50},
+     {c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
+     {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -120,31 +123,31 @@ stale_h_config_spec() ->
 %% hooks handlers
 %%
 
--spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-c2s_stream_features(Acc, _HostType, _Lserver) ->
-    lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
+-spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: map(),
+    Extra :: gen_hook:extra().
+c2s_stream_features(Acc, _, _) ->
+    {ok, lists:keystore(<<"sm">>, #xmlel.name, Acc, sm())}.
 
 sm() ->
     #xmlel{name = <<"sm">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
--spec remove_smid(Acc, SID, JID, Info, Reason) -> Acc1 when
-      Acc :: mongoose_acc:t(),
-      SID :: ejabberd_sm:sid(),
-      JID :: undefined | jid:jid(),
-      Info :: undefined | [any()],
-      Reason :: undefined | ejabberd_sm:close_reason(),
-      Acc1 :: mongoose_acc:t().
-remove_smid(Acc, SID, _JID, _Info, _Reason) ->
-    HostType = mongoose_acc:host_type(Acc),
-    do_remove_smid(Acc, HostType, SID).
+-spec remove_smid(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{sid := ejabberd_sm:sid()},
+    Extra :: gen_hook:extra().
+remove_smid(Acc, #{sid := SID}, #{host_type := HostType}) ->
+    {ok, do_remove_smid(Acc, HostType, SID)}.
 
--spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
-                      LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
+-spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{sid := ejabberd_sm:sid()},
+    Extra :: gen_hook:extra().
+session_cleanup(Acc, #{sid := SID}, #{host_type := HostType}) ->
     HostType = mongoose_acc:host_type(Acc),
-    do_remove_smid(Acc, HostType, SID).
+    {ok, do_remove_smid(Acc, HostType, SID)}.
 
 -spec do_remove_smid(mongoose_acc:t(), mongooseim:host_type(), ejabberd_sm:sid()) ->
     mongoose_acc:t().
