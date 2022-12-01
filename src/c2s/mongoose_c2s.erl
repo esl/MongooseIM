@@ -862,6 +862,12 @@ close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
 -spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
+close_session(_, connect, Acc, _) -> Acc;
+close_session(_, {wait_for_stream, _}, Acc, _) -> Acc;
+close_session(_, {wait_for_feature_before_auth, _, _}, Acc, _) -> Acc;
+close_session(_, {wait_for_feature_after_auth, _}, Acc, _) -> Acc;
+close_session(_, {wait_for_sasl_response, _, _}, Acc, _) -> Acc;
+close_session(_, wait_for_session_establishment, Acc, _) -> Acc;
 close_session(#c2s_data{jid = Jid, sid = Sid}, _, Acc, Reason) when Jid =/= undefined ->
     ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
 close_session(_, _, Acc, _) ->
