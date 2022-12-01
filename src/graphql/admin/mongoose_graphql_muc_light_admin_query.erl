@@ -29,7 +29,7 @@ list_user_rooms(#{<<"user">> := UserJID}) ->
         {ok, Rooms} ->
             {ok, [{ok, R} || R <- Rooms]};
         Err ->
-            make_error(Err, #{user => UserJID})
+            make_error(Err, #{user => jid:to_binary(UserJID)})
     end.
 
 -spec list_room_users(map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
@@ -38,7 +38,7 @@ list_room_users(#{<<"room">> := RoomJID}) ->
         {ok, Affs} ->
             {ok, [make_ok_user(A) || A <- Affs]};
         Err ->
-            make_error(Err, #{room => RoomJID})
+            make_error(Err, #{room => jid:to_binary(RoomJID)})
     end.
 
 -spec get_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
@@ -47,7 +47,7 @@ get_room_config(#{<<"room">> := RoomJID}) ->
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{room => RoomJID})
+            make_error(Err, #{room => jid:to_binary(RoomJID)})
     end.
 
 -spec get_room_messages(map()) -> {ok, map()} | {error, resolver_error()}.
@@ -60,7 +60,7 @@ get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize,
             Maps = lists:map(fun mongoose_graphql_stanza_helper:row_to_map/1, Rows),
             {ok, #{<<"stanzas">> => Maps, <<"limit">> => PageSize2}};
         Err ->
-            make_error(Err, #{room => RoomJID})
+            make_error(Err, #{room => jid:to_binary(RoomJID)})
     end.
 
 -spec get_blocking_list(map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
@@ -70,5 +70,5 @@ get_blocking_list(#{<<"user">> := UserJID}) ->
             Items2 = lists:map(fun mongoose_graphql_muc_light_helper:blocking_item_to_map/1, Items),
             {ok, Items2};
         Err ->
-            make_error(Err, #{user => UserJID})
+            make_error(Err, #{user => jid:to_binary(UserJID)})
     end.

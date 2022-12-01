@@ -8,9 +8,8 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
-                                            prepare_blocking_items/1,
-                                            null_to_default/2, options_to_map/1, get_not_loaded/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1, prepare_blocking_items/1,
+                                            null_to_default/2, config_to_map/3, get_not_loaded/1]).
 
 execute(_Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Args);
@@ -31,19 +30,19 @@ execute(_Ctx, _Obj, <<"setBlockingList">>, Args) ->
 create_room(#{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
               <<"owner">> := CreatorJID, <<"subject">> := Subject, <<"options">> := Options}) ->
     case mod_muc_light_api:create_room(MUCDomain, null_to_default(RoomID, <<>>), CreatorJID,
-                                       RoomName, Subject, options_to_map(Options)) of
+                                       config_to_map(RoomName, Subject, Options)) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{mucDomain => MUCDomain, id => RoomID, creator => CreatorJID})
+            make_error(Err, #{mucDomain => MUCDomain, id => RoomID,
+                              creator => jid:to_binary(CreatorJID)})
     end.
 
 -spec change_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
 change_room_config(#{<<"room">> := RoomJID, <<"name">> := RoomName,
                      <<"owner">> := OwnerJID, <<"subject">> := Subject,
                      <<"options">> := Options}) ->
-    OptMap = options_to_map(Options),
-    Config = OptMap#{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    Config = config_to_map(RoomName, Subject, Options),
     case mod_muc_light_api:change_room_config(RoomJID, OwnerJID, Config) of
         {ok, Room} ->
             {ok, make_room(Room)};
@@ -65,8 +64,8 @@ invite_user(#{<<"room">> := RoomJID, <<"sender">> := SenderJID,
 
 -spec kick_user(map()) -> {ok, binary()} | {error, resolver_error()}.
 kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
-    Result = mod_muc_light_api:remove_user_from_room(RoomJID, UserJID, UserJID),
-    format_result(Result, #{user => UserJID}).
+    Result = mod_muc_light_api:change_affiliation(RoomJID, UserJID, UserJID, remove),
+    format_result(Result, #{user => jid:to_binary(UserJID)}).
 
 -spec send_msg_to_room(map()) -> {ok, binary()} | {error, resolver_error()}.
 send_msg_to_room(#{<<"room">> := RoomJID, <<"from">> := FromJID, <<"body">> := Message}) ->
