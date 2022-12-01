@@ -55,14 +55,14 @@ delete_resource(Req, State) ->
 
 handle_get(Req, State) ->
     #{domain := Domain} = cowboy_req:bindings(Req),
-    Sessions = mongoose_session_api:list_resources(Domain),
+    {ok, Sessions} = mongoose_session_api:list_resources(Domain),
     {jiffy:encode(Sessions), Req, State}.
 
 handle_delete(Req, State) ->
     #{domain := Domain} = Bindings = cowboy_req:bindings(Req),
     UserName = get_user_name(Bindings),
     Resource = get_resource(Bindings),
-    case mongoose_session_api:kick_session(UserName, Domain, Resource, <<"kicked">>) of
+    case mongoose_session_api:kick_session(jid:make(UserName, Domain, Resource), <<"kicked">>) of
         {ok, _} ->
             {true, Req, State};
         {no_session, Reason} ->

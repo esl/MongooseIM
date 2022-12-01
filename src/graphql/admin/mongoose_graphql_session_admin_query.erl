@@ -25,45 +25,42 @@ execute(_Ctx, _Obj, <<"countUsersWithStatus">>, Args) ->
 
 -spec list_sessions(map()) -> {ok, mongoose_graphql_session_helper:session_list()}.
 list_sessions(#{<<"domain">> := null}) ->
-    Sessions = mongoose_session_api:list_sessions(),
+    {ok, Sessions} = mongoose_session_api:list_sessions(),
     {ok, format_sessions(Sessions)};
 list_sessions(#{<<"domain">> := Domain}) ->
-    Sessions = mongoose_session_api:list_sessions(Domain),
+    {ok, Sessions} = mongoose_session_api:list_sessions(Domain),
     {ok, format_sessions(Sessions)}.
 
 -spec count_sessions(map()) -> {ok, non_neg_integer()}.
 count_sessions(#{<<"domain">> := null}) ->
-    {ok, mongoose_session_api:count_sessions()};
+    mongoose_session_api:count_sessions();
 count_sessions(#{<<"domain">> := Domain}) ->
-    {ok, mongoose_session_api:count_sessions(Domain)}.
+    mongoose_session_api:count_sessions(Domain).
 
 -spec list_user_sessions(map()) -> {ok, mongoose_graphql_session_helper:session_list()}.
 list_user_sessions(#{<<"user">> := JID}) ->
-    Sessions = mongoose_session_api:list_user_sessions(JID),
+    {ok, Sessions} = mongoose_session_api:list_user_sessions(JID),
     {ok, format_sessions(Sessions)}.
 
 -spec count_user_resources(map()) -> {ok, non_neg_integer()}.
 count_user_resources(#{<<"user">> := JID}) ->
-    Number = mongoose_session_api:num_resources(JID),
-    {ok, Number}.
+    mongoose_session_api:num_resources(JID).
 
 -spec get_user_resource(map()) -> {ok, jid:lresource()}.
 get_user_resource(#{<<"user">> := JID, <<"number">> := ResNumber}) ->
     Result = mongoose_session_api:get_user_resource(JID, ResNumber),
-    format_result(Result, #{number => ResNumber}).
+    format_result(Result, #{user => jid:to_binary(JID), number => ResNumber}).
 
 -spec list_users_with_status(map()) -> {ok, mongoose_graphql_session_helper:status_user_list()}.
 list_users_with_status(#{<<"domain">> := null, <<"status">> := Status}) ->
-    StatusUsers = mongoose_session_api:list_status_users(Status),
+    {ok, StatusUsers} = mongoose_session_api:list_status_users(Status),
     {ok, format_status_users(StatusUsers)};
 list_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
-    StatusUsers = mongoose_session_api:list_status_users(Domain, Status),
+    {ok, StatusUsers} = mongoose_session_api:list_status_users(Domain, Status),
     {ok, format_status_users(StatusUsers)}.
 
 -spec count_users_with_status(map()) -> {ok, non_neg_integer()}.
 count_users_with_status(#{<<"domain">> := null, <<"status">> := Status}) ->
-    Number = mongoose_session_api:num_status_users(Status),
-    {ok, Number};
+    mongoose_session_api:num_status_users(Status);
 count_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
-    Number = mongoose_session_api:num_status_users(Domain, Status),
-    {ok, Number}.
+    mongoose_session_api:num_status_users(Domain, Status).

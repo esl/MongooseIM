@@ -28,10 +28,8 @@
 
 -export([
     commands/0,
-
     num_resources/2,
     resource_num/3,
-    kick_session/2,
     kick_session/4,
     status_num/2, status_num/1,
     status_list/2, status_list/1,
@@ -42,12 +40,13 @@
     ]).
 
 -ignore_xref([
-    commands/0, num_resources/2, resource_num/3, kick_session/2, kick_session/4,
+    commands/0, num_resources/2, resource_num/3, kick_session/4,
     status_num/2, status_num/1, status_list/2, status_list/1,
     connected_users_info/0, connected_users_info/1, set_presence/7,
     user_sessions_info/2
 ]).
 
+-include_lib("jid/include/jid.hrl").
 -include("ejabberd_commands.hrl").
 
 -type status() :: mongoose_session_api:status().
@@ -67,8 +66,16 @@ commands() ->
                                    {priority, integer},
                                    {node, string},
                                    {uptime, integer}
-                                  ]}}
-                     },
+                                  ]}}},
+
+    UserStatusDisplay = {list,
+                         {userstatus, {tuple,
+                                       [{user, string},
+                                        {host, string},
+                                        {resource, string},
+                                        {priority, integer},
+                                        {status, string}
+                                       ]}}},
 
     [
         #ejabberd_commands{name = num_resources, tags = [session],
@@ -86,7 +93,7 @@ commands() ->
                            module = ?MODULE, function = kick_session,
                            args = [{user, binary}, {host, binary},
                                    {resource, binary}, {reason, binary}],
-                           result = {res, restuple}},
+                           result = {res, integer}},
         #ejabberd_commands{name = status_num_host, tags = [session, stats],
                            desc = "Number of logged users with this status in host",
                            module = ?MODULE, function = status_num,
@@ -101,28 +108,12 @@ commands() ->
                            desc = "List of users logged in host with their statuses",
                            module = ?MODULE, function = status_list,
                            args = [{host, binary}, {status, binary}],
-                           result = {users, {list,
-                                             {userstatus, {tuple, [
-                                {user, string},
-                                {host, string},
-                                {resource, string},
-                                {priority, integer},
-                                {status, string}
-                                ]}}
-                                            }}},
+                           result = {users, UserStatusDisplay}},
         #ejabberd_commands{name = status_list, tags = [session],
                            desc = "List of logged users with this status",
                            module = ?MODULE, function = status_list,
                            args = [{status, binary}],
-                           result = {users, {list,
-                                             {userstatus, {tuple, [
-                                {user, string},
-                                {host, string},
-                                {resource, string},
-                                {priority, integer},
-                                {status, string}
-                                ]}}
-                                            }}},
+                           result = {users, UserStatusDisplay}},
         #ejabberd_commands{name = connected_users_info,
                            tags = [session],
                            desc = "List all established sessions and their information",
@@ -159,52 +150,75 @@ commands() ->
 
 -spec num_resources(jid:user(), jid:server()) -> non_neg_integer().
 num_resources(User, Host) ->
-    mongoose_session_api:num_resources(User, Host).
+    JID = jid:make(User, Host, <<>>),
+    {ok, Value} = mongoose_session_api:num_resources(JID),
+    Value.
 
 -spec resource_num(jid:user(), jid:server(), integer()) -> mongoose_session_api:res_number_result().
 resource_num(User, Host, Num) ->
-    mongoose_session_api:get_user_resource(User, Host, Num).
-
--spec kick_session(jid:jid(), binary()) -> mongoose_session_api:kick_session_result().
-kick_session(JID, ReasonText) ->
-    mongoose_session_api:kick_session(JID, ReasonText).
+    JID = jid:make(User, Host, <<>>),
+    mongoose_session_api:get_user_resource(JID, Num).
 
 -spec kick_session(jid:user(), jid:server(), jid:resource(), binary()) ->
     mongoose_session_api:kick_session_result().
 kick_session(User, Server, Resource, ReasonText) ->
-    mongoose_session_api:kick_session(User, Server, Resource, ReasonText).
+    mongoose_session_api:kick_session(jid:make(User, Server, Resource), ReasonText).
 
 -spec status_num(jid:server(), status()) -> non_neg_integer().
 status_num(Host, Status) ->
-    mongoose_session_api:num_status_users(Host, Status).
+    {ok, Value} = mongoose_session_api:num_status_users(Host, Status),
+    Value.
 
 -spec status_num(status()) -> non_neg_integer().
 status_num(Status) ->
-    mongoose_session_api:num_status_users(Status).
+    {ok, Value} = mongoose_session_api:num_status_users(Status),
+    Value.
 
--spec status_list(jid:server(), status()) -> [mongoose_session_api:status_user_info()].
+-spec status_list(jid:server(), status()) -> [tuple()].
 status_list(Host, Status) ->
-    mongoose_session_api:list_status_users(Host, Status).
+    {ok, Sessions} = mongoose_session_api:list_status_users(Host, Status),
+    format_status_users(Sessions).
 
--spec status_list(binary()) -> [mongoose_session_api:status_user_info()].
+-spec status_list(binary()) -> [tuple()].
 status_list(Status) ->
-    mongoose_session_api:list_status_users(Status).
+    {ok, Sessions} = mongoose_session_api:list_status_users(Status),
+    format_status_users(Sessions).
 
--spec connected_users_info() -> mongoose_session_api:list_sessions_result().
+-spec connected_users_info() -> [tuple()].
 connected_users_info() ->
-    mongoose_session_api:list_sessions().
+    {ok, Sessions} = mongoose_session_api:list_sessions(),
+    format_sessions(Sessions).
 
--spec connected_users_info(jid:server()) -> mongoose_session_api:list_sessions_result().
+-spec connected_users_info(jid:server()) -> [tuple()].
 connected_users_info(Host) ->
-    mongoose_session_api:list_sessions(Host).
+    {ok, Sessions} = mongoose_session_api:list_sessions(Host),
+    format_sessions(Sessions).
 
 -spec set_presence(jid:user(), jid:server(), jid:resource(),
         Type :: binary(), Show :: binary(), Status :: binary(),
         Prio :: binary()) -> ok.
 set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
-    mongoose_session_api:set_presence(User, Host, Resource, Type, Show, Status, Priority),
+    JID = jid:make(User, Host, Resource),
+    mongoose_session_api:set_presence(JID, Type, Show, Status, Priority),
     ok.
 
--spec user_sessions_info(jid:user(), jid:server()) -> [mongoose_session_api:session_info()].
+-spec user_sessions_info(jid:user(), jid:server()) -> [tuple()].
 user_sessions_info(User, Host) ->
-    mongoose_session_api:list_user_sessions(User, Host).
+    JID = jid:make(User, Host, <<>>),
+    {ok, Sessions} = mongoose_session_api:list_user_sessions(JID),
+    format_sessions(Sessions).
+
+% Internal
+
+format_sessions(Sessions) ->
+    lists:map(fun(S) -> format_session(S) end, Sessions).
+
+format_session({USR, Conn, IP, Port, Prio, Node, Uptime}) ->
+    IPS = inet:ntoa(IP),
+    {jid:to_binary(USR), atom_to_list(Conn), IPS, Port, Prio, atom_to_list(Node), Uptime}.
+
+format_status_users(Sessions) ->
+    lists:map(fun(S) -> format_status_user(S) end, Sessions).
+
+format_status_user({#jid{luser = User, lserver = Server, lresource = Resource}, Prio, Status}) ->
+    {User, Server, Resource, Prio, Status}.

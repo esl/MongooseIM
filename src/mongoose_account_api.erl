@@ -190,10 +190,9 @@ ban_account(User, Host, ReasonText) ->
     ban_account(JID, ReasonText).
 
 -spec ban_account(jid:jid(), binary()) -> change_password_result().
-ban_account(JID, ReasonText) ->
+ban_account(JID, Reason) ->
     case ejabberd_auth:does_user_exist(JID) of
         true ->
-            Reason = mongoose_session_api:prepare_reason(ReasonText),
             mongoose_session_api:kick_sessions(JID, Reason),
             case set_random_password(JID, Reason) of
                 ok ->

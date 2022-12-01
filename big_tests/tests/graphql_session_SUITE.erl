@@ -8,7 +8,8 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(domain_helper, [domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,  get_listener_port/1,
-                         get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1]).
+                         get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1,
+                         get_coercion_err_msg/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -38,7 +39,8 @@ admin_session_tests() ->
      admin_get_user_resource,
      admin_list_users_with_status,
      admin_count_users_with_status,
-     admin_kick_session,
+     admin_kick_user_session,
+     admin_kick_user,
      admin_set_presence,
      admin_set_presence_away,
      admin_set_presence_unavailable].
@@ -54,7 +56,8 @@ domain_admin_session_tests() ->
      domain_admin_get_user_resource_no_permission,
      domain_admin_list_users_with_status,
      domain_admin_count_users_with_status,
-     admin_kick_session,
+     admin_kick_user_session,
+     domain_admin_kick_user_session_no_permission,
      domain_admin_kick_user_no_permission,
      admin_set_presence,
      admin_set_presence_away,
@@ -197,12 +200,22 @@ domain_admin_get_user_resource_story_no_permission_story(Config, AliceBis) ->
     Res = get_user_resource(AliceBisJID, 2, Config),
     get_unauthorized(Res).
 
+domain_admin_kick_user_session_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_kick_user_session_no_permission_story/2).
+
+domain_admin_kick_user_session_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Reason = <<"Test kick">>,
+    Res = kick_user_session(AliceBisJID, Reason, Config),
+    get_unauthorized(Res).
+
 domain_admin_kick_user_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
                                     fun domain_admin_kick_user_no_permission_story/2).
 
 domain_admin_kick_user_no_permission_story(Config, AliceBis) ->
-    AliceBisJID = escalus_client:full_jid(AliceBis),
+    AliceBisJID = escalus_client:short_jid(AliceBis),
     Reason = <<"Test kick">>,
     Res = kick_user(AliceBisJID, Reason, Config),
     get_unauthorized(Res).
@@ -387,27 +400,38 @@ admin_list_users_with_status_story(Config, Alice, AliceB) ->
     escalus_client:send(AliceB, DndPresence),
     assert_list_users_with_status([AliceBJID], null, DndStatus, Config).
 
-admin_kick_session(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_session_story/3).
+admin_kick_user_session(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_user_session_story/3).
 
-admin_kick_session_story(Config, Alice1, Alice2) ->
+admin_kick_user_session_story(Config, Alice1, Alice2) ->
     JIDA1 = escalus_client:full_jid(Alice1),
     JIDA2 = escalus_client:full_jid(Alice2),
     Reason = <<"Test kick">>,
-    Path = [data, session, kickUser, message],
-    Res = kick_user(JIDA1, Reason, Config),
+    Path = [data, session, kickUserSession, message],
+    Res = kick_user_session(JIDA1, Reason, Config),
     % Kick an active session
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res), <<"kicked">>)),
-    ?assertEqual(JIDA1, get_ok_value([data, session, kickUser, jid], Res)),
+    ?assertEqual(JIDA1, get_ok_value([data, session, kickUserSession, jid], Res)),
     % Try to kick an offline session
-    Res2 = kick_user(JIDA1, Reason, Config),
+    Res2 = kick_user_session(JIDA1, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"No active session">>)),
     % Try to kick a session with JID without a resource
-    Res3 = kick_user(escalus_client:short_jid(Alice2), Reason, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"No active session">>)),
-    % Kick another active session
-    Res4 = kick_user(JIDA2, Reason, Config),
+    Res3 = kick_user_session(escalus_client:short_jid(Alice2), Reason, Config),
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res3), <<"jid_without_resource">>)),
+    % Kick active session without reason text
+    Res4 = kick_user_session(JIDA2, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res4), <<"kicked">>)).
+
+admin_kick_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_user_story/3).
+
+admin_kick_user_story(Config, Alice1, _Alice2) ->
+    AliceJID = escalus_client:short_jid(Alice1),
+    Reason = <<"Test kick">>,
+    Res1 = kick_user(AliceJID, Reason, Config),
+    Res2 = get_ok_value([data, session, kickUser], Res1),
+    ?assertEqual(2, length(Res2)),
+    ?assertEqual([true, true], [Kicked || #{<<"kicked">> := Kicked} <- Res2]).
 
 admin_set_presence(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_presence_story/2).
@@ -499,6 +523,10 @@ list_users_with_status(Domain, Status, Config) ->
 count_users_with_status(Domain, Status, Config) ->
     Vars = #{<<"domain">> => Domain, <<"status">> => Status},
     execute_command(<<"session">>, <<"countUsersWithStatus">>, Vars, Config).
+
+kick_user_session(JID, Reason, Config) ->
+    Vars = #{<<"user">> => JID, <<"reason">> => Reason},
+    execute_command(<<"session">>, <<"kickUserSession">>, Vars, Config).
 
 kick_user(JID, Reason, Config) ->
     Vars = #{<<"user">> => JID, <<"reason">> => Reason},
