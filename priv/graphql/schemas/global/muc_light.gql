@@ -61,11 +61,11 @@ type RoomConfigDictEntry{
 "Room data"
 type Room{
   "Room's JId"
-  jid: JID!
+  jid: BareJID!
   "Name of the room"
-  name: String!
+  name: String
   "Subject of the room"
-  subject: String!
+  subject: String
   "List of participants"
   participants: [RoomUser!]!
   "Configuration options"
