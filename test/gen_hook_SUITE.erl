@@ -286,7 +286,7 @@ errors_in_handlers_are_reported_but_ignored(_) ->
     ?assertEqual({ok, N}, gen_hook:run_fold(calculate, ?HOOK_TAG1, 0, #{n => 2})),
     %% check that error is reported
     ?assertEqual(true, meck:called(gen_hook, error_running_hook,
-                                   [{error, {some_error, '_'}},
+                                   [#{class => error, reason => some_error, stacktrace => '_'},
                                     {hook_handler, 3, ErrorHandlerFn,
                                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1}},
                                     6, #{n => 2}, {calculate, ?HOOK_TAG1}])),

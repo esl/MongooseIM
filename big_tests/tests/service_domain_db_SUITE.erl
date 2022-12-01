@@ -1209,7 +1209,7 @@ stop_domain_removal_hook(HostType, Server) ->
 domain_removal_hook_fn(Acc, _Params, #{server := Server}) ->
     Server ! {wait, self()},
     receive continue -> ok end,
-    Acc.
+    {ok, Acc}.
 
 stopper() ->
     receive
