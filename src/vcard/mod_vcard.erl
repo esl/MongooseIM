@@ -390,7 +390,7 @@ process_local_iq(Acc, _From, _To, IQ = #iq{type = get}, _Extra) ->
                     From :: jid:jid(),
                     To :: jid:jid(),
                     IQ :: jlib:iq(),
-                    Extra :: gen_hook:extra()) ->
+                    Extra :: map()) ->
      {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq(Acc, From, To, IQ = #iq{type = set, sub_el = VCARD}, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),

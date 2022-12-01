@@ -14,7 +14,6 @@
          anonymous_purge_hook/3,
          auth_failed/3,
          does_user_exist/3,
-         ejabberd_ctl_process/2,
          failed_to_store_message/1,
          filter_local_packet/1,
          filter_packet/1,
@@ -259,13 +258,6 @@ node_cleanup(Node) ->
     Args = [Node],
     ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     run_global_hook(node_cleanup, #{}, ParamsWithLegacyArgs).
-
--spec ejabberd_ctl_process(Acc, Args) -> Result when
-    Acc :: any(),
-    Args :: [string()],
-    Result :: any().
-ejabberd_ctl_process(Acc, Args) ->
-    run_global_hook(ejabberd_ctl_process, Acc, [Args]).
 
 -spec failed_to_store_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),

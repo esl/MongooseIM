@@ -47,16 +47,14 @@
 -author('alexey@process-one.net').
 
 -export([start/0,
-         init/0,
          process/1,
-         process2/2,
-         register_commands/3,
-         unregister_commands/3]).
+         process2/2]).
 
--ignore_xref([process/1, process2/2, register_commands/3, start/0, unregister_commands/3]).
+-ignore_xref([process/1, process2/2, start/0]).
 
 -include("ejabberd_ctl.hrl").
 -include("ejabberd_commands.hrl").
+-include("mongoose_logger.hrl").
 
 -type format() :: integer | string | binary | {list, format()}.
 -type format_type() :: binary() | string() | char().
@@ -104,37 +102,6 @@ start() ->
             print_usage(),
             halt(?STATUS_USAGE)
     end.
-
-
--spec init() -> atom() | ets:tid().
-init() ->
-    ets:new(ejabberd_ctl_cmds, [named_table, set, public]),
-    ets:new(ejabberd_ctl_host_cmds, [named_table, set, public]).
-
-
-%%-----------------------------
-%% mongooseimctl Command managment
-%%-----------------------------
-
--spec register_commands(CmdDescs :: [tuple()] | tuple(),
-                        Module :: atom(),
-                        Function :: atom()) -> 'ok'.
-register_commands(CmdDescs, Module, Function) ->
-    ets:insert(ejabberd_ctl_cmds, CmdDescs),
-    ejabberd_hooks:add(ejabberd_ctl_process, global, Module, Function, 50),
-    ok.
-
-
--spec unregister_commands(CmdDescs :: [any()],
-                          Module :: atom(),
-                          Function :: atom()) -> 'ok'.
-unregister_commands(CmdDescs, Module, Function) ->
-    lists:foreach(fun(CmdDesc) ->
-                          ets:delete_object(ejabberd_ctl_cmds, CmdDesc)
-                  end, CmdDescs),
-    ejabberd_hooks:delete(ejabberd_ctl_process, global, Module, Function, 50),
-    ok.
-
 
 %%-----------------------------
 %% Process
@@ -276,7 +243,7 @@ process2(Args, AccessCommands) ->
 
 %% @private
 process2(Args, Auth, AccessCommands) ->
-    case try_run_ctp(Args, Auth, AccessCommands) of
+    case try_call_command(Args, Auth, AccessCommands) of
         {String, wrong_command_arguments} when is_list(String) ->
             io:format(lists:flatten(["\n" | String]++["\n"])),
             [CommandString | _] = Args,
@@ -299,36 +266,13 @@ get_accesscommands() ->
 %%-----------------------------
 %% Command calling
 %%-----------------------------
-
--spec try_run_ctp(Args :: [string()],
-                  Auth :: ejabberd_commands:auth(),
-                  AccessCommands :: ejabberd_commands:access_commands()
-                 ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
-try_run_ctp(Args, Auth, AccessCommands) ->
-    try mongoose_hooks:ejabberd_ctl_process(false, Args) of
-        false when Args /= [] ->
-            try_call_command(Args, Auth, AccessCommands);
-        false ->
-            print_usage(),
-            {"", ?STATUS_USAGE};
-        Status ->
-            {"", Status}
-    catch
-        exit:Why ->
-            print_usage(),
-            {io_lib:format("Error in mongooseimctl process: ~p", [Why]), ?STATUS_USAGE};
-        Error:Why ->
-            %% In this case probably ejabberd is not started, so let's show Status
-            process(["status"]),
-            ?PRINT("~n", []),
-            {io_lib:format("Error in mongooseimctl process: '~p' ~p", [Error, Why]), ?STATUS_USAGE}
-    end.
-
-
 -spec try_call_command(Args :: [string()],
                        Auth :: ejabberd_commands:auth(),
                        AccessCommands :: ejabberd_commands:access_commands()
                       ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
+try_call_command([], _, _) ->
+    print_usage(),
+    {"", ?STATUS_USAGE};
 try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
         {error, command_unknown} ->
