@@ -55,7 +55,8 @@ init_per_testcase(_TC, C) ->
 
 end_per_testcase(_TC, C) ->
     Acc = mongoose_acc:new(?ACC_PARAMS),
-    mod_roster:remove_user(Acc, a(), domain()),
+    JID = jid:make_bare(a(), domain()),
+    mod_roster:remove_user(Acc, #{jid => JID}, #{host_type => mongoose_acc:host_type(Acc)}),
     mongoose_modules:stop(),
     delete_ets(),
     C.
@@ -141,13 +142,17 @@ get_roster_old() ->
 
 get_roster_old(User) ->
     Acc = mongoose_acc:new(?ACC_PARAMS),
-    Acc1 = mod_roster:get_user_roster(Acc, jid:make(User, domain(), <<>>)),
+    Params = #{jid => jid:make_bare(User, domain())},
+    Extra = #{host_type => mongoose_acc:host_type(Acc)},
+    {ok, Acc1} = mod_roster:get_user_roster(Acc, Params, Extra),
     mongoose_acc:get(roster, items, Acc1).
 
 get_full_roster() ->
     Acc0 = mongoose_acc:new(?ACC_PARAMS),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Acc2 = mod_roster:get_user_roster(Acc1, alice_jid()),
+    Params = #{jid => alice_jid()},
+    Extra = #{host_type => mongoose_acc:host_type(Acc1)},
+    {ok, Acc2} = mod_roster:get_user_roster(Acc1, Params, Extra),
     mongoose_acc:get(roster, items, Acc2).
 
 assert_state_old(Subscription, Ask) ->

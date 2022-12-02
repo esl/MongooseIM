@@ -33,16 +33,17 @@
 %% gen_mod
 -export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
 
--export([process_iq_set/4,
-         process_iq_get/5,
+%% Hook handlers
+-export([process_iq_set/3,
+         process_iq_get/3,
          get_user_list/3,
-         check_packet/5,
+         check_packet/3,
          remove_user/3,
          remove_domain/3,
          updated_list/3,
-         remove_unused_backend_opts/1]).
--export([disco_local_features/3,
-         user_send_message_or_presence/3,
+         disco_local_features/3]).
+
+-export([user_send_message_or_presence/3,
          user_send_iq/3,
          user_receive_message/3,
          user_receive_presence/3,
@@ -52,12 +53,9 @@
 %% to be used by mod_blocking only
 -export([do_user_send_iq/4]).
 
--export([config_metrics/1]).
+-export([remove_unused_backend_opts/1]).
 
--ignore_xref([
-    check_packet/5, get_user_list/3, process_iq_get/5,
-    process_iq_set/4, remove_user/3, updated_list/3,
-    remove_user/3, remove_domain/3]).
+-export([config_metrics/1]).
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
@@ -80,13 +78,11 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     mod_privacy_backend:init(HostType, Opts),
-    ejabberd_hooks:add(legacy_hooks(HostType)),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
-    ejabberd_hooks:delete(legacy_hooks(HostType)).
+    gen_hook:delete_handlers(hooks(HostType)).
 
 deps(_HostType, _Opts) ->
     [{mod_presence, #{}, hard}].
@@ -122,22 +118,17 @@ remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 supported_features() ->
     [dynamic_domains].
 
--spec legacy_hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-legacy_hooks(HostType) ->
-    [
-     {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
-     {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50},
-     {privacy_get_user_list, HostType, ?MODULE, get_user_list, 50},
-     {privacy_check_packet, HostType, ?MODULE, check_packet, 50},
-     {privacy_updated_list, HostType, ?MODULE, updated_list, 50},
-     {remove_user, HostType, ?MODULE, remove_user, 50},
-     {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50}
-    ].
-
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98}
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98},
+     {privacy_iq_get, HostType, fun ?MODULE:process_iq_get/3, #{}, 50},
+     {privacy_iq_set, HostType, fun ?MODULE:process_iq_set/3, #{}, 50},
+     {privacy_get_user_list, HostType, fun ?MODULE:get_user_list/3, #{}, 50},
+     {privacy_check_packet, HostType, fun ?MODULE:check_packet/3, #{}, 50},
+     {privacy_updated_list, HostType, fun ?MODULE:updated_list/3, #{}, 50},
+     {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50}
      | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -386,12 +377,17 @@ disco_local_features(Acc = #{node := <<>>}, _, _) ->
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
+-spec process_iq_get(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(),
+                iq := jlib:iq(),
+                priv_list := mongoose_privacy:userlist()},
+    Extra :: gen_hook:extra().
 process_iq_get(Acc,
-               _From = #jid{luser = LUser, lserver = LServer},
-               _To,
-               #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
-               #userlist{name = Active}) ->
-    HostType = mongoose_acc:host_type(Acc),
+               #{from := #jid{luser = LUser, lserver = LServer},
+                 iq := #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
+                 priv_list := #userlist{name = Active}},
+               #{host_type := HostType}) ->
     Res = case xml:remove_cdata(Els) of
               [] ->
                   process_lists_get(HostType, LUser, LServer, Active);
@@ -406,9 +402,9 @@ process_iq_get(Acc,
               _ ->
                   {error, mongoose_xmpp_errors:bad_request()}
           end,
-    mongoose_acc:set(hook, result, Res, Acc);
-process_iq_get(Val, _, _, _, _) ->
-    Val.
+    {ok, mongoose_acc:set(hook, result, Res, Acc)};
+process_iq_get(Acc, _, _) ->
+    {ok, Acc}.
 
 process_lists_get(HostType, LUser, LServer, Active) ->
     case mod_privacy_backend:get_list_names(HostType, LUser, LServer) of
@@ -433,9 +429,14 @@ process_list_get(HostType, LUser, LServer, {value, Name}) ->
 process_list_get(_HostType, _LUser, _LServer, false) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
-process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
+-spec process_iq_set(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{from := jid:jid(), iq := jlib:iq()},
+    Extra :: gen_hook:extra().
+process_iq_set(Acc,
+               #{from := From, iq := #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}},
+               #{host_type := HostType}) ->
     #xmlel{children = Els} = SubEl,
-    HostType = mongoose_acc:host_type(Acc),
     Res = case xml:remove_cdata(Els) of
               [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
                   ListName = xml:get_attr(<<"name">>, Attrs),
@@ -453,9 +454,9 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
               _ ->
                   {error, mongoose_xmpp_errors:bad_request()}
           end,
-    mongoose_acc:set(hook, result, Res, Acc);
-process_iq_set(Val, _, _, _) ->
-    Val.
+    {ok, mongoose_acc:set(hook, result, Res, Acc)};
+process_iq_set(Acc, _, _) ->
+    {ok, Acc}.
 
 process_default_set(HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
     case mod_privacy_backend:set_default_list(HostType, LUser, LServer, Name) of
@@ -530,24 +531,40 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, HostType, #jid{luser = LUser, lserver = LServer}) ->
-    case mod_privacy_backend:get_default_list(HostType, LUser, LServer) of
+-spec get_user_list(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_privacy:userlist(),
+    Params :: #{jid := jid:jid()},
+    Extra :: gen_hook:extra().
+get_user_list(_,
+              #{jid := #jid{luser = LUser, lserver = LServer}},
+              #{host_type := HostType}) ->
+    UserList = case mod_privacy_backend:get_default_list(HostType, LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
             #userlist{name = Default, list = List, needdb = NeedDb};
         {error, _} ->
             #userlist{}
-    end.
+    end,
+    {ok, UserList}.
 
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
-check_packet(Acc, _JID, #userlist{list = []}, _, _Dir) ->
-    mongoose_acc:set(hook, result, allow, Acc);
-check_packet(Acc, JID,
-             #userlist{list = List, needdb = NeedDb},
-             {From, To, Name, Type}, Dir) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec check_packet(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_acc:t(),
+    Params :: #{jid := jid:jid(),
+                privacy_list := mongoose_privacy:userlist(),
+                from_to_name_type := {jid:jid(), jid:jid(), binary(), binary()},
+                dir := in | out},
+    Extra :: gen_hook:extra().
+check_packet(Acc, #{privacy_list := #userlist{list = []}}, _) ->
+    {ok, mongoose_acc:set(hook, result, allow, Acc)};
+check_packet(Acc,
+             #{jid := JID,
+               privacy_list := #userlist{list = List, needdb = NeedDb},
+               from_to_name_type := {From, To, Name, Type},
+               dir := Dir},
+             #{host_type := HostType}) ->
     PType = packet_directed_type(Dir, packet_type(Name, Type)),
     LJID = case Dir of
                in -> jid:to_lower(From);
@@ -561,7 +578,7 @@ check_packet(Acc, JID,
                 {[], []}
         end,
     CheckResult = check_packet_aux(List, PType, Type, LJID, Subscription, Groups),
-    mongoose_acc:set(hook, result, CheckResult, Acc).
+    {ok, mongoose_acc:set(hook, result, CheckResult, Acc)}.
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
@@ -637,23 +654,32 @@ is_type_match(subscription, Value, _JID, Subscription, _Groups) ->
 is_type_match(group, Value, _JID, _Subscription, Groups) ->
     lists:member(Value, Groups).
 
-remove_user(Acc, User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    HostType = mongoose_acc:host_type(Acc),
+-spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
+      Acc :: mongoose_acc:t(),
+      Params :: #{jid := jid:jid()},
+      Extra :: #{host_type := mongooseim:host_type()}.
+remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
     R = mod_privacy_backend:remove_user(HostType, LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
+    {ok, Acc}.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
-    mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) ->
+-spec remove_domain(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_hooks:simple_acc(),
+    Params :: #{domain := jid:lserver()},
+    Extra :: gen_hook:extra().
+remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_privacy_backend:remove_domain(HostType, Domain),
-    Acc.
+    {ok, Acc}.
 
-updated_list(_, #userlist{name = SameName}, #userlist{name = SameName} = New) -> New;
-updated_list(_, Old, _) -> Old.
+-spec updated_list(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: false | mongoose_privacy:userlist(),
+    Params :: #{old_list := mongoose_privacy:userlist(),
+                new_list := mongoose_privacy:userlist()},
+    Extra :: gen_hook:extra().
+updated_list(_, #{old_list := #userlist{name = SameName},
+                  new_list := #userlist{name = SameName} = NewList},
+             _) -> {ok, NewList};
+updated_list(_, #{old_list := OldList}, _) -> {ok, OldList}.
 
 %% ------------------------------------------------------------------
 %% Deserialization

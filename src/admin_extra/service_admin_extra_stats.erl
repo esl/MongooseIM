@@ -44,13 +44,13 @@ commands() ->
         #ejabberd_commands{name = stats, tags = [stats],
                            desc = "Get statistical value:"
                                   " registeredusers onlineusers onlineusersnode uptimeseconds",
-                           module = stats_api, function = stats,
+                           module = stats_api, function = stats_mongooseimctl,
                            args = [{name, binary}],
-                           result = {stat, integer}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = stats_host, tags = [stats],
                            desc = "Get statistical value for this host:"
                                   " registeredusers onlineusers",
-                           module = stats_api, function = stats,
+                           module = stats_api, function = stats_mongooseimctl,
                            args = [{name, binary}, {host, binary}],
-                           result = {stat, integer}}
+                           result = {res, restuple}}
         ].

@@ -6,3 +6,5 @@ get_bjid(UserSpec) ->
     Server = proplists:get_value(server, UserSpec),
     <<User/binary,"@",Server/binary>>.
 
+unprep(Bin) when is_binary(Bin) ->
+    list_to_binary(string:titlecase(binary_to_list(Bin))).

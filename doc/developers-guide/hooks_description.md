@@ -167,8 +167,6 @@ This is the perfect place to plug in custom security control.
 * c2s_presence_in
 * c2s_remote_hook
 * c2s_stream_features
-* c2s_unauthenticated_iq
-* c2s_update_presence
 * can_access_identity
 * can_access_room
 * caps_recognised

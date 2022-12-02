@@ -12,7 +12,7 @@
          get_room_users/2,
          get_room_affiliations/2,
          get_room_affiliations/3,
-         create_instant_room/4,
+         create_instant_room/3,
          invite_to_room/4,
          send_message_to_room/3,
          send_private_message/4,
@@ -65,11 +65,16 @@
 -define(SET_ROLE_SUCC_RESULT, {ok, "Role set successfully"}).
 
 -spec get_rooms(jid:lserver(), jid:jid(), non_neg_integer() | undefined,
-                non_neg_integer()) -> get_rooms_result().
+                non_neg_integer()) -> {ok, get_rooms_result()} | {muc_server_not_found, iolist()}.
 get_rooms(MUCServer, From, Limit, Index) ->
-    {Rooms, RSM} = mod_muc:get_vh_rooms(MUCServer, #rsm_in{max = Limit, index = Index}),
-    Rooms2 = lists:filtermap(fun(R) -> room_to_item(R, MUCServer, From) end, Rooms),
-    {Rooms2, RSM}.
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, _HostType} ->
+            {Rooms, RSM} = mod_muc:get_vh_rooms(MUCServer, #rsm_in{max = Limit, index = Index}),
+            Rooms2 = lists:filtermap(fun(R) -> room_to_item(R, MUCServer, From) end, Rooms),
+            {ok, {Rooms2, RSM}};
+        {error, not_found} ->
+           ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
 
 -spec get_room_config(jid:jid(), jid:jid()) ->
     {ok, mod_muc_room:config()} | {not_allowed | room_not_found, iolist()}.
@@ -93,14 +98,14 @@ get_room_config(RoomJID) ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec create_instant_room(jid:lserver(), binary(), jid:jid(), binary()) ->
+-spec create_instant_room(jid:jid(), jid:jid(), binary()) ->
     {ok, short_room_desc()} | {internal | user_not_found | room_not_found, iolist()}.
-create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
+create_instant_room(BareRoomJID = #jid{luser = Name, lresource = <<>>}, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly receive stanzas as a
     %% consequence, even if their client(s) did not initiate this.
-    case {ejabberd_auth:does_user_exist(OwnerJID), jid:make_bare(Name, MUCDomain)} of
-        {true, BareRoomJID = #jid{}} ->
+    case ejabberd_auth:does_user_exist(OwnerJID) of
+        true ->
             UserRoomJID = jid:replace_resource(BareRoomJID, Nick),
             %% Send presence to create a room.
             ejabberd_router:route(OwnerJID, UserRoomJID,
@@ -114,9 +119,7 @@ create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
                 Error ->
                     Error
             end;
-        {true, error} ->
-            {invalid_input, "Room name or domain is invalid"};
-        {false, _} ->
+       false ->
             ?USER_NOT_FOUND_RESULT
     end.
 
@@ -233,6 +236,7 @@ delete_room(RoomJID, OwnerJID, Reason) ->
         {error, not_found} ->
             ?DELETE_NONEXISTENT_ROOM_RESULT
     end.
+
 -spec get_room_users(jid:jid()) -> {ok, [user_map()]} | {room_not_found, iolist()}.
 get_room_users(RoomJID) ->
     case mod_muc_room:get_room_users(RoomJID) of
@@ -286,7 +290,7 @@ get_room_messages(RoomJID, UserJID, PageSize, Before) ->
             ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec get_room_affiliations(jid:jid(), jid:jid(), mod_muc:affiliation()  | undefined) ->
+-spec get_room_affiliations(jid:jid(), jid:jid(), mod_muc:affiliation() | undefined) ->
     {ok, [aff_item()]} | {not_allowed | room_not_found, iolist()}.
 get_room_affiliations(RoomJID, UserJID, AffType) ->
     case mod_muc_room:can_access_room(RoomJID, UserJID) of
@@ -298,7 +302,7 @@ get_room_affiliations(RoomJID, UserJID, AffType) ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec get_room_affiliations(jid:jid(), mod_muc:affiliation()  | undefined) ->
+-spec get_room_affiliations(jid:jid(), mod_muc:affiliation() | undefined) ->
     {ok, [aff_item()]} | {room_not_found, iolist()}.
 get_room_affiliations(RoomJID, AffType) ->
     case room_users_aff(RoomJID) of
@@ -536,8 +540,8 @@ data_submission() ->
                                           {<<"type">>, <<"submit">>}]}]).
 
 address_attributes(Sender, Recipient) ->
-    [{<<"from">>, jid:to_binary(jid:to_lower(Sender))},
-     {<<"to">>, jid:to_binary(jid:to_lower(Recipient))}].
+    [{<<"from">>, jid:to_binary(Sender)},
+     {<<"to">>, jid:to_binary(Recipient)}].
 
 room_moderator(RoomJID) ->
     case mod_muc_room:get_room_users(RoomJID) of

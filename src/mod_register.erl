@@ -41,7 +41,7 @@
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([c2s_stream_features/3, process_iq/5, try_register/6]).
+-ignore_xref([try_register/6]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -51,9 +51,7 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)),
-    gen_hook:add_handlers(c2s_hooks(HostType)),
-
+    gen_hook:add_handlers(hooks(HostType)),
     mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
                          {local_content, true},
@@ -63,8 +61,7 @@ start(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(c2s_hooks(HostType)),
-    ejabberd_hooks:delete(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_REGISTER, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
@@ -72,8 +69,10 @@ stop(HostType) ->
 iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50}].
+    [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50}
+     | c2s_hooks(HostType) ].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
@@ -135,11 +134,14 @@ process_welcome_message(#{subject := Subject, body := Body}) ->
 %%% Hooks and IQ handlers
 %%%
 
--spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
-          [exml:element()].
-c2s_stream_features(Acc, _HostType, _LServer) ->
-    [#xmlel{name = <<"register">>,
-            attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
+-spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: [exml:element()],
+    Params :: map(),
+    Extra :: gen_hook:extra().
+c2s_stream_features(Acc, _, _) ->
+    NewAcc = [#xmlel{name = <<"register">>,
+                     attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc],
+    {ok, NewAcc}.
 
 -spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().

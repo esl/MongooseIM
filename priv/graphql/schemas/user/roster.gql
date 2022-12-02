@@ -19,7 +19,7 @@ Allow user to get information about user roster/contacts.
 """
 type RosterUserQuery @protected{
   "Get the user's roster/contacts"
-  listContacts: [Contact!] 
+  listContacts: [Contact!]
   "Get the user's contact"
   getContact(contact: JID!): Contact
 }

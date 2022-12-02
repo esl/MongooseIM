@@ -3,28 +3,38 @@ Allow user to manage Multi-User Chat rooms.
 """
 type MUCUserMutation @protected @use(modules: ["mod_muc"]){
   "Create a MUC room under the given XMPP hostname"
-  #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
-  createInstantRoom(mucDomain: String!, name: String!, nick: String!): MUCRoomDesc
+  createInstantRoom(room: BareJID!, nick: ResourceName!): MUCRoomDesc
+    @use(arg: "room")
   "Invite a user to a MUC room"
-  inviteUser(room: JID!, recipient: JID!, reason: String): String @use(arg: "room")
+  inviteUser(room: BareJID!, recipient: JID!, reason: String): String
+    @use(arg: "room")
   "Kick a user from a MUC room"
-  kickUser(room: JID!, nick: String!, reason: String): String @use(arg: "room")
+  kickUser(room: BareJID!, nick: ResourceName!, reason: String): String
+    @use(arg: "room")
   "Send a message to a MUC room"
-  sendMessageToRoom(room: JID!, body: String!, resource: String): String @use(arg: "room")
+  sendMessageToRoom(room: BareJID!, body: String!, resource: ResourceName): String
+    @use(arg: "room")
   "Send a private message to a MUC room user from the given resource"
-  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String @use(arg: "room")
+  sendPrivateMessage(room: BareJID!, toNick: ResourceName!, body: String!, resource: ResourceName): String
+    @use(arg: "room")
   "Remove a MUC room"
-  deleteRoom(room: JID!, reason: String): String @use(arg: "room")
+  deleteRoom(room: BareJID!, reason: String): String
+    @use(arg: "room")
   "Change configuration of a MUC room"
-  changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig @use(arg: "room")
+  changeRoomConfiguration(room: BareJID!, config: MUCRoomConfigInput!): MUCRoomConfig
+    @use(arg: "room")
   "Change a user role"
-  setUserRole(room: JID!, nick: String!, role: MUCRole!): String @use(arg: "room")
+  setUserRole(room: BareJID!, nick: ResourceName!, role: MUCRole!): String
+    @use(arg: "room")
   "Change a user affiliation"
-  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String @use(arg: "room")
+  setUserAffiliation(room: BareJID!, user: JID!, affiliation: MUCAffiliation!): String
+    @use(arg: "room")
   "Enter the room with given resource and nick"
-  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String @use(arg: "room")
+  enterRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!, password: String): String
+    @use(arg: "room")
   "Exit the room with given resource and nick"
-  exitRoom(room: JID!, nick: String!, resource: String!): String @use(arg: "room")
+  exitRoom(room: BareJID!, nick: ResourceName!, resource: ResourceName!): String
+    @use(arg: "room")
 }
 
 """
@@ -32,14 +42,18 @@ Allow user to get information about Multi-User Chat rooms.
 """
 type MUCUserQuery @protected @use(modules: ["mod_muc"]){
   "Get MUC rooms under the given MUC domain"
-  #There is no @use directive because it is currently impossible to get HostType from mucDomain in directive code
-  listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
+  listRooms(mucDomain: DomainName!, limit: PosInt, index: NonNegInt): MUCRoomsPayload
+    @use(arg: "mucDomain")
   "Get configuration of the MUC room"
-  getRoomConfig(room: JID!): MUCRoomConfig @use(arg: "room")
+  getRoomConfig(room: BareJID!): MUCRoomConfig
+    @use(arg: "room")
   "Get the user list of a given MUC room"
-  listRoomUsers(room: JID!): [MUCRoomUser!] @use(arg: "room")
+  listRoomUsers(room: BareJID!): [MUCRoomUser!]
+    @use(arg: "room")
   "Get the affiliation list of given MUC room"
-  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!] @use(arg: "room")
+  listRoomAffiliations(room: BareJID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
+    @use(arg: "room")
   "Get the MUC room archived messages"
-  getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload @use(arg: "room")
+  getRoomMessages(room: BareJID!, pageSize: PosInt, before: DateTime): StanzasPayload
+    @use(arg: "room", modules: ["mod_mam_muc"])
 }

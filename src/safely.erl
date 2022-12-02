@@ -15,42 +15,47 @@
 -ignore_xref([apply/3, apply_and_log/4]).
 
 -type error_class() :: error | exit | throw.
--type catch_result(A) :: A | {error_class(), term()}.
+-type error_info() :: #{class => error_class(), reason => term(), stacktrace => [term()]}.
+-type exception() :: {exception, error_info()}.
+-export_type([exception/0]).
 
 -define(MATCH_EXCEPTIONS_DO_LOG(F, Context),
         try F catch
             error:R:S ->
-                ?LOG_ERROR(Context#{class => error, reason => R, stacktrace => S}),
-                {error, {R, S}};
+                Info = #{class => error, reason => R, stacktrace => S},
+                ?LOG_ERROR(maps:merge(Context, Info)),
+                {exception, Info};
             throw:R ->
-                ?LOG_ERROR(Context#{class => throw, reason => R}),
-                {throw, R};
+                Info = #{class => throw, reason => R},
+                ?LOG_ERROR(maps:merge(Context, Info)),
+                {exception, Info};
             exit:R:S ->
-                ?LOG_ERROR(Context#{class => exit, reason => R, stacktrace => S}),
-                {exit, {R, S}}
+                Info = #{class => exit, reason => R, stacktrace => S},
+                ?LOG_ERROR(maps:merge(Context, Info)),
+                {exception, Info}
         end).
 
 -define(MATCH_EXCEPTIONS(F),
         try F catch
-            error:R:S -> {error, {R, S}};
-            throw:R -> {throw, R};
-            exit:R:S -> {exit, {R, S}}
+            error:R:S -> {exception, #{class => error, reason => R, stacktrace => S}};
+            throw:R -> {exception, #{class => throw, reason => R}};
+            exit:R:S -> {exception, #{class => exit, reason => R, stacktrace => S}}
         end).
 
--spec apply(fun((...) -> A), [term()]) -> catch_result(A).
+-spec apply(fun((...) -> A), [term()]) -> A | exception().
 apply(Function, Args) when is_function(Function), is_list(Args) ->
     ?MATCH_EXCEPTIONS(erlang:apply(Function, Args)).
 
--spec apply(atom(), atom(), [term()]) -> catch_result(any()).
+-spec apply(atom(), atom(), [term()]) -> term() | exception().
 apply(Module, Function, Args) when is_atom(Function), is_list(Args) ->
     ?MATCH_EXCEPTIONS(erlang:apply(Module, Function, Args)).
 
--spec apply_and_log(fun((...) -> A), [term()], map()) -> catch_result(A).
+-spec apply_and_log(fun((...) -> A), [term()], map()) -> A | exception().
 apply_and_log(Function, Args, Context)
   when is_function(Function), is_list(Args), is_map(Context) ->
     ?MATCH_EXCEPTIONS_DO_LOG(erlang:apply(Function, Args), Context).
 
--spec apply_and_log(atom(), atom(), [term()], map()) -> catch_result(any()).
+-spec apply_and_log(atom(), atom(), [term()], map()) -> term() | exception().
 apply_and_log(Module, Function, Args, Context)
   when is_atom(Function), is_list(Args), is_map(Context) ->
     ?MATCH_EXCEPTIONS_DO_LOG(erlang:apply(Module, Function, Args), Context).

@@ -233,17 +233,18 @@ mock_rdbms_backend() ->
     ok.
 
 mock_keystore() ->
-    ejabberd_hooks:add(get_key, host_type(), ?MODULE, mod_keystore_get_key, 50).
+    gen_hook:add_handler(get_key, host_type(), fun ?MODULE:mod_keystore_get_key/3, #{}, 50).
 
 mock_gen_iq_handler() ->
     meck:new(gen_iq_handler, []),
     meck:expect(gen_iq_handler, add_iq_handler_for_domain, fun (_, _, _, _, _, _) -> ok end).
 
-mod_keystore_get_key(_, {KeyName, _} = KeyID) ->
-    case KeyName of
+mod_keystore_get_key(_, #{key_id := {KeyName, _} = KeyID}, _) ->
+    Acc = case KeyName of
         token_secret -> [{KeyID, <<"access_or_refresh">>}];
         provision_pre_shared -> [{KeyID, <<"provision">>}]
-    end.
+    end,
+    {ok, Acc}.
 
 mock_tested_backend() ->
     meck:new(mod_auth_token_backend, []),

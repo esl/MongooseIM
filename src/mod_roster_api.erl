@@ -44,19 +44,26 @@ add_contact(#jid{lserver = LServer} = CallerJID, ContactJID, Name, Groups) ->
 list_contacts(#jid{lserver = LServer} = CallerJID) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                                       host_type => HostType,
-                                       lserver => LServer,
-                                       element => undefined }),
-            Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-            Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
-            {ok, mongoose_acc:get(roster, items, Acc2)};
+            case ejabberd_auth:does_user_exist(CallerJID) of
+                true ->
+                    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+                                               host_type => HostType,
+                                               lserver => LServer,
+                                               element => undefined }),
+                    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
+                    Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
+                    {ok, mongoose_acc:get(roster, items, Acc2)};
+                false ->
+                    {user_not_exist, io_lib:format("The user ~s does not exist",
+                                                   [jid:to_binary(CallerJID)])}
+            end;
         {error, not_found} ->
             ?UNKNOWN_DOMAIN_RESULT
     end.
 
 -spec get_contact(jid:jid(), jid:jid()) ->
-    {ok, mod_roster:roster()} | {contact_not_found | internal | unknown_domain, iolist()}.
+    {ok, mod_roster:roster()} |
+    {contact_not_found | internal | unknown_domain | user_not_exist, iolist()}.
 get_contact(#jid{lserver = LServer} = UserJID, ContactJID) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
@@ -107,7 +114,7 @@ subscription(#jid{lserver = LServer} = CallerJID, ContactJID, Type) ->
                                        lserver => LServer,
                                        element => El }),
             Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJID, ContactJID, Type),
-            ejabberd_router:route(CallerJID, ContactJID, Acc2),
+            ejabberd_router:route(CallerJID, jid:to_bare(ContactJID), Acc2),
             {ok, io_lib:format("Subscription stanza with type ~s sent successfully", [StanzaType])};
         {error, not_found} ->
             ?UNKNOWN_DOMAIN_RESULT
@@ -122,7 +129,7 @@ set_mutual_subscription(UserA, UserB, disconnect) ->
            fun() -> delete_contact(UserB, UserA) end],
     case run_seq(Seq, ok) of
         ok ->
-            {ok, "Mututal subscription removed successfully"};
+            {ok, "Mutual subscription removed successfully"};
         Error ->
             Error
     end.
@@ -138,7 +145,7 @@ subscribe_both({UserA, NameA, GroupsA}, {UserB, NameB, GroupsB}) ->
            fun() -> subscription(UserB, UserA, subscribed) end],
     case run_seq(Seq, ok) of
         ok ->
-            {ok, io_lib:format("Subscription between users ~p and ~p created successfully",
+            {ok, io_lib:format("Subscription between users ~s and ~s created successfully",
                                [jid:to_binary(UserA), jid:to_binary(UserB)])};
         Error ->
             Error

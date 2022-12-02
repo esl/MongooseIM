@@ -13,10 +13,15 @@
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
 input(<<"Stanza">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
-input(<<"DomainName">>, Domain) -> domain_from_binary(Domain);
+input(<<"BareJID">>, Jid) -> bare_jid_from_binary(Jid);
 input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
+input(<<"UserName">>, User) -> user_from_binary(User);
+input(<<"RoomName">>, Room) -> room_from_binary(Room);
+input(<<"DomainName">>, Domain) -> domain_from_binary(Domain);
+input(<<"ResourceName">>, Res) -> resource_from_binary(Res);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
 input(<<"PosInt">>, Value) -> validate_pos_integer(Value);
+input(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
     {ok, V}.
@@ -30,9 +35,12 @@ input(Ty, V) ->
 output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
 output(<<"Stanza">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
+output(<<"UserName">>, User) -> {ok, User};
 output(<<"DomainName">>, Domain) -> {ok, Domain};
+output(<<"ResourceName">>, Res) -> {ok, Res};
 output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
 output(<<"PosInt">>, Value) -> validate_pos_integer(Value);
+output(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
     {ok, V}.
@@ -41,8 +49,54 @@ jid_from_binary(Value) ->
     case jid:from_binary(Value) of
         error ->
             {error, failed_to_parse_jid};
+        #jid{luser = <<>>} ->
+            {error, jid_without_local_part};
         Jid ->
             {ok, Jid}
+    end.
+
+bare_jid_from_binary(Value) ->
+    case jid:from_binary(Value) of
+        error ->
+            {error, failed_to_parse_jid};
+        #jid{luser = <<>>} ->
+            {error, jid_without_local_part};
+        Jid = #jid{lresource = <<>>} ->
+            {ok, Jid};
+        #jid{} ->
+            {error, jid_with_resource}
+    end.
+
+full_jid_from_binary(Value) ->
+    case jid:from_binary(Value) of
+        error ->
+            {error, failed_to_parse_jid};
+        #jid{luser = <<>>} ->
+            {error, jid_without_local_part};
+        #jid{lresource = <<>>} ->
+            {error, jid_without_resource};
+        Jid ->
+            {ok, Jid}
+    end.
+
+user_from_binary(<<>>) ->
+    {error, empty_user_name};
+user_from_binary(Value) ->
+    case jid:nodeprep(Value) of
+        error ->
+            {error, failed_to_parse_user_name};
+        User ->
+            {ok, User}
+    end.
+
+room_from_binary(<<>>) ->
+    {error, empty_room_name};
+room_from_binary(Value) ->
+    case jid:nodeprep(Value) of
+        error ->
+            {error, failed_to_parse_room_name};
+        Room ->
+            {ok, Room}
     end.
 
 domain_from_binary(<<>>) ->
@@ -55,12 +109,14 @@ domain_from_binary(Value) ->
             {ok, Domain}
     end.
 
-full_jid_from_binary(Value) ->
-    case jid_from_binary(Value) of
-        {ok, #jid{lresource = <<>>}} ->
-            {error, jid_without_resource};
-        Result ->
-            Result
+resource_from_binary(<<>>) ->
+    {error, empty_resource_name};
+resource_from_binary(Value) ->
+    case jid:resourceprep(Value) of
+        error ->
+            {error, failed_to_parse_resource_name};
+        Res ->
+            {ok, Res}
     end.
 
 binary_to_microseconds(DT) ->
@@ -85,6 +141,11 @@ validate_pos_integer(PosInt) when is_integer(PosInt), PosInt > 0 ->
     {ok, PosInt};
 validate_pos_integer(_Value) ->
     {error, "Value is not a positive integer"}.
+
+validate_non_neg_integer(NonNegInt) when is_integer(NonNegInt), NonNegInt >= 0 ->
+    {ok, NonNegInt};
+validate_non_neg_integer(_Value) ->
+    {error, "Value is not a non-negative integer"}.
 
 microseconds_to_binary(Microseconds) ->
     Opts = [{offset, "Z"}, {unit, microsecond}],

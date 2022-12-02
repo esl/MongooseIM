@@ -13,7 +13,7 @@ type InboxAdminMutation @use(modules: ["mod_inbox"]) @protected{
   "Flush the whole domain bin and return the number of deleted rows"
   flushDomainBin(
     "Domain to be cleared"
-    domain: String!,
+    domain: DomainName!,
     "Remove older than given days or all if null"
     days: PosInt
   ): Int @use(arg: "domain") @protected(type: DOMAIN, args: ["domain"])

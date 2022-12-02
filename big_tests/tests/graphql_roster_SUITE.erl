@@ -6,7 +6,7 @@
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_value/2, get_err_msg/1,
                          get_err_msg/2, get_bad_request/1, user_to_jid/1, user_to_bin/1,
-                         get_unauthorized/1]).
+                         get_unauthorized/1, get_err_code/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/mod_roster.hrl").
@@ -65,7 +65,8 @@ admin_roster_tests() ->
      admin_list_contacts,
      admin_list_contacts_wrong_user,
      admin_get_contact,
-     admin_get_contact_wrong_user
+     admin_get_contact_wrong_user,
+     admin_subscribe_all_to_all_empty_list
     ].
 
 domain_admin_tests() ->
@@ -174,8 +175,7 @@ admin_try_add_contact_to_nonexistent_user(Config) ->
     User = ?NONEXISTENT_USER,
     Contact = ?NONEXISTENT_USER2,
     Res = admin_add_contact(User, Contact, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), User)),
-    check_contacts([], User).
+    ?assertEqual(<<"user_not_exist">>, get_err_code(Res)).
 
 admin_try_add_contact_with_unknown_domain(Config) ->
     User = ?NONEXISTENT_DOMAIN_USER,
@@ -402,7 +402,7 @@ admin_list_contacts_wrong_user(Config) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
     % Non-existent user with existent domain
     Res2 = admin_list_contacts(?NONEXISTENT_USER, Config),
-    ?assertEqual([], get_ok_value(?LIST_CONTACTS_PATH, Res2)).
+    ?assertEqual(<<"user_not_exist">>, get_err_code(Res2)).
 
 admin_get_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -424,6 +424,10 @@ admin_get_contact_wrong_user(Config) ->
     % Non-existent user with existent domain
     Res2 = admin_get_contact(?NONEXISTENT_USER, ?NONEXISTENT_USER, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not exist">>)).
+
+admin_subscribe_all_to_all_empty_list(Config) ->
+    Res = admin_subscribe_all_to_all([], Config),
+    ?assertEqual([], get_ok_value(?SUBSCRIBE_ALL_TO_ALL_PATH, Res)).
 
 %% User test cases
 
@@ -661,7 +665,7 @@ domain_admin_list_contacts_wrong_user(Config) ->
     get_unauthorized(Res),
     % Non-existent user with existent domain
     Res2 = admin_list_contacts(?NONEXISTENT_USER, Config),
-    ?assertEqual([], get_ok_value(?LIST_CONTACTS_PATH, Res2)).
+    ?assertEqual(<<"user_not_exist">>, get_err_code(Res2)).
 
 domain_admin_list_contacts_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
