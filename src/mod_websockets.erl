@@ -497,7 +497,7 @@ is_channel_binding_supported(_Socket) ->
 
 -spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
 get_tls_last_message(_Socket) ->
-    {error, undefined}.
+    {error, tls_not_allowed_on_websockets}.
 
 -spec is_ssl(socket()) -> boolean().
 is_ssl(_Socket) ->
