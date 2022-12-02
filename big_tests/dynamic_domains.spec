@@ -72,7 +72,7 @@
 
 {suites, "tests", last_SUITE}.
 
-% {suites, "tests", login_SUITE}.
+{suites, "tests", login_SUITE}.
 
 {suites, "tests", mam_SUITE}.
 {suites, "tests", mam_proper_SUITE}.

@@ -40,6 +40,7 @@
          socket_close/1,
          has_peer_cert/2,
          is_channel_binding_supported/1,
+         get_tls_last_message/1,
          is_ssl/1]).
 
 %% gen_fsm callbacks
@@ -1160,6 +1161,10 @@ has_peer_cert(Socket, _LOpts) ->
 -spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->
     false.
+
+-spec get_tls_last_message(mod_bosh:socket()) -> {ok, binary()} | {error, term()}.
+get_tls_last_message(_Socket) ->
+    {error, tls_not_allowed_on_bosh}.
 
 -spec is_ssl(mod_bosh:socket()) -> boolean().
 is_ssl(_Socket) ->

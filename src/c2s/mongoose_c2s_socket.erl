@@ -7,6 +7,7 @@
          activate/1,
          close/1,
          is_channel_binding_supported/1,
+         get_tls_last_message/1,
          has_peer_cert/2,
          tcp_to_tls/2,
          is_ssl/1,
@@ -28,6 +29,7 @@
     ok | {error, term()}.
 -callback has_peer_cert(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> boolean().
 -callback is_channel_binding_supported(mongoose_c2s_socket:state()) -> boolean().
+-callback get_tls_last_message(mongoose_c2s_socket:state()) -> {ok, binary()} | {error, term()}.
 -callback is_ssl(mongoose_c2s_socket:state()) -> boolean().
 
 -record(c2s_socket, {module :: module(),
@@ -117,6 +119,10 @@ is_ssl(#c2s_socket{module = Module, state = State}) ->
 -spec get_transport(socket()) -> module().
 get_transport(#c2s_socket{module = Module}) ->
     Module.
+
+-spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
+get_tls_last_message(#c2s_socket{module = Module, state = State}) ->
+    Module:get_tls_last_message(State).
 
 -spec get_conn_type(socket()) -> conn_type().
 get_conn_type(Socket) ->
