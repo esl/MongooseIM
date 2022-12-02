@@ -48,6 +48,14 @@ How old entries in the bin can be before the automatic bin cleaner collects them
 
 How often the automatic garbage collection runs over the bin.
 
+#### `modules.mod_inbox.delete_domain_limit`
+
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `modules.mod_inbox.delete_domain_limit = 10000`
+
+Domain deletion can be an expensive operation, as it requires to delete potentially many thousands of records from the DB. By default, the delete operation deletes everything in a transaction, but it might be desired, to handle timeouts and table locks more gracefully, to delete the records in batches. This limit establishes the size of the batch.
+
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
