@@ -35,7 +35,7 @@
 %% ----------------------------------------------------------------------
 
 %% TODO pools aren't multitenancy-ready yet
-init(HostType, _Options) ->
+init(HostType, Opts) ->
     RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
     mongoose_rdbms:prepare(inbox_select_entry, inbox,
                            [luser, lserver, remote_bare_jid],
@@ -69,8 +69,7 @@ init(HostType, _Options) ->
     mongoose_rdbms:prepare(inbox_delete, inbox,
                            [luser, lserver],
                            <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
-    mongoose_rdbms:prepare(inbox_delete_domain, inbox,
-                           [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>),
+    prepare_remove_domain(Opts),
     % upserts
     BoxQuery = <<"CASE WHEN ?='bin' THEN 'bin'",
                      " WHEN inbox.box='archive' THEN 'inbox'",
@@ -94,6 +93,12 @@ init(HostType, _Options) ->
                                   <<"timestamp">>],
                                  UniqueKeyFields, <<"timestamp">>),
     ok.
+
+prepare_remove_domain(Opts) ->
+    {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
+    mongoose_rdbms:prepare(
+      inbox_delete_domain, inbox, [lserver],
+      <<"DELETE ", MaybeLimitMSSQL/binary, "FROM inbox WHERE lserver = ? ", MaybeLimitSQL/binary>>).
 
 -spec get_inbox(HostType :: mongooseim:host_type(),
                 LUser :: jid:luser(),
@@ -172,8 +177,8 @@ remove_inbox_row(HostType, {LUser, LServer, LToBareJid}) ->
 -spec remove_domain(HostType :: mongooseim:host_type(),
                     LServer :: jid:lserver()) -> term().
 remove_domain(HostType, LServer) ->
-    execute_delete_domain(HostType, LServer),
-    ok.
+    DeleteDomainLimit = gen_mod:get_module_opt(HostType, mod_inbox, delete_domain_limit),
+    execute_delete_domain(HostType, LServer, DeleteDomainLimit).
 
 -spec set_inbox_incr_unread(
         mongooseim:host_type(), mod_inbox:entry_key(), exml:element(), binary(), integer()) ->
@@ -471,11 +476,12 @@ execute_delete(HostType, LUser, LServer, RemBareJID) ->
 execute_delete(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_delete, [LUser, LServer]).
 
--spec execute_delete_domain(HostType :: mongooseim:host_type(),
-                            LServer :: jid:lserver()) ->
+-spec execute_delete_domain(mongooseim:host_type(), jid:lserver(), infinity | non_neg_integer()) ->
     mongoose_rdbms:query_result().
-execute_delete_domain(HostType, LServer) ->
-    mongoose_rdbms:execute_successfully(HostType, inbox_delete_domain, [LServer]).
+execute_delete_domain(HostType, LServer, infinity) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_delete_domain, [LServer]);
+execute_delete_domain(HostType, LServer, Limit) ->
+    mod_mam_utils:incremental_delete_domain(HostType, LServer, Limit, [inbox_delete_domain], 0).
 
 %% DB result processing
 -type db_return() :: {RemBareJID :: jid:luser(),
