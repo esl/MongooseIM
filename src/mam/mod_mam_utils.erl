@@ -1226,7 +1226,7 @@ db_jid_codec(HostType, Module) ->
 db_message_codec(HostType, Module) ->
     gen_mod:get_module_opt(HostType, Module, db_message_format).
 
--spec batch_delete_limits(#{delete_domain_limit := infinity | non_neg_integer()}) ->
+-spec batch_delete_limits(#{delete_domain_limit := infinity | non_neg_integer(), _ => _}) ->
     {binary(), binary()}.
 batch_delete_limits(#{delete_domain_limit := infinity}) ->
     {<<>>, <<>>};

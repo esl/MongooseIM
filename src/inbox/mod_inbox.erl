@@ -131,6 +131,8 @@ config_spec() ->
                   <<"bin_ttl">> => #option{type = integer, validate = non_negative},
                   <<"bin_clean_after">> => #option{type = integer, validate = non_negative,
                                                    process = fun timer:hours/1},
+                  <<"delete_domain_limit">> => #option{type = int_or_infinity,
+                                                       validate = positive},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
@@ -140,6 +142,7 @@ config_spec() ->
                      <<"boxes">> => [],
                      <<"bin_ttl">> => 30, % 30 days
                      <<"bin_clean_after">> => timer:hours(1),
+                     <<"delete_domain_limit">> => infinity,
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
                      <<"reset_markers">> => [<<"displayed">>],
@@ -298,7 +301,7 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
 -spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
       Params :: #{domain := jid:lserver()},
-      Extra :: #{host_type := mongooseim:host_type()}.
+      Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             mod_inbox_backend:remove_domain(HostType, Domain),

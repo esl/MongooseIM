@@ -560,6 +560,7 @@ all_modules() ->
             bin_clean_after => timer:hours(1),
             iqdisc => no_queue,
             aff_changes => true,
+            delete_domain_limit => infinity,
             groupchat => [muclight],
             remove_on_kicked => true,
             reset_markers => [<<"displayed">>]},
@@ -880,6 +881,7 @@ default_mod_config(mod_inbox) ->
       bin_clean_after => timer:hours(1),
       groupchat => [muclight],
       aff_changes => true,
+      delete_domain_limit => infinity,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
