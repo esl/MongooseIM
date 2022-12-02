@@ -170,7 +170,7 @@ remove_inbox_row(HostType, {LUser, LServer, LToBareJid}) ->
     check_result(Res).
 
 -spec remove_domain(HostType :: mongooseim:host_type(),
-                    LServer :: jid:lserver()) -> ok.
+                    LServer :: jid:lserver()) -> term().
 remove_domain(HostType, LServer) ->
     execute_delete_domain(HostType, LServer),
     ok.

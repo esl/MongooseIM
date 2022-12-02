@@ -301,7 +301,7 @@ remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
 -spec remove_domain(Acc, Params, Extra) -> {ok | stop, Acc} when
       Acc :: mongoose_domain_api:remove_domain_acc(),
       Params :: #{domain := jid:lserver()},
-      Extra :: #{host_type := mongooseim:host_type()}.
+      Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     F = fun() ->
             mod_inbox_backend:remove_domain(HostType, Domain),
