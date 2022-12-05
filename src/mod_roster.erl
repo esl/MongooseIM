@@ -340,7 +340,7 @@ get_user_roster(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_ty
 -spec get_user_roster(mongoose_acc:t(),
                       jid:luser(),
                       jid:lserver(),
-                      mongooseim:host_type()) ->mongoose_acc:t().
+                      mongooseim:host_type()) -> mongoose_acc:t().
 get_user_roster(Acc, LUser, LServer, HostType) ->
     case mongoose_acc:get(roster, show_full_roster, false, Acc) of
         true ->
