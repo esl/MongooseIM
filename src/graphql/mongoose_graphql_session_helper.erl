@@ -16,15 +16,23 @@ format_sessions(Sessions) ->
     lists:map(fun(S) -> {ok, format_session(S)} end, Sessions).
 
 -spec format_session(mongoose_session_api:session_info()) -> session_data().
-format_session({USR, Conn, IP, Port, Prio, Node, Uptime}) ->
-    IPS = inet:ntoa(IP),
+format_session({USR, Conn, Address, Prio, Node, Uptime}) ->
+    {IP, Port} = from_address(Address),
     #{<<"user">> => jid:to_binary(USR),
-      <<"connection">> => atom_to_binary(Conn),
-      <<"ip">> => iolist_to_binary(IPS),
+      <<"connection">> => from_conn(Conn),
+      <<"ip">> => IP,
       <<"port">> => Port,
       <<"priority">> => Prio,
       <<"node">> => atom_to_binary(Node),
       <<"uptime">> => Uptime}.
+
+from_conn(undefined) -> null;
+from_conn(Conn) -> atom_to_binary(Conn).
+
+from_address(undefined) ->
+    {null, null};
+from_address({IP, Port}) ->
+    {iolist_to_binary(inet:ntoa(IP)), Port}.
 
 -spec format_status_users([mongoose_session_api:status_user_info()]) -> status_user_list().
 format_status_users(Sessions) ->

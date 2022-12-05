@@ -23,9 +23,12 @@ kick_user_session(#{<<"user">> := JID, <<"reason">> := KickReason}) ->
         Error -> make_error(Error, #{jid => jid:to_binary(JID), reason => KickReason})
     end.
 
--spec kick_user(map()) -> {ok, [mongoose_session_api:kick_user_result()]}.
+-spec kick_user(map()) -> {ok, [mongoose_session_api:kick_user_result()]} | {error, resolver_error()}.
 kick_user(#{<<"user">> := JID, <<"reason">> := KickReason}) ->
-    mongoose_session_api:kick_sessions(JID, KickReason).
+    case mongoose_session_api:kick_sessions(JID, KickReason) of
+        {ok, Result} -> {ok, Result};
+        Error -> make_error(Error, #{jid => jid:to_binary(JID), reason => KickReason})
+    end.
 
 -spec set_presence(map()) -> {ok, map()} | {error, resolver_error()}.
 set_presence(#{<<"user">> := JID, <<"type">> := Type,

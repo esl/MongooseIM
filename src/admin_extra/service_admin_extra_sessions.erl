@@ -213,9 +213,14 @@ user_sessions_info(User, Host) ->
 format_sessions(Sessions) ->
     lists:map(fun(S) -> format_session(S) end, Sessions).
 
-format_session({USR, Conn, IP, Port, Prio, Node, Uptime}) ->
-    IPS = inet:ntoa(IP),
-    {jid:to_binary(USR), atom_to_list(Conn), IPS, Port, Prio, atom_to_list(Node), Uptime}.
+format_session({USR, Conn, Address, Prio, Node, Uptime}) ->
+    {IP, Port} = from_address(Address),
+    {jid:to_binary(USR), atom_to_list(Conn), IP, Port, Prio, atom_to_list(Node), Uptime}.
+
+from_address(undefined) ->
+    {undefined, undefined};
+from_address({IP, Port}) ->
+    {inet:ntoa(IP), Port}.
 
 format_status_users(Sessions) ->
     lists:map(fun(S) -> format_status_user(S) end, Sessions).

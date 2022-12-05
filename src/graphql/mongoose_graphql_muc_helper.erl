@@ -13,13 +13,15 @@
 -include("mod_muc_room.hrl").
 
 -spec add_user_resource(jid:jid(), binary() | null) ->
-    {ok, jid:jid()} | {no_session, iolist()}.
+    {ok, jid:jid()} | {atom(), binary()}.
 add_user_resource(JID, null) ->
     case mongoose_session_api:get_user_resource(JID, 1) of
         {ok, Resource} ->
             {ok, jid:replace_resource(JID, Resource)};
-        {wrong_res_number, _ErrMsg}->
-            {no_session, "Given user does not have any session"}
+        {wrong_res_number, _} ->
+            {no_session, <<"Given user does not have any session">>};
+        Error ->
+            Error
     end;
 add_user_resource(JID, Resource) ->
     {ok, jid:replace_resource(JID, Resource)}.
