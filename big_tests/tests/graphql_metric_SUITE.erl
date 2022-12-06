@@ -5,7 +5,8 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1]).
+-import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
+                         get_err_msg/1, get_err_code/1]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -27,15 +28,28 @@ metrics_tests() ->
     [get_all_metrics,
      get_all_metrics_check_by_type,
      get_by_name_global_erlang_metrics,
+     get_metrics_by_name_empty_args,
+     get_metrics_by_name_empty_string,
+     get_metrics_by_nonexistent_name,
+     get_metrics_for_specific_host_type,
      get_process_queue_length,
      get_inet_stats,
      get_vm_stats_memory,
      get_all_metrics_as_dicts,
      get_by_name_metrics_as_dicts,
+     get_metrics_as_dicts_by_nonexistent_name,
      get_metrics_as_dicts_with_key_one,
+     get_metrics_as_dicts_with_nonexistent_key,
+     get_metrics_as_dicts_empty_args,
+     get_metrics_as_dicts_empty_strings,
      get_cluster_metrics,
      get_by_name_cluster_metrics_as_dicts,
-     get_mim2_cluster_metrics].
+     get_mim2_cluster_metrics,
+     get_cluster_metrics_for_nonexistent_nodes,
+     get_cluster_metrics_by_nonexistent_name,
+     get_cluster_metrics_with_nonexistent_key,
+     get_cluster_metrics_empty_args,
+     get_cluster_metrics_empty_strings].
 
 domain_admin_metrics_tests() ->
     [domain_admin_get_metrics,
@@ -126,6 +140,28 @@ get_by_name_global_erlang_metrics(Config) ->
     %% Other metrics are filtered out
     undef = maps:get(ReadsKey, Map, undef).
 
+get_metrics_by_name_empty_args(Config) ->
+    Result = get_metrics([], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    lists:foreach(fun check_metric_by_type/1, ParsedResult),
+    [_|_] = ParsedResult.
+
+get_metrics_by_name_empty_string(Config) ->
+    Result = get_metrics([<<>>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    [] = ParsedResult.
+
+get_metrics_by_nonexistent_name(Config) ->
+    Result = get_metrics([<<"not_existing">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    [] = ParsedResult.
+
+get_metrics_for_specific_host_type(Config) ->
+    Result = get_metrics([<<"dummy auth">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    lists:foreach(fun check_metric_by_type/1, ParsedResult),
+    [_|_] = ParsedResult.
+
 get_process_queue_length(Config) ->
     Result = get_metrics([<<"global">>, <<"processQueueLengths">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
@@ -167,13 +203,48 @@ get_by_name_metrics_as_dicts(Config) ->
                           check_spiral_dict(Dict)
             end, ParsedResult).
 
+get_metrics_as_dicts_by_nonexistent_name(Config) ->
+    Result = get_metrics_as_dicts_by_name([<<"not_existing">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    [] = ParsedResult.
+
 get_metrics_as_dicts_with_key_one(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"one">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
     SentName = [metric_host_type(), <<"xmppStanzaSent">>],
     [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
-    true = is_integer(One).
+    ?assert(is_integer(One)).
+
+get_metrics_as_dicts_with_nonexistent_key(Config) ->
+    Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    Map = dict_objects_to_map(ParsedResult),
+    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"encrypted_size">>],
+    [] = maps:get(SentName, Map).
+
+get_metrics_as_dicts_empty_args(Config) ->
+    %% Empty name
+    Result = get_metrics_as_dicts([], [<<"median">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    Map = dict_objects_to_map(ParsedResult),
+    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"encrypted_size">>],
+    [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(SentName, Map),
+    ?assert(is_integer(Median)),
+    %% Empty keys
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [], Config),
+    ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
+    ?assertEqual(length(ParsedResult2), 2).
+
+get_metrics_as_dicts_empty_strings(Config) ->
+    %% Name is an empty string
+    Result = get_metrics_as_dicts([<<>>], [<<"median">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
+    [] = ParsedResult,
+    %% Key is an empty string
+    Result2 = get_metrics_as_dicts([<<"global">>, <<"erlang">>], [<<>>], Config),
+    ParsedResult2 = get_ok_value([data, metric, getMetricsAsDicts], Result2),
+    [_|_] = ParsedResult2.
 
 get_cluster_metrics(Config) ->
     %% We will have at least these two nodes
@@ -190,7 +261,7 @@ get_by_name_cluster_metrics_as_dicts(Config) ->
     NodeResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     Map = node_objects_to_map(NodeResult),
     %% Contains data for at least two nodes
-    true = maps:size(Map) > 1,
+    ?assert(maps:size(Map) > 1),
     %% Only xmppStanzaSent type
     maps:map(fun(_Node, [_|_] = NodeRes) ->
         lists:foreach(fun(#{<<"dict">> := Dict,
@@ -205,6 +276,63 @@ get_mim2_cluster_metrics(Config) ->
     [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
     check_node_result_is_valid(ResList, true).
 
+get_cluster_metrics_for_nonexistent_nodes(Config) ->
+    Result = get_cluster_metrics_as_dicts_for_nodes([<<"nonexistent">>], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
+    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult,
+    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
+    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+
+get_cluster_metrics_by_nonexistent_name(Config) ->
+    Result = get_cluster_metrics_as_dicts_by_name([<<"nonexistent">>], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
+    [#{<<"node">> := _, <<"result">> := []},
+     #{<<"node">> := _, <<"result">> := []}] = ParsedResult.
+
+get_cluster_metrics_with_nonexistent_key(Config) ->
+    Result = get_cluster_metrics_as_dicts_with_keys([<<"nonexistent">>], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
+    [#{<<"node">> := _, <<"result">> := [_|_]},
+     #{<<"node">> := _, <<"result">> := [_|_]}] = ParsedResult.
+
+get_cluster_metrics_empty_args(Config) ->
+    Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
+    %% Empty name
+    Result = get_cluster_metrics_as_dicts([], [<<"one">>], [Node], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
+    [#{<<"node">> := Node, <<"result">> := ResList}] = ParsedResult,
+    Map = dict_objects_to_map(ResList),
+    SentName = [<<"global">>, <<"xmppStanzaSent">>],
+    [#{<<"key">> := <<"one">>, <<"value">> := One}] = maps:get(SentName, Map),
+    ?assert(is_integer(One)),
+    %% Empty keys
+    Result2 = get_cluster_metrics_as_dicts([<<"_">>], [], [Node], Config),
+    ParsedResult2 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result2),
+    [#{<<"node">> := Node, <<"result">> := ResList2}] = ParsedResult2,
+    check_node_result_is_valid(ResList2, true),
+    %% Empty nodes
+    Result3 = get_cluster_metrics_as_dicts([<<"_">>, <<"erlang">>], [<<"ets_limit">>], [], Config),
+    ParsedResult3 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result3),
+    NodeMap = node_objects_to_map(ParsedResult3),
+    ?assert(maps:size(NodeMap) > 1).
+
+get_cluster_metrics_empty_strings(Config) ->
+    Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
+    %% Name is an empty string
+    Result = get_cluster_metrics_as_dicts([<<>>], [<<"median">>], [Node], Config),
+    ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
+    [#{<<"node">> := Node, <<"result">> := []}] = ParsedResult,
+    %% Key is an empty string
+    Result2 = get_cluster_metrics_as_dicts([<<"_">>], [<<>>], [Node], Config),
+    ParsedResult2 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result2),
+    [#{<<"node">> := Node, <<"result">> := [_|_]}] = ParsedResult2,
+    %% Node is an empty string
+    Result3 = get_cluster_metrics_as_dicts([<<"_">>], [<<"median">>], [<<>>], Config),
+    ParsedResult3 = get_ok_value([data, metric, getClusterMetricsAsDicts], Result3),
+    [#{<<"node">> := _, <<"result">> := ResList}] = ParsedResult3,
+    [#{<<"dict">> := [], <<"name">> := ErrorResult}] = ResList,
+    ?assert(ErrorResult == [<<"error">>, <<"nodedown">>]).
+
 check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     %% Check that result contains something
     Map = dict_objects_to_map(ResList),
@@ -215,7 +343,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
     check_spiral_dict(maps:get(SentName, Map)),
     [#{<<"key">> := <<"value">>,<<"value">> := V}] =
         maps:get([<<"global">>,<<"uniqueSessionCount">>], Map),
-    true = is_integer(V),
+    ?assert(is_integer(V)),
     HistObjects = maps:get([<<"global">>, <<"data">>, <<"xmpp">>,
                             <<"sent">>, <<"compressed_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).
@@ -277,6 +405,10 @@ get_metrics(Name, Config) ->
 get_metrics_as_dicts(Config) ->
     execute_command(<<"metric">>, <<"getMetricsAsDicts">>, #{}, Config).
 
+get_metrics_as_dicts(Name, Keys, Config) ->
+    Vars = #{<<"name">> => Name, <<"keys">> => Keys},
+    execute_command(<<"metric">>, <<"getMetricsAsDicts">>, Vars, Config).
+
 get_metrics_as_dicts_by_name(Name, Config) ->
     Vars = #{<<"name">> => Name},
     execute_command(<<"metric">>, <<"getMetricsAsDicts">>, Vars, Config).
@@ -288,6 +420,10 @@ get_metrics_as_dicts_with_keys(Keys, Config) ->
 get_cluster_metrics_as_dicts(Config) ->
     execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, #{}, Config).
 
+get_cluster_metrics_as_dicts(Name, Keys, Nodes, Config) ->
+    Vars = #{<<"name">> => Name, <<"nodes">> => Nodes, <<"keys">> => Keys},
+    execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
+
 get_cluster_metrics_as_dicts_by_name(Name, Config) ->
     Vars = #{<<"name">> => Name},
     execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
@@ -296,16 +432,20 @@ get_cluster_metrics_as_dicts_for_nodes(Nodes, Config) ->
     Vars = #{<<"nodes">> => Nodes},
     execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
 
+get_cluster_metrics_as_dicts_with_keys(Keys, Config) ->
+    Vars = #{<<"keys">> => Keys},
+    execute_command(<<"metric">>, <<"getClusterMetricsAsDicts">>, Vars, Config).
+
 %% Helpers
 
 check_spiral_dict(Dict) ->
     [#{<<"key">> := <<"count">>, <<"value">> := Count},
      #{<<"key">> := <<"one">>, <<"value">> := One}] = Dict,
-    true = is_integer(Count),
-    true = is_integer(One).
+    ?assert(is_integer(Count)),
+    ?assert(is_integer(One)).
 
 values_are_integers(Map, Keys) ->
-    lists:foreach(fun(Key) -> true = is_integer(maps:get(Key, Map)) end, Keys).
+    lists:foreach(fun(Key) -> ?assert(is_integer(maps:get(Key, Map))) end, Keys).
 
 metric_host_type() ->
     binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).
