@@ -15,13 +15,13 @@ type SessionAdminQuery @protected{
   countUserResources(user: JID!): Int
     @protected(type: DOMAIN, args: ["user"])
   "Get the resource string of the n-th session of a user"
-  getUserResource(user: JID!, number: Int): ResourceName
+  getUserResource(user: JID!, number: PosInt!): ResourceName
     @protected(type: DOMAIN, args: ["user"])
   "Get the list of logged users with this status for a specified domain or globally"
-  listUsersWithStatus(domain: DomainName, status: String!): [UserStatus!]
+  listUsersWithStatus(domain: DomainName, status: NonEmptyString!): [UserStatus!]
     @protected(type: DOMAIN, args: ["domain"])
   "Get the number of logged users with this status for a specified domain or globally"
-  countUsersWithStatus(domain: DomainName, status: String!): Int
+  countUsersWithStatus(domain: DomainName, status: NonEmptyString!): Int
     @protected(type: DOMAIN, args: ["domain"])
 }
 
@@ -29,8 +29,11 @@ type SessionAdminQuery @protected{
 Allow admin to manage sessions.
 """
 type SessionAdminMutation @protected{
-  "Kick a user session. User JID should contain resource"
-  kickUser(user: JID!, reason: String!): SessionPayload
+  "Kick a user session. User JID must contain resource"
+  kickUserSession(user: FullJID!, reason: String): KickUserResult
+    @protected(type: DOMAIN, args: ["user"])
+  "Kick user sessions"
+  kickUser(user: BareJID!, reason: String): [KickUserResult!]
     @protected(type: DOMAIN, args: ["user"])
   "Set presence of a session. User JID should contain resource"
   setPresence(user: JID!, type: PresenceType!, show: PresenceShow, status: String, priority: Int): SessionPayload
@@ -69,6 +72,18 @@ enum PresenceShow{
   DND
   "The entity or resource is away for an extended period (xa = 'eXtended Away')"
   XA
+}
+
+"Kick user session result"
+type KickUserResult {
+  "Full JID with username, server and resource"
+  jid: JID!
+  "Result status"
+  kicked: Boolean!
+  "Result code (if failed)"
+  code: String
+  "Result message"
+  message: String!
 }
 
 "Modify session payload"
