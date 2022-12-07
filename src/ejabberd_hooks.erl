@@ -38,7 +38,7 @@
 
 -ignore_xref([add/4, delete/4, error_running_hook/3, start_link/0,
     % temporary until the module is deleted
-    add/1, delete/1]).
+    add/1, delete/1, add/5, delete/5]).
 
 -include("mongoose.hrl").
 
