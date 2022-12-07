@@ -4,7 +4,7 @@
 %%
 %% The graphql request is authorized, processed and then passed for execution.
 %% @end
--module(mongoose_graphql_cowboy_handler).
+-module(mongoose_graphql_handler).
 
 -behaviour(mongoose_http_handler).
 -behavior(cowboy_rest).

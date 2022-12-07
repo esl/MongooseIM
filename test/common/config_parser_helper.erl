@@ -1084,8 +1084,8 @@ default_config([listen, http, handlers, mongoose_client_api]) ->
     #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
       docs => true,
       module => mongoose_client_api};
-default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->
-    #{module => mongoose_graphql_cowboy_handler,
+default_config([listen, http, handlers, mongoose_graphql_handler]) ->
+    #{module => mongoose_graphql_handler,
       schema_endpoint => admin};
 default_config([listen, http, handlers, Module]) ->
     #{module => Module};
