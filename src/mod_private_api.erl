@@ -9,7 +9,7 @@
 -export([private_get/3, private_set/2]).
 
 -spec private_get(jid:jid(), binary(), binary()) -> {ok, exml:element()} | {Error, string()} when
-    Error :: not_found | parsing_error | element_does_not_exist_error.
+    Error :: not_found.
 private_get(JID, Element, Ns) ->
     case ejabberd_auth:does_user_exist(JID) of
         true ->

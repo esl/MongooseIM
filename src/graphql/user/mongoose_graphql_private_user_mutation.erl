@@ -12,5 +12,5 @@
 execute(#{user := CallerJID}, _Obj, <<"setPrivate">>, #{<<"elementString">> := Element}) ->
     case mod_private_api:private_set(CallerJID, Element) of
         {ok, _} = Result -> Result;
-        Error -> make_error(Error, #{user => CallerJID, element => Element})
+        Error -> make_error(Error, #{user => jid:to_binary(CallerJID), element => Element})
     end.

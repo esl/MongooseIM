@@ -14,5 +14,6 @@ execute(#{user := CallerJID}, _Obj, <<"getPrivate">>,
     case mod_private_api:private_get(CallerJID, Element, SubElement) of
         {ok, _} = Result -> Result;
         Error ->
-            make_error(Error, #{user => CallerJID, element => Element, subElement => SubElement})
+            make_error(Error, #{user => jid:to_binary(CallerJID), element => Element,
+                                subElement => SubElement})
     end.
