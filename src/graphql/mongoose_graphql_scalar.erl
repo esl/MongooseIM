@@ -11,7 +11,7 @@
     Coerced :: any(),
     Reason :: term().
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
-input(<<"Stanza">>, Value) -> exml:parse(Value);
+input(<<"XmlElement">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
 input(<<"BareJID">>, Jid) -> bare_jid_from_binary(Jid);
 input(<<"FullJID">>, Jid) -> full_jid_from_binary(Jid);
@@ -33,7 +33,7 @@ input(Ty, V) ->
     Coerced :: any(),
     Reason :: term().
 output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
-output(<<"Stanza">>, Elem) -> {ok, exml:to_binary(Elem)};
+output(<<"XmlElement">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
 output(<<"UserName">>, User) -> {ok, User};
 output(<<"DomainName">>, Domain) -> {ok, Domain};

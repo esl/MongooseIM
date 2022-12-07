@@ -74,7 +74,7 @@ commands() ->
 private_get(Username, Host, Element, Ns) ->
     JID = jid:make(Username, Host, <<>>),
     case mod_private_api:private_get(JID, Element, Ns) of
-        {ok, String} -> String;
+        {ok, Xml} -> exml:to_list(Xml);
         Error -> Error
     end.
 
@@ -82,5 +82,12 @@ private_get(Username, Host, Element, Ns) ->
                   ElementString :: binary()) -> {Res, string()} when
     Res :: ok | not_found | not_loaded | parse_error.
 private_set(Username, Host, ElementString) ->
-    JID = jid:make(Username, Host, <<>>),
-    mod_private_api:private_set(JID, ElementString).
+    case exml:parse(ElementString) of
+        {error, Error} ->
+            String = io_lib:format("Error found parsing the element: '~s' Error: ~s",
+                      [ElementString, Error]),
+            {parse_error, String};
+        {ok, Xml} ->
+            JID = jid:make(Username, Host, <<>>),
+            mod_private_api:private_set(JID, Xml)
+    end.

@@ -16,7 +16,7 @@ type StanzaUserMutation @protected{
   "Send a headline message to a local or remote bare or full JID"
   sendMessageHeadLine(from: JID, to: JID!, subject: String, body: String): SendStanzaPayload
   "Send an arbitrary stanza"
-  sendStanza(stanza: Stanza): SendStanzaPayload
+  sendStanza(stanza: XmlElement): SendStanzaPayload
 }
 
 type StanzaUserSubscription @protected{

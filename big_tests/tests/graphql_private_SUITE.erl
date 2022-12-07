@@ -4,7 +4,7 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2, get_err_code/1,
-                         user_to_bin/1, get_unauthorized/1, get_not_loaded/1]).
+                         user_to_bin/1, get_unauthorized/1, get_not_loaded/1, get_coercion_err_msg/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -39,6 +39,7 @@ user_groups() ->
 user_private_tests() ->
     [user_set_private,
      user_get_private,
+     user_get_private_empty_namespace,
      parse_xml_error].
 
 user_private_not_configured_tests() ->
@@ -54,6 +55,7 @@ domain_admin_private_tests() ->
 admin_private_tests() ->
     [admin_set_private,
      admin_get_private,
+     admin_get_private_empty_namespace,
      no_user_error_set,
      no_user_error_get].
 
@@ -147,12 +149,23 @@ user_get_private(Config, Alice) ->
     ParsedResultGet = get_ok_value([data, private, getPrivate], ResultGet),
     ?assertEqual(ElemStr, ParsedResultGet).
 
+user_get_private_empty_namespace(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_get_private_empty_namespace/2).
+
+user_get_private_empty_namespace(Config, Alice) ->
+    ResultGet = user_get_private(Alice, <<"">>, <<"">>, Config),
+    ?assertEqual(<<"Input coercion failed for type NonEmptyString with value <<>>."
+                   " The reason it failed is: \"Given string is empty\"">>,
+                 get_coercion_err_msg(ResultGet)).
+
 parse_xml_error(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun parse_xml_error/2).
 
 parse_xml_error(Config, Alice) ->
     ResultSet = user_set_private(Alice, <<"AAAABBBB">>, Config),
-    ?assertEqual(<<"parse_error">>, get_err_code(ResultSet)).
+    ?assertEqual(<<"Input coercion failed for type XmlElement with value <<\"AAAABBBB\">>."
+                   " The reason it failed is: \"expected <\"">>,
+                 get_coercion_err_msg(ResultSet)).
 
 % User private not configured test cases
 
@@ -198,6 +211,16 @@ admin_get_private(Config, Alice) ->
     ResultGet = admin_get_private(AliceBin, <<"my_element">>, <<"alice:private:ns">>, Config),
     ParsedResultGet = get_ok_value([data, private, getPrivate], ResultGet),
     ?assertEqual(ElemStr, ParsedResultGet).
+
+admin_get_private_empty_namespace(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_private_empty_namespace/2).
+
+admin_get_private_empty_namespace(Config, Alice) ->
+    AliceBin = user_to_bin(Alice),
+    ResultGet = admin_get_private(AliceBin, <<"">>, <<"">>, Config),
+    ?assertEqual(<<"Input coercion failed for type NonEmptyString with value <<>>."
+                   " The reason it failed is: \"Given string is empty\"">>,
+                 get_coercion_err_msg(ResultGet)).
 
 no_user_error_set(Config) ->
     ElemStr = exml:to_binary(private_input()),

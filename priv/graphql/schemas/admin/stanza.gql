@@ -16,7 +16,7 @@ type StanzaAdminMutation @protected{
   sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
     @protected(type: DOMAIN, args: ["from"])
   "Send an arbitrary stanza. Only for global admin"
-  sendStanza(stanza: Stanza): SendStanzaPayload
+  sendStanza(stanza: XmlElement): SendStanzaPayload
     @protected(type: GLOBAL)
 }
 
