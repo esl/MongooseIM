@@ -86,7 +86,7 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+  [[listen.http.handlers.mongoose_graphql_handler]]
     host = "localhost"
     path = "/api/graphql"
     schema_endpoint = "admin"
@@ -100,7 +100,7 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+  [[listen.http.handlers.mongoose_graphql_handler]]
     host = "_"
     path = "/api/graphql"
     schema_endpoint = "domain_admin"
@@ -112,7 +112,7 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+  [[listen.http.handlers.mongoose_graphql_handler]]
     host = "_"
     path = "/api/graphql"
     schema_endpoint = "user"

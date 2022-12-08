@@ -84,4 +84,4 @@ configurable_handler_modules() ->
     [mod_websockets,
      mongoose_client_api,
      mongoose_admin_api,
-     mongoose_graphql_cowboy_handler].
+     mongoose_graphql_handler].

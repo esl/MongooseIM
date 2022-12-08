@@ -1090,7 +1090,7 @@ init_ep_listener(Port, EpName, ListenerOpts, Config) ->
 -spec start_listener(atom(), integer(), listener_opts()) -> ok.
 start_listener(Ref, Port, Opts) ->
     Dispatch = cowboy_router:compile([
-        {'_', [{"/graphql", mongoose_graphql_cowboy_handler, Opts}]}
+        {'_', [{"/graphql", mongoose_graphql_handler, Opts}]}
     ]),
     {ok, _} = cowboy:start_clear(Ref,
                                  [{port, Port}],

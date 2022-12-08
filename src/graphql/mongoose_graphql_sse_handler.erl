@@ -28,9 +28,9 @@ init(State, _LastEvtId, Req) ->
     process_flag(trap_exit, true), % needed for 'terminate' to be called
     case cowboy_req:method(Req) of
         <<"GET">> ->
-            case mongoose_graphql_cowboy_handler:check_auth_header(Req, State) of
+            case mongoose_graphql_handler:check_auth_header(Req, State) of
                 {ok, State2} ->
-                    case mongoose_graphql_cowboy_handler:gather(Req) of
+                    case mongoose_graphql_handler:gather(Req) of
                         {ok, Req2, Decoded} ->
                             run_request(Decoded, Req2, State2);
                         {error, Reason} ->
