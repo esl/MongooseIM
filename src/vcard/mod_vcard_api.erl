@@ -13,9 +13,9 @@
          get_vcard/1]).
 
 -spec set_vcard(jid:jid(), vcard_map()) ->
-     {ok, vcard_map()} | {not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
+     {ok, vcard_map()} | {user_not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
 set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
+    case check_user(UserJID) of
         {ok, HostType} ->
             case set_vcard(HostType, UserJID, Vcard) of
                 ok ->
@@ -23,24 +23,25 @@ set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
                 _ ->
                     {internal, "Internal server error"}
             end;
-        _ ->
-            {not_found, "Host does not exist"}
+        Error ->
+            Error
     end.
 
 -spec get_vcard(jid:jid()) ->
-     {ok, vcard_map()} | {not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
-get_vcard(#jid{luser = LUser, lserver = LServer}) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
+     {ok, vcard_map()} | {user_not_found, string()} | {internal, string()} | {vcard_not_found, string()}
+   | {vcard_not_configured_error, string()}.
+get_vcard(#jid{luser = LUser, lserver = LServer} = UserJID) ->
+    % check if mod_vcard is loaded is needed in user's get_vcard command, when user variable is not passed
+    case check_user(UserJID) of
         {ok, HostType} ->
-            % check if mod_vcard is loaded is needed in user's get_vcard command, when user variable is not passed
             case gen_mod:is_loaded(HostType, mod_vcard) of
                 true ->
                     get_vcard_from_db(HostType, LUser, LServer);
                 false ->
                     {vcard_not_configured_error, "Mod_vcard is not loaded for this host"}
             end;
-        _ ->
-            {not_found, "Host does not exist"}
+        Error ->
+            Error
     end.
 
 set_vcard(HostType, UserJID, Vcard) ->
@@ -56,6 +57,18 @@ get_vcard_from_db(HostType, LUser, LServer) ->
             {vcard_not_found, "Vcard for user not found"};
         _ ->
             {internal, "Internal server error"}
+    end.
+
+-spec check_user(jid:jid()) -> {ok, mongooseim:host_type()} | {user_not_found, binary()}.
+check_user(JID = #jid{lserver = LServer}) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case ejabberd_auth:does_user_exist(HostType, JID, stored) of
+                true -> {ok, HostType};
+                false -> {user_not_found, <<"Given user does not exist">>}
+            end;
+        {error, not_found} ->
+            {user_not_found, <<"User's domain does not exist">>}
     end.
 
 transform_from_map(Vcard) ->
