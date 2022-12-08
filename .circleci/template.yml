@@ -435,7 +435,7 @@ jobs:
   docs_build_deploy:
     parallelism: 1
     docker:
-      - image: cimg/python:3.9.0-node
+      - image: cimg/python:3.11.0-node
     steps:
       - checkout
       - run:
