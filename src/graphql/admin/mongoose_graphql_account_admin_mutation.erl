@@ -2,6 +2,7 @@
 -behaviour(mongoose_graphql).
 
 -export([execute/4]).
+-export([await_execution/4]).
 
 -ignore_xref([execute/4]).
 
@@ -9,14 +10,19 @@
 
 -import(mongoose_graphql_helper, [format_result/2, make_error/2]).
 
-execute(_Ctx, _Obj, <<"registerUser">>, Args) ->
+execute(_Ctx, account, <<"registerUser">>, Args) ->
     register_user(Args);
-execute(_Ctx, _Obj, <<"removeUser">>, Args) ->
+execute(_Ctx, account, <<"removeUser">>, Args) ->
     remove_user(Args);
-execute(_Ctx, _Obj, <<"banUser">>, Args) ->
+execute(_Ctx, account, <<"banUser">>, Args) ->
     ban_user(Args);
-execute(_Ctx, _Obj, <<"changeUserPassword">>, Args) ->
-    change_user_password(Args).
+execute(_Ctx, account, <<"changeUserPassword">>, Args) ->
+    change_user_password(Args);
+execute(#{method := cli}, account, <<"importUsers">>, Args) ->
+    import_users(Args);
+execute(#{method := http}, account, <<"importUsers">>, #{<<"filename">> := Filename}) ->
+    spawn(?MODULE, await_execution, [1000, mongoose_account_api, import_users, [Filename]]),
+    {ok, #{<<"status">> => <<"ImportUsers scheduled">>}}.
 
 % Internal
 
@@ -49,6 +55,13 @@ change_user_password(#{<<"user">> := JID, <<"newPassword">> := Password}) ->
     Result = mongoose_account_api:change_password(JID, Password),
     format_user_payload(Result, JID).
 
+-spec import_users(map()) -> {ok, map()} | {error, resolver_error()}.
+import_users(#{<<"filename">> := Filename}) ->
+    case mongoose_account_api:import_users(Filename) of
+        {ok, _} = Result -> Result;
+        Error -> make_error(Error, #{filename => Filename})
+    end.
+
 -spec format_user_payload({atom(), string()}, jid:jid()) -> {ok, map()} | {error, resolver_error()}.
 format_user_payload(InResult, JID) ->
     case InResult of
@@ -61,3 +74,7 @@ format_user_payload(InResult, JID) ->
 -spec make_user_payload(string(), jid:literal_jid()) -> map().
 make_user_payload(Msg, JID) ->
     #{<<"message">> => iolist_to_binary(Msg), <<"jid">> => JID}.
+
+await_execution(Timeout, Module, Fun, Args) ->
+    timer:sleep(Timeout),
+    apply(Module, Fun, Args).

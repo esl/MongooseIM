@@ -26,8 +26,6 @@
 -module(ejabberd_admin).
 -author('mickael.remond@process-one.net').
 
--define(REGISTER_WORKERS_NUM, 10).
-
 -export([start/0, stop/0,
          %% Server
          %% Accounts
@@ -37,8 +35,6 @@
          %% Purge DB
          delete_expired_messages/1, delete_old_messages/2,
          remove_from_cluster/1]).
-
--export([registrator_proc/1]).
 
 -ignore_xref([
     backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
@@ -104,9 +100,9 @@ commands() ->
                         desc = "Import users from CSV file",
                         module = ?MODULE, function = import_users,
                         args = [{file, string}],
-                        result = {users, {list, {res, {tuple,
-                                                       [{result, atom},
-                                                        {user, binary}]}}}}},
+                        result = {summary, {list, {res, {tuple,
+                                                         [{reason, binary},
+                                                          {users, {list, {user, binary}}}]}}}}},
      #ejabberd_commands{name = delete_expired_messages, tags = [purge],
                         desc = "Delete expired offline messages from database",
                         module = ?MODULE, function = delete_expired_messages,
@@ -245,90 +241,10 @@ unregister(User, Host) ->
 registered_users(Host) ->
     mongoose_account_api:list_users(Host).
 
--spec import_users(Filename :: string()) -> [{ok, jid:user()} |
-                                             {exists, jid:user()} |
-                                             {not_allowed, jid:user()} |
-                                             {invalid_jid, jid:user()} |
-                                             {null_password, jid:user()} |
-                                             {bad_csv, binary()}].
-import_users(File) ->
-    {ok, CsvStream} = erl_csv:decode_new_s(File),
-    Workers = spawn_link_workers(),
-    WorkersQueue = queue:from_list(Workers),
-    do_import(CsvStream, WorkersQueue).
-
--spec do_import(erl_csv:csv_stream(), Workers :: queue:queue()) ->
-    [{ok, jid:user()} |
-     {exists, jid:user()} |
-     {not_allowed, jid:user()} |
-     {invalid_jid, jid:user()} |
-     {null_password, jid:user()} |
-     {bad_csv, binary()}].
-do_import(stream_end, WQueue) ->
-    Workers = queue:to_list(WQueue),
-    lists:flatmap(fun get_results_from_registrator/1, Workers);
-do_import(Stream, WQueue) ->
-    {ok, Decoded, MoreStream} = erl_csv:decode_s(Stream),
-    WQueue1 = send_job_to_next_worker(Decoded, WQueue),
-    do_import(MoreStream, WQueue1).
-
--spec spawn_link_workers() -> [pid()].
-spawn_link_workers() ->
-    [ spawn_link(?MODULE, registrator_proc, [self()]) ||
-      _ <- lists:seq(1, ?REGISTER_WORKERS_NUM)].
-
--spec get_results_from_registrator(Worker :: pid()) ->
-    [{ok, jid:user()} |
-     {exists, jid:user()} |
-     {not_allowed, jid:user()} |
-     {invalid_jid, jid:user()} |
-     {null_password, jid:user()} |
-     {bad_csv, binary()}].
-get_results_from_registrator(Pid) ->
-    Pid ! get_result,
-    receive
-        {result, Result} -> Result
-    end.
-
-send_job_to_next_worker([], WQueue) ->
-    WQueue;
-send_job_to_next_worker([Record], WQueue) ->
-    {{value, Worker}, Q1} = queue:out(WQueue),
-    Worker ! {proccess, Record},
-    queue:in(Worker, Q1).
-
--spec registrator_proc(Manager :: pid()) -> ok.
-registrator_proc(Manager) ->
-    registrator_proc(Manager, []).
-
--spec registrator_proc(Manager :: pid(), any()) -> ok.
-registrator_proc(Manager, Result) ->
-    receive
-        {proccess, Data} ->
-            RegisterResult = do_register(Data),
-            registrator_proc(Manager, [RegisterResult | Result]);
-        get_result -> Manager ! {result, Result}
-    end,
-    ok.
-
--spec do_register([binary()]) -> {ok, jid:user()} |
-                                 {exists, jid:user()} |
-                                 {not_allowed, jid:user()} |
-                                 {invalid_jid, jid:user()} |
-                                 {null_password, jid:user()} |
-                                 {bad_csv, binary()}.
-do_register([User, Host, Password]) ->
-    case ejabberd_auth:try_register(jid:make(User, Host, <<>>), Password) of
-        {error, Reason} -> {Reason, User};
-        _ -> {ok, User}
-    end;
-
-do_register(List) ->
-    JoinBinary = fun(Elem, <<"">>) -> Elem;
-                    (Elem, Acc) -> <<Elem/binary, ",", Acc/binary>>
-                 end,
-    Info = lists:foldr(JoinBinary, <<"">>, List),
-    {bad_csv, Info}.
+-spec import_users(file:filename()) -> [{binary(), jid:user() | binary()}].
+import_users(Filename) ->
+    {ok, Result} = mongoose_import_users:run(Filename),
+    maps:to_list(Result).
 
 %%%
 %%% Purge DB
