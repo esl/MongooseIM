@@ -1,6 +1,5 @@
 -module(graphql_mnesia_SUITE).
 -include_lib("eunit/include/eunit.hrl").
--include_lib("common_test/include/ct.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
@@ -8,7 +7,8 @@
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
-                         get_ok_value/2, get_err_code/1, get_err_value/2, get_unauthorized/1]).
+                         get_ok_value/2, get_err_code/1, get_err_value/2, get_unauthorized/1,
+                         get_coercion_err_msg/1]).
 
 -record(mnesia_table_test, {key :: integer(), name :: binary()}).
 -record(vcard, {us, vcard}).
@@ -31,19 +31,26 @@ admin_mnesia_tests() ->
      dump_mnesia_file_error_test,
      backup_and_restore_test,
      backup_wrong_filename_test,
+     backup_wrong_path_test,
      restore_no_file_test,
      restore_wrong_file_format_test,
+     restore_bad_file_test,
+     restore_bad_path_test,
      load_mnesia_test,
      load_mnesia_no_file_test,
      load_mnesia_bad_file_test,
      load_mnesia_bad_file2_test,
      change_nodename_test,
+     change_nodename_bad_name,
+     change_nodename_empty_name,
      change_nodename_no_file_error_test,
      change_nodename_bad_file_error_test,
      get_info_test,
      get_all_info_test,
      install_fallback_error_test,
-     set_master_test].
+     set_master_test,
+     set_master_bad_name_test,
+     set_master_empty_name_test].
 
 domain_admin_tests() ->
     [domain_admin_dump_mnesia_table_test,
@@ -132,9 +139,21 @@ backup_wrong_filename_test(Config) ->
     Res = backup_mnesia(<<>>, Config),
     ?assertEqual(<<"wrong_filename">>, get_err_code(Res)).
 
+backup_wrong_path_test(Config) ->
+    Res = backup_mnesia(<<"/etc/">>, Config),
+    ?assertEqual(<<"cannot_backup">>, get_err_code(Res)).
+
 restore_no_file_test(Config) ->
     Res = restore_mnesia(<<>>, Config),
     ?assertEqual(<<"file_not_found">>, get_err_code(Res)).
+
+restore_bad_file_test(Config) ->
+    Res = restore_mnesia(<<"NON_EXISTING">>, Config),
+    ?assertEqual(<<"file_not_found">>, get_err_code(Res)).
+
+restore_bad_path_test(Config) ->
+    Res = restore_mnesia(<<"/etc/">>, Config),
+    ?assertEqual(<<"cannot_restore">>, get_err_code(Res)).
 
 restore_wrong_file_format_test(Config) ->
     Filename = <<"restore_error">>,
@@ -185,6 +204,22 @@ change_nodename_test(Config) ->
     check_if_response_contains(Value,
         <<"Name of the node in the backup was successfully changed">>).
 
+change_nodename_bad_name(Config) ->
+    Filename1 = <<"change_incorrect_nodename_mnesia_test">>,
+    Filename2 = <<"change_incorrect_nodename2_mnesia_test">>,
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"incorrect_format">>,
+    Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
+    get_coercion_err_msg(Value).
+
+change_nodename_empty_name(Config) ->
+    Filename1 = <<"change_incorrect_nodename_mnesia_test">>,
+    Filename2 = <<"change_incorrect_nodename2_mnesia_test">>,
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<>>,
+    Value = change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config),
+    get_coercion_err_msg(Value).
+
 change_nodename_no_file_error_test(Config) ->
     Filename1 = <<"non_existing">>,
     Filename2 = <<"change_nodename2_mnesia_test">>,
@@ -232,6 +267,14 @@ set_master_test(Config) ->
     ParsedRes = get_ok_value([data, mnesia, setMaster], set_master(mim(), Config)),
     ?assertEqual(<<"Master node set">>, ParsedRes).
 
+set_master_bad_name_test(Config) ->
+    Res = set_master(#{node => incorrect_name}, Config),
+    get_coercion_err_msg(Res).
+
+set_master_empty_name_test(Config) ->
+    Res = set_master(#{node => ''}, Config),
+    get_coercion_err_msg(Res).
+
 % Domain admin tests
 
 domain_admin_dump_mnesia_table_test(Config) ->
@@ -250,7 +293,11 @@ domain_admin_load_mnesia_test(Config) ->
     get_unauthorized(load_mnesia(<<"Path">>, Config)).
 
 domain_admin_change_nodename_test(Config) ->
-    get_unauthorized(change_nodename(<<"From">>, <<"To">>, <<"file1">>, <<"file2">>, Config)).
+    Filename1 = <<"change_nodename_mnesia_test">>,
+    Filename2 = <<"change_nodename2_mnesia_test">>,
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"change_nodename_test@localhost">>,
+    get_unauthorized(change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config)).
 
 domain_admin_install_fallback_test(Config) ->
     get_unauthorized(install_fallback(<<"Path">>, Config)).
