@@ -18,14 +18,14 @@ private_get(JID, Element, Ns) ->
             {not_found, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
 
--spec private_set(jid:jid(), exml:element()) -> {Res, iolist()} when
-    Res :: ok | not_found.
+-spec private_set(jid:jid(), exml:element()) ->
+    {ok, exml:element()} | {not_found, iolist()}.
 private_set(#jid{lserver = Domain} = JID, Xml) ->
     case ejabberd_auth:does_user_exist(JID) of
         true ->
             {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
             send_iq(set, Xml, JID, HostType),
-            {ok, ""};
+            {ok, Xml};
         false ->
             {not_found, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
@@ -35,8 +35,8 @@ do_private_get(JID, Element, Ns) ->
     Xml = #xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]},
     {_, ResIq} = send_iq(get, Xml, JID, HostType),
     [#xmlel{ name = <<"query">>,
-     attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-     children = [SubEl] }] = ResIq#iq.sub_el,
+             attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
+             children = [SubEl] }] = ResIq#iq.sub_el,
     {ok, SubEl}.
 
 send_iq(Method, Xml, From = To = _JID, HostType) ->

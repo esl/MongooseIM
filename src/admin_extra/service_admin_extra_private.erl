@@ -80,7 +80,7 @@ private_get(Username, Host, Element, Ns) ->
 
 -spec private_set(jid:user(), jid:server(),
                   ElementString :: binary()) -> {Res, string()} when
-    Res :: ok | not_found | not_loaded | parse_error.
+    Res :: ok | not_found | parse_error.
 private_set(Username, Host, ElementString) ->
     case exml:parse(ElementString) of
         {error, Error} ->
@@ -89,5 +89,8 @@ private_set(Username, Host, ElementString) ->
             {parse_error, String};
         {ok, Xml} ->
             JID = jid:make(Username, Host, <<>>),
-            mod_private_api:private_set(JID, Xml)
+            case mod_private_api:private_set(JID, Xml) of
+                {ok, _} -> {ok, ""};
+                Error -> Error
+            end
     end.

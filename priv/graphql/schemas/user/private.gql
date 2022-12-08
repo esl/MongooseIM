@@ -3,7 +3,7 @@ Allow user to set own private
 """
 type PrivateUserMutation @protected @use(modules: ["mod_private"]){
     "Set user's own private"
-setPrivate(elementString: XmlElement!): String @use
+setPrivate(elementString: XmlElement!): XmlElement @use
 }
 
 """

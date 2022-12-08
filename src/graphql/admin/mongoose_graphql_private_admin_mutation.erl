@@ -13,5 +13,6 @@ execute(_Ctx, _Obj, <<"setPrivate">>, #{<<"user">> := CallerJID,
         <<"elementString">> := Element}) ->
     case mod_private_api:private_set(CallerJID, Element) of
         {ok, _} = Result -> Result;
-        Error -> make_error(Error, #{user => jid:to_binary(CallerJID), element => Element})
+        Error -> make_error(Error, #{user => jid:to_binary(CallerJID),
+                                     element => exml:to_binary(Element)})
     end.

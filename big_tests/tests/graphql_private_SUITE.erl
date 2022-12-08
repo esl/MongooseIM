@@ -132,7 +132,7 @@ user_set_private(Config, Alice) ->
     ElemStr = exml:to_binary(private_input()),
     ResultSet = user_set_private(Alice, ElemStr, Config),
     ParsedResultSet = get_ok_value([data, private, setPrivate], ResultSet),
-    ?assertEqual(<<"[]">>, ParsedResultSet),
+    ?assertEqual(<<"<my_element xmlns='alice:private:ns'>DATA</my_element>">>, ParsedResultSet),
     ResultGet = user_get_private(Alice, <<"my_element">>, <<"alice:private:ns">>, Config),
     ParsedResultGet = get_ok_value([data, private, getPrivate], ResultGet),
     ?assertEqual(ElemStr, ParsedResultGet).
@@ -194,7 +194,7 @@ admin_set_private(Config, Alice) ->
     ElemStr = exml:to_binary(private_input()),
     ResultSet = admin_set_private(AliceBin, ElemStr, Config),
     ParsedResultSet = get_ok_value([data, private, setPrivate], ResultSet),
-    ?assertEqual(<<"[]">>, ParsedResultSet),
+    ?assertEqual(<<"<my_element xmlns='alice:private:ns'>DATA</my_element>">>, ParsedResultSet),
     ResultGet = admin_get_private(AliceBin, <<"my_element">>, <<"alice:private:ns">>, Config),
     ParsedResultGet = get_ok_value([data, private, getPrivate], ResultGet),
     ?assertEqual(ElemStr, ParsedResultGet).
