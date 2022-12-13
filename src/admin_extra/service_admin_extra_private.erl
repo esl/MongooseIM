@@ -84,7 +84,7 @@ private_get(Username, Host, Element, Ns) ->
 private_set(Username, Host, ElementString) ->
     case exml:parse(ElementString) of
         {error, Error} ->
-            String = io_lib:format("Error found parsing the element: '~s' Error: ~s",
+            String = io_lib:format("Error found parsing the element: '~ts' Error: ~ts",
                       [ElementString, Error]),
             {parse_error, String};
         {ok, Xml} ->

@@ -15,7 +15,7 @@ private_get(JID, Element, Ns) ->
         true ->
             do_private_get(JID, Element, Ns);
         false ->
-            {not_found, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
+            {not_found, io_lib:format("User ~ts does not exist", [jid:to_binary(JID)])}
     end.
 
 -spec private_set(jid:jid(), exml:element()) ->
@@ -27,7 +27,7 @@ private_set(#jid{lserver = Domain} = JID, Xml) ->
             send_iq(set, Xml, JID, HostType),
             {ok, Xml};
         false ->
-            {not_found, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
+            {not_found, io_lib:format("User ~ts does not exist", [jid:to_binary(JID)])}
     end.
 
 do_private_get(JID, Element, Ns) ->
@@ -40,7 +40,7 @@ do_private_get(JID, Element, Ns) ->
     {ok, SubEl}.
 
 send_iq(Method, Xml, From = To = _JID, HostType) ->
-    IQ = {iq, <<"">>, Method, ?NS_PRIVATE, <<"">>,
+    IQ = {iq, <<>>, Method, ?NS_PRIVATE, <<>>,
           #xmlel{ name = <<"query">>,
                   attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
                   children = [Xml] } },
