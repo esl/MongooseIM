@@ -177,7 +177,8 @@ end_per_testcase(domain_admin_register_user = C, Config) ->
     escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config)
       when CaseName == admin_import_users_http; CaseName == admin_import_users_cli ->
-    rpc(mim(), mongoose_account_api, unregister_user, [<<"john">>, <<"localhost">>]),
+    Domain = domain_helper:domain(),
+    rpc(mim(), mongoose_account_api, unregister_user, [<<"john">>, Domain]),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -419,14 +420,16 @@ admin_import_users_cli(Config) ->
         ?assertEqual(<<"File not found">>, get_err_msg(Resp)),
         % Summary
         Path = filename:join(?config(mim_data_dir, Config), "users.csv"),
-        Resp2 = import_users(list_to_binary(Path), Config),
+        Path2 = replace_hosts_in_file(Path),
+        Resp2 = import_users(list_to_binary(Path2), Config),
+        Domain = domain_helper:domain(),
         ?assertEqual(#{<<"status">> => <<"Completed">>,
-                       <<"created">> => [<<"john@localhost">>],
-                       <<"emptyPassword">> => [<<"elise@localhost">>],
-                       <<"existing">> => [<<"alice@localhost">>],
-                       <<"invalidJID">> => [<<",localhost,password">>],
-                       <<"invalidRecord">> => [<<"elise,elise,localhost,esile">>],
-                       <<"notAllowed">> => [<<"john@localhost">>]},
+                       <<"created">> => [<<"john@", Domain/binary>>],
+                       <<"emptyPassword">> => [<<"elise@", Domain/binary>>],
+                       <<"existing">> => [<<"alice@", Domain/binary>>],
+                       <<"invalidJID">> => [<<",", Domain/binary, ",password">>],
+                       <<"invalidRecord">> => [<<"elise,elise,", Domain/binary, ",esile">>],
+                       <<"notAllowed">> => null},
                      get_ok_value([data, account, importUsers], Resp2))
     end).
 
@@ -434,7 +437,8 @@ admin_import_users_http(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
         % Summary
         Path = filename:join(?config(mim_data_dir, Config), "users.csv"),
-        Resp2 = import_users(list_to_binary(Path), Config),
+        Path2 = replace_hosts_in_file(Path),
+        Resp2 = import_users(list_to_binary(Path2), Config),
         ?assertEqual(#{<<"status">> => <<"ImportUsers scheduled">>,
                        <<"created">> => null,
                        <<"emptyPassword">> => null,
@@ -443,14 +447,22 @@ admin_import_users_http(Config) ->
                        <<"invalidRecord">> => null,
                        <<"notAllowed">> => null},
                      get_ok_value([data, account, importUsers], Resp2)),
+        Domain = domain_helper:domain(),
         mongoose_helper:wait_until(fun() ->
-                                       rpc(mim(), mongoose_account_api, check_account, [<<"john">>, <<"localhost">>])
+                                       rpc(mim(), mongoose_account_api, check_account, [<<"john">>, Domain])
                                    end,
-                                   {ok, io_lib:format("User ~s exists", [<<"john@localhost">>])},
+                                   {ok, io_lib:format("User ~s exists", [<<"john@", Domain/binary>>])},
                                    #{time_left => timer:seconds(20),
                                      sleep_time => 1000,
                                      name => verify_account_created})
     end).
+
+replace_hosts_in_file(Path) ->
+    {ok, Content} = file:read_file(Path),
+    Content2 = binary:replace(Content, <<"$host$">>, domain_helper:domain(), [global]),
+    Path2 = Path ++ ".tmp",
+    ok = file:write_file(Path2, Content2),
+    Path2.
 
 domain_admin_list_users_no_permission(Config) ->
     % An unknown domain

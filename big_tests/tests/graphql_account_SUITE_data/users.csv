@@ -1,6 +1,5 @@
-john,localhost,smith
-john,localhost,smith
-alice,localhost,smith
-elise,localhost,
-,localhost,password
-elise,elise,localhost,esile
+john,$host$,smith
+alice,$host$,smith
+elise,$host$,
+,$host$,password
+elise,elise,$host$,esile

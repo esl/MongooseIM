@@ -185,7 +185,7 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {incorrect, "Password hash is incorrect"}
     end.
 
--spec import_users(file:filename()) -> {ok, mongoose_import_users:summary()}
+-spec import_users(file:filename()) -> {ok, #{binary() => [{ok, jid:jid() | binary()}]}}
                                      | {file_not_found, binary()}.
 import_users(Filename) ->
     case mongoose_import_users:run(Filename) of
