@@ -103,11 +103,8 @@ load_mnesia(Path) ->
             {cannot_load, String}
     end.
 
--spec mnesia_change_nodename(string(), string(), _, _) ->
-                                {ok, _} | {change_error(), io_lib:chars()}.
-mnesia_change_nodename(FromString, ToString, Source, Target) ->
-    From = list_to_atom(FromString),
-    To = list_to_atom(ToString),
+-spec mnesia_change_nodename(node(), node(), _, _) -> {ok, _} | {change_error(), io_lib:chars()}.
+mnesia_change_nodename(From, To, Source, Target) ->
     Switch =
         fun
             (Node) when Node == From ->
@@ -175,12 +172,8 @@ install_fallback_mnesia(Path) ->
             {cannot_fallback, String}
     end.
 
--spec set_master(Node :: atom() | string()) -> {cannot_set, io_lib:chars()} | {ok, []}.
-set_master("self") ->
-    set_master(node());
-set_master(NodeString) when is_list(NodeString) ->
-    set_master(list_to_atom(NodeString));
-set_master(Node) when is_atom(Node) ->
+-spec set_master(node()) -> {cannot_set, io_lib:chars()} | {ok, []}.
+set_master(Node) ->
     case mnesia:set_master_nodes([Node]) of
         ok ->
             {ok, ""};

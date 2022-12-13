@@ -125,7 +125,9 @@ node_from_binary(<<>>) ->
 node_from_binary(NodeName) ->
     case string:lexemes(binary_to_list(NodeName), "@") of
         [_Name, _Host] ->
-            {ok, NodeName};
+            {ok, binary_to_atom(NodeName)};
+        ["self"] ->
+            {ok, node()};
         _ ->
             {error, incorrect_node_name}
     end.

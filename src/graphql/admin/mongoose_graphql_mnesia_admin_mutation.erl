@@ -10,7 +10,7 @@
 -include("../mongoose_graphql_types.hrl").
 
 execute(_Ctx, mnesia, <<"setMaster">>, #{<<"node">> := Node}) ->
-    case mnesia_api:set_master(binary_to_list(Node)) of
+    case mnesia_api:set_master(Node) of
         {ok, _} -> {ok, "Master node set"};
         Error -> make_error(Error, #{node => Node})
     end;
@@ -21,7 +21,7 @@ execute(_Ctx, mnesia, <<"backup">>, #{<<"path">> := Path}) ->
     end;
 execute(_Ctx, mnesia, <<"changeNodename">>, #{<<"fromString">> := FromString,
     <<"toString">> := ToString, <<"source">> := Source, <<"target">> := Target}) ->
-    case mnesia_api:mnesia_change_nodename(binary_to_list(FromString), binary_to_list(ToString),
+    case mnesia_api:mnesia_change_nodename(FromString, ToString,
                                            binary_to_list(Source), binary_to_list(Target)) of
         {ok, _} -> {ok, "Name of the node in the backup was successfully changed"};
         Error -> make_error(Error, #{fromString => FromString, toString => ToString,

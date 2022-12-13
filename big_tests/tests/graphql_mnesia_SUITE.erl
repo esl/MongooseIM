@@ -49,6 +49,7 @@ admin_mnesia_tests() ->
      get_all_info_test,
      install_fallback_error_test,
      set_master_test,
+     set_master_self_test,
      set_master_bad_name_test,
      set_master_empty_name_test].
 
@@ -265,6 +266,10 @@ install_fallback_error_test(Config) ->
 
 set_master_test(Config) ->
     ParsedRes = get_ok_value([data, mnesia, setMaster], set_master(mim(), Config)),
+    ?assertEqual(<<"Master node set">>, ParsedRes).
+
+set_master_self_test(Config) ->
+    ParsedRes = get_ok_value([data, mnesia, setMaster], set_master(#{node => self}, Config)),
     ?assertEqual(<<"Master node set">>, ParsedRes).
 
 set_master_bad_name_test(Config) ->
