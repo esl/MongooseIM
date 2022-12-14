@@ -370,7 +370,7 @@ format_error(Error) ->
 -spec format_result(In :: tuple() | atom() | integer() | string() | binary(),
                     {_, 'atom'|'integer'|'string'|'binary'}
                     ) -> string() | {string(), _}.
-format_result({Atom, Error}, _) when Atom =/= ok ->
+format_result({Atom, Error}, _) when is_atom(Atom), Atom =/= ok ->
     {io_lib:format("Error: ~ts", [format_error(Error)]), make_status(error)};
 format_result(Atom, {_Name, atom}) ->
     io_lib:format("~p", [Atom]);

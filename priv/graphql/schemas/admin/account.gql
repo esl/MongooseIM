@@ -35,6 +35,8 @@ type AccountAdminMutation @protected{
   "Change the password of a user"
   changeUserPassword(user: JID!, newPassword: String!): UserPayload
     @protected(type: DOMAIN, args: ["user"])
+  "Import users from a CSV file"
+  importUsers(filename: NonEmptyString!): ImportPayload
 }
 
 "Modify user payload"
@@ -43,6 +45,24 @@ type UserPayload{
   jid: JID!
   "Result message"
   message: String!
+}
+
+"Import users payload"
+type ImportPayload{
+  "Status"
+  status: String!
+  "Users created"
+  created: [JID!]
+  "Users that were already existing"
+  existing: [JID!]
+  "Users there were not allowed to be created"
+  notAllowed: [JID!]
+  "Users with invalid JIDs"
+  invalidJID: [String!]
+  "Users with empty passwords"
+  emptyPassword: [JID!]
+  "Invalid records"
+  invalidRecord: [String!]
 }
 
 "Check password correctness payload"

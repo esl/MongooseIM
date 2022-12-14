@@ -1,6 +1,7 @@
 -module(graphql_account_SUITE).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
@@ -26,8 +27,8 @@ all() ->
 
 groups() ->
     [{user_account, [parallel], user_account_tests()},
-     {admin_account_http, [], admin_account_tests()},
-     {admin_account_cli, [], admin_account_tests()},
+     {admin_account_http, [], admin_account_tests() ++ admin_account_http_tests()},
+     {admin_account_cli, [], admin_account_tests() ++ admin_account_cli_tests()},
      {domain_admin_account, [], domain_admin_tests()}].
 
 user_account_tests() ->
@@ -54,6 +55,12 @@ admin_account_tests() ->
      admin_ban_non_existing_user,
      admin_change_user_password,
      admin_change_non_existing_user_password].
+
+admin_account_http_tests() ->
+    [admin_import_users_http].
+
+admin_account_cli_tests() ->
+    [admin_import_users_cli].
 
 domain_admin_tests() ->
     [admin_list_users,
@@ -168,6 +175,11 @@ end_per_testcase(domain_admin_register_user = C, Config) ->
     {Username, Domain} = proplists:get_value(user, Config),
     rpc(mim(), mongoose_account_api, unregister_user, [Username, Domain]),
     escalus:end_per_testcase(C, Config);
+end_per_testcase(CaseName, Config)
+      when CaseName == admin_import_users_http; CaseName == admin_import_users_cli ->
+    Domain = domain_helper:domain(),
+    rpc(mim(), mongoose_account_api, unregister_user, [<<"john">>, Domain]),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -401,6 +413,57 @@ admin_change_non_existing_user_password(Config) ->
     Resp3 = ban_user(?EMPTY_NAME_JID, NewPassword, Config),
     get_coercion_err_msg(Resp3).
 
+admin_import_users_cli(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
+        % Non-existing file
+        Resp = import_users(<<"nonexisting.csv">>, Config),
+        ?assertEqual(<<"File not found">>, get_err_msg(Resp)),
+        % Summary
+        Path = filename:join(?config(mim_data_dir, Config), "users.csv"),
+        Path2 = replace_hosts_in_file(Path),
+        Resp2 = import_users(list_to_binary(Path2), Config),
+        Domain = domain_helper:domain(),
+        ?assertEqual(#{<<"status">> => <<"Completed">>,
+                       <<"created">> => [<<"john@", Domain/binary>>],
+                       <<"emptyPassword">> => [<<"elise@", Domain/binary>>],
+                       <<"existing">> => [<<"alice@", Domain/binary>>],
+                       <<"invalidJID">> => [<<",", Domain/binary, ",password">>],
+                       <<"invalidRecord">> => [<<"elise,elise,", Domain/binary, ",esile">>],
+                       <<"notAllowed">> => null},
+                     get_ok_value([data, account, importUsers], Resp2))
+    end).
+
+admin_import_users_http(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(_Alice) ->
+        % Summary
+        Path = filename:join(?config(mim_data_dir, Config), "users.csv"),
+        Path2 = replace_hosts_in_file(Path),
+        Resp2 = import_users(list_to_binary(Path2), Config),
+        ?assertEqual(#{<<"status">> => <<"ImportUsers scheduled">>,
+                       <<"created">> => null,
+                       <<"emptyPassword">> => null,
+                       <<"existing">> => null,
+                       <<"invalidJID">> => null,
+                       <<"invalidRecord">> => null,
+                       <<"notAllowed">> => null},
+                     get_ok_value([data, account, importUsers], Resp2)),
+        Domain = domain_helper:domain(),
+        mongoose_helper:wait_until(fun() ->
+                                       rpc(mim(), mongoose_account_api, check_account, [<<"john">>, Domain])
+                                   end,
+                                   {ok, io_lib:format("User ~s exists", [<<"john@", Domain/binary>>])},
+                                   #{time_left => timer:seconds(20),
+                                     sleep_time => 1000,
+                                     name => verify_account_created})
+    end).
+
+replace_hosts_in_file(Path) ->
+    {ok, Content} = file:read_file(Path),
+    Content2 = binary:replace(Content, <<"$host$">>, domain_helper:domain(), [global]),
+    Path2 = Path ++ ".tmp",
+    ok = file:write_file(Path2, Content2),
+    Path2.
+
 domain_admin_list_users_no_permission(Config) ->
     % An unknown domain
     Resp1 = list_users(<<"unknown-domain">>, Config),
@@ -551,3 +614,7 @@ ban_user(JID, Reason, Config) ->
 change_user_password(JID, NewPassword, Config) ->
     Vars = #{<<"user">> => JID, <<"newPassword">> => NewPassword},
     execute_command(<<"account">>, <<"changeUserPassword">>, Vars, Config).
+
+import_users(Filename, Config) ->
+    Vars = #{<<"filename">> => Filename},
+    execute_command(<<"account">>, <<"importUsers">>, Vars, Config).
