@@ -19,6 +19,7 @@ input(<<"UserName">>, User) -> user_from_binary(User);
 input(<<"RoomName">>, Room) -> room_from_binary(Room);
 input(<<"DomainName">>, Domain) -> domain_from_binary(Domain);
 input(<<"ResourceName">>, Res) -> resource_from_binary(Res);
+input(<<"NodeName">>, Node) -> node_from_binary(Node);
 input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
 input(<<"PosInt">>, Value) -> validate_pos_integer(Value);
 input(<<"NonNegInt">>, Value) -> validate_non_neg_integer(Value);
@@ -117,6 +118,18 @@ resource_from_binary(Value) ->
             {error, failed_to_parse_resource_name};
         Res ->
             {ok, Res}
+    end.
+
+node_from_binary(<<>>) ->
+    {error, empty_node_name};
+node_from_binary(NodeName) ->
+    case string:lexemes(binary_to_list(NodeName), "@") of
+        [_Name, _Host] ->
+            {ok, binary_to_atom(NodeName)};
+        ["self"] ->
+            {ok, node()};
+        _ ->
+            {error, incorrect_node_name}
     end.
 
 binary_to_microseconds(DT) ->
