@@ -1,7 +1,7 @@
 "Date and time represented using **YYYY-MM-DDTHH:mm:ssZ** format"
 scalar DateTime
-"Body of a data structure exchanged by XMPP entities in XML streams"
-scalar Stanza @spectaql(options: [{ key: "example", value: "Hi!" }])
+"String containing the XML document"
+scalar XmlElement @spectaql(options: [{ key: "example", value: "<message to='bob@localhost' type='chat' from='alice@localhost'><body>Hi!</body></message>" }])
 "Unique XMPP identifier in the form of **node@domain** or **node@domain/resource"
 scalar JID @spectaql(options: [{ key: "example", value: "alice@localhost" }])
 "JID without a resource"

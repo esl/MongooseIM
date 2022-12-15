@@ -293,7 +293,7 @@ get_value([Field | Fields], Data) ->
     get_value(Fields, Data2).
 
 is_graphql_config(#{module := ejabberd_cowboy, handlers := Handlers}, ExpEpName) ->
-    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := EpName}) ->
+    lists:any(fun(#{module := mongoose_graphql_handler, schema_endpoint := EpName}) ->
                       ExpEpName =:= EpName;
                  (_) -> false
               end, Handlers);

@@ -15,7 +15,6 @@
 
 %% Used by mongoose_client_api_rooms_*
 -export([get_room_jid/3,
-         get_user_aff/2,
          get_room_name/1,
          get_room_subject/1]).
 
@@ -99,7 +98,8 @@ handle_post(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
     Name = get_room_name(Args),
     Subject = get_room_subject(Args),
-    {ok, #{jid := RoomJid}} = mod_muc_light_api:create_room(MUCLightDomain, UserJid, Name, Subject),
+    Config = #{<<"roomname">> => Name, <<"subject">> => Subject},
+    {ok, #{jid := RoomJid}} = mod_muc_light_api:create_room(MUCLightDomain, UserJid, Config),
     room_created(Req, State, RoomJid).
 
 handle_put(Req, State = #{jid := UserJid}) ->
@@ -108,7 +108,8 @@ handle_put(Req, State = #{jid := UserJid}) ->
     Args = parse_body(Req),
     Name = get_room_name(Args),
     Subject = get_room_subject(Args),
-    case mod_muc_light_api:create_room(MUCLightDomain, RoomId, UserJid, Name, Subject) of
+    Config = #{<<"roomname">> => Name, <<"subject">> => Subject},
+    case mod_muc_light_api:create_room(MUCLightDomain, RoomId, UserJid, Config) of
         {ok, #{jid := RoomJid}} ->
             room_created(Req, State, RoomJid);
         {already_exists, Msg} ->
@@ -125,15 +126,20 @@ room_created(Req, State, RoomJid) ->
 room_us_to_json({RoomU, RoomS}) ->
     #jid{luser = RoomId} = RoomJid = jid:make_noprep(RoomU, RoomS, <<>>),
     case mod_muc_light_api:get_room_info(RoomJid) of
-        {ok, #{name := Name, subject := Subject}} ->
-            [#{id => RoomId, name => Name, subject => Subject}];
+        {ok, Info} ->
+            NS = room_name_and_subject(Info),
+            [NS#{id => RoomId}];
         {room_not_found, _} ->
             [] % room was removed after listing rooms, but before this query
     end.
 
 -spec room_info_to_json(mod_muc_light_api:room()) -> jiffy:json_value().
-room_info_to_json(#{name := Name, subject := Subject, aff_users := AffUsers}) ->
-    #{name => Name, subject => Subject, participants => lists:map(fun user_to_json/1, AffUsers)}.
+room_info_to_json(Info = #{aff_users := AffUsers}) ->
+    NS = room_name_and_subject(Info),
+    NS#{participants => lists:map(fun user_to_json/1, AffUsers)}.
+
+room_name_and_subject(#{options := #{<<"roomname">> := Name, <<"subject">> := Subject}}) ->
+    #{name => Name, subject => Subject}.
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),
@@ -156,13 +162,6 @@ get_room_jid(#{id := IdOrJid}, State, _) ->
     end;
 get_room_jid(#{}, _State, required) -> throw_error(bad_request, <<"Missing room ID">>);
 get_room_jid(#{}, _State, optional) -> undefined.
-
-get_user_aff(#{jid := UserJid, creds := Creds}, RoomJid) ->
-    HostType = mongoose_credentials:host_type(Creds),
-    case mod_muc_light_api:get_room_user_aff(HostType, RoomJid, UserJid) of
-        {ok, Aff} -> Aff;
-        {error, room_not_found} -> throw_error(not_found, <<"Room does not exist">>)
-    end.
 
 muc_light_domain(#{creds := Creds}) ->
     HostType = mongoose_credentials:host_type(Creds),

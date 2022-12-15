@@ -35,13 +35,13 @@ SCRIPTS_DIR="$MIM_DIR"/scripts
 EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
 export EJABBERD_STATUS_PATH="$EJABBERD_STATUS_PATH"
 
-COOKIE_ARG=`grep -e '^-setcookie' "$EJABBERD_VMARGS_PATH"`
+COOKIE_ARG=`grep '^-setcookie' "$EJABBERD_VMARGS_PATH"`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
     exit 1
 fi
 
-NODENAME_ARG=`egrep -e '^-s?name' "$EJABBERD_VMARGS_PATH"`
+NODENAME_ARG=`grep -E '^-s?name' "$EJABBERD_VMARGS_PATH"`
 if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1

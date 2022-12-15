@@ -71,6 +71,10 @@ handle_post(Req, #{suffix := participants} = State) ->
             {stop, Req, State};
         {muc_server_not_found, Msg} ->
             throw_error(not_found, Msg);
+        {room_not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {user_not_found, Msg} ->
+            throw_error(bad_request, Msg);
         {not_room_member, Msg} ->
             throw_error(denied, Msg)
     end;
@@ -85,6 +89,10 @@ handle_post(Req, #{suffix := messages} = State) ->
             {stop, Req, State};
         {muc_server_not_found, Msg} ->
             throw_error(not_found, Msg);
+        {room_not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {user_not_found, Msg} ->
+            throw_error(bad_request, Msg);
         {not_room_member, Msg} ->
             throw_error(denied, Msg)
     end;
@@ -94,11 +102,14 @@ handle_post(Req, State) ->
     OwnerJid = get_owner_jid(Args),
     RoomName = get_room_name(Args),
     Subject = get_room_subject(Args),
-    case mod_muc_light_api:create_room(MUCDomain, OwnerJid, RoomName, Subject) of
+    Config = #{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    case mod_muc_light_api:create_room(MUCDomain, OwnerJid, Config) of
         {ok, #{jid := RoomJid}} ->
             RoomJidBin = jid:to_binary(RoomJid),
             Path = [cowboy_req:uri(Req), "/", RoomJidBin],
             resource_created(Req, State, Path, RoomJidBin);
+        {user_not_found, Msg} ->
+            throw_error(bad_request, Msg);
         {muc_server_not_found, Msg} ->
             throw_error(not_found, Msg)
     end.
@@ -110,7 +121,8 @@ handle_put(Req, State) ->
     RoomName = get_room_name(Args),
     RoomId = get_room_id(Args),
     Subject = get_room_subject(Args),
-    case mod_muc_light_api:create_room(MUCDomain, RoomId, OwnerJid, RoomName, Subject) of
+    Config = #{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    case mod_muc_light_api:create_room(MUCDomain, RoomId, OwnerJid, Config) of
         {ok, #{jid := RoomJid}} ->
             RoomJidBin = jid:to_binary(RoomJid),
             Path = [cowboy_req:uri(Req), "/", RoomJidBin],

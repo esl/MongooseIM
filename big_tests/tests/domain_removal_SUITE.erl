@@ -19,6 +19,7 @@ all() ->
      {group, mam_removal},
      {group, mam_removal_incremental},
      {group, inbox_removal},
+     {group, inbox_removal_incremental},
      {group, muc_light_removal},
      {group, muc_removal},
      {group, private_removal},
@@ -39,6 +40,7 @@ groups() ->
      {mam_removal_incremental, [], [mam_pm_removal,
                                     mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
+     {inbox_removal_incremental, [], [inbox_removal]},
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
      {muc_removal, [], [muc_removal]},
@@ -108,6 +110,8 @@ group_to_modules(muc_removal) ->
     [{mod_muc, muc_helper:make_opts(Opts)}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, inbox_helper:inbox_opts()}];
+group_to_modules(inbox_removal_incremental) ->
+    [{mod_inbox, (inbox_helper:inbox_opts())#{delete_domain_limit => 1}}];
 group_to_modules(private_removal) ->
     [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
 group_to_modules(roster_removal) ->

@@ -9,15 +9,26 @@
 
 -import(mongoose_graphql_helper, [make_error/2]).
 
+execute(_Ctx, _Obj, <<"kickUserSession">>, Args) ->
+    kick_user_session(Args);
 execute(_Ctx, _Obj, <<"kickUser">>, Args) ->
     kick_user(Args);
 execute(_Ctx, _Obj, <<"setPresence">>, Args) ->
     set_presence(Args).
 
--spec kick_user(map()) -> {ok, map()} | {error, resolver_error()}.
+-spec kick_user_session(map()) -> {ok, mongoose_session_api:kick_user_result()} | {error, resolver_error()}.
+kick_user_session(#{<<"user">> := JID, <<"reason">> := KickReason}) ->
+    case mongoose_session_api:kick_session(JID, KickReason) of
+        {ok, Result} -> {ok, Result};
+        Error -> make_error(Error, #{jid => jid:to_binary(JID), reason => KickReason})
+    end.
+
+-spec kick_user(map()) -> {ok, [mongoose_session_api:kick_user_result()]} | {error, resolver_error()}.
 kick_user(#{<<"user">> := JID, <<"reason">> := KickReason}) ->
-    Result = mongoose_session_api:kick_session(JID, KickReason),
-    format_session_payload(Result, JID).
+    case mongoose_session_api:kick_sessions(JID, KickReason) of
+        {ok, Result} -> {ok, Result};
+        Error -> make_error(Error, #{jid => jid:to_binary(JID), reason => KickReason})
+    end.
 
 -spec set_presence(map()) -> {ok, map()} | {error, resolver_error()}.
 set_presence(#{<<"user">> := JID, <<"type">> := Type,
@@ -43,7 +54,7 @@ format_session_payload(InResult, JID) ->
         {ok, Msg} ->
             {ok, make_session_payload(Msg, JID)};
         Result ->
-            make_error(Result, #{jid => JID})
+            make_error(Result, #{jid => jid:to_binary(JID)})
     end.
 
 -spec make_session_payload(binary(), jid:jid()) -> map().

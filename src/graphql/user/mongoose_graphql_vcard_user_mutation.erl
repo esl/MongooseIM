@@ -13,9 +13,9 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-execute(#{user := CallerJID}, vcard, <<"setVcard">>, #{<<"vcard">> := VCARD}) ->
-    case mod_vcard_api:set_vcard(CallerJID, VCARD) of
+execute(#{user := CallerJID}, vcard, <<"setVcard">>, #{<<"vcard">> := VcardInput}) ->
+    case mod_vcard_api:set_vcard(CallerJID, VcardInput) of
         {ok, _} = Vcard -> Vcard;
-        {ErrorCode, ErrorMessage} ->
-            make_error({ErrorCode, ErrorMessage}, #{user => CallerJID})
+        Error ->
+            make_error(Error, #{user => jid:to_binary(CallerJID)})
     end.

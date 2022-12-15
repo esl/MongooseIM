@@ -558,6 +558,7 @@ all_modules() ->
             bin_clean_after => timer:hours(1),
             iqdisc => no_queue,
             aff_changes => true,
+            delete_domain_limit => infinity,
             groupchat => [muclight],
             remove_on_kicked => true,
             reset_markers => [<<"displayed">>]},
@@ -879,6 +880,7 @@ default_mod_config(mod_inbox) ->
       bin_clean_after => timer:hours(1),
       groupchat => [muclight],
       aff_changes => true,
+      delete_domain_limit => infinity,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
@@ -1083,8 +1085,8 @@ default_config([listen, http, handlers, mongoose_client_api]) ->
     #{handlers => [sse, messages, contacts, rooms, rooms_config, rooms_users, rooms_messages],
       docs => true,
       module => mongoose_client_api};
-default_config([listen, http, handlers, mongoose_graphql_cowboy_handler]) ->
-    #{module => mongoose_graphql_cowboy_handler,
+default_config([listen, http, handlers, mongoose_graphql_handler]) ->
+    #{module => mongoose_graphql_handler,
       schema_endpoint => admin};
 default_config([listen, http, handlers, Module]) ->
     #{module => Module};

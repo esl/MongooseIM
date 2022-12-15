@@ -14,6 +14,6 @@
 execute(_Ctx, vcard, <<"getVcard">>, #{<<"user">> := CallerJID}) ->
     case mod_vcard_api:get_vcard(CallerJID) of
         {ok, _} = Vcard -> Vcard;
-        {ErrorCode, ErrorMessage} ->
-            make_error({ErrorCode, ErrorMessage}, #{user => CallerJID})
+        Error ->
+            make_error(Error, #{user => jid:to_binary(CallerJID)})
     end.

@@ -57,7 +57,15 @@
 -type hook_list() :: hook_list(hook_fn()).
 -type hook_list(HookFn) :: [hook_tuple(HookFn)].
 
+<<<<<<< HEAD
 -export_type([hook_fn/0, hook_list/0, hook_list/1, hook_fn_ret/0, hook_fn_ret/1, extra/0]).
+=======
+-export_type([hook_fn/0,
+              hook_list/0,
+              hook_fn_ret/0,
+              hook_fn_ret/1,
+              extra/0]).
+>>>>>>> master
 
 -record(hook_handler, {prio :: pos_integer(),
                        hook_fn :: hook_fn(),

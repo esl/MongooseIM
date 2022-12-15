@@ -58,23 +58,27 @@ handle_post(Req, State = #{jid := UserJid}) ->
     RoomJid = get_room_jid(Bindings, State, required),
     Args = parse_body(Req),
     TargetJid = get_user_jid(Args),
-    assert_permissions(get_user_aff(State, RoomJid), add, UserJid, TargetJid),
-    mod_muc_light_api:change_affiliation(RoomJid, UserJid, TargetJid, <<"member">>),
+    change_affiliation(RoomJid, UserJid, TargetJid, add),
     {true, Req, State}.
 
 handle_delete(Req, State = #{jid := UserJid}) ->
     Bindings = cowboy_req:bindings(Req),
     RoomJid = get_room_jid(Bindings, State, required),
     TargetJid = get_user_jid(Bindings),
-    assert_permissions(get_user_aff(State, RoomJid), remove, UserJid, TargetJid),
-    mod_muc_light_api:change_affiliation(RoomJid, UserJid, TargetJid, <<"none">>),
+    change_affiliation(RoomJid, UserJid, TargetJid, remove),
     {true, Req, State}.
 
--spec assert_permissions(mod_muc_light_api:aff(), add | remove, jid:jid(), jid:jid()) -> ok.
-assert_permissions(owner, _Op, _UserJid, _TargetJid) -> ok;
-assert_permissions(member, remove, UserJid, UserJid) -> ok;
-assert_permissions(_Aff, _Op, _UserJid, _TargetJid) ->
-    throw_error(denied, <<"Operation not permitted for this user">>).
+change_affiliation(RoomJid, UserJid, TargetJid, Op) ->
+    case mod_muc_light_api:change_affiliation(RoomJid, UserJid, TargetJid, Op) of
+        {ok, _Msg} ->
+            ok;
+        {room_not_found, Msg} ->
+            throw_error(not_found, Msg);
+        {not_allowed, Msg} ->
+            throw_error(denied, Msg);
+        {not_room_member, Msg} ->
+            throw_error(denied, Msg)
+    end.
 
 get_user_jid(#{user := JidBin}) ->
     case jid:from_binary(JidBin) of

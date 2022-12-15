@@ -8,7 +8,8 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(domain_helper, [domain/0]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4,  get_listener_port/1,
-                         get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1]).
+                         get_listener_config/1, get_ok_value/2, get_err_msg/1, get_unauthorized/1,
+                         get_coercion_err_msg/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -38,7 +39,8 @@ admin_session_tests() ->
      admin_get_user_resource,
      admin_list_users_with_status,
      admin_count_users_with_status,
-     admin_kick_session,
+     admin_kick_user_session,
+     admin_kick_user,
      admin_set_presence,
      admin_set_presence_away,
      admin_set_presence_unavailable].
@@ -54,7 +56,8 @@ domain_admin_session_tests() ->
      domain_admin_get_user_resource_no_permission,
      domain_admin_list_users_with_status,
      domain_admin_count_users_with_status,
-     admin_kick_session,
+     admin_kick_user_session,
+     domain_admin_kick_user_session_no_permission,
      domain_admin_kick_user_no_permission,
      admin_set_presence,
      admin_set_presence_away,
@@ -197,12 +200,22 @@ domain_admin_get_user_resource_story_no_permission_story(Config, AliceBis) ->
     Res = get_user_resource(AliceBisJID, 2, Config),
     get_unauthorized(Res).
 
+domain_admin_kick_user_session_no_permission(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
+                                    fun domain_admin_kick_user_session_no_permission_story/2).
+
+domain_admin_kick_user_session_no_permission_story(Config, AliceBis) ->
+    AliceBisJID = escalus_client:full_jid(AliceBis),
+    Reason = <<"Test kick">>,
+    Res = kick_user_session(AliceBisJID, Reason, Config),
+    get_unauthorized(Res).
+
 domain_admin_kick_user_no_permission(Config) ->
     escalus:fresh_story_with_config(Config, [{alice_bis, 1}],
                                     fun domain_admin_kick_user_no_permission_story/2).
 
 domain_admin_kick_user_no_permission_story(Config, AliceBis) ->
-    AliceBisJID = escalus_client:full_jid(AliceBis),
+    AliceBisJID = escalus_client:short_jid(AliceBis),
     Reason = <<"Test kick">>,
     Res = kick_user(AliceBisJID, Reason, Config),
     get_unauthorized(Res).
@@ -290,7 +303,10 @@ admin_list_sessions_story(Config, _Alice, AliceB, _Bob) ->
     ?assertEqual(1, length(Sessions2)),
     Res3 = list_sessions(unprep(BisDomain), Config),
     Sessions3 = get_ok_value(Path, Res3),
-    ?assertEqual(1, length(Sessions3)).
+    ?assertEqual(1, length(Sessions3)),
+    % List sessions for a non-existing domain
+    Res4 = list_sessions(<<"nonexisting">>, Config),
+    ?assertEqual(<<"Domain not found">>, get_err_msg(Res4)).
 
 admin_count_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
@@ -307,7 +323,10 @@ admin_count_sessions_story(Config, _Alice, AliceB, _Bob) ->
     Res2 = count_sessions(BisDomain, Config),
     ?assertEqual(1,  get_ok_value(Path, Res2)),
     Res3 = count_sessions(unprep(BisDomain), Config),
-    ?assertEqual(1,  get_ok_value(Path, Res3)).
+    ?assertEqual(1,  get_ok_value(Path, Res3)),
+    % Count sessions for a non-existing domain
+    Res4 = count_sessions(<<"nonexisting">>, Config),
+    ?assertEqual(<<"Domain not found">>, get_err_msg(Res4)).
 
 admin_list_user_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 2}, {bob, 1}],
@@ -321,7 +340,11 @@ admin_list_user_sessions_story(Config, Alice, Alice2, _Bob) ->
     ExpectedRes = lists:map(fun escalus_utils:jid_to_lower/1, [S1JID, S2JID]),
     Sessions = get_ok_value(Path, Res),
     ?assertEqual(2, length(Sessions)),
-    check_users(ExpectedRes, Sessions).
+    check_users(ExpectedRes, Sessions),
+    % Check for a non-existing user
+    Domain = domain(),
+    Res2 = list_user_sessions(<<"alien@", Domain/binary>>, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res2)).
 
 admin_count_user_resources(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 3}], fun admin_count_user_resources_story/4).
@@ -330,7 +353,11 @@ admin_count_user_resources_story(Config, Alice, _Alice2, _Alice3) ->
     Path = [data, session, countUserResources],
     JID = escalus_client:full_jid(Alice),
     Res = count_user_resources(JID, Config),
-    ?assertEqual(3, get_ok_value(Path, Res)).
+    ?assertEqual(3, get_ok_value(Path, Res)),
+    % Check for a non-existing user
+    Domain = domain(),
+    Res2 = count_user_resources(<<"alien@", Domain/binary>>, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res2)).
 
 admin_get_user_resource(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 3}], fun admin_get_user_resource_story/4).
@@ -343,7 +370,11 @@ admin_get_user_resource_story(Config, Alice, Alice2, _Alice3) ->
     ?assertEqual(escalus_client:resource(Alice2), get_ok_value(Path, Res)),
     % Provide a wrong resource number
     Res2 = get_user_resource(JID, 4, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"Wrong resource number">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"Wrong resource number">>)),
+    % Check for a non-existing user
+    Domain = domain(),
+    Res3 = get_user_resource(<<"alien@", Domain/binary>>, 1, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res3)).
 
 admin_count_users_with_status(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
@@ -363,7 +394,10 @@ admin_count_users_with_status_story(Config, Alice, AliceB) ->
     assert_count_users_with_status(1, unprep(domain_helper:domain()), AwayStatus, Config),
     % Count users with dnd status globally
     escalus_client:send(AliceB, DndPresence),
-    assert_count_users_with_status(1, null, DndStatus, Config).
+    assert_count_users_with_status(1, null, DndStatus, Config),
+    % Count users with dnd status for a non-existing domain
+    Res = count_users_with_status(<<"nonexisting">>, DndStatus, Config),
+    ?assertEqual(<<"Domain not found">>, get_err_msg(Res)).
 
 admin_list_users_with_status(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
@@ -385,29 +419,51 @@ admin_list_users_with_status_story(Config, Alice, AliceB) ->
     assert_list_users_with_status([AliceJID], unprep(domain()), AwayStatus, Config),
     % List users with dnd status globally
     escalus_client:send(AliceB, DndPresence),
-    assert_list_users_with_status([AliceBJID], null, DndStatus, Config).
+    assert_list_users_with_status([AliceBJID], null, DndStatus, Config),
+    % List users with dnd status for a non-existing domain
+    Res = count_users_with_status(<<"nonexisting">>, DndStatus, Config),
+    ?assertEqual(<<"Domain not found">>, get_err_msg(Res)).
 
-admin_kick_session(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_session_story/3).
+admin_kick_user_session(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_user_session_story/3).
 
-admin_kick_session_story(Config, Alice1, Alice2) ->
+admin_kick_user_session_story(Config, Alice1, Alice2) ->
     JIDA1 = escalus_client:full_jid(Alice1),
     JIDA2 = escalus_client:full_jid(Alice2),
     Reason = <<"Test kick">>,
-    Path = [data, session, kickUser, message],
-    Res = kick_user(JIDA1, Reason, Config),
+    Path = [data, session, kickUserSession, message],
+    Res = kick_user_session(JIDA1, Reason, Config),
     % Kick an active session
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res), <<"kicked">>)),
-    ?assertEqual(JIDA1, get_ok_value([data, session, kickUser, jid], Res)),
+    ?assertEqual(JIDA1, get_ok_value([data, session, kickUserSession, jid], Res)),
     % Try to kick an offline session
-    Res2 = kick_user(JIDA1, Reason, Config),
+    Res2 = kick_user_session(JIDA1, Reason, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"No active session">>)),
     % Try to kick a session with JID without a resource
-    Res3 = kick_user(escalus_client:short_jid(Alice2), Reason, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"No active session">>)),
-    % Kick another active session
-    Res4 = kick_user(JIDA2, Reason, Config),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res4), <<"kicked">>)).
+    Res3 = kick_user_session(escalus_client:short_jid(Alice2), Reason, Config),
+    ?assertNotEqual(nomatch, binary:match(get_coercion_err_msg(Res3), <<"jid_without_resource">>)),
+    % Kick active session without reason text
+    Res4 = kick_user_session(JIDA2, null, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res4), <<"kicked">>)),
+    % Kick a non-existing user
+    Domain = domain(),
+    Res5 = kick_user_session(<<"alien@", Domain/binary, "/mobile">>, null, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res5)).
+
+admin_kick_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_user_story/3).
+
+admin_kick_user_story(Config, Alice1, _Alice2) ->
+    AliceJID = escalus_client:short_jid(Alice1),
+    Reason = <<"Test kick">>,
+    Res1 = kick_user(AliceJID, Reason, Config),
+    Res2 = get_ok_value([data, session, kickUser], Res1),
+    ?assertEqual(2, length(Res2)),
+    ?assertEqual([true, true], [Kicked || #{<<"kicked">> := Kicked} <- Res2]),
+    % Kick a non-existing user
+    Domain = domain(),
+    Res5 = kick_user(<<"alien@", Domain/binary>>, null, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res5)).
 
 admin_set_presence(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_presence_story/2).
@@ -422,10 +478,14 @@ admin_set_presence_story(Config, Alice) ->
     % Send short JID
     Res = set_presence(ShortJID, Type, Show, Status, Priority, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"resource is empty">>)),
+    % Non-existing user
+    Domain = domain(),
+    Res2 = set_presence(<<"alien@", Domain/binary, "/mobile">>, Type, Show, Status, Priority, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Res2)),
     % Send full JID
     Path = [data, session, setPresence, message],
-    Res2 = set_presence(JID, Type, Show, Status, Priority, Config),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res2), <<"set successfully">>)),
+    Res3 = set_presence(JID, Type, Show, Status, Priority, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res3), <<"set successfully">>)),
     Presence = escalus:wait_for_stanza(Alice),
     ?assertNot(escalus_pred:is_presence_with_show(<<"online">>, Presence)),
     escalus:assert(is_presence_with_type, [<<"available">>], Presence),
@@ -499,6 +559,10 @@ list_users_with_status(Domain, Status, Config) ->
 count_users_with_status(Domain, Status, Config) ->
     Vars = #{<<"domain">> => Domain, <<"status">> => Status},
     execute_command(<<"session">>, <<"countUsersWithStatus">>, Vars, Config).
+
+kick_user_session(JID, Reason, Config) ->
+    Vars = #{<<"user">> => JID, <<"reason">> => Reason},
+    execute_command(<<"session">>, <<"kickUserSession">>, Vars, Config).
 
 kick_user(JID, Reason, Config) ->
     Vars = #{<<"user">> => JID, <<"reason">> => Reason},

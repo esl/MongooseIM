@@ -208,6 +208,8 @@ create_room_errors(Config) ->
         post(admin, Path, maps:remove(subject, Body)),
     {{<<"400">>, _}, <<"Invalid owner JID">>} =
         post(admin, Path, Body#{owner := <<"@invalid">>}),
+    {{<<"400">>, _}, <<"Given user does not exist">>} =
+        post(admin, Path, Body#{owner := <<"baduser@", (domain())/binary>>}),
     {{<<"404">>, _}, <<"MUC Light server not found">>} =
         post(admin, path([domain_helper:domain()]), Body).
 
@@ -228,6 +230,8 @@ create_identifiable_room_errors(Config) ->
         putt(admin, Path, maps:remove(subject, Body)),
     {{<<"400">>, _}, <<"Invalid owner JID">>} =
         putt(admin, Path, Body#{owner := <<"@invalid">>}),
+    {{<<"400">>, _}, <<"Given user does not exist">>} =
+        post(admin, Path, Body#{owner := <<"baduser@", (domain())/binary>>}),
     {{<<"403">>, _}, <<"Room already exists">>} =
         putt(admin, Path, Body#{id := <<"ID1">>, name := <<"NameB">>}),
     {{<<"404">>, _}, <<"MUC Light server not found">>} =
@@ -249,8 +253,12 @@ invite_to_room_errors(Config) ->
         rest_helper:post(admin, Path, Body#{recipient := <<"@invalid">>}),
     {{<<"400">>, _}, <<"Invalid sender JID">>} =
         rest_helper:post(admin, Path, Body#{sender := <<"@invalid">>}),
+    {{<<"400">>, _}, <<"Given user does not exist">>} =
+        rest_helper:post(admin, Path, Body#{sender := <<"baduser@", (domain())/binary>>}),
     {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
         rest_helper:post(admin, Path, Body#{sender := BobJid, recipient := AliceJid}),
+    {{<<"404">>, _}, <<"Room not found">>} =
+        rest_helper:post(admin, path([muc_light_domain(), "badroom", "participants"]), Body),
     {{<<"404">>, _}, <<"MUC Light server not found">>} =
         rest_helper:post(admin, path([domain(), Name, "participants"]), Body).
 
@@ -270,9 +278,11 @@ send_message_errors(Config) ->
         rest_helper:post(admin, Path, maps:remove(from, Body)),
     {{<<"400">>, _}, <<"Invalid sender JID">>} =
         rest_helper:post(admin, Path, Body#{from := <<"@invalid">>}),
+    {{<<"400">>, _}, <<"Given user does not exist">>} =
+        rest_helper:post(admin, Path, Body#{from := <<"baduser@", (domain())/binary>>}),
     {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
         rest_helper:post(admin, Path, Body#{from := BobJid}),
-    {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
+    {{<<"404">>, _}, <<"Room not found">>} =
         rest_helper:post(admin, path([muc_light_domain(), "badroom", "messages"]), Body),
     {{<<"404">>, _}, <<"MUC Light server not found">>} =
         rest_helper:post(admin, path([domain(), Name, "messages"]), Body).
@@ -284,7 +294,7 @@ delete_room_errors(_Config) ->
         delete(admin, path([muc_light_domain()])),
     {{<<"404">>, _}, _} =
         delete(admin, path([muc_light_domain(), "badroom"])),
-    {{<<"404">>, _}, <<"Cannot remove not existing room">>} =
+    {{<<"404">>, _}, <<"Room not found">>} =
         delete(admin, path([muc_light_domain(), "badroom", "management"])),
     {{<<"404">>, _}, <<"MUC Light server not found">>} =
         delete(admin, path([domain(), "badroom", "management"])),
