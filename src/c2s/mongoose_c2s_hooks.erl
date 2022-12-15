@@ -41,10 +41,7 @@
     Params :: params(),
     Result :: result().
 user_send_packet(HostType, Acc, Params) ->
-    {From, To, El} = mongoose_acc:packet(Acc),
-    Args = [From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    gen_hook:run_fold(user_send_packet, HostType, Acc, ParamsWithLegacyArgs).
+    gen_hook:run_fold(user_send_packet, HostType, Acc, Params).
 
 %% @doc Triggered when a user receives a packet through any routing mechanism.
 %% Examples of handlers can be metrics or carbons.
@@ -53,12 +50,8 @@ user_send_packet(HostType, Acc, Params) ->
     Acc :: mongoose_acc:t(),
     Params :: params(),
     Result :: result().
-user_receive_packet(HostType, Acc, #{c2s_data := C2SData} = Params) ->
-    {From, To, El} = mongoose_acc:packet(Acc),
-    Jid = mongoose_c2s:get_jid(C2SData),
-    Args = [Jid, From, To, El],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    gen_hook:run_fold(user_receive_packet, HostType, Acc, ParamsWithLegacyArgs).
+user_receive_packet(HostType, Acc, Params) ->
+    gen_hook:run_fold(user_receive_packet, HostType, Acc, Params).
 
 %% @doc Triggered when the user sends a stanza of type `message'
 -spec user_send_message(HostType, Acc, Params) -> Result when
