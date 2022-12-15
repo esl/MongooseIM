@@ -3,7 +3,7 @@
 ## 2022: GraphQL
 
 New GraphQL API allows to access MongooseIM using HTTP protocol to extract data and make changes in a flexible way.
-The command-line intrerface (CLI) has been reworked to match the GraphQL functionality.
+The command-line interface (CLI) has been reworked to match the GraphQL functionality.
 The configuration for the admin and the client API has been simplified.
 
 ## 2020-2021: Friendly, cloud-native and dynamic
