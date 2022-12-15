@@ -5,7 +5,6 @@
 %%% make sure they pass the expected arguments.
 -module(mongoose_hooks).
 
--include("jlib.hrl").
 -include("mod_privacy.hrl").
 -include("mongoose.hrl").
 
@@ -160,20 +159,6 @@
                               Packet :: exml:element()}.
 -export_type([filter_packet_acc/0]).
 
-<<<<<<< HEAD
-=======
--spec c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) -> Result when
-    HostType :: mongooseim:host_type(),
-    Tag :: atom(),
-    Args :: term(),
-    HandlerState :: term(),
-    C2SState :: ejabberd_c2s:state(),
-    Result :: term(). % ok | empty_state | HandlerState
-c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
-    Params = #{tag => Tag, hook_args => Args, c2s_state => C2SState},
-    run_hook_for_host_type(c2s_remote_hook, HostType, HandlerState, Params).
-
->>>>>>> master
 -spec adhoc_local_commands(HostType, From, To, AdhocRequest) -> Result when
     HostType :: mongooseim:host_type(),
     From :: jid:jid(),
@@ -431,59 +416,8 @@ user_available_hook(Acc, JID) ->
     Result :: simple_acc().
 user_ping_response(HostType, Acc, JID, Response, TDelta) ->
     Params = #{jid => JID, response => Response, time_delta => TDelta},
-<<<<<<< HEAD
-    Args = [HostType, JID, Response, TDelta],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
-    run_hook_for_host_type(user_ping_response, HostType, Acc, ParamsWithLegacyArgs).
-
-=======
     run_hook_for_host_type(user_ping_response, HostType, Acc, Params).
 
-%%% @doc The `user_ping_timeout' hook is called when there is a timeout
-%%% when waiting for a ping response from a user.
--spec user_ping_timeout(HostType, JID) -> Result when
-    HostType :: mongooseim:host_type(),
-    JID :: jid:jid(),
-    Result :: any().
-user_ping_timeout(HostType, JID) ->
-    Params = #{jid => JID},
-    run_hook_for_host_type(user_ping_timeout, HostType, ok, Params).
-
--spec user_receive_packet(HostType, Acc, JID, From, To, El) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    JID :: jid:jid(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    El :: exml:element(),
-    Result :: mongoose_acc:t().
-user_receive_packet(HostType, Acc, JID, _From, _To, _El) ->
-    Params = #{jid => JID},
-    run_hook_for_host_type(user_receive_packet, HostType, Acc, Params).
-
--spec user_sent_keep_alive(HostType, JID) -> Result when
-    HostType :: mongooseim:host_type(),
-    JID :: jid:jid(),
-    Result :: any().
-user_sent_keep_alive(HostType, JID) ->
-    Params = #{jid => JID},
-    run_hook_for_host_type(user_sent_keep_alive, HostType, ok, Params).
-
-%%% @doc A hook called when a user sends an XMPP stanza.
-%%% The hook's handler is expected to accept four parameters:
-%%% `Acc', `From', `To' and `Packet'
-%%% The arguments and the return value types correspond to the following spec.
--spec user_send_packet(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: mongoose_acc:t().
-user_send_packet(Acc, _From, _To, _Packet) ->
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_send_packet, HostType, Acc, #{}).
-
->>>>>>> master
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
 -spec vcard_set(HostType, Server, LUser, VCard) -> Result when
@@ -529,48 +463,9 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
     Result :: [jid:simple_jid()].
 c2s_broadcast_recipients(State, Type, From, Packet) ->
     Params = #{state => State, type => Type, from => From, packet => Packet},
-<<<<<<< HEAD
-    Args = [State, Type, From, Packet],
-    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
     HostType = mongoose_c2s:get_host_type(State),
-    run_hook_for_host_type(c2s_broadcast_recipients, HostType, [], ParamsWithLegacyArgs).
-
-=======
-    HostType = ejabberd_c2s_state:host_type(State),
     run_hook_for_host_type(c2s_broadcast_recipients, HostType, [], Params).
 
--spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
-    State :: ejabberd_c2s:state(),
-    Feature :: {atom(), binary()},
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: boolean().
-c2s_filter_packet(State, Feature, To, Packet) ->
-    Params = #{state => State, feature => Feature, to => To, packet => Packet},
-    HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_filter_packet, HostType, true, Params).
-
--spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    State :: ejabberd_c2s:state(),
-    Result :: mongoose_acc:t().
-c2s_preprocessing_hook(HostType, Acc, State) ->
-    Params = #{state => State},
-    run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, Params).
-
--spec c2s_presence_in(State, From, To, Packet) -> Result when
-    State :: ejabberd_c2s:state(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: ejabberd_c2s:state().
-c2s_presence_in(State, From, To, Packet) ->
-    Params = #{from => From, to => To, packet => Packet},
-    HostType = ejabberd_c2s_state:host_type(State),
-    run_hook_for_host_type(c2s_presence_in, HostType, State, Params).
-
->>>>>>> master
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
@@ -579,26 +474,6 @@ c2s_stream_features(HostType, LServer) ->
     Params = #{lserver => LServer},
     run_hook_for_host_type(c2s_stream_features, HostType, [], Params).
 
-<<<<<<< HEAD
-=======
--spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
-    HostType :: mongooseim:host_type(),
-    Server :: jid:server(),
-    IQ :: jlib:iq(),
-    IP :: {inet:ip_address(), inet:port_number()} | undefined,
-    Result :: exml:element() | empty.
-c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
-    Params = #{server => Server, iq => IQ, ip => IP},
-    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, Params).
-
--spec c2s_update_presence(HostType, Acc) -> Result when
-    HostType :: mongooseim:host_type(),
-    Acc :: mongoose_acc:t(),
-    Result :: mongoose_acc:t().
-c2s_update_presence(HostType, Acc) ->
-    run_hook_for_host_type(c2s_update_presence, HostType, Acc, #{}).
-
->>>>>>> master
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),
     Result :: boolean().
