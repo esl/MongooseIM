@@ -49,6 +49,7 @@
                    | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
                    | wait_for_session_establishment
                    | session_established.
+-type c2s_state(State) :: c2s_state() | ?EXT_C2S_STATE(State).
 
 -type listener_opts() :: #{shaper := atom(),
                            max_stanza_size := non_neg_integer(),
@@ -56,7 +57,7 @@
                            c2s_state_timeout := non_neg_integer(),
                            term() => term()}.
 
--export_type([packet/0, c2s_data/0, c2s_state/0, listener_opts/0]).
+-export_type([packet/0, c2s_data/0, c2s_state/0, c2s_state/1, listener_opts/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -172,7 +173,7 @@ handle_event(state_timeout, state_timeout_termination, _FsmState, StateData) ->
 handle_event(EventType, EventContent, C2SState, StateData) ->
     handle_foreign_event(StateData, C2SState, EventType, EventContent).
 
--spec terminate(term(), c2s_state(), c2s_data()) -> term().
+-spec terminate(term(), c2s_state(term()), c2s_data()) -> term().
 terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
@@ -616,7 +617,7 @@ verify_process_alive(StateData, C2SState, Pid) ->
                            replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
     end.
 
--spec maybe_retry_state(c2s_state()) -> c2s_state() | {stop, term()}.
+-spec maybe_retry_state(c2s_state(term())) -> c2s_state(term()) | {stop, term()}.
 maybe_retry_state(connect) -> connect;
 maybe_retry_state(wait_for_session_establishment) -> {stop, {shutdown, stream_end}};
 maybe_retry_state(session_established) -> session_established;
@@ -633,7 +634,9 @@ maybe_retry_state({wait_for_feature_after_auth, Retries}) ->
 maybe_retry_state({wait_for_feature_before_auth, SaslState, Retries}) ->
     {wait_for_feature_before_auth, SaslState, Retries - 1};
 maybe_retry_state({wait_for_sasl_response, SaslState, Retries}) ->
-    {wait_for_sasl_response, SaslState, Retries - 1}.
+    {wait_for_sasl_response, SaslState, Retries - 1};
+maybe_retry_state(?EXT_C2S_STATE(_) = State) ->
+    State.
 
 %% @doc Check 'from' attribute in stanza RFC 6120 Section 8.1.2.1
 -spec verify_from(exml:element(), jid:jid()) -> boolean().
@@ -889,14 +892,10 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(_, connect, Acc, _) -> Acc;
-close_session(_, {wait_for_stream, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_feature_before_auth, _, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_feature_after_auth, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_sasl_response, _, _}, Acc, _) -> Acc;
-close_session(_, wait_for_session_establishment, Acc, _) -> Acc;
-close_session(#c2s_data{jid = Jid, sid = Sid}, _, Acc, Reason) when Jid =/= undefined ->
+-spec close_session(c2s_data(), c2s_state(term()), mongoose_acc:t(), term()) -> mongoose_acc:t().
+close_session(#c2s_data{jid = Jid, sid = Sid}, session_established, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
+close_session(#c2s_data{jid = Jid, sid = Sid}, ?EXTERNAL_C2S_STATE(_), Acc, Reason) ->
     ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
 close_session(_, _, Acc, _) ->
     Acc.
@@ -941,7 +940,7 @@ new_stream_id() ->
 generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-", (mongoose_bin:gen_from_crypto())/binary>>.
 
--spec hook_arg(c2s_data(), c2s_state(), terminate | gen_statem:event_type(), term(), term()) ->
+-spec hook_arg(c2s_data(), c2s_state(term()), terminate | gen_statem:event_type(), term(), term()) ->
     mongoose_c2s_hooks:hook_params().
 hook_arg(StateData, C2SState, EventType, EventContent, Reason) ->
     #{c2s_data => StateData, c2s_state => C2SState,

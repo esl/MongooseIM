@@ -51,6 +51,7 @@
          }).
 
 -type sm_state() :: #sm_state{}.
+-type c2s_state() :: mongoose_c2s:c2s_state(resume_session).
 
 -type buffer_max() :: pos_integer() | infinity | no_buffer.
 -type ack_freq() :: pos_integer() | never.
@@ -233,7 +234,7 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max 
     Acc2 = mongoose_c2s_acc:to_acc(Acc, actions, MaybeActions),
     maybe_send_ack_request(Acc2, NewSmState).
 
-notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, resume_session) ->
+notify_unacknowledged_msg_if_in_resume_state(Acc, Jid, ?EXT_C2S_STATE(resume_session)) ->
     maybe_notify_unacknowledged_msg(Acc, Jid);
 notify_unacknowledged_msg_if_in_resume_state(Acc, _, _) ->
     Acc.
@@ -313,7 +314,7 @@ handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             Timeout = get_resume_timeout(HostType),
             NewSmState = notify_unacknowledged_messages(Acc, StateData, SmState),
             Actions = [{push_callback_module, ?MODULE}, {timeout, Timeout, resume_timeout}, hibernate],
-            ToAcc = [{c2s_state, resume_session}, {actions, Actions}, {state_mod, {?MODULE, NewSmState}}],
+            ToAcc = [{c2s_state, ?EXT_C2S_STATE(resume_session)}, {actions, Actions}, {state_mod, {?MODULE, NewSmState}}],
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
 
@@ -733,8 +734,6 @@ do_remove_smid(HostType, Sid, H) ->
 %% `gen_statem' callbacks
 %%
 
--type c2s_state() :: resume_session | mongoose_c2s:c2s_state().
-
 -spec callback_mode() -> gen_statem:callback_mode_result().
 callback_mode() ->
     handle_event_function.
@@ -745,12 +744,12 @@ init(_) ->
 
 -spec handle_event(gen_statem:event_type(), term(), c2s_state(), mongoose_c2s:c2s_data()) ->
     gen_statem:event_handler_result(c2s_state()).
-handle_event({call, From}, resume, resume_session, StateData) ->
+handle_event({call, From}, resume, ?EXT_C2S_STATE(resume_session), StateData) ->
     LServer = mongoose_c2s:get_lserver(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
     handle_resume_call(StateData, Acc, From);
-handle_event(timeout, resume_timeout, resume_session, StateData) ->
+handle_event(timeout, resume_timeout, ?EXT_C2S_STATE(resume_session), StateData) ->
     {stop, {shutdown, ?MODULE}, StateData};
 handle_event(EventType, EventContent, C2SState, StateData) ->
     mongoose_c2s:handle_event(EventType, EventContent, C2SState, StateData).

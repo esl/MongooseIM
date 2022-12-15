@@ -36,5 +36,6 @@
 
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 -define(XML_STREAM_TRAILER, #xmlstreamend{name = <<"stream:stream">>}).
+-define(EXT_C2S_STATE(S), {external_state, S}).
 
 -endif.
