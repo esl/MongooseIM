@@ -5,6 +5,7 @@
 # - EUNIT_TESTS
 # - COVER_ENABLED
 # - STOP_NODES (default false)
+# - CT_HOOKS
 set -o pipefail
 shopt -s nullglob
 IFS=$'\n\t'
@@ -16,7 +17,7 @@ EUNIT_TESTS="${EUNIT_TESTS:-false}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
 REBAR_CT_EXTRA_ARGS="${REBAR_CT_EXTRA_ARGS:-}"
 
-while getopts ":p:s:e:c:" opt; do
+while getopts ":p:s:e:c:h:" opt; do
   case $opt in
     p)
       PRESET=$OPTARG
@@ -29,6 +30,9 @@ while getopts ":p:s:e:c:" opt; do
       ;;
     e)
       EUNIT_TESTS=$OPTARG
+      ;;
+    h)
+      CT_HOOKS=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -145,10 +149,10 @@ run_test_preset() {
   local MAKE_RESULT=0
   TESTSPEC=${TESTSPEC:-default.spec}
   if [ "$COVER_ENABLED" = "true" ]; then
-    make cover_test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
+    make cover_test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET CT_HOOKS=$CT_HOOKS
     MAKE_RESULT=$?
   else
-    make test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
+    make test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET CT_HOOKS=$CT_HOOKS
     MAKE_RESULT=$?
   fi
   cd -
