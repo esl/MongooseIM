@@ -784,8 +784,6 @@ handle_resume_call(StateData, Acc, From) ->
 recover_messages(SmState) ->
     receive
         {route, Acc} ->
-            recover_messages(maybe_buffer_acc(SmState, Acc, is_message(mongoose_acc:stanza_name(Acc))));
-        {route, _From, _To, Acc} ->
             recover_messages(maybe_buffer_acc(SmState, Acc, is_message(mongoose_acc:stanza_name(Acc))))
     after 0 ->
               SmState
