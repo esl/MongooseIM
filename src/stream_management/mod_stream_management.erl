@@ -496,9 +496,7 @@ do_handle_enable(Acc, StateData, true) ->
 -spec handle_resume(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
 handle_resume(Acc, #{c2s_state := C2SState, c2s_data := StateData}, El) ->
-    case {exml_query:attr(El, <<"previd">>, undefined),
-          stream_mgmt_parse_h(El),
-          get_mod_state(StateData)} of
+    case {get_previd(El), stream_mgmt_parse_h(El), get_mod_state(StateData)} of
         {undefined, _, _} ->
             bad_request(Acc);
         {_, invalid_h_attribute, _} ->
@@ -692,6 +690,10 @@ stream_mgmt_parse_h(El) ->
         H when is_integer(H), H >= 0 -> H;
         _ -> invalid_h_attribute
     end.
+
+-spec get_previd(exml:element()) -> undefined | binary().
+get_previd(El) ->
+    exml_query:attr(El, <<"previd">>, undefined).
 
 -spec c2s_stream_features(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [exml:element()],
