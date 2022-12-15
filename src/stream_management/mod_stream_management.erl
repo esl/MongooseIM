@@ -203,7 +203,7 @@ user_receive_packet(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 -spec do_user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 do_user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extra) ->
     case {get_mod_state(StateData), mongoose_acc:stanza_type(Acc)} of
         {{error, not_found}, _} ->
@@ -218,7 +218,7 @@ do_user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Ex
     end.
 
 -spec handle_buffer_and_ack(mongoose_acc:t(), c2s_state(), jid:jid(), sm_state()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max = BufferMax,
                                                     buffer_size = BufferSize} = SmState) ->
     NewBufferSize = BufferSize + 1,
@@ -247,7 +247,7 @@ is_buffer_full(_, _) ->
     true.
 
 -spec maybe_send_ack_request(mongoose_acc:t(), sm_state()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 maybe_send_ack_request(Acc, #sm_state{buffer_size = BufferSize,
                                       counter_out = Out,
                                       ack_freq = AckFreq} = SmState)
@@ -262,7 +262,7 @@ maybe_send_ack_request(Acc, SmState) ->
       Acc :: mongoose_acc:t(),
       Params :: mongoose_c2s_hooks:params(),
       Extra :: gen_hook:extra(),
-      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+      Result :: mongoose_c2s_hooks:result().
 user_send_xmlel(Acc, Params, Extra) ->
     El = mongoose_acc:element(Acc),
     case exml_query:attr(El, <<"xmlns">>) of
@@ -276,7 +276,7 @@ user_send_xmlel(Acc, Params, Extra) ->
       Acc :: mongoose_acc:t(),
       Params :: mongoose_c2s_hooks:params(),
       Extra :: gen_hook:extra(),
-      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+      Result :: mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData, event_type := {call, From}, event_content := resume}, _Extra) ->
     case handle_resume_call(StateData, Acc, From) of
         {stop, bad_stream_management_request} ->
@@ -304,7 +304,7 @@ foreign_event(Acc, _Params, _Extra) ->
       Acc :: mongoose_acc:t(),
       Params :: mongoose_c2s_hooks:params(),
       Extra :: gen_hook:extra(),
-      Result :: gen_hook:hook_fn_ret(mongoose_acc:t()).
+      Result :: mongoose_c2s_hooks:result().
 handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
@@ -337,13 +337,13 @@ notify_unacknowledged_msg(Acc, Jid) ->
     mongoose_acc:strip(NewAcc).
 
 -spec reroute_unacked_messages(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 reroute_unacked_messages(Acc, #{c2s_data := StateData, reason := Reason}, #{host_type := HostType}) ->
     MaybeSmState = get_mod_state(StateData),
     maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, MaybeSmState).
 
 -spec user_terminate(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 user_terminate(Acc, #{reason := Reason}, _Extra) when ?IS_STREAM_MGMT_STOP(Reason) ->
     {stop, Acc}; %% We stop here because this termination was triggered internally
 user_terminate(Acc, _Params, _Extra) ->
@@ -351,7 +351,7 @@ user_terminate(Acc, _Params, _Extra) ->
 
 -spec maybe_handle_stream_mgmt_reroute(
         mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), term(), sm_state()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{counter_in = H} = SmState)
   when ?IS_STREAM_MGMT_STOP(Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
