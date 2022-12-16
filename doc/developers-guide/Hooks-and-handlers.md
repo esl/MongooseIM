@@ -138,7 +138,7 @@ It is clearly visible that the handler `inspect_packet` is added to the `offline
 In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../configuration/general.md#generalhosts).
 
 The handler itself is specified as a fun expression;
-the arity of the function is always 3 - more about actual arguments in [`Writing handlers`](#writing-handlers) section.
+the arity of the function is always 3 - more about actual arguments in the [`Writing handlers`](#writing-handlers) section.
 If the handler expects an incorrect number of arguments, it will simply crash.
 
 The 4th element of this tuple is a map of static parameters that will be passed to every invocation of the handler.
@@ -201,7 +201,7 @@ As seen in this example, a handler receives an accumulator, parameters and extra
 Then it matches to the result of `process_subscription/4` and can return 3 different values:
 * `{ok, Acc}` - it allows further processing and does not change the accumulator.
 * `{stop, mongoose_acc:set(hook, result, false, Acc)}` - it stops further processing and returns accumulator with a new value in it.
-* `{stop, Acc}` - it stops furher processing and does not change the accumulator.
+* `{stop, Acc}` - it stops further processing and does not change the accumulator.
 
 This is an important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
 This skips calling the latter actions in the handler sequence, while the hook call returns the `Acc`.
