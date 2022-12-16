@@ -267,7 +267,7 @@ inject_creds_to_opts(Handler, _Creds) ->
 % @doc Checks whether a config for a port is an admin, client or GraphQL one.
 % This is determined based on handler modules used.
 is_roles_config(#{module := ejabberd_cowboy, handlers := Handlers}, {graphql, SchemaEndpoint}) ->
-    lists:any(fun(#{module := mongoose_graphql_cowboy_handler, schema_endpoint := Ep}) ->
+    lists:any(fun(#{module := mongoose_graphql_handler, schema_endpoint := Ep}) ->
                       SchemaEndpoint =:= Ep;
                  (_) ->
                       false

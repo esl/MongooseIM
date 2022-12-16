@@ -15,7 +15,7 @@ type StanzaMap{
   "ID of the stanza"
   stanza_id: String
   "Stanza's data"
-  stanza: Stanza
+  stanza: XmlElement
 }
 
 "Send stanza payload"

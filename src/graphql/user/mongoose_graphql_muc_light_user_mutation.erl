@@ -9,7 +9,7 @@
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
 -import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1, prepare_blocking_items/1,
-                                            null_to_default/2, options_to_map/1]).
+                                            null_to_default/2, config_to_map/3]).
 
 execute(Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Ctx, Args);
@@ -31,7 +31,7 @@ create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDoma
                                   <<"name">> := RoomName, <<"subject">> := Subject,
                                   <<"options">> := Options}) ->
     case mod_muc_light_api:create_room(MUCDomain, null_to_default(RoomID, <<>>), UserJID,
-                                       RoomName, Subject, options_to_map(Options)) of
+                                       config_to_map(RoomName, Subject, Options)) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
@@ -41,8 +41,7 @@ create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDoma
 -spec change_room_config(map(), map()) -> {ok, map()} | {error, resolver_error()}.
 change_room_config(#{user := UserJID}, #{<<"room">> := RoomJID, <<"name">> := RoomName,
                                          <<"subject">> := Subject, <<"options">> := Options}) ->
-    OptMap = options_to_map(Options),
-    Config = OptMap#{<<"roomname">> => RoomName, <<"subject">> => Subject},
+    Config = config_to_map(RoomName, Subject, Options),
     case mod_muc_light_api:change_room_config(RoomJID, UserJID, Config) of
         {ok, Room} ->
             {ok, make_room(Room)};
@@ -63,9 +62,9 @@ invite_user(#{user := UserJID}, #{<<"room">> := RoomJID, <<"recipient">> := Reci
 
 -spec kick_user(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
 kick_user(#{user := UserJID}, #{<<"room">> := RoomJID, <<"user">> := UserToKickJID}) ->
-    Result = mod_muc_light_api:remove_user_from_room(RoomJID, UserJID,
-                                                     null_to_default(UserToKickJID, UserJID)),
-    format_result(Result, #{user => UserToKickJID}).
+    AffectedJID = null_to_default(UserToKickJID, UserJID),
+    Result = mod_muc_light_api:change_affiliation(RoomJID, UserJID, AffectedJID, remove),
+    format_result(Result, #{user => jid:to_binary(AffectedJID)}).
 
 -spec send_msg_to_room(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
 send_msg_to_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"body">> := Message}) ->

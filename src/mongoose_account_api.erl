@@ -16,7 +16,8 @@
          check_password/2,
          check_password/3,
          check_password_hash/3,
-         check_password_hash/4]).
+         check_password_hash/4,
+         import_users/1]).
 
 -type register_result() :: {ok | exists | invalid_jid | cannot_register, iolist()}.
 
@@ -184,16 +185,39 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {incorrect, "Password hash is incorrect"}
     end.
 
+-spec import_users(file:filename()) -> {ok, #{binary() => [{ok, jid:jid() | binary()}]}}
+                                     | {file_not_found, binary()}.
+import_users(Filename) ->
+    case mongoose_import_users:run(Filename) of
+        {ok, Summary} ->
+            {ok, maps:fold(
+                fun(Reason, List, Map) ->
+                    List2 = [{ok, El} || El <- List],
+                    maps:put(from_reason(Reason), List2, Map)
+                end,
+                #{<<"status">> => <<"Completed">>},
+                Summary)};
+        {error, file_not_found} ->
+            {file_not_found, <<"File not found">>}
+    end.
+
+-spec from_reason(mongoose_import_users:reason()) -> binary().
+from_reason(ok) -> <<"created">>;
+from_reason(exists) -> <<"existing">>;
+from_reason(not_allowed) -> <<"notAllowed">>;
+from_reason(invalid_jid) -> <<"invalidJID">>;
+from_reason(null_password) -> <<"emptyPassword">>;
+from_reason(bad_csv) -> <<"invalidRecord">>.
+
 -spec ban_account(jid:user(), jid:server(), binary()) -> change_password_result().
 ban_account(User, Host, ReasonText) ->
     JID = jid:make(User, Host, <<>>),
     ban_account(JID, ReasonText).
 
 -spec ban_account(jid:jid(), binary()) -> change_password_result().
-ban_account(JID, ReasonText) ->
+ban_account(JID, Reason) ->
     case ejabberd_auth:does_user_exist(JID) of
         true ->
-            Reason = mongoose_session_api:prepare_reason(ReasonText),
             mongoose_session_api:kick_sessions(JID, Reason),
             case set_random_password(JID, Reason) of
                 ok ->

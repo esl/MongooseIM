@@ -54,12 +54,18 @@ import_users_from_valid_csv(Config) ->
     % when
     Result = ejabberd_admin:import_users(ValidCsvPath),
     % then
-    ?assertEqual([{ok, <<"user">>},
-                  {exists, <<"existing_user">>},
-                  {null_password, <<"null_password_user">>},
-                  {not_allowed, <<"bad_domain_user">>},
-                  {invalid_jid, <<"invalid_jid_user">>},
-                  {bad_csv, <<"wrong,number,of,fields,line">>}],
+    ?assertEqual([{bad_csv, [<<"wrong,number,of,fields,line">>]},
+                  {exists, [#jid{luser = <<"existing_user">>,
+                                 lserver = <<"localhost">>,
+                                 lresource = <<>>}]},
+                  {invalid_jid, [<<"invalid_jid_user,localhost,password">>]},
+                  {not_allowed, [#jid{luser = <<"bad_domain_user">>,
+                                      lserver = <<"not_allowed_domain">>,
+                                      lresource = <<>>}]},
+                  {null_password, [#jid{luser = <<"null_password_user">>,
+                                        lserver = <<"localhost">>,
+                                        lresource = <<>>}]},
+                  {ok, [#jid{luser = <<"user">>, lserver = <<"localhost">>, lresource = <<>>}]}],
                  Result).
 
 import_users_from_valid_csv_with_quoted_fields(Config) ->
@@ -68,12 +74,14 @@ import_users_from_valid_csv_with_quoted_fields(Config) ->
     % when
     Result = ejabberd_admin:import_users(ValidCsvPath),
     % then
-    ?assertEqual([{ok, <<"username,with,commas">>}],
+    ?assertEqual([{ok, [#jid{luser = <<"username,with,commas">>,
+                             lserver = <<"localhost">>,
+                             lresource = <<>>}]}],
                  Result).
 
 import_from_invalid_csv(_Config) ->
     % given
     NonExistingPath = "",
     % then
-    ?assertError({badmatch, {error, enoent}},
+    ?assertError({badmatch, {error, file_not_found}},
                  ejabberd_admin:import_users(NonExistingPath)).

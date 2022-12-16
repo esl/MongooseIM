@@ -37,7 +37,7 @@
     LUser :: jid:luser(),
     LServer :: jid:lserver().
 
--callback remove_domain(HostType, LServer) -> ok when
+-callback remove_domain(HostType, LServer) -> term() when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver().
 
@@ -128,7 +128,7 @@ clear_inbox(HostType, LUser, LServer) ->
     Args = [HostType, LUser, LServer],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec remove_domain(HostType, LServer) -> ok when
+-spec remove_domain(HostType, LServer) -> term() when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver().
 remove_domain(HostType, LServer) ->

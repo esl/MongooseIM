@@ -6,6 +6,7 @@
 -import(graphql_helper, [execute_command/4, execute_user_command/5,
                          user_to_bin/1, get_ok_value/2, skip_null_fields/1, get_err_msg/1,
                          get_unauthorized/1, get_not_loaded/1, get_err_code/1]).
+-import(domain_helper, [domain/0]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -200,7 +201,10 @@ user_get_others_vcard_no_user(Config) ->
 
 user_get_others_vcard_no_user(Config, Alice) ->
     Result = user_get_vcard(Alice, <<"eddie@otherhost">>, Config),
-    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
+    ?assertEqual(<<"User's domain does not exist">>, get_err_msg(Result)),
+    Domain = domain(),
+    Result2 = user_get_vcard(Alice, <<"eddie@", Domain/binary>>, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Result2)).
 
 % User VCard not configured test cases
 
@@ -279,7 +283,10 @@ admin_set_vcard(Config, Alice, _Bob) ->
 admin_set_vcard_no_host(Config) ->
     Vcard = complete_vcard_input(),
     Result = set_vcard(Vcard, <<"eddie@otherhost">>, Config),
-    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
+    ?assertEqual(<<"User's domain does not exist">>, get_err_msg(Result)),
+    Domain = domain(),
+    Result2 = set_vcard(Vcard, <<"eddie@", Domain/binary>>, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Result2)).
 
 admin_get_vcard(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -310,7 +317,10 @@ admin_get_vcard_no_vcard(Config, Alice) ->
 
 admin_get_vcard_no_host(Config) ->
     Result = get_vcard(<<"eddie@otherhost">>, Config),
-    ?assertEqual(<<"Host does not exist">>, get_err_msg(Result)).
+    ?assertEqual(<<"User's domain does not exist">>, get_err_msg(Result)),
+    Domain = domain(),
+    Result2 = get_vcard(<<"eddie@", Domain/binary>>, Config),
+    ?assertEqual(<<"Given user does not exist">>, get_err_msg(Result2)).
 
 %% Admin VCard not configured test cases
 

@@ -612,13 +612,13 @@ listen_http_handlers_admin_api(_Config) ->
 
 listen_http_handlers_graphql(_Config) ->
     T = fun graphql_handler_raw/1,
-    {P, _} = test_listen_http_handler(mongoose_graphql_cowboy_handler, T),
+    {P, _} = test_listen_http_handler(mongoose_graphql_handler, T),
     test_listen_http_handler_creds(P, T),
     ?cfg(P ++ [allowed_categories], [<<"muc">>, <<"inbox">>],
          T(#{<<"allowed_categories">> => [<<"muc">>, <<"inbox">>]})),
     ?err(T(#{<<"allowed_categories">> => [<<"invalid">>]})),
     ?err(T(#{<<"schema_endpoint">> => <<"wrong_endpoint">>})),
-    ?err(http_handler_raw(mongoose_graphql_cowboy_handler, #{})).
+    ?err(http_handler_raw(mongoose_graphql_handler, #{})).
 
 test_listen_http_handler_creds(P, T) ->
     CredsRaw = #{<<"username">> => <<"user">>, <<"password">> => <<"pass">>},
@@ -1557,6 +1557,7 @@ mod_inbox(_Config) ->
     ?cfgh(P ++ [bin_ttl], 30, T(#{<<"bin_ttl">> => 30})),
     ?cfgh(P ++ [bin_clean_after], 43200000, T(#{<<"bin_clean_after">> => 12})),
     ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
+    ?cfgh(P ++ [delete_domain_limit], 1000, T(#{<<"delete_domain_limit">> => 1000})),
     ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),
     ?errh(T(#{<<"backend">> => <<"nodejs">>})),
     ?errh(T(#{<<"pool_size">> => -1})),
@@ -1569,6 +1570,7 @@ mod_inbox(_Config) ->
     ?errh(T(#{<<"bin_ttl">> => true})),
     ?errh(T(#{<<"bin_clean_after">> => -1})),
     ?errh(T(#{<<"aff_changes">> => 1})),
+    ?errh(T(#{<<"delete_domain_limit">> => []})),
     ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
 mod_global_distrib(_Config) ->
@@ -2980,7 +2982,7 @@ listener(Type, Opts) ->
     config([listen, Type], Opts).
 
 graphql_handler_raw(Opts) ->
-    http_handler_raw(mongoose_graphql_cowboy_handler,
+    http_handler_raw(mongoose_graphql_handler,
                      maps:merge(#{<<"schema_endpoint">> => <<"admin">>}, Opts)).
 
 http_handler_raw(Type, Opts) ->

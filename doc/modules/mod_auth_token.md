@@ -154,7 +154,7 @@ Refresh tokens issued by the server can be used to:
 An administrator may *revoke* a refresh token:
 
 ```sh
-mongooseimctl revoke_token owner@xmpphost
+mongooseimctl token revokeToken --user owner@xmpphost
 ```
 
 A client can no longer use a revoked token either for authentication or requesting new access tokens.

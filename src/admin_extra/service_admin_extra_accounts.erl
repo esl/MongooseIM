@@ -146,7 +146,7 @@ delete_old_users_for_domain(Domain, Days) ->
             Error
     end.
 
--spec ban_account(jid:user(), jid:server(), binary() | string()) ->
+-spec ban_account(jid:user(), jid:server(), binary()) ->
     mongoose_account_api:change_password_result().
 ban_account(User, Host, ReasonText) ->
     mongoose_account_api:ban_account(User, Host, ReasonText).

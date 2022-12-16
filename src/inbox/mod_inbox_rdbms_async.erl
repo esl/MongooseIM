@@ -138,7 +138,7 @@ get_inbox(HostType, LUser, LServer, Params) ->
 get_inbox_unread(HostType, Entry) ->
     mod_inbox_rdbms:get_inbox_unread(HostType, Entry).
 
--spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
 remove_domain(HostType, LServer) ->
     mod_inbox_rdbms:remove_domain(HostType, LServer).
 

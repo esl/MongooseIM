@@ -53,7 +53,7 @@ start(HostType, _Opts) ->
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
     ejabberd_sup:stop_child(?MODULE),
-    gen_hook:add_handlers(hooks(HostType)),
+    gen_hook:delete_handlers(hooks(HostType)),
     ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
 

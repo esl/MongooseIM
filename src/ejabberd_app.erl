@@ -49,7 +49,6 @@ start(normal, _Args) ->
     mongoose_graphql:init(),
     translate:start(),
     ejabberd_node_id:start(),
-    ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),

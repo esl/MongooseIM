@@ -72,8 +72,7 @@ muc_test_cases() ->
       user_can_leave_a_room,
       invitation_to_room_is_forbidden_for_non_member,
       msg_is_sent_and_delivered_in_room,
-      sending_message_by_not_room_member_results_in_forbidden,
-      sending_invalid_message_to_room_results_in_bad_request,
+      room_message_sending_errors,
       messages_are_archived_in_room,
       chat_markers_are_archived_in_room,
       room_message_query_errors,
@@ -490,12 +489,15 @@ user_removal_errors(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         Path = <<"/rooms/", RoomID/binary, "/users/">>,
         BobJid = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        AliceJid = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         Creds = credentials({alice, Alice}),
         {?BAD_REQUEST, <<"Invalid user JID: @invalid">>} =
             rest_helper:delete(client, <<Path/binary, "@invalid">>, Creds),
         {?BAD_REQUEST, <<"Missing JID">>} =
             rest_helper:delete(client, Path, Creds),
-        {?NOT_FOUND, <<"Room does not exist">>} =
+        {?FORBIDDEN, <<"Given user does not have permission", _/binary>>} =
+            rest_helper:delete(client, <<Path/binary, AliceJid/binary>>, credentials({bob, Bob})),
+        {?NOT_FOUND, <<"Room not found">>} =
             rest_helper:delete(client, <<"/rooms/badroom/users/", BobJid/binary>>, Creds)
     end).
 
@@ -527,17 +529,8 @@ msg_is_sent_and_delivered_in_room(Config) ->
         given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
     end).
 
-sending_message_by_not_room_member_results_in_forbidden(Config) ->
+room_message_sending_errors(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Sender = {alice, Alice},
-        RoomID = given_new_room_with_users(Sender, []),
-        Result = given_message_sent_to_room(RoomID, {bob, Bob}, #{body => <<"Hello, I'm not member">>}),
-        ?assertMatch({?FORBIDDEN, _}, Result)
-
-    end).
-
-sending_invalid_message_to_room_results_in_bad_request(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Sender = {alice, Alice},
         RoomID = given_new_room_with_users(Sender, []),
         InvalidMarker = #{type => <<"bad">>, id => <<"some_id">>},
@@ -550,7 +543,11 @@ sending_invalid_message_to_room_results_in_bad_request(Config) ->
         {?BAD_REQUEST, <<"Invalid chat marker">>} =
             given_message_sent_to_room(RoomID, Sender, #{chat_marker => InvalidMarker}),
         {?BAD_REQUEST, <<"Invalid request body">>} =
-            given_message_sent_to_room(RoomID, Sender, <<"This is not JSON object">>)
+            given_message_sent_to_room(RoomID, Sender, <<"This is not JSON object">>),
+        {?FORBIDDEN, _} =
+            given_message_sent_to_room(RoomID, {bob, Bob}, #{body => <<"Hi">>}),
+        {?NOT_FOUND, <<"Room not found">>} =
+            given_message_sent_to_room(<<"badroom">>, Sender, #{body => <<"Hi">>})
     end).
 
 messages_are_archived_in_room(Config) ->
@@ -651,7 +648,9 @@ room_message_query_errors(Config) ->
         {?BAD_REQUEST, <<"Invalid value of 'before'">>} =
             rest_helper:gett(client, <<Path/binary, "?before=x">>, Creds),
         {?BAD_REQUEST, <<"Invalid query string">>} =
-            rest_helper:gett(client, <<Path/binary, "?kuropatwa">>, Creds)
+            rest_helper:gett(client, <<Path/binary, "?kuropatwa">>, Creds),
+        {?NOT_FOUND, <<"Room not found">>} =
+            rest_helper:gett(client, <<"/rooms/badroom/messages">>, Creds)
     end).
 
 room_is_created_with_given_jid(Config) ->
