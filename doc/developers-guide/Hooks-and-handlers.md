@@ -18,7 +18,7 @@ That's where storing the message for later delivery takes place.
 It is possible, but not recommended, to save a message in an offline storage by calling `mod_offline` directly:
 
 ```erlang
-mod_offline:store_packet(From, To, Packet)
+mod_offline:store_packet(Acc, From, To, Packet)
 ```
 
 Note that in this example `ejabberd_sm` is coupled with `mod_offline`.
@@ -125,11 +125,11 @@ That's usually done in, respectively, `start/2` and `stop/1` functions.
 Here is the relevant snippet from `mod_offline:start/2`:
 
 ```erlang
-ejabberd_hooks:add(hooks(HostType)),
+gen_hook:add_handlers(hooks(HostType)),
 ```
 and the `hooks/1` function returns a list of tuples describing hook handlers, like:
 ```erlang
-{offline_message_hook, HostType, ?MODULE, inspect_packet, 50}
+{offline_message_hook, HostType, fun ?MODULE:inspect_packet/3, #{}, 50}
 ```
 
 It is clearly visible that the handler `inspect_packet` is added to the `offline_message_hook`.
@@ -137,10 +137,12 @@ It is clearly visible that the handler `inspect_packet` is added to the `offline
 `HostType` is the one for which the handler will be executed.
 In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../configuration/general.md#generalhosts).
 
-The handler itself is specified as a module-function pair;
-the arity of the function is not specified at the registration nor verified when calling the handler.
-When writing a handler, the arity can be checked in the `mongoose_hooks` module.
+The handler itself is specified as a fun expression;
+the arity of the function is always 3 - more about actual arguments in [`Writing handlers`](#writing-handlers) section.
 If the handler expects an incorrect number of arguments, it will simply crash.
+
+The 4th element of this tuple is a map of static parameters that will be passed to every invocation of the handler.
+It allows to specify additional handler config at the moment of its registering.
 
 Multiple handlers may be registered for the same hook.
 The last argument, 50, is the sequence number of this handler in the handler chain.
@@ -154,12 +156,12 @@ For that purpose there's the option to unregister a hook handler.
 It's done in `mod_offline:stop/1` in a similar fashion to:
 
 ```erlang
-ejabberd_hooks:delete(offline_message_hook, HostType,
-                      ?MODULE, store_packet, 50)
+gen_hook:delete_handlers(hooks(Host)),
 ```
 
-The arguments are exactly the same as passed to `ejabberd_hooks:add/5`.
-Both these functions accept either a list of tuples, or the arguments describing one handler directly.
+The function `hooks/1` function returns a list of hook tuples exactly the same as passed to `gen_hook:add_handlers/1`.
+Both these functions accept either a list of tuples.
+There also exist functions `gen_hook:add_handler/5` and `gen_hook:delete_handler/5` which register and unregister one handler at a time.
 
 ### Sidenote: Metrics
 
@@ -170,47 +172,43 @@ Such skipped hooks update metrics are defined in the `mongoose_metrics_hooks` mo
 
 ## Writing handlers
 
-The signature of a handler has to follow three rules:
+The signature of a handler has to follow these rules:
 
-* Correct arity (the number of Args passed to `run_hook` or `run_global_hook` in `mongoose_hooks` + 1).
-* The first argument is a mutable accumulator (may be `mongoose_acc` in particular).
-* Returns an accumulator of the same type as the input one.
+* Accepts correct arguments:
+    - Acc - accumulator which was passed from previous handler (or initial accumulator). May be `mongoose_acc` in particular
+    - Params - map of hook parameters passed from `mongoose_hooks`. It is constant for every handler in one hook invocation.
+    For exact structure check the hook function in `mongoose_hooks` module, as different hooks use different parameters.
+    - Extra - map of additional hook parameters. It is constant for **every** hook invocation.
+    It is created from the map described in [`Registering hook handlers`](#registering-hook-handlers) section with 3 additional parameters:
+    `host_type`, `hook_tag`, `hook_name`. Parameter `host_type` can be particularly useful.
+* Returns a tuple `{ok | stop, Acc}` where `Acc` is the accumulator of the same type as the input one,
+that shall be passed to the next handler (or return value in case of last handler).
 
 Let's look at this example, from MongooseIM codebase:
 
 ```erlang
-process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    MUCHost = server_host_to_muc_host(HostType, FromS),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
-          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
-        {{ok, {get, #blocking{} = Blocking}}, true} ->
-            Items = mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(From), MUCHost),
-            mod_muc_light_codec_backend:encode(
-                {get, Blocking#blocking{ items = Items }}, From, To,
-                fun(_, _, Packet) -> put(encode_res, Packet) end,
-                Acc),
-            #xmlel{ children = ResponseChildren } = erase(encode_res),
-            Result = {result, ResponseChildren},
-            {stop, mongoose_acc:set(hook, result, Result, Acc)};
-        {{ok, {get, #blocking{}}}, false} ->
-            Result = {error, mongoose_xmpp_errors:bad_request()},
-            {stop, mongoose_acc:set(hook, result, Result, Acc)};
-        _ ->
-            Result = {error, mongoose_xmpp_errors:bad_request()},
-            mongoose_acc:set(hook, result, Result, Acc)
+in_subscription(Acc, #{to := ToJID, from := FromJID, type := Type}, _) ->
+    case process_subscription(in, ToJID, FromJID, Type) of
+        stop ->
+            {stop, Acc};
+        {stop, false} ->
+            {stop, mongoose_acc:set(hook, result, false, Acc)};
+        _ -> {ok, Acc}
     end.
 ```
 
-As seen in this example, a handler receives an accumulator, puts some value into it and returns it
-for further processing.
+As seen in this example, a handler receives an accumulator, parameters and extra parameters (in this case - ignored).
+Then it matches to the result of `process_subscription/4` and can return 3 different values:
+* `{ok, Acc}` - it allows further processing and does not change the accumulator.
+* `{stop, mongoose_acc:set(hook, result, false, Acc)}` - it stops further processing and returns accumulator with a new value in it.
+* `{stop, Acc}` - it stops furher processing and does not change the accumulator.
 
-There's also one important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
+This is an important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
 This skips calling the latter actions in the handler sequence, while the hook call returns the `Acc`.
-If a handler returns just an atom `stop`, then all later actions are skipped.
+Further processing is only performed if the first element of return tuple is `ok`.
 
 Watch out! Different handlers may be registered for the same hook - the priority mechanism orders their execution.
-If a handler returns `stop` but runs early in the handler chain, it may prevent some other handler from running at all!
+If a handler returns `{stop, Acc}` but runs early in the handler chain, it may prevent some other handler from running at all!
 That might or might not be intentional.
 It may be especially surprising in case of handlers from different modules registered for the same hook.
 Always ensure what handlers are registered for a given hook (`grep` is your friend) and that you understand their interdependencies.
@@ -266,7 +264,8 @@ To cut the long story short:
     Number :: integer(),
     Result :: mongoose_acc:t().
 custom_new_hook(HostType, Acc, Number) ->
-    run_hook_for_host_type(custom_new_hook, HostType, Acc, [Number]).
+    Params = #{number => Number},
+    run_hook_for_host_type(custom_new_hook, HostType, Acc, Params).
 ```
 
 Don't forget about exporting the function:
@@ -291,19 +290,20 @@ Don't forget about exporting the function:
          stop/1]).
 
 %% Hook handlers
--export([first_handler/2,
-         stopping_handler/2,
-         never_run_handler/2]).
+-export([first_handler/3,
+         stopping_handler/3,
+         never_run_handler/3]).
 
 start(HostType, _Opts) ->
-    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, first_handler, 25),
-    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, stopping_handler, 50),
-    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, never_run_handler, 75).
+    gen_hook:add_handlers(hooks(HostType)).
 
 stop(HostType) ->
-    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, first_handler, 25),
-    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, stopping_handler, 50),
-    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, never_run_handler, 75).
+    gen_hook:delete_handlers(hooks(HostType)).
+
+hooks(HostType) ->
+    [{custom_new_hook, HostType, fun ?MODULE:first_handler/3, #{extra_param => <<"ExtraParam">>}, 25},
+     {custom_new_hook, HostType, fun ?MODULE:stopping_handler/3, #{}, 50},
+     {custom_new_hook, HostType, fun ?MODULE:never_run_handler/3, #{}, 75}].
 
 run_custom_hook(Host) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(Host),
@@ -313,24 +313,25 @@ run_custom_hook(Host) ->
     ResultValue = mongoose_acc:get(example, value, ResultAcc),
     ?LOG_INFO(#{what => hook_finished, result => ResultValue, result_acc => ResultAcc}).
 
-first_handler(Acc, Number) ->
+first_handler(Acc, #{number := Number}, #{extra_param := Extra}) ->
     V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
-    ?LOG_INFO(#{what => first_handler, value => V0, argument => Number, result => Result}),
-    mongoose_acc:set(example, value, Result, Acc).
+    ?LOG_INFO(#{what => first_handler, value => V0, argument => Number,
+                result => Result, extra => Extra}),
+    {ok, mongoose_acc:set(example, value, Result, Acc)}.
 
-stopping_handler(Acc, Number) ->
+stopping_handler(Acc, #{number := Number}, _) ->
     V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
     ?LOG_INFO(#{what => stopping_handler, value => V0, argument => Number, result => Result}),
     {stop, mongoose_acc:set(example, value, Result, Acc)}.
 
-never_run_handler(Acc, Number) ->
+never_run_handler(Acc, #{number := Number}, _) ->
     ?LOG_INFO(#{what => never_run_handler,
                 text => <<"This hook won't run as it's registered with a priority bigger "
                           "than that of stopping_handler/2 is. "
                           "This text should never get printed.">>}),
-    Acc * Number.
+    {ok, Acc * Number}.
 ```
 
 The module is intended to be used from the shell for educational purposes:
@@ -345,9 +346,9 @@ true
 (mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, info).
 ok
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
-when=2021-09-22T14:26:21.623804+00:00 level=info what=first_handler pid=<0.1615.0> at=mod_hook_example:first_handler/2:40 value=5 result=7 argument=2
-when=2021-09-22T14:26:21.624091+00:00 level=info what=stopping_handler pid=<0.1615.0> at=mod_hook_example:stopping_handler/2:46 value=7 result=9 argument=2
-when=2021-09-22T14:26:21.624426+00:00 level=info what=hook_finished pid=<0.1615.0> at=mod_hook_example:run_custom_hook/1:35 result_acc_{example,value}=9 result_acc_timestamp=1632320781620603 result_acc_stanza=undefined result_acc_ref=#Ref<0.451395259.237240321.129750> result_acc_origin_stanza=undefined result_acc_origin_pid=<0.1615.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=31 result_acc_origin_location_file=/Users/developer/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result_acc_host_type=localhost result=9
+when=2022-12-15T12:37:16.109544+00:00 level=info what=first_handler pid=<0.1081.0> at=mod_hook_example:first_handler/3:41 value=5 result=7 extra=ExtraParam argument=2 
+when=2022-12-15T12:37:16.109809+00:00 level=info what=stopping_handler pid=<0.1081.0> at=mod_hook_example:stopping_handler/3:48 value=7 result=9 argument=2 
+when=2022-12-15T12:37:16.110028+00:00 level=info what=hook_finished pid=<0.1081.0> at=mod_hook_example:run_custom_hook/1:36 result_acc_{example,value}=9 result_acc_timestamp=1671107836109517 result_acc_stanza=undefined result_acc_ref=#Ref<0.4046106046.1908670465.111816> result_acc_origin_pid=<0.1081.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=32 result_acc_origin_location_file=/Users/paweldlugosz/Dev/Repos/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result_acc_host_type=localhost result=9 
 ok
 ```
 
