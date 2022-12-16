@@ -60,7 +60,7 @@ If the service requires a cluster of more than 10 nodes, we recommend using Redi
 
 MongooseIM allows connecting different clusters as parts of larger systems. This feature is used in geo-localised services handling massive traffic from all over the world.
 
-MongooseIM gathers over 50 different XMPP-related metrics, allowing close monitoring of what happens inside the nodes. To manage the users, rosters, messages and general settings, we provide a command-line tool, `mongooseimctl`.
+MongooseIM gathers over 50 different XMPP-related metrics, allowing close monitoring of what happens inside the nodes. To manage the users, rosters, messages and general settings, we provide a GraphQL API which can be utilized via HTTP or command-line tool `mongooseimctl`(see [`GraphQL Admin API`](../graphql-api/Admin-GraphQL.md)).
 
 Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html), an Erlang VM monitoring solution, that enables ops and devs to better understand what going on in a MongooseIM cluster.
 
@@ -78,11 +78,11 @@ On more information on how to set up this feature, see [dynamic domains configur
 
 In order to build client applications, the MongooseIM team recommends the following libraries:
 
-| |XMPP|REST API|
-| ------------- | ------------- | ------------- |
-|iOS|[XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C|[Jayme](https://github.com/inaka/Jayme), Swift|
-|Android|[Smack](https://github.com/igniterealtime/Smack), Java|[Retrofit](https://github.com/square/retrofit), Java|
-|Web|[Stanza.io](https://github.com/otalk/stanza.io)/[Strophe.js](https://github.com/strophe/strophejs), JavaScript||
+| |XMPP|GraphQL API|REST API|
+| ------------- | ------------- | ------------- | ------------- |
+|iOS|[XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C|[Apollo](https://github.com/apollographql/apollo-ios), Swift|[Jayme](https://github.com/inaka/Jayme), Swift|
+|Android|[Smack](https://github.com/igniterealtime/Smack), Java|[Apollo](https://github.com/apollographql/apollo-kotlin), Kotlin/Java|[Retrofit](https://github.com/square/retrofit), Java|
+|Web|[Stanza.io](https://github.com/otalk/stanza.io)/[Strophe.js](https://github.com/strophe/strophejs), JavaScript|[Apollo](https://github.com/apollographql/apollo-client), JavaScript||
 
 ### MongoosePUSH
 MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
