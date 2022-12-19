@@ -6,6 +6,10 @@ New GraphQL API allows to access MongooseIM using HTTP protocol to extract data 
 The command-line interface (CLI) has been reworked to match the GraphQL functionality.
 The configuration for the admin and the client API has been simplified.
 
+Release:
+
+* [MongooseIM 6.0.0](https://github.com/esl/MongooseIM/releases/tag/6.0.0) in December 2022.
+
 ## 2020-2021: Friendly, cloud-native and dynamic
 
 With the new configuration format, improved logging, and many more changes, MongooseIM has become more friendly for DevOps than ever before.
