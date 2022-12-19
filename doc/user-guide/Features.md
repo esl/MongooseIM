@@ -78,11 +78,11 @@ On more information on how to set up this feature, see [dynamic domains configur
 
 In order to build client applications, the MongooseIM team recommends the following libraries:
 
-| |XMPP|GraphQL API|REST API|
-| ------------- | ------------- | ------------- | ------------- |
-|iOS|[XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C|[Apollo](https://github.com/apollographql/apollo-ios), Swift|[Jayme](https://github.com/inaka/Jayme), Swift|
-|Android|[Smack](https://github.com/igniterealtime/Smack), Java|[Apollo](https://github.com/apollographql/apollo-kotlin), Kotlin/Java|[Retrofit](https://github.com/square/retrofit), Java|
-|Web|[Stanza.io](https://github.com/otalk/stanza.io)/[Strophe.js](https://github.com/strophe/strophejs), JavaScript|[Apollo](https://github.com/apollographql/apollo-client), JavaScript||
+| |XMPP|REST API|
+| ------------- | ------------- | ------------- |
+|iOS|[XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C|[Jayme](https://github.com/inaka/Jayme), Swift|
+|Android|[Smack](https://github.com/igniterealtime/Smack), Java|[Retrofit](https://github.com/square/retrofit), Java|
+|Web|[Stanza.io](https://github.com/otalk/stanza.io)/[Strophe.js](https://github.com/strophe/strophejs), JavaScript||
 
 ### MongoosePUSH
 MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).

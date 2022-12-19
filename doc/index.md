@@ -48,10 +48,6 @@ We offer a set of additional server-side components:
     * iOS, Objective-C: [XMPPFramework](https://github.com/robbiehanson/XMPPFramework)
     * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
     * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
-* GraphQL API client libraries - we recommend the following client libraries:
-    * iOS, Swift: [Apollo](https://github.com/apollographql/apollo-ios)
-    * Android, Kotlin/Java: [Apollo](https://github.com/apollographql/apollo-kotlin)
-    * Web, JavaScript: [Apollo](https://github.com/apollographql/apollo-client)
 * REST API client libraries - we recommend the following client libraries:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
@@ -84,7 +80,6 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
-* [6.0.0](https://esl.github.io/MongooseDocs/6.0.0/)
 * [5.1.0](https://esl.github.io/MongooseDocs/5.1.0/)
 * [5.0.0](https://esl.github.io/MongooseDocs/5.0.0/)
 * [4.2.0](https://esl.github.io/MongooseDocs/4.2.0/)
