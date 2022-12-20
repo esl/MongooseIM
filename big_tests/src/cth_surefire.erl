@@ -214,21 +214,23 @@ post_end_per_testcase(_Suite,TC,Config,Result,State) ->
 on_tc_fail(Suite,TC,Result,Proxy) when is_pid(Proxy) ->
     _ = gen_server:call(Proxy,{?FUNCTION_NAME, [Suite, TC, Result]}),
     Proxy;
-on_tc_fail(_Suite,_TC, _Res, State = #state{test_cases = []}) ->
+on_tc_fail(_Suite, _TestName, _Res, State = #state{test_cases = []}) ->
     State;
-on_tc_fail(Suite, _TC, Res, State) ->
-    TCs = State#state.test_cases,
-    TC = hd(TCs),
+on_tc_fail(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
+    TCName = tc_name_to_string(TestName),
+    {value, TC, RemainingTCs} = lists:keytake(TCName, #testcase.name, TCs),
+    State1 = do_tc_fail(Suite, TC, Res, State#state{test_cases = RemainingTCs}),
+    maybe_close_group(TestName, State1).
+
+do_tc_fail(Suite, TC, Res, State = #state{test_cases = TCs}) ->
     Line = case get_line_from_result(Suite, Res) of
                undefined ->
                    TC#testcase.line;
                L -> L
            end,
-    NewTC = TC#testcase{
-              line = Line,
-	      result =
-		  {fail,lists:flatten(io_lib:format("~tp",[Res]))} },
-    State#state{ test_cases = [NewTC | tl(TCs)]}.
+    NewTC = TC#testcase{line = Line,
+                        result = {fail,lists:flatten(io_lib:format("~tp",[Res]))}},
+    State#state{test_cases = [NewTC | TCs]}.
 
 get_line_from_result(Suite, {_Error, [{__M,__F,__A,__I}|_] = StackTrace}) ->
     case lists:filter(fun({Mod, _Func, _Arity, _Info}) ->
@@ -245,18 +247,11 @@ get_line_from_result(_, _) ->
 on_tc_skip(Suite,TC,Result,Proxy) when is_pid(Proxy) ->
     _ = gen_server:call(Proxy,{?FUNCTION_NAME, [Suite,TC,Result]}),
     Proxy;
-on_tc_skip(Suite,{ConfigFunc,_GrName}, Res, State) ->
-    on_tc_skip(Suite,ConfigFunc, Res, State);
-on_tc_skip(Suite,Tc, Res, State0) ->
-    TcStr = atom_to_list(Tc),
-    State =
-	case State0#state.test_cases of
-	    [#testcase{name=TcStr}|TCs] ->
-		State0#state{test_cases=TCs};
-	    _ ->
-		State0
-	end,
-    do_tc_skip(Res, end_tc(Tc,[],Res,init_tc(set_suite(Suite,State),[]))).
+on_tc_skip(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
+    TCName = tc_name_to_string(TestName),
+    State1 = State#state{test_cases = lists:keydelete(TCName, #testcase.name, TCs)},
+    State2 = do_tc_skip(Res, end_tc(TCName, [], Res, init_tc(set_suite(Suite, State1), []))),
+    maybe_close_group(TestName, State2).
 
 do_tc_skip(Res, State) ->
     TCs = State#state.test_cases,
@@ -265,6 +260,16 @@ do_tc_skip(Res, State) ->
 	      result =
 		  {skipped,lists:flatten(io_lib:format("~tp",[Res]))} },
     State#state{ test_cases = [NewTC | tl(TCs)]}.
+
+tc_name_to_string({FuncName, _GroupName}) ->
+    atom_to_list(FuncName);
+tc_name_to_string(FuncName) ->
+    atom_to_list(FuncName).
+
+maybe_close_group({end_per_group, Group}, State = #state{curr_group = [Group|Rest]}) ->
+    State#state{curr_group = Rest};
+maybe_close_group(_, State) ->
+    State.
 
 init_tc(State, Config) when is_list(Config) == false ->
     State#state{ timer = ?now, tc_log =  "" };
@@ -385,10 +390,11 @@ to_xml(#testcase{ group = Group, classname = CL, log = L, url = U,
 	 passed ->
 	     [];
 	 {skipped,Reason} ->
-	     ["<skipped type=\"skip\" message=\"Test ",N," in ",CL,
-	      " skipped!\">", sanitize(Reason),"</skipped>"];
+	     ["<skipped type=\"skip\" message=\"Test ", N, " in ", CL, maybe_group(Group),
+              " skipped!\">", sanitize(Reason),"</skipped>"];
 	 {fail,Reason} ->
-	     ["<failure message=\"Test ",N," in ",CL," failed!\" type=\"crash\">",
+	     ["<failure message=\"Test ", N, " in ", CL, maybe_group(Group),
+              " failed!\" type=\"crash\">",
 	      sanitize(Reason),"</failure>"]
      end,"</testcase>"];
 to_xml(#testsuite{ package = P, hostname = H, errors = E, failures = F,
@@ -411,6 +417,11 @@ to_xml(#testsuite{ package = P, hostname = H, errors = E, failures = F,
 to_xml(#state{ test_suites = TestSuites, axis = Axis, properties = Props }) ->
     ["<testsuites>",properties_to_xml(Axis,Props),
      [to_xml(TestSuite) || TestSuite <- TestSuites],"</testsuites>"].
+
+maybe_group("") ->
+    [];
+maybe_group(Group) ->
+    [" (group: ", Group, ")"].
 
 properties_to_xml([],[]) ->
     [];
