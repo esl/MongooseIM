@@ -879,17 +879,17 @@ resume_session(Config) ->
 resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Messages = three_texts(),
+    HostType = host_type(),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
         %% Resume the session.
         Alice = connect_spec(AliceSpec, auth, manual),
         Resumed = sm_helper:try_to_resume_stream(Alice, SMID, 30),
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
-
+        escalus_connection:wait_for_close(Alice, timer:seconds(5)),
         [] = sm_helper:get_user_present_resources(Alice),
-        HostType = host_type(),
-        {error, smid_not_found} = sm_helper:get_sid_by_stream_id(HostType, SMID),
-        escalus_connection:wait_for_close(Alice, timer:seconds(5))
+        mongoose_helper:wait_until(fun() -> sm_helper:get_sid_by_stream_id(HostType, SMID) end,
+                                   {error, smid_not_found}, #{name => smid_is_cleaned})
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
