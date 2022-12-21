@@ -560,11 +560,16 @@ jobs:
         type: boolean
         description: Erlang distribution with TLS enabled
         default: false
+      store_results:
+        type: boolean
+        description: Collect and store test results in JUnit XML format for Insights
+        default: true
     environment:
       TESTSPEC: <<parameters.spec>>
       PRESET: <<parameters.preset>>
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
+      STORE_RESULTS: <<parameters.store_results>>
       SKIP_AUTO_COMPILE: true
       KEEP_COVER_RUNNING: 1
     steps:
@@ -581,8 +586,23 @@ jobs:
       - run:
           name: Run Big Tests
           command: |
-            ./tools/test.sh -p $PRESET -s false
+            if $STORE_RESULTS; then
+              ./tools/test.sh -p $PRESET -h cth_surefire -s false
+            else
+              ./tools/test.sh -p $PRESET -s false
+            fi
           no_output_timeout: 40m
+      - when:
+          condition: <<parameters.store_results>>
+          steps:
+            - run:
+                when: always
+                name: Copy test results for Insights
+                command: |
+                  cp big_tests/ct_report/*/junit_report.xml .
+            - store_test_results:
+                when: always
+                path: junit_report.xml
       - run_coverage_analysis
       - run:
           name: Build Failed - Logs
