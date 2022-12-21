@@ -16,8 +16,8 @@
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
--export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
-         route/2, reroute_buffer/2, reroute_buffer_to_peer/3, merge_states/2]).
+-export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
+-export([route/2, reroute_buffer/2, reroute_buffer_to_peer/3, open_session/1, close_session/3]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -179,7 +179,7 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} =
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
     Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
-    Acc2 = close_session(StateData, C2SState, Acc1, Reason),
+    Acc2 = do_close_session(StateData, C2SState, Acc1, Reason),
     mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
     bounce_messages(StateData),
     close_parser(StateData),
@@ -519,15 +519,8 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
 -spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-do_open_session(#c2s_data{host_type = HostType,
-                          sid = SID,
-                          jid = Jid,
-                          socket = Socket,
-                          auth_module = AuthModule} = StateData, C2SState, Acc1) ->
-    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
-             conn => mongoose_c2s_socket:get_conn_type(Socket),
-             auth_module => AuthModule},
-    FsmActions = case ejabberd_sm:open_session(HostType, SID, Jid, 0, Info) of
+do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
+    FsmActions = case open_session(StateData) of
                      [] -> [];
                      ReplacedPids ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
@@ -874,6 +867,18 @@ reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->
 route(Pid, Acc) ->
     Pid ! {route, Acc}.
 
+-spec open_session(c2s_data()) -> [pid()].
+open_session(
+  #c2s_data{host_type = HostType, sid = Sid, jid = Jid, socket = Socket, auth_module = AuthModule}) ->
+    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
+             conn => mongoose_c2s_socket:get_conn_type(Socket),
+             auth_module => AuthModule},
+    ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info).
+
+-spec close_session(c2s_data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
+close_session(#c2s_data{sid = Sid, jid = Jid}, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)).
+
 -spec patch_acc_for_reroute(mongoose_acc:t(), ejabberd_sm:sid()) -> mongoose_acc:t().
 patch_acc_for_reroute(Acc, Sid) ->
     case mongoose_acc:stanza_name(Acc) of
@@ -892,12 +897,12 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec close_session(c2s_data(), c2s_state(term()), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(#c2s_data{jid = Jid, sid = Sid}, session_established, Acc, Reason) ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
-close_session(#c2s_data{jid = Jid, sid = Sid}, ?EXTERNAL_C2S_STATE(_), Acc, Reason) ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
-close_session(_, _, Acc, _) ->
+-spec do_close_session(c2s_data(), c2s_state(term()), mongoose_acc:t(), term()) -> mongoose_acc:t().
+do_close_session(C2SData, session_established, Acc, Reason) ->
+    close_session(C2SData, Acc, Reason);
+do_close_session(C2SData, ?EXT_C2S_STATE(_), Acc, Reason) ->
+    close_session(C2SData, Acc, Reason);
+do_close_session(_, _, Acc, _) ->
     Acc.
 
 sm_unset_reason({shutdown, Reason}) ->
