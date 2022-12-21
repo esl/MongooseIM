@@ -18,11 +18,11 @@ MongooseIM is a robust, scalable and efficient XMPP server at the core of an Ins
 
 Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or a VM.
 
-MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets and BOSH (HTTP long-polling).
+MongooseIM can accept client sessions over vanilla XMPP, GraphQL API, REST API and SSE, as well as Websockets and BOSH (HTTP long-polling).
 
 As a platform, MongooseIM includes several server-side (backend) and client-side (frontend) components.
 We provide a test suite, metrics, a load testing platform, and a monitoring server.
-We recommend third-party, open source client libraries for XMPP and REST API.
+We recommend third-party, open source client libraries for XMPP, GraphQL API and REST API.
 
 MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 
@@ -35,6 +35,7 @@ MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.
 We offer a set of additional server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with a dedicated MongooseIM plugin
+* mongoose_metrics is a internal module that provides various metrics about the server, if you use WombatOAM with MongooseIM plugin then you will see them otherwise you can use e.g. InfluxDB and Grafana to store and visualize them
 * Test suite is written with the help of these useful tools:
     * [escalus](https://github.com/esl/escalus): an XMPP client for Erlang
     * [amoc](https://github.com/esl/amoc): a load testing tool
