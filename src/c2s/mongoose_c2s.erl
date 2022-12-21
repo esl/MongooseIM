@@ -731,8 +731,13 @@ handle_state_after_packet(StateData, C2SState, Acc) ->
                           c2s_state(),
                           undefined | mongoose_acc:t(),
                           mongoose_c2s_acc:t()) -> fsm_res().
-handle_state_result(StateData, _, _, #{hard_stop := Reason}) when Reason =/= undefined ->
-    {stop, {shutdown, Reason}, StateData};
+handle_state_result(StateData0, _, _, #{c2s_data := MaybeNewFsmData, hard_stop := Reason})
+  when Reason =/= undefined ->
+    StateData1 = case MaybeNewFsmData of
+                     undefined -> StateData0;
+                     _ -> MaybeNewFsmData
+                 end,
+    {stop, {shutdown, Reason}, StateData1};
 handle_state_result(StateData0, C2SState, MaybeAcc,
                     #{state_mod := ModuleStates, actions := MaybeActions,
                       c2s_state := MaybeNewFsmState, c2s_data := MaybeNewFsmData,
