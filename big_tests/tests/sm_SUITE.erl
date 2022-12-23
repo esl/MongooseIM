@@ -888,9 +888,11 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         Resumed = sm_helper:try_to_resume_stream(Alice, SMID, 30),
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
         escalus_connection:wait_for_close(Alice, timer:seconds(5)),
-        [] = sm_helper:get_user_present_resources(Alice),
-        mongoose_helper:wait_until(fun() -> sm_helper:get_sid_by_stream_id(HostType, SMID) end,
-                                   {error, smid_not_found}, #{name => smid_is_cleaned})
+        Fun = fun() ->
+                      [] = sm_helper:get_user_present_resources(Alice),
+                      sm_helper:get_sid_by_stream_id(HostType, SMID)
+              end,
+        mongoose_helper:wait_until(Fun, {error, smid_not_found}, #{name => smid_is_cleaned})
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
