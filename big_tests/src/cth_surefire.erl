@@ -218,11 +218,17 @@ on_tc_fail(_Suite, _TestName, _Res, State = #state{test_cases = []}) ->
     State;
 on_tc_fail(Suite, TestName, Res, State = #state{test_cases = TCs}) ->
     TCName = tc_name_to_string(TestName),
-    {value, TC, RemainingTCs} = lists:keytake(TCName, #testcase.name, TCs),
-    State1 = do_tc_fail(Suite, TC, Res, State#state{test_cases = RemainingTCs}),
-    maybe_close_group(TestName, State1).
+    State1 = case lists:keytake(TCName, #testcase.name, TCs) of
+                 {value, TC, RemainingTCs} ->
+                     State#state{test_cases = [TC | RemainingTCs]};
+                 false ->
+                     %% end_per_testcase was not called
+                     end_tc(TCName, [], Res, State)
+             end,
+    State2 = do_tc_fail(Suite, Res, State1),
+    maybe_close_group(TestName, State2).
 
-do_tc_fail(Suite, TC, Res, State = #state{test_cases = TCs}) ->
+do_tc_fail(Suite, Res, State = #state{test_cases = [TC | RemainingTCs]}) ->
     Line = case get_line_from_result(Suite, Res) of
                undefined ->
                    TC#testcase.line;
@@ -230,7 +236,7 @@ do_tc_fail(Suite, TC, Res, State = #state{test_cases = TCs}) ->
            end,
     NewTC = TC#testcase{line = Line,
                         result = {fail,lists:flatten(io_lib:format("~tp",[Res]))}},
-    State#state{test_cases = [NewTC | TCs]}.
+    State#state{test_cases = [NewTC | RemainingTCs]}.
 
 get_line_from_result(Suite, {_Error, [{__M,__F,__A,__I}|_] = StackTrace}) ->
     case lists:filter(fun({Mod, _Func, _Arity, _Info}) ->
