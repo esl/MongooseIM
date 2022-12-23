@@ -150,6 +150,9 @@ handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData)
             handle_c2s_packet(StateData, C2SState, El)
     end;
 
+handle_event(internal, {flush, Acc}, C2SState, StateData) ->
+    handle_flush(StateData, C2SState, Acc);
+
 %% This is an xml packet in any state other than session_established,
 %% which is not one of the default ones defined in the RFC. For example stream management.
 handle_event(internal, #xmlel{} = El, C2SState, StateData) ->
@@ -563,10 +566,10 @@ handle_cast(StateData, C2SState, Event) ->
     handle_foreign_event(StateData, C2SState, cast, Event).
 
 -spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
+handle_info(StateData, C2SState, {route, Acc}) ->
+    handle_route(StateData, C2SState, Acc);
 handle_info(StateData, C2SState, #xmlel{} = El) ->
     handle_c2s_packet(StateData, C2SState, El);
-handle_info(StateData, C2SState, {route, Acc}) ->
-    handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
   when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
@@ -690,26 +693,53 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, _) -
     {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc, HookParams),
     Acc1.
 
--spec handle_stanza_to_client(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-handle_stanza_to_client(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
+-spec maybe_route(gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
+maybe_route({ok, Acc}) ->
+    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
+    ejabberd_router:route(FromJid, ToJid, Acc, El),
+    Acc;
+maybe_route({stop, Acc}) ->
+    Acc.
+
+-spec handle_route(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
+handle_route(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
     {From, To, El} = mongoose_acc:packet(Acc),
     FinalEl = jlib:replace_from_to(From, To, El),
     ParamsAcc = #{from_jid => From, to_jid => To, element => FinalEl},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
-    HookParams = hook_arg(StateData, C2SState, info, El, undefined),
-    case mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, HookParams) of
-        {ok, Acc2} ->
-            StanzaName = mongoose_acc:stanza_name(Acc2),
-            Res = process_stanza_to_client(StateData, HookParams, Acc2, StanzaName),
-            Acc3 = maybe_deliver(StateData, Res),
-            handle_state_after_packet(StateData, C2SState, Acc3);
-        {stop, Acc2} ->
-            handle_state_after_packet(StateData, C2SState, Acc2)
-    end.
+    HookParams = hook_arg(StateData, C2SState, info, El, route),
+    Res = mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, HookParams),
+    handle_route_packet(StateData, C2SState, HookParams, Res).
+
+-spec handle_route_packet(c2s_data(), c2s_state(), mongoose_c2s_hooks:params(), mongoose_c2s_hooks:result()) -> fsm_res().
+handle_route_packet(StateData, C2SState, HookParams, {ok, Acc}) ->
+    StanzaName = mongoose_acc:stanza_name(Acc),
+    case process_stanza_to_client(StateData, HookParams, Acc, StanzaName) of
+        {ok, Acc3} ->
+            handle_flush(StateData, C2SState, Acc3);
+        {stop, Acc3} ->
+            handle_state_after_packet(StateData, C2SState, Acc3)
+    end;
+handle_route_packet(StateData, C2SState, _, {stop, Acc}) ->
+    handle_state_after_packet(StateData, C2SState, Acc).
+
+-spec handle_flush(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
+handle_flush(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
+    HookParams = hook_arg(StateData, C2SState, info, Acc, flust),
+    Res = mongoose_c2s_hooks:xmpp_presend_element(HostType, Acc, HookParams),
+    Acc1 = maybe_send_element(StateData, Res),
+    handle_state_after_packet(StateData, C2SState, Acc1).
+
+-spec maybe_send_element(c2s_data(), mongoose_c2s_hooks:result()) -> mongoose_acc:t().
+maybe_send_element(StateData, {ok, Acc}) ->
+    Element = mongoose_acc:element(Acc),
+    do_send_element(StateData, Element, Acc);
+maybe_send_element(_, {stop, Acc}) ->
+    Acc.
 
 %% @doc Process packets sent to the user (coming to user on c2s XMPP connection)
 -spec process_stanza_to_client(c2s_data(), mongoose_c2s_hooks:hook_params(), mongoose_acc:t(), binary()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 process_stanza_to_client(#c2s_data{host_type = HostType}, Params, Acc, <<"message">>) ->
     mongoose_c2s_hooks:user_receive_message(HostType, Acc, Params);
 process_stanza_to_client(#c2s_data{host_type = HostType}, Params, Acc, <<"iq">>) ->
@@ -750,35 +780,15 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
                      0 -> StateData1;
                      _ -> merge_mod_state(StateData1, ModuleStates)
                  end,
-    maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
+    [maybe_send_xml(StateData2, MaybeAcc, Send) || Send <- MaybeSocketSend ],
     {next_state, NextFsmState, StateData2, MaybeActions}.
 
--spec maybe_send_xml(c2s_data(), mongoose_acc:t(), [exml:element()]) -> ok.
-maybe_send_xml(_StateData, _Acc, []) ->
-    ok;
+-spec maybe_send_xml(c2s_data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    send_element(StateData, ToSend, Acc),
-    ok;
+    do_send_element(StateData, ToSend, Acc);
 maybe_send_xml(StateData, Acc, ToSend) ->
-    send_element(StateData, ToSend, Acc),
-    ok.
-
--spec maybe_deliver(c2s_data(), gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
-maybe_deliver(StateData, {ok, Acc}) ->
-    Element = mongoose_acc:element(Acc),
-    send_element(StateData, Element, Acc),
-    Acc;
-maybe_deliver(_, {stop, Acc}) ->
-    Acc.
-
--spec maybe_route(gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
-maybe_route({ok, Acc}) ->
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
-    ejabberd_router:route(FromJid, ToJid, Acc, El),
-    Acc;
-maybe_route({stop, Acc}) ->
-    Acc.
+    do_send_element(StateData, ToSend, Acc).
 
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(c2s_data(), exml:element()) -> mongoose_acc:t().
@@ -827,7 +837,7 @@ send_element_from_server_jid(StateData, El) ->
               from_jid => jid:make_noprep(<<>>, StateData#c2s_data.lserver, <<>>),
               to_jid => StateData#c2s_data.jid,
               element => El}),
-    send_element(StateData, El, Acc).
+    do_send_element(StateData, El, Acc).
 
 -spec bounce_messages(c2s_data()) -> ok.
 bounce_messages(StateData) ->
@@ -913,16 +923,14 @@ sm_unset_reason(_) ->
     error.
 
 %% @doc This is the termination point - from here stanza is sent to the user
--spec send_element(c2s_data(), [exml:element()] | exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
-send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
+-spec do_send_element(c2s_data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+do_send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
     send_xml(StateData, El),
     Acc;
-send_element(StateData = #c2s_data{host_type = HostType}, Els, Acc) when is_list(Els) ->
-    Res = send_xml(StateData, Els),
+do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
+    Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
-    [mongoose_hooks:xmpp_send_element(HostType, Acc1, El) || El <- Els];
-send_element(StateData, El, Acc) ->
-    send_element(StateData, [El], Acc).
+    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(c2s_data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(#c2s_data{socket = Socket}, Xml) ->

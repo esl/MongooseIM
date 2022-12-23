@@ -16,6 +16,7 @@
          session_cleanup/3,
          user_send_packet/3,
          user_receive_packet/3,
+         xmpp_presend_element/3,
          user_send_xmlel/3,
          foreign_event/3,
          handle_user_stopping/3,
@@ -91,9 +92,8 @@ hooks(HostType) ->
 c2s_hooks(HostType) ->
     [
      {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 20},
-     %% TODO this should be xmpp_send_element,
-     %% as other handlers might stop the packet from being delivered
-     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 100},
+     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 10},
+     {xmpp_presend_element, HostType, fun ?MODULE:xmpp_presend_element/3, #{}, 50},
      {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 50},
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50},
      {user_stop_request, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 100},
@@ -176,7 +176,7 @@ user_send_packet(Acc, _Params, _Extra) ->
 
 -spec user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
-user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Params, Extra) ->
+user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _) ->
     Check1 = is_conflict_incoming_acc(Acc, StateData),
     Check2 = is_conflict_receiver_sid(Acc, StateData),
     case {Check1, Check2} of
@@ -198,15 +198,15 @@ user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState} = Param
                            c2s_sid => C2SSid, receiver_sid => ReceiverSID,
                            acc => Acc, state_name => C2SState, c2s_state => StateData}),
             {stop, Acc};
-        _ -> %% Continue processing
-            do_user_receive_packet(Acc, Params, Extra)
+        _ ->
+            {ok, Acc}
     end;
 user_receive_packet(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
--spec do_user_receive_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+-spec xmpp_presend_element(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
-do_user_receive_packet(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extra) ->
+xmpp_presend_element(Acc, #{c2s_data := StateData, c2s_state := C2SState}, _Extra) ->
     case {get_mod_state(StateData), mongoose_acc:stanza_type(Acc)} of
         {{error, not_found}, _} ->
             {ok, Acc};

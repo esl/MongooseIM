@@ -2,11 +2,11 @@
 -module(mongoose_c2s_hooks).
 
 -type fn() :: fun((mongoose_acc:t(), params(), gen_hook:hook_extra()) -> result()).
--type params() :: #{c2s_data := mongoose_c2s:state(),
-                         c2s_state := mongoose_c2s:c2s_state(),
-                         event_type := undefined | gen_statem:event_type(),
-                         event_content := undefined | term(),
-                         reason := undefined | term()}.
+-type params() :: #{c2s_data := mongoose_c2s:c2s_data(),
+                    c2s_state := mongoose_c2s:c2s_state(),
+                    event_type := undefined | gen_statem:event_type(),
+                    event_content := undefined | term(),
+                    reason := undefined | term()}.
 -type result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).
 -export_type([fn/0, params/0, result/0]).
 
@@ -20,7 +20,8 @@
          user_receive_message/3,
          user_receive_iq/3,
          user_receive_presence/3,
-         user_receive_xmlel/3
+         user_receive_xmlel/3,
+         xmpp_presend_element/3
         ]).
 
 %% General event handlers
@@ -129,6 +130,14 @@ user_receive_presence(HostType, Acc, Params) ->
     Result :: result().
 user_receive_xmlel(HostType, Acc, Params) ->
     gen_hook:run_fold(user_receive_xmlel, HostType, Acc, Params).
+
+-spec xmpp_presend_element(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: params(),
+    Result :: result().
+xmpp_presend_element(HostType, Acc, Params) ->
+    gen_hook:run_fold(xmpp_presend_element, HostType, Acc, Params).
 
 %% @doc Triggered when the c2s statem process receives any event it is not defined to handle.
 %% These events should not by default stop the process, and they are expected to
