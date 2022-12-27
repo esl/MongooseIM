@@ -112,7 +112,7 @@ user_terminate(Acc, #{c2s_data := StateData, reason := Reason}, _Extra) ->
         Presences -> handle_user_terminate(Acc, StateData, Presences, Reason)
     end.
 
--spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:c2s_data(), presences_state(), term()) ->
+-spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:data(), presences_state(), term()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 handle_user_terminate(Acc, StateData, Presences, Reason) ->
     Jid = mongoose_c2s:get_jid(StateData),
@@ -179,7 +179,7 @@ get_statustag(Presence) ->
     xml:get_path_s(Presence, [{elem, <<"status">>}, cdata]).
 
 -spec handle_subscription_change(
-        mongoose_acc:t(), mongoose_c2s:c2s_data(), term(), term(), presences_state()) ->
+        mongoose_acc:t(), mongoose_c2s:data(), term(), term(), presences_state()) ->
     mongoose_acc:t().
 handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
     To = jid:make(IJID),
@@ -327,7 +327,7 @@ handle_received_available(Acc, Presences) ->
 
 %% @doc User updates his presence (non-directed presence packet)
 -spec presence_update(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(), undefined | binary()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), undefined | binary()) ->
     mongoose_acc:t().
 presence_update(Acc, FromJid, ToJid, Packet, StateData, undefined) ->
     Presences = maybe_get_handler(StateData),
@@ -346,7 +346,7 @@ presence_update(Acc, _, _, _, _, <<"unsubscribe">>) -> Acc;
 presence_update(Acc, _, _, _, _, <<"unsubscribed">>) -> Acc.
 
 -spec presence_update_to_available(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
     mongoose_acc:t().
 presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences) ->
     Jid = mongoose_c2s:get_jid(StateData),
@@ -375,7 +375,7 @@ presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences)
       OldPriority, NewPriority, FromUnavail).
 
 -spec presence_update_to_unavailable(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
     mongoose_acc:t().
 presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presences) ->
     Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
@@ -392,7 +392,7 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     mongoose_c2s_acc:to_acc(Acc1, state_mod, {?MODULE, NewPresences}).
 
 -spec presence_update_to_invisible(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
     mongoose_acc:t().
 presence_update_to_invisible(Acc, FromJid, _ToJid, Packet, StateData, Presences) ->
     NewPriority = get_priority_from_presence(Packet),
@@ -413,7 +413,7 @@ presence_update_to_invisible(Acc, FromJid, _ToJid, Packet, StateData, Presences)
 
 %% @doc User sends a directed presence packet
 -spec presence_track(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(), undefined | binary()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), undefined | binary()) ->
     mongoose_acc:t().
 presence_track(Acc, FromJid, ToJid, Packet, StateData, undefined) ->
     Presences = maybe_get_handler(StateData),
@@ -473,7 +473,7 @@ presence_broadcast(Acc, JIDSet) ->
                  end, Acc, JIDSet).
 
 -spec presence_update_to_available(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:c2s_data(),
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(),
         presences_state(), list(), priority(), priority(), boolean()) ->
     mongoose_acc:t().
 presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, SocketSend,
@@ -514,7 +514,7 @@ presence_broadcast_to_trusted(Acc, FromJid, T, A, Packet) ->
               end
       end, Acc, A).
 
--spec resend_offline_messages(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> mongoose_acc:t().
+-spec resend_offline_messages(mongoose_acc:t(), mongoose_c2s:data()) -> mongoose_acc:t().
 resend_offline_messages(Acc, StateData) ->
     ?LOG_DEBUG(#{what => resend_offline_messages, acc => Acc, c2s_state => StateData}),
     Jid = mongoose_c2s:get_jid(StateData),
@@ -602,14 +602,14 @@ close_session_status({shutdown, Reason}) when is_binary(Reason) ->
 close_session_status(_) ->
     <<"Unknown condition">>.
 
--spec maybe_get_handler(mongoose_c2s:c2s_data()) -> presences_state().
+-spec maybe_get_handler(mongoose_c2s:data()) -> presences_state().
 maybe_get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {ok, #presences_state{} = Presences} -> Presences;
         {error, not_found} -> #presences_state{}
     end.
 
--spec get_mod_state(mongoose_c2s:c2s_data()) -> presences_state() | {error, not_found}.
+-spec get_mod_state(mongoose_c2s:data()) -> presences_state() | {error, not_found}.
 get_mod_state(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {ok, Presence} -> Presence;
@@ -634,7 +634,7 @@ get_old_priority(Presences) ->
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
                       Packet :: exml:element(),
-                      StateData :: mongoose_c2s:c2s_data()) -> mongoose_acc:t().
+                      StateData :: mongoose_c2s:data()) -> mongoose_acc:t().
 update_priority(Acc, Priority, Packet, StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
