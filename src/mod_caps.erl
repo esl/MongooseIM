@@ -324,7 +324,7 @@ upsert_caps(LFrom, Caps, Rs) ->
 
 -spec c2s_broadcast_recipients(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [jid:simple_jid()],
-    Params :: #{c2s_data := mongoose_c2s:c2s_data(), type := {atom(), binary()}},
+    Params :: #{c2s_data := mongoose_c2s:data(), type := {atom(), binary()}},
     Extra :: map().
 c2s_broadcast_recipients(InAcc, #{c2s_data := C2SData, type := {pep_message, Feature}}, _) ->
     HostType = mongoose_c2s:get_host_type(C2SData),

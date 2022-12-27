@@ -201,7 +201,7 @@ foreign_event(Acc, #{c2s_data := StateData,
 foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
--spec do_privacy_check_send(mongoose_acc:t(), mongoose_c2s:c2s_data()) ->
+-spec do_privacy_check_send(mongoose_acc:t(), mongoose_c2s:data()) ->
     mongoose_c2s_hooks:result().
 do_privacy_check_send(Acc, StateData) ->
     case s_privacy_check_packet(Acc, StateData, out) of
@@ -213,7 +213,7 @@ do_privacy_check_send(Acc, StateData) ->
             {stop, send_back_error(Acc1, not_acceptable_cancel, send)}
     end.
 
--spec do_privacy_check_receive(mongoose_acc:t(), mongoose_c2s:c2s_data(), maybe_send()) ->
+-spec do_privacy_check_receive(mongoose_acc:t(), mongoose_c2s:data(), maybe_send()) ->
     mongoose_c2s_hooks:result().
 do_privacy_check_receive(Acc, StateData, MaybeSendError) ->
     case s_privacy_check_packet(Acc, StateData, in) of
@@ -223,7 +223,7 @@ do_privacy_check_receive(Acc, StateData, MaybeSendError) ->
             {stop, send_back_error(Acc1, service_unavailable, MaybeSendError)}
     end.
 
--spec do_user_send_iq(mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), jlib:iq()) ->
+-spec do_user_send_iq(mongoose_acc:t(), mongoose_c2s:data(), mongooseim:host_type(), jlib:iq()) ->
     mongoose_c2s_hooks:result().
 do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ) ->
     FromJid = mongoose_acc:from_jid(Acc1),
@@ -245,7 +245,7 @@ do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ
     {stop, Acc2}.
 
 -spec handle_new_privacy_list(
-        mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), term(), term()) ->
+        mongoose_acc:t(), mongoose_c2s:data(), mongooseim:host_type(), term(), term()) ->
     mongoose_acc:t().
 handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName) ->
     OldPrivList = get_handler(StateData),
@@ -268,7 +268,7 @@ handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName) ->
                          mongooseim:host_type(),
                          Type :: get | set,
                          ToJid :: jid:jid(),
-                         StateData :: mongoose_c2s:c2s_data()) -> mongoose_acc:t().
+                         StateData :: mongoose_c2s:data()) -> mongoose_acc:t().
 process_privacy_iq(Acc, HostType, get, ToJid, StateData) ->
     PrivacyList = get_handler(StateData),
     From = mongoose_acc:from_jid(Acc),
@@ -319,7 +319,7 @@ do_send_unavail_if_newly_blocked(Acc, _, _, _, _, _) ->
                            To :: jid:jid(),
                            Dir :: mongoose_privacy:direction(),
                            PrivList :: mongoose_privacy:userlist(),
-                           StateData :: mongoose_c2s:c2s_data()) ->
+                           StateData :: mongoose_c2s:data()) ->
     {mongoose_privacy:decision(), mongoose_acc:t()}.
 p_privacy_check_packet(#xmlel{} = Packet, From, To, Dir, PrivList, StateData) ->
     LServer = mongoose_c2s:get_lserver(StateData),
@@ -328,7 +328,7 @@ p_privacy_check_packet(#xmlel{} = Packet, From, To, Dir, PrivList, StateData) ->
                              from_jid => From, to_jid => To, element => Packet}),
     mongoose_privacy:privacy_check_packet(Acc, From, PrivList, To, Dir).
 
--spec s_privacy_check_packet(mongoose_acc:t(), mongoose_c2s:c2s_data(), mongoose_privacy:direction()) ->
+-spec s_privacy_check_packet(mongoose_acc:t(), mongoose_c2s:data(), mongoose_privacy:direction()) ->
     {mongoose_privacy:decision(), mongoose_acc:t()}.
 s_privacy_check_packet(Acc, StateData, Dir) ->
     To = mongoose_acc:to_jid(Acc),
@@ -348,14 +348,14 @@ send_back_error(Acc1, ErrorType, send) ->
 send_back_error(Acc, _, _) ->
     Acc.
 
--spec get_handler(mongoose_c2s:c2s_data()) -> mongoose_privacy:userlist() | {error, not_found}.
+-spec get_handler(mongoose_c2s:data()) -> mongoose_privacy:userlist() | {error, not_found}.
 get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {error, not_found} -> get_privacy_list(StateData);
         {ok, Handler} -> Handler
     end.
 
--spec get_privacy_list(mongoose_c2s:c2s_data()) -> mongoose_privacy:userlist().
+-spec get_privacy_list(mongoose_c2s:data()) -> mongoose_privacy:userlist().
 get_privacy_list(StateData) ->
     Jid = mongoose_c2s:get_jid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),

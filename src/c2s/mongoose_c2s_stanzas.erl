@@ -37,7 +37,7 @@ stream_features(Features) ->
     #xmlel{name = <<"stream:features">>, children = Features}.
 
 -spec stream_features_before_auth(
-        mongooseim:host_type(), jid:lserver(), mongoose_listener:options(), mongoose_c2s:c2s_data()) ->
+        mongooseim:host_type(), jid:lserver(), mongoose_listener:options(), mongoose_c2s:data()) ->
     exml:element().
 stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
     IsSSL = mongoose_c2s_socket:is_ssl(mongoose_c2s:get_socket(StateData)),

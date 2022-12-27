@@ -2,8 +2,8 @@
 -module(mongoose_c2s_hooks).
 
 -type fn() :: fun((mongoose_acc:t(), params(), gen_hook:hook_extra()) -> result()).
--type params() :: #{c2s_data := mongoose_c2s:c2s_data(),
-                    c2s_state := mongoose_c2s:c2s_state(),
+-type params() :: #{c2s_data := mongoose_c2s:data(),
+                    c2s_state := mongoose_c2s:state(),
                     event_type := undefined | gen_statem:event_type(),
                     event_content := undefined | term(),
                     reason := undefined | term()}.
