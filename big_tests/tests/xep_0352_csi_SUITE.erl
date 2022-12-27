@@ -103,13 +103,12 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
 
     escalus_connection:kill(Alice),
 
-    {ok, Alice2, _} = escalus_connection:start(AliceSpec),
-
-    escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
+    ConnSteps = [start_stream, stream_features, authenticate, bind, session],
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec, ConnSteps),
 
     then_client_receives_message(Alice2, MsgsToAlice),
-
-    ok.
+    escalus_connection:stop(Alice2),
+    escalus_connection:stop(Bob).
 
 alice_gets_buffered_messages_after_stream_resumption(Config) ->
     ConnSteps = [start_stream, stream_features, authenticate, bind, session, stream_resumption],
@@ -128,19 +127,15 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
 
     MsgsToAlice = given_messages_are_sent(Alice, Bob, 5),
 
-    %% then Alice disconnects
-
+    %% then Alice loses connection and resumes it
     escalus_connection:kill(Alice),
-
     SMID = proplists:get_value(smid, AliceProps),
     ResumeSession = [start_stream, stream_features, authenticate, mk_resume_stream(SMID, 1)],
     {ok, Alice2, _} = escalus_connection:start(AliceSpec, ResumeSession),
 
-    escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
-
     then_client_receives_message(Alice2, MsgsToAlice),
-
-    ok.
+    escalus_connection:stop(Alice2),
+    escalus_connection:stop(Bob).
 
 make_jid_from_spec(AliceProps) ->
     AliceUsername = proplists:get_value(username, AliceProps),
@@ -159,9 +154,7 @@ alice_gets_message_after_buffer_overflow(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive(Alice),
         Msgs = given_messages_are_sent(Alice, Bob, ?CSI_BUFFER_MAX + 5),
-
         {Flushed, Awaiting} = lists:split(?CSI_BUFFER_MAX+1, Msgs),
-
         then_client_receives_message(Alice, Flushed),
         %% and no other stanza
         then_client_does_not_receive_any_message(Alice),
@@ -174,7 +167,6 @@ alice_gets_message_after_buffer_overflow(Config) ->
 bob_gets_msgs_from_inactive_alice(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive_but_sends_messages(Alice, Bob, 1),
-
         escalus:assert(is_chat_message, escalus:wait_for_stanza(Bob))
     end).
 
@@ -183,7 +175,6 @@ alice_is_inactive_but_sends_sm_req_and_recives_ack(Config) ->
         given_client_is_inactive(Alice),
 
         escalus:send(Alice, escalus_stanza:sm_request()),
-
         escalus:assert(is_sm_ack, escalus:wait_for_stanza(Alice))
 
     end).
@@ -192,7 +183,6 @@ given_client_is_inactive_but_sends_messages(Alice, Bob, N) ->
     %%Given
     given_client_is_inactive(Alice),
     MsgsToAlice = given_messages_are_sent(Alice, Bob, N),
-
     MsgsToBob = gen_msgs(<<"Hi, Bob">>, N),
     send_msgs(Alice, Bob, MsgsToBob),
     timer:sleep(1),
