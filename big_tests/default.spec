@@ -110,11 +110,9 @@
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
-{skip_cases, "tests", service_domain_db_SUITE,
- [rest_delete_domain_cleans_data_from_mam], "this test tries to use presences"}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
-% {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 % {suites, "tests", tcp_listener_SUITE}.
 
