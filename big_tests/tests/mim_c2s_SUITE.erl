@@ -35,6 +35,7 @@ init_per_suite(Config) ->
                         {start_ready_clients, fun ?MODULE:escalus_start/2}],
     Config1 = save_c2s_listener(Config),
     Config2 = dynamic_modules:save_modules(HostType, Config1),
+    dynamic_modules:ensure_stopped(HostType, [mod_presence]),
     Config3 = escalus_users:update_userspec(Config2, alice, connection_steps, Steps),
     Config4 = escalus_users:update_userspec(Config3, bob, connection_steps, Steps),
     configure_c2s_listener(Config4, #{backwards_compatible_session => false, max_stanza_size => 1024}),

@@ -35,7 +35,7 @@
 
 {suites, "tests", domain_isolation_SUITE}.
 
-% {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", dynamic_domains_SUITE}.
 
 {suites, "tests", extdisco_SUITE}.
 
@@ -140,8 +140,6 @@
 {suites, "tests", sasl_external_SUITE}.
 
 {suites, "tests", service_domain_db_SUITE}.
-{skip_cases, "tests", service_domain_db_SUITE,
- [rest_delete_domain_cleans_data_from_mam], "this test tries to use presences"}.
 
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {skip_cases, "tests", service_mongoose_system_metrics_SUITE,
