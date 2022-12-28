@@ -204,7 +204,9 @@ start_listeners() ->
                      RetriesLeft :: non_neg_integer()) -> any().
 start_listener({Addr, Port} = Ref, RetriesLeft) ->
     ?LOG_INFO(#{what => gd_start_listener, address => Addr, port => Port}),
-    case ranch:start_listener(Ref, ranch_tcp, #{num_acceptors => 10, ip => Addr, port => Port}, ?MODULE, []) of
+    SocketOpts = [{ip, Addr}, {port, Port}],
+    RanchOpts = #{max_connections => infinity, num_acceptors => 10, socket_opts => SocketOpts},
+    case ranch:start_listener(Ref, ranch_tcp, RanchOpts, ?MODULE, []) of
         {ok, _} -> ok;
         {error, eaddrinuse} when RetriesLeft > 0 ->
             ?LOG_ERROR(#{what => gd_start_listener_failed, address => Addr, port => Port,

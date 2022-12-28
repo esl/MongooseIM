@@ -226,7 +226,7 @@ handle_buffer_and_ack(Acc, C2SState, Jid, #sm_state{buffer = Buffer, buffer_max 
     NewBufferSize = BufferSize + 1,
     MaybeActions = case is_buffer_full(NewBufferSize, BufferMax) of
                        true ->
-                           {timeout, ?CONSTRAINT_CHECK_TIMEOUT, check_buffer_full};
+                           {{timeout, ?MODULE}, ?CONSTRAINT_CHECK_TIMEOUT, check_buffer_full};
                        false ->
                            []
                    end,
@@ -290,7 +290,7 @@ foreign_event(Acc, #{c2s_data := StateData,
         error ->
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, bad_stream_management_request)}
     end;
-foreign_event(Acc, #{c2s_data := StateData, event_type := timeout, event_content := check_buffer_full}, _Extra) ->
+foreign_event(Acc, #{c2s_data := StateData, event_type := {timeout, ?MODULE}, event_content := check_buffer_full}, _Extra) ->
     #sm_state{buffer_size = BufferSize, buffer_max = BufferMax} = get_mod_state(StateData),
     case is_buffer_full(BufferSize, BufferMax) of
         true ->
@@ -316,7 +316,7 @@ handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
         SmState ->
             Timeout = get_resume_timeout(HostType),
             NewSmState = notify_unacknowledged_messages(Acc, StateData, SmState),
-            Actions = [{push_callback_module, ?MODULE}, {timeout, Timeout, resume_timeout}, hibernate],
+            Actions = [{push_callback_module, ?MODULE}, {{timeout, ?MODULE}, Timeout, resume_timeout}, hibernate],
             ToAcc = [{c2s_state, ?EXT_C2S_STATE(resume_session)}, {actions, Actions}, {state_mod, {?MODULE, NewSmState}}],
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
@@ -767,7 +767,7 @@ handle_event({call, From}, {stream_mgmt_resume, H}, ?EXT_C2S_STATE(resume_sessio
         error ->
             {stop, {shutdown, resumed}}
     end;
-handle_event(timeout, resume_timeout, ?EXT_C2S_STATE(resume_session), StateData) ->
+handle_event({timeout, ?MODULE}, resume_timeout, ?EXT_C2S_STATE(resume_session), StateData) ->
     {stop, {shutdown, ?MODULE}, StateData};
 handle_event(EventType, EventContent, C2SState, StateData) ->
     mongoose_c2s:handle_event(EventType, EventContent, C2SState, StateData).
