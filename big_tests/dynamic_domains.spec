@@ -19,7 +19,7 @@
 
 {suites, "tests", amp_big_SUITE}.
 
-% {suites, "tests", anonymous_SUITE}.
+{suites, "tests", anonymous_SUITE}.
 
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 
