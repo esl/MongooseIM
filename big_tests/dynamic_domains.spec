@@ -146,7 +146,7 @@
  [xmpp_components_are_reported],
  "at the moment external components doesn't support dynamic domains"}.
 
-% {suites, "tests", sic_SUITE}.
+{suites, "tests", sic_SUITE}.
 
 {suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
