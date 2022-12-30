@@ -28,6 +28,7 @@
          socket_activate/1,
          socket_close/1,
          socket_send_xml/2,
+         get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          get_tls_last_message/1,
@@ -320,6 +321,9 @@ close(#websocket{pid = Pid}) ->
 -spec peername(socket()) -> mongoose_transport:peername_return().
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
+
+get_peer_certificate(S, _) ->
+    get_peer_certificate(S).
 
 get_peer_certificate(#websocket{peercert = undefined}) ->
     no_peer_cert;
