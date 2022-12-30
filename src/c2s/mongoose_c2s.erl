@@ -236,6 +236,8 @@ maybe_pause(#c2s_data{socket = Socket}, _) ->
     [].
 
 -spec close_socket(data()) -> ok | {error, term()}.
+close_socket(#c2s_data{socket = undefined}) ->
+    ok;
 close_socket(#c2s_data{socket = Socket}) ->
     mongoose_c2s_socket:close(Socket).
 
