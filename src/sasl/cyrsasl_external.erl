@@ -44,8 +44,11 @@ mechanism() ->
 -spec mech_new(Host   :: jid:server(),
                Creds  :: mongoose_credentials:t(),
                Socket :: term()) -> {ok, sasl_external_state()}.
-mech_new(_Host, Creds, _Socket) ->
-    Cert = mongoose_credentials:get(Creds, client_cert, no_cert),
+mech_new(_Host, Creds, #{socket := Socket, listener_opts := LOpts}) ->
+    Cert = case mongoose_c2s_socket:get_peer_certificate(Socket, LOpts) of
+               {ok, C} -> C;
+               _ -> no_cert
+           end,
     maybe_extract_certs(Cert, Creds).
 
 maybe_extract_certs(no_cert, Creds) ->
@@ -56,7 +59,6 @@ maybe_extract_certs(Cert, Creds) ->
     CertFields = get_common_name(Cert) ++ get_xmpp_addresses(Cert),
     SaslExternalCredentials = [{cert_file, true}, {pem_cert, PemCert}, {der_cert, DerCert} | CertFields],
     {ok, #state{creds = mongoose_credentials:extend(Creds, SaslExternalCredentials)}}.
-
 
 -spec mech_step(State :: sasl_external_state(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()} | {error, binary()}.
