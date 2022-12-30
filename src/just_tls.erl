@@ -8,7 +8,7 @@
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
--behavior(mongoose_tls).
+-behaviour(mongoose_tls).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -16,7 +16,7 @@
                      ssl_socket
 }).
 
-% mongoose_tls behavior
+% mongoose_tls behaviour
 -export([tcp_to_tls/2,
          send/2,
          recv_data/2,
@@ -28,7 +28,7 @@
          close/1]).
 
 % API
--export([make_ssl_opts/1]).
+-export([make_ssl_opts/1, prepare_options/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
@@ -39,14 +39,7 @@
 tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
     {Ref, SSLOpts} = format_opts_with_ref(Options),
-    Ret = case Options of
-              #{connect := true} ->
-                  % Currently unused as ejabberd_s2s_out uses fast_tls,
-                  % and outgoing pools use Erlang SSL directly
-                  ssl:connect(TCPSocket, SSLOpts);
-              #{} ->
-                  ssl:handshake(TCPSocket, SSLOpts)
-          end,
+    Ret = ssl:handshake(TCPSocket, SSLOpts),
     VerifyResults = receive_verify_results(Ref),
     case Ret of
         {ok, SSLSocket} ->
@@ -110,16 +103,25 @@ make_ssl_opts(Opts) ->
     {dummy_ref, SSLOpts} = format_opts_with_ref(Opts),
     SSLOpts.
 
+%% @doc Preprocess SSL options for tcp_to_tls calls
+-spec prepare_options(mongoose_tls:options()) -> [ssl:tls_option()].
+prepare_options(Opts) ->
+    Verify = verify_opt(Opts),
+    SNIOpts = sni_opts(Opts),
+    SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
+    [{verify, Verify}] ++ SNIOpts ++ SSLOpts.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-format_opts_with_ref(Opts) ->
-    Verify = verify_opt(Opts),
+-spec format_opts_with_ref(mongoose_tls:options()) -> {_, [ssl:tls_option()]}.
+format_opts_with_ref(#{prepare_options := SslOptions} = Opts) ->
     {Ref, VerifyFun} = verify_fun_opt(Opts),
-    SNIOpts = sni_opts(Opts),
-    SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    {Ref, [{verify, Verify}, {verify_fun, VerifyFun}] ++ SNIOpts ++ SSLOpts}.
+    {Ref, [{verify_fun, VerifyFun} | SslOptions]};
+format_opts_with_ref(Opts) ->
+    {Ref, VerifyFun} = verify_fun_opt(Opts),
+    {Ref, [{verify_fun, VerifyFun} | prepare_options(Opts)]}.
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
@@ -156,7 +158,7 @@ verify_opt(#{}) -> verify_peer.
 %%     true - drop connection if certificate verification failed
 %%     false - connect anyway, but later return {bad_cert,Error}
 %%             on certificate verification (the same as fast_tls do).
-verify_fun_opt(#{verify_mode := Mode, disconnect_on_failure := false}) ->
+verify_fun_opt(#{module := just_tls, verify_mode := Mode, disconnect_on_failure := false}) ->
     Ref = erlang:make_ref(),
     {Ref, verify_fun(Ref, Mode)};
 verify_fun_opt(#{verify_mode := Mode}) ->

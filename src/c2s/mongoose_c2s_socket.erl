@@ -103,10 +103,9 @@ close(#c2s_socket{module = Module, state = State}) ->
 send_xml(#c2s_socket{module = Module, state = State}, XML) ->
     Module:socket_send_xml(State, XML).
 
-%% 18 is OpenSSL's and fast_tls's error code for self-signed certs
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(#c2s_socket{module = Module, state = State}, LOpts) ->
-    Module:has_pert_cert(State, LOpts).
+    Module:has_peer_cert(State, LOpts).
 
 -spec is_channel_binding_supported(socket()) -> boolean().
 is_channel_binding_supported(#c2s_socket{module = Module, state = State}) ->

@@ -44,6 +44,7 @@
                      cacertfile => string(),
                      ciphers => string(),
                      dhfile => string(), % server-only
+                     prepare_options => [ssl:tls_option()],
 
                      %% only for just_tls
                      disconnect_on_failure => boolean(),
@@ -104,7 +105,7 @@
 -spec tcp_to_tls(inet:socket(), options()) -> {ok, socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Opts) ->
     Module = maps:get(module, Opts, fast_tls),
-    PreparedOpts = prepare_options(Module, maps:remove(module, Opts)),
+    PreparedOpts = prepare_options(Module, Opts),
     case Module:tcp_to_tls(TCPSocket, PreparedOpts) of
         {ok, TLSSocket} ->
             HasCert = has_peer_cert(Opts),
@@ -116,12 +117,13 @@ tcp_to_tls(TCPSocket, Opts) ->
         Error -> Error
     end.
 
--spec prepare_options(module(), options()) -> any().
+-spec prepare_options(module(), options()) -> list().
 prepare_options(fast_tls, Opts) ->
     %% fast_tls is an external library and its API cannot use Opts directly
-    lists:flatmap(fun({K, V}) -> fast_tls_opt(K, V) end, maps:to_list(Opts));
-prepare_options(_Module, Opts) ->
-    Opts.
+    Opts1 = maps:without([module, mode], Opts),
+    lists:flatmap(fun({K, V}) -> fast_tls_opt(K, V) end, maps:to_list(Opts1));
+prepare_options(just_tls, Opts) ->
+    just_tls:prepare_options(Opts).
 
 fast_tls_opt(connect, true) -> [connect];
 fast_tls_opt(verify_mode, peer) -> [];

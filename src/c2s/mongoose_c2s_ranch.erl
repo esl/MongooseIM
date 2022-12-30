@@ -21,7 +21,7 @@
          }).
 
 -type state() :: #state{}.
--type transport() :: ranch_tcp | just_tls | fast_tls. % just_tls = ranch_ssl
+-type transport() :: ranch_tcp | just_tls | fast_tls.
 
 -spec socket_new(term(), mongoose_listener:options()) -> state().
 socket_new({ranch_tcp, RanchRef}, #{proxy_protocol := true}) ->
@@ -47,31 +47,33 @@ socket_peername(#state{ip = Ip}) ->
 
 -spec tcp_to_tls(state(), mongoose_listener:options()) ->
   {ok, state()} | {error, term()}.
-tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := #{module := TlsMod, opts := TlsOpts}}) ->
-    ranch_tcp:setopts(TcpSocket, [{active, false}]),
-    case tcp_to_tls(TlsMod, TcpSocket, TlsOpts) of
+tcp_to_tls(#state{socket = TcpSocket} = State, #{tls := #{module := TlsMod} = TlsConfig}) ->
+    case tcp_to_tls(TlsMod, TcpSocket, TlsConfig) of
         {ok, TlsSocket} ->
             {ok, State#state{transport = TlsMod, socket = TlsSocket}};
         {error, Reason} ->
             {error, Reason}
     end.
 
-tcp_to_tls(fast_tls, TcpSocket, TlsOpts) ->
-    case fast_tls:tcp_to_tls(TcpSocket, TlsOpts) of
+-spec tcp_to_tls(fast_tls | just_tls, ranch_transport:socket(), mongoose_tls:options()) ->
+  {ok, ranch_transport:socket()} | {error, term()}.
+tcp_to_tls(fast_tls, TcpSocket, #{prepare_options := TlsPreparedOpts}) ->
+    ranch_tcp:setopts(TcpSocket, [{active, false}]),
+    case fast_tls:tcp_to_tls(TcpSocket, TlsPreparedOpts) of
         {ok, TlsSocket} ->
             fast_tls:recv_data(TlsSocket, <<>>),
             {ok, TlsSocket};
         Other -> Other
     end;
-tcp_to_tls(just_tls, TcpSocket, TlsOpts) ->
-    case ranch_ssl:handshake(TcpSocket, TlsOpts, 1000) of
-        {ok, TlsSocket, _} -> {ok, TlsSocket};
+tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
+    case just_tls:tcp_to_tls(TcpSocket, TlsConfig) of
+        {ok, TlsSocket} -> {ok, TlsSocket};
         Other -> Other
     end.
 
 -spec socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
-socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _Socket, Data}) ->
+socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Data}) ->
     mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
@@ -79,7 +81,7 @@ socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _Sock
         {error, Reason} ->
             {error, Reason}
     end;
-socket_handle_data(#state{transport = just_tls, socket = Socket}, {ssl, Socket, Data}) ->
+socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
     mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
@@ -89,7 +91,7 @@ socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket,
 socket_activate(#state{transport = fast_tls, socket = Socket}) ->
     fast_tls:setopts(Socket, [{active, once}]);
 socket_activate(#state{transport = just_tls, socket = Socket}) ->
-    ranch_ssl:setopts(Socket, [{active, once}]);
+    just_tls:setopts(Socket, [{active, once}]);
 socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:setopts(Socket, [{active, once}]).
 
@@ -97,7 +99,7 @@ socket_activate(#state{transport = ranch_tcp, socket = Socket}) ->
 socket_close(#state{transport = fast_tls, socket = Socket}) ->
     fast_tls:close(Socket);
 socket_close(#state{transport = just_tls, socket = Socket}) ->
-    ranch_ssl:close(Socket);
+    just_tls:close(Socket);
 socket_close(#state{transport = ranch_tcp, socket = Socket}) ->
     ranch_tcp:close(Socket).
 
@@ -116,7 +118,7 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
 send(fast_tls, Socket, Data) ->
     fast_tls:send(Socket, Data);
 send(just_tls, Socket, Data) ->
-    ranch_ssl:send(Socket, Data);
+    just_tls:send(Socket, Data);
 send(ranch_tcp, Socket, Data) ->
     ranch_tcp:send(Socket, Data).
 
@@ -130,7 +132,7 @@ has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) 
         {_, error, _} -> false
     end;
 has_peer_cert(#state{transport = just_tls, socket = Socket}, _) ->
-    case ssl:peercert(Socket) of
+    case just_tls:get_peer_certificate(Socket) of
         {ok, _PeerCert} -> true;
         _ -> false
     end;

@@ -72,9 +72,9 @@ maybe_add_access_check(HostTypes, #{access := Access}) ->
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
 
-process_tls_opts(Opts = #{tls := TlsOpts}) ->
-    ReadyTlsOpts = just_tls:make_ssl_opts(TlsOpts),
-    Opts#{tls := TlsOpts#{opts => ReadyTlsOpts}};
+process_tls_opts(Opts = #{tls := #{module := TlsMod} = TlsOpts}) ->
+    ReadyTlsOpts = mongoose_tls:prepare_options(TlsMod, TlsOpts),
+    Opts#{tls := TlsOpts#{prepare_options => ReadyTlsOpts}};
 process_tls_opts(Opts) ->
     Opts.
 
