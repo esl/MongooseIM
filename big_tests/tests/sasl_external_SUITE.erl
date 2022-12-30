@@ -143,11 +143,11 @@ init_per_group(_, Config) ->
     Config.
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    TLSModule = escalus_config:get_config(tls_module, Config, just_tls),
+    TLSModule = atom_to_list(escalus_config:get_config(tls_module, Config, just_tls)),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
     SSLOpts = case TLSModule of
-                  just_tls -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
-                  fast_tls -> ""
+                  "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
+                  "fast_tls" -> ""
               end,
     AuthMethods = escalus_config:get_config(auth_methods, Config,
                                             [{auth_method, "pki"}, {auth_method_opts, false}]),
