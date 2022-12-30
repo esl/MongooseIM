@@ -8,6 +8,7 @@
          socket_activate/1,
          socket_close/1,
          socket_send_xml/2,
+         get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          get_tls_last_message/1,
@@ -114,6 +115,7 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
             Error
         end.
 
+-spec send(transport(), ranch_transport:socket(), iodata()) -> ok | {error, term()}.
 send(fast_tls, Socket, Data) ->
     fast_tls:send(Socket, Data);
 send(just_tls, Socket, Data) ->
@@ -121,22 +123,27 @@ send(just_tls, Socket, Data) ->
 send(ranch_tcp, Socket, Data) ->
     ranch_tcp:send(Socket, Data).
 
--spec has_peer_cert(state(), mongoose_listener:options()) -> boolean().
-has_peer_cert(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
+-spec get_peer_certificate(state(), mongoose_listener:options()) ->
+    mongoose_c2s_socket:peercert_return().
+get_peer_certificate(#state{transport = fast_tls, socket = Socket}, #{tls := TlsOpts}) ->
     case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket), TlsOpts} of
-        {0, {ok, _}, _} -> true;
+        {0, {ok, Cert}, _} -> {ok, Cert};
         %% 18 is OpenSSL's and fast_tls's error code for self-signed certs
-        {18, {ok, _}, #{verify_mode := selfsigned_peer}} -> true;
-        {_, {ok, _}, _} -> false;
-        {_, error, _} -> false
+        {18, {ok, Cert}, #{verify_mode := selfsigned_peer}} -> {ok, Cert};
+        {Error, {ok, Cert}, _} -> {bad_cert, fast_tls:get_cert_verify_string(Error, Cert)};
+        {_, error, _} -> no_peer_cert
     end;
-has_peer_cert(#state{transport = just_tls, socket = Socket}, _) ->
-    case just_tls:get_peer_certificate(Socket) of
-        {ok, _PeerCert} -> true;
+get_peer_certificate(#state{transport = just_tls, socket = Socket}, _) ->
+    just_tls:get_peer_certificate(Socket);
+get_peer_certificate(#state{transport = ranch_tcp}, _) ->
+    no_peer_cert.
+
+-spec has_peer_cert(state(), mongoose_listener:options()) -> boolean().
+has_peer_cert(State, LOpts) ->
+    case get_peer_certificate(State, LOpts) of
+        {ok, _} -> true;
         _ -> false
-    end;
-has_peer_cert(#state{transport = ranch_tcp}, _) ->
-    false.
+    end.
 
 -spec is_channel_binding_supported(state()) -> boolean().
 is_channel_binding_supported(#state{transport = Transport}) ->
