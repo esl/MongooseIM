@@ -1,5 +1,6 @@
 -module(mongoose_c2s_socket).
 
+-include_lib("public_key/include/public_key.hrl").
 -include("mongoose_logger.hrl").
 
 -export([new/3,
@@ -8,6 +9,7 @@
          close/1,
          is_channel_binding_supported/1,
          get_tls_last_message/1,
+         get_peer_certificate/2,
          has_peer_cert/2,
          tcp_to_tls/2,
          is_ssl/1,
@@ -27,6 +29,7 @@
 -callback socket_close(state()) -> ok.
 -callback socket_send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
+-callback get_peer_certificate(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> peercert_return().
 -callback has_peer_cert(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> boolean().
 -callback is_channel_binding_supported(mongoose_c2s_socket:state()) -> boolean().
 -callback get_tls_last_message(mongoose_c2s_socket:state()) -> {ok, binary()} | {error, term()}.
@@ -37,7 +40,8 @@
 -type socket() :: #c2s_socket{}.
 -type state() :: term().
 -type conn_type() :: c2s | c2s_tls.
--export_type([socket/0, state/0, conn_type/0]).
+-type peercert_return() :: no_peer_cert | {error, term()} | {ok, #'Certificate'{}}.
+-export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
 
 -spec new(module(), term(), mongoose_listener:options()) -> socket().
 new(Module, SocketOpts, LOpts) ->
@@ -102,6 +106,10 @@ close(#c2s_socket{module = Module, state = State}) ->
 -spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
 send_xml(#c2s_socket{module = Module, state = State}, XML) ->
     Module:socket_send_xml(State, XML).
+
+-spec get_peer_certificate(socket(), mongoose_c2s:listener_opts()) -> peercert_return().
+get_peer_certificate(#c2s_socket{module = Module, state = State}, LOpts) ->
+    Module:get_peer_certificate(State, LOpts).
 
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
 has_peer_cert(#c2s_socket{module = Module, state = State}, LOpts) ->
