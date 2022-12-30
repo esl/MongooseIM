@@ -204,7 +204,7 @@
 -include("mongoose.hrl").
 
 %% Allowed types for arguments are integer, string, tuple and list.
--type atype() :: integer | string | binary | {tuple, [aterm()]} | {list, aterm()}.
+-type atype() :: integer | string | atom | binary | {tuple, [aterm()]} | {list, aterm()}.
 
 %% A rtype is either an atom or a tuple with two elements.
 -type rtype() :: integer | string | atom | binary | {tuple, [rterm()]}

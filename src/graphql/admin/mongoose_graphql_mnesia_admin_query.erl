@@ -8,11 +8,9 @@
 -ignore_xref([execute/4]).
 
 -include("../mongoose_graphql_types.hrl").
--include("mongoose.hrl").
--include("jlib.hrl").
 
 execute(_Ctx, mnesia, <<"systemInfo">>, #{<<"keys">> := Keys}) ->
-    ResultList = mnesia_api:mnesia_info(Keys),
+    {ok, ResultList} = mnesia_api:mnesia_info(Keys),
     {ok, lists:map(fun process_result/1, ResultList)}.
 
 process_result({ok, _} = Result) -> Result;

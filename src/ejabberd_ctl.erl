@@ -56,8 +56,8 @@
 -include("ejabberd_commands.hrl").
 -include("mongoose_logger.hrl").
 
--type format() :: integer | string | binary | {list, format()}.
--type format_type() :: binary() | string() | char().
+-type format() :: integer | string | atom | binary | {list, format()}.
+-type format_type() :: binary() | string() | char() | node().
 -type cmd() :: {CallString :: string(), Args :: [string()], Desc :: string()}.
 
 -define(ASCII_SPACE_CHARACTER, $\s).
@@ -345,8 +345,11 @@ format_arg(Arg, string) ->
 format_arg(Arg, binary) ->
     list_to_binary(format_arg(Arg, string));
 format_arg(Arg, {list, Type}) ->
-    [format_arg(Token, Type) || Token <- string:tokens(Arg, ";")].
-
+    [format_arg(Token, Type) || Token <- string:tokens(Arg, ";")];
+format_arg("self", atom) ->
+    node();
+format_arg(Arg, atom) ->
+    list_to_atom(Arg).
 
 %% @private
 -spec format_arg2(Arg :: string(),

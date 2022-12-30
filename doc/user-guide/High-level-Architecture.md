@@ -58,7 +58,7 @@ Native clients on platforms such as Android, iOS, Windows, Linux, macOS, will pr
 
 Since web clients cannot use TCP connections, they will preferably use XMPP over websockets, or the now less relevant XMPP over BOSH (using long-lived HTTP connections, more and more used as fallback).
 
-Any client could use the client REST API, which is using HTTP request/responses.
+Any client could use the client GraphQL API, which is using HTTP request/responses.
 
 All these client connections will hit a frontend load balancer before reaching the MongooseIM cluster.
 
@@ -66,7 +66,7 @@ All these client connections will hit a frontend load balancer before reaching t
 
 MongooseIM supports bilateral communication with other backend services in the datacenter infrastructure.
 
-MongooseIM REST API is available for control/management of MongooseIM's operations as well as the functional aspects.
+MongooseIM GraphQL API is available for control/management of MongooseIM's operations as well as the functional aspects.
 
 An HTTP notification enables forwarding of the events to any other external HTTP service.
 
