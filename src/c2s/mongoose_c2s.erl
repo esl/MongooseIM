@@ -17,7 +17,7 @@
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
--export([route/2, reroute_buffer/2, reroute_buffer_to_peer/3, open_session/1, close_session/3]).
+-export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1, close_session/3]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -42,14 +42,15 @@
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
--type c2s_state() :: connect
-                   | {wait_for_stream, stream_state()}
-                   | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
-                   | {wait_for_feature_after_auth, retries()}
-                   | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
-                   | wait_for_session_establishment
-                   | session_established.
--type c2s_state(State) :: c2s_state() | ?EXT_C2S_STATE(State).
+-type c2s_state(State) :: connect
+                        | {wait_for_stream, stream_state()}
+                        | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
+                        | {wait_for_feature_after_auth, retries()}
+                        | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
+                        | wait_for_session_establishment
+                        | session_established
+                        | ?EXT_C2S_STATE(State).
+-type c2s_state() :: c2s_state(term()).
 
 -type listener_opts() :: #{shaper := atom(),
                            max_stanza_size := non_neg_integer(),
@@ -176,7 +177,7 @@ handle_event(state_timeout, state_timeout_termination, _FsmState, StateData) ->
 handle_event(EventType, EventContent, C2SState, StateData) ->
     handle_foreign_event(StateData, C2SState, EventType, EventContent).
 
--spec terminate(term(), c2s_state(term()), c2s_data()) -> term().
+-spec terminate(term(), c2s_state(), c2s_data()) -> term().
 terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
@@ -613,7 +614,7 @@ verify_process_alive(StateData, C2SState, Pid) ->
                            replaced_pid => Pid, state_name => C2SState, c2s_state => StateData})
     end.
 
--spec maybe_retry_state(c2s_state(term())) -> c2s_state(term()) | {stop, term()}.
+-spec maybe_retry_state(c2s_state()) -> c2s_state() | {stop, term()}.
 maybe_retry_state(connect) -> connect;
 maybe_retry_state(wait_for_session_establishment) -> {stop, {shutdown, stream_end}};
 maybe_retry_state(session_established) -> session_established;
@@ -725,7 +726,7 @@ handle_route_packet(StateData, C2SState, _, {stop, Acc}) ->
 
 -spec handle_flush(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
 handle_flush(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
-    HookParams = hook_arg(StateData, C2SState, info, Acc, flust),
+    HookParams = hook_arg(StateData, C2SState, info, Acc, flush),
     Res = mongoose_c2s_hooks:xmpp_presend_element(HostType, Acc, HookParams),
     Acc1 = maybe_send_element(StateData, Res),
     handle_state_after_packet(StateData, C2SState, Acc1).
@@ -862,8 +863,8 @@ reroute_buffer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Buffer) -
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
     [reroute_one(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer].
 
--spec reroute_buffer_to_peer(c2s_data(), pid(), [mongoose_acc:t()]) -> term().
-reroute_buffer_to_peer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Pid, Buffer) ->
+-spec reroute_buffer_to_pid(c2s_data(), pid(), [mongoose_acc:t()]) -> term().
+reroute_buffer_to_pid(StateData = #c2s_data{host_type = HostType, jid = Jid}, Pid, Buffer) ->
     OrderedBuffer = lists:reverse(Buffer),
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
     [reroute_one_to_pid(StateData, Pid, BufferedAcc) || BufferedAcc <- FilteredBuffer].
@@ -907,7 +908,7 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec do_close_session(c2s_data(), c2s_state(term()), mongoose_acc:t(), term()) -> mongoose_acc:t().
+-spec do_close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
 do_close_session(C2SData, session_established, Acc, Reason) ->
     close_session(C2SData, Acc, Reason);
 do_close_session(C2SData, ?EXT_C2S_STATE(_), Acc, Reason) ->
@@ -953,7 +954,7 @@ new_stream_id() ->
 generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-", (mongoose_bin:gen_from_crypto())/binary>>.
 
--spec hook_arg(c2s_data(), c2s_state(term()), terminate | gen_statem:event_type(), term(), term()) ->
+-spec hook_arg(c2s_data(), c2s_state(), terminate | gen_statem:event_type(), term(), term()) ->
     mongoose_c2s_hooks:hook_params().
 hook_arg(StateData, C2SState, EventType, EventContent, Reason) ->
     #{c2s_data => StateData, c2s_state => C2SState,

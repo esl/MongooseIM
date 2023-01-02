@@ -10,8 +10,8 @@
 %% - `c2s_data': a new state data is requested for the state machine.
 %% - `stop': an action of type `{cast, {stop, Reason}}' is to be triggered.
 %% - `hard_stop': no other request is allowed, the state machine is immediatly triggered to stop.
-%% - `route': mongoose_acc elements to trigger the whole `handle_stanza_to_client' pipeline.
-%% - `flush': mongoose_acc elements to flush on the socket to the user.
+%% - `route': mongoose_acc elements to trigger the whole `handle_route' pipeline.
+%% - `flush': mongoose_acc elements to trigger the `handle_flush` pipeline.
 %% - `socket_send': xml elements to send on the socket to the user.
 -module(mongoose_c2s_acc).
 
@@ -87,18 +87,18 @@ extract_stop(Params) ->
     Params.
 
 extract_flushes(Params = #{flush := Accs}) ->
-    WithoutStop = maps:remove(flush, Params),
+    WithoutFlush = maps:remove(flush, Params),
     NewAction = [{next_event, internal, {flush, Acc}} || Acc <- Accs ],
     Fun = fun(Actions) -> NewAction ++ Actions end,
-    maps:update_with(actions, Fun, NewAction, WithoutStop);
+    maps:update_with(actions, Fun, NewAction, WithoutFlush);
 extract_flushes(Params) ->
     Params.
 
 extract_routes(Params = #{route := Accs}) ->
-    WithoutStop = maps:remove(route, Params),
+    WithoutRoute = maps:remove(route, Params),
     NewAction = [{next_event, info, {route, Acc}} || Acc <- Accs ],
     Fun = fun(Actions) -> NewAction ++ Actions end,
-    maps:update_with(actions, Fun, NewAction, WithoutStop);
+    maps:update_with(actions, Fun, NewAction, WithoutRoute);
 extract_routes(Params) ->
     Params.
 

@@ -376,7 +376,7 @@ handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType) 
     SmState#sm_state{buffer = [], buffer_size = 0}.
 
 reroute_buffer(StateData, #sm_state{buffer = Buffer, peer = {gen_statem, {Pid, _}}}) ->
-    mongoose_c2s:reroute_buffer_to_peer(StateData, Pid, Buffer);
+    mongoose_c2s:reroute_buffer_to_pid(StateData, Pid, Buffer);
 reroute_buffer(StateData, #sm_state{buffer = Buffer}) ->
     mongoose_c2s:reroute_buffer(StateData, Buffer).
 
