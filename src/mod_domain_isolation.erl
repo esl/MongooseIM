@@ -30,8 +30,7 @@ hooks(HostType) ->
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
--spec filter_local_packet(drop, _, _) -> {ok, drop};
-                         (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+-spec filter_local_packet(FPacketAcc, Params, Extra) -> {ok, FPacketAcc} | {stop, drop} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
@@ -42,8 +41,12 @@ filter_local_packet({#jid{lserver = Server}, #jid{lserver = Server}, _Acc, _Pack
 filter_local_packet({#jid{lserver = FromServer}, #jid{lserver = ToServer}, _Acc, _Packet} = FPacketAcc, _, _) ->
     FromHost = domain_to_host(FromServer),
     ToHost = domain_to_host(ToServer),
-    NewAcc = resolve_hosts(FromHost, ToHost, FPacketAcc),
-    {ok, NewAcc}.
+    case resolve_hosts(FromHost, ToHost, FPacketAcc) of
+        drop ->
+            {stop, drop};
+        FPacketAcc ->
+            {ok, FPacketAcc}
+    end.
 
 -spec resolve_hosts(Host, Host, FPacketAcc) -> FPacketAcc | drop when
     Host :: jid:lserver(),

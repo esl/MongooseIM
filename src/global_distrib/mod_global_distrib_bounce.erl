@@ -99,16 +99,14 @@ terminate(_Reason, _State) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec maybe_store_message(drop, _, _) -> {ok, drop};
-                         (FPacket, Params, Extra) -> {ok, drop} | {ok, FPacket} when
-                        FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()},
+-spec maybe_store_message(FPacket, Params, Extra) -> {ok, FPacket} | {stop, drop} when
+                        FPacket :: mongoose_hooks:filter_packet_acc(),
                         Params :: map(),
                         Extra :: map().
-maybe_store_message(drop, _, _) -> {ok, drop};
 maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
     LocalHost = opt(local_host),
     {ok, ID} = mod_global_distrib:find_metadata(Acc0, id),
-    ResultAcc = case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost},
+    case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost},
                                          opt([bounce, max_retries])) of
         0 ->
             ?LOG_DEBUG(#{what => gd_skip_store_message,
@@ -118,7 +116,7 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
                     #{what => gd_message_to_component_ttl_zero,
                       gd_id => ID, acc => Acc0}),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
-            FPacket;
+            {ok, FPacket};
         OldTTL ->
             ResendAfterMs = opt([bounce, resend_after_ms]),
             ?LOG_DEBUG(#{what => gd_store_message,
@@ -129,9 +127,8 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
             ResendAfter = erlang:convert_time_unit(ResendAfterMs, millisecond, native),
             ResendAt = erlang:monotonic_time() + ResendAfter,
             do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
-            drop
-    end,
-    {ok, ResultAcc}.
+            {stop, drop}
+    end.
 
 -spec reroute_messages(Acc, Params, Extra) -> {ok, Acc} when
                     Acc :: mongoose_acc:t(),

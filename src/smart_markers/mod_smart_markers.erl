@@ -226,16 +226,15 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_hooks:filter_packet_acc() | drop,
+-spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} | {stop, drop} when
+      Acc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
 filter_local_packet(Filter = {_From, _To, _Acc, Msg = #xmlel{name = <<"message">>}}, _, _) ->
-    NewFilter = case mongoose_chat_markers:has_chat_markers(Msg) of
-        false -> Filter;
-        true -> drop
-    end,
-    {ok, NewFilter};
+    case mongoose_chat_markers:has_chat_markers(Msg) of
+        false -> {ok, Filter};
+        true -> {stop, drop}
+    end;
 filter_local_packet(Filter, _, _) ->
     {ok, Filter}.
 
