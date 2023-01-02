@@ -1390,8 +1390,7 @@ amp_verify_support(HostType, Rules) ->
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
 filter_room_packet(HostType, Packet, EventData) ->
-    Params = #{packet => Packet, event_data => EventData},
-    run_hook_for_host_type(filter_room_packet, HostType, Packet, Params).
+    run_hook_for_host_type(filter_room_packet, HostType, Packet, EventData).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
 -spec forget_room(HostType, MucHost, Room) -> Result when
