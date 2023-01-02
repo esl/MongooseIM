@@ -36,7 +36,8 @@
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
-         build_forward_el/1,
+         build_inbox_result_elements/2,
+         build_entry_result_elements/2,
          all_valid_boxes_for_query/1,
          list_single_form_field/3,
          calculate_ts_from/2
@@ -236,11 +237,41 @@ build_inbox_entry_key(FromJid, ToJid) ->
     ToBareJid = jid:nameprep(jid:to_bare_binary(ToJid)),
     {LUser, LServer, ToBareJid}.
 
--spec build_forward_el(inbox_res()) -> exml:element().
-build_forward_el(#{msg := Content, timestamp := Timestamp}) ->
-    Delay = build_delay_el(Timestamp),
-    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-           children = [Delay, Content]}.
+-spec build_inbox_result_elements(inbox_res(), integer()) -> [exml:element()].
+build_inbox_result_elements(#{msg := Content, timestamp := Timestamp, unread_count := UnreadCount,
+                              box := Box, muted_until := MutedUntil,
+                              extra := Extra}, AccTS) ->
+    [ #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+             children = [build_delay_el(Timestamp), Content]},
+      kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
+      kv_to_el(<<"box">>, Box),
+      kv_to_el(<<"archive">>, is_archive(Box)),
+      kv_to_el(<<"mute">>, maybe_muted_until(MutedUntil, AccTS))
+      | Extra ].
+
+-spec build_entry_result_elements(entry_properties(), integer()) -> [exml:element()].
+build_entry_result_elements(#{box := Box, muted_until := MutedUntil,
+                              unread_count := UnreadCount, extra := Extra}, AccTS) ->
+    [ kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
+      kv_to_el(<<"box">>, Box), kv_to_el(<<"archive">>, is_archive(Box)),
+      kv_to_el(<<"mute">>, maybe_muted_until(MutedUntil, AccTS))
+      | Extra ].
+
+-spec kv_to_el(binary(), binary()) -> exml:element().
+kv_to_el(Key, Value) ->
+    #xmlel{name = Key, children = [#xmlcdata{content = Value}]}.
+
+-spec is_archive(binary()) -> binary().
+is_archive(<<"archive">>) -> <<"true">>;
+is_archive(_) -> <<"false">>.
+
+-spec maybe_muted_until(integer(), integer()) -> binary().
+maybe_muted_until(0, _) -> <<"0">>;
+maybe_muted_until(MutedUntil, CurrentTS) ->
+    case CurrentTS =< MutedUntil of
+        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
+        false -> <<"0">>
+    end.
 
 -spec build_delay_el(Timestamp :: integer()) -> exml:element().
 build_delay_el(Timestamp) ->

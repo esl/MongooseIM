@@ -207,9 +207,10 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Error(<<"en">>, Msg)]}};
         Params ->
             List0 = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
-            List = with_rsm(List0, Params),
-            forward_messages(Acc, List, IQ, From),
-            Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
+            List1 = with_rsm(List0, Params),
+            List2 = mongoose_hooks:extend_inbox_result(Acc, List1, IQ),
+            forward_messages(Acc, List2, IQ, From),
+            Res = IQ#iq{type = result, sub_el = [build_result_iq(List2)]},
             {Acc, Res}
     end.
 
@@ -400,16 +401,14 @@ build_inbox_message(Acc, InboxRes, IQ) ->
            children = [build_result_el(Acc, InboxRes, IQ)]}.
 
 -spec build_result_el(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
-build_result_el(Acc, InboxRes = #{unread_count := Count}, IQ = #iq{id = IqId, sub_el = QueryEl}) ->
+build_result_el(Acc, InboxRes = #{unread_count := Count}, #iq{id = IqId, sub_el = QueryEl}) ->
     AccTS = mongoose_acc:timestamp(Acc),
-    Forwarded = mod_inbox_utils:build_forward_el(InboxRes),
-    Properties = mod_inbox_entries:extensions_result(InboxRes, AccTS),
-    Extensions = mongoose_hooks:extend_inbox_message(Acc, InboxRes, IQ),
+    Children = mod_inbox_utils:build_inbox_result_elements(InboxRes, AccTS),
     #xmlel{name = <<"result">>,
            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
                     {<<"unread">>, integer_to_binary(Count)},
                     {<<"queryid">>, exml_query:attr(QueryEl, <<"queryid">>, IqId)}],
-           children = [Forwarded | Properties] ++ Extensions}.
+           children = Children}.
 
 -spec build_result_iq([inbox_res()]) -> exml:element().
 build_result_iq(List) ->

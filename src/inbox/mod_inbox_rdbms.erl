@@ -507,7 +507,8 @@ decode_row(HostType, {RemBareJID, MsgId, Box, Content, Timestamp, MutedUntil, Co
       msg => Parsed,
       timestamp => NumericTimestamp,
       muted_until => NumericMutedUntil,
-      unread_count => BCount}.
+      unread_count => BCount,
+      extra => []}.
 
 -spec decode_properties({_, _, _}) -> entry_properties().
 decode_properties({Box, BMutedUntil, BCount}) ->
@@ -515,7 +516,8 @@ decode_properties({Box, BMutedUntil, BCount}) ->
     MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
     #{box => Box,
       unread_count => Count,
-      muted_until => MutedUntil}.
+      muted_until => MutedUntil,
+      extra => []}.
 
 -spec check_result_is_expected(_, list()) -> mod_inbox:write_res().
 check_result_is_expected({updated, Val}, ValList) when is_list(ValList) ->
