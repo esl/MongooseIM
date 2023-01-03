@@ -231,24 +231,38 @@ parse_request(_) ->
 parse_form(undefined) ->
     [];
 parse_form(Form) ->
-    IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
-
-    FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>),
-               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
-    {[{_, FormType}], CustomFields} = lists:partition(
-                                        fun({Name, _}) ->
-                                                Name == <<"FORM_TYPE">>
-                                        end, Fields),
-    IsFormTypeCorrect = ?NS_PUBSUB_PUB_OPTIONS == FormType,
-
-    case IsForm andalso IsSubmit andalso IsFormTypeCorrect of
+    case is_valid_form(Form) of
         true ->
-            CustomFields;
+            parse_form_fields(Form);
         false ->
             invalid_form
     end.
+
+-spec is_valid_form(exml:element()) -> boolean().
+is_valid_form(Form) ->
+    IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
+    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
+    IsForm andalso IsSubmit.
+
+-spec parse_form_fields(exml:element()) -> invalid_form | form().
+parse_form_fields(Form) ->
+    FieldsXML = exml_query:subelements(Form, <<"field">>),
+    Fields = [{exml_query:attr(Field, <<"var">>),
+               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
+    case lists:keytake(<<"FORM_TYPE">>, 1, Fields) of
+        {value, {_, ?NS_PUBSUB_PUB_OPTIONS}, CustomFields} ->
+            case are_form_fields_valid(CustomFields) of
+                true ->
+                    CustomFields;
+                false ->
+                    invalid_form
+            end;
+        _ ->
+            invalid_form
+    end.
+
+are_form_fields_valid(Fields) ->
+    lists:all(fun({Key, Value}) -> is_binary(Key) andalso is_binary(Value) end, Fields).
 
 -spec enable_node(mongooseim:host_type(), jid:jid(), jid:jid(), pubsub_node(), form()) ->
     ok | {error, Reason :: term()}.
