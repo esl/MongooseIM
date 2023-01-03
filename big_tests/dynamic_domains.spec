@@ -100,11 +100,11 @@
 
 {suites, "tests", mongooseimctl_SUITE}.
 
-% {suites, "tests", muc_SUITE}.
-% {skip_groups, "tests", muc_SUITE,
-%  [register_over_s2s],
-%  "at the moment S2S doesn't support dynamic domains "
-%  "(requires mod_register creating CT users)"}.
+{suites, "tests", muc_SUITE}.
+{skip_groups, "tests", muc_SUITE,
+ [register_over_s2s],
+ "at the moment S2S doesn't support dynamic domains "
+ "(requires mod_register creating CT users)"}.
 
 {suites, "tests", muc_http_api_SUITE}.
 
