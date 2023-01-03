@@ -729,7 +729,9 @@ remove_roster(Config, UserSpec) ->
     case lists:member(mod_roster, Mods) of
         true ->
             Acc = mongoose_helper:new_mongoose_acc(Server),
-            rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]);
+            Extra = #{host_type => host_type()},
+            Params = #{jid => jid:make_bare(Username, Server)},
+            rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]);
         false ->
             case lists:member(mod_roster_rdbms, Mods) of
                 true ->
