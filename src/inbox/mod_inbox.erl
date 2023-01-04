@@ -279,8 +279,7 @@ inbox_unread_count(Acc, #{user := User}, _) ->
     NewAcc = get_inbox_unread(Res, Acc, User),
     {ok, NewAcc}.
 
--spec filter_local_packet(drop, _, _) -> {ok, drop};
-                         (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+-spec filter_local_packet(FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
