@@ -15,10 +15,10 @@ Allow admin to backup, dump, load, restore and modify mnesia database
 """
 type MnesiaAdminMutation @protected{
   "Set mnesia's master node"
-  setMaster(node: String!): String
+  setMaster(node: NodeName!): String
     @protected(type: GLOBAL)
   "Change nodename from 'fromString' to 'toString' in 'source' backup file and create new 'target' backup file"
-  changeNodename(fromString: String!, toString: String!,
+  changeNodename(fromString: NodeName!, toString: NodeName!,
                  source: String!, target: String!): String
     @protected(type: GLOBAL)
   "Save mnesia backup to file 'path'"

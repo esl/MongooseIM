@@ -263,6 +263,12 @@ enable_should_fail_with_invalid_attributes(Config) ->
             escalus:send(Bob, enable_stanza(PubsubJID, <<>>)),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
+
+            %% Missing value
+            escalus:send(Bob, enable_stanza(PubsubJID, <<"nodeId">>,
+                                            [{<<"secret1">>, undefined}])),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Bob)),
             ok
         end).
 

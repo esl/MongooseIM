@@ -1419,7 +1419,7 @@ rpc_stop_hook_handler(HookExtra, HostType) ->
     gen_hook:delete_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, HookExtra, 1).
 
 hook_handler_fn(Acc,
-                #{args := [_HostType, User, _Stored]} = _Params,
+                #{jid := User} = _Params,
                 #{test_case_pid := Pid} = _Extra) ->
     Pid ! {input, User#jid.luser},
     {ok, Acc}.

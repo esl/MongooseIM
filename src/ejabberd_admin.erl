@@ -117,11 +117,11 @@ commands() ->
                         longdesc = "If you provide as nodename \"self\", this "
                         "node will be set as its own master.",
                         module = mnesia_api, function = set_master,
-                        args = [{nodename, string}], result = {res, restuple}},
+                        args = [{nodename, atom}], result = {res, restuple}},
      #ejabberd_commands{name = mnesia_change_nodename, tags = [mnesia],
                         desc = "Change the erlang node name in a backup file",
                         module = mnesia_api, function = mnesia_change_nodename,
-                        args = [{oldnodename, string}, {newnodename, string},
+                        args = [{oldnodename, atom}, {newnodename, atom},
                                 {oldbackup, string}, {newbackup, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = backup, tags = [mnesia],

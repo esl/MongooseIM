@@ -43,11 +43,10 @@ delete_hooks(HostType) ->
 %%--------------------------------------------------------------------
 %% Hook callbacks
 %%--------------------------------------------------------------------
--type routing_data() :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
--spec filter_local_packet(drop, _, _) -> {ok, drop};
-                         (routing_data(), _, _) -> {ok, routing_data()}.
-filter_local_packet(drop, _, _) ->
-    {ok, drop};
+-spec filter_local_packet(Acc, Args, Extra) -> {ok, Acc} when
+      Acc :: mongoose_hooks:filter_packet_acc(),
+      Args :: map(),
+      Extra :: gen_hook:extra().
 filter_local_packet({From, To, Acc0, Packet}, _, _) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;

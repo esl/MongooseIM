@@ -125,7 +125,7 @@ and `mod_roster` removes the user's roster from the database.
 ## `node_cleanup`
 
 ```erlang
-ejabberd_hooks:run(node_cleanup, [Node])
+mongoose_hooks:node_cleanup(Node)
 ```
 
 `node_cleanup` is run by a `mongooseim_cleaner` process which subscribes to `nodedown` messages.

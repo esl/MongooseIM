@@ -151,9 +151,9 @@ disco_muc_features(Acc, _Params, _Extra) ->
 %% @doc Handle public MUC-message.
 -spec filter_room_packet(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: exml:element(),
-    Params :: map(),
+    Params :: mod_muc:room_event_data(),
     Extra :: gen_hook:extra().
-filter_room_packet(Packet, #{event_data := #{} = EventData}, #{host_type := HostType}) ->
+filter_room_packet(Packet, EventData, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
     IsArchivable = is_archivable_message(HostType, incoming, Packet),
