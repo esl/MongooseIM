@@ -7,7 +7,6 @@
 % Inbox extensions
 -export([process_iq_conversation/5]).
 -export([should_be_stored_in_inbox/1]).
--export([extensions_result/2]).
 
 -type entry_query() :: #{box => binary(),
                          unread_count => 0 | 1,
@@ -79,11 +78,11 @@ get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
     case fetch_right_query(HostType, InboxEntryKey, QueryType) of
         [] -> return_error(Acc, IQ, item_not_found, <<"Entry not found">>);
         Result ->
-            Properties = build_result(Acc, Result, IQ, QueryType),
+            Children = build_query_children(Acc, Result, IQ, QueryType),
             X = [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
                                  {<<"jid">>, BinEntryJID}],
-                        children = Properties}],
+                        children = Children}],
             {Acc, IQ#iq{type = result, sub_el = X}}
     end.
 
@@ -122,9 +121,9 @@ process_requests(Acc, IQ, From, EntryJID, Params) ->
 -spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties()) ->
     {mongoose_acc:t(), jlib:iq()}.
 forward_result(Acc, IQ = #iq{id = IqId}, From, {_, _, ToBareJidBin}, Result) ->
-    Properties = build_result(Acc, Result, IQ, only_properties),
-    Children = iq_x_wrapper(IQ, ToBareJidBin, Properties),
-    Msg = #xmlel{name = <<"message">>, attrs = [{<<"id">>, IqId}], children = Children},
+    Children0 = build_query_children(Acc, Result, IQ, only_properties),
+    Children1 = iq_x_wrapper(IQ, ToBareJidBin, Children0),
+    Msg = #xmlel{name = <<"message">>, attrs = [{<<"id">>, IqId}], children = Children1},
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
     Res = IQ#iq{type = result, sub_el = []},
     {Acc1, Res}.
@@ -157,19 +156,15 @@ process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec build_result(mongoose_acc:t(), inbox_res() | entry_properties(), jlib:iq(), get_entry_type()) ->
+-spec build_query_children(mongoose_acc:t(), inbox_res() | entry_properties(), jlib:iq(), get_entry_type()) ->
     [exml:element()].
-build_result(Acc, Entry = #{unread_count := UnreadCount}, IQ, QueryType) ->
+build_query_children(Acc, Entry0, IQ, full_entry) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
-    maybe_full_entry(Acc, Entry, IQ, QueryType) ++
-    [ kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount))
-      | extensions_result(Entry, CurrentTS)].
-
-maybe_full_entry(Acc, Entry, IQ, full_entry) ->
-    Extensions = mongoose_hooks:extend_inbox_message(Acc, Entry, IQ),
-    [ mod_inbox_utils:build_forward_el(Entry) | Extensions];
-maybe_full_entry(_, _, _, _) ->
-    [].
+    [Entry1] = mongoose_hooks:extend_inbox_result(Acc, [Entry0], IQ),
+    mod_inbox_utils:build_inbox_result_elements(Entry1, CurrentTS);
+build_query_children(Acc, Entry, _IQ, only_properties) ->
+    CurrentTS = mongoose_acc:timestamp(Acc),
+    mod_inbox_utils:build_entry_result_elements(Entry, CurrentTS).
 
 -spec return_error(mongoose_acc:t(), jlib:iq(), bad_request | item_not_found, binary()) ->
     {mongoose_acc:t(), jlib:iq()}.
@@ -222,25 +217,4 @@ is_inbox_update(Msg) ->
     case exml_query:subelement_with_ns(Msg, ?NS_ESL_INBOX_CONVERSATION, undefined) of
         undefined -> false;
         _ -> true
-    end.
-
--spec extensions_result(entry_properties(), integer()) -> [exml:element()].
-extensions_result(#{box := Box, muted_until := MutedUntil}, AccTS) ->
-    [ kv_to_el(<<"box">>, Box),
-      kv_to_el(<<"archive">>, is_archive(Box)),
-      kv_to_el(<<"mute">>, maybe_muted_until(MutedUntil, AccTS))].
-
--spec kv_to_el(binary(), binary()) -> exml:element().
-kv_to_el(Key, Value) ->
-    #xmlel{name = Key, children = [#xmlcdata{content = Value}]}.
-
-is_archive(<<"archive">>) -> <<"true">>;
-is_archive(_) -> <<"false">>.
-
--spec maybe_muted_until(integer(), integer()) -> binary().
-maybe_muted_until(0, _) -> <<"0">>;
-maybe_muted_until(MutedUntil, CurrentTS) ->
-    case CurrentTS =< MutedUntil of
-        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
-        false -> <<"0">>
     end.

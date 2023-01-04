@@ -17,7 +17,7 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
-         extend_inbox_message/3,
+         extend_inbox_result/3,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
@@ -257,12 +257,12 @@ inbox_unread_count(LServer, Acc, User) ->
     Params = #{user => User},
     run_hook_for_host_type(inbox_unread_count, LServer, Acc, Params).
 
--spec extend_inbox_message(mongoose_acc:t(), mod_inbox:inbox_res(), jlib:iq()) ->
-    [exml:element()].
-extend_inbox_message(MongooseAcc, InboxRes, IQ) ->
+-spec extend_inbox_result(mongoose_acc:t(), [mod_inbox:inbox_res()], jlib:iq()) ->
+    [mod_inbox:inbox_res()].
+extend_inbox_result(MongooseAcc, InboxResults, IQ) ->
     HostType = mongoose_acc:host_type(MongooseAcc),
-    HookParams = #{mongoose_acc => MongooseAcc, inbox_res => InboxRes, iq => IQ},
-    run_hook_for_host_type(extend_inbox_message, HostType, [], HookParams).
+    HookParams = #{mongoose_acc => MongooseAcc, iq => IQ},
+    run_hook_for_host_type(extend_inbox_result, HostType, InboxResults, HookParams).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(HostType, KeyName) -> Result when
@@ -1276,8 +1276,7 @@ amp_verify_support(HostType, Rules) ->
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
 filter_room_packet(HostType, Packet, EventData) ->
-    Params = #{packet => Packet, event_data => EventData},
-    run_hook_for_host_type(filter_room_packet, HostType, Packet, Params).
+    run_hook_for_host_type(filter_room_packet, HostType, Packet, EventData).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
 -spec forget_room(HostType, MucHost, Room) -> Result when

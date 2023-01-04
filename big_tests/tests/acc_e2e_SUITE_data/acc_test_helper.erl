@@ -16,18 +16,17 @@ test_save_acc(#{ stanza := #{ type := <<"chat">>} } = Acc, _, _) ->
     {ok, Acc2};
 test_save_acc(Acc, _, _) -> {ok, Acc}.
 
--spec test_check_acc(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_hooks:filter_packet_acc() | drop,
+-spec test_check_acc(Acc, Params, Extra) -> {ok, Acc} | {stop, drop} when
+    Acc :: mongoose_hooks:filter_packet_acc(),
     Params :: map(),
     Extra :: map().
 test_check_acc({F, T, #{ stanza := #{ type := <<"chat">> } } = Acc, P}, _, _) ->
-    NewAcc = try
+    try
         check_acc(Acc),
-        {F, T, Acc, P}
+        {ok, {F, T, Acc, P}}
     catch error:{badmatch, _} ->
-        drop
-    end,
-    {ok, NewAcc};
+        {stop, drop}
+    end;
 test_check_acc(Acc, _, _) ->
     {ok, Acc}.
 

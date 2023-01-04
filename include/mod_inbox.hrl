@@ -8,8 +8,11 @@
                        timestamp := integer(),
                        muted_until := integer(),
                        unread_count := integer(),
-                       box := binary()}.
+                       box := binary(),
+                       extra := [exml:element()]}.
 
 -type entry_properties() :: #{muted_until := integer(),
                               unread_count := integer(),
-                              box := binary()} | inbox_res().
+                              box := binary(),
+                              extra := [exml:element()]}
+                            | inbox_res().

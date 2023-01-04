@@ -4,6 +4,7 @@ all: test
 # user overridable
 TESTSPEC ?= default.spec
 PRESET   ?= all
+CT_HOOKS ?=
 PREPARE  ?= prepare
 ADD_OPTS ?= -sasl sasl_error_logger false -lager handlers []
 TLS_DIST ?= false
@@ -55,7 +56,7 @@ cover_quicktest: $(PREPARE)
 
 cover_test_preset: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
-			-s run_common_test main test=full spec=$(TESTSPEC) \
+			-s run_common_test main test=full spec=$(TESTSPEC) hooks=$(CT_HOOKS) \
 			preset="$(PRESET)" cover=true
 
 cover_test: $(PREPARE)
@@ -64,7 +65,8 @@ cover_test: $(PREPARE)
 
 test_preset: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
-			-s run_common_test main test=full spec=$(TESTSPEC) preset="$(PRESET)"
+			-s run_common_test main test=full spec=$(TESTSPEC) hooks=$(CT_HOOKS) \
+                        preset="$(PRESET)"
 
 test: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \

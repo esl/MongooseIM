@@ -189,13 +189,10 @@ user_send_packet(Acc, _, _) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--spec filter_packet(drop, _, _) -> {ok, drop};
-                   (FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
+-spec filter_packet(FPacketAcc, Params, Extra) -> {ok, FPacketAcc} when
       FPacketAcc :: mongoose_hooks:filter_packet_acc(),
       Params :: map(),
       Extra :: gen_hook:extra().
-filter_packet(drop, _, _) ->
-    {ok, drop};
 filter_packet({From, To, Acc1, Packet}, _, _) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),

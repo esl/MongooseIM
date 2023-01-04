@@ -35,7 +35,8 @@
 -record(opts, {test,
                spec,
                cover,
-               preset = all}).
+               preset = all,
+               hooks}).
 
 %% Accepted options formatted as:
 %% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
@@ -44,7 +45,8 @@ opts() ->
     [{test,   #opts.test,   fun quick_or_full/1},
      {spec,   #opts.spec,   fun list_to_atom/1},
      {cover,  #opts.cover,  fun bool_or_module_list/1},
-     {preset, #opts.preset, fun preset/1}].
+     {preset, #opts.preset, fun preset/1},
+     {hooks,  #opts.hooks,  fun module_list/1}].
 
 %% Raw args are 'key=val' atoms.
 %% Args are {key :: atom(), val :: string()} pairs.
@@ -84,13 +86,14 @@ init() ->
 
 run(#opts{test = quick, cover = Cover, spec = Spec}) ->
     do_run_quick_test(tests_to_run(Spec), Cover);
-run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
-    run_test(tests_to_run(Spec), case Preset of
-                                     all -> all;
-                                     undefined -> all;
-                                     _ when is_list(Preset) -> Preset;
-                                     _   -> [Preset]
-                                 end, Cover).
+run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover, hooks = HookModules}) ->
+    run_test(tests_to_run(Spec) ++ ct_hooks(HookModules),
+             case Preset of
+                 all -> all;
+                 undefined -> all;
+                 _ when is_list(Preset) -> Preset;
+                 _   -> [Preset]
+             end, Cover).
 
 apply_preset_enabled(#opts{} = Opts) ->
     case os:getenv("PRESET_ENABLED") of
@@ -149,6 +152,11 @@ tests_to_run(TestSpec) ->
     [
      {spec, TestSpecFile}
     ] ++ ct_opts().
+
+ct_hooks([]) ->
+    [];
+ct_hooks(HookModules) ->
+    [{ct_hooks, HookModules}].
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -476,10 +484,17 @@ get_cover_header() ->
 
 bool_or_module_list("true") ->
     true;
+bool_or_module_list("false") ->
+    false;
+bool_or_module_list(undefined) ->
+    false;
 bool_or_module_list(ModuleList) when is_list(ModuleList) ->
-    [ list_to_atom(L) || L <- string:tokens("asd,qwe,zxc", ",") ];
-bool_or_module_list(_) ->
-    false.
+    module_list(ModuleList).
+
+module_list(undefined) ->
+    [];
+module_list(ModuleList) ->
+    [ list_to_atom(L) || L <- string:tokens(ModuleList, ", ") ].
 
 modules_to_analyze(true) ->
     lists:usort(cover:imported_modules() ++ cover:modules());

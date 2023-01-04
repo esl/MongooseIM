@@ -1,3 +1,89 @@
+# [MongooseIM 6.0.0](https://github.com/esl/MongooseIM/releases/tag/6.0.0) - 2022-12-19
+
+## Highlights
+
+- GraphQL API and Command Line Interface (CLI) with many new commands
+- Unified and reworked REST API
+- Incremental and asynchronous dynamic domain deletion
+- Full pagination support with RSM for Inbox
+- Significant code refactoring
+- Various improvements and fixes
+
+## All changes
+
+### Added
+- GraphQL request handling and execution (#3354, #3442, #3454, #3515, #3633, #3642, #3646 #3648, #3689, #3719, #3803, #3822, #3830, #3894)
+- GraphQL API schema and types (#3448, #3506, #3731, #3856, #3862, #3767)
+- GraphQL API tests (#3745, #3474, #3709, #3718, #3720, #3730, #3736, #3740)
+- GraphQL command implementation for the following categories:
+  - account (#3503, #3824, #3895)
+  - domain (#3499, #3715, #3851)
+  - gdpr (#3711, #3855)
+  - httpUpload (#3674, #3868)
+  - inbox (#3694)
+  - last (#3651, #3850)
+  - metrics (#3665, #3861)
+  - mnesia (#3725, #3896)
+  - muc (#3615, #3627, #3799, #3875)
+  - muc_light (#3538, #3563, #3563, #3576, #3742, #3881)
+  - offline (#3688, #3864)
+  - private (#3652, #3891)
+  - roster (#3586, #3756, #3873)
+  - server (#3744, #3793, #3877)
+  - session (#3521, #3883)
+  - stanza (#3483, #3565, #3814)
+  - stat (#3700, #3715, #3870)
+  - token (#3713, #3863)
+  - vcard (#3639, #3890)
+- GraphQL CLI (Command Line Interface) (#3701, #3702, #3708, #3710, #3714, #3724, #3739)
+- GraphQL API documentation (#3704, #3773)
+- Incremental and asynchronous domain deletion (#3774, #3775, #3777, #3813, #3889)
+- Full pagination support for Inbox (#3827, #3843, #3844)
+
+### Removed
+- Legacy hooks module (#3892)
+- Legacy REST API command registry (#3697, #3759)
+
+### Changed
+- Replaced legacy hooks and handlers with `gen_hook` (#3758, #3760, #3762, #3763, #3769, #3782, #3784, #3789, #3792, #3798, #3802, #3807, #3808, #3811, #3815, #3817, #3818, #3821, #3825, #3826, #3828, #3829, #3831, #3832, #3833, #3834, #3835, #3836, #3837, #3838, #3839, #3840, #3841, #3842, #3846, #3847, #3848, #3849, #3853, #3854, #3865, #3866, #3867, #3871, #3874, #3876, #3879, #3884, #3886, #3887)
+- Reworked and unified REST API (#3741, #3753, #3768, #3771, #3776, #3780, #3801)
+- Performance improvements (#3682, #3687, #3726, #3738, #3761)
+- Added missing metrics (#3678)
+- Improved configurability (#3728, #3733)
+- MAM module names made more intuitive (#3684)
+- Improved DB request aggregation (#3755)
+- Improved logging (#3885)
+- Minor refactoring (#3732, #3764, #3809)
+
+### Fixed
+- Cassandra authentication issue (#3872)
+- Message sent to oneself was stored twice (#3859)
+- DB aggregator could stop working after an error (#3757)
+- Unexpected errors in logs (#3695, #3743)
+- Minor issues with MAM result paging (#3734)
+- Incorrect optimization flags passed to asynchronous workers (#3727)
+- Invalid format of the JWT secret (#3716)
+- Persistent rooms were not stored in the DB (#3707)
+- Issues with the anonymous login (#3706)
+
+### Other
+- Updated documentation (#3424, #3675, #3677, #3679, #3766, #3794, #3869, #3893, #3900, #3902, #3903)
+- Updated tools and scripts (#3698, #3723, #3737, #3897)
+- Updated dependencies and other third-party software (#3683, #3699, #3779, #3820, #3823, #3898)
+- Improved CI process (#3680, #3686, #3676)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.0.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2022-06-09..2022-12-19)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2022-06-08&to=2022-12-19&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222022-06-08..2022-12-19%22+sort%3Acreated-asc+)
+
+## Special thanks to our contributors:
+- [@theowenyoung](https://github.com/theowenyoung) Add XEP-0333 Docs (#3424)
+
 # [MongooseIM 5.1.0](https://github.com/esl/MongooseIM/releases/tag/5.1.0) - 2022-06-08
 
 ## Highlights
@@ -240,7 +326,7 @@
 
 - [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2021-10-08&to=2022-06-08&type=c)
 
-[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222021-10-08..2022-06-08%22+sort%3Acreated-asc+)
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222021-10-08..2022-06-08%22+sort%3Acreated-asc+)
 
 ## Special thanks to our contributors:
 - [@kianmeng](https://github.com/kianmeng) Fix typos in doc (#3545)
