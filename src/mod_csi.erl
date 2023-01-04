@@ -147,7 +147,12 @@ reroute_unacked_messages(Acc, #{c2s_data := C2SData}, _) ->
 handle_csi_request(Acc, Params, #xmlel{name = <<"inactive">>}) ->
     handle_inactive_request(Acc, Params);
 handle_csi_request(Acc, Params, #xmlel{name = <<"active">>}) ->
-    handle_active_request(Acc, Params).
+    handle_active_request(Acc, Params);
+handle_csi_request(Acc, _, _) ->
+    {From, To, El} = mongoose_acc:packet(Acc),
+    Error = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
+    ErrorAcc = mongoose_acc:update_stanza(#{from_jid => From, to_jid => To, element => Error }, Acc),
+    mongoose_c2s_acc:to_acc(Acc, route, ErrorAcc).
 
 -spec handle_inactive_request(mongoose_acc:t(), mongoose_c2s_hooks:params()) -> mongoose_acc:t().
 handle_inactive_request(Acc, #{c2s_data := C2SData} = _Params) ->

@@ -28,7 +28,8 @@ all_tests() ->
      alice_gets_buffered_messages_after_reconnection_with_sm,
      alice_gets_buffered_messages_after_stream_resumption,
      bob_gets_msgs_from_inactive_alice,
-     alice_is_inactive_but_sends_sm_req_and_recives_ack
+     alice_is_inactive_but_sends_sm_req_and_recives_ack,
+     invalid_csi_request_returns_error
     ].
 
 suite() ->
@@ -64,6 +65,13 @@ server_announces_csi(Config) ->
     Steps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind, session],
     {ok, _Client, Features} = escalus_connection:start(Spec, Steps),
     true = proplists:get_value(client_state_indication, Features).
+
+invalid_csi_request_returns_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        escalus:send(Alice, csi_stanza(<<"invalid">>)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Stanza)
+    end).
 
 alice_is_inactive_and_no_stanza_arrived(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
