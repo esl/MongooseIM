@@ -60,6 +60,8 @@ make_form(Fields) ->
     #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
            children = [make_form_field(Name, Value) || {Name, Value} <- Fields]}.
 
+make_form_field(Name, undefined) ->
+    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Name}]};
 make_form_field(Name, Value) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
