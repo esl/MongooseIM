@@ -149,7 +149,7 @@ user_send_packet(Acc, _Params, #{host_type := HostType}) ->
     Action = {{timeout, ping}, Interval, fun ping_c2s_handler/2},
     {ok, mongoose_c2s_acc:to_acc(Acc, actions, Action)}.
 
--spec ping_c2s_handler(atom(), mongoose_c2s:state()) -> mongoose_c2s_acc:t().
+-spec ping_c2s_handler(atom(), mongoose_c2s:data()) -> mongoose_c2s_acc:t().
 ping_c2s_handler(ping, StateData) ->
     HostType = mongoose_c2s:get_host_type(StateData),
     Interval = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),

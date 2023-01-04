@@ -53,7 +53,7 @@
 
 -type sm_state() :: #sm_state{}.
 -type maybe_sm_state() :: {error, not_found} | #sm_state{}.
--type c2s_state() :: mongoose_c2s:c2s_state(resume_session).
+-type c2s_state() :: mongoose_c2s:state(resume_session).
 
 -type buffer_max() :: pos_integer() | infinity | no_buffer.
 -type ack_freq() :: pos_integer() | never.
@@ -321,7 +321,7 @@ handle_user_stopping(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}
     end.
 
--spec notify_unacknowledged_messages(mongoose_acc:t(), mongoose_c2s:c2s_data(), sm_state()) ->
+-spec notify_unacknowledged_messages(mongoose_acc:t(), mongoose_c2s:data(), sm_state()) ->
     sm_state().
 notify_unacknowledged_messages(_, StateData, #sm_state{buffer = Buffer} = SmState) ->
     Jid = mongoose_c2s:get_jid(StateData),
@@ -354,7 +354,7 @@ user_terminate(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 -spec maybe_handle_stream_mgmt_reroute(
-        mongoose_acc:t(), mongoose_c2s:c2s_data(), mongooseim:host_type(), term(), maybe_sm_state()) ->
+        mongoose_acc:t(), mongoose_c2s:data(), mongooseim:host_type(), term(), maybe_sm_state()) ->
     mongoose_c2s_hooks:result().
 maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{counter_in = H} = SmState)
   when ?IS_STREAM_MGMT_STOP(Reason) ->
@@ -368,7 +368,7 @@ maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, _Reason, #sm_state{} 
 maybe_handle_stream_mgmt_reroute(Acc, _StateData, _HostType, _Reason, {error, not_found}) ->
     {ok, Acc}.
 
--spec handle_user_terminate(sm_state(), mongoose_c2s:c2s_data(), mongooseim:host_type()) -> sm_state().
+-spec handle_user_terminate(sm_state(), mongoose_c2s:data(), mongooseim:host_type()) -> sm_state().
 handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType) ->
     Sid = mongoose_c2s:get_sid(StateData),
     do_remove_smid(HostType, Sid, H),
@@ -380,7 +380,7 @@ reroute_buffer(StateData, #sm_state{buffer = Buffer, peer = {gen_statem, {Pid, _
 reroute_buffer(StateData, #sm_state{buffer = Buffer}) ->
     mongoose_c2s:reroute_buffer(StateData, Buffer).
 
--spec terminate(term(), c2s_state(), mongoose_c2s:c2s_data()) -> term().
+-spec terminate(term(), c2s_state(), mongoose_c2s:data()) -> term().
 terminate(Reason, C2SState, StateData) ->
     ?LOG_DEBUG(#{what => stream_mgmt_statem_terminate, reason => Reason,
                  c2s_state => C2SState, c2s_data => StateData}),
@@ -432,7 +432,7 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
             finish_handle_a(StateData, Acc, HandledAck)
     end.
 
--spec finish_handle_a(mongoose_c2s:c2s_data(), mongoose_acc:t(), sm_state() | {error, term()}) ->
+-spec finish_handle_a(mongoose_c2s:data(), mongoose_acc:t(), sm_state() | {error, term()}) ->
     mongoose_c2s_hooks:result().
 finish_handle_a(StateData, Acc, {error, ErrorStanza, Reason}) ->
     mongoose_c2s:c2s_stream_error(StateData, ErrorStanza),
@@ -487,7 +487,7 @@ handle_enable(Acc, #{c2s_data := StateData}, El) ->
             stream_error(Acc, StateData)
     end.
 
--spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:c2s_data(), boolean()) ->
+-spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:data(), boolean()) ->
     mongoose_c2s_hooks:result().
 do_handle_enable(Acc, StateData, false) ->
     Stanza = stream_mgmt_enabled(),
@@ -525,7 +525,7 @@ handle_resume(Acc, #{c2s_state := C2SState, c2s_data := StateData}, El) ->
 %% This runs on the new process
 -spec do_handle_resume(Acc, StateData, C2SState, SMID, H, FromSMID) -> HookResult when
       Acc :: mongoose_acc:t(),
-      StateData :: mongoose_c2s:c2s_data(),
+      StateData :: mongoose_c2s:data(),
       C2SState :: c2s_state(),
       SMID :: smid(),
       H :: non_neg_integer(),
@@ -560,7 +560,7 @@ do_handle_resume(Acc, StateData, C2SState, SMID, _H, {error, smid_not_found}) ->
 %% This runs on the new process
 -spec do_resume(Acc, StateData, SMID) -> HookResult when
       Acc :: mongoose_acc:t(),
-      StateData :: mongoose_c2s:c2s_data(),
+      StateData :: mongoose_c2s:data(),
       SMID :: smid(),
       HookResult :: mongoose_c2s_hooks:result().
 do_resume(Acc, StateData, SMID) ->
@@ -575,7 +575,7 @@ register_smid(StateData, SMID) ->
     HostType = mongoose_c2s:get_host_type(StateData),
     ok = register_smid(HostType, SMID, Sid).
 
--spec get_all_stanzas_to_forward(mongoose_c2s:c2s_data(), smid()) -> [exml:element()].
+-spec get_all_stanzas_to_forward(mongoose_c2s:data(), smid()) -> [exml:element()].
 get_all_stanzas_to_forward(StateData, SMID) ->
     #sm_state{counter_in = Counter, buffer = Buffer} = get_mod_state(StateData),
     Resumed = stream_mgmt_resumed(SMID, Counter),
@@ -610,7 +610,7 @@ maybe_add_timestamp(Packet, _StanzaName, _StanzaType, _TS, _FromServer) ->
 %% But we don't force developers to set both of them, so we should correctly
 %% process stanzas, that have only one properly set.
 %% "Incoming" means that stanza is coming from ejabberd_router.
--spec is_conflict_incoming_acc(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
+-spec is_conflict_incoming_acc(mongoose_acc:t(), mongoose_c2s:data()) -> boolean().
 is_conflict_incoming_acc(Acc, StateData) ->
     OriginJid = mongoose_acc:get(c2s, origin_jid, undefined, Acc),
     OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
@@ -635,7 +635,7 @@ maybe_get_resumed_from_sid(#sm_state{peer = {sid, ResumedFrom}}) ->
 maybe_get_resumed_from_sid(_) ->
     undefined.
 
--spec is_conflict_receiver_sid(mongoose_acc:t(), mongoose_c2s:c2s_data()) -> boolean().
+-spec is_conflict_receiver_sid(mongoose_acc:t(), mongoose_c2s:data()) -> boolean().
 is_conflict_receiver_sid(Acc, StateData) ->
     StateSid = mongoose_c2s:get_sid(StateData),
     AccSid = mongoose_acc:get(c2s, receiver_sid, StateSid, Acc),
@@ -647,21 +647,21 @@ bad_request(Acc) ->
     Err = stream_mgmt_failed(<<"bad-request">>),
     {stop, mongoose_c2s_acc:to_acc(Acc, socket_send, Err)}.
 
--spec stream_error(mongoose_acc:t(), mongoose_c2s:c2s_data()) ->
+-spec stream_error(mongoose_acc:t(), mongoose_c2s:data()) ->
     {stop, mongoose_acc:t()}.
 stream_error(Acc, StateData) ->
     Err = stream_mgmt_failed(<<"unexpected-request">>),
     mongoose_c2s:c2s_stream_error(StateData, Err),
     {stop, mongoose_c2s_acc:to_acc(Acc, stop, {shutdown, stream_error})}.
 
--spec unexpected_sm_request(mongoose_acc:t(), mongoose_c2s:c2s_data(), c2s_state()) ->
+-spec unexpected_sm_request(mongoose_acc:t(), mongoose_c2s:data(), c2s_state()) ->
     {stop, mongoose_acc:t()}.
 unexpected_sm_request(Acc, StateData, C2SState) ->
     Err = stream_mgmt_failed(<<"unexpected-request">>),
     stream_mgmt_error(Acc, StateData, C2SState, Err).
 
 -spec stream_mgmt_error(
-        mongoose_acc:t(), mongoose_c2s:c2s_data(), c2s_state(), exml:element()) ->
+        mongoose_acc:t(), mongoose_c2s:data(), c2s_state(), exml:element()) ->
     {stop, mongoose_acc:t()}.
 stream_mgmt_error(Acc, _StateData, C2SState, Err) ->
     case mongoose_c2s:maybe_retry_state(C2SState) of
@@ -678,7 +678,7 @@ build_sm_handler(HostType) ->
     AckFreq = get_ack_freq(HostType),
     #sm_state{buffer_max = BufferMax, ack_freq = AckFreq}.
 
--spec get_mod_state(mongoose_c2s:c2s_data()) -> maybe_sm_state().
+-spec get_mod_state(mongoose_c2s:data()) -> maybe_sm_state().
 get_mod_state(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {ok, State} -> State;
@@ -686,7 +686,7 @@ get_mod_state(StateData) ->
     end.
 
 -spec get_peer_state(pid(), non_neg_integer()) ->
-    {ok, mongoose_c2s:c2s_data()} | {error, exml:element(), term()} | {exception, tuple()}.
+    {ok, mongoose_c2s:data()} | {error, exml:element(), term()} | {exception, tuple()}.
 get_peer_state(Pid, H) ->
     try
         gen_statem:call(Pid, {stream_mgmt_resume, H}, 5000)
@@ -750,11 +750,11 @@ do_remove_smid(HostType, Sid, H) ->
 callback_mode() ->
     handle_event_function.
 
--spec init(term()) -> gen_statem:init_result(c2s_state(), mongoose_c2s:c2s_data()).
+-spec init(term()) -> gen_statem:init_result(c2s_state(), mongoose_c2s:data()).
 init(_) ->
     {stop, this_should_have_never_been_called}.
 
--spec handle_event(gen_statem:event_type(), term(), c2s_state(), mongoose_c2s:c2s_data()) ->
+-spec handle_event(gen_statem:event_type(), term(), c2s_state(), mongoose_c2s:data()) ->
     gen_statem:event_handler_result(c2s_state()).
 handle_event({call, From}, {stream_mgmt_resume, H}, ?EXT_C2S_STATE(resume_session), StateData) ->
     LServer = mongoose_c2s:get_lserver(StateData),
@@ -774,7 +774,7 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
 
 %% This runs on the old process
 -spec handle_resume_call(
-        mongoose_c2s:c2s_data(), mongoose_acc:t(), gen_statem:from(), non_neg_integer()) ->
+        mongoose_c2s:data(), mongoose_acc:t(), gen_statem:from(), non_neg_integer()) ->
     {ok, sm_state()} | error.
 handle_resume_call(StateData, Acc, From, H) ->
     case do_handle_ack(get_mod_state(StateData), H) of
@@ -790,18 +790,18 @@ handle_resume_call(StateData, Acc, From, H) ->
             error
     end.
 
--spec close_old_session(mongoose_c2s:c2s_data(), mongoose_acc:t()) -> term().
+-spec close_old_session(mongoose_c2s:data(), mongoose_acc:t()) -> term().
 close_old_session(StateData, Acc) ->
     mongoose_c2s:close_session(StateData, Acc, resumed),
     mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()).
 
--spec pipeline_future_sm_state(mongoose_c2s:c2s_data(), sm_state()) -> sm_state().
+-spec pipeline_future_sm_state(mongoose_c2s:data(), sm_state()) -> sm_state().
 pipeline_future_sm_state(StateData, SmState) ->
     Sid = mongoose_c2s:get_sid(StateData),
     WithResumedFrom = SmState#sm_state{peer = {sid, Sid}},
     recover_messages(WithResumedFrom).
 
--spec pass_c2s_data_to_new_session(mongoose_c2s:c2s_data(), sm_state(), gen_statem:from()) -> ok.
+-spec pass_c2s_data_to_new_session(mongoose_c2s:data(), sm_state(), gen_statem:from()) -> ok.
 pass_c2s_data_to_new_session(StateData, PassSmState, From) ->
     FutureStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => PassSmState}),
     ReplyAction = {reply, From, {ok, FutureStateData}},

@@ -82,7 +82,7 @@ handle_new_blocking_command(Acc, StateData, UserList, Action, JIDs) ->
     ToAcc = [{state_mod, {mod_privacy, UserList}}],
     mongoose_c2s_acc:to_acc_many(Acc, ToAcc).
 
--spec blocking_push_to_resources(blocking_type(), [binary()], mongoose_c2s:c2s_data()) -> ok.
+-spec blocking_push_to_resources(blocking_type(), [binary()], mongoose_c2s:data()) -> ok.
 blocking_push_to_resources(Action, JIDs, StateData) ->
     SubEl = case Action of
                 block -> blocking_stanza(JIDs, <<"block">>);
@@ -95,7 +95,7 @@ blocking_push_to_resources(Action, JIDs, StateData) ->
     ejabberd_router:route(F, T, PrivPushEl),
     ok.
 
--spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:c2s_data()) -> ok.
+-spec blocking_presence_to_contacts(blocking_type(), [binary()], mongoose_c2s:data()) -> ok.
 blocking_presence_to_contacts(_Action, [], _StateData) -> ok;
 blocking_presence_to_contacts(Action, [Jid | JIDs], StateData) ->
     Presences = mod_presence:maybe_get_handler(StateData),

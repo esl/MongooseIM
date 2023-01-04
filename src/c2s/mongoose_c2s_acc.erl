@@ -25,8 +25,8 @@
 -type pairs() :: [pair()].
 -type pair() :: {state_mod, {module(), term()}}
               | {actions, gen_statem:action()}
-              | {c2s_state, mongoose_c2s:c2s_state()}
-              | {c2s_data, mongoose_c2s:c2s_data()}
+              | {c2s_state, mongoose_c2s:state()}
+              | {c2s_data, mongoose_c2s:data()}
               | {stop, term() | {shutdown, atom()}}
               | {hard_stop, term() | {shutdown, atom()}}
               | {route, mongoose_acc:t()}
@@ -36,8 +36,8 @@
 -type t() :: #{
         state_mod := #{module() => term()},
         actions := [gen_statem:action()],
-        c2s_state := undefined | mongoose_c2s:c2s_state(),
-        c2s_data := undefined | mongoose_c2s:c2s_data(),
+        c2s_state := undefined | mongoose_c2s:state(),
+        c2s_data := undefined | mongoose_c2s:data(),
         hard_stop := undefined | Reason :: term(),
         socket_send := [exml:element()]
        }.
@@ -45,8 +45,8 @@
 -type params() :: #{
         state_mod => #{module() => term()},
         actions => [gen_statem:action()],
-        c2s_state => mongoose_c2s:c2s_state(),
-        c2s_data => mongoose_c2s:c2s_data(),
+        c2s_state => mongoose_c2s:state(),
+        c2s_data => mongoose_c2s:data(),
         stop => Reason :: term(),
         hard_stop => Reason :: term(),
         route => [mongoose_acc:t()],
@@ -116,8 +116,8 @@ from_mongoose_acc(Acc, Key) ->
 
 -spec to_acc(mongoose_acc:t(), state_mod, {module(), term()}) -> mongoose_acc:t();
             (mongoose_acc:t(), actions, gen_statem:action() | [gen_statem:action()]) -> mongoose_acc:t();
-            (mongoose_acc:t(), c2s_state, term()) -> mongoose_acc:t();
-            (mongoose_acc:t(), c2s_data, mongoose_c2s:c2s_data()) -> mongoose_acc:t();
+            (mongoose_acc:t(), c2s_state, mongoose_c2s:state()) -> mongoose_acc:t();
+            (mongoose_acc:t(), c2s_data, mongoose_c2s:data()) -> mongoose_acc:t();
             (mongoose_acc:t(), hard_stop, atom()) -> mongoose_acc:t();
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
             (mongoose_acc:t(), route, mongoose_acc:t()) -> mongoose_acc:t();

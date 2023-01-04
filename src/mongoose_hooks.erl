@@ -456,7 +456,7 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
 %% C2S related hooks
 
 -spec c2s_broadcast_recipients(State, Type, From, Packet) -> Result when
-    State :: mongoose_c2s:state(),
+    State :: mongoose_c2s:data(),
     Type :: {atom(), any()},
     From :: jid:jid(),
     Packet :: exml:element(),
