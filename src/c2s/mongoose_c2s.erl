@@ -16,8 +16,8 @@
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
--export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1,
-         reroute/2, merge_states/2]).
+-export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
+-export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1, close_session/3]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -42,13 +42,15 @@
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
--type c2s_state() :: connect
-                   | {wait_for_stream, stream_state()}
-                   | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
-                   | {wait_for_feature_after_auth, retries()}
-                   | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
-                   | wait_for_session_establishment
-                   | session_established.
+-type c2s_state(State) :: connect
+                        | {wait_for_stream, stream_state()}
+                        | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
+                        | {wait_for_feature_after_auth, retries()}
+                        | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
+                        | wait_for_session_establishment
+                        | session_established
+                        | ?EXT_C2S_STATE(State).
+-type c2s_state() :: c2s_state(term()).
 
 -type listener_opts() :: #{shaper := atom(),
                            max_stanza_size := non_neg_integer(),
@@ -56,7 +58,7 @@
                            c2s_state_timeout := non_neg_integer(),
                            term() => term()}.
 
--export_type([packet/0, c2s_data/0, c2s_state/0, listener_opts/0]).
+-export_type([packet/0, c2s_data/0, c2s_state/0, c2s_state/1, listener_opts/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -149,6 +151,9 @@ handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData)
             handle_c2s_packet(StateData, C2SState, El)
     end;
 
+handle_event(internal, {flush, Acc}, C2SState, StateData) ->
+    handle_flush(StateData, C2SState, Acc);
+
 %% This is an xml packet in any state other than session_established,
 %% which is not one of the default ones defined in the RFC. For example stream management.
 handle_event(internal, #xmlel{} = El, C2SState, StateData) ->
@@ -178,7 +183,7 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} =
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
     Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
-    Acc2 = close_session(StateData, C2SState, Acc1, Reason),
+    Acc2 = do_close_session(StateData, C2SState, Acc1, Reason),
     mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
     bounce_messages(StateData),
     close_parser(StateData),
@@ -518,15 +523,8 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
 -spec do_open_session(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-do_open_session(#c2s_data{host_type = HostType,
-                          sid = SID,
-                          jid = Jid,
-                          socket = Socket,
-                          auth_module = AuthModule} = StateData, C2SState, Acc1) ->
-    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
-             conn => mongoose_c2s_socket:get_conn_type(Socket),
-             auth_module => AuthModule},
-    FsmActions = case ejabberd_sm:open_session(HostType, SID, Jid, 0, Info) of
+do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
+    FsmActions = case open_session(StateData) of
                      [] -> [];
                      ReplacedPids ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
@@ -569,10 +567,10 @@ handle_cast(StateData, C2SState, Event) ->
     handle_foreign_event(StateData, C2SState, cast, Event).
 
 -spec handle_info(c2s_data(), c2s_state(), term()) -> fsm_res().
+handle_info(StateData, C2SState, {route, Acc}) ->
+    handle_route(StateData, C2SState, Acc);
 handle_info(StateData, C2SState, #xmlel{} = El) ->
     handle_c2s_packet(StateData, C2SState, El);
-handle_info(StateData, C2SState, {route, Acc}) ->
-    handle_stanza_to_client(StateData, C2SState, Acc);
 handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
   when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
     handle_socket_data(StateData, SocketData);
@@ -633,7 +631,9 @@ maybe_retry_state({wait_for_feature_after_auth, Retries}) ->
 maybe_retry_state({wait_for_feature_before_auth, SaslState, Retries}) ->
     {wait_for_feature_before_auth, SaslState, Retries - 1};
 maybe_retry_state({wait_for_sasl_response, SaslState, Retries}) ->
-    {wait_for_sasl_response, SaslState, Retries - 1}.
+    {wait_for_sasl_response, SaslState, Retries - 1};
+maybe_retry_state(?EXT_C2S_STATE(_) = State) ->
+    State.
 
 %% @doc Check 'from' attribute in stanza RFC 6120 Section 8.1.2.1
 -spec verify_from(exml:element(), jid:jid()) -> boolean().
@@ -694,26 +694,53 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, _) -
     {_, Acc1} = mongoose_c2s_hooks:user_send_xmlel(HostType, Acc, HookParams),
     Acc1.
 
--spec handle_stanza_to_client(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
-handle_stanza_to_client(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
+-spec maybe_route(gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
+maybe_route({ok, Acc}) ->
+    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
+    ejabberd_router:route(FromJid, ToJid, Acc, El),
+    Acc;
+maybe_route({stop, Acc}) ->
+    Acc.
+
+-spec handle_route(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
+handle_route(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
     {From, To, El} = mongoose_acc:packet(Acc),
     FinalEl = jlib:replace_from_to(From, To, El),
     ParamsAcc = #{from_jid => From, to_jid => To, element => FinalEl},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
-    HookParams = hook_arg(StateData, C2SState, info, El, undefined),
-    case mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, HookParams) of
-        {ok, Acc2} ->
-            StanzaName = mongoose_acc:stanza_name(Acc2),
-            Res = process_stanza_to_client(StateData, HookParams, Acc2, StanzaName),
-            Acc3 = maybe_deliver(StateData, Res),
-            handle_state_after_packet(StateData, C2SState, Acc3);
-        {stop, _Acc1} ->
-            keep_state_and_data
-    end.
+    HookParams = hook_arg(StateData, C2SState, info, El, route),
+    Res = mongoose_c2s_hooks:user_receive_packet(HostType, Acc1, HookParams),
+    handle_route_packet(StateData, C2SState, HookParams, Res).
+
+-spec handle_route_packet(c2s_data(), c2s_state(), mongoose_c2s_hooks:params(), mongoose_c2s_hooks:result()) -> fsm_res().
+handle_route_packet(StateData, C2SState, HookParams, {ok, Acc}) ->
+    StanzaName = mongoose_acc:stanza_name(Acc),
+    case process_stanza_to_client(StateData, HookParams, Acc, StanzaName) of
+        {ok, Acc3} ->
+            handle_flush(StateData, C2SState, Acc3);
+        {stop, Acc3} ->
+            handle_state_after_packet(StateData, C2SState, Acc3)
+    end;
+handle_route_packet(StateData, C2SState, _, {stop, Acc}) ->
+    handle_state_after_packet(StateData, C2SState, Acc).
+
+-spec handle_flush(c2s_data(), c2s_state(), mongoose_acc:t()) -> fsm_res().
+handle_flush(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
+    HookParams = hook_arg(StateData, C2SState, info, Acc, flush),
+    Res = mongoose_c2s_hooks:xmpp_presend_element(HostType, Acc, HookParams),
+    Acc1 = maybe_send_element(StateData, Res),
+    handle_state_after_packet(StateData, C2SState, Acc1).
+
+-spec maybe_send_element(c2s_data(), mongoose_c2s_hooks:result()) -> mongoose_acc:t().
+maybe_send_element(StateData, {ok, Acc}) ->
+    Element = mongoose_acc:element(Acc),
+    do_send_element(StateData, Element, Acc);
+maybe_send_element(_, {stop, Acc}) ->
+    Acc.
 
 %% @doc Process packets sent to the user (coming to user on c2s XMPP connection)
 -spec process_stanza_to_client(c2s_data(), mongoose_c2s_hooks:hook_params(), mongoose_acc:t(), binary()) ->
-    gen_hook:hook_fn_ret(mongoose_acc:t()).
+    mongoose_c2s_hooks:result().
 process_stanza_to_client(#c2s_data{host_type = HostType}, Params, Acc, <<"message">>) ->
     mongoose_c2s_hooks:user_receive_message(HostType, Acc, Params);
 process_stanza_to_client(#c2s_data{host_type = HostType}, Params, Acc, <<"iq">>) ->
@@ -731,8 +758,13 @@ handle_state_after_packet(StateData, C2SState, Acc) ->
                           c2s_state(),
                           undefined | mongoose_acc:t(),
                           mongoose_c2s_acc:t()) -> fsm_res().
-handle_state_result(StateData, _, _, #{hard_stop := Reason}) when Reason =/= undefined ->
-    {stop, {shutdown, Reason}, StateData};
+handle_state_result(StateData0, _, _, #{c2s_data := MaybeNewFsmData, hard_stop := Reason})
+  when Reason =/= undefined ->
+    StateData1 = case MaybeNewFsmData of
+                     undefined -> StateData0;
+                     _ -> MaybeNewFsmData
+                 end,
+    {stop, {shutdown, Reason}, StateData1};
 handle_state_result(StateData0, C2SState, MaybeAcc,
                     #{state_mod := ModuleStates, actions := MaybeActions,
                       c2s_state := MaybeNewFsmState, c2s_data := MaybeNewFsmData,
@@ -749,35 +781,15 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
                      0 -> StateData1;
                      _ -> merge_mod_state(StateData1, ModuleStates)
                  end,
-    maybe_send_xml(StateData2, MaybeAcc, MaybeSocketSend),
+    [maybe_send_xml(StateData2, MaybeAcc, Send) || Send <- MaybeSocketSend ],
     {next_state, NextFsmState, StateData2, MaybeActions}.
 
--spec maybe_send_xml(c2s_data(), mongoose_acc:t(), [exml:element()]) -> ok.
-maybe_send_xml(_StateData, _Acc, []) ->
-    ok;
+-spec maybe_send_xml(c2s_data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    send_element(StateData, ToSend, Acc),
-    ok;
+    do_send_element(StateData, ToSend, Acc);
 maybe_send_xml(StateData, Acc, ToSend) ->
-    send_element(StateData, ToSend, Acc),
-    ok.
-
--spec maybe_deliver(c2s_data(), gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
-maybe_deliver(StateData, {ok, Acc}) ->
-    Element = mongoose_acc:element(Acc),
-    send_element(StateData, Element, Acc),
-    Acc;
-maybe_deliver(_, {stop, Acc}) ->
-    Acc.
-
--spec maybe_route(gen_hook:hook_fn_ret(mongoose_acc:t())) -> mongoose_acc:t().
-maybe_route({ok, Acc}) ->
-    {FromJid, ToJid, El} = mongoose_acc:packet(Acc),
-    ejabberd_router:route(FromJid, ToJid, Acc, El),
-    Acc;
-maybe_route({stop, Acc}) ->
-    Acc.
+    do_send_element(StateData, ToSend, Acc).
 
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(c2s_data(), exml:element()) -> mongoose_acc:t().
@@ -826,24 +838,59 @@ send_element_from_server_jid(StateData, El) ->
               from_jid => jid:make_noprep(<<>>, StateData#c2s_data.lserver, <<>>),
               to_jid => StateData#c2s_data.jid,
               element => El}),
-    send_element(StateData, El, Acc).
+    do_send_element(StateData, El, Acc).
 
 -spec bounce_messages(c2s_data()) -> ok.
 bounce_messages(StateData) ->
     receive
         {route, Acc} ->
-            reroute(StateData, Acc),
+            reroute_one(StateData, Acc),
             bounce_messages(StateData);
         _ ->
             bounce_messages(StateData)
     after 0 -> ok
     end.
 
-reroute(#c2s_data{sid = Sid}, Acc) ->
+-spec reroute_one(c2s_data(), mongoose_acc:t()) -> mongoose_acc:t().
+reroute_one(#c2s_data{sid = Sid}, Acc) ->
     {From, To, _El} = mongoose_acc:packet(Acc),
     Acc2 = patch_acc_for_reroute(Acc, Sid),
     ejabberd_router:route(From, To, Acc2).
 
+-spec reroute_buffer(c2s_data(), [mongoose_acc:t()]) -> term().
+reroute_buffer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Buffer) ->
+    OrderedBuffer = lists:reverse(Buffer),
+    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    [reroute_one(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+
+-spec reroute_buffer_to_pid(c2s_data(), pid(), [mongoose_acc:t()]) -> term().
+reroute_buffer_to_pid(StateData = #c2s_data{host_type = HostType, jid = Jid}, Pid, Buffer) ->
+    OrderedBuffer = lists:reverse(Buffer),
+    FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
+    [reroute_one_to_pid(StateData, Pid, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+
+-spec reroute_one_to_pid(c2s_data(), pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
+reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->
+    Acc2 = patch_acc_for_reroute(Acc, Sid),
+    route(Pid, Acc2).
+
+-spec route(pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
+route(Pid, Acc) ->
+    Pid ! {route, Acc}.
+
+-spec open_session(c2s_data()) -> [pid()].
+open_session(
+  #c2s_data{host_type = HostType, sid = Sid, jid = Jid, socket = Socket, auth_module = AuthModule}) ->
+    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
+             conn => mongoose_c2s_socket:get_conn_type(Socket),
+             auth_module => AuthModule},
+    ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info).
+
+-spec close_session(c2s_data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
+close_session(#c2s_data{sid = Sid, jid = Jid}, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)).
+
+-spec patch_acc_for_reroute(mongoose_acc:t(), ejabberd_sm:sid()) -> mongoose_acc:t().
 patch_acc_for_reroute(Acc, Sid) ->
     case mongoose_acc:stanza_name(Acc) of
         <<"message">> ->
@@ -861,16 +908,12 @@ patch_acc_for_reroute(Acc, Sid) ->
 close_parser(#c2s_data{parser = undefined}) -> ok;
 close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
 
--spec close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(_, connect, Acc, _) -> Acc;
-close_session(_, {wait_for_stream, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_feature_before_auth, _, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_feature_after_auth, _}, Acc, _) -> Acc;
-close_session(_, {wait_for_sasl_response, _, _}, Acc, _) -> Acc;
-close_session(_, wait_for_session_establishment, Acc, _) -> Acc;
-close_session(#c2s_data{jid = Jid, sid = Sid}, _, Acc, Reason) when Jid =/= undefined ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason));
-close_session(_, _, Acc, _) ->
+-spec do_close_session(c2s_data(), c2s_state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
+do_close_session(C2SData, session_established, Acc, Reason) ->
+    close_session(C2SData, Acc, Reason);
+do_close_session(C2SData, ?EXT_C2S_STATE(_), Acc, Reason) ->
+    close_session(C2SData, Acc, Reason);
+do_close_session(_, _, Acc, _) ->
     Acc.
 
 sm_unset_reason({shutdown, Reason}) ->
@@ -881,16 +924,14 @@ sm_unset_reason(_) ->
     error.
 
 %% @doc This is the termination point - from here stanza is sent to the user
--spec send_element(c2s_data(), [exml:element()] | exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
-send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
+-spec do_send_element(c2s_data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+do_send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
     send_xml(StateData, El),
     Acc;
-send_element(StateData = #c2s_data{host_type = HostType}, Els, Acc) when is_list(Els) ->
-    Res = send_xml(StateData, Els),
+do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
+    Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
-    [mongoose_hooks:xmpp_send_element(HostType, Acc1, El) || El <- Els];
-send_element(StateData, El, Acc) ->
-    send_element(StateData, [El], Acc).
+    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(c2s_data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(#c2s_data{socket = Socket}, Xml) ->

@@ -667,9 +667,8 @@ do_route(Acc, From, To, El) ->
                     do_route_offline(Name, mongoose_acc:stanza_type(Acc),
                                      From, To, Acc, El);
                 Pid when is_pid(Pid) ->
-                    ?LOG_DEBUG(#{what => sm_route_to_pid,
-                                 session_pid => Pid, acc => Acc}),
-                    Pid ! {route, Acc},
+                    ?LOG_DEBUG(#{what => sm_route_to_pid, session_pid => Pid, acc => Acc}),
+                    mongoose_c2s:route(Pid, Acc),
                     Acc
             end
     end.
@@ -810,7 +809,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, Acc};
+                      mongoose_c2s:route(Pid, Acc);
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok

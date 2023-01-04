@@ -108,7 +108,7 @@
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.
-% {suites, "tests", xep_0352_csi_SUITE}.
+{suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
 {skip_cases, "tests", service_domain_db_SUITE,
  [rest_delete_domain_cleans_data_from_mam], "this test tries to use presences"}.
