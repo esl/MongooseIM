@@ -92,6 +92,7 @@ init_per_suite(Config) ->
     dynamic_modules:save_modules(domain_helper:host_type(), Config3).
 
 end_per_suite(Config) ->
+    file:delete(filename:join(?config(mim_data_dir, Config), "users.csv.tmp")),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
