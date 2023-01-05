@@ -38,6 +38,7 @@
          socket_activate/1,
          socket_send_xml/2,
          socket_close/1,
+         get_peer_certificate/2,
          has_peer_cert/2,
          is_channel_binding_supported/1,
          get_tls_last_message/1,
@@ -1077,6 +1078,9 @@ close(#bosh_socket{pid = Pid}) ->
 -spec peername(mod_bosh:socket()) -> mongoose_transport:peername_return().
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
+
+get_peer_certificate(S, _) ->
+    get_peer_certificate(S).
 
 -spec get_peer_certificate(mod_bosh:socket()) -> mongoose_transport:peercert_return().
 get_peer_certificate(#bosh_socket{peercert = undefined}) ->

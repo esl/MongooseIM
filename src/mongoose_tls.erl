@@ -124,6 +124,7 @@ prepare_options(_Module, Opts) ->
     Opts.
 
 fast_tls_opt(connect, true) -> [connect];
+fast_tls_opt(mode, _) -> [];
 fast_tls_opt(verify_mode, peer) -> [];
 fast_tls_opt(verify_mode, none) -> [verify_none];
 fast_tls_opt(cacertfile, File) -> [{cafile, File}];

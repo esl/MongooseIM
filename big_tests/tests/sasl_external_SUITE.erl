@@ -143,11 +143,11 @@ init_per_group(_, Config) ->
     Config.
 
 modify_config_and_restart(CyrsaslExternalConfig, Config) ->
-    TLSModule = escalus_config:get_config(tls_module, Config, just_tls),
+    TLSModule = atom_to_list(escalus_config:get_config(tls_module, Config, just_tls)),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
     SSLOpts = case TLSModule of
-                  just_tls -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
-                  fast_tls -> ""
+                  "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
+                  "fast_tls" -> ""
               end,
     AuthMethods = escalus_config:get_config(auth_methods, Config,
                                             [{auth_method, "pki"}, {auth_method_opts, false}]),
@@ -266,13 +266,11 @@ cert_one_xmpp_addr_wrong_hostname(C) ->
 ca_signed_cert_is_allowed_with_ws(C) ->
     UserSpec = generate_user(C, "bob", escalus_ws),
     {ok, Client, _} = escalus_connection:start(UserSpec),
-
     escalus_connection:stop(Client).
 
 ca_signed_cert_is_allowed_with_bosh(C) ->
     UserSpec = generate_user(C, "bob", escalus_bosh),
     {ok, Client, _} = escalus_connection:start(UserSpec),
-
     escalus_connection:stop(Client).
 
 self_signed_cert_fails_to_authenticate_with_tls(C) ->
@@ -291,19 +289,7 @@ cert_fails_to_authenticate(UserSpec) ->
 		Self ! escalus_connected,
 		escalus_connection:stop(Client)
 	end,
-    %% We spawn the process trying to connect because otherwise the testcase may crash
-    %% due linked process crash (client's process are started with start_link)
-    Pid = spawn(F),
-    MRef = erlang:monitor(process, Pid),
-
-    receive
-	{'DOWN', MRef, process, Pid, _Reason} ->
-	    ok;
-	escalus_connected ->
-	    ct:fail(authenticated_but_should_not)
-    after 10000 ->
-	      ct:fail(timeout_waiting_for_authentication_error)
-    end.
+    receive_failed_to_authenticate(F).
 
 self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
     Self = self(),
@@ -313,18 +299,20 @@ self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
 		Self ! escalus_connected,
 		escalus_connection:stop(Client)
 	end,
+    receive_failed_to_authenticate(F).
+
+receive_failed_to_authenticate(F) ->
     %% We spawn the process trying to connect because otherwise the testcase may crash
     %% due linked process crash (client's process are started with start_link)
     Pid = spawn(F),
     MRef = erlang:monitor(process, Pid),
-
     receive
-	{'DOWN', MRef, process, Pid, _Reason} ->
-	    ok;
-	escalus_connected ->
-	    ct:fail(authenticated_but_should_not)
+        {'DOWN', MRef, process, Pid, _Reason} ->
+            ok;
+        escalus_connected ->
+            ct:fail(authenticated_but_should_not)
     after 10000 ->
-	      ct:fail(timeout_waiting_for_authentication_error)
+              ct:fail(timeout_waiting_for_authentication_error)
     end.
 
 self_signed_cert_is_allowed_with_tls(C) ->

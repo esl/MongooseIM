@@ -236,6 +236,8 @@ maybe_pause(#c2s_data{socket = Socket}, _) ->
     [].
 
 -spec close_socket(data()) -> ok | {error, term()}.
+close_socket(#c2s_data{socket = undefined}) ->
+    ok;
 close_socket(#c2s_data{socket = Socket}) ->
     mongoose_c2s_socket:close(Socket).
 
@@ -389,7 +391,8 @@ do_handle_auth_start(StateData, El, SaslState, Retries) ->
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
     HostType = StateData#c2s_data.host_type,
     AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)],
-    SocketData = #{socket => StateData#c2s_data.socket, auth_mech => AuthMech},
+    SocketData = #{socket => StateData#c2s_data.socket, auth_mech => AuthMech,
+                   listener_opts => StateData#c2s_data.listener_opts},
     StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
     handle_sasl_step(StateData, StepResult, SaslState, Retries).
 

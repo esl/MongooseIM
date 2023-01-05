@@ -99,7 +99,7 @@
 {suites, "tests", rest_client_SUITE}.
 % {suites, "tests", s2s_SUITE}.
 {suites, "tests", sasl_SUITE}.
-% {suites, "tests", sasl_external_SUITE}.
+{suites, "tests", sasl_external_SUITE}.
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 % {suites, "tests", shared_roster_SUITE}.
 % {suites, "tests", sic_SUITE}.
