@@ -186,6 +186,7 @@ template_config(Template, Vars) ->
 %% bbmustache tries to iterate over lists, so we need to make them binaries
 ensure_binary_strings(Vars) ->
     maps:map(fun(dbs, V) -> V;
+                (_K, []) -> <<"\n">>; % empty binary is considered falsey in conditions
                 (_K, V) when is_list(V) -> list_to_binary(V);
                 (_K, V) -> V
               end, Vars).

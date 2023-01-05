@@ -138,8 +138,10 @@ two_distinct_redis_pools_are_started(_C) ->
     [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
     ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
-    ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
-    ?assertMatch({eredis_client, ["localhost2", 1806 | _]}, proplists:get_value(worker, CallArgs2)).
+    {eredis_client, Props1} = proplists:get_value(worker, CallArgs1),
+    {eredis_client, Props2} = proplists:get_value(worker, CallArgs2),
+    ?assertMatch(#{host := "localhost", port := 1805}, proplists:to_map(Props1)),
+    ?assertMatch(#{host := "localhost2", port := 1806}, proplists:to_map(Props2)).
 
 generic_pools_are_started_for_all_vhosts(_C) ->
     Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}}],
