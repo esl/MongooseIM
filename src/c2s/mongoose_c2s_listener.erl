@@ -61,8 +61,7 @@ init(#{module := Module} = Opts) ->
     maybe_add_access_check(HostTypes, Opts),
     TransportOpts = prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
-    OptsWithTlsConfig = process_tls_opts(Opts),
-    Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, OptsWithTlsConfig),
+    Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
 
 maybe_add_access_check(_, #{access := all}) ->
@@ -71,12 +70,6 @@ maybe_add_access_check(HostTypes, #{access := Access}) ->
     AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3, #{access => Access}, 10}
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
-
-process_tls_opts(Opts = #{tls := TlsOpts}) ->
-    ReadyTlsOpts = just_tls:make_ssl_opts(TlsOpts),
-    Opts#{tls := TlsOpts#{opts => ReadyTlsOpts}};
-process_tls_opts(Opts) ->
-    Opts.
 
 listener_child_spec(ListenerId, Opts) ->
     #{id => ListenerId,
