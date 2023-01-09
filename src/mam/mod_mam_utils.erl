@@ -90,7 +90,7 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2,
          lookup/3,
-         batch_delete_limits/1, incremental_delete_domain/5,
+         incremental_delete_domain/5,
          db_message_codec/2, db_jid_codec/2]).
 
 -callback extra_fin_element(mongooseim:host_type(),
@@ -1225,13 +1225,6 @@ db_jid_codec(HostType, Module) ->
 -spec db_message_codec(mongooseim:host_type(), module()) -> module().
 db_message_codec(HostType, Module) ->
     gen_mod:get_module_opt(HostType, Module, db_message_format).
-
--spec batch_delete_limits(#{delete_domain_limit := infinity | non_neg_integer(), _ => _}) ->
-    {binary(), binary()}.
-batch_delete_limits(#{delete_domain_limit := infinity}) ->
-    {<<>>, <<>>};
-batch_delete_limits(#{delete_domain_limit := Limit}) ->
-    rdbms_queries:get_db_specific_limits_binaries(Limit).
 
 -spec incremental_delete_domain(
         mongooseim:host_type(), jid:lserver(), non_neg_integer(), [atom()], non_neg_integer()) ->
