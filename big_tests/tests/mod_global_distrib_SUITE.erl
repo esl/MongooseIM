@@ -749,7 +749,6 @@ do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResum
 
               %% Trigger rerouting
               ok = rpc(asia_node, sys, resume, [C2sPid]),
-              C2sPid ! resume_timeout,
 
               %% Let C2sPid to process the message and reroute (and die finally, poor little thing)
               mongoose_helper:wait_for_pid_to_die(C2sPid),

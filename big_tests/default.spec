@@ -18,7 +18,7 @@
 {suites, "tests", accounts_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
-% {suites, "tests", anonymous_SUITE}.
+{suites, "tests", anonymous_SUITE}.
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
@@ -66,7 +66,7 @@
 {suites, "tests", mod_event_pusher_http_SUITE}.
 {suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_event_pusher_sns_SUITE}.
-% {suites, "tests", mod_global_distrib_SUITE}.
+{suites, "tests", mod_global_distrib_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
 {suites, "tests", mod_ping_SUITE}.
 {suites, "tests", mod_time_SUITE}.
@@ -74,7 +74,7 @@
 {suites, "tests", mongoose_cassandra_SUITE}.
 {suites, "tests", mongoose_elasticsearch_SUITE}.
 {suites, "tests", mongooseimctl_SUITE}.
-% {suites, "tests", muc_SUITE}.
+{suites, "tests", muc_SUITE}.
 {suites, "tests", muc_http_api_SUITE}.
 {suites, "tests", muc_light_SUITE}.
 {suites, "tests", muc_light_http_api_SUITE}.
@@ -101,8 +101,8 @@
 {suites, "tests", sasl_SUITE}.
 {suites, "tests", sasl_external_SUITE}.
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
-% {suites, "tests", shared_roster_SUITE}.
-% {suites, "tests", sic_SUITE}.
+{suites, "tests", shared_roster_SUITE}.
+{suites, "tests", sic_SUITE}.
 {suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
 {suites, "tests", vcard_SUITE}.
@@ -110,11 +110,9 @@
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", service_domain_db_SUITE}.
-{skip_cases, "tests", service_domain_db_SUITE,
- [rest_delete_domain_cleans_data_from_mam], "this test tries to use presences"}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
-% {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 % {suites, "tests", tcp_listener_SUITE}.
 

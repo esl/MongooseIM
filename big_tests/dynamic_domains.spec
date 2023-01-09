@@ -19,7 +19,7 @@
 
 {suites, "tests", amp_big_SUITE}.
 
-% {suites, "tests", anonymous_SUITE}.
+{suites, "tests", anonymous_SUITE}.
 
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 
@@ -35,7 +35,7 @@
 
 {suites, "tests", domain_isolation_SUITE}.
 
-% {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", dynamic_domains_SUITE}.
 
 {suites, "tests", extdisco_SUITE}.
 
@@ -100,11 +100,11 @@
 
 {suites, "tests", mongooseimctl_SUITE}.
 
-% {suites, "tests", muc_SUITE}.
-% {skip_groups, "tests", muc_SUITE,
-%  [register_over_s2s],
-%  "at the moment S2S doesn't support dynamic domains "
-%  "(requires mod_register creating CT users)"}.
+{suites, "tests", muc_SUITE}.
+{skip_groups, "tests", muc_SUITE,
+ [register_over_s2s],
+ "at the moment S2S doesn't support dynamic domains "
+ "(requires mod_register creating CT users)"}.
 
 {suites, "tests", muc_http_api_SUITE}.
 
@@ -140,15 +140,13 @@
 {suites, "tests", sasl_external_SUITE}.
 
 {suites, "tests", service_domain_db_SUITE}.
-{skip_cases, "tests", service_domain_db_SUITE,
- [rest_delete_domain_cleans_data_from_mam], "this test tries to use presences"}.
 
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {skip_cases, "tests", service_mongoose_system_metrics_SUITE,
  [xmpp_components_are_reported],
  "at the moment external components doesn't support dynamic domains"}.
 
-% {suites, "tests", sic_SUITE}.
+{suites, "tests", sic_SUITE}.
 
 {suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
