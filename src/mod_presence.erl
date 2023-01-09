@@ -436,7 +436,7 @@ presence_track(Acc, FromJid, ToJid, Packet, _, <<"error">>) ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
     Acc;
 presence_track(Acc, FromJid, ToJid, Packet, _, <<"probe">>) ->
-    ejabberd_router:route(ToJid, FromJid, Acc, Packet),
+    ejabberd_router:route(FromJid, ToJid, Acc, Packet),
     Acc.
 
 process_presence_track_available(Acc, FromJid, ToJid, Packet, Presences) ->
