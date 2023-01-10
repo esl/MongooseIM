@@ -45,7 +45,8 @@ basic_groups() ->
      {group, failure_cases_v3},
      {group, failure_cases_v2},
      {group, integration_with_sm_and_offline_storage},
-     {group, enhanced_integration_with_sm}
+     {group, enhanced_integration_with_sm},
+     {group, disco}
     ].
 
 groups() ->
@@ -105,7 +106,12 @@ groups() ->
            inbox_msg_reset_unread_count_fcm
           ]},
          {failure_cases_v3, [parallel], failure_cases()},
-         {failure_cases_v2, [parallel], failure_cases()}
+         {failure_cases_v2, [parallel], failure_cases()},
+         {disco, [],
+          [
+            push_notifications_listed_disco_when_available,
+            push_notifications_not_listed_disco_when_not_available
+          ]}
         ],
     G.
 
@@ -143,6 +149,8 @@ init_per_group(pubsub_less, Config) ->
     [{pubsub_host, virtual} | Config];
 init_per_group(pubsub_ful, Config) ->
     [{pubsub_host, real} | Config];
+init_per_group(disco, Config) ->
+    escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
                                G =:= groupchat_notifications_with_inbox;
                                G =:= integration_with_sm_and_offline_storage ->
@@ -164,13 +172,20 @@ init_per_group(G, Config) ->
     end,
     C.
 
+end_per_group(disco, Config) ->
+    escalus:delete_users(Config);
 end_per_group(_, Config) ->
-    dynamic_modules:restore_modules(Config),
-    Config.
+    dynamic_modules:restore_modules(Config).
 
+init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
+    init_modules(disco, Config),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -827,6 +842,34 @@ no_push_notification_for_internal_mongoose_push_error(Config) ->
 
         end).
 
+%%--------------------------------------------------------------------
+%% GROUP disco
+%%--------------------------------------------------------------------
+
+push_notifications_listed_disco_when_available(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, Stanza),
+            escalus:assert(has_feature, [push_helper:ns_push()], Stanza),
+            ok
+        end).
+
+push_notifications_not_listed_disco_when_not_available(Config) ->
+    escalus:story(
+        Config, [{alice, 1}],
+        fun(Alice) ->
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:disco_info(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, Stanza),
+            Pred = fun(Feature, Stanza0) -> not escalus_pred:has_feature(Feature, Stanza0) end,
+            escalus:assert(Pred, [push_helper:ns_push()], Stanza),
+            ok
+        end).
 
 %%--------------------------------------------------------------------
 %% Test helpers

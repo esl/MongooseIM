@@ -30,7 +30,6 @@
 
 all() ->
     [
-        {group, disco},
         {group, toggling},
         {group, pubsub_ful},
         {group, pubsub_less}
@@ -38,10 +37,6 @@ all() ->
 
 groups() ->
     G = [
-         {disco, [], [
-                      push_notifications_listed_disco_when_available,
-                      push_notifications_not_listed_disco_when_not_available
-                     ]},
          {toggling, [parallel], [
                                  enable_should_fail_with_missing_attributes,
                                  enable_should_fail_with_invalid_attributes,
@@ -99,8 +94,6 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(disco, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(pubsub_ful, Config) ->
     [{pubsub_host, real} | Config];
 init_per_group(pubsub_less, Config) ->
@@ -117,23 +110,12 @@ init_per_group(GroupName, Config0) ->
     dynamic_modules:ensure_modules(HostType, required_modules(GroupName)),
     Config.
 
-end_per_group(disco, Config) ->
-    escalus:delete_users(Config),
-    Config;
 end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_ful;
                                          ComplexGroup == pubsub_less ->
     Config;
 end_per_group(_, Config) ->
-    dynamic_modules:restore_modules(Config),
-    Config.
+    dynamic_modules:restore_modules(Config).
 
-init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config1) ->
-    HostType = host_type(),
-    Config2 = dynamic_modules:save_modules(HostType, Config1),
-    dynamic_modules:ensure_modules(HostType, required_modules(CaseName)),
-    escalus:init_per_testcase(CaseName, Config2);
-init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
-    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
     Config2 = add_pubsub_jid([{case_name, CaseName} | Config1]),
@@ -147,11 +129,6 @@ init_per_testcase(CaseName, Config0) ->
 
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    dynamic_modules:restore_modules(Config),
-    escalus:end_per_testcase(CaseName, Config);
-end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     case ?config(pubsub_host, Config) of
         virtual ->
@@ -177,35 +154,6 @@ muc_light_module() ->
     {mod_muc_light,
      mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                  rooms_in_rosters => true})}.
-
-%%--------------------------------------------------------------------
-%% GROUP disco
-%%--------------------------------------------------------------------
-
-push_notifications_listed_disco_when_available(Config) ->
-    escalus:story(
-        Config, [{alice, 1}],
-        fun(Alice) ->
-            Server = escalus_client:server(Alice),
-            escalus:send(Alice, escalus_stanza:disco_info(Server)),
-            Stanza = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_iq_result, Stanza),
-            escalus:assert(has_feature, [push_helper:ns_push()], Stanza),
-            ok
-        end).
-
-push_notifications_not_listed_disco_when_not_available(Config) ->
-    escalus:story(
-        Config, [{alice, 1}],
-        fun(Alice) ->
-            Server = escalus_client:server(Alice),
-            escalus:send(Alice, escalus_stanza:disco_info(Server)),
-            Stanza = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_iq_result, Stanza),
-            Pred = fun(Feature, Stanza0) -> not escalus_pred:has_feature(Feature, Stanza0) end,
-            escalus:assert(Pred, [push_helper:ns_push()], Stanza),
-            ok
-        end).
 
 %%--------------------------------------------------------------------
 %% GROUP toggling
