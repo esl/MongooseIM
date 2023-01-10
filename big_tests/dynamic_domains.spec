@@ -94,9 +94,9 @@
 
 {suites, "tests", mod_ping_SUITE}.
 
-% {suites, "tests", mod_time_SUITE}.
+{suites, "tests", mod_time_SUITE}.
 
-% {suites, "tests", mod_version_SUITE}.
+{suites, "tests", mod_version_SUITE}.
 
 {suites, "tests", mongooseimctl_SUITE}.
 
@@ -128,7 +128,7 @@
 
 {suites, "tests", private_SUITE}.
 
-% {suites, "tests", race_conditions_SUITE}.
+{suites, "tests", race_conditions_SUITE}.
 
 {suites, "tests", rdbms_SUITE}.
 
