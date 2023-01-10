@@ -92,7 +92,7 @@ all() ->
     ].
 
 groups() ->
-    G = [
+    [
          {entity, [sequence], [
                                disco_service,
                                disco_features,
@@ -131,8 +131,7 @@ groups() ->
                                  block_user,
                                  blocking_disabled
                                 ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 suite() ->
     escalus:suite().
@@ -603,7 +602,8 @@ user_leave(User, RemainingOccupants) ->
 
 -spec stanza_blocking_get() -> xmlel().
 stanza_blocking_get() ->
-    escalus_stanza:privacy_get_lists([?NS_MUC_LIGHT]).
+    escalus_stanza:to(
+      escalus_stanza:privacy_get_lists([?NS_MUC_LIGHT]), ?MUCHOST).
 
 -spec stanza_config_get(Room :: binary()) -> xmlel().
 stanza_config_get(Room) ->
@@ -622,7 +622,8 @@ stanza_aff_get(Room) ->
 -spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> xmlel().
 stanza_blocking_set(BlocklistChanges) ->
     Items = [ encode_privacy_item(What, Action, Who) || {What, Action, Who} <- BlocklistChanges ],
-    escalus_stanza:privacy_set_list(escalus_stanza:privacy_list(?NS_MUC_LIGHT, Items)).
+    Stanza = escalus_stanza:privacy_set_list(escalus_stanza:privacy_list(?NS_MUC_LIGHT, Items)),
+    escalus_stanza:to(Stanza, ?MUCHOST).
 
 encode_privacy_item(What, Action, Who) ->
     Value = case What of
