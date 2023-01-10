@@ -145,20 +145,21 @@ prepare_remove_domain(#{delete_domain_limit := infinity}) ->
     mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
                            <<"DELETE FROM mam_server_user WHERE server = ? ">>);
 prepare_remove_domain(#{delete_domain_limit := Limit}) ->
-    {MaybeLimitSQL, MaybeLimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(Limit),
-    IdTable = <<"(SELECT * FROM (SELECT ", MaybeLimitMSSQL/binary,
-                                " msg.room_id, msg.id FROM mam_muc_message msg",
-                                " INNER JOIN mam_server_user msu ON msu.id=msg.room_id",
-                                " WHERE msu.server = ? ", MaybeLimitSQL/binary, ") AS T)">>,
+    LimitSQL = case mongoose_rdbms:db_type() of
+                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
+                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
+                             MaybeLimitSQL
+                    end,
+    IdTable = <<"(SELECT * FROM ",
+                    "(SELECT msg.room_id, msg.id FROM mam_muc_message msg",
+                    " INNER JOIN mam_server_user msu ON msu.id=msg.room_id",
+                    " WHERE msu.server = ? ", LimitSQL/binary, ") AS T)">>,
     mongoose_rdbms:prepare(mam_muc_incr_remove_domain, mam_muc_message, ['mam_server_user.server'],
-                           <<"DELETE FROM mam_muc_message "
-                             "WHERE (room_id, id) IN ", IdTable/binary>>),
-
-    ServerTable = <<"(SELECT * FROM (SELECT ", MaybeLimitMSSQL/binary,
-                                    " id FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
+                           <<"DELETE FROM mam_muc_message WHERE (room_id, id) IN ", IdTable/binary>>),
+    ServerTable = <<"(SELECT * FROM",
+                        "(SELECT id FROM mam_server_user WHERE server = ? ", LimitSQL/binary, ") as t)">>,
     mongoose_rdbms:prepare(mam_muc_incr_remove_domain_users, mam_server_user, [server],
-                           <<"DELETE ", MaybeLimitMSSQL/binary,
-                             " FROM mam_server_user WHERE id IN ", ServerTable/binary>>).
+                           <<"DELETE FROM mam_server_user WHERE id IN ", ServerTable/binary>>).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic

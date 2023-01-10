@@ -98,14 +98,17 @@ prepare_remove_domain(#{delete_domain_limit := infinity}) ->
     mongoose_rdbms:prepare(
       inbox_delete_domain, inbox, [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>);
 prepare_remove_domain(#{delete_domain_limit := Limit}) ->
-    {MaybeLimitSQL, MaybeLimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(Limit),
-    ServerTable = <<"(SELECT * FROM (SELECT ", MaybeLimitMSSQL/binary,
-                                    " lserver, luser, remote_bare_jid FROM inbox",
-                                    " WHERE lserver = ? ", MaybeLimitSQL/binary, ") AS T)">>,
+    LimitSQL = case mongoose_rdbms:db_type() of
+                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
+                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
+                             MaybeLimitSQL
+                    end,
+    ServerTable = <<"(SELECT * FROM ",
+                        "(SELECT lserver, luser, remote_bare_jid FROM inbox",
+                        " WHERE lserver = ? ", LimitSQL/binary, ") AS T)">>,
     mongoose_rdbms:prepare(
       inbox_incr_delete_domain, inbox, [lserver],
-      <<"DELETE FROM inbox WHERE (lserver, luser, remote_bare_jid) IN ",
-        ServerTable/binary>>).
+      <<"DELETE FROM inbox WHERE (lserver, luser, remote_bare_jid) IN ", ServerTable/binary>>).
 
 -spec get_inbox(HostType :: mongooseim:host_type(),
                 LUser :: jid:luser(),
