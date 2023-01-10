@@ -285,9 +285,9 @@ encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, SenderJID,
                        Affs#affiliations.aff_users, HandleFun),
     {iq_reply, Affs#affiliations.id};
-encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun, Acc) ->
+encode_meta({get, #blocking{} = Blocking}, RoomJID, _SenderJID, _HandleFun, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    ServerHost = SenderBareJID#jid.lserver,
+    ServerHost = mod_muc_light_utils:room_jid_to_server_host(RoomJID),
     MUCHost = mongoose_subdomain_utils:get_fqdn(mod_muc_light:subdomain_pattern(HostType), ServerHost),
     BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)
                     || BlockingItem <- Blocking#blocking.items ],
