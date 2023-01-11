@@ -27,7 +27,7 @@ And second, you need to add `mod_push_service_mongoosepush` to the `modules` sec
 
 ```toml
 [modules.mod_push_service_mongoosepush]
-  pool_name = mongoose_push_http
+  pool_name = "mongoose_push_http"
   api_version = "v3"
 ```
 
