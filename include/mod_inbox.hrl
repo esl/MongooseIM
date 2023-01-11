@@ -14,5 +14,4 @@
 -type entry_properties() :: #{muted_until := integer(),
                               unread_count := integer(),
                               box := binary(),
-                              extra := [exml:element()]}
-                            | inbox_res().
+                              extra => [exml:element()]}.

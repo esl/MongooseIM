@@ -8,9 +8,7 @@
 -export([process_iq_conversation/5]).
 -export([should_be_stored_in_inbox/1]).
 
--type entry_query() :: #{box => binary(),
-                         unread_count => 0 | 1,
-                         muted_until => integer()}.
+-type entry_query() :: entry_properties().
 
 -type get_entry_type() :: full_entry | only_properties.
 -export_type([get_entry_type/0]).
