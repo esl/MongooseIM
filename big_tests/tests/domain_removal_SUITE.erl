@@ -66,7 +66,16 @@ end_per_suite(Config) ->
 %%%===================================================================
 %%% Group specific setup/teardown
 %%%===================================================================
+init_per_group(Group, Config)
+  when Group =:= mam_removal_incremental; Group =:= inbox_removal_incremental ->
+    case rpc(mim(), mongoose_rdbms, db_engine, [host_type()]) of
+        odbc -> {skip, mssql_not_supported_for_incremental_removals};
+        _ -> do_init_per_group(Group, Config)
+    end;
 init_per_group(Group, Config) ->
+    do_init_per_group(Group, Config).
+
+do_init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
             HostTypes = domain_helper:host_types(),

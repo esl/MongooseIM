@@ -368,6 +368,9 @@ See [Message Archive Management extensions](../open-extensions/mam.md).
 
 Domain deletion can be an expensive operation, as it requires to delete potentially many thousands of records from the DB. By default, the delete operation deletes everything in a transaction, but it might be desired, to handle timeouts and table locks more gracefully, to delete the records in batches. This limit establishes the size of the batch.
 
+!!! Note
+    Not supported by MSSQL.
+
 #### `modules.mod_mam.db_jid_format`
 
 * **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_rfc_trust"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour

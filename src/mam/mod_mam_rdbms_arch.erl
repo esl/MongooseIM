@@ -132,20 +132,7 @@ register_prepared_queries(Opts) ->
                              "WHERE user_id = ?">>),
 
     %% Domain Removal
-    {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
-    IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
-                " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
-    ServerTable = <<"(SELECT * FROM (SELECT", MaybeLimitMSSQL/binary,
-                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
-    mongoose_rdbms:prepare(mam_remove_domain, mam_message, ['mam_server_user.server'],
-                           <<"DELETE FROM mam_message "
-                             "WHERE user_id IN ", IdTable/binary>>),
-    mongoose_rdbms:prepare(mam_remove_domain_prefs, mam_config, ['mam_server_user.server'],
-                           <<"DELETE FROM mam_config "
-                             "WHERE user_id IN ", IdTable/binary>>),
-    mongoose_rdbms:prepare(mam_remove_domain_users, mam_server_user, [server],
-                           <<"DELETE ", MaybeLimitMSSQL/binary,
-                             " FROM mam_server_user WHERE server IN ", ServerTable/binary>>),
+    prepare_remove_domain(Opts),
 
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
                            <<"UPDATE mam_message SET message = ?, search_body = '' "
@@ -165,6 +152,42 @@ register_prepared_queries(Opts) ->
                              " WHERE user_id = ? AND remote_bare_jid = ? "
                              " AND id = ? AND direction = ?"
                              " ORDER BY id DESC ", LimitSQL/binary>>).
+
+prepare_remove_domain(#{delete_domain_limit := infinity}) ->
+    mongoose_rdbms:prepare(mam_remove_domain, mam_message, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_message "
+                             "WHERE user_id IN "
+                             "(SELECT id from mam_server_user WHERE server = ?)">>),
+    mongoose_rdbms:prepare(mam_remove_domain_prefs, mam_config, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_config "
+                             "WHERE user_id IN "
+                             "(SELECT id from mam_server_user WHERE server = ?)">>),
+    mongoose_rdbms:prepare(mam_remove_domain_users, mam_server_user, [server],
+                           <<"DELETE FROM mam_server_user WHERE server = ?">>);
+prepare_remove_domain(#{delete_domain_limit := Limit}) ->
+    LimitSQL = case mongoose_rdbms:db_type() of
+                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
+                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
+                             MaybeLimitSQL
+                    end,
+    IdTable = <<"(SELECT * FROM ",
+                    "(SELECT msg.user_id, msg.id FROM mam_message msg",
+                    " INNER JOIN mam_server_user msu ON msu.id=msg.user_id",
+                    " WHERE msu.server = ? ", LimitSQL/binary, ") AS T)">>,
+    mongoose_rdbms:prepare(mam_incr_remove_domain, mam_message, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_message WHERE (user_id, id) IN ", IdTable/binary>>),
+    CfgTable = <<"(SELECT * FROM ",
+                     "(SELECT cfg.user_id, cfg.remote_jid FROM mam_config cfg",
+                     " INNER JOIN mam_server_user msu ON msu.id=cfg.user_id",
+                     " WHERE msu.server = ? ", LimitSQL/binary, ") AS T)">>,
+    mongoose_rdbms:prepare(mam_incr_remove_domain_prefs, mam_config, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_config "
+                             "WHERE (user_id, remote_jid) IN ", CfgTable/binary>>),
+    ServerTable = <<"(SELECT * FROM ",
+                    "(SELECT id FROM mam_server_user WHERE server = ? ", LimitSQL/binary, ") as t)">>,
+    mongoose_rdbms:prepare(mam_incr_remove_domain_users, mam_server_user, [server],
+                           <<"DELETE FROM mam_server_user WHERE id IN ", ServerTable/binary>>).
+
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
@@ -370,7 +393,7 @@ remove_domain_all(HostType, Domain) ->
 
 -spec remove_domain_batch(host_type(), jid:lserver(), non_neg_integer()) -> any().
 remove_domain_batch(HostType, Domain, Limit) ->
-    DeleteQueries = [mam_remove_domain, mam_remove_domain_prefs, mam_remove_domain_users],
+    DeleteQueries = [mam_incr_remove_domain, mam_incr_remove_domain_prefs, mam_incr_remove_domain_users],
     TotalDeleted = mod_mam_utils:incremental_delete_domain(HostType, Domain, Limit, DeleteQueries, 0),
     ?LOG_INFO(#{what => mam_domain_removal_completed, total_records_deleted => TotalDeleted,
                 domain => Domain, host_type => HostType}).
