@@ -97,7 +97,7 @@
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
 
--type addr() :: #{ip_tuple := inet:ip_adress(),
+-type addr() :: #{ip_tuple := inet:ip_address(),
                   port := inet:port_number(),
                   type := inet | inet6}.
 

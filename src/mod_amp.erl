@@ -15,6 +15,9 @@
          c2s_stream_features/3
         ]).
 
+-export_type([amp_event/0, amp_rule/0, amp_rules/0, amp_rule_support/0,
+              amp_match_result/0, amp_strategy/0]).
+
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").

@@ -56,7 +56,7 @@
          vcard_map = []             :: [{binary(), binary(), [binary()]}],
          vcard_map_attrs = []       :: [binary()],
          user_filter = <<>>         :: binary(),
-         search_filter              :: eldap:filter(),
+         search_filter              :: eldap_utils:filter(),
          search_fields = []         :: [{binary(), binary()}],
          search_reported = []       :: [{binary(), binary()}],
          search_reported_attrs = [] :: [binary()],
@@ -156,7 +156,7 @@ get_vcard(HostType, LUser, LServer) ->
 set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
--spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) -> [eldap:eldap_entry()].
+-spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) -> [eldap_utils:eldap_entry()].
 search(HostType, LServer, Data) ->
     State = get_state(HostType, LServer),
     search_internal(State, Data).

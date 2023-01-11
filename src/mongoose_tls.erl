@@ -58,7 +58,8 @@
                          protocol := default | https,
                          host => string()}.
 
--export_type([tls_socket/0]).
+-export_type([options/0,
+              tls_socket/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% behaviour definition
@@ -179,7 +180,7 @@ close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 -spec get_sockmod(socket()) -> module().
 get_sockmod(#mongoose_tls_socket{tls_module = Module}) -> Module.
 
--spec get_tls_last_message(ejabberd_socket:socket()) -> {ok, binary()} | {error, term()}.
+-spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
 get_tls_last_message(#mongoose_tls_socket{} = Socket) ->
     case get_sockmod(Socket) of
         fast_tls ->

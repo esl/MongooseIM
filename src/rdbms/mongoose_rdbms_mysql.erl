@@ -19,7 +19,7 @@
 -behaviour(mongoose_rdbms_backend).
 
 -type options() :: #{host := string(),
-                     port := inet:port(),
+                     port := inet:port_number(),
                      database := string(),
                      username := string(),
                      password := string(),

@@ -431,14 +431,14 @@ maybe_append_origin_id(_) ->
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
-                   MessageUID :: term(), TS :: calendar:rfc3339_string(),
+                   MessageUID :: term(), TS :: jlib:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, TS, SrcJID) ->
     wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), TS, SrcJID).
 
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
                    MessageUID :: term(), WrapperI :: binary(),
-                   TS :: calendar:rfc3339_string(),
+                   TS :: jlib:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
     #xmlel{ name = <<"message">>,
@@ -446,7 +446,7 @@ wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
             children = [result(MamNs, QueryID, MessageUID,
                                [forwarded(Packet, TS, SrcJID)])] }.
 
--spec forwarded(exml:element(), calendar:rfc3339_string(), jid:jid())
+-spec forwarded(exml:element(), jlib:rfc3339_string(), jid:jid())
                -> exml:element().
 forwarded(Packet, TS, SrcJID) ->
     #xmlel{
@@ -458,7 +458,7 @@ forwarded(Packet, TS, SrcJID) ->
        %% Also, mod_mam_muc will replace it again with SrcJID
        children = [delay(TS, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
--spec delay(calendar:rfc3339_string(), jid:jid()) -> exml:element().
+-spec delay(jlib:rfc3339_string(), jid:jid()) -> exml:element().
 delay(TS, SrcJID) ->
     jlib:timestamp_to_xml(TS, SrcJID, <<>>).
 

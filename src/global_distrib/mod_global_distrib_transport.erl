@@ -25,7 +25,7 @@
 -type t() :: #?MODULE{}.
 
 -export([wrap/2, wrap/3, setopts/2, recv_data/2, close/1, send/2, peername/1]).
--export_types([t/0]).
+-export_type([t/0]).
 
 %%--------------------------------------------------------------------
 %% API

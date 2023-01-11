@@ -20,20 +20,20 @@
          publish_notification/4,
          default_plugin_module/0]).
 
--callback should_publish(Acc :: mongooseim_acc:t(),
+-callback should_publish(Acc :: mongoose_acc:t(),
                          Event :: mod_event_pusher:event(),
                          Services :: [mod_event_pusher_push:publish_service()]) ->
     [mod_event_pusher_push:publish_service()].
 
--callback prepare_notification(Acc :: mongooseim_acc:t(),
+-callback prepare_notification(Acc :: mongoose_acc:t(),
                                Event :: mod_event_pusher:event()) ->
     push_payload() | skip.
 
--callback publish_notification(Acc :: mongooseim_acc:t(),
+-callback publish_notification(Acc :: mongoose_acc:t(),
                                Event :: mod_event_pusher:event(),
                                Payload :: push_payload(),
                                Services :: [mod_event_pusher_push:publish_service()]) ->
-    mongooseim_acc:t().
+    mongoose_acc:t().
 
 -optional_callbacks([should_publish/3, prepare_notification/2, publish_notification/4]).
 
@@ -49,7 +49,7 @@ init(_HostType, #{plugin_module := PluginModule}) ->
 
 %% @doc used for filtering push notifications. A push notification is triggered for a given
 %% message only if this callback returns `true'.
--spec should_publish(mongooseim_acc:t(), mod_event_pusher:event(),
+-spec should_publish(mongoose_acc:t(), mod_event_pusher:event(),
                      [mod_event_pusher_push:publish_service()]) ->
           [mod_event_pusher_push:publish_service()].
 should_publish(Acc, Event, Services) ->
@@ -59,7 +59,7 @@ should_publish(Acc, Event, Services) ->
 
 %% @doc a separate interface for rejecting the event publishing (e.g. when
 %% message doesn't have a body) or creating push notification payload.
--spec prepare_notification(Acc :: mongooseim_acc:t(),
+-spec prepare_notification(Acc :: mongoose_acc:t(),
                            Event :: mod_event_pusher:event()) -> push_payload() | skip.
 prepare_notification(Acc, Event) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -68,9 +68,9 @@ prepare_notification(Acc, Event) ->
 
 %% @doc does the actual push. By default it pushes to the registered pubsub
 %% nodes (or executes the internal hook in case of a publish to a virtual domain).
--spec publish_notification(Acc :: mongooseim_acc:t(),
+-spec publish_notification(Acc :: mongoose_acc:t(),
                            Event :: mod_event_pusher:event(), Payload :: push_payload(),
-                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
+                           Services :: [mod_event_pusher_push:publish_service()]) -> mongoose_acc:t().
 publish_notification(Acc, _Event, _Payload, []) ->
     Acc;
 publish_notification(Acc, Event, Payload, Services) ->

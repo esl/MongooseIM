@@ -78,6 +78,8 @@
 % Besides, it increases readability.
 -type return_hidden() :: only_public | all.
 
+-export_type([return_hidden/0]).
+
 %%====================================================================
 %% API
 %%====================================================================

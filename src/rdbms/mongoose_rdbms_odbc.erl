@@ -27,6 +27,8 @@
 
 -type options() :: #{settings := string(), atom() => any()}.
 
+-type result_tuple() :: tuple().
+
 %% API
 
 -spec escape_binary(binary()) -> iodata().
@@ -123,7 +125,7 @@ execute(Connection, {Query, ParamMapper}, Params, Timeout) ->
 
 %% Helpers
 
--spec parse(eodbc:result_tuple() | [eodbc:result_tuple()] | {error, string()}) ->
+-spec parse(result_tuple() | [result_tuple()] | {error, string()}) ->
                    mongoose_rdbms:query_result().
 parse(Items) when is_list(Items) ->
     [parse(Item) || Item <- Items];

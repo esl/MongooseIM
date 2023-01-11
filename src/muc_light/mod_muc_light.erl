@@ -70,6 +70,8 @@
 -export([default_schema/0,
          force_clear_from_ct/1]).
 
+-export_type([aff_users/0]).
+
 -ignore_xref([
     apply_rsm/3, default_schema/0, force_clear_from_ct/1, server_host_to_muc_host/2
 ]).

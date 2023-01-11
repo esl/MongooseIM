@@ -84,6 +84,7 @@
 -export_type([tag/0]).
 -export_type([scope/0]).
 -export_type([proc_name/0]).
+-export_type([pool_name/0]).
 -export_type([pool_opts/0]).
 -export_type([conn_opts/0]).
 

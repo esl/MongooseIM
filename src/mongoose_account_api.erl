@@ -41,7 +41,8 @@
               change_password_result/0,
               check_password_result/0,
               check_password_hash_result/0,
-              check_account_result/0]).
+              check_account_result/0,
+              list_user_result/0]).
 
 %% API
 

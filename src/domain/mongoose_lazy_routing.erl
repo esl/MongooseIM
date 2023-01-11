@@ -97,7 +97,7 @@ start_link() ->
 sync() ->
     gen_server:call(?MODULE, sync).
 
--spec maybe_add_domain_or_subdomain(mongooseim:domain()) -> boolean().
+-spec maybe_add_domain_or_subdomain(mongooseim:domain_name()) -> boolean().
 maybe_add_domain_or_subdomain(Domain) ->
     %% don't run gen_server:call/2 if this domain name is unknown.
     case mongoose_domain_api:get_host_type(Domain) of
@@ -107,7 +107,7 @@ maybe_add_domain_or_subdomain(Domain) ->
             false
     end.
 
--spec maybe_remove_domain(mongooseim:host_type(), mongooseim:domain()) -> ok.
+-spec maybe_remove_domain(mongooseim:host_type(), mongooseim:domain_name()) -> ok.
 maybe_remove_domain(HostType, Domain) ->
     gen_server:cast(?MODULE, {maybe_remove_domain, HostType, Domain}).
 

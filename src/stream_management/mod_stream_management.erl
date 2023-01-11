@@ -34,7 +34,8 @@
               register_stale_smid_h/3,
               remove_stale_smid_h/2]).
 
--type smid() :: base64:ascii_binary().
+%% Type base64:ascii_binary() is not exported
+-type smid() :: binary().
 
 -export_type([smid/0]).
 

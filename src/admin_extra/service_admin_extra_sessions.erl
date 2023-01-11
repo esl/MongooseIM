@@ -159,8 +159,8 @@ resource_num(User, Host, Num) ->
     JID = jid:make(User, Host, <<>>),
     mongoose_session_api:get_user_resource(JID, Num).
 
--spec kick_session(jid:user(), jid:server(), jid:resource(), binary()) ->
-    mongoose_session_api:kick_session_result().
+-spec kick_session(jid:user(), jid:server(), jid:resource(), null | binary()) ->
+    {ok, mongoose_session_api:kick_user_result()} | {no_session | user_not_found, binary()}.
 kick_session(User, Server, Resource, ReasonText) ->
     mongoose_session_api:kick_session(jid:make(User, Server, Resource), ReasonText).
 

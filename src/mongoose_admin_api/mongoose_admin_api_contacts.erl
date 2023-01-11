@@ -129,7 +129,7 @@ perform_action(UserJid, ContactJid, Action, #{suffix := manage}) ->
 perform_action(UserJid, ContactJid, Action, #{}) ->
     mod_roster_api:subscription(UserJid, ContactJid, Action).
 
--spec roster_info(mod_roster:roster()) -> jiffy:json_object().
+-spec roster_info(mod_roster:roster()) -> jiffy:json_value(). %% returns jiffy:json_object()
 roster_info(Roster) ->
     #{jid := Jid, subscription := Sub, ask := Ask} = mod_roster:item_to_map(Roster),
     #{jid => jid:to_binary(Jid), subscription => Sub, ask => Ask}.

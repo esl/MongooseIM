@@ -75,12 +75,12 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(moongooseim:host_type()) -> ok.
+-spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     prepare_queries(HostType),
     ok.
 
--spec stop(moongooseim:host_type()) -> ok.
+-spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 

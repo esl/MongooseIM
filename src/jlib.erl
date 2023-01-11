@@ -77,13 +77,15 @@
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
 
+-type rfc3339_string() :: [byte(), ...]. %% calendar:rfc3339_string()
+
 -export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,
-              iq/0
-             ]).
+              iq/0,
+              rfc3339_string/0]).
 
 -spec make_result_iq_reply(exml:element()) -> exml:element();
                           (iq()) -> iq().
@@ -462,7 +464,7 @@ rsm_encode_count(Count, Arr) ->
 -spec i2b(integer()) -> binary().
 i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I)).
 
--spec timestamp_to_xml(TimestampString :: calendar:rfc3339_string(),
+-spec timestamp_to_xml(TimestampString :: rfc3339_string(),
                        FromJID :: jid:simple_jid() | jid:jid() | undefined,
                        Desc :: iodata() | undefined) -> exml:element().
 timestamp_to_xml(TimestampString, FromJID, Desc) ->

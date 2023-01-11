@@ -3299,7 +3299,7 @@ terminate_when_tls_required_but_not_enabled(StateData, El) ->
     fsm_next_state(wait_for_feature_before_auth, StateData).
 
 %% @doc This function is executed when c2s receives a stanza from TCP connection.
--spec element_to_origin_accum(jlib:xmlel(), StateData :: state()) ->
+-spec element_to_origin_accum(exml:element(), StateData :: state()) ->
     mongoose_acc:t().
 element_to_origin_accum(El, StateData = #state{sid = SID, jid = JID}) ->
     BaseParams = #{
