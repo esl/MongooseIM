@@ -24,7 +24,7 @@ else
 TLS_DIST_OPTS :=
 endif
 
-COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
+COMMON_OPTS := -sname test -setcookie mongooseim -hidden \
                $(TLS_DIST_OPTS) \
                -env REPO_DIR "$(ABS_REPO_DIR)" \
                -env TEST_DIR "$(ABS_TEST_DIR)" \
