@@ -4,7 +4,8 @@
 -include("mongoose_logger.hrl").
 
 -export([new/3,
-         handle_data/2,
+         receive_data/2,
+         send_data/2,
          activate/1,
          close/1,
          is_channel_binding_supported/1,
@@ -12,8 +13,7 @@
          get_peer_certificate/2,
          has_peer_cert/2,
          tcp_to_tls/2,
-         is_ssl/1,
-         send_xml/2]).
+         is_ssl/1]).
 
 -export([get_ip/1,
          get_transport/1,
@@ -23,12 +23,10 @@
 -callback socket_peername(state()) -> {inet:ip_address(), inet:port_number()}.
 -callback tcp_to_tls(state(), mongoose_c2s:listener_opts()) ->
     {ok, state()} | {error, term()}.
--callback socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
-    iodata() | {raw, [exml:element()]} | {error, term()}.
+-callback receive_data(state(), input()) -> iodata() | {error, term()}.
+-callback send_data(state(), iodata()) -> ok | {error, term()}.
 -callback socket_activate(state()) -> ok.
 -callback socket_close(state()) -> ok.
--callback socket_send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
-    ok | {error, term()}.
 -callback get_peer_certificate(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> peercert_return().
 -callback has_peer_cert(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> boolean().
 -callback is_channel_binding_supported(mongoose_c2s_socket:state()) -> boolean().
@@ -36,20 +34,33 @@
 -callback is_ssl(mongoose_c2s_socket:state()) -> boolean().
 
 -record(c2s_socket, {module :: module(),
+                     parser :: exml_stream:parser(),
+                     shaper :: shaper:shaper(),
                      state :: state()}).
 -type socket() :: #c2s_socket{}.
 -type state() :: term().
 -type conn_type() :: c2s | c2s_tls.
 -type peercert_return() :: no_peer_cert | {bad_cert, term()} | {ok, #'Certificate'{}}.
--export_type([socket/0, state/0, conn_type/0, peercert_return/0]).
+-type input_tag() :: tcp | ssl.
+-type input() :: {input_tag(), term(), iodata()}.
+-type output() :: exml_stream:element() | [exml_stream:element()].
+-type received_data() :: {ok, socket(), [exml:element()], integer()}
+                       | {socket_error, socket(), term()}
+                       | {parser_error, socket(), term()}.
+-export_type([socket/0, input/0, output/0, received_data/0, state/0, conn_type/0, peercert_return/0]).
 
 -spec new(module(), term(), mongoose_listener:options()) -> socket().
-new(Module, SocketOpts, LOpts) ->
+new(Module, SocketOpts, #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts) ->
+    ParserOpts = [{max_child_size, MaxStanzaSize}, {infinite_stream, maps:get(infinite_stream, LOpts, false)}],
     State = Module:socket_new(SocketOpts, LOpts),
     PeerIp = Module:socket_peername(State),
     verify_ip_is_not_blacklisted(PeerIp),
+    {ok, Parser} = exml_stream:new_parser(ParserOpts),
+    Shaper = shaper:new(ShaperName),
     C2SSocket = #c2s_socket{
         module = Module,
+        parser = Parser,
+        shaper = Shaper,
         state = State},
     handle_socket_and_ssl_config(C2SSocket, LOpts).
 
@@ -80,32 +91,58 @@ handle_socket_and_ssl_config(C2SSocket, _Opts) ->
     C2SSocket.
 
 -spec tcp_to_tls(socket(), mongoose_listener:options()) -> {ok, socket()} | {error, term()}.
-tcp_to_tls(#c2s_socket{module = Module, state = State} = C2SSocket, LOpts) ->
+tcp_to_tls(#c2s_socket{module = Module, parser = Parser, state = State} = C2SSocket, LOpts) ->
     case Module:tcp_to_tls(State, LOpts) of
         {ok, NewState} ->
-            {ok, C2SSocket#c2s_socket{state = NewState}};
+            {ok, NewParser} = exml_stream:reset_parser(Parser),
+            {ok, C2SSocket#c2s_socket{state = NewState, parser = NewParser}};
         Error ->
             Error
     end.
 
--spec handle_data(socket(), {tcp | ssl, term(), iodata()}) ->
-    iodata() | {raw, [term()]} | {error, term()}.
-handle_data(#c2s_socket{module = Module, state = State}, Payload) ->
-    Module:socket_handle_data(State, Payload);
-handle_data(_, _) ->
-    {error, bad_packet}.
+-spec receive_data(socket(), input()) -> received_data().
+receive_data(Socket = #c2s_socket{module = Module, state = State}, Payload) ->
+    case Module:receive_data(State, Payload) of
+        {error, Reason} ->
+            {socket_error, Socket, Reason};
+        Data ->
+            handle_socket_packet(Socket, Data)
+    end;
+receive_data(Socket, _) ->
+    {socket_error, Socket, bad_packet}.
+
+-spec handle_socket_packet(socket(), iodata()) -> received_data().
+handle_socket_packet(Socket = #c2s_socket{parser = Parser, shaper = Shaper}, Packet) ->
+    ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Packet, c2s_pid => self()}),
+    case exml_stream:parse(Parser, Packet) of
+        {error, Reason} ->
+            {parser_error, Socket, Reason};
+        {ok, NewParser, XmlElements} ->
+            Size = iolist_size(Packet),
+            NewSocket = Socket#c2s_socket{parser = NewParser},
+            {NewShaper, Pause} = shaper:update(Shaper, Size),
+            mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
+            NewSocket = Socket#c2s_socket{shaper = NewShaper},
+            {ok, NewSocket, XmlElements, Pause}
+    end.
+
+-spec send_data(socket(), output()) -> ok | {error, term()}.
+send_data(#c2s_socket{module = Module, state = State}, Xml) ->
+    Data = exml:to_iolist(Xml),
+    Module:send_data(State, Data).
 
 -spec activate(socket()) -> ok | {error, term()}.
 activate(#c2s_socket{module = Module, state = State}) ->
     Module:socket_activate(State).
 
 -spec close(socket()) -> ok.
-close(#c2s_socket{module = Module, state = State}) ->
+close(#c2s_socket{module = Module, parser = Parser, state = State}) ->
+    close_parser(Parser),
     Module:socket_close(State).
 
--spec send_xml(socket(), exml_stream:element() | [exml_stream:element()]) -> ok | {error, term()}.
-send_xml(#c2s_socket{module = Module, state = State}, XML) ->
-    Module:socket_send_xml(State, XML).
+-spec close_parser(undefined | exml_stream:parser()) -> ok.
+close_parser(undefined) -> ok;
+close_parser(Parser) -> exml_stream:free_parser(Parser).
 
 -spec get_peer_certificate(socket(), mongoose_c2s:listener_opts()) -> peercert_return().
 get_peer_certificate(#c2s_socket{module = Module, state = State}, LOpts) ->

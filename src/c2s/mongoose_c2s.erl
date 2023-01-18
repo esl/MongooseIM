@@ -29,8 +29,6 @@
           streamid = new_stream_id() :: binary(),
           jid :: undefined | jid:jid(),
           socket :: undefined | mongoose_c2s_socket:socket(),
-          parser :: undefined | exml_stream:parser(),
-          shaper :: undefined | shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
           auth_module :: undefined | module(),
           state_mod = #{} :: #{module() => term()}
@@ -77,12 +75,9 @@ init({SocketModule, SocketOpts, LOpts}) ->
 
 -spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
 handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
-             StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
-                                                     max_stanza_size := MaxStanzaSize} = LOpts}) ->
-    {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
-    Shaper = shaper:new(ShaperName),
+             StateData = #c2s_data{listener_opts = LOpts}) ->
     C2SSocket = mongoose_c2s_socket:new(SocketModule, SocketOpts, LOpts),
-    StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
+    StateData1 = StateData#c2s_data{socket = C2SSocket},
     {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
 
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
@@ -186,7 +181,6 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} =
     Acc2 = do_close_session(StateData, C2SState, Acc1, Reason),
     mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
     bounce_messages(StateData),
-    close_parser(StateData),
     close_socket(StateData),
     ok.
 
@@ -194,44 +188,25 @@ terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} =
 %%% socket helpers
 %%%----------------------------------------------------------------------
 
--spec handle_socket_data(data(), {_, _, iodata()}) -> fsm_res().
+-spec handle_socket_data(data(), mongoose_c2s_socket:input()) -> fsm_res().
 handle_socket_data(StateData = #c2s_data{socket = Socket}, Payload) ->
-    case mongoose_c2s_socket:handle_data(Socket, Payload) of
-        {error, _Reason} ->
-            {stop, {shutdown, socket_error}, StateData};
-        Data ->
-            handle_socket_packet(StateData, Data)
-    end.
-
--spec handle_socket_packet(data(), iodata() | {raw, [exml_stream:element()]}) -> fsm_res().
-handle_socket_packet(StateData, {raw, Elements}) ->
-    ?LOG_DEBUG(#{what => received_raw_on_stream, elements => Elements, c2s_pid => self()}),
-    handle_socket_elements(StateData, Elements, 0);
-handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
-    ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Packet, c2s_pid => self()}),
-    case exml_stream:parse(Parser, Packet) of
-        {error, Reason} ->
+    case mongoose_c2s_socket:receive_data(Socket, Payload) of
+        {socket_error, NewSocket, _Reason} ->
+            {stop, {shutdown, socket_error}, StateData#c2s_data{socket = NewSocket}};
+        {parser_error, NewSocket, Reason} ->
             NextEvent = {next_event, internal, #xmlstreamerror{name = iolist_to_binary(Reason)}},
-            {keep_state, StateData, NextEvent};
-        {ok, NewParser, XmlElements} ->
-            Size = iolist_size(Packet),
-            NewStateData = StateData#c2s_data{parser = NewParser},
-            handle_socket_elements(NewStateData, XmlElements, Size)
+            {keep_state, StateData#c2s_data{socket = NewSocket}, NextEvent};
+        {ok, NewSocket, XmlElements, Pause} ->
+            NewStateData = StateData#c2s_data{socket = NewSocket},
+            MaybePauseTimeout = maybe_activate(NewStateData, Pause),
+            StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- XmlElements ],
+            {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}
     end.
 
--spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
-handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
-    {NewShaper, Pause} = shaper:update(Shaper, Size),
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
-    NewStateData = StateData#c2s_data{shaper = NewShaper},
-    MaybePauseTimeout = maybe_pause(NewStateData, Pause),
-    StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
-    {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
-
--spec maybe_pause(data(), integer()) -> any().
-maybe_pause(_StateData, Pause) when Pause > 0 ->
+-spec maybe_activate(data(), integer()) -> any().
+maybe_activate(_StateData, Pause) when Pause > 0 ->
     [{{timeout, activate_socket}, Pause, activate_socket}];
-maybe_pause(#c2s_data{socket = Socket}, _) ->
+maybe_activate(#c2s_data{socket = Socket}, _) ->
     mongoose_c2s_socket:activate(Socket),
     [].
 
@@ -350,15 +325,11 @@ get_xml_lang(StreamStart) ->
 
 -spec handle_starttls(data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,
-                                      parser = Parser,
                                       listener_opts = LOpts}, El, SaslState, Retries) ->
-    send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
+    send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via socket
     case mongoose_c2s_socket:tcp_to_tls(TcpSocket, LOpts) of
         {ok, TlsSocket} ->
-            {ok, NewParser} = exml_stream:reset_parser(Parser),
-            NewStateData = StateData#c2s_data{socket = TlsSocket,
-                                              parser = NewParser,
-                                              streamid = new_stream_id()},
+            NewStateData = StateData#c2s_data{socket = TlsSocket, streamid = new_stream_id()},
             activate_socket(NewStateData),
             {next_state, {wait_for_stream, stream_start}, NewStateData, state_timeout(LOpts)};
         {error, already_tls_connection} ->
@@ -574,8 +545,8 @@ handle_info(StateData, C2SState, {route, Acc}) ->
     handle_route(StateData, C2SState, Acc);
 handle_info(StateData, C2SState, #xmlel{} = El) ->
     handle_c2s_packet(StateData, C2SState, El);
-handle_info(StateData, _C2SState, {TcpOrSSl, _Socket, _Packet} = SocketData)
-  when TcpOrSSl =:= tcp; TcpOrSSl =:= ssl ->
+handle_info(StateData, _C2SState, {Tag, _Socket, _Packet} = SocketData)
+  when Tag =:= tcp; Tag =:= ssl ->
     handle_socket_data(StateData, SocketData);
 handle_info(StateData, C2SState, {Closed, _Socket} = SocketData)
   when Closed =:= tcp_closed; Closed =:= ssl_closed ->
@@ -907,10 +878,6 @@ patch_acc_for_reroute(Acc, Sid) ->
             end
     end.
 
--spec close_parser(data()) -> ok.
-close_parser(#c2s_data{parser = undefined}) -> ok;
-close_parser(#c2s_data{parser = Parser}) -> exml_stream:free_parser(Parser).
-
 -spec do_close_session(data(), state(), mongoose_acc:t(), term()) -> mongoose_acc:t().
 do_close_session(C2SData, session_established, Acc, Reason) ->
     close_session(C2SData, Acc, Reason);
@@ -938,7 +905,7 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc)
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
 send_xml(#c2s_data{socket = Socket}, Xml) ->
-    mongoose_c2s_socket:send_xml(Socket, Xml).
+    mongoose_c2s_socket:send_data(Socket, Xml).
 
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
