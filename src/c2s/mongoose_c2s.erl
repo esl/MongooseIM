@@ -793,6 +793,7 @@ send_header(StateData, Server, Version, Lang) ->
     Header = mongoose_c2s_stanzas:stream_header(Server, Version, Lang, StateData#c2s_data.streamid),
     send_xml(StateData, Header).
 
+-spec send_trailer(data()) -> maybe_ok().
 send_trailer(StateData) ->
     send_xml(StateData, ?XML_STREAM_TRAILER).
 
@@ -802,6 +803,20 @@ c2s_stream_error(StateData, Error) ->
     send_element_from_server_jid(StateData, Error),
     send_xml(StateData, ?XML_STREAM_TRAILER),
     {stop, {shutdown, stream_error}, StateData}.
+
+%% @doc This is the termination point - from here stanza is sent to the user
+-spec do_send_element(data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
+do_send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
+    send_xml(StateData, El),
+    Acc;
+do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
+    Res = send_xml(StateData, El),
+    Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
+    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
+
+-spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
+send_xml(#c2s_data{socket = Socket}, Xml) ->
+    mongoose_c2s_socket:send_data(Socket, Xml).
 
 -spec send_element_from_server_jid(data(), exml:element()) -> any().
 send_element_from_server_jid(StateData, El) ->
@@ -892,20 +907,6 @@ sm_unset_reason(normal) ->
     normal;
 sm_unset_reason(_) ->
     error.
-
-%% @doc This is the termination point - from here stanza is sent to the user
--spec do_send_element(data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
-do_send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
-    send_xml(StateData, El),
-    Acc;
-do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
-    Res = send_xml(StateData, El),
-    Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
-    mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
-
--spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
-send_xml(#c2s_data{socket = Socket}, Xml) ->
-    mongoose_c2s_socket:send_data(Socket, Xml).
 
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
