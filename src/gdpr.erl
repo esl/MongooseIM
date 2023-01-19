@@ -2,7 +2,6 @@
 
 -export_type(
     [username/0,
-    domain/0,
     data_group/0,
     schema/0,
     entry/0,
@@ -10,7 +9,6 @@
     personal_data/0]).
 
 -type username() :: binary().
--type domain() :: mongooseim:domain_name().
 -type data_group() :: atom().
 -type entry() :: [string() | binary()].
 -type entries() :: [entry()].

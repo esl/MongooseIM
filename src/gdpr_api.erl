@@ -120,7 +120,7 @@ run(Cmd, Args, Timeout) ->
 %%%                       Logs retrieval
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec retrieve_logs(gdpr:username(), gdpr:domain()) -> {ok, ZippedLogs :: binary()}.
+-spec retrieve_logs(gdpr:username(), mongooseim:domain_name()) -> {ok, ZippedLogs :: binary()}.
 retrieve_logs(Username, Domain) ->
     TmpDir = make_tmp_dir(),
     LogFile = get_logs(Username, Domain, TmpDir),
@@ -128,14 +128,14 @@ retrieve_logs(Username, Domain) ->
     remove_tmp_dir(TmpDir),
     {ok, ZippedLogs}.
 
--spec get_all_logs(gdpr:username(), gdpr:domain(), file:name()) -> [file:name()].
+-spec get_all_logs(gdpr:username(), mongooseim:domain_name(), file:name()) -> [file:name()].
 get_all_logs(Username, Domain, TmpDir) ->
     OtherNodes = mongoose_cluster:other_cluster_nodes(),
     LogFile = get_logs(Username, Domain, TmpDir),
     LogFilesFromOtherNodes = [get_logs_from_node(Node, Username, Domain, TmpDir) || Node <- OtherNodes],
     [LogFile | LogFilesFromOtherNodes].
 
--spec get_logs(gdpr:username(), gdpr:domain(), file:name()) -> file:name().
+-spec get_logs(gdpr:username(), mongooseim:domain_name(), file:name()) -> file:name().
 get_logs(Username, Domain, TmpDir) ->
     FileList = [filename:absname(F) || F <- mongoose_logs:get_log_files()],
     Cmd = code:priv_dir(mongooseim) ++ "/parse_logs.sh",
@@ -145,7 +145,7 @@ get_logs(Username, Domain, TmpDir) ->
     0 = run(Cmd, Args, ?CMD_TIMEOUT),
     FileName.
 
--spec get_logs_from_node(node(), gdpr:username(), gdpr:domain(), file:name()) -> file:name().
+-spec get_logs_from_node(node(), gdpr:username(), mongooseim:domain_name(), file:name()) -> file:name().
 get_logs_from_node(Node, Username, Domain, TmpDir) ->
     {ok, ZippedData} = rpc:call(Node, ?MODULE, retrieve_logs, [Username, Domain]),
     {ok, [File]} = zip:unzip(ZippedData, [{cwd, TmpDir}]),
