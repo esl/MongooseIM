@@ -77,7 +77,8 @@
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
 
--type rfc3339_string() :: [byte(), ...]. %% calendar:rfc3339_string()
+%% Copied from calendar:rfc3339_string() (because it is not exported)
+-type rfc3339_string() :: [byte(), ...].
 
 -export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,

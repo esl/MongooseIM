@@ -3347,6 +3347,6 @@ strip_c2s_fields(Acc) ->
     %% TODO: verify if we really need to strip down these 2 fields
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
 
--spec new_acc(state(), mongoose_acc:new_acc_params()) -> mongoose_acc:t().
+-spec new_acc(state(), map()) -> mongoose_acc:t().
 new_acc(#state{host_type = HostType, server = LServer}, Params) ->
     mongoose_acc:new(Params#{host_type => HostType, lserver => LServer}).

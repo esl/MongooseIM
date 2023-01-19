@@ -32,8 +32,8 @@
 
 -export_type([request/0, context/0, object/0, field/0, args/0]).
 
-%% gen:start_ret() type is not exprted from the gen module
--type gen_start_ret()  :: {'ok', pid()} | 'ignore' | {'error', term()}.
+%% gen:start_ret() type is not exported from the gen module
+-type gen_start_ret()  :: {ok, pid()} | ignore | {error, term()}.
 
 -define(USER_EP_NAME, user_schema_ep).
 -define(ADMIN_EP_NAME, admin_schema_ep).
