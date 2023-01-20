@@ -72,7 +72,7 @@
 %% split given rows into batches of 20 rows and will fall back to smaller batches if
 %% Cassandra rejects the query due to its size being to big.
 %% --------------------------------------------------------
--spec cql_write(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
+-spec cql_write(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Rows :: [parameters()]) ->
                        ok | {error, Reason :: any()}.
 cql_write(PoolName, UserJID, Module, QueryName, Rows)  ->
@@ -87,7 +87,7 @@ cql_write(PoolName, UserJID, Module, QueryName, Rows)  ->
 %% Note that Cassandra doesn't like big batches and there's not retry login when query size will
 %% be exceeded like in cql_write/5.
 %% --------------------------------------------------------
--spec cql_write_async(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
+-spec cql_write_async(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                       QueryName :: query_name(), Rows :: [parameters()]) ->
                              ok | {error, Reason :: any()}.
 cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
@@ -102,7 +102,7 @@ cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
 %% @doc Execute read query to cassandra (select).
 %% Returns all rows at once even if there are several query pages.
 %% --------------------------------------------------------
--spec cql_read(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
+-spec cql_read(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                QueryName :: query_name(), Params :: parameters()) ->
                       {ok, Rows :: rows()} | {error, Reason :: any()}.
 cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
@@ -121,7 +121,7 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 %% query. Therefore each execution of given fun gets list of several result rows (by default 100 at
 %% most).
 %% --------------------------------------------------------
--spec cql_foldl(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 fold_fun(), AccIn :: fold_accumulator()) ->
                        {ok, AccOut :: fold_accumulator()} | {error, Reason :: any()}.

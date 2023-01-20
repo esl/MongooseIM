@@ -39,7 +39,7 @@ set_module_loglevel(Module, Level) ->
 clear_module_loglevel(Module) ->
     set_module_loglevel(Module, get_global_loglevel()).
 
--spec get_log_files() -> [filename:name()].
+-spec get_log_files() -> [file:filename()].
 get_log_files() ->
     [ File || #{config := #{file := File}} <- logger:get_handler_config() ].
 

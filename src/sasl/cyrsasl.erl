@@ -51,7 +51,8 @@
 -type error() :: {error, binary() | {binary(), binary()}}
                | {error, binary() | {binary(), binary()}, jid:user()}.
 
--export_type([mechanism/0,
+-export_type([sasl_module/0,
+              mechanism/0,
               error/0]).
 
 -callback mechanism() -> mechanism().

@@ -54,7 +54,7 @@
 -type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
 -type write_res() :: ok | {error, any()}.
 
--export_type([entry_key/0, get_inbox_params/0]).
+-export_type([entry_key/0, entry_properties/0, get_inbox_params/0]).
 -export_type([count_res/0, write_res/0, inbox_res/0]).
 
 %%--------------------------------------------------------------------

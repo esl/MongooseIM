@@ -27,7 +27,7 @@
 %%--------------------------------------------------------------------
 %% mod_event_pusher_push_plugin callbacks
 %%--------------------------------------------------------------------
--spec should_publish(Acc :: mongooseim_acc:t(),
+-spec should_publish(Acc :: mongoose_acc:t(),
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].
@@ -39,7 +39,7 @@ should_publish(Acc, #chat_event{to = To}, Services) ->
     end;
 should_publish(_Acc, _Event, _Services) -> [].
 
--spec prepare_notification(Acc :: mongooseim_acc:t(),
+-spec prepare_notification(Acc :: mongoose_acc:t(),
                            Event :: mod_event_pusher:event()) ->
                               mod_event_pusher_push_plugin:push_payload() | skip.
 prepare_notification(Acc, _) ->
@@ -53,11 +53,11 @@ prepare_notification(Acc, _) ->
             push_content_fields(SenderId, BodyCData, MessageCount)
     end.
 
--spec publish_notification(Acc :: mongooseim_acc:t(),
+-spec publish_notification(Acc :: mongoose_acc:t(),
                            Event :: mod_event_pusher:event(),
                            Payload :: mod_event_pusher_push_plugin:push_payload(),
                            Services :: [mod_event_pusher_push:publish_service()]) ->
-                              mongooseim_acc:t().
+                              mongoose_acc:t().
 publish_notification(Acc, _, Payload, Services) ->
     To = mongoose_acc:to_jid(Acc),
     HostType = mongoose_acc:host_type(Acc),
@@ -116,7 +116,7 @@ push_content_fields(SenderId, BodyCData, MessageCount) ->
         {<<"last-message-body">>, BodyCData}
     ].
 
--spec publish_via_hook(Acc :: mongooseim_acc:t(),
+-spec publish_via_hook(Acc :: mongoose_acc:t(),
                        HostType :: mongooseim:host_type(),
                        To :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),

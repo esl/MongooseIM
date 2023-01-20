@@ -117,7 +117,7 @@ get_rooms(HostType, MucHost) ->
     end.
 
 -spec can_use_nick(mongooseim:host_type(), jid:server(),
-                   ejabberd:jid(), mod_muc:nick()) -> boolean().
+                   jid:jid(), mod_muc:nick()) -> boolean().
 can_use_nick(_HostType, MucHost, JID, Nick) ->
     LUS = jid:to_lus(JID),
     can_use_nick_internal(MucHost, Nick, LUS).

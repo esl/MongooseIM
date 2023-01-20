@@ -170,8 +170,8 @@ cast(HostType, F, A) ->
     mongoose_wpool:cast(generic, HostType, pusher_push, {erlang, apply, [F, A]}).
 
 -spec is_virtual_pubsub_host(HostType :: mongooseim:host_type(), %% recipient host type
-                             RecipientDomain :: mongooseim:domain(),
-                             VirtPubsubDomain :: mongooseim:domain()) -> boolean().
+                             RecipientDomain :: mongooseim:domain_name(),
+                             VirtPubsubDomain :: mongooseim:domain_name()) -> boolean().
 is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
     Templates = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts),
     PredFn = fun(Template) ->

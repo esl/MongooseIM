@@ -21,7 +21,7 @@
                            lserver :: jid:lserver(),
                            host_type :: mongooseim:host_type(),
                            %% Authorization success / failure registry.
-                           registry :: [{ejabberd_gen_auth:t(), auth_event()}],
+                           registry :: [{mongoose_gen_auth:t(), auth_event()}],
                            %% These values are dependent on the ejabberd_auth backend in use.
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()],
@@ -95,7 +95,7 @@ extend(#mongoose_credentials{} = C, KVPairs) ->
                         ?MODULE:set(Creds, K, V)
                 end, C, KVPairs).
 
--spec register(t(), ejabberd_gen_auth:t(), auth_event()) -> t().
+-spec register(t(), mongoose_gen_auth:t(), auth_event()) -> t().
 register(#mongoose_credentials{} = C, Mod, Event) ->
     #mongoose_credentials{registry = R} = C,
     C#mongoose_credentials{registry = [{Mod, Event} | R]}.

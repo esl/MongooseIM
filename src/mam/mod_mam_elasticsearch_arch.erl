@@ -340,7 +340,7 @@ update_borders_to_id(undefined, EndId) ->
 update_borders_to_id(Borders, EndId) ->
     Borders#mam_borders{to_id = EndId}.
 
--spec archive_size(mod_mam_elasticsearch:query()) -> non_neg_integer().
+-spec archive_size(mongoose_elasticsearch:query()) -> non_neg_integer().
 archive_size(Query) ->
     case mongoose_elasticsearch:count(?INDEX_NAME, ?TYPE_NAME, Query) of
         {ok, Count} ->

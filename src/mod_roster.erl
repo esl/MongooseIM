@@ -82,7 +82,7 @@
 -include("mod_roster.hrl").
 -include("mongoose_config_spec.hrl").
 
--export_type([roster/0, sub_presence/0]).
+-export_type([roster/0, sub_presence/0, subscription_state/0]).
 
 -type roster() :: #roster{}.
 
@@ -226,7 +226,7 @@ roster_version_on_db(HostType) ->
 
 %% Returns a list that may contain an xmlel with the XEP-237 feature if it's enabled.
 -spec get_versioning_feature(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: [jlib:xmlel()],
+    Acc :: [exml:element()],
     Params :: map(),
     Extra :: gen_hook:extra().
 get_versioning_feature(Acc, _, #{host_type := HostType}) ->

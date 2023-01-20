@@ -44,11 +44,11 @@ init(Opts) ->
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_sessions() -> [ejabberd_sm:sessions()].
+-spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, []).
 
--spec get_sessions(jid:server()) -> [ejabberd_sm:sessions()].
+-spec get_sessions(jid:server()) -> [ejabberd_sm:session()].
 get_sessions(Server) ->
     Args = [Server],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

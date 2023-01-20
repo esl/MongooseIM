@@ -21,7 +21,7 @@
 -include_lib("epgsql/include/epgsql.hrl").
 
 -type options() :: #{host := string(),
-                     port := inet:port(),
+                     port := inet:port_number(),
                      database := string(),
                      username := string(),
                      password := string(),

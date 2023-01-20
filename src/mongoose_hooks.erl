@@ -206,7 +206,7 @@ adhoc_sm_commands(HostType, From, To, AdhocRequest) ->
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
     LUser :: jid:user(),
-    Result :: mongose_acc:t().
+    Result :: mongoose_acc:t().
 anonymous_purge_hook(LServer, Acc, LUser) ->
     Jid = jid:make_bare(LUser, LServer),
     Params = #{jid => Jid},
@@ -1001,7 +1001,7 @@ mam_get_behaviour(HostType, ArchiveID, Owner, Remote) ->
       Owner :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
-      NeverJIDs :: [jid:literel_jid()],
+      NeverJIDs :: [jid:literal_jid()],
       Result :: any().
 mam_set_prefs(HostType,  ArchiveID, Owner, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Params = #{archive_id => ArchiveID, owner => Owner,
@@ -1129,7 +1129,7 @@ mam_muc_get_behaviour(HostType, ArchiveID, Room, Remote) ->
       Room :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
-      NeverJIDs :: [jid:literel_jid()],
+      NeverJIDs :: [jid:literal_jid()],
       Result :: any().
 mam_muc_set_prefs(HostType, ArchiveID, Room, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Params = #{archive_id => ArchiveID, room => Room, default_mode => DefaultMode,

@@ -6,6 +6,8 @@
 
 -ignore_xref([cmd/2, cmds/2]).
 
+-include_lib("eredis/include/eredis.hrl").
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -26,8 +28,7 @@ cmd(Cmd) ->
 cmds(Cmd) ->
     cmds(Cmd, 5000).
 
--spec cmd(iolist(), integer()) -> eredis:return_value()
-                                  | {'error', _}.
+-spec cmd(iolist(), integer()) -> return_value() | {error, _}.
 cmd(Cmd, Timeout) ->
     {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     case eredis:q(Worker, Cmd, Timeout) of
@@ -35,8 +36,7 @@ cmd(Cmd, Timeout) ->
         V -> V
     end.
 
--spec cmds([iolist()], integer()) -> [eredis:return_value()]
-                                     | {'error', _}.
+-spec cmds([iolist()], integer()) -> [return_value()] | {error, _}.
 cmds(Cmd, Timeout) ->
     {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     eredis:qp(Worker, Cmd, Timeout).

@@ -30,7 +30,7 @@
 -ignore_xref([behaviour_info/1, close/1, controlling_process/2, peername/1,
               send/2, setopts/2, sockname/1]).
 
--type tls_socket() :: any().
+-type tls_socket() :: fast_tls:tls_socket() | just_tls:tls_socket().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
 
 %% Options used for client-side and server-side TLS connections.
@@ -58,7 +58,8 @@
                          protocol := default | https,
                          host => string()}.
 
--export_type([tls_socket/0]).
+-export_type([options/0,
+              tls_socket/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% behaviour definition
@@ -147,11 +148,11 @@ controlling_process(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Pid) -
     M:controlling_process(S, Pid).
 
 
--spec sockname(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
+-spec sockname(socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 sockname(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
 
 
--spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
+-spec peername(socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 peername(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 
 
@@ -179,7 +180,7 @@ close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 -spec get_sockmod(socket()) -> module().
 get_sockmod(#mongoose_tls_socket{tls_module = Module}) -> Module.
 
--spec get_tls_last_message(ejabberd_socket:socket()) -> {ok, binary()} | {error, term()}.
+-spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
 get_tls_last_message(#mongoose_tls_socket{} = Socket) ->
     case get_sockmod(Socket) of
         fast_tls ->

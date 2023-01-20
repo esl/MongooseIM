@@ -40,7 +40,7 @@
 
 -define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
 
--spec init(mongoooseim:host_type(), gen_mod:module_opts()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     mnesia:create_table(offline_msg,
                         [{disc_only_copies, [node()]},

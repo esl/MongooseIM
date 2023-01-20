@@ -113,7 +113,8 @@
               priority/0,
               backend/0,
               close_reason/0,
-              info/0
+              info/0,
+              info_key/0
              ]).
 
 %% default value for the maximum number of user connections
