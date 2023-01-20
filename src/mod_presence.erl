@@ -45,6 +45,7 @@
          am_i_subscribed_to_presence/3,
          presence_unavailable_stanza/0,
          get_presence/1,
+         get_subscribed/1,
          set_presence/2,
          maybe_get_handler/1
         ]).
@@ -61,9 +62,13 @@ stop(HostType) ->
 supported_features() ->
     [dynamic_domains].
 
--spec get_presence(pid()) -> {binary(), binary()}.
+-spec get_presence(pid()) -> {jid:luser(), jid:lresource(), binary(), binary()}.
 get_presence(Pid) ->
-    gen_statem:call(Pid, get_presence).
+    gen_statem:call(Pid, get_presence, 5000).
+
+-spec get_subscribed(pid()) -> [jid:jid()].
+get_subscribed(Pid) ->
+    gen_statem:call(Pid, get_subscribed, 5000).
 
 -spec set_presence(pid(), exml:element()) -> ok.
 
@@ -151,6 +156,17 @@ foreign_event(Acc, #{c2s_data := StateData,
     #jid{luser = User, lresource = Resource} = mongoose_c2s:get_jid(StateData),
     Reply = {User, Resource, get_showtag(PresLast), get_statustag(PresLast)},
     Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
+    {stop, Acc1};
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := {call, From},
+                     event_content := get_subscribed}, _Extra) ->
+    Subscribed = case get_mod_state(StateData) of
+                     {error, not_found} ->
+                         [];
+                     #presences_state{pres_f = PresF} ->
+                         gb_sets:to_list(PresF)
+                 end,
+    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Subscribed}]),
     {stop, Acc1};
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := cast,
