@@ -47,7 +47,8 @@
 
 -export([user_send_presence/3,
          user_receive_presence/3,
-         c2s_broadcast_recipients/3]).
+         get_pep_recipients/3,
+         filter_pep_recipient/3]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
@@ -322,11 +323,11 @@ upsert_caps(LFrom, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
--spec c2s_broadcast_recipients(Acc, Params, Extra) -> {ok, Acc} when
+-spec get_pep_recipients(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [jid:simple_jid()],
     Params :: #{c2s_data := mongoose_c2s:data(), type := {atom(), binary()}},
     Extra :: map().
-c2s_broadcast_recipients(InAcc, #{c2s_data := C2SData, type := {pep_message, Feature}}, _) ->
+get_pep_recipients(InAcc, #{state := C2SData, feature := Feature}, _) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
     NewAcc = case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
                  {ok, Rs} ->
@@ -334,7 +335,7 @@ c2s_broadcast_recipients(InAcc, #{c2s_data := C2SData, type := {pep_message, Fea
                  _ -> InAcc
              end,
     {ok, NewAcc};
-c2s_broadcast_recipients(Acc, _, _) -> {ok, Acc}.
+get_pep_recipients(Acc, _, _) -> {ok, Acc}.
 
 -spec filter_recipients_by_caps(mongooseim:host_type(), Acc, binary(), caps_resources()) -> Acc
     when Acc :: [jid:simple_jid()].
@@ -346,6 +347,28 @@ filter_recipients_by_caps(HostType, InAcc, Feature, Rs) ->
                           end
                   end,
                   InAcc, Rs).
+
+-spec filter_pep_recipient(Acc, Params, Extra) -> {ok | stop, Acc} when
+      Acc :: boolean(),
+      Params :: #{state := ejabberd_c2s:state(), feature := binary(), to := jid:jid()},
+      Extra :: gen_hook:extra().
+filter_pep_recipient(InAcc, #{state := C2SData, feature := Feature, to := To}, _) ->
+    case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+        {ok, Rs} ->
+            ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
+                         acc => InAcc, c2s_state => C2SData, caps_resources => Rs}),
+            LTo = jid:to_lower(To),
+            case gb_trees:lookup(LTo, Rs) of
+                {value, Caps} ->
+                    HostType = mongoose_c2s:get_host_type(C2SData),
+                    Drop = not lists:member(Feature, get_features_list(HostType, Caps)),
+                    {stop, Drop};
+                none ->
+                    {stop, true}
+            end;
+        _ -> {ok, InAcc}
+    end;
+filter_pep_recipient(Acc, _, _) -> {ok, Acc}.
 
 init_db(mnesia) ->
     case catch mnesia:table_info(caps_features, storage_type) of
@@ -390,7 +413,8 @@ terminate(_Reason, #state{host_type = HostType}) ->
 
 hooks(HostType) ->
     [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
-     {c2s_broadcast_recipients, HostType, fun ?MODULE:c2s_broadcast_recipients/3, #{}, 75},
+     {get_pep_recipients, HostType, fun ?MODULE:get_pep_recipients/3, #{}, 75},
+     {filter_pep_recipient, HostType, fun ?MODULE:filter_pep_recipient/3, #{}, 75},
      {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 75},
      {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 1},
      {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
@@ -417,7 +441,10 @@ feature_request(Acc, LServer, From, Caps, [SubNode | Tail] = SubNodes) ->
                               {ok, TS} -> os:system_time(second) >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
-            F = fun (_From, _To, Acc1, IQReply) ->
+            F = fun (_From, _To, _Acc1, timeout) ->
+                        %% IQ request timed out, skip this node
+                        feature_request(Acc, LServer, From, Caps, Tail);
+                    (_From, _To, Acc1, IQReply) ->
                         feature_response(Acc1, IQReply, LServer, From, Caps, SubNodes)
                 end,
             case NeedRequest of
