@@ -37,7 +37,8 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
--export([c2s_broadcast_recipients/4,
+-export([get_pep_recipients/2,
+         filter_pep_recipient/3,
          c2s_stream_features/2,
          check_bl_c2s/1,
          forbidden_session_hook/3,
@@ -455,16 +456,24 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
 
 %% C2S related hooks
 
--spec c2s_broadcast_recipients(State, Type, From, Packet) -> Result when
+-spec get_pep_recipients(State, Feature) -> Result when
     State :: mongoose_c2s:data(),
-    Type :: {atom(), any()},
-    From :: jid:jid(),
-    Packet :: exml:element(),
+    Feature :: binary(),
     Result :: [jid:simple_jid()].
-c2s_broadcast_recipients(State, Type, From, Packet) ->
-    Params = #{state => State, type => Type, from => From, packet => Packet},
+get_pep_recipients(State, Feature) ->
+    Params = #{state => State, feature => Feature},
     HostType = mongoose_c2s:get_host_type(State),
-    run_hook_for_host_type(c2s_broadcast_recipients, HostType, [], Params).
+    run_hook_for_host_type(get_pep_recipients, HostType, [], Params).
+
+-spec filter_pep_recipient(State, Feature, To) -> Result when
+    State :: ejabberd_c2s:state(),
+    Feature :: binary(),
+    To :: jid:jid(),
+    Result :: boolean().
+filter_pep_recipient(State, Feature, To) ->
+    Params = #{state => State, feature => Feature, to => To},
+    HostType = mongoose_c2s:get_host_type(State),
+    run_hook_for_host_type(filter_pep_recipient, HostType, true, Params).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),
