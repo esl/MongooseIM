@@ -10,7 +10,7 @@
 -type summary() :: #{reason() => [jid:jid() | binary()]}.
 -type reason() :: ok | exists | not_allowed | invalid_jid | null_password | bad_csv.
 
--export_types([summary/0, reason/0]).
+-export_type([summary/0, reason/0]).
 
 -spec run(file:name()) -> {ok, summary()} | {error, file_not_found}.
 run(Filename) ->

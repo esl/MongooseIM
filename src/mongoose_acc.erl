@@ -91,11 +91,12 @@
         ns_key() => Value :: any()
        }.
 
--export_type([t/0]).
+-export_type([t/0,
+              new_acc_params/0]).
 
 -type new_acc_params() :: #{
         location := location(),
-        lserver := jid:lserver(),
+        lserver => jid:lserver(),
         element => exml:element() | undefined,
         host_type => binary() | undefined, % optional
         from_jid => jid:jid() | undefined, % optional

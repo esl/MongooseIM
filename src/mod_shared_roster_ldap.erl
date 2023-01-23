@@ -59,6 +59,9 @@
 
 -define(LDAP_SEARCH_TIMEOUT, 5).
 
+%% re:mp() type (it is not exprted in the re module)
+-type re_mp() :: {re_pattern, _, _, _, _}.
+
 -record(state,
         {host = <<>>                                  :: binary(),
          eldap_id                                     :: eldap_utils:eldap_id(),
@@ -70,7 +73,7 @@
          user_desc = <<>>                             :: binary(),
          user_uid = <<>>                              :: binary(),
          uid_format = <<>>                            :: binary(),
-         uid_format_re = <<>>                         :: binary() | re:mp(),
+         uid_format_re = <<>>                         :: binary() | re_mp(),
          filter = <<>>                                :: binary(),
          ufilter = <<>>                               :: binary(),
          rfilter = <<>>                               :: binary(),

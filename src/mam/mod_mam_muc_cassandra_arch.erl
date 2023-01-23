@@ -159,11 +159,11 @@ archive_message2(#{message_id := MessID,
                  message   = BPacket,
                  with_nick = BWithNick
                 } || {BWithNick, BWithFromJID} <- [{<<>>, BFromJID}, {BNick, <<>>}]],
-    PoolName = pool_name(HostType),
-    write_messages(HostType, PoolName, Messages).
+    write_messages(HostType, Messages).
 
-write_messages(HostType, RoomJID, Messages) ->
+write_messages(HostType, Messages) ->
     PoolName = pool_name(HostType),
+    RoomJID = undefined,
     MultiParams = [message_to_params(M) || M <- Messages],
     mongoose_cassandra:cql_write_async(PoolName, RoomJID, ?MODULE, insert_query, MultiParams).
 
@@ -771,6 +771,6 @@ stored_binary_to_packet(HostType, Bin) ->
 db_message_format(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, db_message_format).
 
--spec pool_name(HostType :: host_type()) -> mongoose_wpool:pool_name().
+-spec pool_name(HostType :: host_type()) -> default. %% returns mongoose_wpool:pool_name().
 pool_name(_HostType) ->
     default.

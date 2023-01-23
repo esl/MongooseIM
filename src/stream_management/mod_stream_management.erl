@@ -58,7 +58,8 @@
 -type buffer_max() :: pos_integer() | infinity | no_buffer.
 -type ack_freq() :: pos_integer() | never.
 
--type smid() :: base64:ascii_binary().
+%% Type base64:ascii_binary() is not exported
+-type smid() :: binary().
 -type short() :: 0..?STREAM_MGMT_H_MAX.
 
 -type maybe_smid() :: {sid, ejabberd_sm:sid()}

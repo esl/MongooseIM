@@ -40,7 +40,7 @@
 -include("jlib.hrl").
 -include("mod_offline.hrl").
 
--spec init(mongoooseim:host_type(), gen_mod:module_opts()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     prepare_queries(),
     ok.

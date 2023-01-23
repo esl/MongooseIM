@@ -178,6 +178,7 @@ executors:
   otp_25:
     docker:
       - image: *OTP25
+    resource_class: medium+
   otp_24_redis:
     docker:
       - image: *OTP24
@@ -323,13 +324,6 @@ commands:
           when: always
           command: |
               tools/circle-publish-github-comment.sh
-  publish_github_summary_comment:
-    steps:
-      - run:
-          name: Publish a summary comment to GitHub
-          when: on_fail
-          command: |
-              tools/circle-publish-github-summary-comment.sh
 
   maybe_prepare_minio:
     steps:
@@ -613,7 +607,6 @@ jobs:
             tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
       - upload_results_to_aws
       - publish_github_comment
-      - publish_github_summary_comment
 
   dialyzer:
     executor: << parameters.executor >>

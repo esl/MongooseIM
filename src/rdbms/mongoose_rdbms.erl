@@ -166,6 +166,7 @@
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
 -type dirty_result() :: {ok, any()} | {error, any()}.
 -export_type([query_result/0,
+              transaction_result/0,
               server/0]).
 
 -type options() :: #{driver := pgsql | mysql | odbc,

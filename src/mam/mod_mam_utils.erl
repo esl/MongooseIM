@@ -90,7 +90,7 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2,
          lookup/3,
-         batch_delete_limits/1, incremental_delete_domain/5,
+         incremental_delete_domain/5,
          db_message_codec/2, db_jid_codec/2]).
 
 -callback extra_fin_element(mongooseim:host_type(),
@@ -431,14 +431,14 @@ maybe_append_origin_id(_) ->
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
-                   MessageUID :: term(), TS :: calendar:rfc3339_string(),
+                   MessageUID :: term(), TS :: jlib:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, TS, SrcJID) ->
     wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), TS, SrcJID).
 
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
                    MessageUID :: term(), WrapperI :: binary(),
-                   TS :: calendar:rfc3339_string(),
+                   TS :: jlib:rfc3339_string(),
                    SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
     #xmlel{ name = <<"message">>,
@@ -446,7 +446,7 @@ wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, TS, SrcJID) ->
             children = [result(MamNs, QueryID, MessageUID,
                                [forwarded(Packet, TS, SrcJID)])] }.
 
--spec forwarded(exml:element(), calendar:rfc3339_string(), jid:jid())
+-spec forwarded(exml:element(), jlib:rfc3339_string(), jid:jid())
                -> exml:element().
 forwarded(Packet, TS, SrcJID) ->
     #xmlel{
@@ -458,7 +458,7 @@ forwarded(Packet, TS, SrcJID) ->
        %% Also, mod_mam_muc will replace it again with SrcJID
        children = [delay(TS, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
--spec delay(calendar:rfc3339_string(), jid:jid()) -> exml:element().
+-spec delay(jlib:rfc3339_string(), jid:jid()) -> exml:element().
 delay(TS, SrcJID) ->
     jlib:timestamp_to_xml(TS, SrcJID, <<>>).
 
@@ -1225,13 +1225,6 @@ db_jid_codec(HostType, Module) ->
 -spec db_message_codec(mongooseim:host_type(), module()) -> module().
 db_message_codec(HostType, Module) ->
     gen_mod:get_module_opt(HostType, Module, db_message_format).
-
--spec batch_delete_limits(#{delete_domain_limit := infinity | non_neg_integer(), _ => _}) ->
-    {binary(), binary()}.
-batch_delete_limits(#{delete_domain_limit := infinity}) ->
-    {<<>>, <<>>};
-batch_delete_limits(#{delete_domain_limit := Limit}) ->
-    rdbms_queries:get_db_specific_limits_binaries(Limit).
 
 -spec incremental_delete_domain(
         mongooseim:host_type(), jid:lserver(), non_neg_integer(), [atom()], non_neg_integer()) ->

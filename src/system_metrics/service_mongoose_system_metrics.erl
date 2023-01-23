@@ -34,6 +34,8 @@
          prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
          tracking_ids :: [tracking_id()]}).
 
+-export_type([client_id/0, tracking_id/0]).
+
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
 -type tracking_id() :: string().

@@ -1083,7 +1083,7 @@ iq_get_unique(From) ->
 
 -spec iq_get_register_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> [jlib:xmlel(), ...].
+            -> [exml:element(), ...].
 iq_get_register_info(HostType, MucHost, From, Lang) ->
     {Nick, Registered} =
         case catch get_nick(HostType, MucHost, From) of
@@ -1114,7 +1114,7 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
 
 -spec iq_set_register_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result', []}.
+            -> {'error', exml:element()} | {'result', []}.
 iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
     case set_nick(HostType, MucHost, From, Nick) of
         ok ->
@@ -1135,7 +1135,7 @@ iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
 
 -spec iq_set_unregister_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result', []}.
+            -> {'error', exml:element()} | {'result', []}.
 iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
     case unset_nick(HostType, MucHost, From) of
         ok ->
@@ -1148,8 +1148,8 @@ iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
     end.
 
 -spec process_iq_register_set(host_type(), jid:server(),
-                              jid:jid(), jlib:xmlel(), ejabberd:lang())
-            -> {'error', jlib:xmlel()} | {'result', []}.
+                              jid:jid(), exml:element(), ejabberd:lang())
+            -> {'error', exml:element()} | {'result', []}.
 process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of

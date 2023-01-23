@@ -45,6 +45,19 @@
 
 -ignore_xref([decode_octet_string/3, generate_subfilter/1, make_filter/2, uids_domain_subst/2]).
 
+%% Used to be eldap:filter()
+-type filter() :: term().
+
+%% Used to be eldap:eldap_entry()
+-type eldap_entry() :: term().
+
+%% Used to be eldap:handle()
+-type handle() :: term().
+
+-export_type([handle/0,
+              filter/0,
+              eldap_entry/0]).
+
 -type dn() :: binary().
 -type deref() :: neverDerefAliases | derefInSearching
                  | derefFindingBaseObj | derefAlways.

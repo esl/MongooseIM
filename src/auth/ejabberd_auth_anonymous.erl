@@ -215,7 +215,7 @@ check_password(HostType, LUser, LServer, _Password, _Digest, _DigestGen) ->
     end.
 
 
--spec login(HostType :: mongoooseim:host_type(), LUser :: jid:luser(),
+-spec login(HostType :: mongooseim:host_type(), LUser :: jid:luser(),
             LServer :: jid:lserver()) -> boolean().
 login(HostType, LUser, LServer) ->
     case is_protocol_enabled(HostType, login_anon) of

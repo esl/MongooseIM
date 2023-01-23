@@ -59,14 +59,16 @@ start_nksip_service_or_error(Opts = #{listen_port := ListenPort}) ->
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
-    case nksip:start(?SERVICE, NkSipOpts) of
-        {ok, _SrvID} ->
-            ok;
-        {error, already_started} ->
-            ok;
-        Other ->
-            erlang:error(Other)
-    end.
+    Res = nksip:start(?SERVICE, NkSipOpts),
+    check_start_result(Res).
+
+-dialyzer({no_match, check_start_result/1}).
+check_start_result({ok, _SrvID}) ->
+    ok;
+check_start_result({error, already_started}) ->
+    ok;
+check_start_result(Other) ->
+    erlang:error(Other).
 
 maybe_add_udp_max_size(NkSipOpts, Opts) ->
     case gen_mod:get_opt(udp_max_size, Opts, undefined) of
@@ -213,6 +215,16 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:item_not_found())
     end.
 
+%% Error: The pattern {'async', Handle} can never match the type {'error','service_not_found'}
+-dialyzer({[no_match, no_return], nksip_uac_invite/3}).
+nksip_uac_invite(Service, Uri, Opts) ->
+    case nksip_uac:invite(Service, Uri, Opts) of
+        {error, Reason} ->
+            error(Reason);
+        {async, _} = Async ->
+            Async
+    end.
+
 translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     #jid{luser = ToUser} = ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
@@ -226,7 +238,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     ToHeader = <<ToUser/binary, " <sip:",To/binary, ">">>,
     LocalHost = gen_mod:get_module_opt(LServer, ?MODULE, local_host),
 
-    {async, Handle} = nksip_uac:invite(?SERVICE, RequestURI,
+    {async, Handle} = nksip_uac_invite(?SERVICE, RequestURI,
                                        [%% Request options
                                         {to, ToHeader},
                                         {from, <<FromUser/binary, " <sip:", From/binary, ">">>},
@@ -289,13 +301,7 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
 
 translate_source_change_to_sip(ActionName, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
-    LServer = mongoose_acc:lserver(Acc),
-    #sdp{attributes = SDPAttrs} = RawSDP = prepare_initial_sdp(LServer, Jingle),
-
-    SDPAttrsWithActionName = [{<<"jingle-action">>, [ActionName]}
-                              | SDPAttrs],
-    SDP = RawSDP#sdp{attributes = SDPAttrsWithActionName},
-
+    SDP = get_spd(ActionName, Jingle, Acc),
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
             ?LOG_ERROR(#{what => sip_missing_dialod, sid => SID, acc => Acc}),
@@ -306,6 +312,12 @@ translate_source_change_to_sip(ActionName, Jingle, Acc) ->
             ?LOG_ERROR(#{what => sip_missing_session, sid => SID, acc => Acc}),
             {error, item_not_found}
     end.
+
+get_spd(ActionName, Jingle, Acc) ->
+    LServer = mongoose_acc:lserver(Acc),
+    #sdp{attributes = SDPAttrs} = RawSDP = prepare_initial_sdp(LServer, Jingle),
+    SDPAttrsWithActionName = [{<<"jingle-action">>, [ActionName]} | SDPAttrs],
+    RawSDP#sdp{attributes = SDPAttrsWithActionName}.
 
 try_to_terminate_the_session(FromLUS, ToLUS, Session) ->
     case maps:get(state, Session) of

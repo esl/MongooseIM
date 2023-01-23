@@ -24,7 +24,7 @@
 %%--------------------------------------------------------------------
 %% mod_event_pusher_push_plugin callbacks
 %%--------------------------------------------------------------------
--spec should_publish(Acc :: mongooseim_acc:t(),
+-spec should_publish(Acc :: mongoose_acc:t(),
                      Event :: mod_event_pusher:event(),
                      Services :: [mod_event_pusher_push:publish_service()]) ->
                         [mod_event_pusher_push:publish_service()].

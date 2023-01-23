@@ -23,6 +23,9 @@
 
 -import(backend_module, [is_exported/3]).
 
+-type t() :: module().
+-export_type([t/0]).
+
 %% Mandatory callbacks
 
 -callback start(HostType :: mongooseim:host_type()) -> ok.

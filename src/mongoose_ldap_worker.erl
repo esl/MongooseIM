@@ -12,7 +12,7 @@
 
 -include("mongoose.hrl").
 
--type state() :: #{handle := none | eldap:handle(),
+-type state() :: #{handle := none | eldap_utils:handle(),
                    servers := [string()],
                    tls_options := list(),
                    port := pos_integer(),
