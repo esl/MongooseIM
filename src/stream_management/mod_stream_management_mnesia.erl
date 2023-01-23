@@ -118,7 +118,7 @@ delete_stale_h(_HostType, SMID) ->
 start_cleaner(HostType, #{repeat_after := Interval, geriatric := TTL}) ->
     Name = gen_mod:get_module_proc(HostType, stream_management_stale_h),
     WOpts = #{host_type => HostType, action => fun ?MODULE:clear_table/2,
-              opts => TTL, interval => Interval},
+              opts => TTL, interval => timer:seconds(Interval)},
     MFA = {mongoose_collector, start_link, [Name, WOpts]},
     ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
     %% TODO cleaner should be a service
