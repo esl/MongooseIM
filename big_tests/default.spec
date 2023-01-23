@@ -91,7 +91,7 @@
 {suites, "tests", pubsub_s2s_SUITE}.
 {suites, "tests", push_SUITE}.
 {suites, "tests", push_http_SUITE}.
-% {suites, "tests", push_integration_SUITE}.
+{suites, "tests", push_integration_SUITE}.
 {suites, "tests", push_pubsub_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", rdbms_SUITE}.
