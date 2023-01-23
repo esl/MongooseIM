@@ -919,7 +919,7 @@ get_ack_freq(HostType) ->
 
 -spec get_resume_timeout(mongooseim:host_type()) -> pos_integer().
 get_resume_timeout(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout).
+    timer:seconds(gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout)).
 
 -spec register_stale_smid_h(mongooseim:host_type(), smid(), short()) -> ok | {error, any()}.
 register_stale_smid_h(HostType, SMID, H) ->
