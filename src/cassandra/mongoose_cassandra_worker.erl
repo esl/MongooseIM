@@ -311,7 +311,8 @@ process_request(ReqId, #state{pool_name = PoolName} = State) ->
     #request{action = Action, opts = Opts} = Req,
 
     try
-        Client = {ClientPid, _} = get_client(PoolName),
+        Client = get_client(PoolName),
+        ClientPid = cqerl:client_to_pid(Client),
         MRef = erlang:monitor(process, ClientPid),
         {Tag, NextAction} = send_next_request(Client, Action, Opts),
 
@@ -580,7 +581,9 @@ get_client_loop(PoolName, RetryNo) when RetryNo >= 500 ->
     error(cannot_get_cqerl_client, [PoolName, RetryNo]);
 get_client_loop(PoolName, RetryNo) ->
     try cqerl:get_client(PoolName) of
-        {ok, {Pid, _Ref} = Client} ->
+        {ok, Client} ->
+            Pid = cqerl:client_to_pid(Client),
+            %% TODO that would not be retried. Add docs why we need is_process_alive.
             case is_process_alive(Pid) of
                 true -> Client;
                 _ -> throw({dead, Pid})

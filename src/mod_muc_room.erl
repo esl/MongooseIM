@@ -3878,7 +3878,7 @@ identity(Name) ->
       type => <<"text">>,
       name => Name}.
 
--spec room_features(config()) -> [moongoose_disco:feature()].
+-spec room_features(config()) -> [mongoose_disco:feature()].
 room_features(Config) ->
     [?NS_MUC,
      config_opt_to_feature((Config#config.public),

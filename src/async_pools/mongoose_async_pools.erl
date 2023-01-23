@@ -43,7 +43,7 @@
               request_callback/0,
               verify_callback/0]).
 
--export_type([pool_id/0, pool_opts/0, pool_extra/0]).
+-export_type([task/0, pool_id/0, pool_opts/0, pool_extra/0]).
 
 -spec put_task(mongooseim:host_type(), pool_id(), term()) -> ok.
 put_task(HostType, PoolId, Task) ->

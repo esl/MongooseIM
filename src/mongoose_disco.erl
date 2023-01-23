@@ -56,7 +56,7 @@
 
 -export_type([item_acc/0, feature_acc/0, identity_acc/0,
               item/0, feature/0, identity/0,
-              info_field/0, info/0]).
+              info_field/0, info/0, info_acc/0]).
 
 %% Hook wrapper API
 

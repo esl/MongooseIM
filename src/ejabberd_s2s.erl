@@ -589,7 +589,7 @@ get_shared_secret(HostType) ->
     [#s2s_shared{secret = Secret}] = ets:lookup(s2s_shared, HostType),
     Secret.
 
--spec set_shared_secret() -> mnesia:t_result(ok).
+-spec set_shared_secret() -> {atomic, ok} | {aborted, term()}.
 set_shared_secret() ->
     mnesia:transaction(fun() ->
                                [set_shared_secret_t(HostType) || HostType <- ?ALL_HOST_TYPES],

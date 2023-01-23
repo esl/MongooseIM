@@ -22,8 +22,11 @@
 %% API
 -export([get/4, post/5]).
 
+-export_type([pool/0]).
+-type pool() :: atom().
+
 -spec get(Host :: jid:lserver() | global,
-          PoolTag :: atom(),
+          PoolTag :: pool(),
           Path :: binary(),
           Headers :: list()) ->
     {ok, {binary(), binary()}} | {error, any()}.
@@ -31,7 +34,7 @@ get(Host, PoolTag, Path, Headers) ->
     make_request(Host, PoolTag, Path, <<"GET">>, Headers, <<>>).
 
 -spec post(Host :: jid:lserver() | global,
-           PoolTag :: atom(),
+           PoolTag :: pool(),
            Path :: binary(),
            Headers :: list(),
            Query :: binary()) ->

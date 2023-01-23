@@ -168,7 +168,7 @@ bounce_queue_size() ->
 %%--------------------------------------------------------------------
 
 -spec reroute_message(TargetHost :: binary(),
-                      FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) ->
+                      FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) ->
                              any().
 reroute_message(TargetHost, {From, To, Acc0, Packet}) ->
     Acc = mod_global_distrib:put_metadata(Acc0, target_host_override, TargetHost),
@@ -186,7 +186,7 @@ get_index_key(From, To) ->
     {jid:to_lower(From), jid:to_lower(To)}.
 
 -spec do_insert_in_store(ResendAt :: integer(),
-                         {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) -> any().
+                         {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) -> any().
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
         true -> add_index(ResendAt, FPacket);

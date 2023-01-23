@@ -20,7 +20,7 @@
                      vars := map(),
                      authorized := boolean(),
                      ctx := map(),
-                     ast => graphql:document()}.
+                     ast => graphql:ast()}.
 -type context() :: map().
 -type object() :: term().
 -type field() :: binary().
@@ -31,6 +31,9 @@
             result().
 
 -export_type([request/0, context/0, object/0, field/0, args/0]).
+
+%% gen:start_ret() type is not exported from the gen module
+-type gen_start_ret()  :: {ok, pid()} | ignore | {error, term()}.
 
 -define(USER_EP_NAME, user_schema_ep).
 -define(ADMIN_EP_NAME, admin_schema_ep).
@@ -54,7 +57,7 @@ get_endpoint(Name) ->
     graphql_schema:get_endpoint_ctx(Name).
 
 %% @doc Create a new endpoint and load schema.
--spec create_endpoint(atom(), map(), [file:filename_all()]) -> gen:start_ret().
+-spec create_endpoint(atom(), map(), [file:filename_all()]) -> gen_start_ret().
 create_endpoint(Name, Mapping, Patterns) ->
     Res = graphql_schema:start_link(Name),
     Ep = graphql_schema:get_endpoint_ctx(Name),

@@ -22,7 +22,7 @@
 
 %% User's JID. Can be on another domain accessible over FED.
 %% Only bare part (user@host) is important.
--type client_jid() :: ejabberd:jid().
+-type client_jid() :: jid:jid().
 
 -type room_opts() :: [{OptionName :: atom(), OptionValue :: term()}].
 

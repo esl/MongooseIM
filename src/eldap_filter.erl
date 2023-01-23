@@ -47,7 +47,7 @@
 %%%   {ok, {'and', [{'not', {lessOrEqual, {'AttributeValueAssertion', "uid", "100"}}},
 %%%           {present, "mail"}]}}
 %%%-------------------------------------------------------------------
--spec parse(binary()) -> {error, any()} | {ok, eldap:filter()}.
+-spec parse(binary()) -> {error, any()} | {ok, eldap_utils:filter()}.
 parse(L) ->
     parse(L, []).
 
@@ -80,7 +80,7 @@ parse(L) ->
 %%%-------------------------------------------------------------------
 -spec parse(binary(), [{binary(), binary()} |
                        {binary(), binary(), pos_integer()}]) ->
-                   {error, any()} | {ok, eldap:filter()}.
+                   {error, any()} | {ok, eldap_utils:filter()}.
 
 parse(L, SList) ->
     case catch eldap_filter_yecc:parse(scan(binary_to_list(L), SList)) of

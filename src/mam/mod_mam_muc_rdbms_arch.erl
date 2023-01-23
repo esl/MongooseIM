@@ -114,17 +114,7 @@ register_prepared_queries(Opts) ->
                              "WHERE room_id = ?">>),
 
     %% Domain Removal
-    {MaybeLimitSQL, MaybeLimitMSSQL} = mod_mam_utils:batch_delete_limits(Opts),
-    IdTable = <<"(SELECT ", MaybeLimitMSSQL/binary,
-                " id from mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ")">>,
-    ServerTable = <<"(SELECT * FROM (SELECT", MaybeLimitMSSQL/binary,
-                    " server FROM mam_server_user WHERE server = ? ", MaybeLimitSQL/binary, ") as t)">>,
-    mongoose_rdbms:prepare(mam_muc_remove_domain, mam_muc_message, ['mam_server_user.server'],
-                           <<"DELETE FROM mam_muc_message "
-                             "WHERE room_id IN ", IdTable/binary>>),
-    mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
-                           <<"DELETE ", MaybeLimitMSSQL/binary,
-                             " FROM mam_server_user WHERE server IN", ServerTable/binary>>),
+    prepare_remove_domain(Opts),
 
     mongoose_rdbms:prepare(mam_muc_make_tombstone, mam_muc_message, [message, room_id, id],
                            <<"UPDATE mam_muc_message SET message = ?, search_body = '' "
@@ -147,6 +137,29 @@ register_prepared_queries(Opts) ->
     mongoose_rdbms:prepare(mam_muc_extract_gdpr_messages, mam_muc_message, [sender_id],
                            <<"SELECT id, message FROM mam_muc_message "
                              " WHERE sender_id = ? ORDER BY id">>).
+
+prepare_remove_domain(#{delete_domain_limit := infinity}) ->
+    mongoose_rdbms:prepare(mam_muc_remove_domain, mam_muc_message, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_muc_message "
+                             "WHERE room_id IN (SELECT id FROM mam_server_user where server = ?)">>),
+    mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
+                           <<"DELETE FROM mam_server_user WHERE server = ? ">>);
+prepare_remove_domain(#{delete_domain_limit := Limit}) ->
+    LimitSQL = case mongoose_rdbms:db_type() of
+                        mssql -> throw(delete_domain_limit_not_supported_for_mssql);
+                        _ -> {MaybeLimitSQL, _} = rdbms_queries:get_db_specific_limits_binaries(Limit),
+                             MaybeLimitSQL
+                    end,
+    IdTable = <<"(SELECT * FROM ",
+                    "(SELECT msg.room_id, msg.id FROM mam_muc_message msg",
+                    " INNER JOIN mam_server_user msu ON msu.id=msg.room_id",
+                    " WHERE msu.server = ? ", LimitSQL/binary, ") AS T)">>,
+    mongoose_rdbms:prepare(mam_muc_incr_remove_domain, mam_muc_message, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_muc_message WHERE (room_id, id) IN ", IdTable/binary>>),
+    ServerTable = <<"(SELECT * FROM",
+                        "(SELECT id FROM mam_server_user WHERE server = ? ", LimitSQL/binary, ") as t)">>,
+    mongoose_rdbms:prepare(mam_muc_incr_remove_domain_users, mam_server_user, [server],
+                           <<"DELETE FROM mam_server_user WHERE id IN ", ServerTable/binary>>).
 
 %% ----------------------------------------------------------------------
 %% Declarative logic
@@ -341,7 +354,7 @@ remove_domain_all(HostType, Domain) ->
 -spec remove_domain_batch(host_type(), jid:lserver(), non_neg_integer()) -> any().
 remove_domain_batch(HostType, Domain, Limit) ->
     SubHosts = get_subhosts(HostType, Domain),
-    DeleteQueries = [mam_muc_remove_domain, mam_muc_remove_domain_users],
+    DeleteQueries = [mam_muc_incr_remove_domain, mam_muc_incr_remove_domain_users],
     DelSubHost = [ mod_mam_utils:incremental_delete_domain(HostType, SubHost, Limit, DeleteQueries, 0)
                    || SubHost <- SubHosts],
     TotalDeleted = lists:sum(DelSubHost),

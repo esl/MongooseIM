@@ -82,7 +82,8 @@
               message_row/0,
               message_id/0,
               restore_option/0,
-              archive_message_params/0
+              archive_message_params/0,
+              mam_type/0
              ]).
 
 -export([start/2, stop/1, config_spec/0, supported_features/0, deps/2, config_metrics/1]).

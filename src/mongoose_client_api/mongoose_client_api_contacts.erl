@@ -121,7 +121,7 @@ handle_delete(Req, State = #{jid := UserJid}) ->
             end
     end.
 
--spec roster_info(mod_roster:roster()) -> jiffy:json_object().
+-spec roster_info(mod_roster:roster()) -> jiffy:json_value(). %% returns jiffy:json_object()
 roster_info(Roster) ->
     #{jid := Jid, subscription := Sub, ask := Ask} = mod_roster:item_to_map(Roster),
     #{jid => jid:to_binary(Jid), subscription => Sub, ask => Ask}.

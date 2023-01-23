@@ -85,7 +85,8 @@
                          timestamp := integer(), % microsecond
                          id := binary()}.
 
--export_type([chat_marker/0]).
+-export_type([maybe_thread/0,
+              chat_marker/0]).
 
 %% gen_mod API
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
@@ -247,7 +248,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     {ok, Acc}.
 
 -spec forget_room(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_domain_api:simple_acc(),
+      Acc :: mongoose_acc:t(),
       Params :: #{muc_host := jid:lserver(), room := jid:luser()},
       Extra :: #{host_type := mongooseim:host_type()}.
 forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) ->
@@ -256,7 +257,7 @@ forget_room(Acc, #{muc_host := RoomS, room := RoomU}, #{host_type := HostType}) 
 
 %% The new affs can be found in the Acc:element, where we can scan for 'none' ones
 -spec room_new_affiliations(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_domain_api:simple_acc(),
+      Acc :: mongoose_acc:t(),
       Params :: #{room := jid:jid()},
       Extra :: gen_hook:extra().
 room_new_affiliations(Acc, #{room := RoomJID}, _) ->

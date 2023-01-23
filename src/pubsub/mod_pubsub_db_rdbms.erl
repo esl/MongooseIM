@@ -461,7 +461,7 @@ execute_insert_parent(Name, ParentName) ->
 -spec execute_update_pubsub_node(Type :: binary(),
                                  OwnersJid :: iodata(),
                                  Opts :: iodata(),
-                                 Nidx :: modpubsub:nodeIdx()) ->
+                                 Nidx :: mod_pubsub:nodeIdx()) ->
                                      mongoose_rdbms:query_result().
 execute_update_pubsub_node(Type, OwnersJid, Opts, Nidx) ->
         mongoose_rdbms:execute_successfully(global, pubsub_update_pubsub_node,
@@ -474,7 +474,7 @@ execute_select_node_by_key_and_name(Key, Node) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_node_by_key_and_name,
         [Key, Node]).
 
--spec execute_select_node_by_id(Nidx :: modpubsub:nodeIdx()) -> mongoose_rdbms:query_result().
+-spec execute_select_node_by_id(Nidx :: mod_pubsub:nodeIdx()) -> mongoose_rdbms:query_result().
 execute_select_node_by_id(Nidx) ->
     mongoose_rdbms:execute_successfully(global, pubsub_select_node_by_id, [Nidx]).
 

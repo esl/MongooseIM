@@ -16,6 +16,9 @@
                      ssl_socket
 }).
 
+-type tls_socket() :: #tls_socket{}.
+-export_type([tls_socket/0]).
+
 % mongoose_tls behaviour
 -export([tcp_to_tls/2,
          send/2,

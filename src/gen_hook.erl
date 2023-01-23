@@ -26,7 +26,7 @@
 -include("mongoose.hrl").
 
 -type hook_name() :: atom().
--type hook_tag() :: mongooseim:host_type() | global.
+-type hook_tag() :: mongooseim:host_type_or_global().
 
 %% while Accumulator is not limited to any type, it's recommended to use maps.
 -type hook_acc() :: any().
@@ -61,6 +61,7 @@
               hook_list/0,
               hook_fn_ret/0,
               hook_fn_ret/1,
+              hook_tuple/0,
               extra/0]).
 
 -record(hook_handler, {prio :: pos_integer(),
