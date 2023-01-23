@@ -178,6 +178,7 @@ executors:
   otp_25:
     docker:
       - image: *OTP25
+    resource_class: medium+
   otp_24_redis:
     docker:
       - image: *OTP24
