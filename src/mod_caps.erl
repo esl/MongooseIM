@@ -325,9 +325,9 @@ upsert_caps(LFrom, Caps, Rs) ->
 
 -spec get_pep_recipients(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [jid:simple_jid()],
-    Params :: #{c2s_data := mongoose_c2s:data(), type := {atom(), binary()}},
+    Params :: #{c2s_data := mongoose_c2s:data(), feature := binary()},
     Extra :: map().
-get_pep_recipients(InAcc, #{state := C2SData, feature := Feature}, _) ->
+get_pep_recipients(InAcc, #{c2s_data := C2SData, feature := Feature}, _) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
     NewAcc = case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
                  {ok, Rs} ->
@@ -350,9 +350,9 @@ filter_recipients_by_caps(HostType, InAcc, Feature, Rs) ->
 
 -spec filter_pep_recipient(Acc, Params, Extra) -> {ok | stop, Acc} when
       Acc :: boolean(),
-      Params :: #{state := ejabberd_c2s:state(), feature := binary(), to := jid:jid()},
+      Params :: #{c2s_data := mongoose_c2s:data(), feature := binary(), to := jid:jid()},
       Extra :: gen_hook:extra().
-filter_pep_recipient(InAcc, #{state := C2SData, feature := Feature, to := To}, _) ->
+filter_pep_recipient(InAcc, #{c2s_data := C2SData, feature := Feature, to := To}, _) ->
     case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
         {ok, Rs} ->
             ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
@@ -367,8 +367,7 @@ filter_pep_recipient(InAcc, #{state := C2SData, feature := Feature, to := To}, _
                     {stop, true}
             end;
         _ -> {ok, InAcc}
-    end;
-filter_pep_recipient(Acc, _, _) -> {ok, Acc}.
+    end.
 
 init_db(mnesia) ->
     case catch mnesia:table_info(caps_features, storage_type) of

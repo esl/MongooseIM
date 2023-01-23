@@ -456,23 +456,23 @@ xmpp_stanza_dropped(Acc, From, To, Packet) ->
 
 %% C2S related hooks
 
--spec get_pep_recipients(State, Feature) -> Result when
-    State :: mongoose_c2s:data(),
+-spec get_pep_recipients(C2SData, Feature) -> Result when
+    C2SData :: mongoose_c2s:data(),
     Feature :: binary(),
     Result :: [jid:simple_jid()].
-get_pep_recipients(State, Feature) ->
-    Params = #{state => State, feature => Feature},
-    HostType = mongoose_c2s:get_host_type(State),
+get_pep_recipients(C2SData, Feature) ->
+    Params = #{c2s_data => C2SData, feature => Feature},
+    HostType = mongoose_c2s:get_host_type(C2SData),
     run_hook_for_host_type(get_pep_recipients, HostType, [], Params).
 
--spec filter_pep_recipient(State, Feature, To) -> Result when
-    State :: ejabberd_c2s:state(),
+-spec filter_pep_recipient(C2SData, Feature, To) -> Result when
+    C2SData :: mongoose_c2s:data(),
     Feature :: binary(),
     To :: jid:jid(),
     Result :: boolean().
-filter_pep_recipient(State, Feature, To) ->
-    Params = #{state => State, feature => Feature, to => To},
-    HostType = mongoose_c2s:get_host_type(State),
+filter_pep_recipient(C2SData, Feature, To) ->
+    Params = #{c2s_data => C2SData, feature => Feature, to => To},
+    HostType = mongoose_c2s:get_host_type(C2SData),
     run_hook_for_host_type(filter_pep_recipient, HostType, true, Params).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
