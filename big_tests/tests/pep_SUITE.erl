@@ -11,7 +11,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -export([suite/0, all/0, groups/0]).
@@ -35,6 +34,7 @@
         ]).
 
 -export([
+         start_caps_clients/2,
          send_initial_presence_with_caps/2
         ]).
 
@@ -51,11 +51,12 @@
 
 all() ->
     [
-     {group, pep_tests}
+     {group, pep_tests},
+     {group, cache_tests}
     ].
 
 groups() ->
-    G = [
+    [
          {pep_tests, [parallel],
           [
            disco_test,
@@ -80,8 +81,7 @@ groups() ->
            unsubscribe_after_presence_unsubscription
           ]
          }
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -100,7 +100,7 @@ end_per_suite(Config) ->
 
 init_per_group(cache_tests, Config) ->
     Config0 = dynamic_modules:save_modules(domain(), Config),
-    NewConfig =  required_modules(cache_tests),
+    NewConfig = required_modules(cache_tests),
     dynamic_modules:ensure_modules(domain(), NewConfig),
     Config0;
 
@@ -156,7 +156,7 @@ disco_sm_test(Config) ->
 disco_sm_items_test(Config) ->
     NodeNS = random_node_ns(),
     escalus:fresh_story(
-      set_caps_node(NodeNS, Config),
+      Config,
       [{alice, 1}],
       fun(Alice) ->
               AliceJid = escalus_client:short_jid(Alice),
@@ -189,33 +189,25 @@ pep_caps_test(Config) ->
               Caps = caps(NodeNS),
 
               %% Send presence with capabilities (chap. 1 ex. 4)
-              %% Server does not know the version string, so it requests feature list
               send_presence_with_caps(Bob, Caps),
+              receive_presence_with_caps(Bob, Bob, Caps),
+
+              %% Server does not know the version string, so it requests feature list
               DiscoRequest = escalus:wait_for_stanza(Bob),
-
               %% Client responds with a list of supported features (chap. 1 ex. 5)
-              send_caps_disco_result(Bob, DiscoRequest, NodeNS),
-
-              receive_presence_with_caps(Bob, Bob, Caps)
+              send_caps_disco_result(Bob, DiscoRequest, NodeNS)
       end).
 
 publish_and_notify_test(Config) ->
-    NodeNS = random_node_ns(),
-    escalus:fresh_story(
-      set_caps_node(NodeNS, Config),
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              escalus_story:make_all_clients_friends([Alice, Bob]),
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun publish_and_notify_story/3).
 
-              pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
-              pubsub_tools:receive_item_notification(
-                Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, [])
-      end).
-
-set_caps_node(NodeNS, Config) ->
-    [{escalus_overrides,
-      [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
-    | Config].
+publish_and_notify_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    escalus_story:make_all_clients_friends([Alice, Bob]),
+    pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+    pubsub_tools:receive_item_notification(
+      Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []).
 
 publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin
@@ -244,90 +236,95 @@ send_caps_after_login_test(Config) ->
 
               escalus_story:make_all_clients_friends([Alice, Bob]),
 
-              %% Presence subscription triggers PEP last item sending
-              %% and sometimes this async process takes place after caps
-              %% are updated, leading to duplicated notification
-              %% We use timer:sleep here to avoid it for now, because
-              %% TODO: mod_pubsub send loop has to be fixed, supervised, refactored etc.
-              timer:sleep(1000),
-
               Caps = caps(NodeNS),
-              send_presence_with_caps_and_handle_disco(Bob, Caps, NodeNS),
+              send_presence_with_caps(Bob, Caps),
               receive_presence_with_caps(Bob, Bob, Caps),
               receive_presence_with_caps(Alice, Bob, Caps),
 
-              pubsub_tools:receive_item_notification(
-                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+              handle_requested_caps(NodeNS, Bob),
 
-              [] = escalus_client:peek_stanzas(Bob)
+              Node = {escalus_utils:get_short_jid(Alice), NodeNS},
+              Check = fun(Message) ->
+                              pubsub_tools:check_item_notification(Message, <<"item2">>, Node, [])
+                      end,
+
+              %% Presence subscription triggers PEP last item sending
+              %% and sometimes this async process takes place after caps
+              %% are updated, leading to duplicated notification
+              Check(escalus_client:wait_for_stanza(Bob)),
+              case escalus_client:peek_stanzas(Bob) of
+                  [Message2] ->
+                      Check(Message2);
+                  [] ->
+                      ok
+              end
         end).
 
 delayed_receive(Config) ->
-%%    if alice publishes an item and then bob subscribes successfully to her presence
-%%    then bob will receive the item right after final subscription stanzas
-    NodeNS = random_node_ns(),
-    escalus:fresh_story(
-        [{escalus_overrides,
-            [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
-            | Config],
-        [{alice, 1}, {bob, 1}],
-        fun(Alice, Bob) ->
-            pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-            [Message] = make_friends(Bob, Alice),
-            ct:pal("Message: ~p", [Message]),
-            pubsub_tools:check_item_notification(
-                Message, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
-            ok
-        end).
+    %% if alice publishes an item and then bob subscribes successfully to her presence
+    %% then bob will receive the item right after final subscription stanzas
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}], fun delayed_receive_story/3).
+
+delayed_receive_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+    [Message] = make_friends(Bob, Alice),
+    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
+    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []),
+
+    %% Known issue: without a mutual presence subscription Bob will not receive further items
+    pubsub_tools:publish(Alice, <<"item3">>, {pep, NodeNS}, []),
+    [] = escalus_client:wait_for_stanzas(Bob, 1, 500),
+    ok.
 
 delayed_receive_with_sm(Config) ->
-%%    Same as delayed_receive but with stream management turned on
-    NodeNS = random_node_ns(),
-    escalus:fresh_story(
-        [{escalus_overrides,
-            [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
-            | Config],
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              enable_sm(Alice),
-              enable_sm(Bob),
-              publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
-              [Message] = make_friends(Bob, Alice),
-              ct:pal("Message: ~p", [Message]),
-              pubsub_tools:check_item_notification(Message,
-                                                   <<"item2">>,
-                                                   {escalus_utils:get_short_jid(Alice), NodeNS},
-                                                   []),
-              ok
-      end).
+    %% Same as delayed_receive but with stream management turned on
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {bob, 1}],
+                                    fun delayed_receive_with_sm_story/3).
+
+delayed_receive_with_sm_story(Config, Alice, Bob) ->
+    NodeNS = ?config(node_ns, Config),
+    enable_sm(Alice),
+    enable_sm(Bob),
+    publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
+    [Message] = make_friends(Bob, Alice),
+    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
+    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []).
 
 h_ok_after_notify_test(ConfigIn) ->
-    Config = escalus_users:update_userspec(ConfigIn, kate,
-                                           stream_management, true),
-    NodeNS = random_node_ns(),
-    escalus:fresh_story(
-      [{escalus_overrides,
-        [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]} | Config ],
-      [{alice, 1}, {kate, 1}],
-      fun(Alice, Kate) ->
-              escalus_story:make_all_clients_friends([Alice, Kate]),
+    Config = escalus_users:update_userspec(ConfigIn, kate, stream_management, true),
+    Config1 = set_caps(Config),
+    escalus:fresh_story_with_config(Config1, [{alice, 1}, {kate, 1}],
+                                    fun h_ok_after_notify_story/3).
 
-              %% TODO: Dirty fix. For some reason PEP resends item2 with <delay> element,
-              %% so probably there is some race condition that applies to becoming friends
-              %% and publishing
-              timer:sleep(1000),
+h_ok_after_notify_story(Config, Alice, Kate) ->
+    NodeNS = ?config(node_ns, Config),
+    escalus_story:make_all_clients_friends([Alice, Kate]),
 
-              pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-              pubsub_tools:receive_item_notification(
-                Kate, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+    pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+    Node = {escalus_utils:get_short_jid(Alice), NodeNS},
+    Check = fun(Message) ->
+                    pubsub_tools:check_item_notification(Message, <<"item2">>, Node, [])
+            end,
+    Check(escalus_connection:get_stanza(Kate, item2)),
 
-              H = escalus_tcp:get_sm_h(Kate#client.rcv_pid),
-              escalus:send(Kate, escalus_stanza:sm_ack(H)),
+    H = escalus_tcp:get_sm_h(Kate#client.rcv_pid),
+    escalus:send(Kate, escalus_stanza:sm_ack(H)),
 
-              escalus_connection:send(Kate, escalus_stanza:sm_request()),
-              escalus:assert(is_sm_ack,
-                             escalus_connection:get_stanza(Kate, stream_mgmt_ack))
-      end).
+    escalus_connection:send(Kate, escalus_stanza:sm_request()),
+
+    % Presence exchange triggers asynchronous sending of the last published item.
+    % If this happens after item2 is published, Kate will receive it twice.
+    Stanza = escalus_connection:get_stanza(Kate, stream_mgmt_ack_or_item2),
+    case escalus_pred:is_sm_ack(Stanza) of
+        true ->
+            ok;
+        false ->
+            Check(Stanza),
+            escalus:assert(is_sm_ack, escalus_connection:get_stanza(Kate, stream_mgmt_ack))
+    end.
 
 authorize_access_model(Config) ->
     escalus:fresh_story(Config,
@@ -381,7 +378,7 @@ unsubscribe_after_presence_unsubscription(Config) ->
 
               %% Unsubscription from PEP nodes is implicit
               pubsub_tools:publish(Alice, <<"salmon">>, {pep, NodeNS}, []),
-              [] = escalus:wait_for_stanzas(Bob, 1),
+              [] = escalus:wait_for_stanzas(Bob, 1, 500),
 
               pubsub_tools:delete_node(Alice, PepNode, [])
       end).
@@ -407,17 +404,24 @@ required_modules(cache_tests) ->
                                            last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()
      })}].
 
-send_initial_presence_with_caps(NodeNS, User) ->
-    case string:to_lower(binary_to_list(escalus_client:username(User))) of
-        "alice" ++ _ -> escalus_story:send_initial_presence(User);
-        "bob" ++ _ -> send_presence_with_caps_and_handle_disco(User, caps(NodeNS), NodeNS);
-        "kate" ++ _ -> send_presence_with_caps_and_handle_disco(User, caps(NodeNS), NodeNS)
+send_initial_presence_with_caps(NodeNS, Client) ->
+    case is_caps_client(Client) of
+        false -> escalus_story:send_initial_presence(Client);
+        true -> send_presence_with_caps(Client, caps(NodeNS))
     end.
 
-send_presence_with_caps_and_handle_disco(User, Caps, NodeNS) ->
-    send_presence_with_caps(User, Caps),
-    DiscoRequest = escalus:wait_for_stanza(User),
-    send_caps_disco_result(User, DiscoRequest, NodeNS).
+handle_requested_caps(NodeNS, User) ->
+    case is_caps_client(User) of
+        false -> ok;
+        true -> DiscoRequest = escalus:wait_for_stanza(User),
+                send_caps_disco_result(User, DiscoRequest, NodeNS)
+    end.
+
+is_caps_client(Client) ->
+    case escalus_client:username(Client) of
+        <<"alice", _/binary>> -> false;
+        _ -> true
+    end.
 
 send_presence_with_caps(User, Caps) ->
     Presence = escalus_stanza:presence(<<"available">>, [Caps]),
@@ -442,6 +446,19 @@ verify_publish_options(FullNodeConfig, Options) ->
     Options = lists:filter(fun(Option) ->
                                lists:member(Option, NodeConfig)
                            end, Options).
+
+set_caps(Config) ->
+    [{escalus_overrides, [{start_ready_clients, {?MODULE, start_caps_clients}}]},
+     {node_ns, random_node_ns()} | Config].
+
+%% Implemented only for one resource per client, because it is enough
+start_caps_clients(Config, [{UserSpec, Resource}]) ->
+    NodeNS = ?config(node_ns, Config),
+    {ok, Client} = escalus_client:start(Config, UserSpec, Resource),
+    send_initial_presence_with_caps(NodeNS, Client),
+    escalus:assert(is_presence, escalus:wait_for_stanza(Client)),
+    handle_requested_caps(NodeNS, Client),
+    [Client].
 
 %%-----------------------------------------------------------------
 %% XML helpers
