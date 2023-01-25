@@ -58,7 +58,7 @@ get_hooks(HostType) ->
       {privacy_iq_get, HostType, fun ?MODULE:privacy_iq_get/3, #{}, 1},
       {privacy_iq_set, HostType, fun ?MODULE:privacy_iq_set/3, #{}, 1},
       {privacy_check_packet, HostType, fun ?MODULE:privacy_check_packet/3, #{}, 55},
-      {sm_broadcast, HostType, fun ?MODULE:privacy_list_push/3, #{}, 1}
+      {privacy_list_push, HostType, fun ?MODULE:privacy_list_push/3, #{}, 1}
       | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -265,7 +265,7 @@ privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, #{host_type := HostType}) ->
     {ok, Acc}.
 
 -spec privacy_list_push(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
+      Acc :: any(),
       Params :: #{session_count := non_neg_integer()},
       Extra :: #{host_type := mongooseim:host_type()}.
 privacy_list_push(Acc, #{session_count := SessionCount}, #{host_type := HostType}) ->

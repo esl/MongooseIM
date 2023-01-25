@@ -504,7 +504,7 @@ remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, 
     case mod_privacy_backend:remove_privacy_list(HostType, LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
@@ -518,7 +518,7 @@ replace_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID,
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -924,13 +924,11 @@ binary_to_order_s(Order) ->
 %% Ejabberd
 %% ------------------------------------------------------------------
 
-broadcast_privacy_list(UserJID, Name, UserList) ->
-    JID = jid:to_bare(UserJID),
-    ejabberd_sm:route(JID, JID, broadcast_privacy_list_packet(Name, UserList)).
-
-%% TODO this is dirty
-broadcast_privacy_list_packet(Name, UserList) ->
-    {broadcast, {privacy_list, UserList, Name}}.
+broadcast_privacy_list(HostType, #jid{luser = LUser, lserver = LServer}, Name, UserList) ->
+    Item = {privacy_list, UserList, Name},
+    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
+    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
+    lists:foreach(fun({_, Pid}) -> Pid ! {broadcast, Item} end, UserPids).
 
 roster_get_jid_info(HostType, ToJID, LJID) ->
     mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).

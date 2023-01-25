@@ -48,12 +48,12 @@
          privacy_get_user_list/2,
          privacy_iq_get/6,
          privacy_iq_set/5,
-         privacy_updated_list/3]).
+         privacy_updated_list/3,
+         privacy_list_push/5]).
 
 -export([offline_groupchat_message_hook/4,
          offline_message_hook/4,
          set_presence_hook/3,
-         sm_broadcast/5,
          sm_filter_offline_message/4,
          sm_register_connection_hook/4,
          sm_remove_connection_hook/5,
@@ -564,6 +564,17 @@ privacy_updated_list(HostType, OldList, NewList) ->
     Params = #{old_list => OldList, new_list => NewList},
     run_hook_for_host_type(privacy_updated_list, HostType, false, Params).
 
+-spec privacy_list_push(HostType, LUser, LServer, Item, SessionCount) -> Result when
+    HostType :: mongooseim:host_type(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
+    Item :: term(),
+    SessionCount :: non_neg_integer(),
+    Result :: any().
+privacy_list_push(HostType, LUser, LServer, Item, SessionCount) ->
+    Params = #{luse => LUser, lserver => LServer, item => Item, session_count => SessionCount},
+    run_hook_for_host_type(privacy_list_push, HostType, ok, Params).
+
 %% Session management related hooks
 
 -spec offline_groupchat_message_hook(Acc, From, To, Packet) -> Result when
@@ -597,18 +608,6 @@ set_presence_hook(Acc, JID, Presence) ->
     Params = #{jid => JID, presence => Presence},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(set_presence_hook, HostType, Acc, Params).
-
--spec sm_broadcast(Acc, From, To, Broadcast, SessionCount) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Broadcast :: ejabberd_c2s:broadcast(),
-    SessionCount :: non_neg_integer(),
-    Result :: mongoose_acc:t().
-sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
-    Params = #{from => From, to => To, broadcast => Broadcast, session_count => SessionCount},
-    HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(sm_broadcast, HostType, Acc, Params).
 
 -spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
     HostType :: mongooseim:host_type(),
