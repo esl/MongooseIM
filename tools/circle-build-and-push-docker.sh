@@ -41,7 +41,7 @@ git checkout $MIM_DOCKER_VERSION
 
 cp ../${MONGOOSE_TGZ} member
 
-docker build -f Dockerfile.member -t ${IMAGE_TAG} \
+docker build -f Dockerfile.member -t mongooseim -t ${IMAGE_TAG} \
              --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 	     --build-arg VCS_REF=${GIT_REF} \
 	     --build-arg VCS_REF_DESC="${GIT_COMMIT_MSG}" \

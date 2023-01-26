@@ -425,6 +425,9 @@ jobs:
       - run:
           name: Execute Docker image build and upload
           command: tools/circle-build-and-push-docker.sh
+      - run:
+          name: Smoke testing
+          command: mongooseim-docker/smoke_test.sh
 
   docs_build_deploy:
     parallelism: 1
