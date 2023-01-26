@@ -114,7 +114,7 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
 {suites, "tests", local_iq_SUITE}.
-% {suites, "tests", tcp_listener_SUITE}.
+{suites, "tests", tcp_listener_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
