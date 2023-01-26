@@ -8,6 +8,7 @@ VERSION=`${TOOLS}/generate_vsn.sh`
 DOCKERHUB_TAG=${VERSION}
 GIT_REF=`git rev-parse HEAD`
 GIT_COMMIT_MSG=`git log --format=%B -n 1 HEAD`
+DOCKERHUB_REPO=${DOCKERHUB_REPO:-mongooseim}
 
 if [ -n "$CIRCLE_PULL_REQUEST" ]; then
     # CircleCI doesn't provide PR number in env. var., so we need to extract it from PR URL
@@ -23,13 +24,13 @@ fi
 
 echo "Tag: ${DOCKERHUB_TAG}"
 
-IMAGE_TAG=${DOCKERHUB_REPO}mongooseim:${DOCKERHUB_TAG}
+IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 docker build -f ${TOOLS}/docker/Dockerfile -t ${IMAGE_TAG} \
          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
-	     --build-arg VCS_REF=${GIT_REF} \
-	     --build-arg VCS_REF_DESC="${GIT_COMMIT_MSG}" \
-	     --build-arg VERSION=${VERSION} \
+         --build-arg VCS_REF=${GIT_REF} \
+         --build-arg VCS_REF_DESC="${GIT_COMMIT_MSG}" \
+         --build-arg VERSION=${VERSION} \
          ${BASE}
 
 if [ -z "$DOCKERHUB_USER" ]
