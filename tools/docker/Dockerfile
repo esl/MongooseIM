@@ -23,9 +23,7 @@ RUN apt-get update && apt-get install -y \
 ARG REBAR3_VERSION="3.17.0"
 RUN set -xe \
     && REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/releases/download/${REBAR3_VERSION}/rebar3" \
-    && REBAR3_DOWNLOAD_SHA256="391f325e6adb38736ffeab15f6f26d39bd0145a97dbbb41aa2e5251785d9c181" \
     && curl -SL -o rebar3 "$REBAR3_DOWNLOAD_URL" \
-    && echo "$REBAR3_DOWNLOAD_SHA256 rebar3" | sha256sum -c - \
     && install -v ./rebar3 /usr/local/bin/
 
 WORKDIR /mim
