@@ -51,7 +51,6 @@
          get_full_session_list/0,
          register_iq_handler/3,
          unregister_iq_handler/2,
-         force_update_presence/2,
          user_resources/2,
          get_session_pid/1,
          get_session/1,
@@ -81,7 +80,7 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
+-ignore_xref([do_filter/3, do_route/4, get_unique_sessions_number/0,
               get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
 
 -include("mongoose.hrl").
@@ -950,14 +949,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).
-
-
--spec force_update_presence(mongooseim:host_type(), {jid:luser(), jid:lserver()}) -> 'ok'.
-force_update_presence(_HostType, {LUser, LServer}) ->
-    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
-    lists:foreach(fun(#session{sid = {_, Pid}}) ->
-                          Pid ! {force_update_presence, LUser}
-                  end, Ss).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% ejabberd commands
