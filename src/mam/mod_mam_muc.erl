@@ -149,9 +149,9 @@ disco_muc_features(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: exml:element(),
-    Params :: mod_muc:room_event_data(),
+-spec filter_room_packet(Packet, EventData, Extra) -> {ok, Packet} when
+    Packet :: exml:element(),
+    EventData :: mod_muc:room_event_data(),
     Extra :: gen_hook:extra().
 filter_room_packet(Packet, EventData, #{host_type := HostType}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
@@ -178,13 +178,14 @@ archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
     ArcID = archive_id_int(HostType, RoomJID),
     %% Occupant JID <room@service/nick>
     SrcJID = jid:replace_resource(RoomJID, FromNick),
+    IsMamMucEnabled = mod_mam_utils:is_mam_muc_enabled(RoomJID#jid.lserver, HostType),
     IsInteresting =
         case get_behaviour(HostType, ArcID, RoomJID, SrcJID) of
             always -> true;
             never -> false;
             roster -> true
         end,
-    case IsInteresting of
+    case IsInteresting andalso IsMamMucEnabled of
         true ->
             MessID = mod_mam_utils:generate_message_id(TS),
             Packet1 = mod_mam_utils:replace_x_user_element(FromJID, Role, Affiliation, Packet),

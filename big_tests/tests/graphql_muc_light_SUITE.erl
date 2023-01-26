@@ -94,7 +94,8 @@ user_muc_light_tests() ->
     ].
 
 user_muc_light_with_mam_tests() ->
-    [user_get_room_messages].
+    [user_get_room_messages,
+     user_shouldnt_store_messages_in_muc].
 
 user_muc_light_not_configured_tests() ->
     [user_create_room_muc_light_not_configured,
@@ -236,6 +237,7 @@ init_per_group(Group, Config) when Group =:= user_muc_light_with_mam;
                                    Group =:= domain_admin_muc_light_with_mam ->
     case maybe_enable_mam() of
         true ->
+            ensure_muc_started(),
             ensure_muc_light_started(Config);
         false ->
             {skip, "No MAM backend available"}
@@ -279,11 +281,23 @@ ensure_muc_light_stopped(Config) ->
     dynamic_modules:ensure_modules(SecondaryHostType, [{mod_muc_light, stopped}]),
     [{muc_light_host, <<"NON_EXISTING">>} | Config].
 
+ensure_muc_started() ->
+    muc_helper:load_muc(),
+    mongoose_helper:ensure_muc_clean().
+
+ensure_muc_stopped() ->
+    muc_helper:unload_muc().
+
 end_per_group(Group, _Config) when Group =:= user;
                                    Group =:= admin_http;
                                    Group =:= admin_cli;
                                    Group =:= domain_admin ->
     graphql_helper:clean();
+end_per_group(Group, _Config) when Group =:= user_muc_light_with_mam;
+                                   Group =:= admin_muc_light_with_mam;
+                                   Group =:= domain_admin_muc_light_with_mam ->
+    ensure_muc_stopped(),
+    escalus_fresh:clean();
 end_per_group(_Group, _Config) ->
     escalus_fresh:clean().
 
@@ -621,6 +635,24 @@ user_get_room_messages_story(Config, Alice, Bob) ->
     % Try with a user that is not a room member
     Res5 = user_get_room_messages(Bob, jid:to_binary(RoomJID), Limit, null, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res5), <<"not occupy this room">>)).
+
+user_shouldnt_store_messages_in_muc(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}],
+                               fun user_shouldnt_store_messages_in_muc_story/2).
+
+user_shouldnt_store_messages_in_muc_story(Config, Alice) ->
+    %% Enter a MUC room
+    MUCRoomJID = jid:from_binary(?config(room_jid, Config)),
+    enter_muc_room(MUCRoomJID, Alice, <<"Ali">>),
+    escalus:wait_for_stanza(Alice),
+    %% Send a message
+    Message = <<"Hello friends">>,
+    send_message_to_muc_room(Alice, MUCRoomJID, Message, null, Config),
+    escalus:wait_for_stanza(Alice),
+    %% Try to get a MUC message
+    Limit = 1,
+    Res3 = user_get_muc_room_messages(Alice, jid:to_binary(MUCRoomJID), Limit, null, Config),
+    #{<<"stanzas">> := [], <<"limit">> := Limit} = get_ok_value([data, muc, getRoomMessages], Res3).
 
 user_list_rooms(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_list_rooms_story/2).
@@ -1441,7 +1473,7 @@ admin_get_room_config_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
     RoomSubject = <<"Room about nothing">>,
-    {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
+    {ok, #{jid := #jid{luser = _RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, RoomSubject, AliceBin),
     RoomJIDBin = jid:to_binary(RoomJID),
     Res = get_room_config(RoomJIDBin, Config),
@@ -1825,3 +1857,18 @@ user_get_blocking(User, Config) ->
 user_set_blocking(User, Items, Config) ->
     Vars = #{<<"items">> => prepare_blocking_items_for_query(Items)},
     execute_user_command(<<"muc_light">>, <<"setBlockingList">>, User, Vars, Config).
+
+user_get_muc_room_messages(User, RoomJID, PageSize, Before, Config) ->
+    Vars = #{<<"room">> => jid:to_binary(RoomJID), <<"pageSize">> => PageSize,
+                <<"before">> => Before},
+    execute_user_command(<<"muc">>, <<"getRoomMessages">>, User, Vars, Config).
+
+send_message_to_muc_room(User, Room, Body, Resource, Config) ->
+    Vars = #{room => jid:to_binary(Room), body => Body, resource => Resource},
+    execute_user_command(<<"muc">>, <<"sendMessageToRoom">>, User, Vars, Config).
+
+enter_muc_room(RoomJID, User, Nick) ->
+    JID = jid:to_binary(jid:replace_resource(RoomJID, Nick)),
+    Pres = escalus_stanza:to(escalus_stanza:presence(<<"available">>, []), JID),
+    escalus:send(User, Pres),
+    escalus:wait_for_stanza(User).

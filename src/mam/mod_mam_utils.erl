@@ -80,7 +80,8 @@
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
          wait_shaper/4,
-         check_for_item_not_found/3]).
+         check_for_item_not_found/3,
+         is_mam_muc_enabled/2]).
 
 %% Ejabberd
 -export([send_message/4,
@@ -1246,3 +1247,10 @@ is_removing_done({updated, N}, Limit) when N < Limit ->
     {done, N};
 is_removing_done({updated, N}, _)->
     {remove_more, N}.
+
+-spec is_mam_muc_enabled(jid:lserver(), mongooseim:host_type()) -> boolean().
+is_mam_muc_enabled(MucDomain, HostType) ->
+    HostPattern = mongoose_config:get_opt([{modules, HostType}, mod_mam_muc, host]),
+    {ok, #{subdomain_pattern := SubDomainPattern}} =
+        mongoose_domain_api:get_subdomain_info(MucDomain),
+    HostPattern =:= SubDomainPattern.
