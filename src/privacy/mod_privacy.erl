@@ -194,8 +194,9 @@ user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
 -spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := info,
-                     event_content := {broadcast, {privacy_list, PrivList, PrivListName}}},
+                     event_type := cast,
+                     event_tag := ?MODULE,
+                     event_content := {privacy_list, PrivList, PrivListName}},
               #{host_type := HostType}) ->
     {stop, handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName)};
 foreign_event(Acc, _Params, _Extra) ->
@@ -928,7 +929,7 @@ broadcast_privacy_list(HostType, #jid{luser = LUser, lserver = LServer}, Name, U
     Item = {privacy_list, UserList, Name},
     UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
     mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
-    lists:foreach(fun({_, Pid}) -> Pid ! {broadcast, Item} end, UserPids).
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 roster_get_jid_info(HostType, ToJID, LJID) ->
     mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).

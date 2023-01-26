@@ -70,8 +70,9 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
 -spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
       mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := info,
-                     event_content := {broadcast, {blocking, UserList, Action, Changed}}}, _Extra) ->
+                     event_type := cast,
+                     event_tag := ?MODULE,
+                     event_content := {blocking, UserList, Action, Changed}}, _Extra) ->
     {stop, handle_new_blocking_command(Acc, StateData, UserList, Action, Changed)};
 foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
@@ -301,7 +302,7 @@ broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
     UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
     HostType = mongoose_acc:host_type(Acc),
     mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
-    lists:foreach(fun({_, Pid}) -> Pid ! {broadcast, Item} end, UserPids).
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 -spec blocking_query_response([mod_privacy:list_name()]) -> exml:element().
 blocking_query_response(Lst) ->
