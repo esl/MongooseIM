@@ -521,9 +521,9 @@ push_item(HostType, JID, From, Item) ->
 
 -spec broadcast_item(jid:jid(), jid:simple_jid(), subscription_state()) -> ok.
 broadcast_item(#jid{luser = LUser, lserver = LServer}, ContactJid, Subscription) ->
-    Broadcast = {broadcast, {item, ContactJid, Subscription}},
+    Item = {item, ContactJid, Subscription},
     UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
-    lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, UserPids).
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 push_item_without_version(HostType, JID, Resource, From, Item) ->
     mongoose_hooks:roster_push(HostType, From, Item),
