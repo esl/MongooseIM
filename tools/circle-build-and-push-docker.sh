@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+# From https://github.com/esl/mongooseim-docker/pull/47
+MIM_DOCKER_VERSION=939906a5efba4975c9175f27546335a755b9c8a6
+
 MONGOOSE_TGZ=mongooseim.tar.gz
 
 BUILD_PATH=_build/prod/rel/mongooseim
@@ -33,7 +37,7 @@ IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 git clone https://github.com/esl/mongooseim-docker.git
 cd mongooseim-docker
-git checkout 77a50f62eecc95af88925a6ef6c09c1f61a646ef
+git checkout $MIM_DOCKER_VERSION
 
 cp ../${MONGOOSE_TGZ} member
 
