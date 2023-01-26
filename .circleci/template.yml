@@ -412,18 +412,14 @@ jobs:
   # jobs in docker containers
   docker_image:
     parallelism: 1
-    executor: << parameters.executor >>
-    parameters:
-      executor:
-        type: executor
+    docker:
+      - image: cimg/base:2023.01
     steps:
       - checkout
-      - prepare_for_cache
       - setup_remote_docker
-      - restore_prod_build
       - run:
           name: Execute Docker image build and upload
-          command: tools/circle-build-and-push-docker.sh
+          command: tools/docker-build-push.sh
 
   docs_build_deploy:
     parallelism: 1
@@ -877,28 +873,5 @@ workflows:
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
           name: docker_build_and_ship
-          executor: otp_25
           context: mongooseim-org
-          requires:
-            - small_tests_24
-            - ldap_mnesia_24
-            - pgsql_mnesia_24
-            - riak_mnesia_24
-            - dynamic_domains_pgsql_mnesia_24
-            - dialyzer_24
-
-            - small_tests_25
-            - internal_mnesia_25
-            - pgsql_mnesia_25
-            - mysql_redis_25
-            - mssql_mnesia_25
-            - ldap_mnesia_25
-            - elasticsearch_and_cassandra_25
-            - dynamic_domains_pgsql_mnesia_25
-            - dynamic_domains_mysql_redis_25
-            - dynamic_domains_mssql_mnesia_25
-            - dialyzer_25
-
-            - xref
-            - edoc
           filters: *all_tags

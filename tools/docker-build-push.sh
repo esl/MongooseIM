@@ -24,7 +24,6 @@ fi
 echo "Tag: ${DOCKERHUB_TAG}"
 
 IMAGE_TAG=${DOCKERHUB_REPO}mongooseim:${DOCKERHUB_TAG}
-# IMAGE_TAG=${DOCKERHUB_REPO}/mongooseim:${DOCKERHUB_TAG}
 
 docker build -f ${TOOLS}/docker/Dockerfile -t ${IMAGE_TAG} \
          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
@@ -33,6 +32,10 @@ docker build -f ${TOOLS}/docker/Dockerfile -t ${IMAGE_TAG} \
 	     --build-arg VERSION=${VERSION} \
          ${BASE}
 
-# docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
-
-# docker push ${IMAGE_TAG}
+if [ -z "$DOCKERHUB_USER" ]
+then
+    echo "Skip pushing into docker repository"
+else
+    docker login -u "${DOCKERHUB_USER}" -p "${DOCKERHUB_PASS}"
+    docker push "${IMAGE_TAG}"
+fi

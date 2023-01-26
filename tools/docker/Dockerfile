@@ -1,4 +1,5 @@
-FROM ubuntu:20.04 AS builder
+ARG OTP_VERSION="25.2"
+FROM erlang:$OTP_VERSION AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -15,15 +16,8 @@ RUN apt-get update && apt-get install -y \
     unixodbc-dev \
     gnupg \
     curl && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Install erlang
-ARG OTP_VERSION="24.1"
-RUN curl http://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb -o esl_2.0_all.deb && \
-    dpkg -i esl_2.0_all.deb && \
-    apt-get update && \
-    apt-get install -y esl-erlang=1:$OTP_VERSION-1 && \
-    apt-get clean
 
 # Install rebar
 ARG REBAR3_VERSION="3.17.0"
@@ -48,11 +42,23 @@ RUN make rel
 
 ## Final image
 FROM phusion/baseimage:focal-1.0.0-amd64
-COPY --from=builder /mim/_build/prod/rel/mongooseim /usr/lib/mongooseim
-COPY ./tools/docker/start.sh /start.sh
 VOLUME ["/member", "/var/lib/mongooseim"]
 
 EXPOSE 4369 5222 5269 5280 9100
+
+# Allow an easy access to mongooseim and mongooseimctl commands
+ENV PATH="${PATH}:/usr/lib/mongooseim/bin"
+
+RUN apt-get update && apt-get install -y \
+        libssl1.1 \
+        iproute2 \
+        netcat \
+        inetutils-ping \
+        telnet \
+        unixodbc \
+        tdsodbc \
+        odbc-postgresql && \
+        apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -69,15 +75,7 @@ LABEL org.label-schema.name='MongooseIM' \
       org.label-schema.vcs-ref-desc=$VCS_REF_DESC \
       org.label-schema.version=$VERSION
 
-RUN apt-get update && apt-get install -y \
-        libssl1.1 \
-        iproute2 \
-        netcat \
-        inetutils-ping \
-        telnet \
-        unixodbc \
-        tdsodbc \
-        odbc-postgresql && \
-        apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+COPY --from=builder /mim/_build/prod/rel/mongooseim /usr/lib/mongooseim
+COPY ./tools/docker/start.sh /start.sh
 
-ENTRYPOINT ["/start.sh"]
+CMD ["/start.sh"]

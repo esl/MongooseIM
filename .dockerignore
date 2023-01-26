@@ -1,6 +1,7 @@
 # big_tests directory
 big_tests
-# everything inside _builde
+doc
+# everything inside _build
 _build/*
 #except of _build/default so that we don't fetch deps when they are fetched
 !_build/default
