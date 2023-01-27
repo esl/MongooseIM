@@ -88,6 +88,7 @@ user_muc_tests() ->
 
 user_muc_with_mam_tests() ->
     [user_get_room_messages,
+     user_shouldnt_store_messages_in_muc_light,
      user_try_get_nonexistent_room_messages,
      user_try_get_room_messages_without_permission].
 
@@ -250,7 +251,7 @@ init_per_group(Group, Config) when Group =:= admin_muc_and_mam_configured;
     case maybe_enable_mam() of
         true ->
             ensure_muc_started(),
-            Config;
+            ensure_muc_light_started(Config);
         false ->
             {skip, "No MAM backend available"}
     end;
@@ -287,11 +288,34 @@ ensure_muc_stopped() ->
     muc_helper:unload_muc(),
     muc_helper:unload_muc(SecondaryHostType).
 
+ensure_muc_light_started(Config) ->
+    MucLightOpts = config_parser_helper:mod_config(mod_muc_light,
+        #{rooms_in_rosters => true, config_schema => custom_schema()}),
+    HostType = domain_helper:host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, MucLightOpts}]),
+    [{muc_light_host, muc_light_helper:muc_host()} | Config].
+
+ensure_muc_light_stopped() ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:ensure_modules(HostType, [{mod_muc_light, stopped}]).
+
+custom_schema() ->
+    %% Should be sorted
+    [{<<"background">>, <<>>, background, binary},
+     {<<"music">>, <<>>, music, binary},
+     %% Default fields
+     {<<"roomname">>, <<>>, roomname, binary},
+     {<<"subject">>, <<"Test">>, subject, binary}].
+
 end_per_group(Group, _Config) when Group =:= user;
                                    Group =:= admin_http;
                                    Group =:= domain_admin_muc;
                                    Group =:= admin_cli ->
     graphql_helper:clean();
+end_per_group(Group, _Config) when Group =:= admin_muc_and_mam_configured;
+                                   Group =:= user_muc_and_mam_configured ->
+    ensure_muc_light_stopped(),
+    escalus_fresh:clean();
 end_per_group(_Group, _Config) ->
     escalus_fresh:clean().
 
@@ -1387,6 +1411,26 @@ user_get_room_messages_story(Config, Alice, Bob) ->
         get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)).
 
+user_shouldnt_store_messages_in_muc_light(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_shouldnt_store_messages_in_muc_light_story/2).
+
+user_shouldnt_store_messages_in_muc_light_story(Config, Alice) ->
+    %% Create a MUC Light room
+    MUCServer = ?config(muc_light_host, Config),
+    AliceBin = escalus_client:short_jid(Alice),
+    {ok, #{jid := RoomJID}} =
+        create_muc_light_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
+    %% Send a message
+    Message = <<"Hello friends">>,
+    send_message_to_muc_light_room(RoomJID, jid:from_binary(AliceBin), Message),
+    escalus:wait_for_stanza(Alice),
+    %% Try to get a MUC Light message
+    Limit = 1,
+    Res = user_get_muc_light_room_messages(Alice, jid:to_binary(RoomJID), Limit, null, Config),
+    #{<<"stanzas">> := [], <<"limit">> := Limit} =
+        get_ok_value([data, muc_light, getRoomMessages], Res).
+
 user_try_get_nonexistent_room_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
                                     fun user_try_get_nonexistent_room_messages_story/2).
@@ -1881,6 +1925,11 @@ get_room_name() ->
 
 %% Commands
 
+create_muc_light_room(Domain, Name, Subject, CreatorBin) ->
+    CreatorJID = jid:from_binary(CreatorBin),
+    Config = #{<<"roomname">> => Name, <<"subject">> => Subject},
+    rpc(mim(), mod_muc_light_api, create_room, [Domain, CreatorJID, Config]).
+
 create_instant_room(Room, Owner, Nick, Config) ->
     Vars = #{room => room_to_bin(Room), owner => user_to_bin(Owner), nick => Nick},
     execute_command(<<"muc">>, <<"createInstantRoom">>, Vars, Config).
@@ -1902,6 +1951,9 @@ send_private_message(Room, From, ToNick, Body, Config) ->
     Vars = #{room => jid:to_binary(Room), from => user_to_full_bin(From),
              toNick => ToNick, body => Body},
     execute_command(<<"muc">>, <<"sendPrivateMessage">>, Vars, Config).
+
+send_message_to_muc_light_room(RoomJID, SenderJID, Message) ->
+    rpc(mim(), mod_muc_light_api, send_message, [RoomJID, SenderJID, Message]).
 
 enter_room(Room, User, Nick, Password, Config) ->
     Vars = #{room => jid:to_binary(Room), user => user_to_full_bin(User),
@@ -1963,6 +2015,10 @@ user_get_room_messages(User, RoomJID, PageSize, Before, Config) ->
     Vars = #{<<"room">> => jid:to_binary(RoomJID), <<"pageSize">> => PageSize,
              <<"before">> => Before},
     execute_user_command(<<"muc">>, <<"getRoomMessages">>, User, Vars, Config).
+
+user_get_muc_light_room_messages(User, RoomJID, PageSize, Before, Config) ->
+    Vars = #{<<"room">> => RoomJID, <<"pageSize">> => PageSize, <<"before">> => Before},
+    execute_user_command(<<"muc_light">>, <<"getRoomMessages">>, User, Vars, Config).
 
 user_delete_room(User, Room, Reason, Config) ->
     Vars = #{room => jid:to_binary(Room), reason => Reason},
