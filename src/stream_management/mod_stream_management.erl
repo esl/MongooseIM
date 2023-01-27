@@ -282,7 +282,8 @@ user_send_xmlel(Acc, Params, Extra) ->
       Result :: mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
-                     event_content := {stream_mgmt_resume, H}}, _Extra) ->
+                     event_tag := ?MODULE,
+                     event_content := {resume, H}}, _Extra) ->
     case handle_resume_call(StateData, Acc, From, H) of
         {ok, SmState} ->
             FlushedStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => SmState}),
@@ -690,7 +691,7 @@ get_mod_state(StateData) ->
     {ok, mongoose_c2s:data()} | {error, exml:element(), term()} | {exception, tuple()}.
 get_peer_state(Pid, H) ->
     try
-        gen_statem:call(Pid, {stream_mgmt_resume, H}, 5000)
+        mongoose_c2s:call(Pid, ?MODULE, {resume, H})
     catch
         C:R:S -> {exception, {C, R, S}}
     end.
@@ -757,7 +758,8 @@ init(_) ->
 
 -spec handle_event(gen_statem:event_type(), term(), c2s_state(), mongoose_c2s:data()) ->
     gen_statem:event_handler_result(c2s_state()).
-handle_event({call, From}, {stream_mgmt_resume, H}, ?EXT_C2S_STATE(resume_session), StateData) ->
+handle_event({call, From}, #{event_tag := ?MODULE, event_content := {resume, H}},
+             ?EXT_C2S_STATE(resume_session), StateData) ->
     LServer = mongoose_c2s:get_lserver(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),

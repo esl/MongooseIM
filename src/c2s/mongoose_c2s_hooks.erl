@@ -5,6 +5,7 @@
 -type params() :: #{c2s_data := mongoose_c2s:data(),
                     c2s_state := mongoose_c2s:state(),
                     event_type := undefined | gen_statem:event_type(),
+                    event_tag => atom(),
                     event_content := undefined | term(),
                     reason := undefined | term()}.
 -type result() :: gen_hook:hook_fn_ret(mongoose_acc:t()).

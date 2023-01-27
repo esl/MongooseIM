@@ -588,7 +588,8 @@ should_drop_pep_message(Node, RecipientJid) ->
     case ejabberd_sm:get_session_pid(RecipientJid) of
         none -> true;
         Pid ->
-            try gen_statem:call(Pid, {filter_pep_recipient, RecipientJid, <<Node/binary, "+notify">>}, 5000)
+            Event = {filter_pep_recipient, RecipientJid, <<Node/binary, "+notify">>},
+            try mongoose_c2s:call(Pid, ?MODULE, Event)
             catch exit:timeout -> true
             end
     end.
@@ -810,12 +811,14 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
       mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
+                     event_tag := ?MODULE,
                      event_content := {get_pep_recipients, Feature}}, _Extra) ->
     Reply = mongoose_hooks:get_pep_recipients(StateData, Feature),
     Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
     {stop, Acc1};
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
+                     event_tag := ?MODULE,
                      event_content := {filter_pep_recipient, To, Feature}}, _Extra) ->
     Reply = mongoose_hooks:filter_pep_recipient(StateData, Feature, To),
     Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
@@ -3649,7 +3652,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(Publisher)]),
             Feature = <<((Node))/binary, "+notify">>,
-            Recipients = gen_statem:call(C2SPid, {get_pep_recipients, Feature}, 5000),
+            Recipients = mongoose_c2s:call(C2SPid, ?MODULE, {get_pep_recipients, Feature}),
             Packet = add_extended_headers(Stanza, ReplyTo),
             From = jid:make_bare(LUser, LServer),
             lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,

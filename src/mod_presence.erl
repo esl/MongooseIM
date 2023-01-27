@@ -64,16 +64,15 @@ supported_features() ->
 
 -spec get_presence(pid()) -> {jid:luser(), jid:lresource(), binary(), binary()}.
 get_presence(Pid) ->
-    gen_statem:call(Pid, get_presence, 5000).
+    mongoose_c2s:call(Pid, ?MODULE, get_presence).
 
 -spec get_subscribed(pid()) -> [jid:jid()].
 get_subscribed(Pid) ->
-    gen_statem:call(Pid, get_subscribed, 5000).
+    mongoose_c2s:call(Pid, ?MODULE, get_subscribed).
 
 -spec set_presence(pid(), exml:element()) -> ok.
-
 set_presence(Pid, Message) ->
-    gen_statem:cast(Pid, {set_presence, Message}).
+    mongoose_c2s:cast(Pid, ?MODULE, {set_presence, Message}).
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
@@ -136,8 +135,9 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
       Extra :: gen_hook:extra(),
       Result :: mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := info,
-                     event_content := {broadcast, {item, IJID, ISubscription}}}, _Extra) ->
+                     event_type := cast,
+                     event_tag := mod_roster,
+                     event_content := {item, IJID, ISubscription}}, _Extra) ->
     case get_mod_state(StateData) of
         {error, not_found} ->
             {ok, Acc};
@@ -146,6 +146,7 @@ foreign_event(Acc, #{c2s_data := StateData,
     end;
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
+                     event_tag := ?MODULE,
                      event_content := get_presence}, _Extra) ->
     PresLast = case get_mod_state(StateData) of
                  {error, not_found} ->
@@ -159,6 +160,7 @@ foreign_event(Acc, #{c2s_data := StateData,
     {stop, Acc1};
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
+                     event_tag := ?MODULE,
                      event_content := get_subscribed}, _Extra) ->
     Subscribed = case get_mod_state(StateData) of
                      {error, not_found} ->
@@ -170,6 +172,7 @@ foreign_event(Acc, #{c2s_data := StateData,
     {stop, Acc1};
 foreign_event(Acc, #{c2s_data := StateData,
                      event_type := cast,
+                     event_tag := ?MODULE,
                      event_content := {set_presence, Message}}, _Extra) ->
     Acc1 = mongoose_acc:update_stanza(#{element => Message}, Acc),
     {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc1),

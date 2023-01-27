@@ -51,7 +51,6 @@
          get_full_session_list/0,
          register_iq_handler/3,
          unregister_iq_handler/2,
-         force_update_presence/2,
          user_resources/2,
          get_session_pid/1,
          get_session/1,
@@ -81,7 +80,7 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
+-ignore_xref([do_filter/3, do_route/4, get_unique_sessions_number/0,
               get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
 
 -include("mongoose.hrl").
@@ -146,17 +145,11 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
-      Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = new_acc(From, To, Packet),
     route(From, To, Acc);
-route(From, To, {broadcast, #xmlel{} = Payload}) ->
-    Acc = new_acc(From, To, Payload),
-    route(From, To, Acc, {broadcast, Payload});
-route(From, To, {broadcast, Payload}) ->
-    Acc = new_acc(To),
-    route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).
 
@@ -170,24 +163,6 @@ new_acc(From, To = #jid{lserver = LServer}, Packet) ->
                        from_jid => From,
                        to_jid => To}).
 
--spec new_acc(jid:jid()) -> mongoose_acc:t().
-new_acc(To = #jid{lserver = LServer}) ->
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(To#jid.lserver),
-    mongoose_acc:new(#{location => ?LOCATION,
-                       host_type => HostType,
-                       lserver => LServer,
-                       element => undefined}).
-
-route(From, To, Acc, {broadcast, Payload}) ->
-    try
-        do_route(Acc, From, To, {broadcast, Payload})
-    catch Class:Reason:Stacktrace ->
-              ?LOG_ERROR(#{what => sm_route_failed,
-                           text => <<"Failed to route broadcast in ejabberd_sm">>,
-                           class => Class, reason => Reason, stacktrace => Stacktrace,
-                           payload => Payload, acc => Acc}),
-              Acc
-    end;
 route(From, To, Acc, El) ->
     try
         do_route(Acc, From, To, El)
@@ -632,28 +607,7 @@ do_filter(From, To, Packet) ->
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
-    Payload :: exml:element() | ejabberd_c2s:broadcast().
-do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
-    ?LOG_DEBUG(#{what => sm_route_broadcast, acc => Acc, payload => Payload}),
-    #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
-    case LResource of
-        <<>> ->
-            CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = mongoose_hooks:sm_broadcast(Acc, From, To, Broadcast, length(CurrentPids)),
-            ?LOG_DEBUG(#{what => sm_broadcast, session_pids => CurrentPids}),
-            BCast = {broadcast, Payload},
-            lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
-            Acc1;
-        _ ->
-            case get_session_pid(To) of
-                none ->
-                    Acc; % do nothing
-                Pid when is_pid(Pid) ->
-                    ?LOG_DEBUG(#{what => sm_broadcast, session_pid => Pid}),
-                    Pid ! Broadcast,
-                    Acc
-            end
-    end;
+    Payload :: exml:element().
 do_route(Acc, From, To, El) ->
     ?LOG_DEBUG(#{what => sm_route, acc => Acc}),
     #jid{lresource = LResource} = To,
@@ -995,14 +949,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).
-
-
--spec force_update_presence(mongooseim:host_type(), {jid:luser(), jid:lserver()}) -> 'ok'.
-force_update_presence(_HostType, {LUser, LServer}) ->
-    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
-    lists:foreach(fun(#session{sid = {_, Pid}}) ->
-                          Pid ! {force_update_presence, LUser}
-                  end, Ss).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% ejabberd commands

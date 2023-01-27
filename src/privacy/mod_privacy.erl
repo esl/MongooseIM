@@ -194,8 +194,9 @@ user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
 -spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := info,
-                     event_content := {broadcast, {privacy_list, PrivList, PrivListName}}},
+                     event_type := cast,
+                     event_tag := ?MODULE,
+                     event_content := {privacy_list, PrivList, PrivListName}},
               #{host_type := HostType}) ->
     {stop, handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName)};
 foreign_event(Acc, _Params, _Extra) ->
@@ -504,7 +505,7 @@ remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, 
     case mod_privacy_backend:remove_privacy_list(HostType, LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
@@ -518,7 +519,7 @@ replace_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID,
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -924,13 +925,11 @@ binary_to_order_s(Order) ->
 %% Ejabberd
 %% ------------------------------------------------------------------
 
-broadcast_privacy_list(UserJID, Name, UserList) ->
-    JID = jid:to_bare(UserJID),
-    ejabberd_sm:route(JID, JID, broadcast_privacy_list_packet(Name, UserList)).
-
-%% TODO this is dirty
-broadcast_privacy_list_packet(Name, UserList) ->
-    {broadcast, {privacy_list, UserList, Name}}.
+broadcast_privacy_list(HostType, #jid{luser = LUser, lserver = LServer}, Name, UserList) ->
+    Item = {privacy_list, UserList, Name},
+    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
+    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 roster_get_jid_info(HostType, ToJID, LJID) ->
     mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).

@@ -70,8 +70,9 @@ user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
 -spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
       mongoose_c2s_hooks:result().
 foreign_event(Acc, #{c2s_data := StateData,
-                     event_type := info,
-                     event_content := {broadcast, {blocking, UserList, Action, Changed}}}, _Extra) ->
+                     event_type := cast,
+                     event_tag := ?MODULE,
+                     event_content := {blocking, UserList, Action, Changed}}, _Extra) ->
     {stop, handle_new_blocking_command(Acc, StateData, UserList, Action, Changed)};
 foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
@@ -221,9 +222,9 @@ complete_iq_set(blocking_command, Acc, _, _, {error, Reason}) ->
 complete_iq_set(blocking_command, Acc, LUser, LServer, {ok, Changed, List, Type}) ->
     UserList = #userlist{name = <<"blocking">>, list = List, needdb = false},
     % send the list to all users c2s processes (resources) to make it effective immediately
-    Acc1 = broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type),
+    broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type),
     % return a response here so that c2s sets the list in its state
-    {Acc1, {result, [], UserList}}.
+    {Acc, {result, [], UserList}}.
 %%complete_iq_set(blocking_command, _, _, _) ->
 %%    {result, []}.
 
@@ -297,9 +298,11 @@ make_blocking_list_entry(J) ->
 broadcast_blocking_command(Acc, LUser, LServer, UserList, _Changed, unblock_all) ->
     broadcast_blocking_command(Acc, LUser, LServer, UserList, [], unblock);
 broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
-    UserJID = jid:make_noprep(LUser, LServer, <<>>),
-    Bcast = {blocking, UserList, Type, Changed},
-    ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast}).
+    Item = {blocking, UserList, Type, Changed},
+    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 -spec blocking_query_response([mod_privacy:list_name()]) -> exml:element().
 blocking_query_response(Lst) ->

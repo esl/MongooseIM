@@ -12,7 +12,7 @@
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
--export([start_link/2, start/2, stop/2, exit/2, async/3]).
+-export([start_link/2, start/2, stop/2, exit/2, async/3, call/3, cast/3]).
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
          get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
@@ -959,6 +959,11 @@ generate_random_resource() ->
 
 -spec hook_arg(data(), state(), terminate | gen_statem:event_type(), term(), term()) ->
     mongoose_c2s_hooks:hook_params().
+hook_arg(StateData, C2SState, EventType, #{event_tag := EventTag,
+                                           event_content := EventContent}, Reason) ->
+    #{c2s_data => StateData, c2s_state => C2SState,
+      event_type => EventType, event_tag => EventTag, event_content => EventContent,
+      reason => Reason};
 hook_arg(StateData, C2SState, EventType, EventContent, Reason) ->
     #{c2s_data => StateData, c2s_state => C2SState,
       event_type => EventType, event_content => EventContent,
@@ -989,6 +994,14 @@ exit(Pid, Reason) ->
 -spec async(pid(), fun(), [term()]) -> ok.
 async(Pid, Fun, Args) ->
     gen_statem:cast(Pid, {async, Fun, Args}).
+
+-spec call(pid(), atom(), term()) -> term().
+call(Pid, EventTag, EventContent) ->
+    gen_statem:call(Pid, #{event_tag => EventTag, event_content => EventContent}, 5000).
+
+-spec cast(pid(), atom(), term()) -> ok.
+cast(Pid, EventTag, EventContent) ->
+    gen_statem:cast(Pid, #{event_tag => EventTag, event_content => EventContent}).
 
 -spec create_data(#{host_type := mongooseim:host_type(), jid := jid:jid()}) -> data().
 create_data(#{host_type := HostType, jid := Jid}) ->
