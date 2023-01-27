@@ -45,7 +45,6 @@ get_hooks(HostType) ->
     [ {sm_register_connection_hook, HostType, fun ?MODULE:sm_register_connection_hook/3, #{}, 50},
       {sm_remove_connection_hook, HostType, fun ?MODULE:sm_remove_connection_hook/3, #{}, 50},
       {auth_failed, HostType, fun ?MODULE:auth_failed/3, #{}, 50},
-      {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 50},
       {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
       {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50},
