@@ -54,7 +54,7 @@ groups() ->
     G = [
          {pubsub_ful, [], basic_groups()},
          {pubsub_less, [], basic_groups()},
-         {integration_with_sm_and_offline_storage,[parallel],
+         {integration_with_sm_and_offline_storage,[],
           [
            no_duplicates_default_plugin,
            sm_unack_messages_notified_default_plugin
@@ -64,7 +64,7 @@ groups() ->
               immediate_notification,
               double_notification_with_two_sessions_in_resume
           ]},
-         {pm_msg_notifications, [parallel],
+         {pm_msg_notifications, [],
           [
            pm_msg_notify_on_apns_w_high_priority,
            pm_msg_notify_on_fcm_w_high_priority,
@@ -78,7 +78,7 @@ groups() ->
            pm_msg_notify_on_fcm_silent,
            pm_msg_notify_on_apns_w_topic
           ]},
-         {muclight_msg_notifications, [parallel],
+         {muclight_msg_notifications, [],
           [
            muclight_msg_notify_on_apns_w_high_priority,
            muclight_msg_notify_on_fcm_w_high_priority,
@@ -92,22 +92,22 @@ groups() ->
            muclight_msg_notify_on_fcm_silent,
            muclight_msg_notify_on_w_topic
           ]},
-         {groupchat_notifications_with_inbox, [parallel],
+         {groupchat_notifications_with_inbox, [],
           [
            muclight_inbox_msg_unread_count_apns,
            muclight_inbox_msg_unread_count_fcm,
            muclight_aff_change_fcm,
            muclight_aff_change_apns
           ]},
-         {pm_notifications_with_inbox, [parallel],
+         {pm_notifications_with_inbox, [],
           [
            inbox_msg_unread_count_apns,
            inbox_msg_unread_count_fcm,
            inbox_msg_reset_unread_count_apns,
            inbox_msg_reset_unread_count_fcm
           ]},
-         {failure_cases_v3, [parallel], failure_cases()},
-         {failure_cases_v2, [parallel], failure_cases()}
+         {failure_cases_v3, [], failure_cases()},
+         {failure_cases_v2, [], failure_cases()}
         ],
     G.
 
@@ -128,7 +128,6 @@ init_per_suite(Config) ->
     catch mongoose_push_mock:stop(),
     mongoose_push_mock:start(Config),
     Port = mongoose_push_mock:port(),
-
     PoolOpts = [{strategy, available_worker}, {workers, 20}],
     HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
     rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
@@ -173,10 +172,22 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config) ->
+    %% unfortunately meck:reset(Module) doesn't result
+    %% in 'valid' flag resetting (see meck_proc module),
+    %% so we have to unload existing mocking and mock
+    %% module again before running every test case.
+    catch rpc(?RPC_SPEC, meck, unload, [mod_event_pusher]),
+    rpc(?RPC_SPEC, meck, new, [mod_event_pusher, [no_link, passthrough]]),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+    Valid = rpc(?RPC_SPEC, meck, validate, [mod_event_pusher]),
+    rpc(?RPC_SPEC, meck, unload, [mod_event_pusher]),
+    escalus:end_per_testcase(CaseName, Config),
+    case Valid of
+        false -> {fail, "mod_event_pusher crashed"};
+        true -> ok
+    end.
 
 %%------------------------------------------------------------------------------------
 %% GROUP integration_with_sm_and_offline_storage & enhanced_integration_with_sm

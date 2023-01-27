@@ -46,10 +46,11 @@
 %% @doc Pushes the event to each backend registered with the event_pusher.
 -spec push_event(mongoose_acc:t(), Host :: jid:server(), Event :: event()) -> mongoose_acc:t().
 push_event(Acc, Host, Event) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(Host),
     lists:foldl(fun(B, Acc0) ->
                         B:push_event(Acc0, Host, Event) end,
                 Acc,
-                ets:lookup_element(ets_name(Host), backends, 2)).
+                ets:lookup_element(ets_name(HostType), backends, 2)).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
