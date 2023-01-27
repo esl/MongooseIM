@@ -2,7 +2,7 @@
 
 set -e
 # From https://github.com/esl/mongooseim-docker/pull/47
-MIM_DOCKER_VERSION=939906a5efba4975c9175f27546335a755b9c8a6
+MIM_DOCKER_VERSION=fe6d9d31a720a254ea0150c44138e5f3955bf77b
 
 MONGOOSE_TGZ=mongooseim.tar.gz
 
