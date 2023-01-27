@@ -92,7 +92,7 @@ config_spec(Service) ->
 
 -spec get_deps(service()) -> [service()].
 get_deps(Service) ->
-    case backend_module:is_exported(Service, deps, 0) of
+    case mongoose_lib:is_exported(Service, deps, 0) of
         true -> Service:deps();
         false -> []
     end.

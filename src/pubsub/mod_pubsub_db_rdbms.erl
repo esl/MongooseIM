@@ -15,7 +15,7 @@
 -include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
--export([start/0, stop/0]).
+-export([init/2, stop/0]).
 % Funs execution
 -export([transaction/2, dirty/2]).
 % Direct #pubsub_state access
@@ -80,9 +80,8 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start() -> ok.
-start() ->
-    mod_pubsub_db_mnesia:start(),
+init(HostType, Opts) ->
+    mod_pubsub_db_mnesia:init(HostType, Opts),
     % -------------------- State building ----------------------------
     mongoose_rdbms:prepare(pubsub_get_item_rows_id, pubsub_items, [nidx],
         <<"SELECT nidx, created_luser, created_lserver, itemid "

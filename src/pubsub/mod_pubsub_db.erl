@@ -20,7 +20,7 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start() -> ok.
+-callback init(HostType :: mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
 -callback stop() -> ok.
 

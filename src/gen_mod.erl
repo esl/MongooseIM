@@ -337,7 +337,7 @@ is_loaded(HostType, Module) ->
 
 -spec get_deps(host_type(), module(), module_opts()) -> gen_mod_deps:module_deps().
 get_deps(HostType, Module, Opts) ->
-    case backend_module:is_exported(Module, deps, 2) of
+    case mongoose_lib:is_exported(Module, deps, 2) of
         true ->
             Deps = Module:deps(HostType, Opts),
             lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
@@ -347,7 +347,7 @@ get_deps(HostType, Module, Opts) ->
 
 -spec get_required_services(host_type(), module(), module_opts()) -> [mongoose_service:service()].
 get_required_services(HostType, Module, Options) ->
-    case backend_module:is_exported(Module, deps, 2) of
+    case mongoose_lib:is_exported(Module, deps, 2) of
         true ->
             [Service || {service, Service} <- Module:deps(HostType, Options)];
         _ ->

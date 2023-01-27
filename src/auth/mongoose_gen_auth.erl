@@ -21,7 +21,7 @@
 
 -ignore_xref([behaviour_info/1]).
 
--import(backend_module, [is_exported/3]).
+-import(mongoose_lib, [is_exported/3]).
 
 -type t() :: module().
 -export_type([t/0]).
