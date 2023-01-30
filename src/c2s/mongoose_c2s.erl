@@ -14,7 +14,7 @@
 %% utils
 -export([start_link/2, start/2, stop/2, exit/2, async/3, call/3, cast/3]).
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
-         get_mod_state/2, merge_mod_state/2, remove_mod_state/2,
+         get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
 -export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1, close_session/3]).
@@ -1045,6 +1045,10 @@ get_mod_state(#c2s_data{state_mod = Handlers}, HandlerName) ->
         undefined -> {error, not_found};
         HandlerState -> {ok, HandlerState}
     end.
+
+-spec get_listener_opts(data()) -> listener_opts().
+get_listener_opts(#c2s_data{listener_opts = ListenerOpts}) ->
+    ListenerOpts.
 
 -spec merge_mod_state(data(), map()) -> data().
 merge_mod_state(StateData = #c2s_data{state_mod = StateHandlers}, MoreHandlers) ->

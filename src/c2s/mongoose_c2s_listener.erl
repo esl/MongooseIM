@@ -33,17 +33,25 @@ start_listener(Opts) ->
 %% Hooks and handlers
 -spec handle_user_open_session(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
-handle_user_open_session(Acc, #{c2s_data := StateData}, #{host_type := HostType, access := Access}) ->
-    Jid = mongoose_c2s:get_jid(StateData),
-    LServer = mongoose_c2s:get_lserver(StateData),
-    case acl:match_rule(HostType, LServer, Access, Jid) of
-        allow ->
-            case mongoose_hooks:session_opening_allowed_for_user(HostType, Jid) of
-                allow -> {ok, Acc};
-                _ -> {stop, Acc}
+handle_user_open_session(Acc, #{c2s_data := StateData},
+                         #{host_type := HostType, listener_id := ListenerId}) ->
+    ListenerOpts = mongoose_c2s:get_listener_opts(StateData),
+    case mongoose_listener_config:listener_id(ListenerOpts) of
+        ListenerId ->
+            Jid = mongoose_c2s:get_jid(StateData),
+            LServer = mongoose_c2s:get_lserver(StateData),
+            #{access := Access} = ListenerOpts,
+            case acl:match_rule(HostType, LServer, Access, Jid) of
+                allow ->
+                    case mongoose_hooks:session_opening_allowed_for_user(HostType, Jid) of
+                        allow -> {ok, Acc};
+                        _ -> {stop, Acc}
+                    end;
+                deny ->
+                    {stop, Acc}
             end;
-        deny ->
-            {stop, Acc}
+        _Other ->
+            {ok, Acc}
     end.
 
 %% ranch_protocol
@@ -58,16 +66,17 @@ start_link(Opts) ->
 -spec init(options()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(#{module := Module} = Opts) ->
     HostTypes = ?ALL_HOST_TYPES,
-    maybe_add_access_check(HostTypes, Opts),
     TransportOpts = prepare_socket_opts(Opts),
     ListenerId = mongoose_listener_config:listener_id(Opts),
+    maybe_add_access_check(HostTypes, Opts, ListenerId),
     Child = ranch:child_spec(ListenerId, ranch_tcp, TransportOpts, Module, Opts),
     {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, [Child]}}.
 
-maybe_add_access_check(_, #{access := all}) ->
+maybe_add_access_check(_, #{access := all}, _) ->
     ok;
-maybe_add_access_check(HostTypes, #{access := Access}) ->
-    AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3, #{access => Access}, 10}
+maybe_add_access_check(HostTypes, _, ListenerId) ->
+    AclHooks = [ {user_open_session, HostType, fun ?MODULE:handle_user_open_session/3,
+                  #{listener_id => ListenerId}, 10}
                  || HostType <- HostTypes ],
     gen_hook:add_handlers(AclHooks).
 
