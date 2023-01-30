@@ -367,7 +367,7 @@ CREATE TABLE muc_rooms(
 );
 
 CREATE TABLE muc_room_aff(
-    room_id BIGINT          NOT NULL REFERENCES muc_rooms(id),
+    room_id BIGINT UNSIGNED NOT NULL REFERENCES muc_rooms(id),
     luser VARCHAR(250)      NOT NULL,
     lserver VARCHAR(250)    NOT NULL,
     resource VARCHAR(250)   NOT NULL,
