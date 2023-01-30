@@ -54,14 +54,14 @@ clean_after_testcase(C) ->
 %%
 
 module_startup_no_opts(_) ->
-    ok = mod_keystore:start(<<"localhost">>, default_mod_config(mod_keystore)).
+    {ok, _} = start(<<"localhost">>, default_mod_config(mod_keystore)).
 
 module_startup_read_key_from_file(_) ->
     %% given
     RawKey = <<"qwe123">>,
     {ok, KeyFile} = key_at("/tmp/key-from-file", RawKey),
     %% when
-    ok = mod_keystore:start(<<"localhost">>, key_from_file(KeyFile)),
+    {ok, _} = start(<<"localhost">>, key_from_file(KeyFile)),
     %% then
     ?ae([{{key_from_file, <<"localhost">>}, RawKey}],
         get_key(<<"localhost">>, key_from_file)).
@@ -84,7 +84,7 @@ module_startup_create_ram_key(_, ModKeystoreOpts) ->
     %% given no key
     [] = get_key(<<"localhost">>, ram_key),
     %% when keystore starts with config to generate a memory-only key
-    ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
+    {ok, _} = start(<<"localhost">>, ModKeystoreOpts).
 
 module_startup_for_multiple_domains(_Config) ->
     %% given
@@ -95,8 +95,8 @@ module_startup_for_multiple_domains(_Config) ->
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
     {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
     %% when
-    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
-    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    {ok, _} = start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    {ok, _} = start(<<"second.com">>, key_from_file(SecondKeyFile)),
     %% then
     ?ae([{{key_from_file, <<"first.com">>}, FirstKey}],
         get_key(<<"first.com">>, key_from_file)),
@@ -112,8 +112,8 @@ multiple_domains_one_stopped(_Config) ->
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
     {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
     % when
-    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
-    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    {ok, _} = start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    {ok, _} = start(<<"second.com">>, key_from_file(SecondKeyFile)),
     ok = mod_keystore:stop(<<"first.com">>),
     % then
     ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
@@ -150,3 +150,8 @@ mock_mongoose_metrics() ->
       Result :: mod_keystore:key_list().
 get_key(HostType, KeyName) ->
     mongoose_hooks:get_key(HostType, KeyName).
+
+start(Hostname, Opts) ->
+    mongoose_config:set_opt({modules, Hostname}, #{mod_keystore => Opts}),
+    mongoose_config:set_opt(hosts, [Hostname]),
+    gen_mod:start_module(Hostname, mod_keystore, Opts).

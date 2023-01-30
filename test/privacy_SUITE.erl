@@ -42,7 +42,11 @@ init_per_suite(C) ->
 
 init_per_testcase(_, C) ->
     gen_hook:start_link(),
-    mod_privacy:start(<<"localhost">>, config_parser_helper:default_mod_config(mod_privacy)),
+    mongoose_config:set_opt({modules, <<"localhost">>}, #{mod_privacy => #{}}),
+    mongoose_config:set_opt(hosts, [<<"localhost">>]),
+    gen_mod:start_module(<<"localhost">>,
+                         mod_privacy,
+                         config_parser_helper:default_mod_config(mod_privacy)),
     C.
 
 end_per_suite(_C) ->

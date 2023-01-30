@@ -28,7 +28,7 @@
 -define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
 -define(MS_BY_TARGET, mod_global_distrib_bounce_message_store_by_target).
 
--export([start_link/0, start/2, stop/1, deps/2]).
+-export([start_link/0, start/2, stop/1, hooks/1, deps/2]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 -export([maybe_store_message/3, reroute_messages/3]).
 -export([bounce_queue_size/0]).
@@ -40,20 +40,18 @@
 %%--------------------------------------------------------------------
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, _Opts) ->
+start(_HostType, _Opts) ->
     mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
     mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
     EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}], [value]},
     QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
-    gen_hook:add_handlers(hooks(HostType)),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
 -spec stop(mongooseim:host_type()) -> any().
-stop(HostType) ->
+stop(_HostType) ->
     ejabberd_sup:stop_child(?MODULE),
-    gen_hook:delete_handlers(hooks(HostType)),
     ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
 

@@ -33,6 +33,7 @@
 %% API
 -export([start/2,
          stop/1,
+         hooks/1,
          supported_features/0,
          config_spec/0,
          is_carbon_copy/1]).
@@ -76,14 +77,12 @@ is_carbon_copy(Packet) ->
 %% Default IQDisc is no_queue:
 %% executes disable/enable actions in the c2s process itself
 start(HostType, #{iqdisc := IQDisc}) ->
-    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm,
                                              fun ?MODULE:iq_handler2/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm,
                                              fun ?MODULE:iq_handler1/5, #{}, IQDisc).
 
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm),
     ok.

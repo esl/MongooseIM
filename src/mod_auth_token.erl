@@ -12,6 +12,7 @@
 %% gen_mod callbacks
 -export([start/2]).
 -export([stop/1]).
+-export([hooks/1]).
 -export([supported_features/0]).
 -export([config_spec/0]).
 
@@ -78,7 +79,6 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_auth_token_backend:start(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
       fun ?MODULE:process_iq/5, #{}, IQDisc),
@@ -88,7 +88,6 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm),
-    gen_hook:delete_handlers(hooks(HostType)),
     ok.
 
 hooks(HostType) ->

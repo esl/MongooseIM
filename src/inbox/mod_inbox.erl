@@ -18,7 +18,7 @@
 -include("mongoose_ns.hrl").
 
 %% gen_mod
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 -export([process_iq/5]).
 
@@ -92,7 +92,6 @@ process_entry(#{remote_jid := RemJID,
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
     mod_inbox_backend:init(HostType, Opts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
-    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
@@ -104,7 +103,6 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
-    gen_hook:delete_handlers(hooks(HostType)),
     stop_cleaner(HostType),
     mod_inbox_muc:stop(HostType),
     case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of

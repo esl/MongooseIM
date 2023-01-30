@@ -5,7 +5,7 @@
 -behaviour(gen_mod).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([pre_acc_room_affiliations/3, post_acc_room_affiliations/3,
@@ -18,12 +18,10 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     start_cache(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     stop_cache(HostType),
     ok.
 

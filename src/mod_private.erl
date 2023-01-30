@@ -31,6 +31,7 @@
 
 -export([start/2,
          stop/1,
+         hooks/1,
          supported_features/0,
          config_spec/0,
          process_iq/5,
@@ -73,13 +74,11 @@ get_personal_data(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok | {error, atom()}.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_private_backend:init(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok | {error, not_registered}.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm).
 
 supported_features() -> [dynamic_domains].

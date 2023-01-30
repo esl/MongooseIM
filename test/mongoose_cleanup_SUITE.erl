@@ -105,7 +105,7 @@ auth_anonymous(_Config) ->
 last(_Config) ->
     HostType = host_type(),
     {U, S, R, JID, SID} = get_fake_session(),
-    mod_last:start(HostType, config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
+    start(HostType, mod_last, config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
     not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
     {ok, #{}} = mod_last:on_presence_update(new_acc(S), #{jid => JID, status => Status1}, #{}),
@@ -121,7 +121,7 @@ last(_Config) ->
 stream_management(_Config) ->
     HostType = host_type(),
     {U, S, R, _JID, SID} = get_fake_session(),
-    mod_stream_management:start(HostType, config_parser_helper:default_mod_config(mod_stream_management)),
+    start(HostType, mod_stream_management, config_parser_helper:default_mod_config(mod_stream_management)),
     SMID = <<"123">>,
     mod_stream_management:register_smid(HostType, SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(HostType, SMID),
@@ -206,3 +206,8 @@ new_acc(Server) ->
 
 host_type() ->
     <<"test host type">>.
+
+start(Hostname, Module, Opts) ->
+    mongoose_config:set_opt({modules, Hostname}, #{Module => Opts}),
+    mongoose_config:set_opt(hosts, [Hostname]),
+    gen_mod:start_module(Hostname, Module, Opts).

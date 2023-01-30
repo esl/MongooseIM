@@ -12,7 +12,7 @@
 -behaviour(gen_mod).
 
 %% gen_mod handlers
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([archive_id/3,
@@ -28,14 +28,12 @@
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
+start(_HostType, _Opts) ->
     prepare_queries(),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
+stop(_HostType) ->
     ok.
 
 -spec supported_features() -> [atom()].

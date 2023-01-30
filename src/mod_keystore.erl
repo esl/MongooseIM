@@ -6,6 +6,7 @@
 %% gen_mod callbacks
 -export([start/2]).
 -export([stop/1]).
+-export([hooks/1]).
 -export([supported_features/0]).
 -export([config_spec/0]).
 
@@ -51,12 +52,10 @@ start(HostType, Opts) ->
     create_keystore_ets(),
     mod_keystore_backend:init(HostType, Opts),
     init_keys(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     clear_keystore_ets(HostType),
     ok.
 

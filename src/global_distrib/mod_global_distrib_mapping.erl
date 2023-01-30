@@ -27,7 +27,7 @@
 -define(DOMAIN_TAB, mod_global_distrib_domain_cache_tab).
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
--export([start/2, stop/1, deps/2]).
+-export([start/2, stop/1, hooks/1, deps/2]).
 -export([for_domain/1, insert_for_domain/1, insert_for_domain/2, insert_for_domain/3,
          cache_domain/2, delete_for_domain/1, all_domains/0, public_domains/0]).
 -export([for_jid/1, insert_for_jid/1, cache_jid/2, delete_for_jid/1, clear_cache/1]).
@@ -147,7 +147,6 @@ start(HostType, Opts = #{cache := CacheOpts}) ->
     DomainLifetime = timer:seconds(DomainLifetimeSec),
     JidLifetime = timer:seconds(JidLifeTimeSec),
 
-    gen_hook:add_handlers(hooks(HostType)),
 
     ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
     ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
@@ -157,7 +156,6 @@ start(HostType, Opts = #{cache := CacheOpts}) ->
 stop(HostType) ->
     ets_cache:delete(?JID_TAB),
     ets_cache:delete(?DOMAIN_TAB),
-    gen_hook:delete_handlers(hooks(HostType)),
     mod_global_distrib_mapping_backend:stop().
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().

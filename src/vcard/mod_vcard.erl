@@ -46,6 +46,7 @@
 
 %% gen_mod handlers
 -export([start/2, stop/1,
+         hooks/1,
          supported_features/0]).
 
 %% config_spec
@@ -142,7 +143,6 @@ get_results_limit(HostType) ->
 
 start(HostType, Opts) ->
     mod_vcard_backend:init(HostType, Opts),
-    start_hooks(HostType),
     start_iq_handlers(HostType, Opts),
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},
@@ -152,7 +152,6 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
-    stop_hooks(HostType),
     stop_iq_handlers(HostType),
     stop_backend(HostType),
     gen_server:call(Proc, stop),
@@ -160,12 +159,6 @@ stop(HostType) ->
     ok.
 
 supported_features() -> [dynamic_domains].
-
-start_hooks(HostType) ->
-    gen_hook:add_handlers(hooks(HostType)).
-
-stop_hooks(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

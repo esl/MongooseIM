@@ -7,6 +7,7 @@
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
+-export([hooks/1]).
 -export([config_spec/0]).
 -export([supported_features/0]).
 
@@ -17,11 +18,11 @@
 config_spec() ->
     #section{items = #{}}.
 
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(hooks(HostType)).
+start(_HostType, _Opts) ->
+    ok.
 
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

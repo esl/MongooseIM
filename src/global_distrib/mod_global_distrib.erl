@@ -225,7 +225,7 @@ remove_metadata(Acc, Key) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_reroute(FPacket, Params, Extra) -> {ok, FPacket} | {stop, drop} when
-                FPacket :: mongoose_hooks:filter_packet_acc(),    
+                FPacket :: mongoose_hooks:filter_packet_acc(),
                 Params :: map(),
                 Extra :: map().
 maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
@@ -289,7 +289,7 @@ maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
                          text => <<"Unable to route global: user not found in the routing table">>}),
             mongoose_hooks:mod_global_distrib_unknown_recipient(GlobalHost, {From, To, Acc, Packet})
     end,
-    case ResultFPacket of 
+    case ResultFPacket of
         drop ->
             {stop, drop};
         ResultFPacket ->

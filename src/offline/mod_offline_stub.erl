@@ -29,19 +29,18 @@
 %% gen_mod callbacks
 -export([start/2,
          stop/1,
+         hooks/1,
          supported_features/0]).
 
 %% Hook handlers
 -export([stop_hook_processing/3]).
 
 -spec start(any(), any()) -> 'ok'.
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(hooks(HostType)),
+start(_HostType, _Opts) ->
     ok.
 
 -spec stop(any()) -> 'ok'.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
+stop(_HostType) ->
     ok.
 
 supported_features() -> [dynamic_domains].
