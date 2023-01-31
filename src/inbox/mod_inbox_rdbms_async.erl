@@ -6,6 +6,12 @@
 -behaviour(mod_inbox_backend).
 -behaviour(mongoose_aggregator_worker).
 
+-ifdef(gen_server_request_id).
+-type request_id() :: gen_server:request_id().
+-else.
+-type request_id() :: term().
+-endif.
+
 -type box() :: binary().
 -type task() ::
     {set_inbox, mod_inbox:entry_key(), exml:element(), pos_integer(), id(), integer(), box()} |
@@ -64,7 +70,7 @@ start_pool(HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, inbox, Opts).
 
 %% Worker callbacks
--spec request(task(), mongoose_async_pools:pool_extra()) -> gen_server:request_id().
+-spec request(task(), mongoose_async_pools:pool_extra()) -> request_id().
 request(Task, _Extra = #{host_type := HostType}) ->
     request_one(HostType, Task).
 

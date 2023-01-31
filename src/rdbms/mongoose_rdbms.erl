@@ -46,6 +46,12 @@
 -opaque escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
                            escaped_boolean() | escaped_null().
 
+-ifdef(gen_server_request_id).
+-type request_id() :: gen_server:request_id().
+-else.
+-type request_id() :: term().
+-endif.
+
 -export_type([escaped_binary/0,
               escaped_string/0,
               escaped_like/0,
@@ -231,7 +237,7 @@ execute_cast(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters)
     sql_cast(HostType, {sql_execute, Name, Parameters}).
 
 -spec execute_request(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
-                     gen_server:request_id().
+                     request_id().
 execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_request(HostType, {sql_execute, Name, Parameters}).
 
@@ -271,7 +277,7 @@ query_name_to_string(Name) ->
 sql_query(HostType, Query) ->
     sql_call(HostType, {sql_query, Query}).
 
--spec sql_query_request(HostType :: server(), Query :: any()) -> gen_server:request_id().
+-spec sql_query_request(HostType :: server(), Query :: any()) -> request_id().
 sql_query_request(HostType, Query) ->
     sql_request(HostType, {sql_query, Query}).
 
@@ -289,7 +295,7 @@ sql_transaction(HostType, F) when is_function(F) ->
     sql_call(HostType, {sql_transaction, F}).
 
 %% @doc SQL transaction based on a list of queries
--spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> gen_server:request_id().
+-spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> request_id().
 sql_transaction_request(HostType, Queries) when is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
     sql_transaction_request(HostType, F);
