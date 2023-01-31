@@ -214,7 +214,7 @@ store_trails(Routes) ->
                                                    [Module || {_Path, Module, _Opts} <- HostRoutes]
                                            end, Routes)),
     TrailModules = lists:filter(fun(Module) ->
-                                        backend_module:is_exported(Module, trails, 0)
+                                        mongoose_lib:is_exported(Module, trails, 0)
                                 end, AllModules),
     try
         trails:store(trails:trails(TrailModules))

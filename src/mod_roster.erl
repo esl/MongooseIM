@@ -868,7 +868,7 @@ send_presence_type(From, To, Type) ->
       Params :: #{domain := jid:lserver()},
       Extra :: gen_hook:extra().
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
-    case backend_module:is_exported(mod_roster_backend, remove_domain_t, 2) of
+    case mongoose_lib:is_exported(mod_roster_backend, remove_domain_t, 2) of
          true ->
             F = fun() -> mod_roster_backend:remove_domain_t(HostType, Domain) end,
             case transaction(HostType, F) of

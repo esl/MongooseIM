@@ -15,7 +15,7 @@
 -include("mongoose_logger.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
--export([start/0, stop/0]).
+-export([init/2, stop/0]).
 % Funs execution
 -export([transaction/2, dirty/2]).
 % Direct #pubsub_state access
@@ -89,8 +89,7 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start() -> ok.
-start() ->
+init(_HostType, _Opts) ->
     mnesia:create_table(pubsub_state,
                         [{disc_copies, [node()]},
                          {type, ordered_set},

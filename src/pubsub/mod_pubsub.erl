@@ -440,18 +440,8 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     mongoose_domain_api:register_subdomain(ServerHost, SubdomainPattern, PacketHandler),
     {ok, State}.
 
-init_backend(ServerHost, Opts = #{backend := Backend}) ->
-    TrackedDBFuns = [create_node, del_node, get_state, get_states,
-                     get_states_by_lus, get_states_by_bare,
-                     get_states_by_full, get_own_nodes_states,
-                     get_items, get_item, set_item, add_item,
-                     del_item, del_items,
-                     set_node, find_node_by_id, find_nodes_by_key,
-                     find_node_by_name, delete_node, get_subnodes,
-                     get_subnodes_tree, get_parentnodes_tree
-                    ],
-    backend_module:create(mod_pubsub_db, Backend, TrackedDBFuns),
-    mod_pubsub_db_backend:start(),
+init_backend(ServerHost, Opts) ->
+    mod_pubsub_db_backend:init(ServerHost, Opts),
     maybe_start_cache_module(ServerHost, Opts).
 
 hooks(ServerHost) ->

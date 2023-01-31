@@ -28,7 +28,6 @@
 -type room_id() :: pos_integer().
 -type room_opts() :: [{OptionName :: atom(), OptionValue :: term()}].
 -type aff() :: atom().
--type updated_result() :: {updated, non_neg_integer()}.
 
 
 -spec init(mongooseim:host_type(), ModuleOpts :: list()) -> ok.

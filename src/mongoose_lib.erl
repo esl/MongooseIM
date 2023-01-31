@@ -22,6 +22,8 @@
 -export([pmap/2, pmap/3]).
 -ignore_xref([pmap/3]).
 
+-export([is_exported/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -222,3 +224,9 @@ cancel_and_flush_timer(TimerRef) ->
         {timeout, TimerRef, _} -> ok
     after 0 -> ok
     end.
+
+-spec is_exported(Module :: module(), Function :: atom(),
+                  Arity :: integer()) -> boolean().
+is_exported(Module, Function, Arity) ->
+    code:ensure_loaded(Module),
+    erlang:function_exported(Module, Function, Arity).

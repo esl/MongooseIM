@@ -10,9 +10,6 @@
 %% remove after mongoose_rdbms is refactored not to use dynamically compiled backend
 -ignore_xref([get_backend_name/2]).
 
-%% Legacy call from backend_module
--export([ensure_backend_metrics/2]).
-
 %% For debugging and tests
 -export([get_backend_module/2]).
 -ignore_xref([get_backend_module/2]).

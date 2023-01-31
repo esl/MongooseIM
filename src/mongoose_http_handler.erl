@@ -68,7 +68,7 @@ get_routes(Handlers) ->
     Final.
 
 add_handler_routes(#{host := Host, path := Path, module := Module} = HandlerOpts, Routes) ->
-    HandlerRoutes = case backend_module:is_exported(Module, routes, 1) of
+    HandlerRoutes = case mongoose_lib:is_exported(Module, routes, 1) of
                         true -> Module:routes(HandlerOpts);
                         false -> [{Path, Module, HandlerOpts}]
                     end,
