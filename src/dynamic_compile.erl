@@ -38,11 +38,14 @@
 %%% -undef/-ifdef/-ifndef/-else/-endif
 %%% -file(File, Line)
 %%%-------------------------------------------------------------------
+
+%% This module is still used in tests
 -module(dynamic_compile).
 
 %% API
 -export([from_string/1, from_string/2]).
 
+-ignore_xref([from_string/1]).
 -ignore_xref([from_string/2]).
 
 -import(lists, [reverse/1, keyreplace/4]).
