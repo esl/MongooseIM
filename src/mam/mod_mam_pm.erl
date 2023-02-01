@@ -480,7 +480,7 @@ should_archive_if_groupchat(_, _) ->
 %% Only store messages sent to yourself in user_send_packet.
 should_archive_if_sent_to_yourself(LocJID, RemJID, incoming) ->
     not jid:are_bare_equal(LocJID, RemJID);
-should_archive_if_sent_to_yourself(LocJID, RemJID, _Dir) ->
+should_archive_if_sent_to_yourself(_LocJID, _RemJID, _Dir) ->
     true.
 
 -spec return_external_message_id_if_ok(ReturnMessID :: boolean(),
