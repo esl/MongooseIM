@@ -9,11 +9,11 @@
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1, supported_features/0]).
--export([run_initial_check/3,
+-export([user_send_message/3,
          check_packet/2,
          disco_local_features/3,
-         c2s_stream_features/3
-        ]).
+         c2s_stream_features/3,
+         xmpp_send_element/3]).
 
 -export_type([amp_event/0, amp_rule/0, amp_rules/0, amp_rule_support/0,
               amp_match_result/0, amp_strategy/0]).
@@ -21,12 +21,9 @@
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_c2s.hrl").
 
 -define(AMP_FEATURE,
         #xmlel{name = <<"amp">>, attrs = [{<<"xmlns">>, ?NS_AMP_FEATURE}]}).
--define(AMP_RESOLVER, amp_resolver).
--define(AMP_STRATEGY, amp_strategy).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
@@ -39,30 +36,27 @@ stop(HostType) ->
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+c2s_hooks(HostType) ->
+    [{user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 5}].
+
 hooks(HostType) ->
     [
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
      {c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
-     {c2s_preprocessing_hook, HostType, fun ?MODULE:run_initial_check/3, #{}, 10},
-     {amp_verify_support, HostType, fun ?AMP_RESOLVER:verify_support/3, #{}, 10},
-     {amp_check_condition, HostType, fun ?AMP_RESOLVER:check_condition/3, #{}, 10},
-     {amp_determine_strategy, HostType, fun ?AMP_STRATEGY:determine_strategy/3, #{}, 10}
-    ].
+     {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 10},
+     {amp_verify_support, HostType, fun amp_resolver:verify_support/3, #{}, 10},
+     {amp_check_condition, HostType, fun amp_resolver:check_condition/3, #{}, 10},
+     {amp_determine_strategy, HostType, fun amp_strategy:determine_strategy/3, #{}, 10}
+     | c2s_hooks(HostType)].
 
 %% API
 
--spec run_initial_check(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: map(),
-    Extra :: gen_hook:extra().
-run_initial_check(#{result := drop} = Acc, _, _) ->
-    {ok, Acc};
-run_initial_check(Acc, _, _) ->
-    NewAcc = case mongoose_acc:stanza_name(Acc) of
-        <<"message">> -> run_initial_check(Acc);
-        _ -> Acc
-    end,
-    {ok, NewAcc}.
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_send_message(Acc, _, _) ->
+    {From, To, Element} = mongoose_acc:packet(Acc),
+    run_initial_check(Acc, From, To, Element).
 
 -spec check_packet(mongoose_acc:t(), amp_event()) -> mongoose_acc:t().
 check_packet(Acc, Event) ->
@@ -88,13 +82,19 @@ disco_local_features(Acc = #{node := Node}, _, _) ->
 c2s_stream_features(Acc, _, _) ->
     {ok, lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE)}.
 
-%% Internal
+-spec xmpp_send_element(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    gen_hook:hook_fn_ret(mongoose_acc:t()).
+xmpp_send_element(Acc, _Params, _Extra) ->
+    Event = case mongoose_acc:get(c2s, send_result, undefined, Acc) of
+                ok -> delivered;
+                _ -> delivery_failed
+            end,
+    {ok, check_packet(Acc, Event)}.
 
--spec run_initial_check(mongoose_acc:t()) -> mongoose_acc:t().
-run_initial_check(Acc) ->
-    Packet = mongoose_acc:element(Acc),
-    From = mongoose_acc:from_jid(Acc),
-    To = mongoose_acc:to_jid(Acc),
+%% Internal
+-spec run_initial_check(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
+    mongoose_c2s_hooks:result().
+run_initial_check(Acc, From, To, Packet) ->
     Result = case amp:extract_requested_rules(Packet) of
                  none -> nothing_to_do;
                  {rules, Rules} -> validate_and_process_rules(Packet, From, Rules, Acc);
@@ -102,14 +102,14 @@ run_initial_check(Acc) ->
              end,
     case Result of
         nothing_to_do ->
-            Acc;
+            {ok, Acc};
         drop ->
-            mongoose_acc:set(hook, result, drop, Acc);
+            {stop, Acc};
         NewRules ->
             Acc1 = mongoose_acc:set_permanent(amp, rules, NewRules, Acc),
-            mongoose_acc:update_stanza(#{element => amp:strip_amp_el(Packet),
-                                         from_jid => From,
-                                         to_jid => To}, Acc1)
+            Acc2 = mongoose_acc:update_stanza(#{element => amp:strip_amp_el(Packet),
+                                                from_jid => From, to_jid => To}, Acc1),
+            {ok, Acc2}
     end.
 
 -spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) ->

@@ -15,7 +15,7 @@ all() ->
     [{group, all}].
 
 groups() ->
-    G = [{all, [parallel],
+    [{all, [parallel],
           [discovering_support,
            enabling_carbons,
            disabling_carbons,
@@ -28,8 +28,7 @@ groups() ->
            prop_forward_received_chat_messages,
            prop_forward_sent_chat_messages,
            prop_normal_routing_to_bare_jid
-          ]}],
-    ct_helper:repeat_all_until_all_ok(G).
+          ]}].
 
 %%%===================================================================
 %%% Overall setup/teardown

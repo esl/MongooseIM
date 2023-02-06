@@ -37,7 +37,7 @@ handle_notify(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {nosend, State}.
 
-handle_info({route, _From, _To, Acc}, State) ->
+handle_info({route, Acc}, State) ->
     #xmlel{ name = TagName } = El = mongoose_acc:element(Acc),
     handle_msg(TagName, Acc, El, State);
 handle_info(Msg, State) ->

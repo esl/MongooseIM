@@ -156,8 +156,8 @@ maybe_initial_cleanup(Node, Initial) ->
 
 -spec total_count() -> integer().
 total_count() ->
-    {Counts, _} = rpc:multicall(supervisor, count_children, [ejabberd_c2s_sup]),
-    lists:sum([proplists:get_value(active, Count, 0) || Count <- Counts, is_list(Count)]).
+    {Counts, _} = rpc:multicall(ejabberd_sm, get_node_sessions_number, []),
+    lists:sum([Count || Count <- Counts, is_integer(Count)]).
 
 -spec unique_count() -> integer().
 unique_count() ->

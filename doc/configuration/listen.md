@@ -55,7 +55,7 @@ The options listed below can be set for the `c2s`, `s2s` and `service` listeners
 
 ### `listen.*.backlog`
 * **Syntax:** positive integer
-* **Default:** `100`
+* **Default:** `1024`
 * **Example:** `backlog = 1000`
 
 Overrides the default TCP backlog value.
@@ -122,12 +122,27 @@ The rule that determines what traffic shaper is used to limit the incoming XMPP 
 The rule referenced here needs to be defined in the `access` configuration section.
 The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
 
-### `listen.c2s.zlib`
-* **Syntax:** positive integer
-* **Default:** not set, disabled
-* **Example:** `zlib = 1024`
+### `listen.c2s.reuse_port`
+* **Syntax:** boolean
+* **Default:** false
+* **Example:** `reuse_port = true`
 
-Enables ZLIB support, the integer value is a limit for a decompressed output size in bytes (to prevent a successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)).
+Enables linux support for `SO_REUSEPORT`, see [https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ] for more details.
+
+### `listen.c2s.backwards_compatible_session`
+* **Syntax:** boolean
+* **Default:** true
+* **Example:** `backwards_compatible_session = false`
+
+Enables backward-compatible session establishement IQs. See https://www.rfc-editor.org/rfc/rfc6121.html#section-1.4:
+
+> [RFC3921] specified one additional
+      precondition: formal establishment of an instant messaging and
+      presence session.  Implementation and deployment experience has
+      shown that this additional step is unnecessary.  However, for
+      backward compatibility an implementation MAY still offer that
+      feature.  This enables older software to connect while letting
+      newer software save a round trip.
 
 ### `listen.c2s.allowed_auth_methods`
 
@@ -253,7 +268,6 @@ The following section configures two C2S listeners.
 ```toml
 [[listen.c2s]]
   port = 5222
-  zlib = 10000
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536
@@ -262,7 +276,6 @@ The following section configures two C2S listeners.
 
 [[listen.c2s]]
   port = 5223
-  zlib = 4096
   access = "c2s"
   shaper = "c2s_shaper"
   max_stanza_size = 65536

@@ -139,15 +139,13 @@ options("mongooseim-pgsql") ->
                 access => c2s,
                 shaper => c2s_shaper,
                 max_stanza_size => 65536,
-                zlib => 10000,
                 tls => #{certfile => "priv/dc1.pem", dhfile => "priv/dh.pem"}
                }),
        config([listen, c2s],
               #{port => 5223,
                 access => c2s,
                 shaper => c2s_shaper,
-                max_stanza_size => 65536,
-                zlib => 4096
+                max_stanza_size => 65536
                }),
        config([listen, http],
               #{port => 5280,
@@ -676,6 +674,7 @@ pgsql_modules() ->
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
+      mod_presence => #{},
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>
@@ -1046,10 +1045,10 @@ default_room_opts() ->
       subject_author => <<>>}.
 
 common_xmpp_listener_config() ->
-    (common_listener_config())#{backlog => 100,
+    (common_listener_config())#{backlog => 1024,
                                 proxy_protocol => false,
                                 hibernate_after => 0,
-                                max_stanza_size => infinity,
+                                max_stanza_size => 0,
                                 num_acceptors => 100}.
 
 common_listener_config() ->
@@ -1075,7 +1074,9 @@ default_config([listen, http]) ->
 default_config([listen, http, handlers, mod_websockets]) ->
     #{timeout => 60000,
       max_stanza_size => infinity,
-      module => mod_websockets};
+      module => mod_websockets,
+      c2s_state_timeout => 5000,
+      backwards_compatible_session => true};
 default_config([listen, http, handlers, mongoose_admin_api]) ->
     #{handlers => [contacts, users, sessions, messages, stanzas, muc_light, muc,
                    inbox, domain, metrics],
@@ -1097,7 +1098,11 @@ default_config([listen, http, protocol]) ->
 default_config([listen, http, tls]) ->
     #{verify_mode => peer};
 default_config([listen, c2s]) ->
-    (common_xmpp_listener_config())#{module => ejabberd_c2s,
+    (common_xmpp_listener_config())#{module => mongoose_c2s_listener,
+                                     max_connections => infinity,
+                                     c2s_state_timeout => 5000,
+                                     reuse_port => false,
+                                     backwards_compatible_session => true,
                                      access => all,
                                      shaper => none};
 default_config([listen, c2s, tls]) ->

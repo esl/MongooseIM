@@ -12,11 +12,14 @@
 %% do not remove below SUITE if testing mongoose
 {suites, "tests", mongoose_sanity_checks_SUITE}.
 
+{suites, "tests", mim_c2s_SUITE}.
+
 {suites, "tests", acc_e2e_SUITE}.
 {suites, "tests", accounts_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
@@ -53,14 +56,15 @@
 {suites, "tests", login_SUITE}.
 {suites, "tests", mam_SUITE}.
 {suites, "tests", mam_proper_SUITE}.
+{suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", metrics_api_SUITE}.
 {suites, "tests", metrics_c2s_SUITE}.
 {suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
-{suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_event_pusher_http_SUITE}.
+{suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_event_pusher_sns_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
@@ -76,8 +80,8 @@
 {suites, "tests", muc_light_http_api_SUITE}.
 {suites, "tests", muc_light_legacy_SUITE}.
 {suites, "tests", oauth_SUITE}.
-{suites, "tests", offline_stub_SUITE}.
 {suites, "tests", offline_SUITE}.
+{suites, "tests", offline_stub_SUITE}.
 {suites, "tests", pep_SUITE}.
 {suites, "tests", persistent_cluster_id_SUITE}.
 {suites, "tests", presence_SUITE}.
@@ -108,9 +112,7 @@
 {suites, "tests", service_domain_db_SUITE}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", domain_removal_SUITE}.
-{suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
-{suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", tcp_listener_SUITE}.
 

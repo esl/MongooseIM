@@ -41,8 +41,7 @@
                  | ejabberd_socket
                  | mod_bosh_socket
                  | mod_websockets
-                 | mongoose_tls
-                 | ejabberd_zlib.
+                 | mongoose_tls.
 
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'

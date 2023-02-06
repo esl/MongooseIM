@@ -34,7 +34,6 @@
          change_shaper/2,
          starttls/2,
          get_socket/1,
-         compress/2,
          become_controller/2,
          close/1]).
 
@@ -89,9 +88,6 @@ starttls(Pid, TLSOpts) ->
 
 get_socket(Pid) ->
     gen_server_call_or_noproc(Pid, get_socket).
-
-compress(Pid, ZlibSocket) ->
-    gen_server_call_or_noproc(Pid, {compress, ZlibSocket}).
 
 become_controller(Pid, C2SPid) ->
     gen_server:call(Pid, {become_controller, C2SPid}).
@@ -168,22 +164,6 @@ handle_call({starttls, TLSOpts}, From, #state{socket = TCPSocket} = State) ->
                            c2s_pid => State#state.c2s_pid}),
             {stop, normal, State}
     end;
-handle_call({compress, ZlibSocket}, _From,
-  #state{c2s_pid = C2SPid} = State) ->
-    StateAfterReset = reset_parser(State),
-    NewState = StateAfterReset#state{socket = ZlibSocket,
-                                     sock_mod = ejabberd_zlib},
-    case ejabberd_zlib:recv_data(ZlibSocket, "") of
-        {ok, ZlibData} ->
-            NewState2 = process_data(ZlibData, NewState),
-            {reply, ok, NewState2, maybe_hibernate(NewState2)};
-        {error, inflate_size_exceeded} ->
-            apply(gen_fsm(), send_event,
-                [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
-            {reply, ok, NewState, maybe_hibernate(NewState)};
-        {error, inflate_error} ->
-            {stop, normal, ok, NewState}
-    end;
 handle_call({become_controller, C2SPid}, _From, State) ->
     StateAfterReset = reset_parser(State),
     NewState = StateAfterReset#state{c2s_pid = C2SPid},
@@ -217,7 +197,6 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({Tag, _TCPSocket, Data},
       #state{socket = Socket,
-             c2s_pid = C2SPid,
              sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
@@ -229,20 +208,6 @@ handle_info({Tag, _TCPSocket, Data},
                     NewState = process_data(TLSData, State),
                     {noreply, NewState, maybe_hibernate(NewState)};
                 {error, _Reason} ->
-                    {stop, normal, State}
-            end;
-        ejabberd_zlib ->
-            mongoose_metrics:update(global,
-                           [data, xmpp, received, compressed_size], size(Data)),
-            case ejabberd_zlib:recv_data(Socket, Data) of
-                {ok, ZlibData} ->
-                    NewState = process_data(ZlibData, State),
-                    {noreply, NewState, maybe_hibernate(NewState)};
-                {error, inflate_size_exceeded} ->
-                    apply(gen_fsm(), send_event,
-                       [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
-                    {noreply, State, maybe_hibernate(State)};
-                {error, inflate_error} ->
                     {stop, normal, State}
             end;
         _ ->
@@ -417,8 +382,6 @@ gen_server_call_or_noproc(Pid, Message) ->
             % but before it was processed
             {error, {died, Extra}}
     end.
-
-gen_fsm() -> p1_fsm.
 
 -spec hibernate() -> hibernate | infinity.
 hibernate() ->

@@ -54,15 +54,14 @@ all() ->
     ].
 
 groups() ->
-    G = [{xep0114_tcp, [], xep0114_tests()},
-         {xep0114_ws, [], xep0114_tests()},
-         {subdomain, [], [register_subdomain]},
-         {hidden_components, [], [disco_with_hidden_component]},
-         {distributed, [], [register_in_cluster,
-                            register_same_on_both
-                            %clear_on_node_down TODO: Breaks cover
-                           ]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{xep0114_tcp, [], xep0114_tests()},
+     {xep0114_ws, [], xep0114_tests()},
+     {subdomain, [], [register_subdomain]},
+     {hidden_components, [], [disco_with_hidden_component]},
+     {distributed, [], [register_in_cluster,
+                        register_same_on_both
+                        %clear_on_node_down TODO: Breaks cover
+                       ]}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

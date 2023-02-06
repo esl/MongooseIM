@@ -17,9 +17,6 @@
 -module(tcp_listener_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
-
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -27,41 +24,22 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, main}].
-
-groups() ->
-    G = [{main, [sequence], test_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
-
-test_cases() ->
-    [inet_sockname_returns_error].
+    [s2s_inet_sockname_returns_error,
+     service_inet_sockname_returns_error].
 
 suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
+    require_rpc_nodes([mim]).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
-
-end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
-
-init_per_group(_GroupName, Config) ->
     setup_meck(),
     Config.
 
-end_per_group(_GroupName, Config) ->
-    teardown_meck(),
-    Config.
-
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
-
-end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+end_per_suite(_Config) ->
+    teardown_meck().
 
 setup_meck() ->
     {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [tcp_listener_helper_code()]),
@@ -88,11 +66,20 @@ tcp_listener_helper_code() ->
 %% Test cases
 %%--------------------------------------------------------------------
 
+s2s_inet_sockname_returns_error(_Config) ->
+    inet_sockname_returns_error(incoming_s2s_port).
+
+service_inet_sockname_returns_error(_Config) ->
+    inet_sockname_returns_error(service_port).
+
 %% Checks that the listener does not crash if inet:sockname/1 call returns an error
-inet_sockname_returns_error(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, alice),
-    escalus_connection:start(UserSpec),
-    {_Socket, Pid} = rpc(mim(), persistent_term, get, [tcp_listener_helper_info]),
+inet_sockname_returns_error(PortName) ->
+    Port = ct:get_config({hosts, mim, PortName}),
+    {ok, ClientSocket} = gen_tcp:connect(localhost, Port, []),
+    receive {tcp_closed, ClientSocket} -> gen_tcp:close(ClientSocket)
+    after 5000 -> ct:fail("Socket was not closed by the server")
+    end,
+    {_ServerSocket, Pid} = rpc(mim(), persistent_term, get, [tcp_listener_helper_info]),
     %% The listener process is still alive
     [_|_] = rpc:pinfo(Pid),
     {error, einval} = rpc(mim(), persistent_term, get, [tcp_listener_helper_result]),

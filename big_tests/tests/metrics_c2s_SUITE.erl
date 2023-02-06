@@ -22,8 +22,7 @@
 
 -define(WAIT_TIME, 100).
 
--import(metrics_helper, [assert_counter/2,
-                         get_counter_value/1,
+-import(metrics_helper, [get_counter_value/1,
                          wait_for_counter/2]).
 
 %%--------------------------------------------------------------------
@@ -94,8 +93,8 @@ message_one(Config) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus_client:wait_for_stanza(Bob),
 
-        assert_counter(MesgSent + 1, xmppMessageSent),
-        assert_counter(MesgReceived + 1, xmppMessageReceived)
+        wait_for_counter(MesgSent + 1, xmppMessageSent),
+        wait_for_counter(MesgReceived + 1, xmppMessageReceived)
 
         end).
 
@@ -107,8 +106,8 @@ stanza_one(Config) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus_client:wait_for_stanza(Bob),
 
-        assert_counter(StanzaSent + 1, xmppStanzaSent),
-        assert_counter(StanzaReceived + 1, xmppStanzaReceived)
+        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
+        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
 
         end).
 
@@ -122,10 +121,10 @@ presence_one(Config) ->
         escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
         escalus:wait_for_stanza(Alice),
 
-        assert_counter(PresenceSent + 1, xmppPresenceSent),
-        assert_counter(PresenceReceived + 1, xmppPresenceReceived),
-        assert_counter(StanzaSent + 1, xmppStanzaSent),
-        assert_counter(StanzaReceived + 1, xmppStanzaReceived)
+        wait_for_counter(PresenceSent + 1, xmppPresenceSent),
+        wait_for_counter(PresenceReceived + 1, xmppPresenceReceived),
+        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
+        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
 
         end).
 
@@ -140,10 +139,10 @@ presence_direct_one(Config) ->
         escalus:send(Alice, Presence),
         escalus:wait_for_stanza(Bob),
 
-        assert_counter(PresenceSent + 1, xmppPresenceSent),
-        assert_counter(PresenceReceived + 1, xmppPresenceReceived),
-        assert_counter(StanzaSent + 1, xmppStanzaSent),
-        assert_counter(StanzaReceived + 1, xmppStanzaReceived)
+        wait_for_counter(PresenceSent + 1, xmppPresenceSent),
+        wait_for_counter(PresenceReceived + 1, xmppPresenceReceived),
+        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
+        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived)
 
         end).
 
@@ -158,10 +157,10 @@ iq_one(Config) ->
                             escalus_stanza:roster_get()),
         escalus_client:wait_for_stanza(Alice),
 
-        assert_counter(IqSent + 1, xmppIqSent),
-        assert_counter(StanzaSent + 1, xmppStanzaSent),
-        assert_counter(StanzaReceived + 1, xmppStanzaReceived),
-        assert_counter(IqReceived + 1, xmppIqReceived)
+        wait_for_counter(IqSent + 1, xmppIqSent),
+        wait_for_counter(StanzaSent + 1, xmppStanzaSent),
+        wait_for_counter(StanzaReceived + 1, xmppStanzaReceived),
+        wait_for_counter(IqReceived + 1, xmppIqReceived)
 
         end).
 
@@ -179,8 +178,8 @@ messages(Config) ->
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
         escalus_client:wait_for_stanza(Alice),
 
-        assert_counter(MesgSent + 4, xmppMessageSent),
-        assert_counter(MesgReceived + 4, xmppMessageReceived)
+        wait_for_counter(MesgSent + 4, xmppMessageSent),
+        wait_for_counter(MesgReceived + 4, xmppMessageReceived)
 
         end).
 
@@ -255,7 +254,6 @@ error_presence(Config) ->
         Presence = escalus_stanza:presence_direct(escalus_client:short_jid(Alice),
                                                   <<"error">>, [ErrorElt]),
         escalus:send(Bob, Presence),
-        escalus:wait_for_stanza(Alice),
 
         wait_for_counter(Errors + 1, xmppErrorPresence)
 

@@ -45,13 +45,13 @@
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2, terminate/2, code_change/3]).
 
--export([user_send_packet/3, user_receive_packet/3,
-         c2s_presence_in/3, c2s_filter_packet/3,
-         c2s_broadcast_recipients/3]).
+-export([user_send_presence/3,
+         user_receive_presence/3,
+         get_pep_recipients/3,
+         filter_pep_recipient/3]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
-
 -ignore_xref([delete_caps/1, make_disco_hash/2, read_caps/1, start_link/2]).
 
 -include("mongoose.hrl").
@@ -171,58 +171,22 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
--spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
+-spec user_send_presence(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: map(),
-    Extra :: gen_hook:extra().
-user_send_packet(Acc, _, _) ->
+    Extra :: map().
+user_send_presence(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
-    {ok, user_send_packet(Acc, From, To, Packet)}.
+    {ok, user_send_presence(Acc, From, To, Packet)}.
 
--spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
-user_send_packet(Acc,
-                 #jid{luser = User, lserver = LServer} = From,
-                 #jid{luser = User, lserver = LServer, lresource = <<>>},
-                 #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
+-spec user_send_presence(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+user_send_presence(Acc,
+                   #jid{luser = User, lserver = LServer} = From,
+                   #jid{luser = User, lserver = LServer, lresource = <<>>},
+                   #xmlel{attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     handle_presence(Acc, LServer, From, Type, Elements);
-user_send_packet(Acc, _From, _To, _Pkt) ->
-    Acc.
-
-
--spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: #{jid := jid:jid()},
-    Extra :: gen_hook:extra().
-user_receive_packet(Acc, #{jid := #jid{lserver = LServer}}, _) ->
-    {From, _, Packet} = mongoose_acc:packet(Acc),
-    {ok, user_receive_packet(Acc, LServer, From, Packet)}.
-
--spec user_receive_packet(mongoose_acc:t(), jid:lserver(), jid:jid(), exml:element()) ->
-          mongoose_acc:t().
-user_receive_packet(Acc, LServer, From,
-                    #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
-    Type = xml:get_attr_s(<<"type">>, Attrs),
-    case mongoose_domain_api:get_host_type(From#jid.lserver) of
-        {error, not_found} ->
-            handle_presence(Acc, LServer, From, Type, Elements);
-        {ok, _} ->
-            Acc %% it was already handled in 'user_send_packet'
-    end;
-user_receive_packet(Acc, _, _, _) ->
-    Acc.
-
--spec handle_presence(mongoose_acc:t(), jid:lserver(), jid:jid(), binary(), [exml:element()]) ->
-          mongoose_acc:t().
-handle_presence(Acc, LServer, From, Type, Elements) when Type =:= <<>>;
-                                                         Type =:= <<"available">> ->
-    case read_caps(Elements) of
-        nothing ->
-            Acc;
-        #caps{version = Version, exts = Exts} = Caps ->
-            feature_request(Acc, LServer, From, Caps, [Version | Exts])
-    end;
-handle_presence(Acc, _LServer, _From, _Type, _Elements) ->
+user_send_presence(Acc, _, _, _) ->
     Acc.
 
 -spec caps_stream_features(Acc, Params, Extra) -> {ok, Acc} when
@@ -274,43 +238,80 @@ disco_info(Acc = #{node := Node}, _, _) ->
     end,
     {ok, NewAcc}.
 
--spec c2s_presence_in(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: ejabberd_c2s:state(),
-    Params :: #{from := jid:jid(), to := jid:jid(), packet := exml:element()},
-    Extra :: gen_hook:extra().
-c2s_presence_in(C2SState, #{from := From, to := To, packet := Packet = #xmlel{attrs = Attrs, children = Els}}, _) ->
-    ?LOG_DEBUG(#{what => caps_c2s_presence_in,
+-spec handle_presence(mongoose_acc:t(), jid:lserver(), jid:jid(), binary(), [exml:element()]) ->
+          mongoose_acc:t().
+handle_presence(Acc, LServer, From, Type, Elements) when Type =:= <<>>;
+                                                         Type =:= <<"available">> ->
+    case read_caps(Elements) of
+        nothing ->
+            Acc;
+        #caps{version = Version, exts = Exts} = Caps ->
+            feature_request(Acc, LServer, From, Caps, [Version | Exts])
+    end;
+handle_presence(Acc, _LServer, _From, _Type, _Elements) ->
+    Acc.
+
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_receive_presence(Acc0, #{c2s_data := C2SData}, _Extra) ->
+    {From, To, #xmlel{attrs = Attrs, children = Els} = Packet} = mongoose_acc:packet(Acc0),
+    ?LOG_DEBUG(#{what => user_receive_presence,
                  to => jid:to_binary(To), from => jid:to_binary(From),
-                 exml_packet => Packet, c2s_state => C2SState}),
+                 exml_packet => Packet, c2s_state => C2SData}),
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    Subscription = ejabberd_c2s:get_subscription(From, C2SState),
-    Insert = (Type == <<>> orelse Type == <<"available">>)
-        and (Subscription == both orelse Subscription == to),
-    Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
-    NewState = case Insert orelse Delete of
-        true ->
-            LFrom = jid:to_lower(From),
-            Rs = case ejabberd_c2s:get_aux_field(caps_resources,
-                                                 C2SState)
-                 of
-                     {ok, Rs1} -> Rs1;
-                     error -> gb_trees:empty()
-                 end,
-            Caps = read_caps(Els),
-            NewRs = case Caps of
-                        nothing when Insert == true -> Rs;
-                        _ when Insert == true ->
-                            ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
-                                         to => jid:to_binary(To), from => jid:to_binary(From),
-                                         exml_packet => Packet, c2s_state => C2SState}),
-                            upsert_caps(LFrom, Caps, Rs);
-                        _ -> gb_trees:delete_any(LFrom, Rs)
-                    end,
-            ejabberd_c2s:set_aux_field(caps_resources, NewRs,
-                                       C2SState);
-        false -> C2SState
-    end,
-    {ok, NewState}.
+    #jid{lserver = LServer} = mongoose_c2s:get_jid(C2SData),
+    Acc = case mongoose_domain_api:get_host_type(From#jid.lserver) of
+              {error, not_found} ->
+                  handle_presence(Acc0, LServer, From, Type, Els);
+              {ok, _} ->
+                  Acc0 %% it was already handled in 'user_send_presence'
+          end,
+    case mongoose_c2s:get_mod_state(C2SData, mod_presence) of
+        {ok, Presences} ->
+            Subscription = get_subscription(From, Presences),
+            Insert = (Type == <<>> orelse Type == <<"available">>)
+                and (Subscription == both orelse Subscription == to),
+            Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
+            case Insert orelse Delete of
+                true ->
+                    LFrom = jid:to_lower(From),
+                    Rs = case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+                            {ok, Rs1} -> Rs1;
+                            {error, not_found} -> gb_trees:empty()
+                        end,
+                    Caps = read_caps(Els),
+                    NewRs = case Caps of
+                                nothing when Insert == true ->
+                                    Rs;
+                                _ when Insert == true ->
+                                    ?LOG_DEBUG(#{what => caps_set_caps,
+                                                 caps => Caps,
+                                                 to => jid:to_binary(To),
+                                                 from => jid:to_binary(From),
+                                                 exml_packet => Packet,
+                                                 c2s_state => C2SData}),
+                                    upsert_caps(LFrom, Caps, Rs);
+                                _ ->
+                                    gb_trees:delete_any(LFrom, Rs)
+                            end,
+                    {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewRs})};
+                false ->
+                    {ok, Acc}
+            end;
+        {error, not_found} ->
+            {ok, Acc}
+    end.
+
+get_subscription(From, Presences) ->
+    BareFrom = jid:to_bare(From),
+    F = mod_presence:is_subscribed_to_my_presence(From, BareFrom, Presences),
+    T = mod_presence:am_i_subscribed_to_presence(From, BareFrom, Presences),
+    case {F, T} of
+        {true, true} -> both;
+        {true, false} -> from;
+        {false, true} -> to;
+        {false, false} -> none
+    end.
 
 -spec upsert_caps(jid:simple_jid(), caps(), caps_resources()) -> caps_resources().
 upsert_caps(LFrom, Caps, Rs) ->
@@ -322,41 +323,19 @@ upsert_caps(LFrom, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
--spec c2s_filter_packet(Acc, Params, Extra) -> {ok | stop, Acc} when
-    Acc :: boolean(),
-    Params :: #{state := ejabberd_c2s:state(), feature := {atom(), binary()}, to := jid:jid()},
-    Extra :: gen_hook:extra().
-c2s_filter_packet(InAcc, #{state := C2SState, feature := {pep_message, Feature}, to := To}, _) ->
-    case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
-        {ok, Rs} ->
-            ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
-                         acc => InAcc, c2s_state => C2SState, caps_resources => Rs}),
-            LTo = jid:to_lower(To),
-            case gb_trees:lookup(LTo, Rs) of
-                {value, Caps} ->
-                    HostType = ejabberd_c2s_state:host_type(C2SState),
-                    Drop = not lists:member(Feature, get_features_list(HostType, Caps)),
-                    {stop, Drop};
-                none ->
-                    {stop, true}
-            end;
-        _ -> {ok, InAcc}
-    end;
-c2s_filter_packet(Acc, _, _) -> {ok, Acc}.
-
--spec c2s_broadcast_recipients(Acc, Params, Extra) -> {ok, Acc} when
+-spec get_pep_recipients(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: [jid:simple_jid()],
-    Params :: #{state := ejabberd_c2s:state(), type := {atom(), binary()}},
-    Extra :: gen_hook:extra().
-c2s_broadcast_recipients(InAcc, #{state := C2SState, type := {pep_message, Feature}}, _) ->
-    HostType = ejabberd_c2s_state:host_type(C2SState),
-    NewAcc = case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
-        {ok, Rs} ->
-            filter_recipients_by_caps(HostType, InAcc, Feature, Rs);
-        _ -> InAcc
-    end,
+    Params :: #{c2s_data := mongoose_c2s:data(), feature := binary()},
+    Extra :: map().
+get_pep_recipients(InAcc, #{c2s_data := C2SData, feature := Feature}, _) ->
+    HostType = mongoose_c2s:get_host_type(C2SData),
+    NewAcc = case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+                 {ok, Rs} ->
+                     filter_recipients_by_caps(HostType, InAcc, Feature, Rs);
+                 _ -> InAcc
+             end,
     {ok, NewAcc};
-c2s_broadcast_recipients(Acc, _, _) -> {ok, Acc}.
+get_pep_recipients(Acc, _, _) -> {ok, Acc}.
 
 -spec filter_recipients_by_caps(mongooseim:host_type(), Acc, binary(), caps_resources()) -> Acc
     when Acc :: [jid:simple_jid()].
@@ -368,6 +347,27 @@ filter_recipients_by_caps(HostType, InAcc, Feature, Rs) ->
                           end
                   end,
                   InAcc, Rs).
+
+-spec filter_pep_recipient(Acc, Params, Extra) -> {ok | stop, Acc} when
+      Acc :: boolean(),
+      Params :: #{c2s_data := mongoose_c2s:data(), feature := binary(), to := jid:jid()},
+      Extra :: gen_hook:extra().
+filter_pep_recipient(InAcc, #{c2s_data := C2SData, feature := Feature, to := To}, _) ->
+    case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+        {ok, Rs} ->
+            ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
+                         acc => InAcc, c2s_state => C2SData, caps_resources => Rs}),
+            LTo = jid:to_lower(To),
+            case gb_trees:lookup(LTo, Rs) of
+                {value, Caps} ->
+                    HostType = mongoose_c2s:get_host_type(C2SData),
+                    Drop = not lists:member(Feature, get_features_list(HostType, Caps)),
+                    {stop, Drop};
+                none ->
+                    {stop, true}
+            end;
+        _ -> {ok, InAcc}
+    end.
 
 init_db(mnesia) ->
     case catch mnesia:table_info(caps_features, storage_type) of
@@ -411,12 +411,11 @@ terminate(_Reason, #state{host_type = HostType}) ->
     gen_hook:delete_handlers(hooks(HostType)).
 
 hooks(HostType) ->
-    [
-     {c2s_presence_in, HostType, fun ?MODULE:c2s_presence_in/3, #{}, 75},
-     {c2s_filter_packet, HostType, fun ?MODULE:c2s_filter_packet/3, #{}, 75},
-     {c2s_broadcast_recipients, HostType, fun ?MODULE:c2s_broadcast_recipients/3, #{}, 75},
-     {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 75},
-     {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 75},
+    [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1},
+     {get_pep_recipients, HostType, fun ?MODULE:get_pep_recipients/3, #{}, 75},
+     {filter_pep_recipient, HostType, fun ?MODULE:filter_pep_recipient/3, #{}, 75},
+     {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 75},
+     {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 1},
      {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {s2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 1},
@@ -441,7 +440,10 @@ feature_request(Acc, LServer, From, Caps, [SubNode | Tail] = SubNodes) ->
                               {ok, TS} -> os:system_time(second) >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
-            F = fun (_From, _To, Acc1, IQReply) ->
+            F = fun (_From, _To, _Acc1, timeout) ->
+                        %% IQ request timed out, skip this node
+                        feature_request(Acc, LServer, From, Caps, Tail);
+                    (_From, _To, Acc1, IQReply) ->
                         feature_response(Acc1, IQReply, LServer, From, Caps, SubNodes)
                 end,
             case NeedRequest of

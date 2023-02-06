@@ -143,8 +143,14 @@ send(#{host_type := HostType, from := From, to := To, stanza := Stanza}) ->
                              host_type => HostType,
                              lserver => From#jid.lserver,
                              element => Stanza}),
-    Acc1 = mongoose_hooks:user_send_packet(Acc, From, To, Stanza),
-    ejabberd_router:route(From, To, Acc1),
+    C2SData = mongoose_c2s:create_data(#{host_type => HostType, jid => From}),
+    Params = mongoose_c2s:hook_arg(C2SData, session_established, internal, Stanza, undefined),
+    case mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params) of
+        {ok, Acc1} ->
+            ejabberd_router:route(From, To, Acc1);
+        {stop, Acc1} ->
+            Acc1
+    end,
     {ok, #{<<"id">> => get_id(Stanza)}}.
 
 lookup_messages(#{user := UserJid, with := WithJid, before := Before, limit := Limit,

@@ -40,6 +40,7 @@
 -define(LONG_TIMEOUT, 3600).
 -define(SHORT_TIMEOUT, 1).
 -define(SMALL_SM_BUFFER, 3).
+-define(EXT_C2S_STATE(S), {external_state, S}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -52,12 +53,13 @@ all() ->
     ct_helper:groups_to_all(groups()).
 
 groups() ->
-    P = [parallel],
-    [{parallel, P, parallel_cases()},
-     {parallel_manual_ack_freq_1, P, parallel_manual_ack_freq_1_cases()},
+    [
+     {parallel, [parallel], parallel_cases()},
+     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, P, parallel_unacknowledged_message_hook_cases()}].
+     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
+    ].
 
 parallel_cases() ->
     [server_announces_sm,
@@ -87,8 +89,7 @@ parallel_cases() ->
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
-     messages_are_properly_flushed_during_resumption,
-     messages_are_properly_flushed_during_resumption_p1_fsm_old].
+     messages_are_properly_flushed_during_resumption].
 
 parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
@@ -198,7 +199,7 @@ required_sm_opts(group, parallel) ->
     #{ack_freq => never};
 required_sm_opts(group, parallel_manual_ack_freq_1) ->
     #{ack_freq => 1,
-      resume_timeout => ?SHORT_TIMEOUT};
+      resume_timeout => ?LONG_TIMEOUT};
 required_sm_opts(group, manual_ack_freq_2) ->
     #{ack_freq => 2};
 required_sm_opts(group, stream_mgmt_disabled) ->
@@ -451,15 +452,14 @@ resend_more_offline_messages_than_buffer_size(Config) ->
 
     % sent some messages - more than unacked buffer size
     MessagesToSend = ?SMALL_SM_BUFFER + 1,
-    JID = common_helper:get_bjid(AliceSpec),
-    [escalus_connection:send(Bob, escalus_stanza:chat_to(JID, integer_to_binary(I)))
+    AliceJid = common_helper:get_bjid(AliceSpec),
+    [escalus_connection:send(Bob, escalus_stanza:chat_to(AliceJid, integer_to_binary(I)))
      || I <- lists:seq(1, MessagesToSend)],
+    mongoose_helper:wait_for_n_offline_messages(AliceJid, MessagesToSend),
 
     % connect alice who wants to receive all messages from offline storage
     Alice = connect_spec(AliceSpec, sm_after_session, manual),
-    mongoose_helper:wait_for_n_offline_messages(Alice, MessagesToSend),
     send_initial_presence(Alice),
-
     escalus:wait_for_stanzas(Alice, MessagesToSend * 2), %messages and ack requests
 
     escalus_connection:get_stanza(Alice, presence),
@@ -509,7 +509,7 @@ preserve_order(Config) ->
     %% kill alice connection
     escalus_connection:kill(Alice),
     C2SPid = mongoose_helper:get_session_pid(Alice),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"3">>)),
@@ -576,7 +576,7 @@ resend_unacked_after_resume_timeout(Config) ->
 
     %% ensure there is no session
     C2SPid = mongoose_helper:get_session_pid(Alice),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
 
     %% alice come back and receives unacked message
     NewAlice = connect_spec(AliceSpec, session),
@@ -641,7 +641,7 @@ resume_session_state_send_message_generic(Config, AckInitialPresence) ->
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
     sm_helper:assert_alive_resources(Alice, 1),
 
     %% send some messages and check if c2s can handle it
@@ -688,8 +688,8 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:kill(Alice),
     % session should be alive
     sm_helper:assert_alive_resources(Alice, 1),
-    rpc(mim(), ejabberd_c2s, stop, [C2SPid]),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    rpc(mim(), mongoose_c2s, stop, [C2SPid, normal]),
+    wait_until_resume_session(C2SPid),
     %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
     ok = rpc(mim(), sys, suspend, [C2SPid]),
@@ -720,7 +720,7 @@ wait_for_resumption(Config) ->
     Bob = connect_fresh(Config, bob, session),
     Texts = three_texts(),
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session).
+    wait_until_resume_session(C2SPid).
 
 unacknowledged_message_hook_filter(Config) ->
     FilterText = <<"filter">>,
@@ -738,7 +738,7 @@ unacknowledged_message_hook_filter(Config) ->
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
     sm_helper:assert_alive_resources(Alice, 1),
     %% ensure second C2S is registered so all the messages are bounced properly
     NewAlice = connect_spec([{resource, <<"2">>}| AliceSpec], sr_presence, manual),
@@ -794,7 +794,8 @@ unacknowledged_message_hook_offline(Config) ->
 
 unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
     C2SRef = erlang:monitor(process, C2SPid),
-    %%reset the session, so old C2S process is stopped
+    sm_helper:wait_for_process_termination(C2SRef),
+    %% reset the session, so old C2S process is stopped
     NewAlice = connect_spec(AliceSpec, sr_session, manual),
     %% wait for old C2S termination before send presence. other way
     %% some of the latest unacknowledged messages can be bounced to
@@ -802,7 +803,6 @@ unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
     %% looks like all the unacknowledged messages arrive to the new
     %% C2S, but the message sequence is broken (the bounced messages
     %% delivered before the messages from the mod_offline storage)
-    sm_helper:wait_for_process_termination(C2SRef),
     send_initial_presence(NewAlice),
     {Resource, NewAlice}.
 
@@ -826,7 +826,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
     sm_helper:assert_alive_resources(Alice, 1),
 
     escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(0, Resource, 100)),
@@ -852,7 +852,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
 
     NewC2SPid = mongoose_helper:get_session_pid(NewAlice),
     escalus_connection:kill(NewAlice),
-    mongoose_helper:wait_for_c2s_state_name(NewC2SPid, resume_session),
+    wait_until_resume_session(NewC2SPid),
 
     escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
     escalus:assert(is_chat_message, [<<"msg-2">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
@@ -880,17 +880,19 @@ resume_session(Config) ->
 resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Messages = three_texts(),
+    HostType = host_type(),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
         %% Resume the session.
         Alice = connect_spec(AliceSpec, auth, manual),
         Resumed = sm_helper:try_to_resume_stream(Alice, SMID, 30),
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
-
-        [] = sm_helper:get_user_present_resources(Alice),
-        HostType = host_type(),
-        {error, smid_not_found} = sm_helper:get_sid_by_stream_id(HostType, SMID),
-        escalus_connection:wait_for_close(Alice, timer:seconds(5))
+        escalus_connection:wait_for_close(Alice, timer:seconds(5)),
+        Fun = fun() ->
+                      [] = sm_helper:get_user_present_resources(Alice),
+                      sm_helper:get_sid_by_stream_id(HostType, SMID)
+              end,
+        mongoose_helper:wait_until(Fun, {error, smid_not_found}, #{name => smid_is_cleaned})
     end).
 
 resume_session_with_wrong_sid_returns_item_not_found(Config) ->
@@ -930,7 +932,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     escalus_client:kill_connection(Config, Alice),
 
     %% Ensure the c2s process is waiting for resumption.
-    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+    wait_until_resume_session(C2SPid),
 
     %% Resume the session.
     NewAlice = connect_resume(Alice, 1),
@@ -941,13 +943,14 @@ resume_session_kills_old_C2S_gracefully(Config) ->
 
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->
     Alice = connect_spec(AliceSpec, sr_presence, manual),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     %% Bobs sends some messages to Alice.
     sm_helper:send_messages(Bob, Alice, Texts),
     %% Alice receives them, but doesn't ack.
     sm_helper:wait_for_messages(Alice, Texts),
     %% Alice's connection is violently terminated.
     escalus_client:kill_connection(Config, Alice),
-    C2SPid = mongoose_helper:get_session_pid(Alice),
+    wait_until_resume_session(C2SPid),
     SMID = sm_helper:client_to_smid(Alice),
     {C2SPid, SMID}.
 
@@ -1001,14 +1004,14 @@ replies_are_processed_by_resumed_session(Config) ->
 
 %% This is a regression test for a bug, which manifested in following scenario
 %% (due to improper presence sub requests buffering):
-%% 1. A is online, B is offline
-%% 2. A subscribes to B's presence;
-%% 3. B becomes online
-%% 4. A sends a message to B
-%% 5. B doesn't SM-ack the request or message, terminates the connection
-%% 6. B reconnects but with session *replace*, not resume
+%% 1. Bob is online, Alice is offline
+%% 2. Bob subscribes to Alice's presence;
+%% 3. Alice becomes online
+%% 4. Bob sends a message to Alice
+%% 5. Alice doesn't SM-ack the request or message, terminates the connection
+%% 6. Alice reconnects but with session *replace*, not resume
 %% 7. Packet rerouting crashes on the buffered sub request, preventing resending whole buffer
-%% 8. B doesn't receive the buffered message
+%% 8. Alice doesn't receive the buffered message
 subscription_requests_are_buffered_properly(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     MsgBody = <<"buffered">>,
@@ -1080,7 +1083,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus_client:kill_connection(Config, Alice),
         %% The receiver process would stop now
         C2SPid = mongoose_helper:get_session_pid(Alice),
-        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
+        wait_until_resume_session(C2SPid),
 
         sm_helper:wait_for_queue_length(C2SPid, 0),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
@@ -1104,41 +1107,6 @@ messages_are_properly_flushed_during_resumption(Config) ->
 
                       % ...and old process is resumed.
                       ok = rpc(mim(), sys, resume, [C2SPid])
-              end),
-        Alice2 = connect_resume(Alice, SMH),
-        % THEN Alice's new session receives Bob's message
-        RecvMsg = escalus:wait_for_stanza(Alice2),
-        escalus:assert(is_chat_message, [MsgBody], RecvMsg)
-      end).
-
-messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
-    %% the same as messages_are_properly_flushed_during_resumption,
-    %% but tests that buffered by p1_fsm_old messages are delivered
-    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-        Alice = connect_fresh(Config, alice, sr_presence),
-        SMH = escalus_connection:get_sm_h(Alice),
-        escalus_client:kill_connection(Config, Alice),
-        C2SPid = mongoose_helper:get_session_pid(Alice),
-        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
-        ok = rpc(mim(), sys, suspend, [C2SPid]),
-
-        %% send some dummy event. ignored by c2s but ensures that
-        %% p1_old_fsm buffers the messages, sent after this one
-        rpc(mim(), p1_fsm_old, send_all_state_event, [C2SPid, dummy_event]),
-
-        MsgBody = <<"flush-regression">>,
-        spawn_link(fun() ->
-                    sm_helper:wait_for_queue_length(C2SPid, 2),
-
-                    % Bob sends a message...
-                    escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
-
-                    % ...we ensure that a message is enqueued in Alice's session...
-                    % (2 messages = resume request + Bob's message)
-                    sm_helper:wait_for_queue_length(C2SPid, 3),
-
-                    % ...and old process is resumed.
-                    ok = rpc(mim(), sys, resume, [C2SPid])
               end),
         Alice2 = connect_resume(Alice, SMH),
         % THEN Alice's new session receives Bob's message
@@ -1300,6 +1268,9 @@ wait_for_session(JID, Retries, SleepTime) ->
         _ ->
             ok
     end.
+
+wait_until_resume_session(C2SPid) ->
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, ?EXT_C2S_STATE(resume_session)).
 
 maybe_ack_initial_presence(Alice, ack) ->
     ack_initial_presence(Alice);

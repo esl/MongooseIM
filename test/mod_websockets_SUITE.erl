@@ -231,8 +231,9 @@ get_child_by_mod(Sup, Mod) ->
 
 get_ranch_connections() ->
     LSup = get_child_by_mod(ranch_sup, ranch_listener_sup),
-    CSup = get_child_by_mod(LSup, ranch_conns_sup),
-    [ {Mod, Pid} || {_, Pid, _, [Mod]} <- supervisor:which_children(CSup) ].
+    CSup = get_child_by_mod(LSup, ranch_conns_sup_sup),
+    [{Mod, Pid} || {_, Sup, _, [ranch_conns_sup]} <- supervisor:which_children(CSup),
+                   {_, Pid, _, [Mod]} <- supervisor:which_children(Sup)].
 
 wait_for_no_ranch_connections(Times) ->
     case get_ranch_connections() of

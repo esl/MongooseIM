@@ -12,7 +12,7 @@
           host_type :: mongooseim:host_type(),
           action :: fun((mongooseim:host_type(), map()) -> term()),
           opts :: term(),
-          interval :: pos_integer(),
+          interval :: pos_integer(), %% milliseconds
           timer_ref :: undefined | reference()
          }).
 

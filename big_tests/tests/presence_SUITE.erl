@@ -40,27 +40,26 @@ all() ->
      {group, subscribe_group}].
 
 groups() ->
-    G = [{presence, [parallel], [available,
-                                 available_direct,
-                                 available_direct_then_unavailable,
-                                 available_direct_then_disconnect,
-                                 additions,
-                                 invisible_presence]},
-         {presence_priority, [parallel], [negative_priority_presence]},
-         {roster, [parallel], [get_roster,
-                               fail_to_get_another_users_roster,
-                               add_contact,
-                               fail_to_add_contact_for_another_user,
-                               remove_contact]},
-         {roster_versioning, [], [versioning,
-                                  versioning_no_store]},
-         {subscribe_group, [parallel], [subscribe,
-                                        subscribe_decline,
-                                        subscribe_relog,
-                                        subscribe_preserves_extra_info,
-                                        unsubscribe,
-                                        remove_unsubscribe]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{presence, [parallel], [available,
+                             available_direct,
+                             available_direct_then_unavailable,
+                             available_direct_then_disconnect,
+                             additions,
+                             invisible_presence]},
+     {presence_priority, [parallel], [negative_priority_presence]},
+     {roster, [parallel], [get_roster,
+                           fail_to_get_another_users_roster,
+                           add_contact,
+                           fail_to_add_contact_for_another_user,
+                           remove_contact]},
+     {roster_versioning, [], [versioning,
+                              versioning_no_store]},
+     {subscribe_group, [parallel], [subscribe,
+                                    subscribe_decline,
+                                    subscribe_relog,
+                                    subscribe_preserves_extra_info,
+                                    unsubscribe,
+                                    remove_unsubscribe]}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -730,7 +729,9 @@ remove_roster(Config, UserSpec) ->
     case lists:member(mod_roster, Mods) of
         true ->
             Acc = mongoose_helper:new_mongoose_acc(Server),
-            rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]);
+            Extra = #{host_type => host_type()},
+            Params = #{jid => jid:make_bare(Username, Server)},
+            rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]);
         false ->
             case lists:member(mod_roster_rdbms, Mods) of
                 true ->

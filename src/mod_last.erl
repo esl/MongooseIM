@@ -39,7 +39,8 @@
          supported_features/0]).
 
 %% IQ and hook handlers
--export([process_local_iq/5,
+-export([user_receive_iq/3,
+         process_local_iq/5,
          process_sm_iq/5,
          remove_user/3,
          on_presence_update/3,
@@ -76,10 +77,9 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
         {Component, _Fn} <- iq_handlers()],
-    ok.
+    gen_hook:delete_handlers(hooks(HostType)).
 
 iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
@@ -91,7 +91,14 @@ hooks(HostType) ->
      {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {unset_presence_hook, HostType, fun ?MODULE:on_presence_update/3, #{}, 50},
      {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
-     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}].
+     {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}
+    | c2s_hooks(HostType) ].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+c2s_hooks(HostType) ->
+    [
+     {user_receive_iq, HostType, fun ?MODULE:user_receive_iq/3, #{}, 50}
+    ].
 
 %%%
 %%% config_spec
@@ -163,21 +170,21 @@ process_sm_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_sm_iq(Acc, From, To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    {Subscription, _Groups} = mongoose_hooks:roster_get_jid_info(HostType, To, From),
-    MutualSubscription = Subscription == both,
-    RequesterSubscribedToTarget = Subscription == from,
-    QueryingSameUsersLast = (From#jid.luser == To#jid.luser) and
-                            (From#jid.lserver == To#jid.lserver),
-    case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
+    case can_respond(HostType, From, To) of
         true ->
             UserListRecord = mongoose_hooks:privacy_get_user_list(HostType, To),
-            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, To,
-                                                                UserListRecord, To, From,
-                                                                out),
+            {Res, Acc1} = mongoose_privacy:privacy_check_packet(Acc, To, UserListRecord, To, From, out),
             {Acc1, make_response(HostType, IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
+
+can_respond(HostType, From, To) ->
+    {Subscription, _Groups} = mongoose_hooks:roster_get_jid_info(HostType, To, From),
+    MutualSubscription = Subscription =:= both,
+    RequesterSubscribedToTarget = Subscription =:= from,
+    QueryingSameUsersLast = jid:are_bare_equal(From, To),
+    MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast.
 
 -spec make_response(mongooseim:host_type(), jlib:iq(), SubEl :: 'undefined' | [exml:element()],
                     jid:jid(), allow | deny) -> jlib:iq().
@@ -244,6 +251,29 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type :
 remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_last_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
+
+-spec user_receive_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_receive_iq(Acc, _Params, _Extra) ->
+    case mongoose_iq:info(Acc) of
+        {#iq{type = get, xmlns = ?NS_LAST}, Acc1} ->
+            maybe_forward_last(Acc1);
+        {_, Acc1} ->
+            {ok, Acc1}
+    end.
+
+-spec maybe_forward_last(mongoose_acc:t()) -> mongoose_c2s_hooks:result().
+maybe_forward_last(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    {From, To, _} = mongoose_acc:packet(Acc),
+    case can_respond(HostType, From, To) of
+        true ->
+            {ok, Acc};
+        false ->
+            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:forbidden()),
+            ejabberd_router:route(To, From, Acc1, Err),
+            {stop, Acc}
+    end.
 
 -spec on_presence_update(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),

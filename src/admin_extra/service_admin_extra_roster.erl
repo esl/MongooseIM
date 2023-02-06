@@ -58,7 +58,6 @@
                                    _Group}.
 -type subs() :: atom() | binary().
 -type push_action() :: remove
-                     | none
                      | {add, Nick :: binary(), Subs :: subs(),
                         Group :: binary() | string()}.
 
@@ -359,8 +358,8 @@ build_list_users(Group, [{User, Server}|Users], Res) ->
 push_roster_item(JID, #jid{luser = U, lserver = S} = RemJID, Action) ->
     lists:foreach(fun(R) ->
                 RJID = jid:replace_resource(JID, R),
-                BroadcastEl = build_broadcast(U, S, Action),
-                ejabberd_sm:route(RJID, RJID, BroadcastEl),
+                SubsAtom = action_to_subscription(Action),
+                mod_roster:broadcast_item(RJID, {U, S, <<>>}, SubsAtom),
                 Item = build_roster_item(RemJID, Action),
                 ResIQ = build_iq_roster_push(Item),
                 ejabberd_router:route(RJID, RJID, ResIQ)
@@ -377,10 +376,7 @@ build_roster_item(#jid{lresource = <<>>} = JID, {add, Nick, Subs, Group}) ->
 build_roster_item(#jid{lresource = <<>>} = JID, remove) ->
     #xmlel{ name = <<"item">>,
        attrs = [{<<"jid">>, jid:to_binary(JID)},
-                {<<"subscription">>, <<"remove">>}]};
-build_roster_item(#jid{} = JID, Action) ->
-    build_roster_item(jid:replace_resource(JID, <<>>), Action).
-
+                {<<"subscription">>, <<"remove">>}]}.
 
 -spec build_iq_roster_push(jlib:xmlcdata() | exml:element()) -> exml:element().
 build_iq_roster_push(Item) ->
@@ -390,15 +386,11 @@ build_iq_roster_push(Item) ->
                                attrs = [{<<"xmlns">>, ?NS_ROSTER}],
                                children = [Item]}] }.
 
--spec build_broadcast(U :: jid:user(), S :: jid:server(),
-                      push_action()) -> ejabberd_c2s:broadcast().
-build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
-    build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));
-build_broadcast(U, S, remove) ->
-    build_broadcast(U, S, none);
-%% Subs = both | from | to | none
-build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
-    {broadcast, {item, {U, S, <<"">>}, SubsAtom}}.
+-spec action_to_subscription(push_action()) -> atom().
+action_to_subscription({add, _Nick, Subs, _Group}) ->
+    list_to_existing_atom(binary_to_list(Subs));
+action_to_subscription(remove) ->
+    none.
 
 %%-----------------------------
 %% Purge roster items

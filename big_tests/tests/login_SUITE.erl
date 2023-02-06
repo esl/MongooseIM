@@ -37,7 +37,8 @@ all() ->
      {group, login_scram_store_plain},
      {group, login_specific_scram},
      {group, login_scram_tls},
-     {group, messages}
+     {group, messages},
+     {group, access}
     ].
 
 groups() ->
@@ -47,7 +48,8 @@ groups() ->
      {login_scram_store_plain, [parallel], scram_tests()},
      {login_scram_tls, [parallel], scram_tests()},
      {login_specific_scram, [sequence], configure_specific_scram_test()},
-     {messages, [sequence], [messages_story, message_zlib_limit]}].
+     {messages, [sequence], [messages_story]},
+     {access, [], access_tests()}].
 
 scram_tests() ->
     [log_one,
@@ -88,9 +90,13 @@ all_tests() ->
     [log_one,
      log_non_existent_plain,
      log_one_scram_sha1,
-     log_non_existent_scram,
-     blocked_user
+     log_non_existent_scram
     ].
+
+access_tests() ->
+    [blocked_user,
+     access_none_blocks_all_users,
+     access_none_for_other_listener_has_no_effect].
 
 digest_tests() ->
     [log_one_digest,
@@ -189,23 +195,36 @@ init_per_testcase(CaseName, Config) when
         true ->
             escalus:init_per_testcase(CaseName, Config)
     end;
-init_per_testcase(message_zlib_limit, Config) ->
-    [{_U, Props}] = escalus_users:get_users([hacker]),
-    Port = proplists:get_value(port, Props),
-    case mongoose_helper:get_listeners(mim(), #{port => Port}) of
-        [_Listener] ->
-            escalus:create_users(Config, escalus:get_users([hacker])),
-            escalus:init_per_testcase(message_zlib_limit, Config);
-        [] ->
-            {skip, port_not_configured_on_server}
-    end;
+init_per_testcase(blocked_user = CaseName, Config) ->
+    [{_, Spec}] = escalus_users:get_users([alice]),
+    Config1 = set_acl_for_blocking(Config, Spec),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(access_none_blocks_all_users = CaseName, Config) ->
+    Config1 = set_access_none(ct:get_config({hosts, mim, c2s_port}), Config),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(access_none_for_other_listener_has_no_effect = CaseName, Config) ->
+    Config1 = set_access_none(ct:get_config({hosts, mim, c2s_tls_port}), Config),
+    escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(message_zlib_limit, Config) ->
-    escalus:delete_users(Config, escalus:get_users([hacker]));
+end_per_testcase(blocked_user = CaseName, Config) ->
+    unset_acl_for_blocking(Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(access_none_blocks_all_users = CaseName, Config) ->
+    restore_c2s(Config),
+    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(access_none_for_other_listener_has_no_effect = CaseName, Config) ->
+    restore_c2s(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+set_access_none(C2SPort, Config) ->
+    [C2SListener] =
+        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
+    mongoose_helper:restart_listener(mim(), C2SListener#{access := none}),
+    [{c2s_listener, C2SListener} | Config].
 
 %%--------------------------------------------------------------------
 %% Message tests
@@ -346,19 +365,21 @@ log_non_existent(Config) ->
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
 
-blocked_user(Config) ->
+blocked_user(_Config) ->
     [{_, Spec}] = escalus_users:get_users([alice]),
-    Config1 = set_acl_for_blocking(Config, Spec),
     try
         {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
     catch
         error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
-    after
-        unset_acl_for_blocking(Config1)
-    end,
-    ok.
+    end.
+
+access_none_blocks_all_users(Config) ->
+    blocked_user(Config).
+
+access_none_for_other_listener_has_no_effect(Config) ->
+    log_one(Config).
 
 messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -371,21 +392,6 @@ messages_story(Config) ->
 
     end).
 
-message_zlib_limit(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        [{_, Spec}] = escalus_users:get_users([hacker]),
-        {ok, Hacker, _Features} = escalus_connection:start(Spec),
-
-        ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
-
-        escalus:send(Hacker, escalus_stanza:chat_to(Alice, ManySpaces)),
-
-        escalus:assert(is_stream_error, [<<"policy-violation">>, <<"child element too big">>],
-                       escalus:wait_for_stanza(Hacker)),
-        escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
-
-    end).
-
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -393,7 +399,7 @@ message_zlib_limit(Config) ->
 configure_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener = #{tls := TLSOpts}] =
-        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
+        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
     %% replace starttls with tls
     NewTLSOpts = TLSOpts#{mode := tls},
     mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),

@@ -54,10 +54,8 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
           end,
     {ok, {From, To, Acc, Packet}}.
 
--spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Args :: map(),
-      Extra :: gen_hook:extra().
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
 user_send_packet(Acc, _, _) ->
     Packet = mongoose_acc:packet(Acc),
     ChatType = chat_type(Acc),

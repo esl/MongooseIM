@@ -35,7 +35,7 @@
          route/3,
          route/4,
          make_new_sid/0,
-         open_session/4, open_session/5,
+         open_session/5,
          close_session/4,
          store_info/3,
          get_info/2,
@@ -43,7 +43,6 @@
          get_user_resources/1,
          set_presence/6,
          unset_presence/5,
-         close_session_unset_presence/5,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
          get_node_sessions_number/0,
@@ -52,7 +51,6 @@
          get_full_session_list/0,
          register_iq_handler/3,
          unregister_iq_handler/2,
-         force_update_presence/2,
          user_resources/2,
          get_session_pid/1,
          get_session/1,
@@ -63,6 +61,7 @@
          get_user_present_pids/2,
          sync/0,
          run_session_cleanup_hook/1,
+         terminate_session/2,
          sm_backend/0
         ]).
 
@@ -81,7 +80,7 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
+-ignore_xref([do_filter/3, do_route/4, get_unique_sessions_number/0,
               get_user_present_pids/2, start_link/0, user_resources/2, sm_backend/0]).
 
 -include("mongoose.hrl").
@@ -146,17 +145,11 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
-      Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = new_acc(From, To, Packet),
     route(From, To, Acc);
-route(From, To, {broadcast, #xmlel{} = Payload}) ->
-    Acc = new_acc(From, To, Payload),
-    route(From, To, Acc, {broadcast, Payload});
-route(From, To, {broadcast, Payload}) ->
-    Acc = new_acc(To),
-    route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).
 
@@ -170,24 +163,6 @@ new_acc(From, To = #jid{lserver = LServer}, Packet) ->
                        from_jid => From,
                        to_jid => To}).
 
--spec new_acc(jid:jid()) -> mongoose_acc:t().
-new_acc(To = #jid{lserver = LServer}) ->
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(To#jid.lserver),
-    mongoose_acc:new(#{location => ?LOCATION,
-                       host_type => HostType,
-                       lserver => LServer,
-                       element => undefined}).
-
-route(From, To, Acc, {broadcast, Payload}) ->
-    try
-        do_route(Acc, From, To, {broadcast, Payload})
-    catch Class:Reason:Stacktrace ->
-              ?LOG_ERROR(#{what => sm_route_failed,
-                           text => <<"Failed to route broadcast in ejabberd_sm">>,
-                           class => Class, reason => Reason, stacktrace => Stacktrace,
-                           payload => Payload, acc => Acc}),
-              Acc
-    end;
 route(From, To, Acc, El) ->
     try
         do_route(Acc, From, To, El)
@@ -199,18 +174,9 @@ route(From, To, Acc, El) ->
               Acc
     end.
 
--spec make_new_sid() -> ejabberd_sm:sid().
+-spec make_new_sid() -> sid().
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.
-
--spec open_session(HostType, SID, JID, Info) -> ReplacedPids when
-      HostType :: binary(),
-      SID :: 'undefined' | sid(),
-      JID :: jid:jid(),
-      Info :: info(),
-      ReplacedPids :: [pid()].
-open_session(HostType, SID, JID, Info) ->
-    open_session(HostType, SID, JID, undefined, Info).
 
 -spec open_session(HostType, SID, JID, Priority, Info) -> ReplacedPids when
       HostType :: binary(),
@@ -257,7 +223,7 @@ store_info(JID, Key, Value) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:store_session_info(Pid, JID, Key, Value),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:store_info/3, [JID, Key, Value]),
                     {ok, Key}
             end
     end.
@@ -289,14 +255,13 @@ remove_info(JID, Key) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:remove_session_info(Pid, JID, Key),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:remove_info/2, [JID, Key]),
                     ok
             end
     end.
 
 -spec get_user_resources(JID :: jid:jid()) -> [binary()].
-get_user_resources(JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
+get_user_resources(#jid{luser = LUser, lserver = LServer}) ->
     Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
@@ -354,18 +319,6 @@ unset_presence(Acc, SID, JID, Status, Info) ->
     mongoose_hooks:unset_presence_hook(Acc, JID, Status).
 
 
--spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
-      Acc :: mongoose_acc:t(),
-      SID :: 'undefined' | sid(),
-      JID :: jid:jid(),
-      Status :: binary(),
-      Reason :: close_reason(),
-      Acc1 :: mongoose_acc:t().
-close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    Acc1 = close_session(Acc, SID, JID, Reason),
-    mongoose_hooks:unset_presence_hook(Acc1, JID, Status).
-
-
 -spec get_session_pid(JID) -> none | pid() when
       JID :: jid:jid().
 get_session_pid(JID) ->
@@ -403,10 +356,9 @@ get_vh_session_list(Server) ->
 
 -spec get_node_sessions_number() -> non_neg_integer().
 get_node_sessions_number() ->
-    {value, {active, Active}} = lists:keysearch(active, 1,
-                                                supervisor:count_children(ejabberd_c2s_sup)),
-    Active.
-
+    Children = supervisor:which_children(mongoose_listener_sup),
+    Listeners = [Ref || {Ref, _, _, [mongoose_c2s_listener]} <- Children],
+    lists:sum([maps:get(active_connections, ranch:info(Ref)) || Ref <- Listeners]).
 
 -spec get_full_session_list() -> [session()].
 get_full_session_list() ->
@@ -435,11 +387,22 @@ run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
               element => undefined}),
     mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
 
+-spec terminate_session(jid:jid() | pid(), binary()) -> ok | no_session.
+terminate_session(#jid{} = Jid, Reason) ->
+    case get_session_pid(Jid) of
+        none ->
+            no_session;
+        Pid ->
+            terminate_session(Pid, Reason)
+    end;
+terminate_session(Pid, Reason) ->
+    mongoose_c2s:exit(Pid, Reason).
+
 %%====================================================================
 %% Hook handlers
 %%====================================================================
 
--spec node_cleanup(Acc, Args, Extra) -> {ok, Acc} when 
+-spec node_cleanup(Acc, Args, Extra) -> {ok, Acc} when
       Acc :: any(),
       Args :: #{node := node()},
       Extra :: map().
@@ -476,7 +439,7 @@ bounce_offline_message(Acc, #{from := From, to := To, packet := Packet}, _) ->
       Args :: #{jid := jid:jid()},
       Extra :: map().
 disconnect_removed_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, _) ->
-    lists:map(fun({_, Pid}) -> ejabberd_c2s:terminate_session(Pid, <<"User removed">>) end,
+    lists:map(fun({_, Pid}) -> terminate_session(Pid, <<"User removed">>) end,
               get_user_present_pids(User, Server)),
     {ok, Acc}.
 
@@ -644,28 +607,7 @@ do_filter(From, To, Packet) ->
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
-    Payload :: exml:element() | ejabberd_c2s:broadcast().
-do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
-    ?LOG_DEBUG(#{what => sm_route_broadcast, acc => Acc, payload => Payload}),
-    #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
-    case LResource of
-        <<>> ->
-            CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = mongoose_hooks:sm_broadcast(Acc, From, To, Broadcast, length(CurrentPids)),
-            ?LOG_DEBUG(#{what => sm_broadcast, session_pids => CurrentPids}),
-            BCast = {broadcast, Payload},
-            lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
-            Acc1;
-        _ ->
-            case get_session_pid(To) of
-                none ->
-                    Acc; % do nothing
-                Pid when is_pid(Pid) ->
-                    ?LOG_DEBUG(#{what => sm_broadcast, session_pid => Pid}),
-                    Pid ! Broadcast,
-                    Acc
-            end
-    end;
+    Payload :: exml:element().
 do_route(Acc, From, To, El) ->
     ?LOG_DEBUG(#{what => sm_route, acc => Acc}),
     #jid{lresource = LResource} = To,
@@ -679,9 +621,8 @@ do_route(Acc, From, To, El) ->
                     do_route_offline(Name, mongoose_acc:stanza_type(Acc),
                                      From, To, Acc, El);
                 Pid when is_pid(Pid) ->
-                    ?LOG_DEBUG(#{what => sm_route_to_pid,
-                                 session_pid => Pid, acc => Acc}),
-                    Pid ! {route, From, To, Acc},
+                    ?LOG_DEBUG(#{what => sm_route_to_pid, session_pid => Pid, acc => Acc}),
+                    mongoose_c2s:route(Pid, Acc),
                     Acc
             end
     end.
@@ -802,7 +743,7 @@ is_privacy_allow(From, To, Acc, Packet) ->
       Packet :: exml:element(),
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
-    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, To, PrivacyList, To, in),
+    {Res, _} = mongoose_privacy:privacy_check_packet(Acc, To, PrivacyList, To, in),
     allow == Res.
 
 
@@ -822,7 +763,7 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, Acc};
+                      mongoose_c2s:route(Pid, Acc);
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok
@@ -919,7 +860,7 @@ check_for_sessions_to_replace(HostType, JID) ->
     %% replacement for max_sessions. We need to check this at some point.
     ReplacedRedundantSessions = check_existing_resources(HostType, LUser, LServer, LResource),
     AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions),
-    [Pid ! replaced || Pid <- AllReplacedSessionPids],
+    [mongoose_c2s:exit(Pid, <<"Replaced by new connection">>) || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
 -spec check_existing_resources(HostType, LUser, LServer, LResource) ->
@@ -1008,14 +949,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).
-
-
--spec force_update_presence(mongooseim:host_type(), {jid:luser(), jid:lserver()}) -> 'ok'.
-force_update_presence(_HostType, {LUser, LServer}) ->
-    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
-    lists:foreach(fun(#session{sid = {_, Pid}}) ->
-                          Pid ! {force_update_presence, LUser}
-                  end, Ss).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% ejabberd commands

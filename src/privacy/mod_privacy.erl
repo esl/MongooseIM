@@ -31,10 +31,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod
--export([start/2]).
--export([stop/1]).
--export([supported_features/0]).
--export([config_spec/0]).
+-export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([process_iq_set/3,
@@ -46,6 +43,16 @@
          updated_list/3,
          disco_local_features/3]).
 
+-export([user_send_message_or_presence/3,
+         user_send_iq/3,
+         user_receive_message/3,
+         user_receive_presence/3,
+         user_receive_iq/3,
+         foreign_event/3]).
+
+%% to be used by mod_blocking only
+-export([do_user_send_iq/4]).
+
 -export([remove_unused_backend_opts/1]).
 
 -export([config_metrics/1]).
@@ -53,11 +60,13 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 -include("mongoose_config_spec.hrl").
+-include("mongoose_logger.hrl").
 
 -export_type([list_name/0]).
 -export_type([list_item/0]).
 -export_type([privacy_item_type/0]).
 
+-type maybe_send() :: send | ignore.
 -type list_name() :: binary() | none.
 -type list_item() :: #listitem{}.
 -type privacy_item_type() :: none | jid | group | subscription.
@@ -67,13 +76,16 @@
 %% ------------------------------------------------------------------
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) when is_map(Opts) ->
+start(HostType, Opts) ->
     mod_privacy_backend:init(HostType, Opts),
     gen_hook:add_handlers(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     gen_hook:delete_handlers(hooks(HostType)).
+
+deps(_HostType, _Opts) ->
+    [{mod_presence, #{}, hard}].
 
 config_spec() ->
     #section{
@@ -106,6 +118,7 @@ remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 supported_features() ->
     [dynamic_domains].
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 98},
      {privacy_iq_get, HostType, fun ?MODULE:process_iq_get/3, #{}, 50},
@@ -115,15 +128,251 @@ hooks(HostType) ->
      {privacy_updated_list, HostType, fun ?MODULE:updated_list/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50}].
+     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50}
+     | c2s_hooks(HostType)].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+c2s_hooks(HostType) ->
+    [
+     {user_send_message, HostType, fun ?MODULE:user_send_message_or_presence/3, #{}, 10},
+     {user_send_presence, HostType, fun ?MODULE:user_send_message_or_presence/3, #{}, 10},
+     {user_send_iq, HostType, fun ?MODULE:user_send_iq/3, #{}, 50},
+     {user_receive_message, HostType, fun ?MODULE:user_receive_message/3, #{}, 10},
+     {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 10},
+     {user_receive_iq, HostType, fun ?MODULE:user_receive_iq/3, #{}, 10},
+     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
+    ].
 
 %% ------------------------------------------------------------------
 %% Handlers
 %% ------------------------------------------------------------------
 
--spec disco_local_features(mongoose_disco:feature_acc(),
-                           map(),
-                           map()) -> {ok, mongoose_disco:feature_acc()}.
+-spec user_send_message_or_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_send_message_or_presence(Acc, #{c2s_data := StateData}, _Extra) ->
+    do_privacy_check_send(Acc, StateData).
+
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
+    mongoose_c2s_hooks:result().
+user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
+    case mongoose_iq:info(Acc) of
+        {#iq{xmlns = ?NS_PRIVACY, type = Type} = IQ, Acc1} when Type == get; Type == set ->
+            do_user_send_iq(Acc1, StateData, HostType, IQ);
+        _ ->
+            do_privacy_check_send(Acc, StateData)
+    end.
+
+-spec user_receive_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_receive_message(Acc, #{c2s_data := StateData}, _Extra) ->
+    do_privacy_check_receive(Acc, StateData, send).
+
+-spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
+    mongoose_c2s_hooks:result().
+user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
+    case mongoose_acc:stanza_type(Acc) of
+        <<"error">> -> {ok, Acc};
+        <<"probe">> -> {ok, Acc};
+        <<"invisible">> -> {ok, Acc};
+        _ -> do_privacy_check_receive(Acc, StateData, ignore)
+    end.
+
+-spec user_receive_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_receive_iq(Acc, #{c2s_data := StateData}, _Extra) ->
+    From = mongoose_acc:from_jid(Acc),
+    Me = mongoose_c2s:get_jid(StateData),
+    case {mongoose_iq:info(Acc), jid:are_bare_equal(From, Me)} of
+        {{#iq{xmlns = ?NS_PRIVACY}, Acc1}, true} ->
+            {ok, Acc1};
+        {{#iq{type = Type}, Acc1}, _} when Type =:= get; Type =:= set ->
+            do_privacy_check_receive(Acc1, StateData, send);
+        {{_, Acc1}, _} ->
+            do_privacy_check_receive(Acc1, StateData, ignore)
+    end.
+
+-spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := cast,
+                     event_tag := ?MODULE,
+                     event_content := {privacy_list, PrivList, PrivListName}},
+              #{host_type := HostType}) ->
+    {stop, handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName)};
+foreign_event(Acc, _Params, _Extra) ->
+    {ok, Acc}.
+
+-spec do_privacy_check_send(mongoose_acc:t(), mongoose_c2s:data()) ->
+    mongoose_c2s_hooks:result().
+do_privacy_check_send(Acc, StateData) ->
+    case s_privacy_check_packet(Acc, StateData, out) of
+        {allow, Acc1} ->
+            {ok, Acc1};
+        {block, Acc1} ->
+            {stop, send_back_error(Acc1, not_acceptable_blocked, send)};
+        {deny, Acc1} ->
+            {stop, send_back_error(Acc1, not_acceptable_cancel, send)}
+    end.
+
+-spec do_privacy_check_receive(mongoose_acc:t(), mongoose_c2s:data(), maybe_send()) ->
+    mongoose_c2s_hooks:result().
+do_privacy_check_receive(Acc, StateData, MaybeSendError) ->
+    case s_privacy_check_packet(Acc, StateData, in) of
+        {allow, Acc1} ->
+            {ok, Acc1};
+        {_, Acc1} ->
+            {stop, send_back_error(Acc1, service_unavailable, MaybeSendError)}
+    end.
+
+-spec do_user_send_iq(mongoose_acc:t(), mongoose_c2s:data(), mongooseim:host_type(), jlib:iq()) ->
+    mongoose_c2s_hooks:result().
+do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ) ->
+    FromJid = mongoose_acc:from_jid(Acc1),
+    ToJid = mongoose_acc:to_jid(Acc1),
+    Acc2 = process_privacy_iq(Acc1, HostType, Type, ToJid, StateData),
+    Res = mongoose_acc:get(hook, result,
+                           {error, mongoose_xmpp_errors:feature_not_implemented(
+                                     <<"en">>, <<"Failed to handle the privacy IQ request in
+                                                         c2s">>)}, Acc2),
+    IQRes = case Res of
+                {result, Result} ->
+                    IQ#iq{type = result, sub_el = Result};
+                {result, Result, _} ->
+                    IQ#iq{type = result, sub_el = Result};
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+            end,
+    ejabberd_router:route(ToJid, FromJid, Acc2, jlib:iq_to_xml(IQRes)),
+    {stop, Acc2}.
+
+-spec handle_new_privacy_list(
+        mongoose_acc:t(), mongoose_c2s:data(), mongooseim:host_type(), term(), term()) ->
+    mongoose_acc:t().
+handle_new_privacy_list(Acc, StateData, HostType, PrivList, PrivListName) ->
+    OldPrivList = get_handler(StateData),
+    case mongoose_hooks:privacy_updated_list(HostType, OldPrivList, PrivList) of
+        false ->
+            Acc;
+        NewPrivList ->
+            PrivPushIQ = privacy_list_push_iq(PrivListName),
+            Jid = mongoose_c2s:get_jid(StateData),
+            BareJid = jid:to_bare(Jid),
+            PrivPushEl = jlib:replace_from_to(BareJid, Jid, jlib:iq_to_xml(PrivPushIQ)),
+            maybe_update_presence(Acc, StateData, OldPrivList, NewPrivList),
+            AccParams = #{from_jid => BareJid, to_jid => Jid, element => PrivPushEl},
+            PrivPushAcc = mongoose_acc:update_stanza(AccParams, Acc),
+            ToAcc = [{route, PrivPushAcc}, {state_mod, {?MODULE, NewPrivList}}],
+            mongoose_c2s_acc:to_acc_many(Acc, ToAcc)
+    end.
+
+-spec process_privacy_iq(Acc :: mongoose_acc:t(),
+                         mongooseim:host_type(),
+                         Type :: get | set,
+                         ToJid :: jid:jid(),
+                         StateData :: mongoose_c2s:data()) -> mongoose_acc:t().
+process_privacy_iq(Acc, HostType, get, ToJid, StateData) ->
+    PrivacyList = get_handler(StateData),
+    From = mongoose_acc:from_jid(Acc),
+    {IQ, Acc1} = mongoose_iq:info(Acc),
+    mongoose_hooks:privacy_iq_get(HostType, Acc1, From, ToJid, IQ, PrivacyList);
+process_privacy_iq(Acc, HostType, set, ToJid, StateData) ->
+    OldPrivList = get_handler(StateData),
+    From = mongoose_acc:from_jid(Acc),
+    {IQ, Acc1} = mongoose_iq:info(Acc),
+    Acc2 = mongoose_hooks:privacy_iq_set(HostType, Acc1, From, ToJid, IQ),
+    case mongoose_acc:get(hook, result, undefined, Acc2) of
+        {result, _, NewPrivList} ->
+            maybe_update_presence(Acc2, StateData, OldPrivList, NewPrivList),
+            mongoose_c2s_acc:to_acc(Acc2, state_mod, {?MODULE, NewPrivList});
+        _ ->
+            Acc2
+    end.
+
+maybe_update_presence(Acc, StateData, OldList, NewList) ->
+    Jid = mongoose_c2s:get_jid(StateData),
+    Presences = mod_presence:maybe_get_handler(StateData),
+    FromS = mod_presence:get(Presences, s_from),
+    % Our own jid is added to pres_f, even though we're not a "contact", so for
+    % the purposes of this check we don't want it:
+    SelfJID = jid:to_bare(Jid),
+    FromsExceptSelf = gb_sets:del_element(SelfJID, FromS),
+    gb_sets:fold(
+      fun(T, Ac) ->
+              send_unavail_if_newly_blocked(Ac, Jid, T, OldList, NewList, StateData)
+      end, Acc, FromsExceptSelf).
+
+send_unavail_if_newly_blocked(Acc, Jid, ContactJID, OldList, NewList, StateData) ->
+    Packet = #xmlel{name = <<"presence">>,
+                    attrs = [{<<"type">>, <<"unavailable">>}]},
+    %% WARNING: we can not use accumulator to cache privacy check result - this is
+    %% the only place where the list to check against changes
+    {OldResult, _} = p_privacy_check_packet(Packet, Jid, ContactJID, out, OldList, StateData),
+    {NewResult, _} = p_privacy_check_packet(Packet, Jid, ContactJID, out, NewList, StateData),
+    do_send_unavail_if_newly_blocked(Acc, OldResult, NewResult, Jid, ContactJID, Packet).
+
+do_send_unavail_if_newly_blocked(Acc, allow, deny, From, To, Packet) ->
+    ejabberd_router:route(From, To, Acc, Packet);
+do_send_unavail_if_newly_blocked(Acc, _, _, _, _, _) ->
+    Acc.
+
+-spec p_privacy_check_packet(Packet :: exml:element() | mongoose_acc:t(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
+                           Dir :: mongoose_privacy:direction(),
+                           PrivList :: mongoose_privacy:userlist(),
+                           StateData :: mongoose_c2s:data()) ->
+    {mongoose_privacy:decision(), mongoose_acc:t()}.
+p_privacy_check_packet(#xmlel{} = Packet, From, To, Dir, PrivList, StateData) ->
+    LServer = mongoose_c2s:get_lserver(StateData),
+    HostType = mongoose_c2s:get_host_type(StateData),
+    Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION,
+                             from_jid => From, to_jid => To, element => Packet}),
+    mongoose_privacy:privacy_check_packet(Acc, From, PrivList, To, Dir).
+
+-spec s_privacy_check_packet(mongoose_acc:t(), mongoose_c2s:data(), mongoose_privacy:direction()) ->
+    {mongoose_privacy:decision(), mongoose_acc:t()}.
+s_privacy_check_packet(Acc, StateData, Dir) ->
+    To = mongoose_acc:to_jid(Acc),
+    Jid = mongoose_c2s:get_jid(StateData),
+    PrivList = get_handler(StateData),
+    mongoose_privacy:privacy_check_packet(Acc, Jid, PrivList, To, Dir).
+
+-spec send_back_error(mongoose_acc:t(), mongoose_xmpp_errors:stanza_error(), maybe_send()) ->
+    mongoose_acc:t().
+send_back_error(Acc1, ErrorType, send) ->
+    Acc2 = mod_amp:check_packet(Acc1, delivery_failed),
+    {From, To, _El} = mongoose_acc:packet(Acc2),
+    Error = mongoose_xmpp_errors:ErrorType(),
+    {Acc3, Err} = jlib:make_error_reply(Acc2, Error),
+    ejabberd_router:route(To, From, Acc3, Err),
+    Acc3;
+send_back_error(Acc, _, _) ->
+    Acc.
+
+-spec get_handler(mongoose_c2s:data()) -> mongoose_privacy:userlist() | {error, not_found}.
+get_handler(StateData) ->
+    case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
+        {error, not_found} -> get_privacy_list(StateData);
+        {ok, Handler} -> Handler
+    end.
+
+-spec get_privacy_list(mongoose_c2s:data()) -> mongoose_privacy:userlist().
+get_privacy_list(StateData) ->
+    Jid = mongoose_c2s:get_jid(StateData),
+    HostType = mongoose_c2s:get_host_type(StateData),
+    mongoose_hooks:privacy_get_user_list(HostType, Jid).
+
+-spec privacy_list_push_iq(binary()) -> jlib:iq().
+privacy_list_push_iq(PrivListName) ->
+    #iq{type = set, xmlns = ?NS_PRIVACY,
+        id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
+        sub_el = [#xmlel{name = <<"query">>,
+                         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+                         children = [#xmlel{name = <<"list">>,
+                                            attrs = [{<<"name">>, PrivListName}]}]}]}.
+
+-spec disco_local_features(mongoose_disco:feature_acc(), map(), map()) ->
+    {ok, mongoose_disco:feature_acc()}.
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features([?NS_PRIVACY], Acc)};
 disco_local_features(Acc, _, _) ->
@@ -256,7 +505,7 @@ remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, 
     case mod_privacy_backend:remove_privacy_list(HostType, LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
@@ -270,7 +519,7 @@ replace_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID,
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
-            broadcast_privacy_list(UserJID, Name, UserList),
+            broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -676,13 +925,11 @@ binary_to_order_s(Order) ->
 %% Ejabberd
 %% ------------------------------------------------------------------
 
-broadcast_privacy_list(UserJID, Name, UserList) ->
-    JID = jid:to_bare(UserJID),
-    ejabberd_sm:route(JID, JID, broadcast_privacy_list_packet(Name, UserList)).
-
-%% TODO this is dirty
-broadcast_privacy_list_packet(Name, UserList) ->
-    {broadcast, {privacy_list, UserList, Name}}.
+broadcast_privacy_list(HostType, #jid{luser = LUser, lserver = LServer}, Name, UserList) ->
+    Item = {privacy_list, UserList, Name},
+    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
+    mongoose_hooks:privacy_list_push(HostType, LUser, LServer, Item, length(UserPids)),
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 roster_get_jid_info(HostType, ToJID, LJID) ->
     mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).

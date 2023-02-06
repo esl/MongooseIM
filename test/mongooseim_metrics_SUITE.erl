@@ -36,28 +36,19 @@ init_per_suite(C) ->
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
     {Port, Socket} = carbon_cache_server:start(),
     Sup = spawn(fun() ->
-                        mim_ct_sup:start_link(ejabberd_sup),
-                        Hooks =
-                        {gen_hook,
-                         {gen_hook, start_link, []},
-                         permanent,
-                         brutal_kill,
-                         worker,
-                         [gen_hook]},
-                        C2SSupervisor =
-                        {ejabberd_c2s_sup,
-                         {ejabberd_tmp_sup, start_link, [ejabberd_c2s_sup, ejabberd_c2s]},
-                         permanent,
-                         infinity,
-                         supervisor,
-                         [ejabberd_tmp_sup]},
-                        supervisor:start_child(ejabberd_sup, Hooks),
-                        supervisor:start_child(ejabberd_sup, C2SSupervisor),
-                        receive
-                            stop ->
-                                ok
-                        end
-                end),
+        mim_ct_sup:start_link(ejabberd_sup),
+        Hooks = {gen_hook,
+                 {gen_hook, start_link, []},
+                 permanent,
+                 brutal_kill,
+                 worker,
+                 [gen_hook]},
+        supervisor:start_child(ejabberd_sup, Hooks),
+        receive
+            stop ->
+                ok
+        end
+    end),
     Reporters = get_reporters_cfg(Port),
     application:set_env(exometer_core, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),

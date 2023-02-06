@@ -30,22 +30,18 @@
 -behaviour(mongoose_module_metrics).
 
 %% Gen_mod callbacks
--export([start/2,
-         stop/1,
-         config_spec/0,
-         supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% IQ and hook handlers
--export([c2s_stream_features/3,
-         unauthenticated_iq_register/3,
-         process_iq/5]).
+-export([c2s_stream_features/3, process_iq/5]).
+-export([user_send_xmlel/3]).
 
 %% API
 -export([try_register/6,
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([process_iq/5, try_register/6]).
+-ignore_xref([try_register/6]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -56,7 +52,6 @@ start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
     gen_hook:add_handlers(hooks(HostType)),
-
     mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
                          {local_content, true},
@@ -74,9 +69,14 @@ stop(HostType) ->
 iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
-     {c2s_unauthenticated_iq, HostType, fun ?MODULE:unauthenticated_iq_register/3, #{}, 50}].
+    [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50}
+     | c2s_hooks(HostType) ].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+c2s_hooks(HostType) ->
+    [{user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 30}].
 
 %%%
 %%% config_spec
@@ -143,31 +143,48 @@ c2s_stream_features(Acc, _, _) ->
                      attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc],
     {ok, NewAcc}.
 
--spec unauthenticated_iq_register(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: exml:element() | empty,
-    Params :: #{server := jid:server(),
-                iq := jlib:iq(),
-                ip := {inet:ip_address(), inet:port_number()} | undefined},
-    Extra :: gen_hook:extra().
-unauthenticated_iq_register(_Acc,
-                            #{server := Server, iq := #iq{xmlns = ?NS_REGISTER} = IQ, ip := IP},
-                            #{host_type := HostType}) ->
+-spec user_send_xmlel(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+    mongoose_c2s_hooks:result().
+user_send_xmlel(Acc, Params, Extra) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"iq">> ->
+            {Iq, Acc1} = mongoose_iq:info(Acc),
+            handle_unauthenticated_iq(Acc1, Params, Extra, Iq);
+        _ -> {ok, Acc}
+    end.
+
+-spec handle_unauthenticated_iq(
+        mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra(), atom() | jlib:iq()) ->
+    mongoose_c2s_hooks:result().
+handle_unauthenticated_iq(Acc,
+                          #{c2s_data := StateData},
+                          #{host_type := HostType},
+                          #iq{xmlns = ?NS_REGISTER} = Iq) ->
+    process_unauthenticated_iq(Acc, StateData, Iq, HostType);
+handle_unauthenticated_iq(Acc, _, _, _) ->
+    {ok, Acc}.
+
+process_unauthenticated_iq(Acc, StateData, Iq, HostType) ->
+    IP = mongoose_c2s:get_ip(StateData),
     Address = case IP of
                   {A, _Port} -> A;
                   _ -> undefined
               end,
+    LServer = mongoose_c2s:get_lserver(StateData),
+    FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ResIQ = process_unauthenticated_iq(HostType,
                                        no_JID,
                                        %% For the above: the client is
                                        %% not registered (no JID), at
                                        %% least not yet, so they can
                                        %% not be authenticated either.
-                                       make_host_only_jid(Server),
-                                       IQ,
+                                       FromServer,
+                                       Iq,
                                        Address),
-    {ok, set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(Server))};
-unauthenticated_iq_register(Acc, _, _) ->
-    {ok, Acc}.
+    Response = set_sender(jlib:iq_to_xml(ResIQ), FromServer),
+    AccParams = #{from_jid => FromServer, to_jid => FromServer, element => Response},
+    ResponseAcc = mongoose_acc:update_stanza(AccParams, Acc),
+    {stop, mongoose_c2s_acc:to_acc(Acc, route, ResponseAcc)}.
 
 %% Clients must register before being able to authenticate.
 process_unauthenticated_iq(HostType, From, To, #iq{type = set} = IQ, IPAddr) ->
@@ -175,7 +192,7 @@ process_unauthenticated_iq(HostType, From, To, #iq{type = set} = IQ, IPAddr) ->
 process_unauthenticated_iq(HostType, From, To, #iq{type = get} = IQ, IPAddr) ->
     process_iq_get(HostType, From, To, IQ, IPAddr).
 
--spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map())
         -> {mongoose_acc:t(), jlib:iq()}.
 process_iq(Acc, From, To, #iq{type = set} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -544,9 +561,6 @@ ip_to_integer({IP1, IP2, IP3, IP4}) ->
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     <<X:64>> = <<IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8>>,
     X.
-
-make_host_only_jid(Name) when is_binary(Name) ->
-    jid:make(<<>>, Name, <<>>).
 
 set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
     Stanza#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|A]}.

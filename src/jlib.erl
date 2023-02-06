@@ -53,7 +53,10 @@
          stanza_errort/5,
          stream_error/1,
          stream_errort/3,
+         maybe_append_delay/4,
          remove_delay_tags/1]).
+
+-ignore_xref([make_result_iq_reply/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
@@ -555,6 +558,20 @@ stream_errort(Condition, Lang, Text) ->
                             , children = [ #xmlcdata{ content = Txt} ]}
                      ]
         }.
+
+-spec maybe_append_delay(Packet :: exml:element(),
+                         From :: jid:jid(),
+                         TS :: integer(),
+                         Desc :: undefined | iodata()) -> exml:element().
+maybe_append_delay(Packet = #xmlel{children = Children}, From, TS, Desc) ->
+    case exml_query:path(Packet, [{element, <<"delay">>}]) of
+        undefined ->
+            TsString = calendar:system_time_to_rfc3339(TS, [{offset, "Z"}, {unit, microsecond}]),
+            DelayTag = jlib:timestamp_to_xml(TsString, From, Desc),
+            Packet#xmlel{children = [DelayTag | Children]};
+        _ ->
+            Packet
+    end.
 
 remove_delay_tags(#xmlel{children = Els} = Packet) ->
     NEl = lists:foldl(

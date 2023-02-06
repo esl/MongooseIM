@@ -84,8 +84,7 @@ create_global_metrics() ->
 init_predefined_host_type_metrics(HostType) ->
     create_metrics(HostType),
     Hooks = mongoose_metrics_hooks:get_hooks(HostType),
-    gen_hook:add_handlers(Hooks),
-    ok.
+    gen_hook:add_handlers(Hooks).
 
 init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
@@ -363,7 +362,13 @@ filter_hook(sm_register_connection_hook) -> skip;
 filter_hook(sm_remove_connection_hook) -> skip;
 filter_hook(auth_failed) -> skip;
 filter_hook(user_send_packet) -> skip;
+filter_hook(user_send_message) -> skip;
+filter_hook(user_send_presence) -> skip;
+filter_hook(user_send_iq) -> skip;
 filter_hook(user_receive_packet) -> skip;
+filter_hook(user_receive_message) -> skip;
+filter_hook(user_receive_presence) -> skip;
+filter_hook(user_receive_iq) -> skip;
 filter_hook(xmpp_bounce_message) -> skip;
 filter_hook(xmpp_stanza_dropped) -> skip;
 filter_hook(xmpp_send_element) -> skip;

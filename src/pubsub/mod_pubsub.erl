@@ -77,7 +77,7 @@
          disco_sm_features/3,
          disco_sm_items/3,
          handle_pep_authorization_response/3,
-         handle_remote_hook/3]).
+         foreign_event/3]).
 
 %% exported iq handlers
 -export([iq_sm/4]).
@@ -461,7 +461,7 @@ pep_hooks(ServerHost) ->
      {disco_sm_features, ServerHost, fun ?MODULE:disco_sm_features/3, #{}, 75},
      {disco_sm_items, ServerHost, fun ?MODULE:disco_sm_items/3, #{}, 75},
      {filter_local_packet, ServerHost, fun ?MODULE:handle_pep_authorization_response/3, #{}, 1},
-     {c2s_remote_hook, ServerHost, fun ?MODULE:handle_remote_hook/3, #{}, 100}
+     {foreign_event, ServerHost, fun ?MODULE:foreign_event/3, #{}, 100}
     ].
 
 add_pep_iq_handlers(ServerHost, #{iqdisc := IQDisc}) ->
@@ -531,8 +531,8 @@ notify_worker(HostType, HashKey, Request) ->
 
 handle_msg({send_last_pubsub_items, Host, Recipient, Plugins}) ->
     send_last_pubsub_items(Host, Recipient, Plugins);
-handle_msg({send_last_pep_items, Host, IgnorePepFromOffline, RecipientJID, RecipientPid}) ->
-    send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid);
+handle_msg({send_last_pep_items, Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features}) ->
+    send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features);
 handle_msg({send_last_items_from_owner, Host, NodeOwner, RecipientInfo}) ->
     send_last_items_from_owner(Host, NodeOwner, RecipientInfo).
 
@@ -549,28 +549,40 @@ send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
       end,
       lists:usort(Subs)).
 
-send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid) ->
+send_last_pep_items(Host, IgnorePepFromOffline, RecipientJID, RecipientPid, Features) ->
     RecipientLJID = jid:to_lower(RecipientJID),
-    [send_last_item_to_jid(NodeOwnerJID, Node, RecipientLJID) ||
+    [send_last_item_to_jid(NodeOwnerJID, NodeRec, RecipientLJID) ||
         NodeOwnerJID <- get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline),
-        Node <- get_nodes_for_sending_last_item(Host, NodeOwnerJID)],
+        NodeRec = #pubsub_node{nodeid = {_, Node}} <- get_nodes_for_sending_last_item(Host, NodeOwnerJID),
+        lists:member(<<Node/binary, "+notify">>, Features)],
     ok.
 
 get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline) ->
-    case catch ejabberd_c2s:get_subscribed(RecipientPid) of
+    case catch mod_presence:get_subscribed(RecipientPid) of
         Contacts when is_list(Contacts) ->
-            [jid:make(Contact) ||
-                Contact = {U, S, _R} <- Contacts,
-                user_resources(U, S) /= [] orelse not IgnorePepFromOffline];
+            [Contact || Contact = #jid{luser = U, lserver = S} <- Contacts,
+                        user_resources(U, S) /= [] orelse not IgnorePepFromOffline];
         _ ->
             []
     end.
 
 send_last_items_from_owner(Host, NodeOwner, _Recipient = {U, S, Resources}) ->
-    [send_last_item_to_jid(NodeOwner, Node, {U, S, R}) ||
-        Node <- get_nodes_for_sending_last_item(Host, NodeOwner),
-        R <- Resources],
+    [send_last_item_to_jid(NodeOwner, NodeRec, {U, S, R}) ||
+        NodeRec = #pubsub_node{nodeid = {_, Node}} <- get_nodes_for_sending_last_item(Host, NodeOwner),
+        R <- Resources,
+        not should_drop_pep_message(Node, jid:make(U, S, R))
+    ],
     ok.
+
+should_drop_pep_message(Node, RecipientJid) ->
+    case ejabberd_sm:get_session_pid(RecipientJid) of
+        none -> true;
+        Pid ->
+            Event = {filter_pep_recipient, RecipientJid, <<Node/binary, "+notify">>},
+            try mongoose_c2s:call(Pid, ?MODULE, Event)
+            catch exit:timeout -> true
+            end
+    end.
 
 get_nodes_for_sending_last_item(Host, NodeOwnerJID) ->
     lists:filter(fun(#pubsub_node{options = Options}) ->
@@ -783,23 +795,26 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
     {From, To, Acc, Packet}.
 
 %% -------
-%% callback for remote hook calls, to distribute pep messages from the node owner c2s process
+%% callback for foreign_event calls, to distribute pep messages from the node owner c2s process
 %%
--spec handle_remote_hook(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: term(),
-    Params :: #{tag := atom(), hook_args := term(), c2s_state := ejabberd_c2s:state()},
-    Extra :: gen_hook:extra().
-handle_remote_hook(HandlerState,
-                   #{tag := pep_message, hook_args := {Feature, From, Packet}, c2s_state := C2SState},
-                   _) ->
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(C2SState,
-                                                         {pep_message, Feature},
-                                                         From, Packet),
-    lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
-                  lists:usort(Recipients)),
-    {ok, HandlerState};
-handle_remote_hook(HandlerState, _, _) ->
-    {ok, HandlerState}.
+-spec foreign_event(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+      mongoose_c2s_hooks:result().
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := {call, From},
+                     event_tag := ?MODULE,
+                     event_content := {get_pep_recipients, Feature}}, _Extra) ->
+    Reply = mongoose_hooks:get_pep_recipients(StateData, Feature),
+    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
+    {stop, Acc1};
+foreign_event(Acc, #{c2s_data := StateData,
+                     event_type := {call, From},
+                     event_tag := ?MODULE,
+                     event_content := {filter_pep_recipient, To, Feature}}, _Extra) ->
+    Reply = mongoose_hooks:filter_pep_recipient(StateData, Feature, To),
+    Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Reply}]),
+    {stop, Acc1};
+foreign_event(Acc, _Params, _Extra) ->
+    {ok, Acc}.
 
 %% -------
 %% presence hooks handling functions
@@ -807,12 +822,12 @@ handle_remote_hook(HandlerState, _, _) ->
 
 -spec caps_recognised(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{from := jid:jid(), pid := pid()},
+    Params :: #{from := jid:jid(), pid := pid(), features := [binary()]},
     Extra :: gen_hook:extra().
-caps_recognised(Acc, #{from := #jid{ luser = U, lserver = S } = JID, pid := Pid}, _) ->
+caps_recognised(Acc, #{from := #jid{ luser = U, lserver = S } = JID, pid := Pid, features := Features}, _) ->
     Host = host(S, S),
     IgnorePepFromOffline = gen_mod:get_module_opt(S, ?MODULE, ignore_pep_from_offline),
-    notify_worker(S, U, {send_last_pep_items, Host, IgnorePepFromOffline, JID, Pid}),
+    notify_worker(S, U, {send_last_pep_items, Host, IgnorePepFromOffline, JID, Pid, Features}),
     {ok, Acc}.
 
 -spec presence_probe(Acc, Params, Extra) -> {ok, Acc} when
@@ -848,7 +863,8 @@ out_subscription(Acc,
                      _ -> [PResource]
                  end,
     Host = host(LServer, LServer),
-    notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID, {PUser, PServer, PResources}}),
+    notify_worker(LServer, LUser, {send_last_items_from_owner, Host, FromJID,
+                                   {PUser, PServer, PResources}}),
     {ok, Acc};
 out_subscription(Acc, _, _) ->
     {ok, Acc}.
@@ -873,7 +889,8 @@ unsubscribe_user(Entity, Owner) ->
                                             false -> Acc
                                         end
                                 end, [], [Entity#jid.lserver, Owner#jid.lserver])),
-    spawn(fun() -> [unsubscribe_user(ServerHost, Entity, Owner) || ServerHost <- ServerHosts] end).
+    [unsubscribe_user(ServerHost, Entity, Owner) || ServerHost <- ServerHosts],
+    ok.
 
 unsubscribe_user(Host, Entity, Owner) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
@@ -2688,36 +2705,26 @@ send_items(Host, Node, Nidx, Type, Options, LJID, last) ->
             ok;
         LastItem ->
             Stanza = items_event_stanza(Node, [LastItem]),
-            dispatch_items(Host, LJID, Node, Options, Stanza)
+            dispatch_items(Host, LJID, Options, Stanza)
     end;
 send_items(Host, Node, Nidx, Type, Options, LJID, Number) when Number > 0 ->
     Stanza = items_event_stanza(Node, get_last_items(Host, Type, Nidx, Number, LJID)),
-    dispatch_items(Host, LJID, Node, Options, Stanza);
+    dispatch_items(Host, LJID, Options, Stanza);
 send_items(Host, Node, _Nidx, _Type, Options, LJID, _) ->
     Stanza = items_event_stanza(Node, []),
-    dispatch_items(Host, LJID, Node, Options, Stanza).
+    dispatch_items(Host, LJID, Options, Stanza).
 
-dispatch_items({FromU, FromS, FromR} = From, {ToU, ToS, ToR} = To, Node,
-               Options, Stanza) ->
-    C2SPid = case ejabberd_sm:get_session_pid(jid:make(ToU, ToS, ToR)) of
-                 ToPid when is_pid(ToPid) -> ToPid;
-                 _ ->
-                     R = user_resource(FromU, FromS, FromR),
-                     case ejabberd_sm:get_session_pid(jid:make(FromU, FromS, R)) of
-                         FromPid when is_pid(FromPid) -> FromPid;
-                         _ -> undefined
-                     end
-             end,
-    case C2SPid of
-        undefined ->
-            ok;
-        _ ->
-            NotificationType = get_option(Options, notification_type, headline),
-            Message = add_message_type(Stanza, NotificationType),
-            ejabberd_c2s:send_filtered(C2SPid, {pep_message, <<Node/binary, "+notify">>},
-                                       service_jid(From), jid:make(To), Message)
-    end;
-dispatch_items(From, To, _Node, Options, Stanza) ->
+dispatch_items({_, FromS, _} = From, To, Options, Stanza) ->
+    NotificationType = get_option(Options, notification_type, headline),
+    Message = add_message_type(Stanza, NotificationType),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(FromS),
+    FromJid = jid:make(From),
+    ToJid = jid:make(To),
+    AccParams = #{host_type => HostType, lserver => FromS, location => ?LOCATION,
+                  element => Message, from_jid => FromJid, to_jid => ToJid},
+    Acc = mongoose_acc:new(AccParams),
+    ejabberd_router:route(FromJid, ToJid, Acc);
+dispatch_items(From, To, Options, Stanza) ->
     NotificationType = get_option(Options, notification_type, headline),
     Message = add_message_type(Stanza, NotificationType),
     ejabberd_router:route(service_jid(From), jid:make(To), Message).
@@ -3355,7 +3362,7 @@ get_resource_state({U, S, R}, ShowValues, JIDs) ->
             %% If no PID, item can be delivered
             lists:append([{U, S, R}], JIDs);
         Pid ->
-            Show = case ejabberd_c2s:get_presence(Pid) of
+            Show = case mod_presence:get_presence(Pid) of
                        {_, _, <<"available">>, _} -> <<"online">>;
                        {_, _, State, _} -> State
                    end,
@@ -3634,13 +3641,13 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
             %% Also, add "replyto" if entity has presence subscription to the account owner
             %% See XEP-0163 1.1 section 4.3.1
             ReplyTo = extended_headers([jid:to_binary(Publisher)]),
-            ejabberd_c2s:run_remote_hook(C2SPid,
-                                         pep_message,
-                                         {<<((Node))/binary, "+notify">>,
-                                           jid:make_bare(LUser, LServer),
-                                           add_extended_headers(Stanza, ReplyTo)});
+            Feature = <<((Node))/binary, "+notify">>,
+            Recipients = mongoose_c2s:call(C2SPid, ?MODULE, {get_pep_recipients, Feature}),
+            Packet = add_extended_headers(Stanza, ReplyTo),
+            From = jid:make_bare(LUser, LServer),
+            lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,
+                          lists:usort(Recipients));
         _ ->
-
             ?LOG_DEBUG(#{what => pubsub_no_session,
                 text => <<"User has no session; cannot deliver stanza to contacts">>,
                 user => LUser, server => LServer, exml_packet => BaseStanza})

@@ -164,12 +164,9 @@ This is the perfect place to plug in custom security control.
 * auth_failed
 * c2s_broadcast_recipients
 * c2s_filter_packet
-* c2s_preprocessing_hook
 * c2s_presence_in
 * c2s_remote_hook
 * c2s_stream_features
-* c2s_unauthenticated_iq
-* c2s_update_presence
 * can_access_identity
 * can_access_room
 * caps_recognised
@@ -273,7 +270,6 @@ This is the perfect place to plug in custom security control.
 * update_inbox_for_muc
 * user_available_hook
 * user_ping_response
-* user_ping_timeout
 * user_receive_packet
 * user_send_packet
 * user_sent_keep_alive

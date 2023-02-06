@@ -189,13 +189,12 @@ set_presence(JID, Type, Show, Status, Priority) ->
             US = jid:to_binary(jid:to_bare(JID)),
 
             Children = maybe_pres_status(Status,
-                                        maybe_pres_priority(Priority,
-                                                            maybe_pres_show(Show, []))),
-            Message = {xmlstreamelement,
-                    #xmlel{name = <<"presence">>,
-                            attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
-                            children = Children}},
-            ok = p1_fsm_old:send_event(Pid, Message),
+                                         maybe_pres_priority(Priority,
+                                                             maybe_pres_show(Show, []))),
+            Message = #xmlel{name = <<"presence">>,
+                             attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
+                             children = Children},
+            ok = mod_presence:set_presence(Pid, Message),
             {ok, <<"Presence set successfully">>};
         Error ->
             Error
@@ -236,13 +235,13 @@ kick_session(JID, Reason) ->
 -spec kick_session_internal(jid:jid(), binary() | null) -> {ok, kick_user_result()}
                                                          | {no_session, binary()}.
 kick_session_internal(JID, Reason) ->
-    case ejabberd_c2s:terminate_session(JID, prepare_reason(Reason)) of
+    case ejabberd_sm:terminate_session(JID, prepare_reason(Reason)) of
         no_session ->
             {no_session, <<"No active session">>};
-        {exit, _Reason} ->
+        ok ->
             {ok, #{<<"jid">> => JID,
-                <<"kicked">> => true,
-                <<"message">> => <<"Session kicked">>}}
+                   <<"kicked">> => true,
+                   <<"message">> => <<"Session kicked">>}}
     end.
 
 -spec prepare_reason(binary() | null) -> binary().
@@ -255,8 +254,8 @@ prepare_reason(Reason) when is_binary(Reason) ->
 
 -spec get_status_list([session()], status()) -> [status_user_info()].
 get_status_list(Sessions0, StatusRequired) ->
-    Sessions = [{catch ejabberd_c2s:get_presence(Pid), S, P}
-                || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P} <- Sessions0],
+    Sessions = [ {catch mod_presence:get_presence(Pid), S, P}
+                 || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P} <- Sessions0],
 
     [{jid:make_noprep(User, Server, Resource), Priority, StatusText}
      || {{User, Resource, Status, StatusText}, Server, Priority} <- Sessions,

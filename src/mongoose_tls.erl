@@ -22,13 +22,14 @@
          peername/1,
          setopts/2,
          get_peer_certificate/1,
-         get_tls_last_message/1,
          close/1]).
 
 -export([get_sockmod/1]).
 
 -ignore_xref([behaviour_info/1, close/1, controlling_process/2, peername/1,
               send/2, setopts/2, sockname/1]).
+
+-ignore_xref([get_sockmod/1]).
 
 -type tls_socket() :: fast_tls:tls_socket() | just_tls:tls_socket().
 -type cert() :: {ok, Cert::any()} | {bad_cert, bitstring()} | no_peer_cert.
@@ -124,6 +125,7 @@ prepare_options(_Module, Opts) ->
     Opts.
 
 fast_tls_opt(connect, true) -> [connect];
+fast_tls_opt(mode, _) -> [];
 fast_tls_opt(verify_mode, peer) -> [];
 fast_tls_opt(verify_mode, none) -> [verify_none];
 fast_tls_opt(cacertfile, File) -> [{cafile, File}];
@@ -179,17 +181,6 @@ close(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
 
 -spec get_sockmod(socket()) -> module().
 get_sockmod(#mongoose_tls_socket{tls_module = Module}) -> Module.
-
--spec get_tls_last_message(socket()) -> {ok, binary()} | {error, term()}.
-get_tls_last_message(#mongoose_tls_socket{} = Socket) ->
-    case get_sockmod(Socket) of
-        fast_tls ->
-            fast_tls:get_tls_last_message(peer, Socket#mongoose_tls_socket.tls_socket);
-        _ ->
-            {error, undefined}
-    end;
-get_tls_last_message(_) ->
-    {error, undefined}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions

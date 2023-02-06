@@ -24,8 +24,9 @@ get_last_messages(Caller, Limit, With, Before, CheckUser) ->
     end.
 
 -spec handle_event(term()) -> {ok, map() | null}.
-handle_event({route, From, _To, Acc}) ->
-    case mongoose_acc:element(Acc) of
+handle_event({route, Acc}) ->
+    {From, _To, Packet} = mongoose_acc:packet(Acc),
+    case Packet of
         Stanza = #xmlel{name = <<"message">>} ->
             StanzaID = exml_query:attr(Stanza, <<"id">>, <<>>),
             Timestamp = os:system_time(microsecond),

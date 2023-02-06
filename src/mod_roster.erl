@@ -50,7 +50,8 @@
          set_items/3,
          set_roster_entry/5,
          remove_from_roster/3,
-         item_to_xml/1
+         item_to_xml/1,
+         broadcast_item/3
         ]).
 
 % Hook handlers
@@ -507,8 +508,7 @@ process_item_els(Item, [{xmlcdata, _} | Els]) ->
 process_item_els(Item, []) -> Item.
 
 push_item(HostType, JID, From, Item) ->
-    ejabberd_sm:route(jid:make_noprep(<<>>, <<>>, <<>>), JID,
-                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
+    broadcast_item(JID, Item#roster.jid, Item#roster.subscription),
     case roster_versioning_enabled(HostType) of
         true ->
             push_item_version(JID, From, Item, roster_version(HostType, JID));
@@ -518,6 +518,12 @@ push_item(HostType, JID, From, Item) ->
                           end,
                           ejabberd_sm:get_user_resources(JID))
     end.
+
+-spec broadcast_item(jid:jid(), jid:simple_jid(), subscription_state()) -> ok.
+broadcast_item(#jid{luser = LUser, lserver = LServer}, ContactJid, Subscription) ->
+    Item = {item, ContactJid, Subscription},
+    UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),
+    lists:foreach(fun({_, Pid}) -> mongoose_c2s:cast(Pid, ?MODULE, Item) end, UserPids).
 
 push_item_without_version(HostType, JID, Resource, From, Item) ->
     mongoose_hooks:roster_push(HostType, From, Item),
@@ -817,7 +823,8 @@ remove_user(Acc, #{jid := #jid{luser = LUser, lserver = LServer} = JID}, #{host_
     end,
     {ok, Acc1}.
 
--spec try_send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
+-spec try_send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) ->
+    mongoose_acc:t().
 try_send_unsubscription_to_rosteritems(Acc, JID) ->
     try
         send_unsubscription_to_rosteritems(Acc, JID)

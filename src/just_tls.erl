@@ -8,7 +8,7 @@
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
--behavior(mongoose_tls).
+-behaviour(mongoose_tls).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -19,7 +19,7 @@
 -type tls_socket() :: #tls_socket{}.
 -export_type([tls_socket/0]).
 
-% mongoose_tls behavior
+% mongoose_tls behaviour
 -export([tcp_to_tls/2,
          send/2,
          recv_data/2,
@@ -48,7 +48,7 @@ tcp_to_tls(TCPSocket, Options) ->
                   % and outgoing pools use Erlang SSL directly
                   ssl:connect(TCPSocket, SSLOpts);
               #{} ->
-                  ssl:handshake(TCPSocket, SSLOpts)
+                  ssl:handshake(TCPSocket, SSLOpts, 5000)
           end,
     VerifyResults = receive_verify_results(Ref),
     case Ret of

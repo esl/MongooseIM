@@ -34,7 +34,6 @@
          connect/4,
          starttls/2,
          starttls/3,
-         compress/3,
          send/2,
          send_xml/2,
          change_shaper/2,
@@ -43,9 +42,7 @@
          get_peer_certificate/1,
          close/1,
          sockname/1,
-         peername/1,
-         get_socket/1,
-         format_socket/1]).
+         peername/1]).
 
 -ignore_xref([change_shaper/2, compress/3, connect/3, get_peer_certificate/1,
               get_sockmod/1, sockname/1]).
@@ -212,17 +209,7 @@ starttls(SocketData, TLSOpts, Data) ->
     NewSocket = get_tls_socket(SocketData),
     SocketData#socket_state{socket = NewSocket, sockmod = mongoose_tls}.
 
--spec compress(socket_state(), integer(), _) -> socket_state().
-compress(SocketData, InflateSizeLimit, Data) ->
-    {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
-                         SocketData#socket_state.sockmod,
-                         SocketData#socket_state.socket,
-                         InflateSizeLimit),
-    ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
-    send(SocketData, Data),
-    SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
-
-%% @doc sockmod=gen_tcp|fast_tls|ejabberd_zlib (ejabberd:sockmod())
+%% @doc sockmod=gen_tcp|fast_tls (ejabberd:sockmod())
 send(SocketData, Data) ->
     case catch (SocketData#socket_state.sockmod):send(
              SocketData#socket_state.socket, Data) of
@@ -300,23 +287,3 @@ peername(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
     inet:peername(Socket);
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
     SockMod:peername(Socket).
-
--spec get_socket(socket_state()) -> term().
-get_socket(#socket_state{socket = Socket}) ->
-    Socket.
-
-
-format_socket(#socket_state{sockmod = Mod, socket = Socket,
-                            receiver = Receiver, connection_details = Info}) ->
-    Info2 = format_details(Info),
-    Info2#{socket_module => Mod,
-           socket => format_term(Socket),
-           receiver => format_term(Receiver)};
-format_socket(_) ->
-    #{}.
-
-format_term(X) -> iolist_to_binary(io_lib:format("~0p", [X])).
-
-format_details(Info = #{dest_address := DestAddr, src_address := SrcAddr}) ->
-    Info#{dest_address => inet:ntoa(DestAddr),
-          src_address => inet:ntoa(SrcAddr)}.

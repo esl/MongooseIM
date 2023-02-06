@@ -9,15 +9,19 @@
 %% http://www.erlang.org/doc/apps/common_test/run_test_chapter.html#test_specifications
 {include, "tests"}.
 
-{suites, "tests", accounts_SUITE}.
-
-{suites, "tests", anonymous_SUITE}.
+{suites, "tests", mim_c2s_SUITE}.
 
 {suites, "tests", acc_e2e_SUITE}.
+
+{suites, "tests", accounts_SUITE}.
 
 {suites, "tests", adhoc_SUITE}.
 
 {suites, "tests", amp_big_SUITE}.
+
+{suites, "tests", anonymous_SUITE}.
+
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 
 {suites, "tests", bosh_SUITE}.
 
@@ -64,7 +68,6 @@
 {suites, "tests", graphql_metric_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
-
 {suites, "tests", inbox_extensions_SUITE}.
 
 {suites, "tests", last_SUITE}.
@@ -72,9 +75,7 @@
 {suites, "tests", login_SUITE}.
 
 {suites, "tests", mam_SUITE}.
-
 {suites, "tests", mam_proper_SUITE}.
-
 {suites, "tests", mam_send_message_SUITE}.
 
 {suites, "tests", metrics_c2s_SUITE}.
@@ -153,9 +154,7 @@
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
-
 {suites, "tests", domain_removal_SUITE}.
-{suites, "tests", auth_methods_for_c2s_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", tcp_listener_SUITE}.
 

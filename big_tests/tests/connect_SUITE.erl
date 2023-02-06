@@ -43,87 +43,77 @@
 
 all() ->
     [
-     {group, session_replacement},
-     {group, security},
-     {group, incorrect_behaviors},
-     {group, proxy_protocol},
-     %% these groups must be last, as they really... complicate configuration
-     {group, fast_tls},
-     {group, just_tls}
+        {group, session_replacement},
+        {group, security},
+        {group, incorrect_behaviors},
+        {group, proxy_protocol},
+        %% these groups must be last, as they really... complicate configuration
+        {group, fast_tls},
+        {group, just_tls}
     ].
 
 groups() ->
-    G = [ {c2s_noproc, [], [reset_stream_noproc,
-                            starttls_noproc,
-                            compress_noproc,
-                            bad_xml,
-                            invalid_host,
-                            invalid_stream_namespace,
-                            deny_pre_xmpp_1_0_stream]},
-          {starttls, [], [should_fail_to_authenticate_without_starttls,
-                          should_not_send_other_features_with_starttls_required,
-                          auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
-          {tls, [parallel], auth_bind_pipelined_cases() ++
-                            protocol_test_cases() ++
-                            cipher_test_cases()},
-          {feature_order, [parallel], [stream_features_test,
-                                       tls_authenticate,
-                                       tls_compression_fail,
-                                       tls_compression_authenticate_fail,
-                                       tls_authenticate_compression,
-                                       auth_compression_bind_session,
-                                       auth_bind_compression_session,
-                                       bind_server_generated_resource,
-                                       cannot_connect_with_proxy_header]},
-          {just_tls, tls_groups()},
-          {fast_tls, tls_groups()},
-          {session_replacement, [], [
-                                     same_resource_replaces_session,
-                                     clean_close_of_replaced_session,
-                                     replaced_session_cannot_terminate
-                                    ]},
-          {security, [], [
-                          return_proper_stream_error_if_service_is_not_hidden,
-                          close_connection_if_service_type_is_hidden
-                         ]},
-          {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
-                                             close_connection_if_protocol_violation_after_authentication,
-                                             close_connection_if_protocol_violation_after_binding]},
-          {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
-                                        connect_with_proxy_header]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+        {c2s_noproc, [], [bad_xml,
+                          invalid_host,
+                          invalid_stream_namespace,
+                          deny_pre_xmpp_1_0_stream]},
+        {starttls, [], [should_fail_to_authenticate_without_starttls,
+                        should_not_send_other_features_with_starttls_required,
+                        auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
+        {tls, [parallel], auth_bind_pipelined_cases() ++
+                          protocol_test_cases() ++
+                          cipher_test_cases()},
+        {feature_order, [parallel], [stream_features_test,
+                                     tls_authenticate,
+                                     bind_server_generated_resource,
+                                     cannot_connect_with_proxy_header]},
+        {just_tls, tls_groups()},
+        {fast_tls, tls_groups()},
+        {session_replacement, [], [same_resource_replaces_session,
+                                   clean_close_of_replaced_session,
+                                   replaced_session_cannot_terminate]},
+        {security, [], [return_proper_stream_error_if_service_is_not_hidden,
+                        close_connection_if_service_type_is_hidden]},
+        {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
+                                           close_connection_if_protocol_violation_after_authentication,
+                                           close_connection_if_protocol_violation_after_binding]},
+        {proxy_protocol, [parallel], [cannot_connect_without_proxy_header,
+                                      connect_with_proxy_header]}
+    ].
 
 tls_groups()->
-    [{group, starttls},
-     {group, c2s_noproc},
-     {group, feature_order},
-     {group, tls}].
+    [
+        {group, starttls},
+        {group, c2s_noproc},
+        {group, feature_order},
+        {group, tls}
+    ].
 
 auth_bind_pipelined_cases() ->
     [
-     auth_bind_pipelined_session,
-     auth_bind_pipelined_auth_failure
+        auth_bind_pipelined_session,
+        auth_bind_pipelined_auth_failure
     ].
 
 protocol_test_cases() ->
     [
-     should_fail_with_sslv3,
-     should_fail_with_tlsv1,
-     should_fail_with_tlsv1_1,
-     should_pass_with_tlsv1_2
+        should_fail_with_sslv3,
+        should_fail_with_tlsv1,
+        should_fail_with_tlsv1_1,
+        should_pass_with_tlsv1_2
     ].
 
 cipher_test_cases() ->
     [
-     %% Server certificate is signed only with RSA for now, don't try to use ECDSA!
-     clients_can_connect_with_advertised_ciphers,
-     % String cipher
-     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
-     %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
-     %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
-     %%      exclusively with just_tls on alternative port
-     'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
+        %% Server certificate is signed only with RSA for now, don't try to use ECDSA!
+        clients_can_connect_with_advertised_ciphers,
+        % String cipher
+        'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384',
+        %% MIM2 accepts ECDHE-RSA-AES256-GCM-SHA384 exclusively with fast_tls on alternative port
+        %% MIM3 accepts #{cipher => aes_256_gcm, key_exchange => ecdhe_rsa, mac => aead, prf => sha384}
+        %%      exclusively with just_tls on alternative port
+        'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'
     ].
 
 suite() ->
@@ -136,7 +126,7 @@ suite() ->
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
-    [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
+    [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
     Config1 = [{c2s_listener, C2SListener} | Config0],
     assert_cert_file_exists(),
     escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
@@ -166,8 +156,7 @@ init_per_group(tls, Config) ->
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
-    configure_c2s_listener(Config, #{zlib => 10000,
-                                     tls => tls_opts(starttls_required, Config)}),
+    configure_c2s_listener(Config, #{tls => tls_opts(starttls_required, Config)}),
     Config;
 init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
@@ -290,7 +279,8 @@ should_pass_with_tlsv1_2(Config) ->
 should_fail_to_authenticate_without_starttls(Config) ->
     %% GIVEN
     UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
-    {Conn, Features} = start_stream_with_compression(UserSpec),
+    ConnectionSteps = [start_stream, stream_features],
+    {ok, Conn, Features} = escalus_connection:start(UserSpec, ConnectionSteps),
 
     %% WHEN
     try escalus_session:authenticate(Conn, Features) of
@@ -335,88 +325,6 @@ clients_can_connect_with_advertised_ciphers(Config) ->
     ?assertEqual(["ECDHE-RSA-AES256-GCM-SHA384"],
                  ciphers_working_with_ssl_clients(Config1)).
 
-reset_stream_noproc(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, alice),
-    Steps = [start_stream, stream_features],
-    {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
-
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
-    %% Add auth element into message queue of the c2s process
-    %% There is no reply because the process is suspended
-    ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
-    %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
-    %% ...c2s process receives close and DOWN messages...
-    %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
-    receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
-            ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
-            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
-
-starttls_noproc(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, alice),
-    Steps = [start_stream, stream_features],
-    {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
-
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
-    %% Add starttls element into message queue of the c2s process
-    %% There is no reply because the process is suspended
-    ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
-    %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
-    %% ...c2s process receives close and DOWN messages...
-    %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
-    receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
-            ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
-            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
-
-compress_noproc(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, alice),
-    Steps = [start_stream, stream_features],
-    {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
-
-    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
-    MonRef = erlang:monitor(process, C2sPid),
-    ok = rpc(mim(), sys, suspend, [C2sPid]),
-    %% Add compress element into message queue of the c2s process
-    %% There is no reply because the process is suspended
-    ?assertThrow({timeout, compressed},
-                 escalus_session:compress(Conn#client{props = [{compression, <<"zlib">>}|Props]})),
-    %% Sim client disconnection
-    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
-    %% ...c2s process receives close and DOWN messages...
-    %% Resume
-    ok = rpc(mim(), sys, resume, [C2sPid]),
-    receive
-        {'DOWN', MonRef, process, C2sPid, normal} ->
-            ok;
-        {'DOWN', MonRef, process, C2sPid, Reason} ->
-            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
-        after 5000 ->
-            ct:fail("c2s_monitor_timeout", [])
-    end,
-    ok.
-
 %% Tests features advertisement
 stream_features_test(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
@@ -426,52 +334,17 @@ stream_features_test(Config) ->
 
 verify_features(Conn, Features) ->
     %% should not advertise compression before tls
-    ?assert_equal(false, has_feature(compression, Features)),
+    ?assertEqual({compression, false}, get_feature(compression, Features)),
     %% start tls. Starttls should be then removed from list and compression should be added
     Conn1 = escalus_session:starttls(Conn),
     {Conn2, Features2} = escalus_session:stream_features(Conn1, []),
-    ?assert_equal(false, has_feature(starttls, Features2)),
-    ?assert(false =/= has_feature(compression, Features2)),
-    %% start compression. Compression should be then removed from list
-    {Conn3, _Features3} = escalus_session:authenticate(Conn2, Features2),
-    Conn4 = escalus_session:compress(Conn3),
-    {Conn5, Features5} = escalus_session:stream_features(Conn4, []),
-    ?assert_equal(false, has_feature(compression, Features5)),
-    ?assert_equal(false, has_feature(starttls, Features5)),
-    {Conn5, Features5}.
+    ?assertEqual({starttls, false}, get_feature(starttls, Features2)),
+    ?assertEqual({compression, false}, get_feature(compression, Features2)),
+    %% start authentication
+    escalus_session:authenticate(Conn2, Features2).
 
-has_feature(Feature, FeatureList) ->
-    {_, Value} = lists:keyfind(Feature, 1, FeatureList),
-    Value.
-
-%% should fail
-tls_compression_authenticate_fail(Config) ->
-    %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression, authenticate],
-    %% when and then
-    try escalus_connection:start(UserSpec, ConnetctionSteps) of
-        _ ->
-            error(compression_without_auth_suceeded)
-    catch
-        error:{assertion_failed, assert, is_compressed, Stanza, _} ->
-            case Stanza of
-                #xmlel{name = <<"failure">>} ->
-                    ok;
-                _ ->
-                    error(unknown_compression_response)
-            end
-    end.
-
-tls_authenticate_compression(Config) ->
-    %% Given
-    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
-    %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnectionSteps),
-    % then
-    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid),
-    true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
+get_feature(Feature, FeatureList) ->
+    lists:keyfind(Feature, 1, FeatureList).
 
 tls_authenticate(Config) ->
     %% Given
@@ -481,45 +354,6 @@ tls_authenticate(Config) ->
     {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
     % then
     true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
-
-%% should fail
-tls_compression_fail(Config) ->
-    %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression],
-    %% then and when
-    try escalus_connection:start(UserSpec, ConnetctionSteps) of
-        _ ->
-            error(compression_without_auth_suceeded)
-    catch
-        error:{assertion_failed, assert, is_compressed, Stanza, _} ->
-            case Stanza of
-                #xmlel{name = <<"failure">>} ->
-                    ok;
-                _ ->
-                    error(unknown_compression_response)
-            end
-    end.
-
-auth_compression_bind_session(Config) ->
-    %% Given
-    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
-        authenticate, maybe_use_compression, bind, session],
-    %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % then
-    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid).
-
-auth_bind_compression_session(Config) ->
-    %% Given
-    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
-        authenticate, bind, maybe_use_compression, session],
-    %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
-    % then
-    true = escalus_tcp:is_using_compression(Conn#client.rcv_pid).
 
 auth_bind_pipelined_session(Config) ->
     UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
@@ -616,7 +450,7 @@ replaced_session_cannot_terminate(Config) ->
     logger_ct_backend:capture(warning),
     UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
     {ok, _Alice1, _} = escalus_connection:start(UserSpec),
-    [C2SPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    [C2SPid] = ranch_procs(),
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     % WHEN a session gets replaced ...
@@ -691,10 +525,11 @@ cannot_connect_with_proxy_header(Config) ->
 
     %% WHEN
     ConnectionSteps = [{?MODULE, send_proxy_header}, start_stream],
-    ConnResult = escalus_connection:start(UserSpec, ConnectionSteps),
+    {ok, ConnResult, _} = escalus_connection:start(UserSpec, ConnectionSteps),
 
-    %% THEN
-    ?assertMatch({error, {connection_step_failed, _, _}}, ConnResult).
+    StreamError = escalus:wait_for_stanza(ConnResult),
+    escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>], StreamError),
+    escalus_connection:stop(ConnResult).
 
 cannot_connect_without_proxy_header(Config) ->
     %% GIVEN proxy protocol is enabled
@@ -762,20 +597,16 @@ assert_cert_file_exists() ->
 configure_c2s_listener(Config, ExtraC2SOpts) ->
     C2SListener = ?config(c2s_listener, Config),
     NewC2SListener = maps:merge(C2SListener, ExtraC2SOpts),
+    ct:pal("C2S listener: ~p", [NewC2SListener]),
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
 tls_opts(Mode, Config) ->
     ExtraOpts = #{mode => Mode, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
-    Module = proplists:get_value(module, Config, fast_tls),
+    Module = proplists:get_value(tls_module, Config, fast_tls),
     maps:merge(default_c2s_tls(Module), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
-
-start_stream_with_compression(UserSpec) ->
-    ConnectionSteps = [start_stream, stream_features, maybe_use_compression],
-    {ok, Conn, Features} = escalus_connection:start(UserSpec, ConnectionSteps),
-    {Conn, Features}.
 
 connect_to_invalid_host(Spec) ->
     {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),
@@ -835,6 +666,13 @@ default_context(To) ->
 
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].
+
+ranch_procs() ->
+    Listeners = maps:keys(rpc(mim(), ranch, info, [])),
+    lists:foldl(
+        fun(Listener, Acc) -> rpc(mim(), ranch, procs, [Listener, connections]) ++ Acc end,
+        [],
+        Listeners).
 
 pipeline_connect(UserSpec) ->
     Server = proplists:get_value(server, UserSpec),

@@ -8,7 +8,6 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_metrics_hooks).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([get_hooks/1]).
@@ -20,7 +19,7 @@
          sm_remove_connection_hook/3,
          auth_failed/3,
          user_send_packet/3,
-         user_receive_packet/3,
+         user_open_session/3,
          xmpp_bounce_message/3,
          xmpp_stanza_dropped/3,
          xmpp_send_element/3,
@@ -46,8 +45,6 @@ get_hooks(HostType) ->
     [ {sm_register_connection_hook, HostType, fun ?MODULE:sm_register_connection_hook/3, #{}, 50},
       {sm_remove_connection_hook, HostType, fun ?MODULE:sm_remove_connection_hook/3, #{}, 50},
       {auth_failed, HostType, fun ?MODULE:auth_failed/3, #{}, 50},
-      {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 50},
-      {user_receive_packet, HostType, fun ?MODULE:user_receive_packet/3, #{}, 50},
       {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
       {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50},
@@ -60,7 +57,13 @@ get_hooks(HostType) ->
       {privacy_iq_get, HostType, fun ?MODULE:privacy_iq_get/3, #{}, 1},
       {privacy_iq_set, HostType, fun ?MODULE:privacy_iq_set/3, #{}, 1},
       {privacy_check_packet, HostType, fun ?MODULE:privacy_check_packet/3, #{}, 55},
-      {sm_broadcast, HostType, fun ?MODULE:privacy_list_push/3, #{}, 1}].
+      {privacy_list_push, HostType, fun ?MODULE:privacy_list_push/3, #{}, 1}
+      | c2s_hooks(HostType)].
+
+-spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+c2s_hooks(HostType) ->
+    [{user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 50},
+     {user_open_session, HostType, fun ?MODULE:user_open_session/3, #{}, 50}].
 
 -spec sm_register_connection_hook(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: any(),
@@ -90,14 +93,13 @@ auth_failed(Acc, #{server := Server}, _) ->
     mongoose_metrics:update(HostType, sessionAuthFails, 1),
     {ok, Acc}.
 
--spec user_send_packet(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-user_send_packet(Acc, _, #{host_type := HostType}) ->
-    {_, _, Packet} = mongoose_acc:packet(Acc),
+-spec user_send_packet(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    mongoose_c2s_hooks:result().
+user_send_packet(Acc, _Params, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaSent, 1),
-    user_send_packet_type(HostType, Packet),
+    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
+    El = mongoose_acc:element(Acc),
+    user_send_packet_type(HostType, El),
     {ok, Acc}.
 
 -spec user_send_packet_type(HostType :: mongooseim:host_type(),
@@ -107,26 +109,9 @@ user_send_packet_type(HostType, #xmlel{name = <<"message">>}) ->
 user_send_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
     mongoose_metrics:update(HostType, xmppIqSent, 1);
 user_send_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(HostType, xmppPresenceSent, 1).
-
--spec user_receive_packet(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-user_receive_packet(Acc, _, #{host_type := HostType}) ->
-    {_, _, Packet} = mongoose_acc:packet(Acc),
-    mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
-    user_receive_packet_type(HostType, Packet),
-    {ok, Acc}.
-
--spec user_receive_packet_type(HostType :: mongooseim:host_type(),
-                               Packet :: exml:element()) -> ok | {error, not_found}.
-user_receive_packet_type(HostType, #xmlel{name = <<"message">>}) ->
-    mongoose_metrics:update(HostType, xmppMessageReceived, 1);
-user_receive_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
-    mongoose_metrics:update(HostType, xmppIqReceived, 1);
-user_receive_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(HostType, xmppPresenceReceived, 1).
+    mongoose_metrics:update(HostType, xmppPresenceSent, 1);
+user_send_packet_type(_, _) ->
+    ok.
 
 -spec xmpp_bounce_message(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),
@@ -149,22 +134,47 @@ xmpp_stanza_dropped(Acc, _, #{host_type := HostType}) ->
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
 xmpp_send_element(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
-    case mongoose_acc:stanza_type(Acc) of
-        <<"error">> ->
-            mongoose_metrics:update(HostType, xmppErrorTotal, 1),
-            case mongoose_acc:stanza_name(Acc) of
-                <<"iq">> ->
-                    mongoose_metrics:update(HostType, xmppErrorIq, 1);
-                <<"message">> ->
-                    mongoose_metrics:update(HostType, xmppErrorMessage, 1);
-                <<"presence">> ->
-                    mongoose_metrics:update(HostType, xmppErrorPresence, 1)
+    case mongoose_acc:element(Acc) of
+        #xmlel{name = Name} = El
+          when Name == <<"iq">>; Name == <<"message">>; Name == <<"presence">> ->
+            mongoose_metrics:update(HostType, xmppStanzaCount, 1),
+            case exml_query:attr(El, <<"type">>) of
+                <<"error">> ->
+                    mongoose_metrics:update(HostType, xmppErrorTotal, 1),
+                    xmpp_send_element_error(HostType, El);
+                _ ->
+                    mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
+                    xmpp_send_element_type(HostType, El)
             end;
         _ -> ok
     end,
     {ok, Acc}.
 
+-spec xmpp_send_element_error(HostType :: mongooseim:host_type(),
+                              Packet :: exml:element()) -> ok | {error, not_found}.
+xmpp_send_element_error(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorMessage, 1);
+xmpp_send_element_error(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorIq, 1);
+xmpp_send_element_error(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppErrorPresence, 1).
+
+-spec xmpp_send_element_type(HostType :: mongooseim:host_type(),
+                             Packet :: exml:element()) -> ok | {error, not_found}.
+xmpp_send_element_type(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppMessageReceived, 1);
+xmpp_send_element_type(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppIqReceived, 1);
+xmpp_send_element_type(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppPresenceReceived, 1).
+
+-spec user_open_session(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+    mongoose_c2s_hooks:result().
+user_open_session(Acc, _Params, #{host_type := HostType}) ->
+    mongoose_metrics:update(HostType, xmppStanzaSent, 1),
+    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
+    mongoose_metrics:update(HostType, xmppIqSent, 1),
+    {ok, Acc}.
 
 %% Roster
 
@@ -254,7 +264,7 @@ privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, #{host_type := HostType}) ->
     {ok, Acc}.
 
 -spec privacy_list_push(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
+      Acc :: any(),
       Params :: #{session_count := non_neg_integer()},
       Extra :: #{host_type := mongooseim:host_type()}.
 privacy_list_push(Acc, #{session_count := SessionCount}, #{host_type := HostType}) ->
