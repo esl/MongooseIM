@@ -283,20 +283,21 @@ elif [ "$db" = 'mssql' ]; then
     MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
     IMAGE=mcr.microsoft.com/mssql/server
     $DOCKER run -d --name=$NAME \
-        -p $MSSQL_PORT:1433 \
         --user root \
+        -p $MSSQL_PORT:1433 \
         -e "ACCEPT_EULA=Y" \
         -e "SA_PASSWORD=mongooseim_secret+ESL123" \
         -e "DB_NAME=ejabberd" \
         -e "SQL_FILE=/tmp/mongoose.sql" \
         -e SCHEMA_READY_PORT=1434 \
         -e SQL_FILE="/tmp/mongoose.sql" \
-        -e OLD_ENTRYPOINT='{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr' \
+        -e OLD_ENTRYPOINT="/tmp/docker-setup-mssql.sh" \
         -e ENV_FILE_SQL_PATH="/tmp/mongoose.sql" \
         -e ENV_FILE_SQL_DATA="$MSSQL_SQL" \
         -e ENV_FILE_SH_PATH="/tmp/docker-setup-mssql.sh" \
         -e ENV_FILE_SH_DATA="$MSSQL_SETUP" \
         -e ENV_FILE_SH_MODE=755 \
+        --mount type=tmpfs,destination=/mnt/ramdisk \
         --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
         --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_healthcheck.sh $NAME

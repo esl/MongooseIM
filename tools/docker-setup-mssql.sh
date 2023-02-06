@@ -29,20 +29,37 @@ wait_for()
     return $result
 }
 
-echo "Start schema bootstrap"
 set -e
-wait_for do_query "SELECT 1"
 
-echo "Create DB"
-do_query "CREATE DATABASE $DB_NAME"
-do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
+async_setup()
+{
+    echo "Start schema bootstrap"
+    wait_for do_query "SELECT 1"
+    
+    echo "Create DB"
+    do_query "CREATE DATABASE $DB_NAME"
+    do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
+    
+    $SQL -b -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i "$SQL_FILE"
+    
+    if [ -z "$SCHEMA_READY_PORT" ]; then
+        echo "SCHEMA_READY_PORT not provided"
+    else
+        # Listen on a port to signal for healthcheck that we are ready
+        echo "Listening for $SCHEMA_READY_PORT for healthcheck"
+        perl -MIO::Socket::INET -ne 'BEGIN{$l=IO::Socket::INET->new(LocalPort => '${SCHEMA_READY_PORT}', Proto=>"tcp", Listen=>5, ReuseAddr=>1); $l=$l->accept}'
+    fi
+}
 
-$SQL -b -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i "$SQL_FILE"
 
-if [ -z "$SCHEMA_READY_PORT" ]; then
-    echo "SCHEMA_READY_PORT not provided"
-else
-    # Listen on a port to signal for healthcheck that we are ready
-    echo "Listening for $SCHEMA_READY_PORT for healthcheck"
-    perl -MIO::Socket::INET -ne 'BEGIN{$l=IO::Socket::INET->new(LocalPort => '${SCHEMA_READY_PORT}', Proto=>"tcp", Listen=>5, ReuseAddr=>1); $l=$l->accept}'
-fi
+
+# https://github.com/microsoft/mssql-docker/issues/13
+wget https://github.com/arcusfelis/mssql-docker-zfs/raw/master/nodirect_open.so -O /nodirect_open.so
+
+mkdir -p /mnt/ramdisk/data
+mkdir -p /mnt/ramdisk/log
+ln -s /mnt/ramdisk/data /var/opt/mssql/data
+ln -s /mnt/ramdisk/log /var/opt/mssql/log
+
+async_setup &
+LD_PRELOAD=/nodirect_open.so /opt/mssql/bin/sqlservr

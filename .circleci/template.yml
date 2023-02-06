@@ -77,6 +77,7 @@ containers:
     entrypoint: *ENTRYPOINT
   - &mssql_container
     image: mcr.microsoft.com/mssql/server
+    user: root
     environment:
       - ACCEPT_EULA: Y
       - SA_PASSWORD: "mongooseim_secret+ESL123"
@@ -85,7 +86,7 @@ containers:
         # We are not running as root in this container,
         # so we can only write into some directories (in this case, /tmp)
       - SQL_FILE: "/tmp/mongoose.sql"
-      - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
+      - OLD_ENTRYPOINT: "/tmp/docker-setup-mssql.sh"
       - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
       - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
       - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
