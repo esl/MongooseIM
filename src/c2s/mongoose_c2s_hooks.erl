@@ -1,7 +1,7 @@
 %% @doc This module builds an interface to c2s event handling
 -module(mongoose_c2s_hooks).
 
--type fn() :: fun((mongoose_acc:t(), params(), gen_hook:hook_extra()) -> result()).
+-type fn() :: fun((mongoose_acc:t(), params(), gen_hook:extra()) -> result()).
 -type params() :: #{c2s_data := mongoose_c2s:data(),
                     c2s_state := mongoose_c2s:state(),
                     event_type := undefined | gen_statem:event_type(),

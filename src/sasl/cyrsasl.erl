@@ -55,7 +55,7 @@
                      | {continue, binary(), sasl_state()}
                      | error().
 
--export_type([sasl_module/0, mechanism/0, error/0, sasl_result/0]).
+-export_type([sasl_module/0, mechanism/0, error/0, sasl_result/0, sasl_state/0]).
 
 -callback mechanism() -> mechanism().
 

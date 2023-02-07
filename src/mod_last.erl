@@ -252,7 +252,7 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mod_last_backend:remove_domain(HostType, Domain),
     {ok, Acc}.
 
--spec user_receive_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), gen_hook:extra()) ->
+-spec user_receive_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_receive_iq(Acc, _Params, _Extra) ->
     case mongoose_iq:info(Acc) of
