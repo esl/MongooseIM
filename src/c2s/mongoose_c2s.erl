@@ -301,7 +301,7 @@ handle_socket_error(StateData = #c2s_data{host_type = HostType, lserver = LServe
 %% These conditions required that one and only one handler declared full control over it,
 %% by making the hook stop at that point. If so, the process remains alive,
 %% in control of the handler, otherwise, the condition is treated as terminal.
--spec stop_if_unhandled(data(), state(), gen_hook:hook_fn_res(mongoose_acc:t()), atom()) -> fsm_res().
+-spec stop_if_unhandled(data(), state(), gen_hook:hook_fn_ret(mongoose_acc:t()), atom()) -> fsm_res().
 stop_if_unhandled(StateData, C2SState, {stop, Acc}, _) ->
     handle_state_after_packet(StateData, C2SState, Acc);
 stop_if_unhandled(_, _, {ok, _Acc}, Reason) ->
@@ -678,7 +678,7 @@ handle_c2s_packet(StateData = #c2s_data{host_type = HostType}, C2SState, El) ->
     end.
 
 %% @doc Process packets sent by the user (coming from user on c2s XMPP connection)
--spec handle_stanza_from_client(data(), mongoose_c2s_hooks:hook_params(), mongoose_acc:t(), binary()) ->
+-spec handle_stanza_from_client(data(), mongoose_c2s_hooks:params(), mongoose_acc:t(), binary()) ->
     mongoose_acc:t().
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"message">>) ->
     TS0 = mongoose_acc:timestamp(Acc),
@@ -742,7 +742,7 @@ maybe_send_element(_, {stop, Acc}) ->
     Acc.
 
 %% @doc Process packets sent to the user (coming to user on c2s XMPP connection)
--spec process_stanza_to_client(data(), mongoose_c2s_hooks:hook_params(), mongoose_acc:t(), binary()) ->
+-spec process_stanza_to_client(data(), mongoose_c2s_hooks:params(), mongoose_acc:t(), binary()) ->
     mongoose_c2s_hooks:result().
 process_stanza_to_client(#c2s_data{host_type = HostType}, Params, Acc, <<"message">>) ->
     mongoose_c2s_hooks:user_receive_message(HostType, Acc, Params);
@@ -958,7 +958,7 @@ generate_random_resource() ->
     <<(mongoose_bin:gen_from_timestamp())/binary, "-", (mongoose_bin:gen_from_crypto())/binary>>.
 
 -spec hook_arg(data(), state(), terminate | gen_statem:event_type(), term(), term()) ->
-    mongoose_c2s_hooks:hook_params().
+    mongoose_c2s_hooks:params().
 hook_arg(StateData, C2SState, EventType, #{event_tag := EventTag,
                                            event_content := EventContent}, Reason) ->
     #{c2s_data => StateData, c2s_state => C2SState,

@@ -59,6 +59,7 @@
 
 -export_type([hook_fn/0,
               hook_list/0,
+              hook_list/1,
               hook_fn_ret/0,
               hook_fn_ret/1,
               hook_tuple/0,

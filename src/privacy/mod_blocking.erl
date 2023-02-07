@@ -57,7 +57,7 @@ c2s_hooks(HostType) ->
      {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
     ].
 
--spec user_send_iq(mongoose_acc:t(), mongoose_c2s:hook_params(), map()) ->
+-spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), map()) ->
     mongoose_c2s_hooks:result().
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
     case mongoose_iq:info(Acc) of
