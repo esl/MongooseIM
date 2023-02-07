@@ -49,7 +49,8 @@ end_per_suite(Config) ->
 opts() ->
     [{hosts, [?HOST]},
      {host_types, []},
-     {all_metrics_are_global, false}].
+     {all_metrics_are_global, false},
+     {{modules, ?HOST}, #{}}].
 
 init_per_testcase(T, Config) ->
     {ok, _HooksServer} = gen_hook:start_link(),

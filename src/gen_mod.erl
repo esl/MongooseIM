@@ -102,7 +102,7 @@ start_module_for_host_type(HostType, Module, Opts) ->
                   get_required_services(HostType, Module, Opts)),
         check_dynamic_domains_support(HostType, Module),
         Res = Module:start(HostType, Opts),
-        run_for_hooks(HostType, add_handlers, Module),
+        run_for_hooks(HostType, fun gen_hook:add_handlers/1, Module),
         {links, LinksAfter} = erlang:process_info(self(), links),
         case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
             true -> ok;
@@ -148,7 +148,7 @@ start_module_for_host_type(HostType, Module, Opts) ->
 
 run_for_hooks(HostType, Fun, Module) ->
     case erlang:function_exported(Module, hooks, 1) of
-        true -> gen_hook:Fun(Module:hooks(HostType));
+        true -> Fun(Module:hooks(HostType));
         false -> ok
     end.
 
@@ -190,7 +190,7 @@ stop_module(HostType, Module) ->
 
 -spec stop_module_for_host_type(host_type(), module()) -> ok.
 stop_module_for_host_type(HostType, Module) ->
-    run_for_hooks(HostType, delete_handlers, Module),
+    run_for_hooks(HostType, fun gen_hook:delete_handlers/1, Module),
     try Module:stop(HostType) of
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList);

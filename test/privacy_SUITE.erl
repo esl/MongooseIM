@@ -42,14 +42,18 @@ init_per_suite(C) ->
 
 init_per_testcase(_, C) ->
     gen_hook:start_link(),
-    mongoose_config:set_opt({modules, <<"localhost">>}, #{mod_privacy => #{}}),
-    mongoose_config:set_opt(hosts, [<<"localhost">>]),
-    gen_mod:start_module(<<"localhost">>,
-                         mod_privacy,
-                         config_parser_helper:default_mod_config(mod_privacy)),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_modules:start(),
     C.
 
+opts() ->
+    [{hosts, [<<"localhost">>]},
+     {host_types, []},
+     {{modules, <<"localhost">>},
+      #{mod_privacy => config_parser_helper:default_mod_config(mod_privacy)}}].
+
 end_per_suite(_C) ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     mongoose_config:unset_opt(all_metrics_are_global),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
