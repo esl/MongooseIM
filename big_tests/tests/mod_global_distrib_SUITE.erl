@@ -409,12 +409,6 @@ test_pm_between_users_before_available_presence(Config) ->
     escalus_client:stop(Config1, Eve).
 
 test_two_way_pm(Alice, Eve) ->
-    %% Ensure that users are properly registered
-    %% Otherwise you can get "Unable to route global message... user not found in the routing table"
-    %% error, because "escalus_client:start" can return before SM registration is completed.
-    wait_for_registration(Alice, ct:get_config({hosts, mim, node})),
-    wait_for_registration(Eve, ct:get_config({hosts, reg, node})),
-
     escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi to Eve from Europe1!">>)),
     escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi to Alice from Asia!">>)),
 
@@ -443,10 +437,14 @@ test_muc_conversation_on_one_host(Config0) ->
               RoomAddr = muc_helper:room_address(RoomJid),
 
               escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
-              escalus:wait_for_stanza(Alice),
+              wait_for_muc_presence(Alice, RoomJid, AliceUsername),
+              wait_for_subject(Alice),
 
               escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
-              [_, _, _] = escalus:wait_for_stanzas(Eve, 3),
+              wait_for_muc_presence(Eve, RoomJid, AliceUsername),
+              wait_for_muc_presence(Eve, RoomJid, EveUsername),
+              wait_for_muc_presence(Alice, RoomJid, EveUsername),
+              wait_for_subject(Eve),
 
               Msg= <<"Hi, Eve!">>,
               escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg)),
@@ -473,7 +471,7 @@ test_muc_conversation_history(Config0) ->
               RoomAddr = muc_helper:room_address(RoomJid),
 
               escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
-              %% We don't care about presences from Alice, escalus would filter them out
+              wait_for_muc_presence(Alice, RoomJid, AliceUsername),
               wait_for_subject(Alice),
 
               send_n_muc_messages(Alice, RoomAddr, 3),
@@ -489,6 +487,7 @@ test_muc_conversation_history(Config0) ->
 
               wait_for_muc_presence(Eve, RoomJid, AliceUsername),
               wait_for_muc_presence(Eve, RoomJid, EveUsername),
+              wait_for_muc_presence(Alice, RoomJid, EveUsername),
 
               %% XEP-0045: After sending the presence broadcast (and only after doing so),
               %% the service MAY then send discussion history, the room subject,
@@ -659,8 +658,6 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec(EveSpec2, Config),
-              EveNode2 = ct:get_config({hosts, mim, node}),
-              wait_for_registration(NewEve, EveNode2),
 
               ok = rpc(asia_node, sys, resume, [C2sPid]),
 
@@ -742,8 +739,6 @@ do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResum
 
               %% Connect another one, we hope the message would be rerouted
               NewEve = connect_from_spec(EveSpec2, Config),
-              EveNode2 = ct:get_config({hosts, mim, node}),
-              wait_for_registration(NewEve, EveNode2),
 
               BeforeResume(),
 
@@ -1069,8 +1064,8 @@ hide_node(NodeName, Config) ->
 
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
-    escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     escalus_story:send_initial_presence(User),
+    escalus:assert(is_presence, escalus_client:wait_for_stanza(User)),
     User.
 
 chat_with_seqnum(To, Text) ->
@@ -1252,23 +1247,11 @@ trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain)
 %% -----------------------------------------------------------------------
 %% Escalus-related helpers
 
+%% Receive messages with Bodies in any order, skipping presences from stream resumption
 user_receives(User, Bodies) ->
-    ExpectedLength = length(Bodies),
-    Messages = escalus_client:wait_for_stanzas(User, ExpectedLength),
-    SortedMessages = order_by_seqnum(Messages),
-    case length(Messages) of
-        ExpectedLength ->
-            Checks = [escalus_pred:is_chat_message(Body, Stanza) || {Body, Stanza} <- lists:zip(Bodies, SortedMessages)],
-            case lists:all(fun(Check) -> Check end, Checks) of
-                true ->
-                    ok;
-                false ->
-                    ct:fail({user_receives_failed, {wanted, Bodies}, {received, SortedMessages}, {check, Checks}})
-            end;
-        _ ->
-            ct:fail({user_receives_not_enough, {wanted, Bodies}, {received, SortedMessages}})
-    end.
-
+    Opts = #{pred => fun(Stanza) -> not escalus_pred:is_presence(Stanza) end},
+    Checks = [fun(Stanza) -> escalus_pred:is_chat_message(Body, Stanza) end || Body <- Bodies],
+    escalus:assert_many(Checks, [escalus_connection:receive_stanza(User, Opts) || _ <- Bodies]).
 
 %% -----------------------------------------------------------------------
 %% Refreshing helpers
@@ -1305,19 +1288,6 @@ wait_for_domain(Node, Domain) ->
                 lists:member(Domain, Domains)
         end,
     mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
-
-%% We receive presence BEFORE session is registered in ejabberd_sm.
-%% So, to ensure that we processed do_open_session completely, let's send a "ping".
-%% by calling the c2s process.
-%% That call would only return, when all messages in erlang message queue
-%% are processed.
-wait_for_registration(Client, Node) ->
-    RPCSpec = #{node => Node},
-    mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(Client, RPCSpec)) end, true,
-                               #{name => wait_for_session}),
-    C2sPid = mongoose_helper:get_session_pid(Client, RPCSpec),
-    rpc:call(node(C2sPid), ejabberd_c2s, get_info, [C2sPid]),
-    ok.
 
 
 %% -----------------------------------------------------------------------
