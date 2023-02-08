@@ -57,7 +57,7 @@ init_per_group(valid_queries, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
     Config2 = escalus:make_everyone_friends(Config1),
     %% This check ensures that there are no registered sessions.
-    %% But in ejabberd_c2s we first unset session,
+    %% But in mongoose_c2s we first unset session,
     %% then broadcast presence unavailable.
     %% This check uses ejabberd_sm to get information about sessions.
     escalus_ejabberd:wait_for_session_count(Config2, 0),
