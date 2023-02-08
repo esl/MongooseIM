@@ -735,7 +735,6 @@ is_privacy_allow(From, To, Acc, Packet) ->
 
 
 %% @doc Check if privacy rules allow this delivery
-%% Function copied from ejabberd_c2s.erl
 -spec is_privacy_allow(From, To, Acc, Packet, PrivacyList) -> boolean() when
       From :: jid:jid(),
       To :: jid:jid(),
