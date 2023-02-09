@@ -141,8 +141,8 @@ to_acc_many(Acc, C2SAcc, [Pair | Pairs]) ->
     to_acc_many(Acc, NewCAcc, Pairs).
 
 -spec to_c2s_acc(mongoose_c2s_acc:t(), pair()) -> mongoose_c2s_acc:t().
-to_c2s_acc(C2SAcc = #{state_mod := Handlers}, {state_mod, {Name, Handler}}) ->
-    C2SAcc#{state_mod := Handlers#{Name => Handler}};
+to_c2s_acc(C2SAcc = #{state_mod := ModStates}, {state_mod, {ModName, ModState}}) ->
+    C2SAcc#{state_mod := ModStates#{ModName => ModState}};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, NewActions}) when is_list(NewActions) ->
     C2SAcc#{actions := lists:reverse(NewActions) ++ Actions};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {actions, Action}) ->

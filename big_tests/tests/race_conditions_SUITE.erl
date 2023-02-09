@@ -89,7 +89,7 @@ delayiq_handler_works(Config) ->
             {ok, DelayIqConfirmation} = receive_delayiq_confirmation(),
             %% HAVING waiting iq handler
             resume_delayiq(DelayIqConfirmation),
-            %% HAVING result IQ stanza put into ejabberd_c2s process
+            %% HAVING result IQ stanza put into mongoose_c2s process
             %% (if there is any)
             wait_for_delayiq_handler_to_finish(DelayIqConfirmation),
             receive_delayiq(Alice, RequestIQ),
@@ -100,8 +100,7 @@ delayiq_handler_works(Config) ->
 %% IQ result from IQ, sent using the old connection.
 %%
 %% If old and new resources are different, that the stanza would not be routed
-%% to the new connection in any case (with or without
-%% check_incoming_accum_for_conflicts check in ejabberd_c2s).
+%% to the new connection in any case
 ignore_iq_result_from_old_session(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
         fun(FreshConfig, Alice) ->
@@ -118,7 +117,7 @@ ignore_iq_result_from_old_session(Config) ->
             Resource = escalus_client:resource(Alice),
             Alice2 = login_send_and_receive_presence(FreshConfig, alice, Resource),
             resume_delayiq(DelayIqConfirmation),
-            %% HAVING result IQ stanza put into ejabberd_c2s process
+            %% HAVING result IQ stanza put into mongoose_c2s process
             %% (if there is any)
             %% We expect, that Alice2 c2s process receives the route message,
             %% but would ignore it.

@@ -1039,24 +1039,24 @@ get_lang(#c2s_data{lang = Lang}) ->
 get_stream_id(#c2s_data{streamid = StreamId}) ->
     StreamId.
 
--spec get_mod_state(data(), atom()) -> {ok, term()} | {error, not_found}.
-get_mod_state(#c2s_data{state_mod = Handlers}, HandlerName) ->
-    case maps:get(HandlerName, Handlers, undefined) of
+-spec get_mod_state(data(), module()) -> {ok, term()} | {error, not_found}.
+get_mod_state(#c2s_data{state_mod = ModStates}, ModName) ->
+    case maps:get(ModName, ModStates, undefined) of
         undefined -> {error, not_found};
-        HandlerState -> {ok, HandlerState}
+        ModState -> {ok, ModState}
     end.
 
 -spec get_listener_opts(data()) -> listener_opts().
 get_listener_opts(#c2s_data{listener_opts = ListenerOpts}) ->
     ListenerOpts.
 
--spec merge_mod_state(data(), map()) -> data().
-merge_mod_state(StateData = #c2s_data{state_mod = StateHandlers}, MoreHandlers) ->
-    StateData#c2s_data{state_mod = maps:merge(StateHandlers, MoreHandlers)}.
+-spec merge_mod_state(data(), #{module() => term()}) -> data().
+merge_mod_state(StateData = #c2s_data{state_mod = ModStates}, MoreModStates) ->
+    StateData#c2s_data{state_mod = maps:merge(ModStates, MoreModStates)}.
 
--spec remove_mod_state(data(), atom()) -> data().
-remove_mod_state(StateData = #c2s_data{state_mod = Handlers}, HandlerName) ->
-    StateData#c2s_data{state_mod = maps:remove(HandlerName, Handlers)}.
+-spec remove_mod_state(data(), module()) -> data().
+remove_mod_state(StateData = #c2s_data{state_mod = ModStates}, ModName) ->
+    StateData#c2s_data{state_mod = maps:remove(ModName, ModStates)}.
 
 -spec merge_states(data(), data()) -> data().
 merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
