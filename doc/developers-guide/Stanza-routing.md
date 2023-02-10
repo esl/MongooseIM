@@ -1,76 +1,74 @@
 # Route of a message through the system
 
-Let's examine the flow of a message sent from user A to user B, both of whom are served by the same domain.
+Let's examine the flow of a message sent from Alice to Bob, both of whom are served by the same domain and connected to the server.
 
-Note that hooks are called at various stages of routing - they perform many tasks, in fact, many MongooseIM functionalities are implemented through hooks & handlers. 
+Note that hooks are called at various stages of routing - they perform many tasks, and many MongooseIM functionalities are implemented through hooks & handlers.
 For a general introduction to hooks, see [Hooks and Handlers](Hooks-and-handlers.md); to get a closer look at a core few, see the [hooks description](hooks_description.md).
 
-## 1. Receiving the stanza
+## 1. Sender's C2S process receives the message
 
-User A's `ejabberd_receiver` receives the stanza and passes it to `ejabberd_c2s`.
+Alice's C2S (client-to-server) process, which is a state machine implemented in the `mongoose_c2s` module, receives data from the TCP socket, and parses each incoming XML element with `exml` to an internal representation of the stanza, which is then processed by the C2S as a subsequent event.
 
-## 2. Call to `user_send_packet`
+## 2. Call to `user_send_*` hooks
 
-Upon some minimal validation of the stanza, a hook `user_send_packet` is called.
-This is handled by a couple of modules which subscribe to this hook. 
-Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, etc.
+Upon some minimal validation of the stanza, the hook `user_send_packet` is called.
+Next, depending on the type of the stanza, one of the following hooks is called:
 
-## 3. Privacy lists and `ejabberd_router:route/3`
+* `user_send_message` for messages,
+* `user_send_presence` for presences,
+* `user_send_iq` for IQ (info/query) stanzas,
+* `user_send_xmlel` for other XML elements.
 
-The stanza is checked against any privacy lists in use and, in the case of being allowed, it will be routed by `ejabberd_router:route/3`. 
-This also takes into account "blocking commands", which are part of the privacy system.
+Each hook can be handled by multiple modules subscribed to it. Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, checking the stanza against privacy lists etc. See [hooks description](../hooks_description/#hooks-called-for-session_established) for more information.
 
-## 4. Chain of routing
+## 3. Message routing
 
-Further on, the behaviour is configurable: `ejabberd_router:route/3` passes the stanza through a chain of routing modules and applies `Mod:filter/3` and `Mod:route/3` from each of them.
-Each of those modules has to implement `xmpp_router` behaviour.
+The stanza is routed by `ejabberd_router:route/3`, which passes it through a chain of routing modules implementing the `xmpp_router` behaviour and applies the following functions for each of them:
 
-There are a few actions available to the module:
+1. `Mod:filter/3`, which either drops the stanza, stopping the routing chain, or returns it for further processing, modifying it if necessary.
+2. `Mod:route/3`, which either handles the stanza, stopping the routing chain, or returns it for further processing, modifying it if necessary.
 
-* it can drop or route the stanza,
-* it can pass the stanza on unchanged or modify it and pass the result on.
-
-A set of routing modules can be set in configuration as `routing_modules`. 
+A list of routing modules can be set in the [`routing_modules`](../../configuration/general#generalrouting_modules) option.
 The default behaviour is the following:
 
-* `mongoose_router_global`: runs a global `filter_packet` hook
-* `mongoose_router_external_local`: checks if there is an external component registered for the destination domain on the current node, possibly routes the stanza to it
-* `mongoose_router_external`: checks if there is an external component registered for the destination domain on any node in the cluster, possibly routes the stanza to it
-* `mongoose_router_localdomain`: checks if there is a local route registered for the destination domain (i.e. there is an entry in mnesia `route` table), possibly routes the stanza to it
-* `ejabberd_s2s`: tries to find or establish a connection to another server and send the stanza there
+* `mongoose_router_global`: runs a global `filter_packet` hook.
+* `mongoose_router_localdomain`: if there is a local route registered for the destination domain (i.e. there is an entry in the `mongoose_router` ETS table), routes the stanza to it. When the recipient's domain is checked for the first time, the corresponding route is not registered yet, because the routes are added lazily - see `mongoose_router_dynamic_domains`.
+* `mongoose_router_external_localnode`: if there is an external component registered for the destination domain on the current node, routes the stanza to it. Such components are stored in the Mnesia table `external_component`, which is not replicated in the cluster.
+* `mongoose_router_external`: if there is an external component registered for the destination domain on any node in the cluster, routes the stanza to it. Such components are stored in the Mnesia table `external_component_global`, which is replicated among all cluster nodes.
+* `mongoose_router_dynamic_domains`: if the recipient's domain is hosted by the local server, a route is added for it, and the stanza is routed locally.
+* `ejabberd_s2s`: tries to find or establish a connection to another server and send the stanza there.
 
-![You should see an image here; if you don't, use plantuml to generate it from routing.uml](routing.png)
+![Routing chain](routing.png#only-light) <!-- https://docs.google.com/drawings/d/1V0n6mPN03TsDsdggXCymoaLnf3JIoPqTr_5lcEF8JrY -->
+![Routing chain](routing-dark.png#only-dark) <!-- https://docs.google.com/drawings/d/14UHBjhNR1yvqj-C3YBm3VU0UokYFvu0TNLb3Qw_Ut_s -->
 
-## 5. Look up `external_component` and `route`
+Assuming that the message from Alice to Bob is not the first stanza addressed to their domain, the routing chain will stop at `mongoose_router_localdomain`, which will deliver the message locally.
 
-An external component and a local route are obtained by looking up `external_component` and `route` mnesia tables, respectively. 
-The items stored in the tables provide funs to call and MFs to apply:
+## 4. `mongoose_local_delivery`
 
-```erlang
-(ejabberd@localhost)2> ets:tab2list(route).
-[{route,<<"vjud.localhost">>,
-        {apply_fun,#Fun<ejabberd_router.2.123745223>}},
- {route,<<"muc.localhost">>,
-        {apply_fun,#Fun<mod_muc.2.63726579>}},
- {route,<<"localhost">>,{apply,ejabberd_local,route}}]
-```
+When an external component or a local route is found, the packet is delivered locally by `mongoose_local_delivery:do_route/5`. Firstly, the `filter_local_packet` hook is run to check if the stanza should be delivered or dropped. This hook is also a place where modules can add their own functionality evaluated for each locally delivered stanza.
 
-Here we see that for a domain "localhost" `ejabberd_local:route()`is called.
-Routing the stanza there means calling `mongoose_local_delivery:do_route/5`, which calls `filter_local_packet` hook and, if passed, runs the fun or applies the handler.
-In most cases, the handler is `ejabberd_local:route/3`.
+If the check passes, the next step is to call the handler associated with the component or the local route. Handlers are modules implementing the `mongoose_packet_handler` behaviour, and stanzas to local users (like Alice and Bob) are handled by the `ejabberd_local` module.
 
-## 6. `ejabberd_local` to `ejabberd_sm`
+## 5. `ejabberd_local` to `ejabberd_sm`
 
-`ejabberd_local` routes the stanza to `ejabberd_sm` given it has at least a bare JID as the recipient.
+`ejabberd_local:process_packet/5` checks if the stanza is addressed to a user or to the server itself. For local users like Bob, `ejabberd_sm:route/4` is called.
 
-## 7. `ejabberd_sm`
+## 6. `ejabberd_sm`
 
-`ejabberd_sm` determines the available resources of User B, takes into account their priorities and whether the message is addressed to a particular resource or a bare JID. 
-It appropriately replicates (or not) the message and sends it to the recipient's `ejabberd_c2s` process(es).
+`ejabberd_sm` determines the available resources of the recipient, takes into account their priorities and whether the message is addressed to a particular resource or a bare JID.
+It appropriately replicates (or not) the message and sends it to the recipient's C2S process(es) by calling `mongoose_c2s:route/2`.
+In case no resources are available for delivery (hence no C2S processes to pass the message to), `offline_message_hook` is run.
 
-In case no resources are available for delivery (hence no `ejabberd_c2s` processes to pass the message to), `offline_message_hook` is run.
+As Bob has one online session, the message is sent to the C2S process associated with that session.
 
-## 8. `ejabberd_c2s`
+## 7. Recipient's C2S process delivers the message
 
-`ejabberd_c2s` verifies the stanza against relevant privacy lists and sends it to the socket.
-`user_receive_packet` hook is run to notify the rest of the system about the stanza delivery to User B.
+The `user_receive_packet` hook is run to notify the rest of the system about the stanza delivery.
+Next, depending on the type of the stanza, one of the following hooks is called:
+
+* `user_receive_message` for messages,
+* `user_receive_presence` for presences,
+* `user_receive_iq` for IQ (info/query),
+* `user_receive_xmlel` for other XML elements.
+
+Each hook can be handled by multiple modules subscribed to it. These hooks' handlers can stop the routing, e.g. when the stanza is blocked by `mod_privacy`. Finally, the `xmpp_presend_element` hook is called, which can stop the routing as well - otherwise, the stanza is converted to binary data and sent to the recipient's TCP socket.
