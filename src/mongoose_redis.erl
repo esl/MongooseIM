@@ -36,7 +36,8 @@ cmd(Cmd, Timeout) ->
         V -> V
     end.
 
--spec cmds([iolist()], integer()) -> [return_value()] | {error, _}.
+-spec cmds([iolist()], integer()) ->
+    [{ok, return_value()} | {error, Reason::binary()}] | {error, no_connection}.
 cmds(Cmd, Timeout) ->
     {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     eredis:qp(Worker, Cmd, Timeout).

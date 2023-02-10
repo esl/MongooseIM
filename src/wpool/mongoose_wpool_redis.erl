@@ -32,5 +32,5 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     Worker = {eredis_client, makeargs(ConnOpts)},
     [{worker, Worker} | WpoolOptsIn].
 
-makeargs(#{host := Host, port := Port, database := Database, password := Password}) ->
-    [Host, Port, Database, Password, 100, 5000].
+makeargs(Opts = #{host := _Host, port := _Port, database := _Database, password := _Password}) ->
+    proplists:from_map(Opts) ++ [{reconnect_sleep, 100}, {connect_timeout, 5000}].
