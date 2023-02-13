@@ -29,7 +29,8 @@ To avoid that coupling and also to enable other ([possibly yet to be written](#s
 mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
 ```
 
-`mongoose_hooks` is a module which serves as an API for calling all hooks in the server.
+`mongoose_hooks` is a module which serves as an API for calling hooks in the server. All such modules are placed in `src/hooks`.
+
 For every hook, there needs to be a function in this module written beforehand which accepts the correct arity of arguments and makes the call to actual low-level hooks mechanism.
 This means that there is some degree of coupling still - but this time between the `ejabberd_sm` module and `mongoose_hooks`, and the latter is always available.
 
@@ -46,9 +47,12 @@ This depends on which handlers are registered to process the event.
 
     This was actually the case before this module was introduced, and hooks' names were just atoms provided as an argument to this low-level API.
     However, we discovered it was causing problems and producing bugs, due to the lack of static code analysis.
-    Now we can have some guarantees thanks to Dialyzer, and each hook invocation has correct number of arguments.
+    Now we can have some guarantees thanks to Dialyzer, and each hook invocation has a correct number of arguments.
     Thanks to this, writing handlers is easier - there is a single source of truth about how a hook is run.
     Remember that a given hook can be invoked from many places in many modules.
+
+    With the new `mongoose_c2s` implementation we introduced a new hook API module, `mongoose_c2s_hooks`.
+    All such API modules are placed in the `src/hooks` directory.
 
 ### Getting results from handlers
 
@@ -73,7 +77,7 @@ The initial value of the accumulator being passed through the sequence of handle
 ### Using accumulators
 
 MongooseIM uses a dedicated data structure to accumulate data related to stanza processing (see ["Accumulators"](accumulators.md)).
-It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when stanza is leaving MongooseIM.
+It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when the stanza is leaving MongooseIM.
 There are some hooks which don't use this data structure.
 
 If a Mongoose accumulator is passed to a hook, handlers should store their return values in one of 3 ways:
@@ -82,10 +86,10 @@ If a Mongoose accumulator is passed to a hook, handlers should store their retur
 * If the value is to be passed on to be reused within the current processing context, use `mongoose_acc:set(Namespace, Key, Value, Acc)`.
 * If the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:set_permanent(Namespace, Key, Value, Acc)`.
 
-A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
+A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `mod_presence`:
 
 ```erlang
-Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, StateData#state.jid),
+Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, Jid),
 Rs = mongoose_acc:get(offline, messages, [], Acc1),
 ```
 
@@ -94,7 +98,7 @@ Rs = mongoose_acc:get(offline, messages, [], Acc1),
 Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
 For that reason hooks don't use the "let it crash" approach. Instead, it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
 
-In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with an unmodified accumulator.
+In practical terms: if a handler throws an error, the hook machine logs a message and proceeds to the next handler with an unmodified accumulator.
 If there are no handlers registered for a given hook, the call simply has no effect.
 
 ### Sidenote: Code yet to be written
@@ -118,7 +122,7 @@ It is decided when creating a hook and can be checked in the `mongoose_hooks` mo
 
 ## Registering hook handlers
 
-In order to store a packet when `ejabberd_sm` runs `offline_message_hook` the relevant module must register a handler for this hook.
+In order to store a packet when `ejabberd_sm` runs `offline_message_hook`, the relevant module must register a handler for this hook.
 To attain the runtime configurability the module should register the handlers when it's loaded and unregister them when
 it's unloaded.
 That's usually done in, respectively, `start/2` and `stop/1` functions.
@@ -199,12 +203,13 @@ in_subscription(Acc, #{to := ToJID, from := FromJID, type := Type}, _) ->
 
 As seen in this example, a handler receives an accumulator, parameters and extra parameters (in this case - ignored).
 Then it matches to the result of `process_subscription/4` and can return 3 different values:
+
 * `{ok, Acc}` - it allows further processing and does not change the accumulator.
 * `{stop, mongoose_acc:set(hook, result, false, Acc)}` - it stops further processing and returns accumulator with a new value in it.
 * `{stop, Acc}` - it stops further processing and does not change the accumulator.
 
 This is an important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
-This skips calling the latter actions in the handler sequence, while the hook call returns the `Acc`.
+This skips calling later actions in the handler sequence, while the hook call returns the `Acc`.
 Further processing is only performed if the first element of return tuple is `ok`.
 
 Watch out! Different handlers may be registered for the same hook - the priority mechanism orders their execution.
@@ -218,7 +223,7 @@ Always ensure what handlers are registered for a given hook (`grep` is your frie
 The following command should give you a list of all the hooks available in MongooseIM:
 
 ```bash
-awk '/\-export\(\[/,/\]\)\./' src/mongoose_hooks.erl | grep -oh "\w*\/" | sed 's/.$//' | sort
+awk '/\-export\(\[/,/\]\)\./' src/hooks/*.erl | grep -oh "\w*/" | sed 's/.$//' | sort
 ```
 It returns:
 ```bash
@@ -230,7 +235,7 @@ adhoc_sm_commands
 xmpp_stanza_dropped
 ```
 
-It just extracts the hooks exported from the `mongoose_hooks` module.
+It just extracts the hooks exported from `mongoose_hooks` and other hook API modules.
 Refer to `grep`/`ack` to find where they're used.
 
 ## Creating your own hooks
@@ -328,7 +333,7 @@ stopping_handler(Acc, #{number := Number}, _) ->
 
 never_run_handler(Acc, #{number := Number}, _) ->
     ?LOG_INFO(#{what => never_run_handler,
-                text => <<"This hook won't run as it's registered with a priority bigger "
+                text => <<"This handler won't run as it's registered with a priority bigger "
                           "than that of stopping_handler/2 is. "
                           "This text should never get printed.">>}),
     {ok, Acc * Number}.
@@ -339,8 +344,8 @@ The module is intended to be used from the shell for educational purposes:
 ```erlang
 (mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
-(mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
-{ok,ok}
+(mongooseim@localhost)2> mongoose_modules:ensure_started(<<"localhost">>, mod_hook_example, #{}).
+{started,ok}
 (mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
 (mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, info).
