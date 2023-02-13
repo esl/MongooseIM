@@ -108,11 +108,8 @@ init_per_group(_GroupName, Config) ->
     dynamic_modules:ensure_modules(domain(), required_modules()),
     Config.
 
-end_per_group(cache_tests, Config) ->
-    dynamic_modules:restore_modules(Config);
-
 end_per_group(_GroupName, Config) ->
-    Config.
+    dynamic_modules:restore_modules(Config).
 
 init_per_testcase(TestName, Config) ->
     escalus:init_per_testcase(TestName, Config).
@@ -289,7 +286,7 @@ delayed_receive_with_sm_story(Config, Alice, Bob) ->
     enable_sm(Alice),
     enable_sm(Bob),
     publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
-    [Message] = make_friends(Bob, Alice),
+    [Message] = make_friends_sm(Bob, Alice),
     Node = {escalus_utils:get_short_jid(Alice), NodeNS},
     pubsub_tools:check_item_notification(Message, <<"item2">>, Node, []).
 
@@ -508,20 +505,34 @@ send_presence(From, Type, To) ->
     escalus_client:send(From, Stanza).
 
 make_friends(Bob, Alice) ->
-    % makes uni-directional presence subscriptions
+    % makes uni-directional presence subscriptions while SM is disabled
     % returns stanzas received finally by the inviter
     send_presence(Bob, <<"subscribe">>, Alice),
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Bob)),
+    escalus:assert(is_presence, escalus_client:wait_for_stanza(Alice)),
     send_presence(Alice, <<"subscribed">>, Bob),
-    escalus:wait_for_stanzas(Alice, 10, 200),
-    BobStanzas = escalus:wait_for_stanzas(Bob, 10, 200),
-    lists:filter(fun(S) -> N = S#xmlel.name,
-                           N =/= <<"iq">>
-                           andalso
-                           N =/= <<"presence">>
-                           andalso
-                           N =/= <<"r">>
-                 end,
-                 BobStanzas).
+    escalus:assert(is_iq, escalus_client:wait_for_stanza(Alice)),
+    escalus:assert_many([is_message, is_iq]
+                        ++ lists:duplicate(2, is_presence),
+                        BobStanzas = escalus_client:wait_for_stanzas(Bob, 4)),
+    lists:filter(fun escalus_pred:is_message/1, BobStanzas).
+
+make_friends_sm(Bob, Alice) ->
+    % makes uni-directional presence subscriptions while SM is enabled
+    % returns stanzas received finally by the inviter
+    send_presence(Bob, <<"subscribe">>, Alice),
+    escalus:assert_many([is_iq, is_sm_ack_request],
+                        escalus_client:wait_for_stanzas(Bob, 2)),
+    escalus:assert_many([is_presence, is_sm_ack_request],
+                        escalus_client:wait_for_stanzas(Alice, 2)),
+    send_presence(Alice, <<"subscribed">>, Bob),
+    escalus:assert_many([is_iq, is_sm_ack_request],
+                        escalus_client:wait_for_stanzas(Alice, 2)),
+    escalus:assert_many([is_message, is_iq]
+                        ++ lists:duplicate(2, is_presence)
+                        ++ lists:duplicate(4, is_sm_ack_request),
+                        BobStanzas = escalus_client:wait_for_stanzas(Bob, 8)),
+    lists:filter(fun escalus_pred:is_message/1, BobStanzas).
 
 publish_with_sm(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
