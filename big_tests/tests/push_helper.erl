@@ -75,6 +75,7 @@ become_available(Client, NumberOfUnreadMessages) ->
     become_available(Client, NumberOfUnreadMessages, 5000).
 
 become_available(Client, NumberOfUnreadMessages, Timeout) ->
+    mongoose_helper:wait_for_n_offline_messages(Client, NumberOfUnreadMessages),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Preds = [ is_presence | lists:duplicate(NumberOfUnreadMessages, is_message) ],
     Stanzas = escalus:wait_for_stanzas(Client, NumberOfUnreadMessages + 1, Timeout),
