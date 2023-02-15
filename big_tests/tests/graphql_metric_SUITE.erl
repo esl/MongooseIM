@@ -220,7 +220,7 @@ get_metrics_as_dicts_with_nonexistent_key(Config) ->
     Result = get_metrics_as_dicts_with_keys([<<"not_existing">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"encrypted_size">>],
+    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"xml_stanza_size">>],
     [] = maps:get(SentName, Map).
 
 get_metrics_as_dicts_empty_args(Config) ->
@@ -228,7 +228,7 @@ get_metrics_as_dicts_empty_args(Config) ->
     Result = get_metrics_as_dicts([], [<<"median">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetricsAsDicts], Result),
     Map = dict_objects_to_map(ParsedResult),
-    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"encrypted_size">>],
+    SentName = [<<"global">>, <<"data">>, <<"xmpp">>, <<"received">>, <<"xml_stanza_size">>],
     [#{<<"key">> := <<"median">>, <<"value">> := Median}] = maps:get(SentName, Map),
     ?assert(is_integer(Median)),
     %% Empty keys
@@ -345,7 +345,7 @@ check_node_result_is_valid(ResList, MetricsAreGlobal) ->
         maps:get([<<"global">>,<<"uniqueSessionCount">>], Map),
     ?assert(is_integer(V)),
     HistObjects = maps:get([<<"global">>, <<"data">>, <<"xmpp">>,
-                            <<"sent">>, <<"compressed_size">>], Map),
+                            <<"sent">>, <<"xml_stanza_size">>], Map),
     check_histogram(kv_objects_to_map(HistObjects)).
 
 check_histogram(Map) ->

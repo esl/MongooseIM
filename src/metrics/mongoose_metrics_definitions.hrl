@@ -67,10 +67,8 @@
                     [total, processes_used, atom_used, binary, ets, system]}]).
 
 -define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, encrypted_size],
-                            [data, xmpp, received, compressed_size],
                             [data, xmpp, received, xml_stanza_size],
                             [data, xmpp, sent, encrypted_size],
-                            [data, xmpp, sent, compressed_size],
                             [data, xmpp, sent, xml_stanza_size],
                             [data, xmpp, sent, message, processing_time]
                            ]).
