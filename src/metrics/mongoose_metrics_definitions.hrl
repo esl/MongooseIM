@@ -70,7 +70,7 @@
                             [data, xmpp, received, xml_stanza_size],
                             [data, xmpp, sent, encrypted_size],
                             [data, xmpp, sent, xml_stanza_size],
-                            [data, xmpp, sent, message, processing_time]
+                            [data, xmpp, message, processing_time]
                            ]).
 
 -define(DATA_FUN_METRICS,
