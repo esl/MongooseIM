@@ -58,6 +58,7 @@ wget https://github.com/arcusfelis/mssql-docker-zfs/raw/master/nodirect_open.so 
 
 mkdir -p /mnt/ramdisk/data
 mkdir -p /mnt/ramdisk/log
+mkdir -p /var/opt/mssql
 ln -s /mnt/ramdisk/data /var/opt/mssql/data
 ln -s /mnt/ramdisk/log /var/opt/mssql/log
 
