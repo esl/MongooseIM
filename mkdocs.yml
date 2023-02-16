@@ -123,6 +123,7 @@ nav:
       - 'mod_offline': 'modules/mod_offline.md'
       - 'mod_offline_stub': 'modules/mod_offline_stub.md'
       - 'mod_ping': 'modules/mod_ping.md'
+      - 'mod_presence': 'modules/mod_presence.md'
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
       - 'mod_pubsub': 'modules/mod_pubsub.md'
