@@ -68,7 +68,7 @@ Overrides the default TCP backlog value.
 When set to `true`, [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/) is enabled and each connecting client has to provide a proxy header. Use only with a proxy (or a load balancer) to allow it to provide the connection details (including the source IP address) of the original client. Versions 1 and 2 of the protocol are supported.
 
 ### `listen.*.hibernate_after`
-* **Syntax:** non-negative integer
+* **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `0`
 * **Example:** `hibernate_after = 10`
 
@@ -92,14 +92,6 @@ Maximum allowed incoming stanza size in bytes.
 
 The number of processes accepting new connections on the listening socket.
 
-### `listen.*.max_fsm_queue`
-* **Syntax:** positive integer
-* **Default:** not set - no limit
-* **Example:** `max_fsm_queue = 1000`
-
-Message queue limit to prevent resource exhaustion; overrides the value set in the `general` section.
-This option does **not** work for `s2s` listeners - the `general` value is used for them.
-
 ## Client-to-server (C2S): `[[listen.c2s]]`
 
 Handles XMPP client-to-server (C2S) connections.
@@ -122,16 +114,30 @@ The rule that determines what traffic shaper is used to limit the incoming XMPP 
 The rule referenced here needs to be defined in the `access` configuration section.
 The value of the access rule needs to be either the shaper name or the string `"none"`, which means no shaper.
 
+### `listen.c2s.max_connections`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
+* **Example:** `max_connections = 10000`
+
+Maximum number of open connections. This is a *soft limit* according to the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/manual/ranch) documentation.
+
+### `listen.c2s.c2s_state_timeout`
+* **Syntax:** non-negative integer or the string `"infinity"`
+* **Default:** `5000`
+* **Example:** `c2s_state_timeout = 10_000`
+
+Timeout value (in milliseconds) used by the C2S state machine when waiting for the connecting client to respond during stream negotiation and SASL authentication. After the timeout the server responds with the `connection-timeout` stream error and closes the connection.
+
 ### `listen.c2s.reuse_port`
 * **Syntax:** boolean
-* **Default:** false
+* **Default:** `false`
 * **Example:** `reuse_port = true`
 
 Enables linux support for `SO_REUSEPORT`, see [https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ] for more details.
 
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean
-* **Default:** true
+* **Default:** `true`
 * **Example:** `backwards_compatible_session = false`
 
 Enables backward-compatible session establishement IQs. See https://www.rfc-editor.org/rfc/rfc6121.html#section-1.4:
@@ -284,7 +290,7 @@ The following section configures two C2S listeners.
 * One at port 5222, which accepts a plain TCP connection and allows to use StartTLS for upgrading it to an encrypted one. The files containing the certificate and the DH parameter are also provided.
 * One at port 5223, which accepts only encrypted TLS connections - this is the legacy method as StartTLS is preferred.
 
-Both listeners use ZLIB and the `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.
+Both listeners use `c2s` and `c2s_shaper` rules for access management and traffic shaping, respectively.
 
 ## Server-to-server (S2S): `[[listen.s2s]]`
 
@@ -388,6 +394,13 @@ By default, when a component tries to connect and a registration conflict occurs
 It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
 By setting this option to `kick_old`, we drop any old connections registered at the same host before accepting new ones.
 
+### `listen.service.max_fsm_queue`
+* **Syntax:** positive integer
+* **Default:** not set - no limit
+* **Example:** `max_fsm_queue = 1000`
+
+Message queue limit to prevent resource exhaustion; overrides the value set in the `general` section.
+
 ### Custom extension to the protocol
 
 In order to register a component for all virtual hosts served by the server (see `hosts` in the `general` section), the component must add the attribute `is_subdomain="true"` to the opening stream element.
@@ -469,7 +482,7 @@ Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc73
 You can pass the following optional parameters:
 
 #### `listen.http.handlers.mod_websockets.timeout`
-* **Syntax:** positive integer or the string `"infinity"`
+* **Syntax:** non-negative integer or the string `"infinity"`
 * **Default:** `"infinity"`
 * **Example:** `timeout = 60_000`
 
@@ -480,14 +493,14 @@ The time (in milliseconds) after which an inactive user is disconnected.
 * **Default:** not set - pings disabled
 * **Example:** `ping_rate = 10_000`
 
-The time between pings sent by server. By setting this option you enable server-side pinging.
+The time (in milliseconds) between pings sent by server. By setting this option you enable server-side pinging.
 
 #### `listen.http.handlers.mod_websockets.max_stanza_size`
 * **Syntax:** positive integer or the string `"infinity"`
 * **Default:** `"infinity"`
 * **Example:** `max_stanza_size = 10_000`
 
-Maximum allowed incoming stanza size.
+Maximum allowed incoming stanza size in bytes.
 !!! Warning
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
@@ -505,6 +518,14 @@ Maximum allowed incoming stanza size.
 
 This subsection enables external component connections over WebSockets.
 See the [service](#xmpp-components-listenservice) listener section for details.
+
+#### `listen.http.handlers.mod_websockets.c2s_state_timeout`
+
+Same as the [C2S option](#listenc2sc2s_state_timeout)
+
+#### `listen.http.handlers.mod_websockets.backwards_compatible_session`
+
+Same as the [C2S option](#listenc2sbackwards_compatible_session)
 
 ### Handler types: GraphQL API - `mongoose_graphql_handler`
 
@@ -608,7 +629,7 @@ Number of HTTP connection acceptors.
 * **Default:** `1024`
 * **Example:** `transport.max_connections = "infinity"`
 
-Maximum number of open connections. The default value of 1024 is set by the [Ranch](https://ninenines.eu/docs/en/ranch/1.7/guide/) library.
+Maximum number of open connections. The default value of 1024 is set by the [Ranch](https://ninenines.eu/docs/en/ranch/2.1/guide/) library.
 
 ### TLS (HTTPS) options
 
