@@ -1,6 +1,8 @@
 -module(inbox_extensions_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+%% v2
+
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
