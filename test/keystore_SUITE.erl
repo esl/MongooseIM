@@ -30,9 +30,9 @@ end_per_suite(C) ->
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
-    async_helper:start(Config, gen_hook, start_link, []),
+    Config1 = async_helper:start(Config, gen_hook, start_link, []),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
-    Config.
+    Config1.
 
 opts() ->
     [{hosts, hosts()},
@@ -41,8 +41,7 @@ opts() ->
 end_per_testcase(_, C) ->
     meck:unload(mongoose_metrics),
     async_helper:stop_all(C),
-    mnesia:delete_table(key),
-    C.
+    mnesia:delete_table(key).
 
 hosts() ->
     [<<"localhost">>, <<"first.com">>, <<"second.com">>].

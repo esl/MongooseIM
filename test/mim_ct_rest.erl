@@ -118,7 +118,7 @@ init([BasicAuth]) ->
         ]),
 
     {ok, _} = cowboy:start_clear(tests_listener,
-                                 #{socket_opts => [{port, 12000}], num_acceptors => 5},
+                                 #{socket_opts => [{port, 12000}], num_acceptors => 3},
                                  #{env => #{dispatch => DispatchEJD}}),
 
     {ok, #state{ basic_auth = list_to_binary(BasicAuth) }}.
@@ -176,8 +176,9 @@ handle_call({register, U, S, P}, _From, #state{ users = Users } = State) ->
     end;
 handle_call({do, Fun}, _From, State) ->
     {reply, Fun(), State};
-handle_call(stop, _, State) ->
-    {stop, shutdown, ok, State}.
+handle_call(stop, From, State) ->
+    gen_server:reply(From, ok),
+    {stop, shutdown, State}.
 
 handle_cast(_, State) ->
     {noreply, State}.
@@ -189,5 +190,4 @@ code_change(_, State, _) ->
     {ok, State}.
 
 terminate(_Reason, _State) ->
-    cowboy:stop_listener(tests_listener).
-
+    ranch:stop_listener(tests_listener).
