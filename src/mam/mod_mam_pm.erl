@@ -47,7 +47,7 @@
 
 %% hook handlers
 -export([disco_local_features/3,
-         user_send_packet/3,
+         user_send_message/3,
          filter_packet/3,
          remove_user/3,
          determine_amp_strategy/3,
@@ -172,13 +172,13 @@ disco_local_features(Acc, _, _) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc, Args, Extra) -> {ok, Acc} when
+-spec user_send_message(Acc, Args, Extra) -> {ok, Acc} when
        Acc :: mongoose_acc:t(),
        Args :: map(),
        Extra :: gen_hook:extra().
-user_send_packet(Acc, _, _) ->
+user_send_message(Acc, _, _) ->
     {From, To, Packet} = mongoose_acc:packet(Acc),
-    ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
+    ?LOG_DEBUG(#{what => mam_user_send_message, acc => Acc}),
     {_, Acc2} = handle_package(outgoing, true, From, To, From, Packet, Acc),
     {ok, Acc2}.
 
@@ -477,7 +477,7 @@ should_archive_if_groupchat(HostType, <<"groupchat">>) ->
 should_archive_if_groupchat(_, _) ->
     true.
 
-%% Only store messages sent to yourself in user_send_packet.
+%% Only store messages sent to yourself in user_send_message.
 should_archive_if_sent_to_yourself(LocJID, RemJID, incoming) ->
     not jid:are_bare_equal(LocJID, RemJID);
 should_archive_if_sent_to_yourself(_LocJID, _RemJID, _Dir) ->
@@ -670,7 +670,7 @@ is_archivable_message(HostType, Dir, Packet) ->
 hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
-        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 60},
+        {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 60},
         {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
