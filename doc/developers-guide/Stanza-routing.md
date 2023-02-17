@@ -19,7 +19,7 @@ Next, depending on the type of the stanza, one of the following hooks is called:
 * `user_send_iq` for IQ (info/query) stanzas,
 * `user_send_xmlel` for other XML elements.
 
-Each hook can be handled by multiple modules subscribed to it. Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, checking the stanza against privacy lists etc. See [hooks description](../hooks_description/#hooks-called-for-session_established) for more information.
+Each hook can be handled by multiple modules subscribed to it. Those modules do various complementary tasks, like storing the message in an archive, sending carbon copies, checking the stanza against privacy lists etc. It is possible for a handler to immediately stop routing at this point, preventing execution of any subsequent handlers or hooks. See [hooks description](../hooks_description/#hooks-called-for-session_established) for more information.
 
 ## 3. Message routing
 
@@ -71,4 +71,4 @@ Next, depending on the type of the stanza, one of the following hooks is called:
 * `user_receive_iq` for IQ (info/query),
 * `user_receive_xmlel` for other XML elements.
 
-Each hook can be handled by multiple modules subscribed to it. These hooks' handlers can stop the routing, e.g. when the stanza is blocked by `mod_privacy`. Finally, the `xmpp_presend_element` hook is called, which can stop the routing as well - otherwise, the stanza is converted to binary data and sent to the recipient's TCP socket.
+Each hook can be handled by multiple modules subscribed to it. These hooks' handlers can stop the routing, e.g. when the stanza is blocked by `mod_privacy`. Finally, the `xmpp_presend_element` hook is called, which is used `mod_csi` and `mod_stream_management`. This is the last hook that can stop the routing - otherwise, the stanza is converted to binary data and sent to the recipient's TCP socket.
