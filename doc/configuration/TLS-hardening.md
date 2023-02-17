@@ -17,7 +17,7 @@ None of them is strictly better than the other.
 Below you may find a summary of the differences between them.
 
 * `fast_tls` is faster
-* There are options that OTP TLS (a.k.a `just_tls` in the `ejabberd_c2s` configuration) supports exclusively:
+* There are options that OTP TLS (a.k.a `just_tls` in the C2S listener configuration) supports exclusively:
     * Immediate connection drop when the client certificate is invalid
     * Certificate Revocation Lists
     * More flexible certificate verification options
@@ -49,7 +49,7 @@ The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 This setting affects the following MongooseIM components:
 
-* Raw XMPP over TCP connections, if `ejabberd_c2s` listener is configured to use `just_tls`
+* Raw XMPP over TCP connections, if a C2S listener is configured to use `just_tls`
 * All outgoing connections (databases, AMQP, SIP etc.)
 * HTTP endpoints
 

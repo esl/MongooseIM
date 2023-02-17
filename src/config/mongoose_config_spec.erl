@@ -306,8 +306,7 @@ xmpp_listener_extra(c2s) ->
                        <<"max_connections">> => #option{type = int_or_infinity,
                                                         validate = positive},
                        <<"c2s_state_timeout">> => #option{type = int_or_infinity,
-                                                          validate = non_negative,
-                                                          wrap = global_config},
+                                                          validate = non_negative},
                        <<"reuse_port">> => #option{type = boolean},
                        <<"backwards_compatible_session">> => #option{type = boolean},
                        <<"allowed_auth_methods">> =>

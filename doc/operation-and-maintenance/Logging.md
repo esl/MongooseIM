@@ -164,11 +164,11 @@ This example:
 
 Changes:
 
-- Enable module log level for `ejabberd_c2s`.
+- Enable module log level for `mongoose_c2s`.
 
 ```erlang
 %% Module log level
-{module_level, debug, [ejabberd_c2s]},
+{module_level, debug, [mongoose_c2s]},
 ```
 
 ## Separate log for module debugging
@@ -181,13 +181,13 @@ Motivation:
 
 This example:
 
-- Forwards all logging from a module `ejabberd_c2s` to a separate file.
+- Forwards all logging from a module `mongoose_c2s` to a separate file.
 - Keeps the other handlers intact.
 
 Changes:
 
 - Modify any existing handler to explicitly set log level.
-- Enable module log level for `ejabberd_c2s`.
+- Enable module log level for `mongoose_c2s`.
 - Add a new custom handler into `kernel.logger` options.
 
 Issues:
@@ -206,13 +206,13 @@ Issues:
 },
 ...
 %% Module log level
-{module_level, debug, [ejabberd_c2s]},
+{module_level, debug, [mongoose_c2s]},
 %% New handler
 {handler, disk_log_c2s, logger_disk_log_h, #{
      level => debug,
      config => #{
        %% Choose destination:
-       file => "{{mongooseim_log_dir}}/ejabberd_c2s.log",
+       file => "{{mongooseim_log_dir}}/mongoose_c2s.log",
        %% Common options:
        type => wrap,
        max_no_files => 5,
@@ -227,8 +227,8 @@ Issues:
        term_depth => 50
      }},
      filters => [
-       %% That filter matches messages from ejabberd_c2s module
-       {module_filter, {fun mongoose_log_filter:filter_module/2, [ejabberd_c2s]}}
+       %% That filter matches messages from mongoose_c2s module
+       {module_filter, {fun mongoose_log_filter:filter_module/2, [mongoose_c2s]}}
      ]
 }}
 ```

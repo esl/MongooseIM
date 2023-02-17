@@ -170,18 +170,10 @@ If a stanza is addressed to a subdomain of the served domain and this option is 
 
 ### `general.routing_modules`
 * **Syntax:** a list of strings representing the routing module names.
-* **Default:** `["mongoose_router_global", "mongoose_router_localdomain", "mongoose_router_external_localnode", "mongoose_router_external", "ejabberd_s2s"]`
+* **Default:** `["mongoose_router_global", "mongoose_router_localdomain", "mongoose_router_external_localnode", "mongoose_router_external", "mongoose_router_dynamic_domains", "ejabberd_s2s"]`
 * **Example:** `routing_modules = ["mongoose_router_global", "mongoose_router_localdomain"]`
 
-Provides an ordered list of modules used for routing messages. If one of the modules accepts packet for processing, the remaining ones are not called.
-
-Allowed module names:
-
-* `mongoose_router_global` - calls the `filter_packet` hook.
-* `mongoose_router_localdomain` - routes packets addressed to a domain supported by the local cluster.
-* `mongoose_router_external_localnode` - delivers packets to an XMPP component connected to the node, which processes the request.
-* `mongoose_router_external` - delivers packets to an XMPP component connected to the local cluster.
-* `ejabberd_s2s` - forwards packets to another XMPP cluster over XMPP Federation.
+Provides an ordered list of modules used for routing messages. All available modules are enabled by default, and you can change their order or disable some of them by providing your own list. See the [Message routing](../../developers-guide/Stanza-routing/#3-message-routing) section of the developer's guide for more information.
 
 ## Miscellaneous
 

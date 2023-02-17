@@ -1,9 +1,8 @@
 ## Module Description
 
 Enables [XEP-0198: Stream Management](http://xmpp.org/extensions/xep-0198.html).
-Most of the logic regarding session resumption and acknowledgement is implemented in `ejabberd_c2s`,
-while the management of the session tables and configuration is implemented in
-`mod_stream_management`.
+Implements logic regarding session resumption and acknowledgement as well as
+the management of the session tables and configuration.
 
 ## Options
 
@@ -87,32 +86,21 @@ The maximum lifespan of a record in memory. After this, they will be chased for 
 
 ## Implementation details
 
-### In `ejabberd_c2s`
+Stream management state data is stored under the `mod_stream_management` key in the `#c2s_data.state_mod` map.
+The state data record, `sm_state`, has the following fields:
 
-The `state` record in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
+* `buffer` - buffered stanzas not yet acked by the user
+* `buffer_size` - number of stanzas buffered for the user
+* `counter_in` - number of stanzas received by the server (server's `<h>`)
+* `counter_out` - number of stanzas delivered to the user and acked by the user (user's `<h>`)
+* `buffer_max` - server's capacity for buffering
+* `ack_freq` - how often the server requests acks
+* `peer` - in case of stream resumption, the `ejabberd_sm:sid()` identifiying the old session, or `gen_statem:from()` identifying the new session.
 
-```erlang
-stream_mgmt = false, %% whether SM is enabled, used in pattern matching inside `ejabberd_c2s`
-stream_mgmt_in = 0, %% amount of msgs on the server and not acked by the user (server's <h>)
-stream_mgmt_id, %% the mod_stream_management:smid() unique identifier
-stream_mgmt_out_acked = 0, %% messages delivered to the user, and acked by the user (user's <h>)
-stream_mgmt_buffer = [], %% buffered stanzas not yet acked by the user
-stream_mgmt_buffer_size = 0, %% amount of messages buffered for the user
-stream_mgmt_buffer_max, %% server's capacity for buffering
-stream_mgmt_ack_freq, %% how often the server requests acks
-stream_mgmt_resume_timeout, %% resumption timeout
-stream_mgmt_resume_tref, %% a ref() to pattern-match a given timeout
-stream_mgmt_resumed_from, %% a ejabberd_sm:sid() to keep identifiying the old session
-stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for buffer_full check
-```
+`mod_stream_management` introduces a new `resume_session` state to the C2S state machine,
+that is used by a session being closed to allow stream resumption.
 
-### In `mod_stream_management`
-
-This module is just a "starter", to provide the configuration values to new client connections. It
-also provides a basic session table API and adds a new stream feature.
-
-This module keeps the config values in its `gen_mod` records, and its mnesia backend keeps a
-table defined as follows:
+This module also has a Mnesia backend keeping a table defined as follows:
 
 ```erlang
 -record(sm_session,
@@ -124,8 +112,8 @@ table defined as follows:
 where `smid` is a unique identifier — in this case a random binary, and `sid` is an opaque session
 identifier from `ejabberd_sm`, which is needed to find the previous session we want to resume from.
 This module implements hooks that run on connection removals and session cleanups, in order to clean
-records from a dying session; and it also implements registration callbacks, used in `ejabberd_c2s`
-when a session is registered for resumption.
+records from a dying session; and it also implements registration callbacks,
+used when a session is registered for resumption.
 
 XEP version 1.6 requires the server to attempt giving the user the value of the server's `<h>` when
 a session timed out and cannot be resumed anymore. To be compliant with it, there's a second
@@ -151,4 +139,4 @@ the following:
 {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found}.
 ```
 
-And `ejabberd_c2s` will pattern-match and act accordingly.
+And `mod_stream_management` will pattern-match and act accordingly.
