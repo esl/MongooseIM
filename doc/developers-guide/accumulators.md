@@ -1,6 +1,6 @@
 # Accumulators
 
-XMPP stanza processing starts in the `ejabberd_c2s` module, which receives the stanza from a socket, or in `ejabberd_s2s_in` which receives stanzas from federated XMPP clusters.
+XMPP stanza processing starts in the `mongoose_c2s` module, which receives the stanza from a socket, or in `ejabberd_s2s_in` which receives stanzas from federated XMPP clusters.
 The stanza is processed and eventually it and/or other messages are sent out, either to the original sender, to another c2s process within the same MongooseIM installation, or to another XMPP server.
 
 At the beginning of the main processing chain an accumulator is created containing following set of keys:
@@ -11,6 +11,8 @@ At the beginning of the main processing chain an accumulator is created containi
 * `origin_location` - `{Module, Function Line}` - A place in the code where the accumulator was created.
 * `origin_stanza` - Original stanza that triggered the processing (in a binary).
 * `lserver` - Nameprepped domain of the processing context.
+* `host_type` - Host type that the domain belongs to.
+* `statem_acc` - Data related to the C2S state machine.
 * `stanza` - A map with information about the stanza being routed. May be missing in some processing chains (when they are not triggered by a stanza)!
     * `element` - `exml:element()` with the current stanza being routed.
     * `from_jid`, `to_jid` - `jid:jid()` with the sender and the recipient.
@@ -40,6 +42,8 @@ A constructor for accumulators. `new_acc_params()` is a map with following suppo
 
 * `location` - Should be a `{Module, Function, Line}` tuple (may be constructed with `?LOCATION` macro from `mongoose.hrl`). Its format is not enforced by the acc logic but Dialyzer will most probably complain about any other type.
 * `lserver` - Nameprepped domain of the processing context.
+* `host_type` (optional) - Host type that the domain belongs to.
+* `statem_acc` (optional) - Data related to the C2S state machine.
 * `element` (optional) - If present, it will be used as a source for the `stanza` map.
 * `from_jid`, `to_jid` (optional) - Values used to override `from` and `to` attributes of the `element`, respectively.
 
@@ -53,9 +57,11 @@ While allowed, stanza-less accumulators usage should be avoided.
 * `ref(t())`
 * `timestamp(t())`
 * `lserver(t())`
+* `host_type(t())`
 * `element(t())`
 * `to_jid(t())`
 * `from_jid(t())`
+* `get_statem_acc(t())`
 * `packet(t())` - Returns an `mongoose_c2s:packet()` if there is a stanza in the accumulator.
 * `stanza_name(t())` - Returns `name` value from `stanza` map.
 * `stanza_type(t())` - Returns `type` value from `stanza` map.
@@ -80,14 +86,15 @@ There is no scope protection, so every module may access all namespaces and keys
 
 ### Stripping
 
-Accumulator is used mostly to cache values for reuse within a c2s process; when it goes out to somewhere else, it is stripped of all unnecessary attributes except for:
+Accumulator is used mostly to cache values for reuse within a c2s process; when it goes out to somewhere else, it is stripped of all unnecessary attributes except for the non-strippable ones, e.g.
 
 * `ref`
 * `timestamp`
 * `origin_pid`
 * `origin_location`
-* `origin_stanza`
 * `non_strippable` - A set of permanent `NS:Key` pairs.
+
+For a complete list, see `mongoose_acc:default_non_strippable/0`
 
 If you want it to carry some additional values along with it, please use a dedicated api for setting "permanent" fields:
 
@@ -105,7 +112,8 @@ There are also many cached values which are not valid anymore when user changes 
 
 In order to strip an accumulator, please use `strip(strip_params(), t())`, where `strip_params()` is a map of:
 
-* `lserver` - New host context. Obviously, may be equal to the old value.
+* `lserver` - New domain. Obviously, may be equal to the old value.
+* `host_type` - Host type associated with the new domain, if there is one.
 * `element`, `from_jid`, `to_jid` - The same rules apply as in `update_stanza/2`.
 
 ## Main principles of an accumulator processing
@@ -124,7 +132,7 @@ When it comes to the accumulators, the following rules apply:
 * Avoid passing superfluous arguments to handlers - e.g. an `LServer` in hook args is redundant since it is already present in the accumulator.
 
 Most handlers have already been modified so that they accept an instance of `mongoose_acc:t()` as the first argument and return value by storing it inside it.
-How the accumulator is used within a module is up to the implementors of the module.
+How the accumulator is used within a module is up to the implementers of the module.
 
 ## IQs and accumulators
 
@@ -145,8 +153,8 @@ According to the current `mongoose_privacy:privacy_check_packet` implementation,
 
 ### Tracing
 
-`origin_stanza` field is fully immutable for the lifespan of a single accumulator, so it's easier to correlate one of the stanzas sent by a client with some "unexpected" stanza routed from a completely different part of a server.
-There are many places in the server, where an accumulator may be created, so `origin_location` makes it much easier to find out what event has triggered the processing.
+`origin_pid` and `origin_location` fields are immutable for the lifespan of a single accumulator.
+There are many places in the server, where an accumulator may be created, so `origin_location` makes it much easier to find out what event has triggered the processing, and `origin_pid` identifies the process in which it happened.
 
 ### Performance measurement
 
