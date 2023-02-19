@@ -76,13 +76,17 @@ tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
 socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Data}) ->
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
+            DataSize = byte_size(DecryptedData),
+            mongoose_metrics:update(global, [data, xmpp, received, raw], DataSize),
             DecryptedData;
         {error, Reason} ->
             {error, Reason}
     end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
+    mongoose_metrics:update(global, [data, xmpp, received, raw], byte_size(Data)),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
+    mongoose_metrics:update(global, [data, xmpp, received, raw], byte_size(Data)),
     Data.
 
 -spec socket_activate(state()) -> ok.
@@ -107,6 +111,7 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
     Text = exml:to_iolist(XML),
     case send(Transport, Socket, Text) of
         ok ->
+            mongoose_metrics:update(global, [data, xmpp, sent, raw], iolist_size(Text)),
             ok;
         Error ->
             Error

@@ -34,6 +34,11 @@
     modPrivacyStanzaAll
 ]).
 
+-define(GLOBAL_SPIRALS, [
+    [data, xmpp, received, raw],
+    [data, xmpp, sent, raw]
+]).
+
 -define(TOTAL_COUNTERS, [
     sessionCount
 ]).
