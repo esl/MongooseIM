@@ -1,7 +1,6 @@
 -module(mod_bosh_socket).
 
 -behaviour(gen_fsm_compat).
--behaviour(mongoose_transport).
 -behaviour(mongoose_c2s_socket).
 
 %% API
@@ -19,16 +18,6 @@
          set_client_acks/2,
          get_cached_responses/1]).
 
-%% ejabberd_socket compatibility
--export([starttls/2, starttls/3,
-         send/2,
-         send_xml/2,
-         change_shaper/2,
-         monitor/1,
-         get_sockmod/1,
-         close/1,
-         peername/1,
-         get_peer_certificate/1]).
 
 %% mongoose_c2s_socket callbacks
 -export([socket_new/2,
@@ -1026,68 +1015,6 @@ is_stream_prefix(#xmlel{name = <<"stream:error">>}) -> true;
 is_stream_prefix(#xmlel{name = <<"stream:features">>}) -> true;
 is_stream_prefix(_) -> false.
 
-%%--------------------------------------------------------------------
-%% ejabberd_socket compatibility
-%%--------------------------------------------------------------------
-
-%% @doc Should be negotiated on HTTP level.
--spec starttls(mod_bosh:socket(), _) -> no_return().
-starttls(SocketData, TLSOpts) ->
-    starttls(SocketData, TLSOpts, <<>>).
-
-
--spec starttls(mod_bosh:socket(), _, _) -> no_return().
-starttls(_SocketData, _TLSOpts, _Data) ->
-    throw({error, negotiate_tls_on_http_level}).
-
-
--spec send_xml(mod_bosh:socket(), mongoose_transport:send_xml_input()) -> ok.
-send_xml(Socket, {xmlstreamelement, XML}) ->
-    send(Socket, XML);
-send_xml(Socket, #xmlstreamstart{} = XML) ->
-    send(Socket, XML);
-send_xml(Socket, #xmlstreamend{} = XML) ->
-    send(Socket, XML).
-
-
--spec send(mod_bosh:socket(), _) -> 'ok'.
-send(#bosh_socket{pid = Pid}, Data) ->
-    Pid ! {send, Data},
-    ok.
-
--spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().
-change_shaper(SocketData, _Shaper) ->
-    %% TODO: we ignore shapers for now
-    SocketData.
-
-
--spec monitor(mod_bosh:socket()) -> reference().
-monitor(#bosh_socket{pid = Pid}) ->
-    erlang:monitor(process, Pid).
-
-
--spec get_sockmod(mod_bosh:socket()) -> module().
-get_sockmod(_SocketData) ->
-    ?MODULE.
-
-
--spec close(mod_bosh:socket()) -> 'close'.
-close(#bosh_socket{pid = Pid}) ->
-    Pid ! close.
-
--spec peername(mod_bosh:socket()) -> mongoose_transport:peername_return().
-peername(#bosh_socket{peer = Peer}) ->
-    {ok, Peer}.
-
-get_peer_certificate(S, _) ->
-    get_peer_certificate(S).
-
--spec get_peer_certificate(mod_bosh:socket()) -> mongoose_transport:peercert_return().
-get_peer_certificate(#bosh_socket{peercert = undefined}) ->
-    no_peer_cert;
-get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
-    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
-    {ok, Decoded}.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -1125,9 +1052,8 @@ socket_new(Socket, _LOpts) ->
     Socket.
 
 -spec socket_peername(mod_bosh:socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(Socket) ->
-    {ok, Peername} = peername(Socket),
-    Peername.
+socket_peername(#bosh_socket{peer = Peer}) ->
+    Peer.
 
 -spec tcp_to_tls(mod_bosh:socket(), mongoose_listener:options()) ->
   {ok, mod_bosh:socket()} | {error, term()}.
@@ -1154,13 +1080,21 @@ socket_send_xml(#bosh_socket{pid = Pid}, XML) ->
     ok.
 
 -spec socket_close(mod_bosh:socket()) -> ok.
-socket_close(Socket) ->
-    close(Socket),
+socket_close(#bosh_socket{pid = Pid}) ->
+    Pid ! close,
     ok.
 
+-spec get_peer_certificate(mod_bosh:socket(), mongoose_listener:options()) ->
+    mongoose_transport:peercert_return().
+get_peer_certificate(#bosh_socket{peercert = undefined}, _) ->
+    no_peer_cert;
+get_peer_certificate(#bosh_socket{peercert = PeerCert}, _) ->
+    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
+    {ok, Decoded}.
+
 -spec has_peer_cert(mod_bosh:socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(Socket, _LOpts) ->
-    get_peer_certificate(Socket) /= no_peer_cert.
+has_peer_cert(Socket, LOpts) ->
+    get_peer_certificate(Socket, LOpts) /= no_peer_cert.
 
 -spec is_channel_binding_supported(mod_bosh:socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->
