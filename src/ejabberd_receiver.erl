@@ -201,8 +201,6 @@ handle_info({Tag, _TCPSocket, Data},
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
         mongoose_tls ->
-            mongoose_metrics:update(global,
-                            [data, xmpp, received, encrypted_size], size(Data)),
             case mongoose_tls:recv_data(Socket, Data) of
                 {ok, TLSData} ->
                     NewState = process_data(TLSData, State),

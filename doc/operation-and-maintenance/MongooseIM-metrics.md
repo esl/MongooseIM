@@ -163,8 +163,6 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | ----------- | ---- | ----------- |
 | `[global, data, xmpp, received, xml_stanza_size]` | histogram | A size (in bytes) of a received stanza after decompression and decryption. |
 | `[global, data, xmpp, sent, xml_stanza_size]` | histogram | A size (in bytes) of a stanza sent to a client socket. |
-| `[global, data, xmpp, received, encrypted_size]` | histogram | A size (in bytes) of a received stanza before decryption. |
-| `[global, data, xmpp, sent, encrypted_size]` | histogram | A size (in bytes) of a stanza after encryption. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections` |
 | `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 

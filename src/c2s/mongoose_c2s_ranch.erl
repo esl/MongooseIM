@@ -74,7 +74,6 @@ tcp_to_tls(just_tls, TcpSocket, TlsConfig) ->
 -spec socket_handle_data(state(), {tcp | ssl, term(), iodata()}) ->
   iodata() | {raw, [exml:element()]} | {error, term()}.
 socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
             DecryptedData;
@@ -82,7 +81,6 @@ socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Da
             {error, Reason}
     end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, encrypted_size], iolist_size(Data)),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
     Data.
