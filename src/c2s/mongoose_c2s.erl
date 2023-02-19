@@ -937,8 +937,13 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc)
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
-send_xml(#c2s_data{socket = Socket}, Xml) ->
-    mongoose_c2s_socket:send_xml(Socket, Xml).
+send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
+    send_xml(Data, [XmlElement]);
+send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
+    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+      || El <- XmlElements],
+    mongoose_c2s_socket:send_xml(Socket, XmlElements).
+
 
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.

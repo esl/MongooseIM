@@ -109,7 +109,6 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
     Text = exml:to_iolist(XML),
     case send(Transport, Socket, Text) of
         ok ->
-            mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], iolist_size(Text)),
             ok;
         Error ->
             Error
