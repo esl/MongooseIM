@@ -28,8 +28,11 @@ all_cases() ->
     ].
 
 groups() ->
+    inbox_helper:maybe_run_in_parallel(groups1()) ++ groups2().
+
+groups1() ->
     [
-     {one2one, [parallel],
+     {one2one, [],
       [
        error_set_iq,
        error_bad_peer,
@@ -43,18 +46,22 @@ groups() ->
        remove_markers_when_removed_user,
        repeated_markers_produce_no_warnings
       ]},
-     {muclight, [parallel],
+     {muclight, [],
       [
        marker_is_stored_for_room,
        marker_can_be_fetched_for_room,
        marker_is_removed_when_user_leaves_room,
        markers_are_removed_when_room_is_removed
       ]},
-     {keep_private, [parallel],
+     {keep_private, [],
       [
        marker_is_not_routed_nor_fetchable,
        fetching_room_answers_only_own_marker
-      ]},
+      ]}
+    ].
+
+groups2() ->
+    [
      {regular, [],
       [
        {group, one2one},
