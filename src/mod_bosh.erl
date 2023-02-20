@@ -180,7 +180,7 @@ info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
     %% for BOSH 'data.xmpp.sent.raw' metric includes 'body' wrapping elements
     %% and resending attempts
-    mongoose_metrics:update(global, [data, xmpp, sent, raw], byte_size(BEl)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, bosh, raw], byte_size(BEl)),
     ?LOG_DEBUG(#{what => bosh_send, req_sid => S#rstate.req_sid, reply_body => BEl,
                  sid => exml_query:attr(El, <<"sid">>, <<"missing">>)}),
     Headers = bosh_reply_headers(),
@@ -305,7 +305,7 @@ forward_body(Req, #xmlel{} = Body, S) ->
 -spec handle_request(pid(), event_type(), exml:element()) -> ok.
 handle_request(Socket, EventType, Body) ->
     %% for BOSH 'data.xmpp.received.raw' metric includes 'body' wrapping elements
-    mongoose_metrics:update(global, [data, xmpp, received, raw], exml:xml_size(Body)),
+    mongoose_metrics:update(global, [data, xmpp, received, c2s, bosh, raw], exml:xml_size(Body)),
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
 

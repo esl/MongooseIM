@@ -34,6 +34,7 @@
          get_tls_last_message/1,
          is_ssl/1]).
 
+%% TBD: remove mongoose_transport compatibility
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
          send/2,
@@ -157,12 +158,12 @@ websocket_handle(Any, State) ->
 websocket_info({send, Text}, State) ->
     ?LOG_DEBUG(#{what => ws_send, text => <<"Sending text over WebSockets">>,
                  msg => Text, peer => State#ws_state.peer}),
-    mongoose_metrics:update(global, [data, xmpp, sent, raw], iolist_size(Text)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket, raw], iolist_size(Text)),
     {reply, {text, Text}, State};
 websocket_info({send_xml, XML}, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
-    mongoose_metrics:update(global, [data, xmpp, sent, raw], iolist_size(Text)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket, raw], iolist_size(Text)),
     ?LOG_DEBUG(#{what => ws_send, text => <<"Sending xml over WebSockets">>,
                  packet => Text, peer => State#ws_state.peer}),
     {reply, {text, Text}, State};
@@ -201,7 +202,7 @@ handle_text(Text, #ws_state{ parser = undefined } = State) ->
 handle_text(Text, #ws_state{parser = Parser} = State) ->
     case exml_stream:parse(Parser, Text) of
     {ok, NewParser, Elements} ->
-        mongoose_metrics:update(global, [data, xmpp, received, raw], byte_size(Text)),
+        mongoose_metrics:update(global, [data, xmpp, received, c2s, websocket, raw], byte_size(Text)),
         State1 = State#ws_state{ parser = NewParser },
         case maybe_start_fsm(Elements, State1) of
             {ok, State2} ->

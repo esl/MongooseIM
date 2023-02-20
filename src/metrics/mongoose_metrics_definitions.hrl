@@ -35,8 +35,15 @@
 ]).
 
 -define(GLOBAL_SPIRALS, [
-    [data, xmpp, received, raw],
-    [data, xmpp, sent, raw]
+    %% TBD report raw data metrics for s2s and components conection
+    [data, xmpp, received, c2s, tcp, raw],
+    [data, xmpp, received, c2s, tls, raw],
+    [data, xmpp, received, c2s, bosh, raw],
+    [data, xmpp, received, c2s, websocket, raw],
+    [data, xmpp, sent, c2s, tcp, raw],
+    [data, xmpp, sent, c2s, tls, raw],
+    [data, xmpp, sent, c2s, bosh, raw],
+    [data, xmpp, sent, c2s, websocket, raw]
 ]).
 
 -define(TOTAL_COUNTERS, [
