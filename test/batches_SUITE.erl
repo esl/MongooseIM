@@ -33,7 +33,8 @@ groups() ->
        sync_aggregates_down_everything,
        aggregating_error_is_handled_and_can_continue,
        aggregation_might_produce_noop_requests,
-       async_request
+       async_request,
+       retry_request
       ]}
     ].
 
@@ -303,3 +304,37 @@ handle_call(N, _From, Acc) ->
 
 handle_cast(_Msg, Acc) ->
     {noreply, Acc}.
+
+%% Retry test
+
+retry_request(_) ->
+    Opts = (retry_aggregator_opts())#{pool_id => retry_request},
+    {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
+    gen_server:cast(Pid, {task, key, 1}),
+    receive {task_called, A} -> 0 = A after 5000 -> error(timeout) end,
+    receive {task_called, B} -> 1 = B after 5000 -> error(timeout) end,
+    gen_server:cast(Pid, {task, key, 1}),
+    receive {task_called, C} -> 0 = C after 5000 -> error(timeout) end,
+    receive {task_called, D} -> 1 = D after 5000 -> error(timeout) end,
+    receive {task_called, _} -> error(unexpected_msg) after 0 -> ok end.
+
+retry_aggregator_opts() ->
+    #{host_type => host_type(),
+      request_callback => fun do_retry_request/2,
+      aggregate_callback => fun aggregate_sum/3,
+      verify_callback => fun validate_ok/3,
+      flush_extra => #{host_type => host_type(), origin_pid => self()}}.
+
+validate_ok(ok, _, _) ->
+    ok;
+validate_ok({error, Reason}, _, _) ->
+    {error, Reason}.
+
+%% Fails first task
+do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+    Pid ! {task_called, Retry},
+    Ref = make_ref(),
+    Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
+    %% Simulate gen_server call reply
+    self() ! {[alias|Ref], Reply},
+    Ref.
