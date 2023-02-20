@@ -22,7 +22,7 @@
 
 -export([add_hooks/1, delete_hooks/1]).
 
--export([user_send_packet/3,
+-export([user_send_message/3,
          filter_local_packet/3,
          user_present/3,
          user_not_present/3,
@@ -54,9 +54,9 @@ filter_local_packet({From, To, Acc0, Packet}, _, _) ->
           end,
     {ok, {From, To, Acc, Packet}}.
 
--spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
+-spec user_send_message(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
-user_send_packet(Acc, _, _) ->
+user_send_message(Acc, _, _) ->
     Packet = mongoose_acc:packet(Acc),
     ChatType = chat_type(Acc),
     ResultAcc = if
@@ -132,6 +132,6 @@ hooks(HostType) ->
         {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 80},
         {unset_presence_hook, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
         {user_available_hook, HostType, fun ?MODULE:user_present/3, #{}, 90},
-        {user_send_packet, HostType, fun ?MODULE:user_send_packet/3, #{}, 90},
+        {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 90},
         {unacknowledged_message, HostType, fun ?MODULE:unacknowledged_message/3, #{}, 90}
     ].

@@ -147,7 +147,8 @@ send(#{host_type := HostType, from := From, to := To, stanza := Stanza}) ->
     Params = mongoose_c2s:hook_arg(C2SData, session_established, internal, Stanza, undefined),
     case mongoose_c2s_hooks:user_send_packet(HostType, Acc, Params) of
         {ok, Acc1} ->
-            ejabberd_router:route(From, To, Acc1);
+            {_, Acc2} = handle_message(HostType, Acc1, Params),
+            ejabberd_router:route(From, To, Acc2);
         {stop, Acc1} ->
             Acc1
     end,
@@ -225,3 +226,11 @@ fold({_, _} = Result, _) ->
     Result;
 fold(M, [Step | Rest]) when is_map(M) ->
     fold(Step(M), Rest).
+
+handle_message(HostType, Acc, Params) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
+            mongoose_c2s_hooks:user_send_message(HostType, Acc, Params);
+        _ ->
+            {ok, Acc}
+    end.
