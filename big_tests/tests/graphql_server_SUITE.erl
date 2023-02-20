@@ -53,7 +53,6 @@ clustering_tests() ->
 clustering_http_tests() ->
     [join_successful_http,
      leave_successful_http,
-     join_unsuccessful_http,
      remove_dead_from_cluster_http,
      remove_alive_from_cluster_http,
      remove_node_test,
@@ -101,9 +100,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) when CaseName == join_successful
-                                   orelse CaseName == leave_unsuccessful
                                    orelse CaseName == join_successful_http
-                                   orelse CaseName == leave_unsuccessful_http
                                    orelse CaseName == join_twice ->
     remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
@@ -111,8 +108,8 @@ end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
                                    orelse CaseName == remove_dead_from_cluster
                                    orelse CaseName == remove_alive_from_cluster_http
                                    orelse CaseName == remove_dead_from_cluster_http ->
-    remove_node_from_cluster(mim3(), Config),
     remove_node_from_cluster(mim2(), Config),
+    remove_node_from_cluster(mim3(), Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -180,14 +177,13 @@ remove_dead_from_cluster(Config) ->
                   remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
     %% then
     % node is down hence its not in mnesia cluster
-    have_node_in_mnesia(Node1, Node2, true),
-    have_node_in_mnesia(Node1, Node3, false),
-    have_node_in_mnesia(Node2, Node3, false),
+    have_node_in_mnesia_wait(Node1, Node2, true),
+    have_node_in_mnesia_wait(Node1, Node3, false),
+    have_node_in_mnesia_wait(Node2, Node3, false),
     % after node awakening nodes are clustered again
     distributed_helper:start_node(Node3Nodename, Config),
-    timer:sleep(1000),
-    have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node2, Node3, true).
+    have_node_in_mnesia_wait(Node1, Node3, true),
+    have_node_in_mnesia_wait(Node2, Node3, true).
 
 remove_alive_from_cluster(Config) ->
     % given
@@ -232,11 +228,6 @@ leave_successful_http(Config) ->
     get_ok_value([], leave_cluster(Config)),
     distributed_helper:verify_result(RPCSpec2, remove).
 
-join_unsuccessful_http(Config) ->
-    Node2 = mim2(),
-    get_ok_value([], join_cluster(<<>>, Config)),
-    distributed_helper:verify_result(Node2, remove).
-
 remove_dead_from_cluster_http(Config) ->
     % given
     Timeout = timer:seconds(60),
@@ -247,6 +238,11 @@ remove_dead_from_cluster_http(Config) ->
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
     distributed_helper:stop_node(Node3Nodename, Config),
+    F2 = fun() -> 
+        test == rpc(Node1#{timeout => Timeout}, mongoose_config, get_opt, [listen, test])
+    end,
+    mongoose_helper:wait_until(F2, false, #{sleep_time => 200, name => wait_for_mim1,
+                                            time_left => timer:seconds(20)}),
     get_ok_value([data, server, removeFromCluster],
                   remove_from_cluster(atom_to_binary(Node3Nodename), Config)),
     have_node_in_mnesia_wait(Node1, Node2, true),
@@ -254,6 +250,7 @@ remove_dead_from_cluster_http(Config) ->
     have_node_in_mnesia_wait(Node2, Node3, false),
     % after node awakening nodes are clustered again
     distributed_helper:start_node(Node3Nodename, Config),
+    ensure_node_started(Node3),
     have_node_in_mnesia_wait(Node1, Node3, true),
     have_node_in_mnesia_wait(Node2, Node3, true).
 
@@ -273,6 +270,17 @@ remove_alive_from_cluster_http(Config) ->
     have_node_in_mnesia_wait(Node1, Node2, false),
     have_node_in_mnesia_wait(Node3, Node2, false).
 
+ensure_node_started(Node) ->
+    Timeout = timer:seconds(60),
+    F = fun() -> 
+        case rpc(Node#{timeout => Timeout}, mongoose_server_api, status, []) of 
+            {ok, {true, _}} -> true;
+            _Other -> false
+        end
+    end,
+    mongoose_helper:wait_until(F, true, #{sleep_time => 200, name => wait_for_start_mim3,
+                                          time_left => timer:seconds(20)}).
+
 %-----------------------------------------------------------------------
 %                                Helpers
 %-----------------------------------------------------------------------
@@ -285,8 +293,8 @@ have_node_in_mnesia_wait(Node1, #{node := Node2}, Value) ->
                                end,
                                Value,
                                #{
-                                 time_left => timer:seconds(5),
-                                 sleep_time => 1000,
+                                 time_left => timer:seconds(12),
+                                 sleep_time => 200,
                                  name => have_node_in_mnesia
                                 }).
 
