@@ -27,7 +27,8 @@
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
 
 all() ->
-    [{group, ws_chat},
+    [metrics_test,
+     {group, ws_chat},
      {group, wss_chat}].
 
 groups() ->
@@ -47,23 +48,24 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = escalus:init_per_suite(Config),
+    escalus:create_users(Config1, escalus:get_users([alice, geralt, geralt_s, carol])).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    Config1 = escalus:delete_users(Config, escalus:get_users([alice, geralt, geralt_s, carol])),
+    escalus:end_per_suite(Config1).
 
 init_per_group(GroupName, Config) ->
-    Config1 = escalus:create_users(Config, escalus:get_users([alice, geralt, geralt_s, carol])),
     case GroupName of
         wss_chat ->
-            [{user, geralt_s} | Config1];
+            [{user, geralt_s} | Config];
         _ ->
-            [{user, geralt} | Config1]
+            [{user, geralt} | Config]
     end.
 
 
-end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, geralt, geralt_s, carol])).
+end_per_group(_GroupName, _Config) ->
+    ok.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -74,6 +76,25 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Message tests
 %%--------------------------------------------------------------------
+
+metrics_test(Config) ->
+    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed},
+                       {[global, data, xmpp, received, c2s, websocket, raw], changed},
+                       {[global, data, xmpp, sent, c2s, websocket, raw], changed},
+                       {[global, data, xmpp, received, c2s, tcp, raw], 0}, 
+                       {[global, data, xmpp, sent, c2s, tcp, raw], 0}],
+    escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
+                  [{geralt, 1}, {geralt_s, 1}],
+                  fun(Geralt, GeraltS) ->
+
+        escalus_client:send(GeraltS, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
+        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Geralt)),
+
+        escalus_client:send(Geralt, escalus_stanza:chat_to(GeraltS, <<"Hello!">>)),
+        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS))
+
+        end).
 
 chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {carol, 1}],
