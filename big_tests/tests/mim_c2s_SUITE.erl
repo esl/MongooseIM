@@ -4,6 +4,9 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(distributed_helper, [mim/0]).
 
@@ -13,7 +16,8 @@
 
 all() ->
     [
-     {group, basic}
+     {group, basic},
+     {group, backwards_compatible_session}
     ].
 
 groups() ->
@@ -21,7 +25,12 @@ groups() ->
      {basic, [parallel],
       [
        two_users_can_log_and_chat,
-       too_big_stanza_rejected
+       too_big_stanza_rejected,
+       verify_session_establishment_is_not_announced
+      ]},
+     {backwards_compatible_session, [parallel],
+      [
+       verify_session_establishment_is_announced
       ]}
     ].
 
@@ -30,34 +39,39 @@ groups() ->
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
     HostType = domain_helper:host_type(),
-    Steps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_stopped(HostType, [mod_presence]),
     EscalusOverrides = [{initial_activity, fun(_) -> ok end},
                         {start_ready_clients, fun ?MODULE:escalus_start/2}],
-    Config1 = save_c2s_listener(Config),
-    Config2 = dynamic_modules:save_modules(HostType, Config1),
-    dynamic_modules:ensure_stopped(HostType, [mod_presence]),
-    Config3 = escalus_users:update_userspec(Config2, alice, connection_steps, Steps),
-    Config4 = escalus_users:update_userspec(Config3, bob, connection_steps, Steps),
-    configure_c2s_listener(Config4, #{backwards_compatible_session => false, max_stanza_size => 1024}),
-    escalus:init_per_suite([{escalus_overrides, EscalusOverrides} | Config4 ]).
+    escalus:init_per_suite([{escalus_overrides, EscalusOverrides} | Config1 ]).
 
 end_per_suite(Config) ->
-    restore_c2s_listener(Config),
-    escalus_fresh:clean(),
     dynamic_modules:restore_modules(Config),
+    mongoose_helper:restore_config(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(_, Config) ->
+init_per_group(basic, Config) ->
+    Steps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
+    Config1 = save_c2s_listener(Config),
+    Config2 = escalus_users:update_userspec(Config1, alice, connection_steps, Steps),
+    Config3 = escalus_users:update_userspec(Config2, bob, connection_steps, Steps),
+    configure_c2s_listener(Config3, #{backwards_compatible_session => false, max_stanza_size => 1024}),
+    Config3;
+init_per_group(backwards_compatible_session, Config) ->
     Config.
 
-end_per_group(_GroupName, Config) ->
+end_per_group(basic, Config) ->
+    escalus_fresh:clean(),
+    restore_c2s_listener(Config),
+    Config;
+end_per_group(backwards_compatible_session, Config) ->
+    escalus_fresh:clean(),
     Config.
 
 init_per_testcase(Name, Config) ->
     escalus:init_per_testcase(Name, Config).
 
 end_per_testcase(Name, Config) ->
-    mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(Name, Config).
 
 %%--------------------------------------------------------------------
@@ -79,6 +93,25 @@ too_big_stanza_rejected(Config) ->
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
     true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
+
+verify_session_establishment_is_not_announced(Config) ->
+    MaybeSessionFeature = start_connection_maybe_get_session_feature(Config),
+    ?assertEqual(undefined, MaybeSessionFeature).
+
+verify_session_establishment_is_announced(Config) ->
+    MaybeSessionFeature = start_connection_maybe_get_session_feature(Config),
+    ?assertNotEqual(undefined, MaybeSessionFeature).
+
+start_connection_maybe_get_session_feature(Config) ->
+    Steps = [start_stream, stream_features],
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    {ok, Client = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+    ok = escalus_auth:auth_plain(Client, Props),
+    escalus_connection:reset_parser(Client),
+    Client1 = escalus_session:start_stream(Client),
+    Features = escalus_connection:get_stanza(Client1, wait_for_features),
+    escalus_connection:stop(Client1),
+    exml_query:path(Features, [{element_with_ns, <<"session">>, ?NS_SESSION}]).
 
 %%--------------------------------------------------------------------
 %% helpers
