@@ -451,7 +451,7 @@ stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LSer
 stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
                                            lang = Lang, listener_opts = LOpts} = S) ->
     send_header(S, LServer, <<"1.0">>, Lang),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer, LOpts),
     send_element_from_server_jid(S, StreamFeatures),
     {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout(LOpts)}.
 

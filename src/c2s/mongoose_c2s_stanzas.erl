@@ -7,7 +7,7 @@
          stream_header/4,
          stream_features_before_auth/4,
          tls_proceed/0,
-         stream_features_after_auth/2,
+         stream_features_after_auth/3,
          sasl_success_stanza/1,
          sasl_failure_stanza/1,
          sasl_challenge_stanza/1,
@@ -87,9 +87,17 @@ tls_proceed() ->
     #xmlel{name = <<"proceed">>,
            attrs = [{<<"xmlns">>, ?NS_TLS}]}.
 
--spec stream_features_after_auth(mongooseim:host_type(), jid:lserver()) -> exml:element().
-stream_features_after_auth(HostType, LServer) ->
+-spec stream_features_after_auth(mongooseim:host_type(), jid:lserver(), mongoose_listener:options()) ->
+    exml:element().
+stream_features_after_auth(HostType, LServer, #{backwards_compatible_session := false}) ->
     Features = [#xmlel{name = <<"bind">>,
+                       attrs = [{<<"xmlns">>, ?NS_BIND}]}
+                | hook_enabled_features(HostType, LServer)],
+    stream_features(Features);
+stream_features_after_auth(HostType, LServer, #{backwards_compatible_session := true}) ->
+    Features = [#xmlel{name = <<"session">>,
+                       attrs = [{<<"xmlns">>, ?NS_SESSION}]},
+                #xmlel{name = <<"bind">>,
                        attrs = [{<<"xmlns">>, ?NS_BIND}]}
                 | hook_enabled_features(HostType, LServer)],
     stream_features(Features).
