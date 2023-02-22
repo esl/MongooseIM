@@ -34,7 +34,8 @@ groups() ->
        aggregating_error_is_handled_and_can_continue,
        aggregation_might_produce_noop_requests,
        async_request,
-       retry_request
+       retry_request,
+       retry_request_cancelled
       ]}
     ].
 
@@ -335,6 +336,30 @@ do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Pid ! {task_called, Retry},
     Ref = make_ref(),
     Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
+    %% Simulate gen_server call reply
+    self() ! {[alias|Ref], Reply},
+    Ref.
+
+retry_request_cancelled(_) ->
+    Opts = (retry_aggregator_opts())#{pool_id => retry_request_cancelled,
+                                      request_callback => fun do_cancel_request/2},
+    {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
+    gen_server:cast(Pid, {task, key, 1}),
+    receive {task_called, A} -> 0 = A after 5000 -> error(timeout) end,
+    %% 3 retries
+    receive {task_called, B} -> 1 = B after 5000 -> error(timeout) end,
+    receive {task_called, C} -> 2 = C after 5000 -> error(timeout) end,
+    receive {task_called, D} -> 3 = D after 5000 -> error(timeout) end,
+    receive {task_called, _} -> error(unexpected_msg) after 0 -> ok end,
+    %% Second task gets started
+    gen_server:cast(Pid, {task, key, 2}),
+    receive {task_called, AA} -> 0 = AA after 5000 -> error(timeout) end.
+
+%% Fails all tries
+do_cancel_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+    Pid ! {task_called, Retry},
+    Ref = make_ref(),
+    Reply = {error, simulate_error},
     %% Simulate gen_server call reply
     self() ! {[alias|Ref], Reply},
     Ref.
