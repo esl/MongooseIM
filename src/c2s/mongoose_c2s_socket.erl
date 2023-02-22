@@ -29,11 +29,11 @@
 -callback socket_close(state()) -> ok.
 -callback socket_send_xml(state(), iodata() | exml_stream:element() | [exml_stream:element()]) ->
     ok | {error, term()}.
--callback get_peer_certificate(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> peercert_return().
--callback has_peer_cert(mongoose_c2s_socket:state(), mongoose_c2s:listener_opts()) -> boolean().
--callback is_channel_binding_supported(mongoose_c2s_socket:state()) -> boolean().
--callback get_tls_last_message(mongoose_c2s_socket:state()) -> {ok, binary()} | {error, term()}.
--callback is_ssl(mongoose_c2s_socket:state()) -> boolean().
+-callback get_peer_certificate(state(), mongoose_c2s:listener_opts()) -> peercert_return().
+-callback has_peer_cert(state(), mongoose_c2s:listener_opts()) -> boolean().
+-callback is_channel_binding_supported(state()) -> boolean().
+-callback get_tls_last_message(state()) -> {ok, binary()} | {error, term()}.
+-callback is_ssl(state()) -> boolean().
 
 -record(c2s_socket, {module :: module(),
                      state :: state()}).

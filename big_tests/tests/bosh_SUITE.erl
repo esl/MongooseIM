@@ -169,6 +169,13 @@ required_bosh_opts(_Group) ->
 %%--------------------------------------------------------------------
 
 create_and_terminate_session(Config) ->
+    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed},
+                       {[global, data, xmpp, received, c2s, bosh, raw], changed},
+                       {[global, data, xmpp, sent, c2s, bosh, raw], changed},
+                       {[global, data, xmpp, received, c2s, tcp, raw], 0}, 
+                       {[global, data, xmpp, sent, c2s, tcp, raw], 0}],
+    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
     Conn = escalus_connection:connect(CarolSpec),
@@ -187,6 +194,8 @@ create_and_terminate_session(Config) ->
     Sid = get_bosh_sid(Conn),
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = bosh_send_raw(Conn, Terminate),
+
+    escalus_mongooseim:post_story(PreStoryData),
 
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().

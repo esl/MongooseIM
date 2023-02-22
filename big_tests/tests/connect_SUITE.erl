@@ -87,6 +87,7 @@ tls_groups()->
         {group, starttls},
         {group, c2s_noproc},
         {group, feature_order},
+        metrics_test, %% must follow right after feature_order group
         {group, tls}
     ].
 
@@ -345,6 +346,18 @@ verify_features(Conn, Features) ->
 
 get_feature(Feature, FeatureList) ->
     lists:keyfind(Feature, 1, FeatureList).
+
+metrics_test(Config) ->
+    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed},
+                       {[global, data, xmpp, received, c2s, tls, raw], changed},
+                       {[global, data, xmpp, sent, c2s, tls, raw], changed},
+                       %% TCP traffic before starttls
+                       {[global, data, xmpp, received, c2s, tcp, raw], changed}, 
+                       {[global, data, xmpp, sent, c2s, tcp, raw], changed}],
+    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
+    tls_authenticate(Config),
+    escalus_mongooseim:post_story(PreStoryData).
 
 tls_authenticate(Config) ->
     %% Given

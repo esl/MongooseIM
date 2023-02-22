@@ -456,7 +456,7 @@ configure_mod_vcard(Config) ->
 ldap_opts() ->
     LDAPOpts = #{filter => <<"(objectClass=inetOrgPerson)">>,
                  base => <<"ou=Users,dc=esl,dc=com">>,
-                 search_fields => [{"Full Name", "cn"}, {"User", "uid"}],
+                 search_fields => [{<<"Full Name">>, <<"cn">>}, {<<"User">>, <<"uid">>}],
                  vcard_map => [{"FN", "%s", ["cn"]}]},
     LDAPOptsWithDefaults = config_parser_helper:config([modules, mod_vcard, ldap], LDAPOpts),
     config_parser_helper:mod_config(mod_vcard, #{backend => ldap, ldap => LDAPOptsWithDefaults}).

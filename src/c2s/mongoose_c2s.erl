@@ -685,7 +685,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"m
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, HookParams),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
-    mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
+    mongoose_metrics:update(HostType, [data, xmpp, message, processing_time], (TS1 - TS0)),
     Acc2;
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, HookParams),
@@ -937,8 +937,13 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc)
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
-send_xml(#c2s_data{socket = Socket}, Xml) ->
-    mongoose_c2s_socket:send_xml(Socket, Xml).
+send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
+    send_xml(Data, [XmlElement]);
+send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
+    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+      || El <- XmlElements],
+    mongoose_c2s_socket:send_xml(Socket, XmlElements).
+
 
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.

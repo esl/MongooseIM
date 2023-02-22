@@ -78,7 +78,14 @@ end_per_testcase(Name, Config) ->
 %% tests
 %%--------------------------------------------------------------------
 two_users_can_log_and_chat(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed},
+                       {[global, data, xmpp, received, c2s, tcp, raw], changed},
+                       {[global, data, xmpp, sent, c2s, tcp, raw], changed},
+                       {[global, data, xmpp, received, c2s, tls, raw], 0},
+                       {[global, data, xmpp, sent, c2s, tls, raw], 0}],
+    escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
+                        [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Bob)),
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
