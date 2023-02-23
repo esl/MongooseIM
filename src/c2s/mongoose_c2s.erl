@@ -153,7 +153,8 @@ handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData)
                     handle_c2s_packet(StateData, C2SState, El);
                 false ->
                     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:jid_malformed()),
-                    send_element_from_server_jid(StateData, Err)
+                    send_element_from_server_jid(StateData, Err),
+                    maybe_retry_state(StateData, C2SState)
             end
     end;
 
@@ -457,7 +458,7 @@ stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LSer
 stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
                                            lang = Lang, listener_opts = LOpts} = S) ->
     send_header(S, LServer, <<"1.0">>, Lang),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer, LOpts),
     send_element_from_server_jid(S, StreamFeatures),
     {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout(LOpts)}.
 
@@ -671,7 +672,6 @@ verify_to(El) ->
             end
     end.
 
-
 -spec handle_foreign_packet(data(), state(), exml:element()) -> fsm_res().
 handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, El) ->
     ?LOG_DEBUG(#{what => packet_before_session_established_sent, packet => El, c2s_pid => self()}),
@@ -703,7 +703,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"m
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, HookParams),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
-    mongoose_metrics:update(HostType, [data, xmpp, sent, message, processing_time], (TS1 - TS0)),
+    mongoose_metrics:update(HostType, [data, xmpp, message, processing_time], (TS1 - TS0)),
     Acc2;
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, HookParams),
@@ -955,8 +955,13 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc)
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
 
 -spec send_xml(data(), exml_stream:element() | [exml_stream:element()]) -> maybe_ok().
-send_xml(#c2s_data{socket = Socket}, Xml) ->
-    mongoose_c2s_socket:send_xml(Socket, Xml).
+send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
+    send_xml(Data, [XmlElement]);
+send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
+    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+      || El <- XmlElements],
+    mongoose_c2s_socket:send_xml(Socket, XmlElements).
+
 
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.

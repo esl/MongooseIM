@@ -102,7 +102,7 @@ groups() ->
         timestamp_is_not_reset_with_setting_properties,
         {group, pagination}
       ]},
-     {pagination, [parallel], [
+     {pagination, [], [
         pagination_error_conditions,
         pagination_overrides_form,
         can_paginate_forwards,
