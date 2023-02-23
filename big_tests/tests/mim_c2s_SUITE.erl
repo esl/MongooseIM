@@ -21,7 +21,8 @@ groups() ->
      {basic, [parallel],
       [
        two_users_can_log_and_chat,
-       too_big_stanza_rejected
+       too_big_stanza_rejected,
+       message_sent_to_malformed_jid_results_in_error
       ]}
     ].
 
@@ -79,6 +80,17 @@ too_big_stanza_rejected(Config) ->
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
     true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
+
+message_sent_to_malformed_jid_results_in_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+
+        % Alice sends a message to Bob
+        Stanza = escalus_client:send_and_wait(Alice, escalus_stanza:chat_to(<<"@invalid">>, <<"Hi!">>)),
+
+        % Alice gets the error message
+        escalus_assert:is_error(Stanza, <<"modify">>, <<"jid-malformed">>)
+
+    end).
 
 %%--------------------------------------------------------------------
 %% helpers

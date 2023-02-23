@@ -148,7 +148,13 @@ handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData)
         false ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from());
         true ->
-            handle_c2s_packet(StateData, C2SState, El)
+            case verify_to(El) of
+                true ->
+                    handle_c2s_packet(StateData, C2SState, El);
+                false ->
+                    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:jid_malformed()),
+                    send_element_from_server_jid(StateData, Err)
+            end
     end;
 
 handle_event(internal, {flush, Acc}, C2SState, StateData) ->
@@ -653,6 +659,18 @@ verify_from(El, StateJid) ->
                     jid:are_equal(GivenJid, StateJid)
             end
     end.
+
+verify_to(El) ->
+    case exml_query:attr(El, <<"to">>) of
+        undefined ->
+            true;
+        Jid ->
+            case jid:from_binary(Jid) of
+                error -> false;
+                _ -> true
+            end
+    end.
+
 
 -spec handle_foreign_packet(data(), state(), exml:element()) -> fsm_res().
 handle_foreign_packet(StateData = #c2s_data{host_type = HostType, lserver = LServer}, C2SState, El) ->
