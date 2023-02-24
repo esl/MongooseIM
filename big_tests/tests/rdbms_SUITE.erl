@@ -24,6 +24,8 @@
 
 -import(domain_helper, [host_type/0]).
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -68,6 +70,7 @@ rdbms_queries_cases() ->
      test_cast_insert,
      test_request_insert,
      test_request_transaction,
+     test_restart_transaction_with_execute,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -81,7 +84,10 @@ init_per_suite(Config) ->
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
-        true -> escalus:init_per_suite(Config)
+        true ->
+            %% XXX inject_module does not really work well with --rerun-big-tests flag
+            mongoose_helper:inject_module(?MODULE),
+            escalus:init_per_suite(Config)
     end.
 
 end_per_suite(Config) ->
@@ -93,6 +99,9 @@ init_per_testcase(test_incremental_upsert, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(test_restart_transaction_with_execute, Config) ->
+    rpc(mim(), meck, unload, []),
+    escalus:end_per_testcase(test_restart_transaction_with_execute, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
     sql_query(Config, <<"TRUNCATE TABLE inbox">>),
     escalus:end_per_testcase(test_incremental_upsert, Config);
@@ -387,6 +396,30 @@ test_request_transaction(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_restart_transaction_with_execute(Config) ->
+    erase_table(Config),
+    sql_prepare(Config, insert_int8, test_types, [int8],
+                <<"INSERT INTO test_types(int8) VALUES (?)">>),
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
+                                   {error, simulated_db_error}]),
+    %% Check that mocking works
+    {error, simulated_db_error} = sql_execute(Config, insert_int8, [1]),
+    %% Executed by the MIM node
+    HostType = host_type(),
+    Pid = self(),
+    F = fun() -> Pid ! called, mongoose_rdbms:execute(HostType, insert_int8, [2]) end,
+    sql_transaction(Config, F),
+    called_times(11), %% 1 first run + 10 restarts
+    ok.
+
+called_times(0) ->
+    %% Check that there are no more calls
+    receive called -> error(unexpected) after 0 -> ok end;
+called_times(N) ->
+    receive called -> ok after 5000 -> error({called_times_timeout, N}) end,
+    called_times(N - 1).
+
 test_incremental_upsert(Config) ->
     case is_odbc() of
         true ->
@@ -453,6 +486,9 @@ sql_query_request(_Config, Query) ->
 
 sql_transaction_request(_Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), Query]).
+
+sql_transaction(_Config, F) ->
+    slow_rpc(mongoose_rdbms, sql_transaction, [host_type(), F]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
