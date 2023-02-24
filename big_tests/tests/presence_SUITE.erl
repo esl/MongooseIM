@@ -17,6 +17,7 @@
 -module(presence_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -41,6 +42,7 @@ all() ->
 
 groups() ->
     [{presence, [parallel], [available,
+                             explicit_available,
                              available_direct,
                              available_direct_then_unavailable,
                              available_direct_then_disconnect,
@@ -125,12 +127,18 @@ end_rosters_remove(Config) ->
 %%--------------------------------------------------------------------
 
 available(Config) ->
+    Presence = escalus_stanza:presence(<<"available">>),
+    run_send_available_presence(Config, Presence).
+
+explicit_available(Config) ->
+    Presence = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"available">>}]},
+    run_send_available_presence(Config, Presence).
+
+run_send_available_presence(Config, Presence) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-
-        escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
+        escalus:send(Alice, Presence),
         escalus:assert(is_presence, escalus:wait_for_stanza(Alice))
-
-        end).
+    end).
 
 available_direct(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
