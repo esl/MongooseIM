@@ -348,7 +348,8 @@ handle_received_available(Acc, Presences) ->
 -spec presence_update(
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), undefined | binary()) ->
     mongoose_acc:t().
-presence_update(Acc, FromJid, ToJid, Packet, StateData, undefined) ->
+presence_update(Acc, FromJid, ToJid, Packet, StateData, Available)
+  when Available =:= undefined; Available =:= <<"available">> ->
     Presences = maybe_get_handler(StateData),
     presence_update_to_available(Acc, FromJid, ToJid, Packet, StateData, Presences);
 presence_update(Acc, FromJid, ToJid, Packet, StateData, <<"unavailable">>) ->
