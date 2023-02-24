@@ -28,10 +28,10 @@ fill_metadata_filter(Event=#{msg := {report, Msg}, meta := Meta}, Fields) ->
 fill_metadata_filter(Event, _) ->
     Event.
 
-format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_state := State}}}, _) ->
-    StateMap = filter_undefined(c2s_state_to_map(State)),
+format_c2s_state_filter(Event=#{msg := {report, Msg=#{c2s_data := State}}}, _) ->
+    StateMap = filter_undefined(c2s_data_to_map(State)),
     %% C2S fields have lower priority, if the field is already present in msg.
-    Msg2 = maps:merge(StateMap, maps:remove(c2s_state, Msg)),
+    Msg2 = maps:merge(StateMap, maps:remove(c2s_data, Msg)),
     Event#{msg => {report, Msg2}};
 format_c2s_state_filter(Event, _) ->
     Event.
@@ -103,7 +103,7 @@ remove_fields_filter(Event, _) ->
     Event.
 
 
-c2s_state_to_map(State) ->
+c2s_data_to_map(State) ->
     SocketMap = format_socket(mongoose_c2s:get_socket(State)),
     Jid = mongoose_c2s:get_jid(State),
     SocketMap#{
