@@ -153,8 +153,8 @@ handle_event(internal, #xmlel{} = El, session_established = C2SState, StateData)
                     handle_c2s_packet(StateData, C2SState, El);
                 false ->
                     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:jid_malformed()),
-                    send_element_from_server_jid(StateData, Err),
-                    maybe_retry_state(StateData, C2SState)
+                    Acc = send_element_from_server_jid(StateData, Err),
+                    handle_state_after_packet(StateData, C2SState, Acc)
             end
     end;
 
