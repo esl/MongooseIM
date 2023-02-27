@@ -204,23 +204,22 @@ handle_broadcast(Task, #state{aggregate_callback = Aggregator,
           end,
     State#state{flush_elems = maps:map(Map, Acc)}.
 
-maybe_request_next(#state{total_retries = Total} = State) ->
+maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue, total_retries = Total} = State) ->
     %% Reset number of retries
-    maybe_request_next2(State#state{retries_left = Total}).
-
-maybe_request_next2(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
+    State1 = State#state{retries_left = Total},
     case queue:out(Queue) of
         {{value, Key}, NewQueue} ->
             {Value, NewAcc} = maps:take(Key, Acc),
-            NewState1 = State#state{flush_elems = NewAcc, flush_queue = NewQueue},
-            case make_async_request(Value, NewState1) of
-                NewState2 = #state{async_request = no_request_pending} ->
-                    maybe_request_next(NewState2);
-                NewState2 ->
-                    NewState2
+            State2 = State1#state{flush_elems = NewAcc, flush_queue = NewQueue},
+            State3 = make_async_request(Value, State2),
+            case State3 of
+                #state{async_request = no_request_pending} ->
+                    maybe_request_next(State3);
+                _ ->
+                    State3
             end;
         {empty, _} ->
-            State#state{async_request = no_request_pending}
+            State1#state{async_request = no_request_pending}
     end.
 
 make_async_request(Request, #state{host_type = HostType, pool_id = PoolId,
