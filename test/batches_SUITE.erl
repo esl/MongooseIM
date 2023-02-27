@@ -267,48 +267,6 @@ async_request(_) ->
     async_helper:wait_until(
       fun() -> gen_server:call(Server, get_acc) end, 500500).
 
-%% helpers
-host_type() ->
-    <<"HostType">>.
-
-some_jid() ->
-    jid:make_noprep(<<"alice">>, <<"localhost">>, <<>>).
-
-default_aggregator_opts(Server) ->
-    #{host_type => host_type(),
-      request_callback => requester(Server),
-      aggregate_callback => fun aggregate_sum/3,
-      verify_callback => fun validate_all_ok/3,
-      flush_extra => #{host_type => host_type()}}.
-
-validate_all_ok(ok, _, _) ->
-    ok.
-
-aggregate_sum(T1, T2, _) ->
-    {ok, T1 + T2}.
-
-requester(Server) ->
-    fun(return_error, _) ->
-            gen_server:send_request(Server, return_error);
-       (Task, _) ->
-            timer:sleep(1), gen_server:send_request(Server, Task)
-    end.
-
-init([]) ->
-    {ok, 0}.
-
-handle_call(get_acc, _From, Acc) ->
-    {reply, Acc, Acc};
-handle_call(return_error, _From, Acc) ->
-    {reply, {error, return_error}, Acc};
-handle_call(N, _From, Acc) ->
-    {reply, ok, N + Acc}.
-
-handle_cast(_Msg, Acc) ->
-    {noreply, Acc}.
-
-%% Retry test
-
 retry_request(_) ->
     Opts = (retry_aggregator_opts())#{pool_id => retry_request},
     {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
@@ -319,27 +277,6 @@ retry_request(_) ->
     receive_task_called(0),
     receive_task_called(1),
     ensure_no_tasks_to_receive().
-
-retry_aggregator_opts() ->
-    #{host_type => host_type(),
-      request_callback => fun do_retry_request/2,
-      aggregate_callback => fun aggregate_sum/3,
-      verify_callback => fun validate_ok/3,
-      flush_extra => #{host_type => host_type(), origin_pid => self()}}.
-
-validate_ok(ok, _, _) ->
-    ok;
-validate_ok({error, Reason}, _, _) ->
-    {error, Reason}.
-
-%% Fails first task
-do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
-    Pid ! {task_called, Retry},
-    Ref = make_ref(),
-    Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
-    %% Simulate gen_server call reply
-    self() ! {[alias|Ref], Reply},
-    Ref.
 
 retry_request_cancelled(_) ->
     Opts = (retry_aggregator_opts())#{pool_id => retry_request_cancelled,
@@ -356,15 +293,6 @@ retry_request_cancelled(_) ->
     gen_server:cast(Pid, {task, key, 2}),
     receive_task_called(0).
 
-%% Fails all tries
-do_cancel_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
-    Pid ! {task_called, Retry},
-    Ref = make_ref(),
-    Reply = {error, simulate_error},
-    %% Simulate gen_server call reply
-    self() ! {[alias|Ref], Reply},
-    Ref.
-
 ignore_msg_when_waiting_for_reply(_) ->
     Opts = (retry_aggregator_opts())#{pool_id => ignore_msg_when_waiting_for_reply,
                                       request_callback => fun do_request_but_ignore_other_messages/2},
@@ -374,6 +302,63 @@ ignore_msg_when_waiting_for_reply(_) ->
     %% Second task gets started
     gen_server:cast(Pid, {task, key, 2}),
     receive_task_called(0).
+
+%% helpers
+host_type() ->
+    <<"HostType">>.
+
+some_jid() ->
+    jid:make_noprep(<<"alice">>, <<"localhost">>, <<>>).
+
+default_aggregator_opts(Server) ->
+    #{host_type => host_type(),
+      request_callback => requester(Server),
+      aggregate_callback => fun aggregate_sum/3,
+      verify_callback => fun validate_all_ok/3,
+      flush_extra => #{host_type => host_type()}}.
+
+retry_aggregator_opts() ->
+    #{host_type => host_type(),
+      request_callback => fun do_retry_request/2,
+      aggregate_callback => fun aggregate_sum/3,
+      verify_callback => fun validate_ok/3,
+      flush_extra => #{host_type => host_type(), origin_pid => self()}}.
+
+validate_all_ok(ok, _, _) ->
+    ok.
+
+validate_ok(ok, _, _) ->
+    ok;
+validate_ok({error, Reason}, _, _) ->
+    {error, Reason}.
+
+aggregate_sum(T1, T2, _) ->
+    {ok, T1 + T2}.
+
+requester(Server) ->
+    fun(return_error, _) ->
+            gen_server:send_request(Server, return_error);
+       (Task, _) ->
+            timer:sleep(1), gen_server:send_request(Server, Task)
+    end.
+
+%% Fails first task
+do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+    Pid ! {task_called, Retry},
+    Ref = make_ref(),
+    Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
+    %% Simulate gen_server call reply
+    self() ! {[alias|Ref], Reply},
+    Ref.
+
+%% Fails all tries
+do_cancel_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+    Pid ! {task_called, Retry},
+    Ref = make_ref(),
+    Reply = {error, simulate_error},
+    %% Simulate gen_server call reply
+    self() ! {[alias|Ref], Reply},
+    Ref.
 
 %% Fails all tries
 do_request_but_ignore_other_messages(Task, #{origin_pid := Pid, retry_number := Retry}) ->
@@ -385,6 +370,19 @@ do_request_but_ignore_other_messages(Task, #{origin_pid := Pid, retry_number := 
     %% Simulate gen_server call reply
     self() ! {[alias|Ref], Reply},
     Ref.
+
+init([]) ->
+    {ok, 0}.
+
+handle_call(get_acc, _From, Acc) ->
+    {reply, Acc, Acc};
+handle_call(return_error, _From, Acc) ->
+    {reply, {error, return_error}, Acc};
+handle_call(N, _From, Acc) ->
+    {reply, ok, N + Acc}.
+
+handle_cast(_Msg, Acc) ->
+    {noreply, Acc}.
 
 receive_task_called(ExpectedRetryNumber) ->
     receive
