@@ -121,7 +121,7 @@ maybe_request_retry(ReqTask, State = #state{retries_left = Left}) ->
             State2
     end.
 
-cancel_request_retry(State = #state{total_retries = Retries}) ->
+cancel_request_retry(State) ->
     maybe_request_next(State#state{async_request = no_request_pending}).
 
 check_response(Msg, AsyncRequest, ReqTask, State) ->

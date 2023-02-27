@@ -36,7 +36,8 @@ groups() ->
        async_request,
        retry_request,
        retry_request_cancelled,
-       ignore_msg_when_waiting_for_reply
+       ignore_msg_when_waiting_for_reply,
+       async_request_fails
       ]}
     ].
 
@@ -303,6 +304,35 @@ ignore_msg_when_waiting_for_reply(_) ->
     gen_server:cast(Pid, {task, key, 2}),
     receive_task_called(0).
 
+async_request_fails(_) ->
+    %% Does request that crashes the gen_server, but not the aggregator
+    {ok, Server} = gen_server:start({local, async_req_fails_server}, ?MODULE, [], []),
+    Ref = monitor(process, Server),
+    Opts = (default_aggregator_opts(async_req_fails_server))#{pool_id => ?FUNCTION_NAME},
+    {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
+    gen_server:cast(Pid, {task, key, {ack_and_die, self()}}),
+    %% Acked and the server dies
+    receive
+        {'DOWN', R, process, _, _} when R =:= Ref -> ok
+        after 5000 -> error(down_receive_timeout)
+    end,
+    receive
+        {acked, S} when S =:= Server -> ok
+        after 5000 -> error(acked_receive_timeout)
+    end,
+    %% Eventually the task is cancelled
+    async_helper:wait_until(fun() -> element(4, sys:get_state(Pid)) end, no_request_pending),
+    %% Check that aggregator still processes new tasks
+    %% Start the task and wait for processing
+    {ok, Server2} = gen_server:start({local, async_req_fails_server}, ?MODULE, [], []),
+    gen_server:cast(Pid, {task, key, {ack, self()}}),
+    receive
+        {acked, S2} when S2 =:= Server2 -> ok
+        after 5000 -> error(acked_receive_timeout)
+    end,
+    %% Check state
+    1 = gen_server:call(Server2, get_acc).
+
 %% helpers
 host_type() ->
     <<"HostType">>.
@@ -338,12 +368,16 @@ aggregate_sum(T1, T2, _) ->
 requester(Server) ->
     fun(return_error, _) ->
             gen_server:send_request(Server, return_error);
+       ({ack_and_die, _} = Task, _) ->
+            gen_server:send_request(Server, Task);
+       ({ack, _} = Task, _) ->
+            gen_server:send_request(Server, Task);
        (Task, _) ->
             timer:sleep(1), gen_server:send_request(Server, Task)
     end.
 
 %% Fails first task
-do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+do_retry_request(_Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Pid ! {task_called, Retry},
     Ref = make_ref(),
     Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
@@ -352,7 +386,7 @@ do_retry_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Ref.
 
 %% Fails all tries
-do_cancel_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+do_cancel_request(_Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Pid ! {task_called, Retry},
     Ref = make_ref(),
     Reply = {error, simulate_error},
@@ -361,7 +395,7 @@ do_cancel_request(Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Ref.
 
 %% Fails all tries
-do_request_but_ignore_other_messages(Task, #{origin_pid := Pid, retry_number := Retry}) ->
+do_request_but_ignore_other_messages(_Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Pid ! {task_called, Retry},
     Ref = make_ref(),
     Reply = ok,
@@ -378,6 +412,12 @@ handle_call(get_acc, _From, Acc) ->
     {reply, Acc, Acc};
 handle_call(return_error, _From, Acc) ->
     {reply, {error, return_error}, Acc};
+handle_call({ack_and_die, Pid}, _From, Acc) ->
+    Pid ! {acked, self()},
+    error(oops);
+handle_call({ack, Pid}, _From, Acc) ->
+    Pid ! {acked, self()},
+    {reply, ok, 1 + Acc};
 handle_call(N, _From, Acc) ->
     {reply, ok, N + Acc}.
 
