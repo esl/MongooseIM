@@ -26,6 +26,7 @@ groups() ->
       [
        two_users_can_log_and_chat,
        too_big_stanza_rejected,
+       message_sent_to_malformed_jid_results_in_error,
        verify_session_establishment_is_not_announced
       ]},
      {backwards_compatible_session, [parallel],
@@ -100,6 +101,19 @@ too_big_stanza_rejected(Config) ->
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
     true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
+
+message_sent_to_malformed_jid_results_in_error(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends message with malformed "to"
+        Stanza = escalus_client:send_and_wait(Alice,
+                                              escalus_stanza:chat_to(<<"@invalid">>, <<"Hi!">>)),
+        % Alice receives error
+        escalus_assert:is_error(Stanza, <<"modify">>, <<"jid-malformed">>),
+        % Alice resends message with proper "to"
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
+        % Bob gets the message
+        escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
+    end).
 
 verify_session_establishment_is_not_announced(Config) ->
     MaybeSessionFeature = start_connection_maybe_get_session_feature(Config),
