@@ -47,6 +47,7 @@
 -export([get_pep_recipients/2,
          filter_pep_recipient/3,
          c2s_stream_features/3,
+         c2s_debug/2,
          check_bl_c2s/1,
          forbidden_session_hook/3,
          session_opening_allowed_for_user/2]).
@@ -534,6 +535,12 @@ sasl2_start(HostType, Acc, Element) ->
     Result :: mongoose_acc:t().
 sasl2_success(HostType, Acc, Params) ->
     run_hook_for_host_type(sasl2_success, HostType, Acc, Params).
+
+-spec c2s_debug(Acc, Arg) -> mongoose_acc:t() when
+    Acc :: mongoose_acc:t() | no_acc,
+    Arg :: {out, jid:jid() | undefined, exml:element()}| {in, exml:element()}.
+c2s_debug(Acc, Arg) ->
+    run_global_hook(c2s_debug, Acc, #{arg => Arg}).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),

@@ -38,6 +38,18 @@
     host = "_"
     path = "/ws-xmpp"
 
+# [[listen.http]]
+#   port = {{traffic_channel_port}}
+#   transport.num_acceptors = 2
+#
+#   [[listen.http.handlers.mongoose_traffic_channel]]
+#     host = "_"
+#     path = "/ws-traffic"
+#
+#   [[listen.http.handlers.mongoose_traffic]]
+#     host = "_"
+#     path = "/traffic/[...]"
+
 [[listen.http]]
   port = {{{https_port}}}
   transport.num_acceptors = 10
@@ -198,6 +210,8 @@
 {{{service_domain_db}}}
 {{/service_domain_db}}
 [modules.mod_adhoc]
+
+# [modules.mongoose_traffic]
 
 {{#mod_amp}}
 [modules.mod_amp]

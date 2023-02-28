@@ -239,6 +239,10 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
             NextEvent = {next_event, internal, #xmlstreamerror{name = iolist_to_binary(Reason)}},
             {keep_state, StateData, NextEvent};
         {ok, NewParser, XmlElements} ->
+            lists:foreach(fun(Element) ->
+                              mongoose_hooks:c2s_debug(no_acc,
+                                                       {client_to_server, StateData#c2s_data.jid, Element})
+                          end, XmlElements),
             Size = iolist_size(Packet),
             NewStateData = StateData#c2s_data{parser = NewParser},
             handle_socket_elements(NewStateData, XmlElements, Size)
@@ -1009,9 +1013,11 @@ maybe_send_xml(StateData, Acc, ToSend) ->
 
 -spec do_send_element(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 do_send_element(StateData = #c2s_data{host_type = undefined}, Acc, El) ->
+    mongoose_hooks:c2s_debug(Acc, {server_to_client, StateData#c2s_data.jid, El}),
     send_xml(StateData, El),
     Acc;
 do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El) ->
+    mongoose_hooks:c2s_debug(Acc, {server_to_client, StateData#c2s_data.jid, El}),
     Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).

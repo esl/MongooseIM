@@ -1,0 +1,104 @@
+html, body, .all, main, .main {height: 100%;}
+
+.hidden {display: none}
+
+.all {
+    width: 90%;
+    margin: 0 auto;
+    font-family: sans-serif;
+    margin-top: 20px;
+ }
+.top {
+    border-bottom: 1px solid gray;
+    padding-bottom: 20px;
+}
+.header {
+    font-size: x-large;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.main {}
+
+.left {
+    float: left;
+    width: 40%;
+}
+
+.right {
+    height: 100%;
+    float:left;
+    width: 60%;
+}
+
+.enabled {
+    float:left;
+    margin-right: 100px;
+    margin-left: 10px;
+}
+
+.enabled button {width: 80px;}
+
+button {
+    padding: 7px;
+
+}
+.clearButton {}
+
+.enabled .true {
+    font-weight:bold;
+    background-color: cornflowerblue;
+}
+
+.enabled .false {}
+
+.tracing .label {margin: 10px 0;}
+.jids {font-size: smaller;}
+.jids .jid {margin-bottom: 3px;overflow:hidden;}
+
+.right .current {height:20px; margin:10px;font-weight:bold;}
+.stanzas .label {display: none;}
+.stanzas {height: 90%}
+
+.stanzalist {
+    font-size: smaller;
+    border: 1px solid #bbb;
+    height:100%;
+    overflow: scroll;
+}
+.stanza {
+    margin-bottom:10px;
+    margin-left:5px;
+}
+
+.current_pid {background-color: lightgrey;}
+
+.server_to_client {color: darkred}
+.client_to_server {color: darkgreen}
+
+.connection_state {
+    float: right;
+}
+
+.connection_state div.good {
+    font-size:smaller;
+    color: darkgreen;
+}
+
+.connection_state div.problem {
+    font-size:smaller;
+    color: red;
+}
+
+.connection_state input {
+    width: 350px;
+}
+
+.stanzas .time {
+    float:left;
+    color:black;
+    font-size:smaller;}
+
+.stanzas .server_to_client .time {}
+.stanzas .client_to_server .time {}
+.stanzas .server_to_client .part {margin-left:200px;}
+.stanzas .client_to_server .part {margin-left:30px;}
