@@ -36,6 +36,7 @@ groups() ->
        async_request,
        retry_request,
        retry_request_cancelled,
+       retry_request_cancelled_in_verify_function,
        ignore_msg_when_waiting_for_reply,
        async_request_fails
       ]}
@@ -294,6 +295,22 @@ retry_request_cancelled(_) ->
     gen_server:cast(Pid, {task, key, 2}),
     receive_task_called(0).
 
+retry_request_cancelled_in_verify_function(_) ->
+    Opts = (retry_aggregator_opts())#{pool_id => retry_request_cancelled_in_verify_function,
+                                      request_callback => fun do_request/2,
+                                      verify_callback => fun validate_all_fails/3},
+    {ok, Pid} = gen_server:start_link(mongoose_aggregator_worker, Opts, []),
+    gen_server:cast(Pid, {task, key, 1}),
+    receive_task_called(0),
+    %% 3 retries
+    receive_task_called(1),
+    receive_task_called(2),
+    receive_task_called(3),
+    ensure_no_tasks_to_receive(),
+    %% Second task gets started
+    gen_server:cast(Pid, {task, key, 2}),
+    receive_task_called(0).
+
 ignore_msg_when_waiting_for_reply(_) ->
     Opts = (retry_aggregator_opts())#{pool_id => ignore_msg_when_waiting_for_reply,
                                       request_callback => fun do_request_but_ignore_other_messages/2},
@@ -362,6 +379,9 @@ validate_ok(ok, _, _) ->
 validate_ok({error, Reason}, _, _) ->
     {error, Reason}.
 
+validate_all_fails(_, _, _) ->
+    {error, all_fails}.
+
 aggregate_sum(T1, T2, _) ->
     {ok, T1 + T2}.
 
@@ -381,6 +401,14 @@ do_retry_request(_Task, #{origin_pid := Pid, retry_number := Retry}) ->
     Pid ! {task_called, Retry},
     Ref = make_ref(),
     Reply = case Retry of 0 -> {error, simulate_error}; 1 -> ok end,
+    %% Simulate gen_server call reply
+    self() ! {[alias|Ref], Reply},
+    Ref.
+
+do_request(_Task, #{origin_pid := Pid, retry_number := Retry}) ->
+    Pid ! {task_called, Retry},
+    Ref = make_ref(),
+    Reply = ok,
     %% Simulate gen_server call reply
     self() ! {[alias|Ref], Reply},
     Ref.
