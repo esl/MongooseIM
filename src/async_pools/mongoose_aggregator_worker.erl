@@ -104,9 +104,9 @@ handle_info(Msg, #state{async_request = {AsyncRequest, ReqTask}} = State) ->
     case check_response(Msg, AsyncRequest, ReqTask, State) of
         ignore ->
             {noreply, State};
-         next ->
+        next ->
             {noreply, maybe_request_next(State)};
-         retry ->
+        retry ->
             {noreply, maybe_request_retry(ReqTask, State)}
      end.
 
