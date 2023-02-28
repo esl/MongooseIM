@@ -53,7 +53,9 @@
           verify_callback :: undefined | mongoose_async_pools:verify_callback(),
           flush_elems = #{} :: map() | censored, % see format_status/2 for censored
           flush_queue = queue:new() :: queue:queue(),
-          flush_extra = #{} :: map()
+          flush_extra = #{} :: map(),
+          total_retries = 3 :: non_neg_integer(),
+          retries_left = 3 :: non_neg_integer()
          }).
 -type state() :: #state{}.
 
@@ -99,19 +101,47 @@ handle_info(Msg, #state{async_request = no_request_pending} = State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State};
 handle_info(Msg, #state{async_request = {AsyncRequest, ReqTask}} = State) ->
+    case check_response(Msg, AsyncRequest, ReqTask, State) of
+        ignore ->
+            {noreply, State};
+        next ->
+            {noreply, maybe_request_next(State)};
+        retry ->
+            {noreply, maybe_request_retry(ReqTask, State)}
+     end.
+
+maybe_request_retry(ReqTask, State = #state{retries_left = 0}) ->
+    ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_dropped, txt => <<"Async request dropped, no more retries">>, task => ReqTask})),
+    cancel_request_retry(State);
+maybe_request_retry(ReqTask, State = #state{retries_left = Left}) ->
+    case make_async_request(ReqTask, State#state{async_request = no_request_pending, retries_left = Left - 1}) of
+        #state{async_request = no_request_pending} = State2 ->
+            cancel_request_retry(State2);
+        State2 ->
+            State2
+    end.
+
+cancel_request_retry(State) ->
+    maybe_request_next(State#state{async_request = no_request_pending}).
+
+check_response(Msg, AsyncRequest, ReqTask, State) ->
     case gen_server:check_response(Msg, AsyncRequest) of
         {error, {Reason, _Ref}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State#state{async_request = no_request_pending}};
+            retry;
         {reply, {error, Reason}} ->
             ?LOG_ERROR(log_fields(State, #{what => asynchronous_request_failed, reason => Reason})),
-            {noreply, State#state{async_request = no_request_pending}};
+            retry;
         {reply, Reply} ->
-            maybe_verify_reply(Reply, ReqTask, State),
-            {noreply, maybe_request_next(State)};
+            case maybe_verify_reply(Reply, ReqTask, State) of
+                ok ->
+                    next;
+                {error, _Reason} ->
+                    retry
+            end;
         no_reply ->
             ?UNEXPECTED_INFO(Msg),
-            {noreply, State}
+            ignore
     end.
 
 -spec terminate(term(), state()) -> term().
@@ -174,24 +204,28 @@ handle_broadcast(Task, #state{aggregate_callback = Aggregator,
           end,
     State#state{flush_elems = maps:map(Map, Acc)}.
 
-maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue} = State) ->
+maybe_request_next(#state{flush_elems = Acc, flush_queue = Queue, total_retries = Total} = State) ->
+    %% Reset number of retries
+    State1 = State#state{retries_left = Total},
     case queue:out(Queue) of
         {{value, Key}, NewQueue} ->
             {Value, NewAcc} = maps:take(Key, Acc),
-            NewState1 = State#state{flush_elems = NewAcc, flush_queue = NewQueue},
-            case make_async_request(Value, NewState1) of
-                NewState2 = #state{async_request = no_request_pending} ->
-                    maybe_request_next(NewState2);
-                NewState2 ->
-                    NewState2
+            State2 = State1#state{flush_elems = NewAcc, flush_queue = NewQueue},
+            State3 = make_async_request(Value, State2),
+            case State3 of
+                #state{async_request = no_request_pending} ->
+                    maybe_request_next(State3);
+                _ ->
+                    State3
             end;
         {empty, _} ->
-            State#state{async_request = no_request_pending}
+            State1#state{async_request = no_request_pending}
     end.
 
 make_async_request(Request, #state{host_type = HostType, pool_id = PoolId,
                                    request_callback = Requestor, flush_extra = Extra} = State) ->
-    case Requestor(Request, Extra) of
+    RetryNumber = State#state.total_retries - State#state.retries_left,
+    case Requestor(Request, Extra#{retry_number => RetryNumber}) of
         drop ->
             State;
         ReqId ->

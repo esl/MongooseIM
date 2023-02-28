@@ -97,13 +97,14 @@ request_one(HostType, {remove_inbox_row, {LUser, LServer, LToBareJid}}) ->
 aggregate(Current, NewTask, _Extra) ->
     {ok, aggregate(Current, NewTask)}.
 
--spec verify(term(), task(), mongoose_async_pools:pool_extra()) -> ok.
+-spec verify(term(), task(), mongoose_async_pools:pool_extra()) -> ok | {error, term()}.
 verify(Answer, InboxTask, _Extra) ->
     case mod_inbox_rdbms:check_result(Answer) of
         {error, Reason} ->
             {LU, LS, LRem} = element(2, InboxTask),
             ?LOG_WARNING(#{what => inbox_process_message_failed, reason => Reason,
-                           from_jid => jid:to_binary({LU, LS}), to_jid => LRem});
+                           from_jid => jid:to_binary({LU, LS}), to_jid => LRem}),
+            {error, Reason};
         _ -> ok
     end.
 
