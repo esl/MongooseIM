@@ -478,14 +478,13 @@ build_params(Params, none) ->
     Params;
 build_params(Params, #rsm_in{max = Max, id = undefined}) when Max =/= undefined ->
     Params#{limit => Max};
-build_params(Params0, Rsm) ->
-    Params = maps:without([start, 'end'], Params0),
+build_params(Params, Rsm) ->
     build_params_with_rsm(Params#{rsm => Rsm}, Rsm).
 
 build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = before}) ->
     Params#{limit => Max, order => asc, start => 0};
 build_params_with_rsm(Params, #rsm_in{max = Max, id = <<>>, direction = aft}) ->
-    Params#{limit => Max};
+    maps:remove('end', Params#{limit => Max});
 build_params_with_rsm(Params, #rsm_in{max = Max, id = Id, direction = Dir}) when is_binary(Id) ->
     case {mod_inbox_utils:decode_rsm_id(Id), Dir} of
         {error, _} ->
