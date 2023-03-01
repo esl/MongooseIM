@@ -46,20 +46,21 @@ end_per_suite(Config) ->
     mnesia:delete_schema([node()]),
     Config.
 
+init_per_testcase(TestCase, Config) ->
+    {ok, _HooksServer} = gen_hook:start_link(),
+    setup_meck(meck_mods(TestCase)),
+    Config.
+
+end_per_testcase(TestCase, _Config) ->
+    mongoose_modules:stop(),
+    mongoose_config:set_opt({modules, ?HOST}, #{}),
+    unload_meck(meck_mods(TestCase)).
+
 opts() ->
     [{hosts, [?HOST]},
      {host_types, []},
      {all_metrics_are_global, false},
      {{modules, ?HOST}, #{}}].
-
-init_per_testcase(T, Config) ->
-    {ok, _HooksServer} = gen_hook:start_link(),
-    setup_meck(meck_mods(T)),
-    Config.
-
-end_per_testcase(T, Config) ->
-    unload_meck(meck_mods(T)),
-    Config.
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
 meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
@@ -92,7 +93,7 @@ notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     {ok, Acc}.
 
 auth_anonymous(_Config) ->
-    HostType = host_type(),
+    HostType = ?HOST,
     {U, S, R, JID, SID} = get_fake_session(),
     ejabberd_auth_anonymous:start(HostType),
     Info = #{auth_module => cyrsasl_anonymous},
@@ -104,9 +105,11 @@ auth_anonymous(_Config) ->
     false = ejabberd_auth_anonymous:does_user_exist(HostType, U, S).
 
 last(_Config) ->
-    HostType = host_type(),
+    HostType = ?HOST,
     {U, S, R, JID, SID} = get_fake_session(),
-    start(HostType, mod_last, config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
+    {started, ok} = start(HostType,
+                          mod_last,
+                          config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
     not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
     {ok, #{}} = mod_last:on_presence_update(new_acc(S), #{jid => JID, status => Status1}, #{}),
@@ -120,9 +123,9 @@ last(_Config) ->
       true).
 
 stream_management(_Config) ->
-    HostType = host_type(),
+    HostType = ?HOST,
     {U, S, R, _JID, SID} = get_fake_session(),
-    start(HostType, mod_stream_management, config_parser_helper:default_mod_config(mod_stream_management)),
+    {started, ok} = start(HostType, mod_stream_management),
     SMID = <<"123">>,
     mod_stream_management:register_smid(HostType, SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(HostType, SMID),
@@ -139,7 +142,7 @@ s2s(_Config) ->
     [] = ejabberd_s2s:get_connections_pids(FromTo).
 
 bosh(_Config) ->
-    mod_bosh:start(?HOST, config_parser_helper:default_mod_config(mod_bosh)),
+    {started, ok} = start(?HOST, mod_bosh),
     SID = <<"sid">>,
     Self = self(),
     {error, _} = mod_bosh:get_session_socket(SID),
@@ -202,13 +205,11 @@ get_fake_session() ->
 new_acc(Server) ->
     mongoose_acc:new(#{location => ?LOCATION,
                        lserver => Server,
-                       host_type => host_type(),
+                       host_type => ?HOST,
                        element => undefined}).
 
-host_type() ->
-    <<"test host type">>.
+start(HostType, Module) ->
+    start(HostType, Module, config_parser_helper:default_mod_config(Module)).
 
-start(Hostname, Module, Opts) ->
-    mongoose_config:set_opt({modules, Hostname}, #{Module => Opts}),
-    mongoose_config:set_opt(hosts, [Hostname]),
-    gen_mod:start_module(Hostname, Module, Opts).
+start(HostType, Module, Opts) ->
+    mongoose_modules:ensure_started(HostType, Module, Opts).

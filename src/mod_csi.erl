@@ -30,8 +30,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ensure_metrics(HostType),
-    gen_hook:add_handlers(hooks(HostType)).
+    ensure_metrics(HostType).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->

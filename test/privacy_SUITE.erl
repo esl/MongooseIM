@@ -40,25 +40,28 @@ init_per_suite(C) ->
     mongoose_config:set_opt(all_metrics_are_global, false),
     C.
 
+end_per_suite(_C) ->
+    mongoose_config:unset_opt(all_metrics_are_global),
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    application:stop(exometer_core),
+    ok.
+
 init_per_testcase(_, C) ->
     gen_hook:start_link(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     mongoose_modules:start(),
     C.
 
+end_per_testcase(_, _) ->
+    mongoose_modules:stop(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()].
+
 opts() ->
     [{hosts, [<<"localhost">>]},
      {host_types, []},
      {{modules, <<"localhost">>},
       #{mod_privacy => config_parser_helper:default_mod_config(mod_privacy)}}].
-
-end_per_suite(_C) ->
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
-    mongoose_config:unset_opt(all_metrics_are_global),
-    mnesia:stop(),
-    mnesia:delete_schema([node()]),
-    application:stop(exometer_core),
-    ok.
 
 check_with_allowed(_C) ->
     Acc = mongoose_acc:new(?ACC_PARAMS#{element => message()}),

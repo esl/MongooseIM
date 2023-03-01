@@ -190,4 +190,4 @@ code_change(_, State, _) ->
     {ok, State}.
 
 terminate(_Reason, _State) ->
-    ranch:stop_listener(tests_listener).
+    cowboy:stop_listener(tests_listener).
