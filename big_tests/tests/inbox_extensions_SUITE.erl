@@ -104,7 +104,8 @@ groups() ->
       ]},
      {pagination, [], [
         pagination_error_conditions,
-        pagination_overrides_form,
+        pagination_has_priority_over_form_before_overrides_start,
+        pagination_has_priority_over_form_after_overrides_end,
         can_paginate_forwards,
         can_paginate_backwards,
         max_queries_can_be_limited,
@@ -685,22 +686,38 @@ pagination_error_conditions(Config) ->
         verify_returns_error(Alice, #{box => inbox, index => 10}, <<"feature-not-implemented">>)
     end).
 
-pagination_overrides_form(Config) ->
+pagination_has_priority_over_form_before_overrides_start(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                         fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice
-        #{Alice := AliceConvs} =
+        #{Alice := [_ConvWithMike, ConvWithKate, ConvWithBob] = AliceConvs} =
             inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
         % Alice has some messages in her inbox
         inbox_helper:check_inbox(Alice, AliceConvs),
         % Extract all the helper values
-        ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
-        ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
+        TimeAfterBob = ConvWithBob#conv.time_after,
         TimeAfterKate = ConvWithKate#conv.time_after,
-        TimeAfterMike = ConvWithMike#conv.time_after,
-        % We set start and end to return Convs with Mike, but using RSM we override that
-        Params = #{box => inbox, start => TimeAfterKate, 'end' => TimeAfterMike, before => <<>>},
-        inbox_helper:check_inbox(Alice, AliceConvs, Params)
+        % We set start and end to return Convs with Kate,
+        % but override with Rsm to get Kate and Bob
+        Params = #{box => inbox, start => TimeAfterBob, 'end' => TimeAfterKate, before => <<>>},
+        inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob], Params)
+    end).
+
+pagination_has_priority_over_form_after_overrides_end(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                        fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice
+        #{Alice := [ConvWithMike, ConvWithKate, ConvWithBob] = AliceConvs} =
+            inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        % Alice has some messages in her inbox
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        % Extract all the helper values
+        TimeAfterBob = ConvWithBob#conv.time_after,
+        TimeAfterKate = ConvWithKate#conv.time_after,
+        % We set start and end to return Convs with Kate,
+        % but override with Rsm to get Mike and Kate
+        Params = #{box => inbox, start => TimeAfterBob, 'end' => TimeAfterKate, 'after' => <<>>},
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], Params)
     end).
 
 can_paginate_forwards(Config) ->
