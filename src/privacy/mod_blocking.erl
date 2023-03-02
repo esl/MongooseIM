@@ -7,6 +7,7 @@
 
 -export([start/2]).
 -export([stop/1]).
+-export([hooks/1]).
 -export([deps/2]).
 -export([supported_features/0]).
 -export([config_spec/0]).
@@ -26,12 +27,12 @@
 -type listitem() :: #listitem{}.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) when is_map(Opts) ->
-    gen_hook:add_handlers(hooks(HostType)).
+start(_HostType, _Opts) ->
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 deps(_HostType, Opts) ->
     [{mod_privacy, Opts, hard}].

@@ -11,7 +11,7 @@
 
 %% gen_mod handlers
 -behaviour(gen_mod).
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_prefs).
@@ -33,12 +33,10 @@
 -spec start(mongooseim:host_type(), _) -> ok.
 start(HostType, _Opts) ->
     prepare_queries(HostType),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
+stop(_HostType) ->
     ok.
 
 -spec supported_features() -> [atom()].

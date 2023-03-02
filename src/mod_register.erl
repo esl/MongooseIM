@@ -30,7 +30,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% Gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% IQ and hook handlers
 -export([c2s_stream_features/3, process_iq/5]).
@@ -51,7 +51,6 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    gen_hook:add_handlers(hooks(HostType)),
     mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
                          {local_content, true},
@@ -61,7 +60,6 @@ start(HostType, #{iqdisc := IQDisc}) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_REGISTER, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.

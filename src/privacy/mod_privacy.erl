@@ -31,7 +31,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod
--export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, deps/2, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([process_iq_set/3,
@@ -77,12 +77,11 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mod_privacy_backend:init(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)).
+    mod_privacy_backend:init(HostType, Opts).
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 deps(_HostType, _Opts) ->
     [{mod_presence, #{}, hard}].

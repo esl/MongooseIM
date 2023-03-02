@@ -1,51 +1,57 @@
 -module(async_helper).
--compile([export_all, nowarn_export_all]).
+
+-export([start/2, start/4]).
+-export([stop_all/1]).
+-export([wait_until/2, wait_until/3]).
+
+start(Config, MFAs) ->
+    lists:foldl(
+        fun({M, F, A}, Acc) -> start(Acc, M, F, A) end,
+        Config,
+        MFAs).
 
 start(Config, M, F, A) ->
-    {ok, P} = start(M, F, A),
-    Helpers = [{M, F, A, P} | proplists:get_value(async_helpers, Config, [])],
-    lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers}).
+    {ok, Pid} = start_it({M, F, A}, [test_server_loc]),
+    Helpers = proplists:get_value(?MODULE, Config, []),
+    NewHelpers = [{{M, F, A}, Pid} | Helpers],
+    lists:keystore(?MODULE, 1, Config, {?MODULE, NewHelpers}).
 
-start(Config, MFAs) when is_list(MFAs) ->
-    lists:foldl(fun ({M,F,A}, ConfigAcc) ->
-                        start(ConfigAcc, M, F, A)
-                end, Config, MFAs).
+start_it({M, F, A}, Keys) ->
+    Dict = [{Key, get(Key)} || Key <- Keys],
+    Self = self(),
+    Pid = spawn(
+        fun() ->
+            put(?MODULE, Dict),
+            erlang:apply(M, F, A),
+            Self ! started,
+            loop()
+        end),
+    receive
+        started -> {ok, Pid}
+    after timer:seconds(1) ->
+        ct:fail("async start timed out on ~p", [{M, F, A}])
+    end.
+
+loop() ->
+    receive
+        stop -> exit(stop);
+        _ -> loop()
+    end.
 
 stop_all(Config) ->
-    Helpers = proplists:get_value(async_helpers, Config, []),
-    Refs = [ monitor_and_stop(P) || {_,_,_,P} <- Helpers ],
-    [ receive_down_message(R) || R <- Refs ],
-    ok.
+    Helpers = proplists:get_value(?MODULE, Config, []),
+    Refs = [stop(Pid) || {_, Pid} <- Helpers],
+    [wait(Ref) || Ref <- Refs].
 
-monitor_and_stop(Pid) ->
-    Ref = erlang:monitor(process, Pid),
+stop(Pid) ->
+    Ref = monitor(process, Pid),
     Pid ! stop,
     Ref.
 
-receive_down_message(Ref) ->
+wait(Ref) ->
     receive
-        {'DOWN', Ref, process, _, _} -> ok
-    end.
-
-start(M, F, A) ->
-    Self = self(),
-    P = spawn(fun () ->
-                      erlang:apply(M, F, A),
-                      Self ! started,
-                      helper_loop()
-              end),
-    receive
-        started ->
-            %ct:pal("started", []),
-            {ok, P}
-    after timer:seconds(1) ->
-              ct:fail("async start timeout")
-    end.
-
-helper_loop() ->
-    receive
-        stop -> exit(stop_and_kill_linked_processes);
-        _    -> helper_loop()
+        {'DOWN', Ref, process, _, _} ->
+            ok
     end.
 
 % @doc Waits `TimeLeft` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
@@ -85,4 +91,3 @@ wait_and_continue(Fun, FunResult, #{time_left := TimeLeft,
     timer:sleep(SleepTime),
     do_wait_until(Fun, Opts#{time_left => TimeLeft - SleepTime,
                              history => [FunResult | History]}).
-

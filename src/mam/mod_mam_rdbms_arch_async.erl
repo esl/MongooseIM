@@ -9,7 +9,7 @@
 
 -behaviour(gen_mod).
 
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, supported_features/0]).
 -export([archive_pm_message/3, mam_archive_sync/3]).
 -export([flush/2]).
 
@@ -37,12 +37,10 @@ start(HostType, Opts) ->
     prepare_insert_queries(pm, Extra),
     mongoose_metrics:ensure_metric(HostType, ?PER_MESSAGE_FLUSH_TIME, histogram),
     mongoose_metrics:ensure_metric(HostType, ?FLUSH_TIME, histogram),
-    gen_hook:add_handlers(hooks(HostType)),
     mongoose_async_pools:start_pool(HostType, pm_mam, PoolOpts).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     mongoose_async_pools:stop_pool(HostType, pm_mam).
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().

@@ -29,7 +29,7 @@
 -define(SERVICE, "mim_sip").
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0]).
 
 -export([user_send_iq/3]).
 
@@ -50,7 +50,6 @@
 start(Host, Opts) ->
     start_nksip_service_or_error(Opts),
     mod_jingle_sip_backend:init(Host, Opts),
-    gen_hook:add_handlers(hooks(Host)),
     ok.
 
 start_nksip_service_or_error(Opts = #{listen_port := ListenPort}) ->
@@ -79,8 +78,7 @@ maybe_add_udp_max_size(NkSipOpts, Opts) ->
     end.
 
 -spec stop(jid:server()) -> ok.
-stop(Host) ->
-    gen_hook:delete_handlers(hooks(Host)),
+stop(_Host) ->
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().

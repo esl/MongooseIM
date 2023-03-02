@@ -21,47 +21,45 @@ init_per_suite(C) ->
     ok = mnesia:start(),
     C.
 
-end_per_suite(C) ->
+end_per_suite(_C) ->
     mnesia:stop(),
-    mnesia:delete_schema([node()]),
-    C.
+    mnesia:delete_schema([node()]).
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
-    async_helper:start(Config, gen_hook, start_link, []).
+    Config1 = async_helper:start(Config, gen_hook, start_link, []),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    Config1.
 
-end_per_testcase(module_startup_non_unique_key_ids, C) ->
-    clean_after_testcase(C);
-end_per_testcase(module_startup_for_multiple_domains, C) ->
-    mod_keystore:stop(<<"first.com">>),
-    mod_keystore:stop(<<"second.com">>),
-    clean_after_testcase(C);
-end_per_testcase(multiple_domains_one_stopped, C) ->
-    mod_keystore:stop(<<"second.com">>),
-    clean_after_testcase(C);
-end_per_testcase(_CaseName, C) ->
-    mod_keystore:stop(<<"localhost">>),
-    clean_after_testcase(C).
-
-clean_after_testcase(C) ->
+end_per_testcase(_, C) ->
+    mongoose_modules:stop(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     meck:unload(mongoose_metrics),
     async_helper:stop_all(C),
-    mnesia:delete_table(key),
-    C.
+    mnesia:delete_table(key).
+
+opts() ->
+    [{hosts, hosts()},
+     {host_types, []},
+     {all_metrics_are_global, false}]
+    ++ [{{modules, Host}, #{}} || Host <- hosts()].
+
+hosts() ->
+    [<<"localhost">>, <<"first.com">>, <<"second.com">>].
 
 %%
 %% Tests
 %%
 
 module_startup_no_opts(_) ->
-    ok = mod_keystore:start(<<"localhost">>, default_mod_config(mod_keystore)).
+    {started, ok} = start(<<"localhost">>, default_mod_config(mod_keystore)).
 
 module_startup_read_key_from_file(_) ->
     %% given
     RawKey = <<"qwe123">>,
     {ok, KeyFile} = key_at("/tmp/key-from-file", RawKey),
     %% when
-    ok = mod_keystore:start(<<"localhost">>, key_from_file(KeyFile)),
+    {started, ok} = start(<<"localhost">>, key_from_file(KeyFile)),
     %% then
     ?ae([{{key_from_file, <<"localhost">>}, RawKey}],
         get_key(<<"localhost">>, key_from_file)).
@@ -84,7 +82,7 @@ module_startup_create_ram_key(_, ModKeystoreOpts) ->
     %% given no key
     [] = get_key(<<"localhost">>, ram_key),
     %% when keystore starts with config to generate a memory-only key
-    ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
+    {started, ok} = start(<<"localhost">>, ModKeystoreOpts).
 
 module_startup_for_multiple_domains(_Config) ->
     %% given
@@ -95,8 +93,8 @@ module_startup_for_multiple_domains(_Config) ->
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
     {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
     %% when
-    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
-    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    {started, ok} = start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    {started, ok} = start(<<"second.com">>, key_from_file(SecondKeyFile)),
     %% then
     ?ae([{{key_from_file, <<"first.com">>}, FirstKey}],
         get_key(<<"first.com">>, key_from_file)),
@@ -112,8 +110,8 @@ multiple_domains_one_stopped(_Config) ->
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
     {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
     % when
-    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
-    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    {started, ok} = start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    {started, ok} = start(<<"second.com">>, key_from_file(SecondKeyFile)),
     ok = mod_keystore:stop(<<"first.com">>),
     % then
     ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
@@ -150,3 +148,6 @@ mock_mongoose_metrics() ->
       Result :: mod_keystore:key_list().
 get_key(HostType, KeyName) ->
     mongoose_hooks:get_key(HostType, KeyName).
+
+start(HostType, Opts) ->
+    mongoose_modules:ensure_started(HostType, mod_keystore, Opts).

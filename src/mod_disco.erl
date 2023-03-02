@@ -33,6 +33,7 @@
 %% gen_mod callbacks
 -export([start/2,
          stop/1,
+         hooks/1,
          config_spec/0,
          supported_features/0]).
 
@@ -64,11 +65,10 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, NS, Component, Handler, #{}, IQDisc) ||
         {Component, NS, Handler} <- iq_handlers()],
-    gen_hook:add_handlers(hooks(HostType)).
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, NS, Component) ||
         {Component, NS, _Handler} <- iq_handlers()],
     ok.

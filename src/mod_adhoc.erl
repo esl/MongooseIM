@@ -34,6 +34,7 @@
 %% Gen_mod callbacks
 -export([start/2,
          stop/1,
+         hooks/1,
          config_spec/0,
          supported_features/0]).
 
@@ -57,11 +58,10 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    gen_hook:add_handlers(hooks(HostType)).
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component) ||
         {Component, _Fn} <- iq_handlers()],
     ok.
@@ -273,4 +273,3 @@ ping_command(empty,
     {ok, NewAcc};
 ping_command(Acc, _, _) ->
     {ok, Acc}.
-

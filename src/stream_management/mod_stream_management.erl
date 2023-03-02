@@ -7,6 +7,7 @@
 %% `gen_mod' callbacks
 -export([start/2,
          stop/1,
+         hooks/1,
          config_spec/0,
          supported_features/0,
          process_buffer_and_ack/1]).
@@ -75,13 +76,12 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     mod_stream_management_backend:init(HostType, Opts),
-    ?LOG_INFO(#{what => stream_management_starting}),
-    gen_hook:add_handlers(hooks(HostType)).
+    ?LOG_INFO(#{what => stream_management_starting}).
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
+stop(_HostType) ->
     ?LOG_INFO(#{what => stream_management_stopping}),
-    gen_hook:delete_handlers(hooks(HostType)).
+    ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

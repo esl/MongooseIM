@@ -6,7 +6,7 @@
 -behaviour(gen_mod).
 
 %% gen_mod API
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% Hooks.
 -export([does_cached_user_exist/3, maybe_put_user_into_cache/3,
@@ -19,12 +19,10 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     mongoose_user_cache:start_new_cache(HostType, ?MODULE, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     mongoose_user_cache:stop_cache(HostType, ?MODULE),
     ok.
 

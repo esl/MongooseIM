@@ -38,6 +38,7 @@
 %% gen_mod API
 -export([start/2]).
 -export([stop/1]).
+-export([hooks/1]).
 -export([deps/2]).
 -export([supported_features/0]).
 -export([config_spec/0]).
@@ -66,12 +67,10 @@ deps(_, _)->
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     mod_offline_chatmarkers_backend:init(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
+stop(_HostType) ->
     ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().

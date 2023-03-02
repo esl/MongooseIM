@@ -23,19 +23,19 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([start/2, stop/1, deps/2, disco_local_items/3]).
+-export([start/2, stop/1, hooks/1, deps/2, disco_local_items/3]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(hooks(HostType)).
+start(_HostType, _Opts) ->
+    ok.
 
 -spec stop(mongooseim:host_type()) -> any().
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->

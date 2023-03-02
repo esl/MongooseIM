@@ -10,7 +10,7 @@
 %% Exports
 
 %% gen_mod handlers
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
@@ -64,14 +64,13 @@
 %% Starting and stopping functions for users' archives
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    start_hooks(HostType),
+start(_HostType, Opts) ->
     register_prepared_queries(Opts),
     ok.
 
 -spec stop(host_type()) -> ok.
-stop(HostType) ->
-    stop_hooks(HostType).
+stop(_HostType) ->
+    ok.
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -99,14 +98,6 @@ uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_pm
-
--spec start_hooks(host_type()) -> ok.
-start_hooks(HostType) ->
-    gen_hook:add_handlers(hooks(HostType)).
-
--spec stop_hooks(host_type()) -> ok.
-stop_hooks(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->

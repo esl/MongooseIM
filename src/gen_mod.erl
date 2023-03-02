@@ -69,6 +69,7 @@
 
 -callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
+-callback hooks(HostType :: host_type()) -> gen_hook:hook_list().
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
 
@@ -85,7 +86,7 @@
 %% function).
 -callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
--optional_callbacks([config_spec/0, supported_features/0, deps/2]).
+-optional_callbacks([hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.
@@ -101,6 +102,7 @@ start_module_for_host_type(HostType, Module, Opts) ->
                   get_required_services(HostType, Module, Opts)),
         check_dynamic_domains_support(HostType, Module),
         Res = Module:start(HostType, Opts),
+        run_for_hooks(HostType, fun gen_hook:add_handlers/1, Module),
         {links, LinksAfter} = erlang:process_info(self(), links),
         case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
             true -> ok;
@@ -144,6 +146,12 @@ start_module_for_host_type(HostType, Module, Opts) ->
             end
     end.
 
+run_for_hooks(HostType, Fun, Module) ->
+    case erlang:function_exported(Module, hooks, 1) of
+        true -> Fun(Module:hooks(HostType));
+        false -> ok
+    end.
+
 check_dynamic_domains_support(HostType, Module) ->
     case lists:member(HostType, ?MYHOSTS) of
         true -> ok;
@@ -182,6 +190,7 @@ stop_module(HostType, Module) ->
 
 -spec stop_module_for_host_type(host_type(), module()) -> ok.
 stop_module_for_host_type(HostType, Module) ->
+    run_for_hooks(HostType, fun gen_hook:delete_handlers/1, Module),
     try Module:stop(HostType) of
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList);

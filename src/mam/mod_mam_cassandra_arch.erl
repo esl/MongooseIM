@@ -14,7 +14,7 @@
 %% Exports
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, hooks/1]).
 
 %% MAM hook handlers
 -export([archive_size/3,
@@ -74,12 +74,12 @@
 %% Starting and stopping functions for users' archives
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(hooks(HostType)).
+start(_HostType, _Opts) ->
+    ok.
 
 -spec stop(host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_pm

@@ -9,7 +9,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([c2s_stream_features/3,
@@ -30,12 +30,11 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
-    ensure_metrics(HostType),
-    gen_hook:add_handlers(hooks(HostType)).
+    ensure_metrics(HostType).
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)).
+stop(_HostType) ->
+    ok.
 
 hooks(HostType) ->
     [

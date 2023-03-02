@@ -32,6 +32,7 @@
 %% gen_mod callbacks
 -export([start/2,
          stop/1,
+         hooks/1,
          config_spec/0,
          supported_features/0]).
 
@@ -60,14 +61,12 @@ start(HostType, Opts = #{iqdisc := IQDisc}) ->
                                                  Component, Fn, #{}, IQDisc) ||
         {Component, Namespace, Fn} <- iq_handlers()],
     mod_http_upload_backend:init(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
 
-    gen_hook:delete_handlers(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace,
                                                     Component) ||
         {Component, Namespace, _Fn} <- iq_handlers()],

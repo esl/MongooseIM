@@ -34,7 +34,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([inspect_packet/3,
@@ -107,12 +107,10 @@
 start(HostType, #{access_max_user_messages := AccessMaxOfflineMsgs} = Opts) ->
     mod_offline_backend:init(HostType, Opts),
     start_worker(HostType, AccessMaxOfflineMsgs),
-    gen_hook:add_handlers(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(Host) ->
-    gen_hook:delete_handlers(hooks(Host)),
     stop_worker(Host),
     ok.
 

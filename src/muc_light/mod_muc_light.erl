@@ -33,7 +33,7 @@
          delete_room/1]).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0, deps/2]).
+-export([start/2, stop/1, hooks/1, config_spec/0, supported_features/0, deps/2]).
 
 %% config processing callback
 -export([process_config_schema/1]).
@@ -174,7 +174,6 @@ start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
     mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
-    gen_hook:add_handlers(hooks(HostType)),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),
     PacketHandler = mongoose_packet_handler:new(?MODULE),
@@ -185,7 +184,6 @@ start(HostType, Opts) ->
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
-    gen_hook:delete_handlers(hooks(HostType)),
     mod_muc_light_codec_backend:stop(HostType),
     mod_muc_light_db_backend:stop(HostType),
     ok.

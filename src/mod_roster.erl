@@ -42,6 +42,7 @@
 
 -export([start/2,
          stop/1,
+         hooks/1,
          config_spec/0,
          supported_features/0,
          process_iq/5,
@@ -137,13 +138,11 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts = #{iqdisc := IQDisc}) ->
     mod_roster_backend:init(HostType, Opts),
-    gen_hook:add_handlers(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
-    gen_hook:delete_handlers(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
