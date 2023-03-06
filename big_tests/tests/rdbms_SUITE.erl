@@ -398,8 +398,8 @@ test_request_transaction(Config) ->
 
 test_restart_transaction_with_execute(Config) ->
     erase_table(Config),
-    sql_prepare(Config, insert_int8, test_types, [int8],
-                <<"INSERT INTO test_types(int8) VALUES (?)">>),
+    Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
+    sql_prepare(Config, insert_int8, test_types, [int8], Q),
     ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
                                    {error, simulated_db_error}]),
@@ -959,11 +959,25 @@ drop_common_prefix(Pos, SelValue, Value) ->
       selected_suffix => safe_binary(100, SelValue),
       expected_suffix => safe_binary(100, Value)}.
 
+db_engine() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]).
+
 is_odbc() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == odbc.
+    db_engine() == odbc.
 
 is_pgsql() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == pgsql.
+    db_engine() == pgsql.
+
+is_mysql() ->
+    db_engine() == mysql.
+
+escape_column(Name) ->
+    case is_mysql() of
+        true ->
+            <<"`", Name/binary, "`">>;
+        false ->
+            Name
+    end.
 
 slow_rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
