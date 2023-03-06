@@ -812,17 +812,11 @@ sql_execute(Type, Name, Params, State = #state{db_ref = DBRef, query_timeout = Q
 check_execute_result(outer_op, _Res, _Name, _Params) ->
     ok;
 check_execute_result(nested_op, Res, Name, Params) ->
+    %% Res is not a list (i.e. executes are one query only and one result set only)
     case Res of
         {error, Reason} ->
             throw({aborted, #{reason => Reason, statement_name => Name, params => Params}});
-        _ when is_list(Res) ->
-            case lists:keysearch(error, 1, Res) of
-                {value, {error, Reason}} ->
-                    throw({aborted, #{reason => Reason, statement_name => Name, params => Params}});
-                _ ->
-                    ok
-            end;
-        _ ->
+        _ when is_tuple(Res) ->
             ok
     end.
 
