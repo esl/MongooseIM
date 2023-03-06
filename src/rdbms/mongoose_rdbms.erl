@@ -795,7 +795,9 @@ sql_dirty_internal(F, State) ->
 -spec sql_execute(Type :: atom(), Name :: atom(), Params :: [term()], state()) ->
     {query_result(), state()}.
 sql_execute(Type, Name, Params, State = #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
+    %% Postgres allows to prepare statement only once, so we should take care that NewState is updated
     {StatementRef, NewState} = prepare_statement(Name, State),
+    put_state(NewState),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, QueryTimeout)
           catch Class:Reason:StackTrace ->
             ?LOG_ERROR(#{what => rdbms_sql_execute_failed, statement_name => Name,
