@@ -54,7 +54,7 @@ flush_reports(ReportUrl, Lines) when length(Lines) =< 20 ->
     ContentType = "",
     Body = string:join(Lines, "\n"),
     Request = {ReportUrl, Headers, ContentType, Body},
-    httpc:request(post, Request, [], []);
+    httpc:request(post, Request, [{ssl, [{verify, verify_none}]}], []);
 flush_reports(ReportUrl, Lines) ->
     {NewBatch, RemainingLines} = lists:split(20, Lines),
     flush_reports(ReportUrl, NewBatch),
