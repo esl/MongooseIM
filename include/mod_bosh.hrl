@@ -5,5 +5,5 @@
 
 -record(bosh_socket, {sid   :: mod_bosh:sid(),
                       pid   :: pid(),
-                      peer  :: {inet:ip_address(), inet:port_number()},
+                      peer  :: mongoose_transport:peer(),
                       peercert :: undefined | binary()}).

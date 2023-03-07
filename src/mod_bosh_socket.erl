@@ -106,12 +106,11 @@
 start(HostType, Sid, Peer, PeerCert) ->
     supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert]).
 
-
 -spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
                  binary() | undefined) ->
     'ignore' | {'error', _} | {'ok', pid()}.
 start_link(HostType, Sid, Peer, PeerCert) ->
-    gen_fsm_compat:start_link(?MODULE, [HostType, Sid, Peer, PeerCert], []).
+    gen_fsm_compat:start_link(?MODULE, [{HostType, Sid, Peer, PeerCert}], []).
 
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
@@ -193,7 +192,9 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([HostType, Sid, Peer, PeerCert]) ->
+-spec init([{mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(), undefined | binary()}]) ->
+    {ok, accumulate, state()}.
+init([{HostType, Sid, Peer = {IPTuple, Port}, PeerCert}]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = #{access => all,
                 shaper => none,
@@ -201,7 +202,8 @@ init([HostType, Sid, Peer, PeerCert]) ->
                 max_stanza_size => 0,
                 hibernate_after => 0,
                 c2s_state_timeout => 5000,
-                backwards_compatible_session => true},
+                backwards_compatible_session => true,
+                port => Port, ip_tuple => IPTuple, proto => tcp},
     {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),

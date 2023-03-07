@@ -150,8 +150,9 @@ start_cowboy(Ref, Opts, Retries, SleepTime) ->
 
 -spec do_start_cowboy(atom(), listener_options()) -> {ok, pid()} | {error, any()}.
 do_start_cowboy(Ref, Opts) ->
-    #{ip_tuple := IPTuple, port := Port, handlers := Handlers,
+    #{ip_tuple := IPTuple, port := Port, handlers := Handlers0,
       transport := TransportOpts0, protocol := ProtocolOpts0} = Opts,
+    Handlers = [ Handler#{ip_tuple => IPTuple, port => Port, proto => tcp} || Handler <- Handlers0 ],
     Routes = mongoose_http_handler:get_routes(Handlers),
     Dispatch = cowboy_router:compile(Routes),
     ProtocolOpts = ProtocolOpts0#{env => #{dispatch => Dispatch}},
