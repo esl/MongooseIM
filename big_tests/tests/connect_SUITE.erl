@@ -32,6 +32,7 @@
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 
 -import(distributed_helper, [mim/0,
+                             mim2/0,
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
@@ -72,7 +73,8 @@ groups() ->
         {fast_tls, tls_groups()},
         {session_replacement, [], [same_resource_replaces_session,
                                    clean_close_of_replaced_session,
-                                   replaced_session_cannot_terminate]},
+                                   replaced_session_cannot_terminate,
+                                   replaced_session_cannot_terminate_different_nodes]},
         {security, [], [return_proper_stream_error_if_service_is_not_hidden,
                         close_connection_if_service_type_is_hidden]},
         {incorrect_behaviors, [parallel], [close_connection_if_start_stream_duplicated,
@@ -183,9 +185,21 @@ init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     OptKey = {replaced_wait_timeout, S},
     Config1 = mongoose_helper:backup_and_set_config_option(Config, OptKey, 1),
     escalus:init_per_testcase(CN, Config1);
+init_per_testcase(replaced_session_cannot_terminate_different_nodes = CN, Config) ->
+    S = escalus_users:get_server(Config, alice),
+    OptKey = {replaced_wait_timeout, S},
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, OptKey, 1),
+    Config2 = distributed_helper:add_node_to_cluster(mim2(), Config1),
+    logger_ct_backend:start(mim2()),
+    escalus:init_per_testcase(CN, Config2);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(replaced_session_cannot_terminate_different_nodes = CaseName, Config) ->
+    logger_ct_backend:stop(mim2()),
+    distributed_helper:remove_node_from_cluster(mim2(), Config),
+    mongoose_helper:restore_config(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(CaseName, Config).
@@ -468,6 +482,30 @@ replaced_session_cannot_terminate(Config) ->
 
     % WHEN a session gets replaced ...
     {ok, Alice2, _} = escalus_connection:start(UserSpec),
+
+    % THEN a timeout warning is logged
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "replaced_wait_timeout") /= nomatch
+                end,
+    mongoose_helper:wait_until(
+      fun() -> length(logger_ct_backend:recv(FilterFun)) end, 1),
+
+    rpc(mim(), sys, resume, [C2SPid]),
+    logger_ct_backend:stop_capture(),
+
+    escalus_connection:stop(Alice2).
+
+replaced_session_cannot_terminate_different_nodes(Config) ->
+    % GIVEN a session that is frozen and cannot terminate
+    logger_ct_backend:capture(warning, mim2()),
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
+    {ok, _Alice1, _} = escalus_connection:start(UserSpec),
+    [C2SPid] = ranch_procs(),
+    ok = rpc(mim(), sys, suspend, [C2SPid]),
+
+    % WHEN a session gets replaced on a different node
+    UserSpec2 = [{port, 5232} | UserSpec],
+    {ok, Alice2, _} = escalus_connection:start(UserSpec2),
 
     % THEN a timeout warning is logged
     FilterFun = fun(_, Msg) ->

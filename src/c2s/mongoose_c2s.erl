@@ -614,7 +614,7 @@ handle_timeout(StateData, C2SState, Name, Payload) ->
 verify_process_alive(StateData, C2SState, Pid) ->
     IsAlive = case node(Pid) =:= node() of
                   true -> erlang:is_process_alive(Pid);
-                  false -> erlang:process_info(Pid) =:= undefined
+                  false -> rpc:call(node(Pid), erlang, is_process_alive, [Pid])
               end,
     case IsAlive of
         false -> ok;
