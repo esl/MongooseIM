@@ -56,6 +56,9 @@
                            max_stanza_size := non_neg_integer(),
                            backwards_compatible_session := boolean(),
                            c2s_state_timeout := non_neg_integer(),
+                           port := inet:port_number(),
+                           ip_tuple := inet:ip_address(),
+                           proto := tcp,
                            term() => term()}.
 
 -export_type([packet/0, data/0, state/0, state/1, listener_opts/0]).

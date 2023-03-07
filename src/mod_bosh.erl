@@ -64,7 +64,7 @@
 -type headers_list() :: [{binary(), binary()}].
 
 %% Request State
--record(rstate, {req_sid}).
+-record(rstate, {req_sid, opts}).
 -type rstate() :: #rstate{}.
 -type req() :: cowboy_req:req().
 
@@ -141,12 +141,12 @@ node_cleanup(Acc, #{node := Node}, _) ->
 %%--------------------------------------------------------------------
 
 -spec init(req(), mongoose_http_handler:options()) -> {cowboy_loop, req(), rstate()}.
-init(Req, _Opts) ->
+init(Req, Opts) ->
     ?LOG_DEBUG(#{what => bosh_init, req => Req}),
     Msg = init_msg(Req),
     self() ! Msg,
     %% Upgrade to cowboy_loop behaviour to enable long polling
-    {cowboy_loop, Req, #rstate{}}.
+    {cowboy_loop, Req, #rstate{opts = Opts}}.
 
 
 %% ok return keep the handler looping.
@@ -275,11 +275,11 @@ check_event_type_streamstrart(Body) ->
 
 -spec forward_body(req(), exml:element(), rstate())
             -> {ok, req(), rstate()} | {stop, req(), rstate()}.
-forward_body(Req, #xmlel{} = Body, S) ->
+forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
     Type = to_event_type(Body),
     case Type of
         streamstart ->
-            {SessionStarted, Req1} = maybe_start_session(Req, Body),
+            {SessionStarted, Req1} = maybe_start_session(Req, Body, Opts),
             case SessionStarted of
                 true ->
                     {ok, Req1, S};
@@ -319,15 +319,15 @@ get_session_socket(Sid) ->
     end.
 
 
--spec maybe_start_session(req(), exml:element()) ->
+-spec maybe_start_session(req(), exml:element(), map()) ->
     {SessionStarted :: boolean(), req()}.
-maybe_start_session(Req, Body) ->
+maybe_start_session(Req, Body, Opts) ->
     Domain = exml_query:attr(Body, <<"to">>),
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             case gen_mod:is_loaded(HostType, ?MODULE) of
                 true ->
-                    maybe_start_session_on_known_host(HostType, Req, Body);
+                    maybe_start_session_on_known_host(HostType, Req, Body, Opts);
                 false ->
                     {false, terminal_condition(<<"host-unknown">>, Req)}
             end;
@@ -335,11 +335,11 @@ maybe_start_session(Req, Body) ->
             {false, terminal_condition(<<"host-unknown">>, Req)}
     end.
 
--spec maybe_start_session_on_known_host(mongooseim:host_type(), req(), exml:element()) ->
+-spec maybe_start_session_on_known_host(mongooseim:host_type(), req(), exml:element(), map()) ->
           {SessionStarted :: boolean(), req()}.
-maybe_start_session_on_known_host(HostType, Req, Body) ->
+maybe_start_session_on_known_host(HostType, Req, Body, Opts) ->
     try
-        maybe_start_session_on_known_host_unsafe(HostType, Req, Body)
+        maybe_start_session_on_known_host_unsafe(HostType, Req, Body, Opts)
     catch
         error:Reason ->
             %% It's here because something catch-y was here before
@@ -349,22 +349,22 @@ maybe_start_session_on_known_host(HostType, Req, Body) ->
             {false, Req1}
     end.
 
--spec maybe_start_session_on_known_host_unsafe(mongooseim:host_type(), req(), exml:element()) ->
+-spec maybe_start_session_on_known_host_unsafe(mongooseim:host_type(), req(), exml:element(), map()) ->
           {SessionStarted :: boolean(), req()}.
-maybe_start_session_on_known_host_unsafe(HostType, Req, Body) ->
+maybe_start_session_on_known_host_unsafe(HostType, Req, Body, Opts) ->
     %% Version isn't checked as it would be meaningless when supporting
     %% only a subset of the specification.
     {ok, NewBody} = set_max_hold(Body),
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    start_session(HostType, Peer, PeerCert, NewBody),
+    start_session(HostType, Peer, PeerCert, NewBody, Opts),
     {true, Req}.
 
 -spec start_session(mongooseim:host_type(), mongoose_transport:peer(),
-                    binary() | undefined, exml:element()) -> any().
-start_session(HostType, Peer, PeerCert, Body) ->
+                    binary() | undefined, exml:element(), map()) -> any().
+start_session(HostType, Peer, PeerCert, Body, Opts) ->
     Sid = make_sid(),
-    {ok, Socket} = mod_bosh_socket:start(HostType, Sid, Peer, PeerCert),
+    {ok, Socket} = mod_bosh_socket:start(HostType, Sid, Peer, PeerCert, Opts),
     store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?LOG_DEBUG(#{what => bosh_start_session, sid => Sid}).

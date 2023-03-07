@@ -245,7 +245,8 @@ maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
     end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 #ws_state{fsm_pid = undefined,
-                          opts = #{c2s_state_timeout := StateTimeout,
+                          opts = #{ip_tuple := IPTuple, port := Port,
+                                   c2s_state_timeout := StateTimeout,
                                    backwards_compatible_session := BackwardsCompatible}} = State) ->
     Opts = #{
         access => all,
@@ -254,7 +255,8 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
         xml_socket => true,
         hibernate_after => 0,
         c2s_state_timeout => StateTimeout,
-        backwards_compatible_session => BackwardsCompatible},
+        backwards_compatible_session => BackwardsCompatible,
+        port => Port, ip_tuple => IPTuple, proto => tcp},
     do_start_fsm(mongoose_c2s, Opts, State);
 maybe_start_fsm(_Els, State) ->
     {ok, State}.

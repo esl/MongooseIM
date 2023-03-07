@@ -4,8 +4,8 @@
 -behaviour(mongoose_c2s_socket).
 
 %% API
--export([start/4,
-         start_link/4,
+-export([start/5,
+         start_link/5,
          start_supervisor/0,
          is_supervisor_started/0,
          handle_request/2,
@@ -49,7 +49,7 @@
               closing/3, compress/1, compress/3, get_cached_responses/1,
               get_client_acks/1, get_handlers/1, get_peer_certificate/1,
               get_pending/1, get_pending/1, get_sockmod/1, normal/2, normal/3,
-              pause/2, send/2, set_client_acks/2, start_link/4]).
+              pause/2, send/2, set_client_acks/2, start_link/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -101,17 +101,16 @@
 %%--------------------------------------------------------------------
 
 -spec start(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
-            binary() | undefined) ->
+            binary() | undefined, map()) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(HostType, Sid, Peer, PeerCert) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert]).
-
+start(HostType, Sid, Peer, PeerCert, Opts) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert, Opts]).
 
 -spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
-                 binary() | undefined) ->
+                 binary() | undefined, map()) ->
     'ignore' | {'error', _} | {'ok', pid()}.
-start_link(HostType, Sid, Peer, PeerCert) ->
-    gen_fsm_compat:start_link(?MODULE, [HostType, Sid, Peer, PeerCert], []).
+start_link(HostType, Sid, Peer, PeerCert, Opts) ->
+    gen_fsm_compat:start_link(?MODULE, [{HostType, Sid, Peer, PeerCert, Opts}], []).
 
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
@@ -193,15 +192,19 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([HostType, Sid, Peer, PeerCert]) ->
+-spec init([{mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(), undefined |
+             binary(), map()}]) ->
+    {ok, accumulate, state()}.
+init([{HostType, Sid, Peer, PeerCert, ListenerOpts}]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
-    C2SOpts = #{access => all,
-                shaper => none,
-                xml_socket => true,
-                max_stanza_size => 0,
-                hibernate_after => 0,
-                c2s_state_timeout => 5000,
-                backwards_compatible_session => true},
+    C2SOpts = ListenerOpts#{access => all,
+                            shaper => none,
+                            xml_socket => true,
+                            max_stanza_size => 0,
+                            hibernate_after => 0,
+                            c2s_state_timeout => 5000,
+                            backwards_compatible_session => true,
+                            proto => tcp},
     {ok, C2SPid} = mongoose_c2s:start({?MODULE, BoshSocket, C2SOpts}, []),
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
     State = new_state(Sid, C2SPid, Opts),
