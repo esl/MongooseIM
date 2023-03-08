@@ -1,7 +1,15 @@
 -module(logger_ct_backend).
 
 % API for tests
--export([start/0, stop/0, capture/1, stop_capture/0, recv/1]).
+-export([start/0,
+         start/1,
+         stop/0,
+         stop/1,
+         capture/1,
+         capture/2,
+         stop_capture/0,
+         stop_capture/1,
+         recv/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, terminate/2]).
@@ -9,7 +17,10 @@
 % Logger handler callback
 -export([adding_handler/1, removing_handler/1, log/2]).
 
--import(mongoose_helper, [successful_rpc/3]).
+-import(mongoose_helper, [successful_rpc/3,
+                          successful_rpc/4]).
+
+-import(distributed_helper, [mim/0]).
 
 -type state() :: #{
         receivers := [{pid(), logger:level()}]
@@ -21,18 +32,34 @@
 %% API for tests
 %% ------------------------------------------------------------
 start() ->
-    mongoose_helper:inject_module(?MODULE, reload),
-    successful_rpc(logger, add_handler, [?MODULE, ?MODULE, #{}]).
+    start(mim()).
+
+-spec start(Node :: distributed_helper:rpc_spec()) -> term().
+start(Node) ->
+    mongoose_helper:inject_module(Node, ?MODULE, reload),
+    successful_rpc(Node, logger, add_handler, [?MODULE, ?MODULE, #{}]).
 
 stop() ->
-    successful_rpc(logger, remove_handler, [?MODULE]).
+    stop(mim()).
+
+-spec stop(Node :: distributed_helper:rpc_spec()) -> term().
+stop(Node) ->
+    successful_rpc(Node, logger, remove_handler, [?MODULE]).
 
 -spec capture(Level :: logger:level()) -> term().
 capture(Level) ->
-    successful_rpc(gen_server, call, [?MODULE, {capture, self(), Level}]).
+    capture(Level, mim()).
+
+-spec capture(Level :: logger:level(), Node :: distributed_helper:rpc_spec()) -> term().
+capture(Level, Node) ->
+    successful_rpc(Node, gen_server, call, [?MODULE, {capture, self(), Level}]).
 
 stop_capture() ->
-    successful_rpc(gen_server, call, [?MODULE, {stop_capture, self()}]).
+    stop_capture(mim()).
+
+-spec stop_capture(Node :: distributed_helper:rpc_spec()) -> term().
+stop_capture(Node) ->
+    successful_rpc(Node, gen_server, call, [?MODULE, {stop_capture, self()}]).
 
 -spec recv(filter_fun()) -> ReceivedLogs :: [binary()].
 recv(FilterFun) ->
