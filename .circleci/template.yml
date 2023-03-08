@@ -224,11 +224,6 @@ executors:
       - image: *OTP25
       - *redis_container
       - *mssql_container
-  otp_24_riak_redis:
-    docker:
-      - image: *OTP24
-      - *redis_container
-      - *riak_container
   otp_25_elasticsearch_cassandra:
     docker:
       - image: *OTP25
@@ -350,15 +345,6 @@ commands:
           command: |
             if [[ "$DB" == *ldap* ]]; then
               sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
-            fi
-
-  maybe_wait_for_solr:
-    steps:
-      - run:
-          name: Maybe wait for Riak SOLR
-          command: |
-            if [[ "$DB" == *riak* ]]; then
-              tools/circle-wait-for-solr.sh
             fi
 
   maybe_setup_elasticsearch:
@@ -546,7 +532,7 @@ jobs:
       preset:
         type: enum
         enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia]
         description: Preset to run
         default: internal_mnesia
       db:
@@ -577,7 +563,6 @@ jobs:
       - maybe_prepare_minio
       - maybe_prepare_odbc
       - maybe_prepare_ldap
-      - maybe_wait_for_solr
       - maybe_setup_elasticsearch
       - prepare_etc_hosts
       - run:
@@ -843,15 +828,6 @@ workflows:
             - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: riak_mnesia_24
-          executor: otp_24_riak_redis
-          context: mongooseim-org
-          preset: riak_mnesia
-          db: "riak redis"
-          requires:
-            - otp_24_docker
-          filters: *all_tags
-      - big_tests_in_docker:
           name: ldap_mnesia_24
           executor: otp_24_ldap_redis
           context: mongooseim-org
@@ -887,7 +863,6 @@ workflows:
             - small_tests_24
             - ldap_mnesia_24
             - pgsql_mnesia_24
-            - riak_mnesia_24
             - dynamic_domains_pgsql_mnesia_24
             - dialyzer_24
 
