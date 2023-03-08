@@ -59,7 +59,7 @@ stop_capture() ->
 
 -spec stop_capture(Node :: distributed_helper:rpc_spec()) -> term().
 stop_capture(Node) ->
-    successful_rpc(Node, gen_server, call, [?MODULE, {capture, self()}]).
+    successful_rpc(Node, gen_server, call, [?MODULE, {stop_capture, self()}]).
 
 -spec recv(filter_fun()) -> ReceivedLogs :: [binary()].
 recv(FilterFun) ->
