@@ -32,8 +32,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([socket_type/0,
-         start_listener/1]).
+-export([start_listener/1]).
 
 %% External exports
 -export([start/2,
@@ -56,8 +55,8 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--ignore_xref([print_state/1, send_element/2, send_text/2, start_listener/1, socket_type/0,
-              start_link/2, stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
+-ignore_xref([print_state/1, send_element/2, send_text/2, start_listener/1, start_link/2,
+              stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -140,10 +139,6 @@ start(SockData, Opts) ->
 start_link(SockData, Opts) ->
     p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
-
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    xml_stream.
 
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->

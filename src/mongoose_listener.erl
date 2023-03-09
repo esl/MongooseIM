@@ -9,10 +9,9 @@
 -ignore_xref([start_listener/1, stop_listener/1]).
 
 %% API
--export([start/0, stop/0, socket_type/1]).
+-export([start/0, stop/0]).
 
 -callback start_listener(options()) -> ok.
--callback socket_type() -> socket_type().
 
 -type options() :: #{port := inet:port_number(),
                      ip_tuple := inet:ip_address(),
@@ -22,9 +21,8 @@
                      any() => any()}.
 -type id() :: {inet:port_number(), inet:ip_address(), proto()}.
 -type proto() :: tcp.
--type socket_type() :: independent | xml_stream | raw.
 
--export_type([options/0, id/0, proto/0, socket_type/0]).
+-export_type([options/0, id/0, proto/0]).
 
 %% API
 
@@ -33,10 +31,6 @@ start() ->
 
 stop() ->
     lists:foreach(fun stop_listener/1, mongoose_config:get_opt(listen)).
-
--spec socket_type(module()) -> any().
-socket_type(Module) ->
-    Module:socket_type().
 
 %% Internal functions
 

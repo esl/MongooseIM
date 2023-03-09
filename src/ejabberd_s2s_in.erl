@@ -29,8 +29,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([socket_type/0,
-         start_listener/1]).
+-export([start_listener/1]).
 
 %% External exports
 -export([start/2,
@@ -48,8 +47,8 @@
          handle_info/3,
          terminate/3]).
 
--ignore_xref([match_domain/2, socket_type/0, start/2, start_link/2,
-              stream_established/2, wait_for_feature_request/2, wait_for_stream/2]).
+-ignore_xref([match_domain/2, start/2, start_link/2, stream_established/2,
+              wait_for_feature_request/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -121,10 +120,6 @@ start_link(SockData, Opts) ->
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
-
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    xml_stream.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm

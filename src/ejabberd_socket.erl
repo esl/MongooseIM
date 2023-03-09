@@ -67,30 +67,7 @@
             mongoose_tcp_listener:options(),
             mongoose_tcp_listener:connection_details()) -> ok.
 start(Module, SockMod, Socket, Opts, ConnectionDetails) ->
-    case mongoose_listener:socket_type(Module) of
-        xml_stream ->
-            start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails);
-        independent ->
-            ok;
-        raw ->
-            start_raw_stream(Module, SockMod, Socket, Opts, ConnectionDetails)
-    end.
-
--spec start_raw_stream(module(), ejabberd:sockmod(),
-                       Socket :: port(), mongoose_tcp_listener:options(),
-                       mongoose_tcp_listener:connection_details()) -> ok.
-start_raw_stream(Module, SockMod, Socket, Opts, _ConnectionDetails) ->
-    case Module:start({SockMod, Socket}, Opts) of
-        {ok, Pid} ->
-            case SockMod:controlling_process(Socket, Pid) of
-                ok ->
-                    ok;
-                {error, _Reason} ->
-                    SockMod:close(Socket)
-            end;
-        {error, _Reason} ->
-            SockMod:close(Socket)
-    end.
+    start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails).
 
 -spec start_xml_stream(atom() | tuple(), ejabberd:sockmod(),
                        Socket :: port(), mongoose_tcp_listener:options(),

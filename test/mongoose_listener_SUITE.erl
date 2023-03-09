@@ -175,8 +175,5 @@ assert_connected(Sock, Port) ->
             ct:fail("Failed: connection to ~p is broken, error was: ~p", [Port, Else])
     end.
 
-socket_type() ->
-    xml_stream.
-
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
