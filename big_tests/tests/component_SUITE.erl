@@ -164,37 +164,55 @@ register_two_components(Config) ->
     CompOpts2 = ?config(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
+    MongooseMetrics = [{[global, data, xmpp, received, component, raw], changed},
+                       {[global, data, xmpp, sent, component, raw], changed},
+                       {[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
+
+    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
+    %% note that there is no c2s communication happens and 
+    %% data.xmpp.*.xml_stanza_size metrics are bounced
+    %% for the components communication
+
+    %% When the first component sends a message the second component
+    Msg0 = escalus_stanza:chat_to(CompAddr2, <<"intercomponent msg">>),
+    escalus:send(Comp1, escalus_stanza:from(Msg0, CompAddr1)),
+    %% Then the second component receives it
+    Reply0 = escalus:wait_for_stanza(Comp2),
+    escalus:assert(is_chat_message, [<<"intercomponent msg">>], Reply0),
+
+    escalus_mongooseim:post_story(PreStoryData),
 
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-                %% When Alice sends a message to the first component
-                Msg1 = escalus_stanza:chat_to(Alice, <<"abc">>),
+                %% When the first component sends a message to Alice
+                Msg1 = escalus_stanza:chat_to(Alice, <<"Comp1-2-Alice msg">>),
                 escalus:send(Comp1, escalus_stanza:from(Msg1, CompAddr1)),
-                %% Then component receives it
+                %% Then she receives it
                 Reply1 = escalus:wait_for_stanza(Alice),
-                escalus:assert(is_chat_message, [<<"abc">>], Reply1),
+                escalus:assert(is_chat_message, [<<"Comp1-2-Alice msg">>], Reply1),
                 escalus:assert(is_stanza_from, [CompAddr1], Reply1),
 
-                %% When Bob sends a message to the second component
-                Msg2 = escalus_stanza:chat_to(Bob, <<"def">>),
+                %% When the second component sends a message to Bob
+                Msg2 = escalus_stanza:chat_to(Bob, <<"Comp2-2-Bob msg">>),
                 escalus:send(Comp2, escalus_stanza:from(Msg2, CompAddr2)),
-                %% Then it also receives it
+                %% Then he receives it
                 Reply2 = escalus:wait_for_stanza(Bob),
-                escalus:assert(is_chat_message, [<<"def">>], Reply2),
+                escalus:assert(is_chat_message, [<<"Comp2-2-Bob msg">>], Reply2),
                 escalus:assert(is_stanza_from, [CompAddr2], Reply2),
 
-                %% When the second component sends a reply to Bob
-                Msg3 = escalus_stanza:chat_to(CompAddr2, <<"ghi">>),
+                %% When Bob sends a reply to the second component
+                Msg3 = escalus_stanza:chat_to(CompAddr2, <<"Bob-2-Comp2 msg">>),
                 escalus:send(Bob, Msg3),
-                %% Then he receives it
+                %% Then the second component receives it
                 Reply3 = escalus:wait_for_stanza(Comp2),
-                escalus:assert(is_chat_message, [<<"ghi">>], Reply3),
+                escalus:assert(is_chat_message, [<<"Bob-2-Comp2 msg">>], Reply3),
 
-                %% WHen the first component sends a reply to Alice
-                Msg4 = escalus_stanza:chat_to(CompAddr1, <<"jkl">>),
+                %% WHen Alice sends a reply to the first component
+                Msg4 = escalus_stanza:chat_to(CompAddr1, <<"Alice-2-Comp1 msg">>),
                 escalus:send(Alice, Msg4),
-                %% Then she receives it
+                %% Then the first component receives it
                 Reply4 = escalus:wait_for_stanza(Comp1),
-                escalus:assert(is_chat_message, [<<"jkl">>], Reply4)
+                escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
         end),
 
     disconnect_component(Comp1, CompAddr1),

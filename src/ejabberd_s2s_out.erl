@@ -316,7 +316,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
-            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
+            send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             ?LOG_INFO(#{what => s2s_out_closing,
                         text => <<"Closing s2s connection: (invalid namespace)">>,
                         namespace_provided => NSProvided,
@@ -327,8 +327,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamerror, StateData);
 wait_for_stream({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamend, StateData);
@@ -384,8 +384,8 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamend, StateData);
 wait_for_validation({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamerror, StateData);
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
@@ -425,16 +425,15 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                   end, {false, false, false}, Els),
             handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
-            send_text(StateData,
-                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                      (?STREAM_TRAILER)/binary>>),
+            send_element(StateData, mongoose_xmpp_errors:bad_format()),
+            send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_features, bad_format, El, StateData)
     end;
 wait_for_features({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_features, xmlstreamend, StateData);
 wait_for_features({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_features, xmlstreamerror, StateData);
 wait_for_features(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_features, timeout, StateData);
@@ -459,9 +458,8 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                      authenticated = true
                                     }, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
@@ -475,22 +473,20 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
-            send_text(StateData,
-                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+            send_element(StateData, mongoose_xmpp_errors:bad_format()),
+            send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamend, StateData);
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamerror, StateData);
 wait_for_auth_result(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_auth_result, timeout, StateData);
@@ -517,9 +513,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                 <<" version='1.0'">>)),
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
@@ -528,8 +523,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamend, StateData);
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamerror, StateData);
 wait_for_starttls_proceed(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_starttls_proceed, timeout, StateData);
@@ -588,8 +583,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
 stream_established({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(stream_established, xmlstreamend, StateData);
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(stream_established, xmlstreamerror, StateData);
 stream_established(timeout, StateData) ->
     ?CLOSE_GENERIC(stream_established, timeout, StateData);
@@ -782,16 +777,16 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> 'ok'.
 send_text(StateData, Text) ->
-    mongoose_transport:send(StateData#state.socket, Text).
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
 send_element(StateData, #xmlel{} = El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 -spec send_element(state(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 send_element(StateData, Acc, El) ->
-    send_text(StateData, exml:to_binary(El)),
+    mongoose_transport:send_element(StateData#state.socket, El),
     Acc.
 
 

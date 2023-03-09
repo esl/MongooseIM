@@ -59,7 +59,7 @@
 -type state() :: #state{}.
 
 %% transport API
--export([accept/4, connect/5, close/1, send/2]).
+-export([accept/4, connect/5, close/1, send_text/2, send_element/2]).
 -export([wait_for_tls_handshake/2, wait_for_tls_handshake/3,
          connect_tls/2, get_peer_certificate/1]).
 -export([monitor/1, peername/1, change_shaper/2]).
@@ -146,10 +146,11 @@ wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts) 
     tcp_to_tls(Receiver, TLSOpts#{connect => false}),
     update_socket(SocketData).
 
--spec wait_for_tls_handshake(socket_data(), mongoose_tls:options(), binary()) -> socket_data().
-wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts, Data) ->
+-spec wait_for_tls_handshake(socket_data(), mongoose_tls:options(), exml:element()) ->
+     socket_data().
+wait_for_tls_handshake(#socket_data{receiver = Receiver} = SocketData, TLSOpts, El) ->
     tcp_to_tls(Receiver, TLSOpts#{connect => false}),
-    send(SocketData, Data), %% send last negotiation chunk via tcp
+    send_element(SocketData, El), %% send last negotiation chunk via tcp
     update_socket(SocketData).
 
 -spec connect_tls(socket_data(), mongoose_tls:options()) -> socket_data().
@@ -157,8 +158,10 @@ connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
     tcp_to_tls(Receiver, TLSOpts#{connect => true}),
     update_socket(SocketData).
 
--spec send(socket_data(), binary()) -> ok.
-send(#socket_data{sockmod = SockMod, socket = Socket, connection_type = ConnectionType}, Data) ->
+-spec send_text(socket_data(), binary()) -> ok.
+send_text(SocketData, Data) ->
+    #socket_data{sockmod = SockMod, socket = Socket,
+                 connection_type = ConnectionType} = SocketData,
     case catch SockMod:send(Socket, Data) of
         ok -> 
             update_transport_metrics(byte_size(Data), sent, ConnectionType),
@@ -172,6 +175,13 @@ send(#socket_data{sockmod = SockMod, socket = Socket, connection_type = Connecti
                         socket => SockMod}),
             exit(normal)
     end.
+
+
+-spec send_element(socket_data(), exml:element()) -> ok.
+send_element(SocketData, El) ->
+    BinEl = exml:to_binary(El),
+    mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], byte_size(BinEl)),
+    send_text(SocketData, BinEl).
 
 -spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
 get_peer_certificate(#socket_data{sockmod = mongoose_tls, socket = Socket}) ->
@@ -383,8 +393,10 @@ process_data(Data, #state{parser = Parser,
     Size = byte_size(Data),
     {Events, NewParser} =
         case exml_stream:parse(Parser, Data) of
-            {ok, NParser, Elems} -> {[wrap_if_xmlel(E) || E <- Elems], NParser};
-            {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
+            {ok, NParser, Elems} -> 
+                {[wrap_xml_elements_and_update_metrics(E) || E <- Elems], NParser};
+            {error, Reason} ->
+                {[{xmlstreamerror, Reason}], Parser}
         end,
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     update_transport_metrics(Size, received, State#state.connection_type),
@@ -392,8 +404,12 @@ process_data(Data, #state{parser = Parser,
     maybe_pause(Pause, State),
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
-wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
-wrap_if_xmlel(E) -> E.
+wrap_xml_elements_and_update_metrics(#xmlel{} = E) -> 
+    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
+    {xmlstreamelement, E};
+wrap_xml_elements_and_update_metrics(E) -> 
+    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
+    E.
 
 -spec update_transport_metrics(non_neg_integer(),
                                sent | received,

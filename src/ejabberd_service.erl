@@ -215,8 +215,9 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
-    send_text(StateData, <<(iolist_to_binary(Header))/binary,
-                           (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, iolist_to_binary(Header)),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData};
@@ -243,7 +244,8 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_handshake(replaced, StateData) ->
     %% We don't expect to receive replaced before handshake
@@ -297,7 +299,8 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established(replaced, StateData) ->
     do_disconnect_on_conflict(StateData);
@@ -375,8 +378,7 @@ handle_info({route, Acc}, StateName, StateData) ->
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                 jid:to_binary(To),
                                                 Packet#xmlel.attrs),
-            Text = exml:to_binary(Packet#xmlel{ attrs = Attrs2 }),
-            send_text(StateData, Text);
+            send_element(StateData, Packet#xmlel{ attrs = Attrs2 });
         deny ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
     end,
@@ -423,12 +425,11 @@ send_text(StateData, Text) ->
     ?LOG_DEBUG(#{what => comp_send_text,
                  component => component_host(StateData),
                  send_text => Text}),
-    mongoose_transport:send(StateData#state.socket, Text).
-
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
 -spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 
 -spec new_id() -> string().
@@ -456,7 +457,7 @@ try_register_routes(StateData) ->
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
         ok ->
-            send_text(StateData, <<"<handshake/>">>),
+            send_element(StateData, #xmlel{name = <<"handshake">>}),
             {next_state, stream_established, StateData};
         {error, Reason} ->
             RoutesInfo = lookup_routes(StateData),
@@ -497,7 +498,7 @@ handle_registration_conflict(_Behaviour, _RoutesInfo, StateData, _Retries) ->
     do_disconnect_on_conflict(StateData).
 
 do_disconnect_on_conflict(StateData) ->
-    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
+    send_element(StateData, mongoose_xmpp_errors:stream_conflict()),
     {stop, normal, StateData}.
 
 lookup_routes(StateData) ->

@@ -247,9 +247,8 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             TLSOpts = tls_options_with_certfile(StateData),
             TLSSocket = mongoose_transport:wait_for_tls_handshake(
                                                  StateData#state.socket, TLSOpts,
-                                                 exml:to_binary(
-                                                     #xmlel{name = <<"proceed">>,
-                                                             attrs = [{<<"xmlns">>, ?NS_TLS}]})),
+                                                 #xmlel{name = <<"proceed">>,
+                                                        attrs = [{<<"xmlns">>, ?NS_TLS}]}),
             {next_state, wait_for_stream,
              StateData#state{socket = TLSSocket,
                              streamid = new_id(),
@@ -280,7 +279,8 @@ wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
@@ -319,10 +319,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns,
                                      timer = Timer}};
                 {_, false} ->
-                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:host_unknown())),
+                    send_element(StateData, mongoose_xmpp_errors:host_unknown()),
                     {stop, normal, StateData};
                 {false, _} ->
-                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_from())),
+                    send_element(StateData, mongoose_xmpp_errors:invalid_from()),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -383,8 +383,8 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};
@@ -560,12 +560,11 @@ terminate(Reason, _StateName, StateData) ->
 
 -spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    mongoose_transport:send(StateData#state.socket, Text).
-
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
 -spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 -spec stream_features(mongooseim:host_type(), binary()) -> [exml:element()].
 stream_features(HostType, Domain) ->
