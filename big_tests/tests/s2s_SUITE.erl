@@ -66,7 +66,8 @@ metrics() ->
     [s2s_metrics_testing].
 
 all_tests() ->
-     [connections_info, nonexistent_user, unknown_domain, malformed_jid | essentials()].
+    [connections_info, nonexistent_user, unknown_domain, malformed_jid
+        | essentials() ++  metrics()].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -109,9 +110,16 @@ init_per_group(GroupName, Config) ->
 end_per_group(_GroupName, _Config) ->
     ok.
 
+init_per_testcase(s2s_metrics_testing, Config) ->
+    s2s_helper:configure_s2s(both_plain, Config),
+    escalus:init_per_testcase(s2s_metrics_testing, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(s2s_metrics_testing, Config) ->
+    ?dh:rpc(?dh:mim(), meck, unload, []),
+    ?dh:rpc(?dh:fed(), meck, unload, []),
+    escalus:end_per_testcase(s2s_metrics_testing, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -171,6 +179,124 @@ get_s2s_connections(RPCSpec, Domain, Type)->
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
             DomainS2SConnections]),
     DomainS2SConnections.
+
+s2s_metrics_testing(Config) ->
+    FedDomain = ct:get_config({hosts, fed, domain}),
+    MimDomain = ct:get_config({hosts, mim, domain}),
+    FedRPCSpec = ?dh:fed(),
+    MimRPCSpec = ?dh:mim(),
+
+    %% check that there's no s2s connection
+    [] = get_s2s_connections(MimRPCSpec, FedDomain, in),
+    [] = get_s2s_connections(MimRPCSpec, FedDomain, out),
+    [] = get_s2s_connections(FedRPCSpec, MimDomain, in),
+    [] = get_s2s_connections(FedRPCSpec, MimDomain, out),
+    [] = ?dh:rpc(MimRPCSpec, mongoose_transport, get_all_trasport_processes, []),
+    [] = ?dh:rpc(FedRPCSpec, mongoose_transport, get_all_trasport_processes, []),
+    [] = dump_s2s_mnesia_table(MimRPCSpec),
+    [] = dump_s2s_mnesia_table(FedRPCSpec),
+
+    mim_to_fed_msg(Config),
+
+    check_find_connection_function(MimRPCSpec, MimDomain, FedDomain),
+    check_find_connection_function(FedRPCSpec, FedDomain, MimDomain),
+
+    % %% ensure that exact s2s "in" connection is used on mim1 and fed1
+    % [Pid1 | _] = get_s2s_connection_pids(MimRPCSpec, FedDomain, out),
+    % [Pid2 | _] = get_s2s_connection_pids(FedRPCSpec, MimDomain, out),
+
+    % mock_find_connection_function(MimRPCSpec, MimDomain, FedDomain, Pid1),
+    % mock_find_connection_function(FedRPCSpec, FedDomain, MimDomain, Pid2),
+
+    % check_find_connection_function(MimRPCSpec, MimDomain, FedDomain),
+    % check_find_connection_function(FedRPCSpec, FedDomain, MimDomain),
+
+    dump_all_s2s_data(MimRPCSpec, FedDomain),
+    dump_all_s2s_data(FedRPCSpec, MimDomain),
+
+    fed_to_mim_msg(Config),
+
+    dump_all_s2s_data(MimRPCSpec, FedDomain),
+    dump_all_s2s_data(FedRPCSpec, MimDomain),
+    ok.
+
+mim_to_fed_msg(Config) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+        %% User on the main server sends a message to a user on a federated server
+        escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
+
+        %% User on the federated server receives the message
+        Stanza = escalus:wait_for_stanza(Alice2, 10000),
+        escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza)
+     end).
+
+fed_to_mim_msg(Config) ->
+    escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+        %% User on the federated server sends a message to the main server
+        escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
+
+        %% User on the main server receives the message
+        Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2)
+     end).
+
+get_transport_connections(RPCSpec) ->
+    TransportProcs = ?dh:rpc(RPCSpec, mongoose_transport, get_all_trasport_processes, []),
+    ct:pal("Node = ~p, transport connections(~p): ~p",
+           [maps:get(node, RPCSpec), length(TransportProcs), TransportProcs]),
+    [ct:pal("!dead dest process! ~p", [Pid]) 
+        || #{dest_pid := Pid} <- TransportProcs,
+           not ?dh:rpc(RPCSpec, erlang, is_process_alive, [Pid])],
+    TransportProcs.
+
+dump_s2s_mnesia_table(RPCSpec) ->
+    S2SMesiaTable = ?dh:rpc(RPCSpec, ets, tab2list, [s2s]),
+    ct:pal("Node = ~p, S2S table(~p): ~p",
+           [maps:get(node, RPCSpec), length(S2SMesiaTable), S2SMesiaTable]),
+    S2SMesiaTable.
+
+get_s2s_connection_pids(RPCSpec, Domain, Type) ->
+    [proplists:get_value(s2s_pid, DmonainConnection) 
+        || DmonainConnection <- get_s2s_connections(RPCSpec, Domain, Type)].
+
+dump_all_s2s_data(RPCSpec, Domain) ->
+    get_s2s_connections(RPCSpec, Domain, in),
+    get_s2s_connections(RPCSpec, Domain, out),
+    get_transport_connections(RPCSpec),
+    dump_s2s_mnesia_table(RPCSpec),
+    ok.
+
+mock_find_connection_function(RPCSpec, From, To, S2SInPid) ->
+    ct:pal("Node = ~p, mocking ejabberd_s2s:find_connection/2 function, From = ~s, To = ~s"
+           "~nprocess_info(~p): ~p",
+           [maps:get(node, RPCSpec), S2SInPid, From, To,
+            ?dh:rpc(RPCSpec, erlang, process_info, [S2SInPid])]),
+    ok = ?dh:rpc(RPCSpec, meck, new, [ejabberd_s2s, [no_link, passthrough]]),
+    ok = ?dh:rpc(RPCSpec, meck, expect, [ejabberd_s2s, find_connection,
+                                         %% jid record as defined in "jid/include/jid.hrl",
+                                         %% coinflicts with jid record definition at escalus.hrl
+                                         [{[{jid, '_', From, '_'}, {jid, '_', To, '_'}],
+                                           {atomic, S2SInPid}},
+                                          {2, meck:passthrough()}]]).
+
+check_find_connection_function(RPCSpec, From, To) ->
+    %% jid record as defined in "jid/include/jid.hrl",
+    %% coinflicts with jid record definition at escalus.hrl
+    FromJID = {jid, <<"user1">>, From, <<"res">>},
+    ToJID = {jid, <<"user2">>, To, <<"res">>},
+    RetValue = try ?dh:rpc(RPCSpec, ejabberd_s2s, find_connection, [FromJID, ToJID]) of
+                  {atomic, Pid} ->
+                     ct:pal("connection process_info(~p): ~p",
+                            [Pid, ?dh:rpc(RPCSpec, erlang, process_info, [Pid])]),
+                     {atomic, Pid};
+                  Ret -> Ret
+               catch
+                  error:{badrpc, Reason} ->
+                     {exception, Reason}
+               end,
+    ct:pal("Node = ~p, ejabberd_s2s:find_connection/2, From = ~s, To = ~s, RetValue = ~p",
+           [maps:get(node, RPCSpec), From, To, RetValue]),
+    RetValue.
 
 nonexistent_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->

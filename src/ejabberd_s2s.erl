@@ -65,8 +65,8 @@
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 
--define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER, 1).
--define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 1).
+-define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER, 2).
+-define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 2).
 
 -type fromto() :: {'global' | jid:server(), jid:server()}.
 -record(s2s, {
@@ -276,7 +276,8 @@ hooks() ->
     {done, mongoose_acc:t()}. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc, Packet) ->
     ?LOG_DEBUG(#{what => s2s_route, acc => Acc}),
-    case find_connection(From, To) of
+    %% using fully qualified function name to make mocking possible
+    case ?MODULE:find_connection(From, To) of
         {atomic, Pid} when is_pid(Pid) ->
             ?LOG_DEBUG(#{what => s2s_found_connection,
                          text => <<"Send packet to s2s connection">>,
