@@ -99,6 +99,8 @@
 
 -type socket() :: #mongoose_tls_socket{}.
 
+-export_type([socket/0]).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -142,27 +144,21 @@ default_ciphers() ->
 -spec send(socket(), binary()) -> ok | {error, any()}.
 send(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:send(S, B).
 
-
 -spec recv_data(socket(), binary()) -> {ok, binary()} | {error, any()}.
 recv_data(#mongoose_tls_socket{tls_module = M, tls_socket = S}, B) -> M:recv_data(S, B).
-
 
 -spec controlling_process(socket(), pid()) -> ok | {error, any()}.
 controlling_process(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Pid) ->
     M:controlling_process(S, Pid).
 
-
 -spec sockname(socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 sockname(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
-
 
 -spec peername(socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 peername(#mongoose_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 
-
 -spec setopts(socket(), Opts::list()) -> ok | {error, any()}.
 setopts(#mongoose_tls_socket{tls_module = M, tls_socket = S}, Opts) -> M:setopts(S, Opts).
-
 
 -spec get_peer_certificate(socket()) -> cert().
 get_peer_certificate(#mongoose_tls_socket{has_cert = false}) ->
