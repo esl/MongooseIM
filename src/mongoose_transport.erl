@@ -419,7 +419,7 @@ wrap_xml_elements_and_update_metrics(E) ->
 update_transport_metrics(_Size, _Action, undefined) ->
     ok;
 update_transport_metrics(Size, Action, ConnectionType) ->
-    mongoose_metrics:update(global, [data, xmpp, Action, ConnectionType, raw], Size),
+    mongoose_metrics:update(global, [data, xmpp, Action, ConnectionType], Size),
     ok.
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().

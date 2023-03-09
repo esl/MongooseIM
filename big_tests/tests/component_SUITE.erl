@@ -129,8 +129,8 @@ dirty_disconnect(Config) ->
     disconnect_component(Component1, Addr).
 
 register_one_component(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, component, raw], changed},
-                       {[global, data, xmpp, sent, component, raw], changed}],
+    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
+                       {[global, data, xmpp, sent, component], changed}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     %% Given one connected component
     CompOpts = ?config(component1, Config),
@@ -164,8 +164,8 @@ register_two_components(Config) ->
     CompOpts2 = ?config(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
-    MongooseMetrics = [{[global, data, xmpp, received, component, raw], changed},
-                       {[global, data, xmpp, sent, component, raw], changed},
+    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
+                       {[global, data, xmpp, sent, component], changed},
                        {[global, data, xmpp, received, xml_stanza_size], changed},
                        {[global, data, xmpp, sent, xml_stanza_size], changed}],
 

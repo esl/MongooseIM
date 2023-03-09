@@ -133,7 +133,7 @@ websocket_handle(Any, State) ->
 websocket_info({send_xml, XML}, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML)),
     Text = exml:to_iolist(XML1),
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket, raw], iolist_size(Text)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket], iolist_size(Text)),
     ?LOG_DEBUG(#{what => ws_send, text => <<"Sending xml over WebSockets">>,
                  packet => Text, peer => State#ws_state.peer}),
     {reply, {text, Text}, State};
@@ -161,7 +161,7 @@ handle_text(Text, #ws_state{ parser = undefined } = State) ->
 handle_text(Text, #ws_state{parser = Parser} = State) ->
     case exml_stream:parse(Parser, Text) of
     {ok, NewParser, Elements} ->
-        mongoose_metrics:update(global, [data, xmpp, received, c2s, websocket, raw], byte_size(Text)),
+        mongoose_metrics:update(global, [data, xmpp, received, c2s, websocket], byte_size(Text)),
         State1 = State#ws_state{ parser = NewParser },
         case maybe_start_fsm(Elements, State1) of
             {ok, State2} ->

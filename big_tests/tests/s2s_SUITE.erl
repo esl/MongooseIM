@@ -121,8 +121,8 @@ end_per_testcase(CaseName, Config) ->
 
 simple_message(Config) ->
     %% check that metrics are bounced
-    MongooseMetrics = [{[global, data, xmpp, received, s2s, raw], changed},
-                       {[global, data, xmpp, sent, s2s, raw], changed}],
+    MongooseMetrics = [{[global, data, xmpp, received, s2s], changed},
+                       {[global, data, xmpp, sent, s2s], changed}],
     escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
                         [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
 
