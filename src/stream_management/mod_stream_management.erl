@@ -284,7 +284,7 @@ foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
                      event_tag := ?MODULE,
                      event_content := {resume, H}}, _Extra) ->
-    case handle_resume_call(StateData, Acc, From, H) of
+    case handle_resume_call(StateData, From, H) of
         {ok, SmState} ->
             FlushedStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => SmState}),
             ToAcc = [{c2s_data, FlushedStateData}, {hard_stop, {shutdown, resumed}}],
@@ -760,10 +760,7 @@ init(_) ->
     gen_statem:event_handler_result(c2s_state()).
 handle_event({call, From}, #{event_tag := ?MODULE, event_content := {resume, H}},
              ?EXT_C2S_STATE(resume_session), StateData) ->
-    LServer = mongoose_c2s:get_lserver(StateData),
-    HostType = mongoose_c2s:get_host_type(StateData),
-    Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    case handle_resume_call(StateData, Acc, From, H) of
+    case handle_resume_call(StateData, From, H) of
         {ok, SmState} ->
             NewStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => SmState}),
             {stop, {shutdown, resumed}, NewStateData};
@@ -777,13 +774,13 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
 
 %% This runs on the old process
 -spec handle_resume_call(
-        mongoose_c2s:data(), mongoose_acc:t(), gen_statem:from(), non_neg_integer()) ->
+        mongoose_c2s:data(), gen_statem:from(), non_neg_integer()) ->
     {ok, sm_state()} | error.
-handle_resume_call(StateData, Acc, From, H) ->
+handle_resume_call(StateData, From, H) ->
     case do_handle_ack(get_mod_state(StateData), H) of
         #sm_state{} = SmState1 ->
             KeepSmState = sm_state_to_keep(SmState1, From),
-            close_old_session(StateData, Acc),
+            mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()),
             PassSmState = pipeline_future_sm_state(StateData, SmState1),
             pass_c2s_data_to_new_session(StateData, PassSmState, From),
             {ok, KeepSmState};
@@ -792,11 +789,6 @@ handle_resume_call(StateData, Acc, From, H) ->
             gen_statem:reply(ReplyAction),
             error
     end.
-
--spec close_old_session(mongoose_c2s:data(), mongoose_acc:t()) -> term().
-close_old_session(StateData, Acc) ->
-    mongoose_c2s:close_session(StateData, Acc, resumed),
-    mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()).
 
 -spec pipeline_future_sm_state(mongoose_c2s:data(), sm_state()) -> sm_state().
 pipeline_future_sm_state(StateData, SmState) ->

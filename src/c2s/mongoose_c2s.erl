@@ -17,7 +17,7 @@
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
--export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1, close_session/3]).
+-export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
