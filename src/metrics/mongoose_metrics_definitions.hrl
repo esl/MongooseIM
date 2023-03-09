@@ -40,10 +40,14 @@
     [data, xmpp, received, c2s, tls, raw],
     [data, xmpp, received, c2s, bosh, raw],
     [data, xmpp, received, c2s, websocket, raw],
+    [data, xmpp, received, s2s, raw],
+    [data, xmpp, received, component, raw],
     [data, xmpp, sent, c2s, tcp, raw],
     [data, xmpp, sent, c2s, tls, raw],
     [data, xmpp, sent, c2s, bosh, raw],
-    [data, xmpp, sent, c2s, websocket, raw]
+    [data, xmpp, sent, c2s, websocket, raw],
+    [data, xmpp, sent, s2s, raw],
+    [data, xmpp, sent, component, raw]
 ]).
 
 -define(TOTAL_COUNTERS, [

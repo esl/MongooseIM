@@ -83,14 +83,8 @@
 -define(FSMOPTS, []).
 -endif.
 
-%% Module start with or without supervisor:
--ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, gen_fsm_compat:start(ejabberd_s2s_in, [Socket, Opts],
-                                        ?FSMOPTS)).
--else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_in_sup,
                                                  [Socket, Opts])).
--endif.
 
 -define(STREAM_HEADER(Version),
         (<<"<?xml version='1.0'?>"
@@ -210,6 +204,7 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                         cert_error => CertError}),
             Res = stream_start_error(StateData,
                                      mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
+            %% FIXME: why do we want stop just one of the connections here?                         
             {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
                                                          jid:make(<<>>, RemoteServer, <<>>)),
             ejabberd_s2s_out:stop_connection(Pid),

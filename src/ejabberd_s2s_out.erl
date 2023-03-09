@@ -109,14 +109,8 @@
 -define(FSMOPTS, []).
 -endif.
 
-%% Module start with or without supervisor:
--ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, p1_fsm:start(ejabberd_s2s_out, [From, Host, Type],
-                                       fsm_limit_opts() ++ ?FSMOPTS)).
--else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_out_sup,
                                                  [From, Host, Type])).
--endif.
 
 -define(FSMTIMEOUT, 30000).
 
@@ -288,7 +282,7 @@ open_socket2(HostType, Type, Addr, Port) ->
                 {active, false},
                 Type],
 
-    case (catch mongoose_transport:connect(Addr, Port, SockOpts, Timeout)) of
+    case (catch mongoose_transport:connect(s2s, Addr, Port, SockOpts, Timeout)) of
         {ok, _Socket} = R -> R;
         {error, Reason} = R ->
             ?LOG_DEBUG(#{what => s2s_out_failed,

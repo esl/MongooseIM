@@ -27,9 +27,11 @@
 -type peercert_return() :: no_peer_cert | {ok, #'Certificate'{}}.
 
 -type stanza_size() :: pos_integer() | infinity.
+-type connection_type() :: s2s | component | undefined.
 
 -type options() :: #{max_stanza_size := stanza_size(),
                      hibernate_after := non_neg_integer(),
+                     channel => connection_type(),
                      atom() => any()}.
 
 -export_type([t/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
@@ -40,6 +42,7 @@
 -record(socket_data, {sockmod = gen_tcp  :: socket_module(),
                       socket             :: term(),
                       receiver           :: pid(),
+                      connection_type    :: connection_type(),
                       connection_details :: mongoose_tcp_listener:connection_details()
                      }).
 
@@ -50,16 +53,17 @@
                 shaper_state          :: shaper:shaper(),
                 dest_pid              :: undefined | pid(), %% gen_fsm_compat pid
                 max_stanza_size       :: stanza_size(),
-                stanza_chunk_size = 0 :: non_neg_integer(),
                 parser                :: exml_stream:parser(),
+                connection_type       :: connection_type(),
                 hibernate_after = 0   :: non_neg_integer()}).
 -type state() :: #state{}.
 
 %% transport API
--export([accept/4, connect/4, close/1, send/2]).
+-export([accept/4, connect/5, close/1, send/2]).
 -export([wait_for_tls_handshake/2, wait_for_tls_handshake/3,
          connect_tls/2, get_peer_certificate/1]).
 -export([monitor/1, peername/1, change_shaper/2]).
+-export([get_all_trasport_processes/0]).
 
 %% gen_server API
 -export([start_link/3, init/1, terminate/2,
@@ -74,9 +78,11 @@
             mongoose_tcp_listener:connection_details()) -> ok.
 accept(Module, Socket, Opts, ConnectionDetails) ->
     Receiver = start_child(Socket, none, Opts),
+    ConnectionType = maps:get(connection_type, Opts),
     SocketData = #socket_data{sockmod = gen_tcp,
                               socket = Socket,
                               receiver = Receiver,
+                              connection_type = ConnectionType,
                               connection_details = ConnectionDetails},
     case gen_tcp:controlling_process(Socket, Receiver) of
         ok ->
@@ -91,18 +97,21 @@ accept(Module, Socket, Opts, ConnectionDetails) ->
             gen_tcp:close(Socket)
     end.
 
--spec connect(Addr :: atom() | string() | inet:ip_address(),
+-spec connect(ConnectionType :: connection_type(),
+              Addr :: atom() | string() | inet:ip_address(),
               Port :: inet:port_number(),
               Opts :: [gen_tcp:connect_option()],
               Timeout :: non_neg_integer() | infinity
               ) -> {'error', atom()} | {'ok', socket_data()}.
-connect(Addr, Port, Opts, Timeout) ->
+connect(ConnectionType, Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
             %% Receiver options are configurable only for listeners
             %% It might make sense to make them configurable for
             %% outgoing s2s connections as well
-            ReceiverOpts = #{max_stanza_size => infinity, hibernate_after => 0},
+            ReceiverOpts = #{max_stanza_size => infinity,
+                             hibernate_after => 0,
+                             connection_type => ConnectionType},
             Receiver = start_child(Socket, none, ReceiverOpts),
             {SrcAddr, SrcPort} = case inet:sockname(Socket) of
                                      {ok, {A, P}} ->  {A, P};
@@ -113,6 +122,7 @@ connect(Addr, Port, Opts, Timeout) ->
             SocketData = #socket_data{sockmod = gen_tcp,
                                       socket = Socket,
                                       receiver = Receiver,
+                                      connection_type = ConnectionType,
                                       connection_details = ConnectionDetails},
             DestPid = self(),
             case gen_tcp:controlling_process(Socket, Receiver) of
@@ -148,9 +158,11 @@ connect_tls(#socket_data{receiver = Receiver} = SocketData, TLSOpts) ->
     update_socket(SocketData).
 
 -spec send(socket_data(), binary()) -> ok.
-send(#socket_data{sockmod = SockMod, socket = Socket}, Data) ->
+send(#socket_data{sockmod = SockMod, socket = Socket, connection_type = ConnectionType}, Data) ->
     case catch SockMod:send(Socket, Data) of
-        ok -> ok;
+        ok -> 
+            update_transport_metrics(byte_size(Data), sent, ConnectionType),
+            ok;
         {error, timeout} ->
             ?LOG_INFO(#{what => socket_error, reason => timeout,
                         socket => SockMod}),
@@ -180,6 +192,9 @@ monitor(#socket_data{receiver = Receiver}) ->
 change_shaper(#socket_data{receiver = Receiver}, Shaper)  ->
     gen_server:cast(Receiver, {change_shaper, Shaper}).
 
+get_all_trasport_processes() ->
+    Connections = supervisor:which_children(mongoose_transport_sup),
+    get_transport_info(Connections).
 %%----------------------------------------------------------------------
 %% gen_server interfaces
 %%----------------------------------------------------------------------
@@ -190,11 +205,14 @@ start_link(Socket, Shaper, Opts) ->
 
 init([Socket, Shaper, Opts]) ->
     ShaperState = shaper:new(Shaper),
-    #{max_stanza_size := MaxStanzaSize, hibernate_after := HibernateAfter} = Opts,
+    #{max_stanza_size := MaxStanzaSize,
+      hibernate_after := HibernateAfter,
+      connection_type := ConnectionType} = Opts,
     Parser = new_parser(MaxStanzaSize),
     {ok, #state{socket = Socket,
                 shaper_state = ShaperState,
                 max_stanza_size = MaxStanzaSize,
+                connection_type = ConnectionType,
                 parser = Parser,
                 hibernate_after = HibernateAfter}}.
 
@@ -292,8 +310,15 @@ terminate(_Reason, #state{parser = Parser, dest_pid = DestPid,
 -spec start_child(port(), atom(), options()) -> pid().
 start_child(Socket, Shaper, Opts) ->
     {ok, Receiver} = supervisor:start_child(mongoose_transport_sup,
-                                       [Socket, Shaper, Opts]),
+                                            [Socket, Shaper, Opts]),
     Receiver.
+
+get_transport_info(ConnectionList) when is_list(ConnectionList) ->
+    [get_transport_info(Pid) || {_, Pid, _, _} <- ConnectionList, is_pid(Pid)];
+get_transport_info(TransportPid) when is_pid(TransportPid) ->
+    State = sys:get_state(TransportPid),
+    maps:from_list(lists:zip(record_info(fields, state),tl(tuple_to_list(State)))).
+
 
 -spec tcp_to_tls(pid(), mongoose_tls:options()) -> ok | {error, any()}.
 tcp_to_tls(Receiver, TLSOpts) ->
@@ -353,7 +378,6 @@ deactivate_socket(#state{socket = Socket, sockmod = mongoose_tls}) ->
 -spec process_data(binary(), state()) -> state().
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
-                          stanza_chunk_size = ChunkSize,
                           dest_pid = DestPid} = State) ->
     ?LOG_DEBUG(#{what => received_xml_on_stream, packet => Data, dest_pid => DestPid}),
     Size = byte_size(Data),
@@ -362,22 +386,23 @@ process_data(Data, #state{parser = Parser,
             {ok, NParser, Elems} -> {[wrap_if_xmlel(E) || E <- Elems], NParser};
             {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
         end,
-    NewChunkSize = update_stanza_size(Events, ChunkSize, Size),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+    update_transport_metrics(Size, received, State#state.connection_type),
     [gen_fsm_compat:send_event(DestPid, Event) || Event <- Events],
     maybe_pause(Pause, State),
-    State#state{parser = NewParser, shaper_state = NewShaperState, stanza_chunk_size = NewChunkSize}.
+    State#state{parser = NewParser, shaper_state = NewShaperState}.
 
 wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
 wrap_if_xmlel(E) -> E.
 
--spec update_stanza_size(Events::list(), non_neg_integer(), non_neg_integer()) -> non_neg_integer().
-update_stanza_size([_|_], ChunkSize, Size) ->
-    mongoose_metrics:update(global,
-                            [data, xmpp, received, xml_stanza_size], ChunkSize + Size),
-    0;
-update_stanza_size(_, ChunkSize, Size) ->
-    ChunkSize + Size.
+-spec update_transport_metrics(non_neg_integer(),
+                               sent | received,
+                               connection_type()) -> ok.
+update_transport_metrics(_Size, _Action, undefined) ->
+    ok;
+update_transport_metrics(Size, Action, ConnectionType) ->
+    mongoose_metrics:update(global, [data, xmpp, Action, ConnectionType, raw], Size),
+    ok.
 
 -spec maybe_pause(Delay :: non_neg_integer(), state()) -> any().
 maybe_pause(_, #state{dest_pid = undefined}) ->
@@ -399,7 +424,7 @@ new_parser(MaxStanzaSize) ->
 -spec reset_parser(state()) -> state().
 reset_parser(#state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
-    State#state{parser = NewParser, stanza_chunk_size = 0}.
+    State#state{parser = NewParser}.
 
 -spec free_parser(exml_stream:parser()) -> ok.
 free_parser(Parser) ->

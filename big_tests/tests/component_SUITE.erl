@@ -129,9 +129,13 @@ dirty_disconnect(Config) ->
     disconnect_component(Component1, Addr).
 
 register_one_component(Config) ->
+    MongooseMetrics = [{[global, data, xmpp, received, component, raw], changed},
+                       {[global, data, xmpp, sent, component, raw], changed}],
+    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
+    escalus_mongooseim:post_story(PreStoryData),
     verify_component(Config, Component, ComponentAddr),
     disconnect_component(Component, ComponentAddr).
 
