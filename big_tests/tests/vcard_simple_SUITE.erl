@@ -246,7 +246,6 @@ search_empty(Config) ->
       end).
 
 search_some(Config) ->
-
     escalus:story(
       Config, [{bob, 1}],
       fun(Client) ->
@@ -457,7 +456,7 @@ ldap_opts() ->
     LDAPOpts = #{filter => <<"(objectClass=inetOrgPerson)">>,
                  base => <<"ou=Users,dc=esl,dc=com">>,
                  search_fields => [{<<"Full Name">>, <<"cn">>}, {<<"User">>, <<"uid">>}],
-                 vcard_map => [{"FN", "%s", ["cn"]}]},
+                 vcard_map => [{<<"FN">>, <<"%s">>, [<<"cn">>]}]},
     LDAPOptsWithDefaults = config_parser_helper:config([modules, mod_vcard, ldap], LDAPOpts),
     config_parser_helper:mod_config(mod_vcard, #{backend => ldap, ldap => LDAPOptsWithDefaults}).
 
