@@ -529,13 +529,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
--spec handle_info(_, _, _) -> {next_state, atom(), state()} | {stop, normal, state()}.
-handle_info({send_text, Text}, StateName, StateData) ->
-    ?LOG_ERROR(#{what => s2s_in_send_text,
-                 text => <<"Deprecated send_text info in ejabberd_s2s_in">>,
-                 send_text => Text}),
-    send_text(StateData, Text),
-    {next_state, StateName, StateData};
 handle_info({timeout, Timer, _}, _StateName,
             #state{timer = Timer} = StateData) ->
     {stop, normal, StateData};

@@ -354,12 +354,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
-handle_info({send_text, Text}, StateName, StateData) ->
-    % is it ever called?
-    ?LOG_ERROR(#{what => comp_deprecated_send_text,
-                 component => component_host(StateData), send_text => Text}),
-    send_text(StateData, Text),
-    {next_state, StateName, StateData};
 handle_info({send_element, El}, StateName, StateData) ->
     % is it ever called?
     ?LOG_ERROR(#{what => comp_deprecated_send_element,

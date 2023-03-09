@@ -672,15 +672,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
-handle_info({send_text, Text}, StateName, StateData) ->
-    ?LOG_ERROR(#{what => s2s_send_text, text => <<"Deprecated ejabberd_s2s_out send_text">>,
-                 myname => StateData#state.myname, server => StateData#state.server,
-                 send_text => Text}),
-    send_text(StateData, Text),
-    cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
-    {next_state, StateName, StateData#state{timer = Timer},
-     get_timeout_interval(StateName)};
 handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
