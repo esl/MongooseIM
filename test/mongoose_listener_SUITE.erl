@@ -52,7 +52,7 @@ tcp_socket_has_connection_details(_C) ->
     meck:new(ejabberd_socket),
     TestPid = self(),
     meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+                fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),
@@ -88,7 +88,7 @@ tcp_socket_supports_proxy_protocol(_C) ->
     meck:new(ejabberd_socket),
     TestPid = self(),
     meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+                fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),

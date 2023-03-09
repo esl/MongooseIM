@@ -33,8 +33,6 @@
 
 -callback monitor(Transport :: t()) -> MonitorRef :: reference().
 
--callback send_xml(Transport :: t(), Data :: send_xml_input()) -> ok.
-
 -callback peername(Transport :: t()) -> peername_return().
 
 %%----------------------------------------------------------------------

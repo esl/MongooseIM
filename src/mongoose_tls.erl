@@ -60,7 +60,8 @@
                          host => string()}.
 
 -export_type([options/0,
-              tls_socket/0]).
+              tls_socket/0,
+              cert/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% behaviour definition

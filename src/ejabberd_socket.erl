@@ -29,13 +29,12 @@
 -behaviour(mongoose_transport).
 
 %% API
--export([start/5,
+-export([start/4,
          connect/3,
          connect/4,
          starttls/2,
          starttls/3,
          send/2,
-         send_xml/2,
          change_shaper/2,
          monitor/1,
          get_sockmod/1,
@@ -49,7 +48,7 @@
 
 -include("mongoose.hrl").
 
--record(socket_state, {sockmod    :: ejabberd:sockmod(),
+-record(socket_state, {sockmod    :: gen_tcp | mongoose_tls,
                        socket     :: term(),
                        receiver   :: pid() | atom() | tuple(),
                        connection_details :: mongoose_tcp_listener:connection_details()
@@ -63,47 +62,29 @@
 %% Function:
 %% Description:
 %%--------------------------------------------------------------------
--spec start(module(), ejabberd:sockmod(), gen_tcp:socket(),
+-spec start(module(), gen_tcp:socket(),
             mongoose_tcp_listener:options(),
             mongoose_tcp_listener:connection_details()) -> ok.
-start(Module, SockMod, Socket, Opts, ConnectionDetails) ->
-    start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails).
-
--spec start_xml_stream(atom() | tuple(), ejabberd:sockmod(),
-                       Socket :: port(), mongoose_tcp_listener:options(),
-                       mongoose_tcp_listener:connection_details()) -> ok.
-start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails) ->
-    {ReceiverMod, Receiver, RecRef} =
-        case catch SockMod:custom_receiver(Socket) of
-            {receiver, RecMod, RecPid} ->
-                {RecMod, RecPid, RecMod};
-            _ ->
-                RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
-                {ejabberd_receiver, RecPid, RecPid}
-        end,
-    SocketData = #socket_state{sockmod = SockMod,
+start(Module, Socket, Opts, ConnectionDetails) ->
+    RecPid = ejabberd_receiver:start(Socket, none, Opts),
+    SocketData = #socket_state{sockmod = gen_tcp,
                                socket = Socket,
-                               receiver = RecRef,
+                               receiver = RecPid,
                                connection_details = ConnectionDetails},
     %% set receiver as socket's controlling process before
     %% the M:start/2 call, that is required for c2s legacy
     %% TLS connection support.
-    case SockMod:controlling_process(Socket, Receiver) of
+    case gen_tcp:controlling_process(Socket, RecPid) of
         ok ->
-            case Module:start({?MODULE, SocketData}, Opts) of
+            case Module:start(SocketData, Opts) of
                 {ok, Pid} ->
-                    ReceiverMod:become_controller(Receiver, Pid);
+                    ejabberd_receiver:become_controller(RecPid, Pid);
                 {error, _Reason} ->
-                    SockMod:close(Socket),
-                    case ReceiverMod of
-                        ejabberd_receiver ->
-                            ReceiverMod:close(Receiver);
-                        _ ->
-                            ok
-                    end
+                    gen_tcp:close(Socket),
+                    ejabberd_receiver:close(RecPid)
             end;
         {error, _Reason} ->
-            SockMod:close(Socket)
+            gen_tcp:close(Socket)
     end.
 
 -type option_value() :: 'asn1' | 'cdr' | 'false' | 'fcgi' | 'http' | 'http_bin'
@@ -130,7 +111,7 @@ connect(Addr, Port, Opts, Timeout) ->
             %% Receiver options are configurable only for listeners
             %% It might make sense to make them configurable for outgoing s2s connections as well
             ReceiverOpts = #{max_stanza_size => infinity, hibernate_after => 0},
-            Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, ReceiverOpts),
+            Receiver = ejabberd_receiver:start(Socket, none, ReceiverOpts),
             {SrcAddr, SrcPort} = case inet:sockname(Socket) of
                                      {ok, {A, P}} ->  {A, P};
                                      {error, _} -> {unknown, unknown}
@@ -186,7 +167,7 @@ starttls(SocketData, TLSOpts, Data) ->
     NewSocket = get_tls_socket(SocketData),
     SocketData#socket_state{socket = NewSocket, sockmod = mongoose_tls}.
 
-%% @doc sockmod=gen_tcp|fast_tls (ejabberd:sockmod())
+%% @doc sockmod=gen_tcp|mongoose_tls
 send(SocketData, Data) ->
     case catch (SocketData#socket_state.sockmod):send(
              SocketData#socket_state.socket, Data) of
@@ -200,16 +181,6 @@ send(SocketData, Data) ->
                         socket => SocketData#socket_state.sockmod}),
             exit(normal)
     end.
-
-
-%% @doc Can only be called when in c2s StateData#state.xml_socket is true
-%% This function is used for HTTP bind
-%% sockmod=mod_bosh_socket|mod_websockets or any custom module
--spec send_xml(socket_state(), mongoose_transport:send_xml_input()) -> ok.
-send_xml(SocketData, Data) ->
-    catch (SocketData#socket_state.sockmod):send_xml(
-            SocketData#socket_state.socket, Data).
-
 
 -spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()}, _) -> any().
 change_shaper(SocketData, Shaper)
@@ -229,12 +200,12 @@ monitor(SocketData) when is_atom(SocketData#socket_state.receiver) ->
       SocketData#socket_state.socket).
 
 
--spec get_sockmod(socket_state()) -> ejabberd:sockmod().
+-spec get_sockmod(socket_state()) -> gen_tcp | mongoose_tls.
 get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
 
 
--spec get_peer_certificate(socket_state()) -> mongoose_transport:peercert_return().
+-spec get_peer_certificate(socket_state()) -> mongoose_tls:cert().
 get_peer_certificate(#socket_state{sockmod = mongoose_tls, socket = Socket}) ->
     mongoose_tls:get_peer_certificate(Socket);
 get_peer_certificate(_SocketData) ->
@@ -249,18 +220,10 @@ close(SocketData) ->
 -spec sockname(socket_state()) -> mongoose_transport:peername_return().
 sockname(#socket_state{connection_details = #{dest_address := DestAddr,
                                               dest_port := DestPort}}) ->
-    {ok, {DestAddr, DestPort}};
-sockname(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
-    inet:sockname(Socket);
-sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
-    SockMod:sockname(Socket).
+    {ok, {DestAddr, DestPort}}.
 
 
 -spec peername(socket_state()) -> mongoose_transport:peername_return().
 peername(#socket_state{connection_details = #{src_address := SrcAddr,
                                               src_port := SrcPort}}) ->
-    {ok, {SrcAddr, SrcPort}};
-peername(#socket_state{sockmod = gen_tcp, socket = Socket}) ->
-    inet:peername(Socket);
-peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
-    SockMod:peername(Socket).
+    {ok, {SrcAddr, SrcPort}}.

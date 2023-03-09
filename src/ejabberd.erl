@@ -37,12 +37,6 @@
 
 -type lang() :: binary().
 
--type sockmod() :: gen_tcp
-                 | ejabberd_socket
-                 | mod_bosh_socket
-                 | mod_websockets
-                 | mongoose_tls.
-
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
@@ -52,7 +46,6 @@
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
 -export_type([lang/0,
-              sockmod/0,
               xml_stream_item/0
              ]).
 

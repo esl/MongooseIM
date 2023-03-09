@@ -36,9 +36,7 @@
 
 %% External exports
 -export([start/2,
-         start_link/2,
-         send_text/2,
-         send_element/2]).
+         start_link/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -55,7 +53,7 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--ignore_xref([print_state/1, send_element/2, send_text/2, start_listener/1, start_link/2,
+-ignore_xref([print_state/1, start_listener/1, start_link/2,
               stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
@@ -65,7 +63,6 @@
 -type conflict_behaviour() :: disconnect | kick_old.
 
 -record(state, {socket,
-                sockmod      :: ejabberd:sockmod(),
                 socket_monitor,
                 streamid,
                 password     :: string(),
@@ -117,7 +114,7 @@
         "</stream:stream>">>
        ).
 
--type socket_data() :: {ejabberd:sockmod(), term()}.
+-type socket() :: term().
 -type options() :: #{access := atom(),
                      shaper_rule := atom(),
                      password := binary(),
@@ -129,13 +126,13 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(socket_data(), options()) ->
+-spec start(socket(), options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
-start(SockData, Opts) ->
-    supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
+start(Socket, Opts) ->
+    supervisor:start_child(ejabberd_service_sup, [Socket, Opts]).
 
 
--spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
+-spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
@@ -165,18 +162,17 @@ process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([socket_data() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
-init([{SockMod, Socket}, Opts]) ->
+-spec init([socket() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
+init([Socket, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,
                 socket => Socket}),
     #{access := Access, shaper_rule := Shaper, password := Password,
       check_from := CheckFrom, hidden_components := HiddenComponents,
       conflict_behaviour := ConflictBehaviour} = Opts,
-    SockMod:change_shaper(Socket, Shaper),
-    SocketMonitor = SockMod:monitor(Socket),
+    ejabberd_socket:change_shaper(Socket, Shaper),
+    SocketMonitor = ejabberd_socket:monitor(Socket),
     {ok, wait_for_stream, #state{socket = Socket,
-                                 sockmod = SockMod,
                                  socket_monitor = SocketMonitor,
                                  streamid = new_id(),
                                  password = Password,
@@ -407,7 +403,7 @@ terminate(Reason, StateName, StateData) ->
         _ ->
             ok
     end,
-    (StateData#state.sockmod):close(StateData#state.socket),
+    ejabberd_socket:close(StateData#state.socket),
     ok.
 
 %%----------------------------------------------------------------------
@@ -422,15 +418,15 @@ print_state(State) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec send_text(state(), binary()) -> binary().
+-spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
     ?LOG_DEBUG(#{what => comp_send_text,
                  component => component_host(StateData),
                  send_text => Text}),
-    (StateData#state.sockmod):send(StateData#state.socket, Text).
+    ejabberd_socket:send(StateData#state.socket, Text).
 
 
--spec send_element(state(), exml:element()) -> binary().
+-spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 

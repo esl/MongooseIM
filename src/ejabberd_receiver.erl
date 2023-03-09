@@ -29,8 +29,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4,
-         start/4,
+-export([start_link/3,
+         start/3,
          change_shaper/2,
          starttls/2,
          get_socket/1,
@@ -53,7 +53,6 @@
                 max_stanza_size,
                 stanza_chunk_size,
                 parser,
-                timeout,
                 hibernate_after = 0 :: non_neg_integer()}).
 -type state() :: #state{}.
 
@@ -68,15 +67,15 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(port(), ejabberd:sockmod(), atom(), options()) ->
+-spec start_link(port(), atom(), options()) ->
           ignore | {error, _} | {ok, pid()}.
-start_link(Socket, SockMod, Shaper, Opts) ->
-    gen_server:start_link(?MODULE, [Socket, SockMod, Shaper, Opts], []).
+start_link(Socket, Shaper, Opts) ->
+    gen_server:start_link(?MODULE, [Socket, Shaper, Opts], []).
 
--spec start(port(), ejabberd:sockmod(), atom(), options()) -> pid().
-start(Socket, SockMod, Shaper, Opts) ->
+-spec start(port(), atom(), options()) -> pid().
+start(Socket, Shaper, Opts) ->
     {ok, Pid} = supervisor:start_child(ejabberd_receiver_sup,
-                                       [Socket, SockMod, Shaper, Opts]),
+                                       [Socket, Shaper, Opts]),
     Pid.
 
 -spec change_shaper(atom() | pid() | {atom(), _} | {'via', _, _}, _) -> 'ok'.
@@ -108,19 +107,14 @@ close(Pid) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 -spec init([any(), ...]) -> {'ok', state()}.
-init([Socket, SockMod, Shaper, Opts]) ->
+init([Socket, Shaper, Opts]) ->
     ShaperState = shaper:new(Shaper),
     #{max_stanza_size := MaxStanzaSize, hibernate_after := HibernateAfter} = Opts,
-    Timeout = case SockMod of
-                  ssl -> 20;
-                  _ -> infinity
-              end,
     {ok, #state{socket = Socket,
-                sock_mod = SockMod,
+                sock_mod = gen_tcp,
                 shaper_state = ShaperState,
                 max_stanza_size = MaxStanzaSize,
                 stanza_chunk_size = 0,
-                timeout = Timeout,
                 hibernate_after = HibernateAfter}}.
 
 %%--------------------------------------------------------------------
