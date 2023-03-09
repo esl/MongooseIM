@@ -69,6 +69,8 @@
 -export([start_link/3, init/1, terminate/2,
          handle_cast/2, handle_call/3, handle_info/2]).
 
+-ignore_xref([start_link/3, get_all_trasport_processes/0, wait_for_tls_handshake/2]).
+
 %%----------------------------------------------------------------------
 %% Trasport API
 %%----------------------------------------------------------------------
