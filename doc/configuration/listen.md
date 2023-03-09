@@ -504,21 +504,6 @@ Maximum allowed incoming stanza size in bytes.
 !!! Warning
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
-#### `listen.http.handlers.mod_websockets.service`
-* **Syntax:** a table of `listen.service.*` options
-* **Default:** not set
-* **Example:**
-
-```toml
-[listen.http.handlers.mod_websockets.service]
-  access = "all"
-  shaper_rule = "fast"
-  password = "secret"
-```
-
-This subsection enables external component connections over WebSockets.
-See the [service](#xmpp-components-listenservice) listener section for details.
-
 #### `listen.http.handlers.mod_websockets.c2s_state_timeout`
 
 Same as the [C2S option](#listenc2sc2s_state_timeout)

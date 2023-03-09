@@ -588,12 +588,9 @@ listen_http_handlers_websockets(_Config) ->
     ?cfg(P ++ [timeout], 30000, T(#{<<"timeout">> => 30000})),
     ?cfg(P ++ [ping_rate], 20, T(#{<<"ping_rate">> => 20})),
     ?cfg(P ++ [max_stanza_size], 10000, T(#{<<"max_stanza_size">> => 10000})),
-    ?cfg(P ++ [service], maps:merge(extra_service_listener_config(), #{password => "secret"}),
-         T(#{<<"service">> => #{<<"password">> => <<"secret">>}})),
     ?err(T(#{<<"timeout">> => -1})),
     ?err(T(#{<<"ping_rate">> => 0})),
-    ?err(T(#{<<"max_stanza_size">> => 0})),
-    ?err(T(#{<<"service">> => #{}})).
+    ?err(T(#{<<"max_stanza_size">> => 0})).
 
 listen_http_handlers_client_api(_Config) ->
     {P, T} = test_listen_http_handler(mongoose_client_api),

@@ -68,11 +68,7 @@ options("miscellaneous") ->
               #{port => 5280,
                 handlers =>
                     [config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp",
-                              service => maps:merge(extra_service_listener_config(),
-                                                    #{password => "secret",
-                                                      shaper_rule => fast,
-                                                      max_fsm_queue => 1000})}
+                            #{host => '_', path => "/ws-xmpp"}
                            )],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                })]},
@@ -153,10 +149,7 @@ options("mongooseim-pgsql") ->
                     [config([listen, http, handlers, mod_bosh],
                             #{host => '_', path => "/http-bind"}),
                      config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp",
-                              service => maps:merge(extra_service_listener_config(),
-                                                    #{password => "secret", shaper_rule => fast})
-                             })
+                            #{host => '_', path => "/ws-xmpp"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                }),

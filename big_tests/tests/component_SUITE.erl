@@ -36,9 +36,7 @@
                            disconnect_components/2,
                            connect_component_subdomain/1,
                            spec/2,
-                           common/1,
-                           common/2,
-                           name/1]).
+                           get_components/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -46,16 +44,14 @@
 
 all() ->
     [
-     {group, xep0114_tcp},
-     {group, xep0114_ws},
+     {group, xep0114},
      {group, subdomain},
      {group, hidden_components},
      {group, distributed}
     ].
 
 groups() ->
-    [{xep0114_tcp, [], xep0114_tests()},
-     {xep0114_ws, [], xep0114_tests()},
+    [{xep0114, [], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
      {hidden_components, [], [disco_with_hidden_component]},
      {distributed, [], [register_in_cluster,
@@ -88,24 +84,18 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(xep0114_tcp, Config) ->
-    Config1 = get_components(common(Config), Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob]));
-init_per_group(xep0114_ws, Config) ->
-    WSOpts = [{transport, escalus_ws},
-              {wspath, <<"/ws-xmpp">>},
-              {wslegacy, true} | common(Config, ct:get_config({hosts, mim, cowboy_port}))],
-    Config1 = get_components(WSOpts, Config),
+init_per_group(xep0114, Config) ->
+    Config1 = get_components(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
-    Config1 = get_components(common(Config), Config),
+    Config1 = get_components(Config),
     add_domain(Config1),
     escalus:create_users(Config1, escalus:get_users([alice, astrid]));
 init_per_group(hidden_components, Config) ->
-    Config1 = get_components(common(Config), Config),
+    Config1 = get_components(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(distributed, Config) ->
-    Config1 = get_components(common(Config), Config),
+    Config1 = get_components(Config),
     Config2 = add_node_to_cluster(Config1),
     escalus:create_users(Config2, escalus:get_users([alice, clusterguy]));
 init_per_group(_GroupName, Config) ->
@@ -512,11 +502,6 @@ register_same_on_both(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-
-get_components(Opts, Config) ->
-    Components = [component1, component2, vjud_component],
-    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
-
 add_domain(Config) ->
     Hosts = {hosts, "\"localhost\", \"sogndal\""},
     ejabberd_node_utils:backup_config_file(Config),

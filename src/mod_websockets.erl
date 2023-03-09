@@ -7,7 +7,6 @@
 
 -behaviour(mongoose_http_handler).
 -behaviour(cowboy_websocket).
--behaviour(mongoose_transport).
 -behaviour(mongoose_c2s_socket).
 
 %% mongoose_http_handler callbacks
@@ -34,23 +33,6 @@
          get_tls_last_message/1,
          is_ssl/1]).
 
-%% TBD: remove mongoose_transport compatibility
-%% ejabberd_socket compatibility
--export([starttls/2, starttls/3,
-         send/2,
-         send_xml/2,
-         change_shaper/2,
-         monitor/1,
-         get_sockmod/1,
-         close/1,
-         peername/1,
-         get_peer_certificate/1,
-         set_ping/2,
-         disable_ping/1]).
-
--ignore_xref([change_shaper/2, close/1, compress/1, compress/3, disable_ping/1,
-              get_peer_certificate/1, get_sockmod/1, send/2, set_ping/2]).
-
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("jlib.hrl").
@@ -67,8 +49,6 @@
 -record(ws_state, {
           peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
-          fsm_module :: module() | undefined,
-          open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
           opts :: map(),
           ping_rate :: integer() | none,
@@ -89,7 +69,6 @@ config_spec() ->
                                                   validate = positive},
                        <<"max_stanza_size">> => #option{type = int_or_infinity,
                                                         validate = positive},
-                       <<"service">> => mongoose_config_spec:xmpp_listener_extra(service),
                        <<"c2s_state_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
                        <<"backwards_compatible_session">> => #option{type = boolean}},
@@ -138,10 +117,6 @@ websocket_handle({text, Msg}, State) ->
     ?LOG_DEBUG(#{what => ws_received, msg => Msg, peer => State#ws_state.peer}),
     handle_text(Msg, State);
 
-websocket_handle({binary, Msg}, State) ->
-    ?LOG_DEBUG(#{what => ws_received, msg => Msg, peer => State#ws_state.peer}),
-    handle_text(Msg, State);
-
 websocket_handle({pong, Payload}, State) ->
     ?LOG_DEBUG(#{what => ws_pong, text => <<"Received pong frame over WebSockets">>,
                  msg => Payload, peer => State#ws_state.peer}),
@@ -155,29 +130,13 @@ websocket_handle(Any, State) ->
     {ok, State}.
 
 % Other messages from the system are handled here.
-websocket_info({send, Text}, State) ->
-    ?LOG_DEBUG(#{what => ws_send, text => <<"Sending text over WebSockets">>,
-                 msg => Text, peer => State#ws_state.peer}),
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket, raw], iolist_size(Text)),
-    {reply, {text, Text}, State};
 websocket_info({send_xml, XML}, State) ->
-    XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
+    XML1 = process_server_stream_root(replace_stream_ns(XML)),
     Text = exml:to_iolist(XML1),
     mongoose_metrics:update(global, [data, xmpp, sent, c2s, websocket, raw], iolist_size(Text)),
     ?LOG_DEBUG(#{what => ws_send, text => <<"Sending xml over WebSockets">>,
                  packet => Text, peer => State#ws_state.peer}),
     {reply, {text, Text}, State};
-websocket_info({set_ping, Value}, State = #ws_state{ping_rate = none})
-  when is_integer(Value) and (Value > 0)->
-    send_ping_request(Value),
-    {ok, State#ws_state{ping_rate = Value}};
-websocket_info({set_ping, Value}, State) when is_integer(Value) and (Value > 0)->
-    {ok, State#ws_state{ping_rate = Value}};
-websocket_info(disable_ping, State)->
-    {ok, State#ws_state{ping_rate = none}};
-websocket_info(do_ping, State = #ws_state{ping_rate = none}) ->
-    %% probalby someone disabled pings
-    {ok, State};
 websocket_info(do_ping, State) ->
     %% send ping frame to the client
     send_ping_request(State#ws_state.ping_rate),
@@ -214,35 +173,21 @@ handle_text(Text, #ws_state{parser = Parser} = State) ->
         process_parse_error(Reason, State)
     end.
 
-process_client_elements(Elements, #ws_state{fsm_pid = FSM, fsm_module = FSMModule} = State) ->
-    {Elements1, State1} = process_client_stream_start(Elements, State),
-    [send_to_fsm(FSMModule, FSM, process_client_stream_end(
-                replace_stream_ns(Elem, State1), State1)) || Elem <- Elements1],
-    {ok, State1}.
+process_client_elements(Elements, #ws_state{fsm_pid = FSM} = State) ->
+    Elements1 = process_client_stream_start(Elements),
+    [send_to_fsm(FSM, process_client_stream_end(replace_stream_ns(Elem))) || Elem <- Elements1],
+    {ok, State}.
 
 process_parse_error(_Reason, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
-process_parse_error(Reason, #ws_state{fsm_pid = FSM, fsm_module = FSMModule} = State) ->
-    send_to_fsm(FSMModule, FSM, {xmlstreamerror, Reason}),
+process_parse_error(Reason, #ws_state{fsm_pid = FSM} = State) ->
+    send_to_fsm(FSM, {xmlstreamerror, Reason}),
     {ok, State}.
 
-send_to_fsm(mongoose_c2s, FSM, Element) ->
+send_to_fsm(FSM, Element) ->
     FSM ! {tcp, undefined, Element},
-    ok;
-send_to_fsm(ejabberd_service, FSM, #xmlel{} = Element) ->
-    send_to_fsm(ejabberd_service, FSM, {xmlstreamelement, Element});
-send_to_fsm(ejabberd_service, FSM, StreamElement) ->
-    p1_fsm:send_event(FSM, StreamElement).
+    ok.
 
-maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
-                 | _],
-                #ws_state{fsm_pid = undefined, opts = Opts} = State) ->
-    case {lists:keyfind(<<"xmlns">>, 1, Attrs), Opts} of
-        {{<<"xmlns">>, ?NS_COMPONENT}, #{service := ServiceOpts}} ->
-            do_start_fsm(ejabberd_service, ServiceOpts, State);
-        _ ->
-            {stop, State}
-    end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
                 #ws_state{fsm_pid = undefined,
                           opts = #{ip_tuple := IPTuple, port := Port,
@@ -257,130 +202,64 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
         c2s_state_timeout => StateTimeout,
         backwards_compatible_session => BackwardsCompatible,
         port => Port, ip_tuple => IPTuple, proto => tcp},
-    do_start_fsm(mongoose_c2s, Opts, State);
+    do_start_fsm(Opts, State);
+maybe_start_fsm(_Els, #ws_state{fsm_pid = undefined} = State) ->
+    {stop, State};
 maybe_start_fsm(_Els, State) ->
     {ok, State}.
 
-do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert}) ->
+do_start_fsm(Opts, State = #ws_state{peer = Peer, peercert = PeerCert}) ->
     SocketData = #websocket{pid = self(),
                             peername = Peer,
                             peercert = PeerCert},
-    case call_fsm_start(FSMModule, SocketData, Opts) of
+    case call_fsm_start(SocketData, Opts) of
         {ok, Pid} ->
-            ?LOG_DEBUG(#{what => ws_c2s_started,
+            ?LOG_DEBUG(#{what => ws_c2s_started, c2s_pid => Pid,
                          text => <<"WebSockets starts c2s process">>,
-                         c2s_pid => Pid, c2s_module => FSMModule,
                          peer => State#ws_state.peer}),
-            NewState = State#ws_state{fsm_pid = Pid, fsm_module = FSMModule, peercert = passed},
+            NewState = State#ws_state{fsm_pid = Pid, peercert = passed},
             {ok, NewState};
         {error, Reason} ->
-            ?LOG_WARNING(#{what => ws_c2s_start_failed,
+            ?LOG_WARNING(#{what => ws_c2s_start_failed, reason => Reason,
                            text => <<"WebSockets fails to start c2s process">>,
-                           reason => Reason, c2s_module => FSMModule,
                            peer => State#ws_state.peer}),
             {stop, State#ws_state{peercert = passed}}
     end.
 
-call_fsm_start(mongoose_c2s, SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) ->
+call_fsm_start(SocketData, #{hibernate_after := HibernateAfterTimeout} = Opts) ->
     mongoose_c2s:start({?MODULE, SocketData, Opts},
-                       [{hibernate_after, HibernateAfterTimeout}]);
-call_fsm_start(ejabberd_service, SocketData, Opts) ->
-    ejabberd_service:start({?MODULE, SocketData}, Opts).
+                       [{hibernate_after, HibernateAfterTimeout}]).
 
 %%--------------------------------------------------------------------
-%% ejabberd_socket compatibility
-%%--------------------------------------------------------------------
--spec starttls(socket(), _) -> no_return().
-starttls(SocketData, TLSOpts) ->
-    starttls(SocketData, TLSOpts, <<>>).
-
--spec starttls(socket(), _, _) -> no_return().
-starttls(_SocketData, _TLSOpts, _Data) ->
-    throw({error, tls_not_allowed_on_websockets}).
-
--spec send_xml(socket(), mongoose_transport:send_xml_input()) -> ok.
-send_xml(SocketData, {xmlstreamraw, Text}) ->
-    send(SocketData, Text);
-send_xml(SocketData, {xmlstreamelement, XML}) ->
-    send_xml(SocketData, XML);
-send_xml(#websocket{pid = Pid}, XML) ->
-    Pid ! {send_xml, XML},
-    ok.
-
-send(#websocket{pid = Pid}, Data) ->
-    Pid ! {send, Data},
-    ok.
-
-change_shaper(SocketData, _Shaper) ->
-    SocketData. %% TODO: we ignore shapers for now
-
--spec monitor(socket()) -> reference().
-monitor(#websocket{pid = Pid}) ->
-    erlang:monitor(process, Pid).
-
-get_sockmod(_SocketData) ->
-    ?MODULE.
-
-close(#websocket{pid = Pid}) ->
-    Pid ! stop.
-
--spec peername(socket()) -> mongoose_transport:peername_return().
-peername(#websocket{peername = PeerName}) ->
-    {ok, PeerName}.
-
-get_peer_certificate(S, _) ->
-    get_peer_certificate(S).
-
-get_peer_certificate(#websocket{peercert = undefined}) ->
-    no_peer_cert;
-get_peer_certificate(#websocket{peercert = PeerCert}) ->
-    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
-    {ok, Decoded}.
-
-set_ping(#websocket{pid = Pid}, Value) ->
-    Pid ! {set_ping, Value}.
-
-disable_ping(#websocket{pid = Pid}) ->
-    Pid ! disable_ping.
-
-%%--------------------------------------------------------------------
-%% Helpers for handling both
-%% http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket
-%% and older
-%% http://tools.ietf.org/id/draft-moffitt-xmpp-over-websocket
+%% Helpers for handling 
+%% https://datatracker.ietf.org/doc/rfc7395/
 %%--------------------------------------------------------------------
 
-process_client_stream_start([#xmlstreamstart{ name = <<"stream", _/binary>>}
-                             | _] = Elements, State) ->
-    {Elements, State#ws_state{ open_tag = stream }};
-process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }], State) ->
+process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }]) ->
     Attrs1 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, ?NS_CLIENT}),
     Attrs2 = [{<<"xmlns:stream">>, ?NS_STREAM} | Attrs1],
     NewStart = #xmlstreamstart{ name = <<"stream:stream">>, attrs = Attrs2 },
-    {[NewStart], State#ws_state{ open_tag = open }};
-process_client_stream_start(Elements, State) ->
-    {Elements, State}.
+    [NewStart];
+process_client_stream_start(Elements) ->
+    Elements.
 
-process_client_stream_end(#xmlel{ name = <<"close">> }, #ws_state{ open_tag = open }) ->
+process_client_stream_end(#xmlel{ name = <<"close">> }) ->
     #xmlstreamend{ name = <<"stream:stream">> };
-process_client_stream_end(Element, _) ->
+process_client_stream_end(Element) ->
     Element.
 
-process_server_stream_root(#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs },
-                           #ws_state{ open_tag = open }) ->
+process_server_stream_root(#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs }) ->
     Attrs1 = lists:keydelete(<<"xmlns:stream">>, 1, Attrs),
     Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs1, {<<"xmlns">>, ?NS_FRAMING}),
     #xmlel{ name = <<"open">>, attrs = Attrs2 };
-process_server_stream_root(#xmlstreamend{ name = <<"stream", _/binary>> },
-                           #ws_state{ open_tag = open }) ->
+process_server_stream_root(#xmlstreamend{ name = <<"stream", _/binary>> }) ->
     #xmlel{ name = <<"close">>, attrs = [{<<"xmlns">>, ?NS_FRAMING}] };
-process_server_stream_root(Element, _) ->
+process_server_stream_root(Element) ->
     Element.
 
-replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element,
-                  #ws_state{ open_tag = open }) ->
+replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element) ->
     Element#xmlel{ name = ElementName, attrs = [{<<"xmlns">>, ?NS_STREAM} | Element#xmlel.attrs] };
-replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
+replace_stream_ns(Element) ->
     case should_have_jabber_client(Element) of
         true ->
             JabberClient = {<<"xmlns">>, <<"jabber:client">>},
@@ -389,9 +268,7 @@ replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
             Element#xmlel{attrs = NewAtrrs};
         false ->
             Element
-    end;
-replace_stream_ns(Element, _State) ->
-    Element.
+    end.
 
 get_parser_opts(Text, #ws_state{ max_stanza_size = infinity }) ->
     [{max_child_size, 0} | get_parser_opts(Text)];
@@ -465,9 +342,8 @@ socket_new(Socket, _LOpts) ->
     Socket.
 
 -spec socket_peername(socket()) -> {inet:ip_address(), inet:port_number()}.
-socket_peername(Socket) ->
-    {ok, Peername} = peername(Socket),
-    Peername.
+socket_peername(#websocket{peername = PeerName}) ->
+    PeerName.
 
 -spec tcp_to_tls(socket(), mongoose_listener:options()) ->
   {ok, socket()} | {error, term()}.
@@ -484,8 +360,8 @@ socket_activate(_Socket) ->
     ok.
 
 -spec socket_close(socket()) -> ok.
-socket_close(Socket) ->
-    close(Socket),
+socket_close(#websocket{pid = Pid}) ->
+    Pid ! stop,
     ok.
 
 -spec socket_send_xml(socket(), iodata() | exml:element() | [exml:element()]) ->
@@ -498,8 +374,17 @@ socket_send_xml(#websocket{pid = Pid}, XML) ->
     ok.
 
 -spec has_peer_cert(socket(), mongoose_listener:options()) -> boolean().
-has_peer_cert(Socket, _LOpts) ->
-    get_peer_certificate(Socket) /= no_peer_cert.
+has_peer_cert(Socket, LOpts) ->
+    get_peer_certificate(Socket, LOpts) /= no_peer_cert.
+
+
+-spec get_peer_certificate(socket(), mongoose_listener:options()) -> 
+    mongoose_transport:peercert_return().
+get_peer_certificate(#websocket{peercert = undefined}, _) ->
+    no_peer_cert;
+get_peer_certificate(#websocket{peercert = PeerCert}, _) ->
+    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
+    {ok, Decoded}.
 
 -spec is_channel_binding_supported(socket()) -> boolean().
 is_channel_binding_supported(_Socket) ->

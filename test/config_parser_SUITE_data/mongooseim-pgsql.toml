@@ -25,11 +25,6 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.service]
-      access = "all"
-      shaper_rule = "fast"
-      password = "secret"
-
 [[listen.http]]
   port = 5285
   transport.num_acceptors = 10

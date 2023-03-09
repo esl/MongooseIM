@@ -6,7 +6,6 @@
 %% spec parts used by http handlers, modules and services
 -export([wpool/1,
          iqdisc/0,
-         xmpp_listener_extra/1,
          tls/2]).
 
 %% callbacks for the 'process' step
