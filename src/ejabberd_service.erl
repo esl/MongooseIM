@@ -170,8 +170,8 @@ init([Socket, Opts]) ->
     #{access := Access, shaper_rule := Shaper, password := Password,
       check_from := CheckFrom, hidden_components := HiddenComponents,
       conflict_behaviour := ConflictBehaviour} = Opts,
-    ejabberd_socket:change_shaper(Socket, Shaper),
-    SocketMonitor = ejabberd_socket:monitor(Socket),
+    mongoose_transport:change_shaper(Socket, Shaper),
+    SocketMonitor = mongoose_transport:monitor(Socket),
     {ok, wait_for_stream, #state{socket = Socket,
                                  socket_monitor = SocketMonitor,
                                  streamid = new_id(),
@@ -403,7 +403,7 @@ terminate(Reason, StateName, StateData) ->
         _ ->
             ok
     end,
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     ok.
 
 %%----------------------------------------------------------------------
@@ -423,7 +423,7 @@ send_text(StateData, Text) ->
     ?LOG_DEBUG(#{what => comp_send_text,
                  component => component_host(StateData),
                  send_text => Text}),
-    ejabberd_socket:send(StateData#state.socket, Text).
+    mongoose_transport:send(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()) -> ok.

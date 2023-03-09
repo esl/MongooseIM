@@ -49,9 +49,9 @@ tcp_socket_has_connection_details(_C) ->
     ok = listener_started(#{}),
     {Port, _, _} = tcp_port_ip(),
 
-    meck:new(ejabberd_socket),
+    meck:new(mongoose_transport),
     TestPid = self(),
-    meck:expect(ejabberd_socket, start,
+    meck:expect(mongoose_transport, accept,
                 fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
@@ -85,9 +85,9 @@ tcp_socket_supports_proxy_protocol(_C) ->
                                       transport_protocol => stream},
     {Port, _, _} = tcp_port_ip(),
 
-    meck:new(ejabberd_socket),
+    meck:new(mongoose_transport),
     TestPid = self(),
-    meck:expect(ejabberd_socket, start,
+    meck:expect(mongoose_transport, accept,
                 fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok

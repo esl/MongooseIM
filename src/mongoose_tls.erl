@@ -11,7 +11,7 @@
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
-%% tls interfaces required by ejabberd_socket & ejabberd_receiver modules.
+%% tls interfaces required by mongoose_transport module.
 -export([prepare_options/2,
          tcp_to_tls/2,
          default_ciphers/0,
@@ -126,6 +126,7 @@ prepare_options(_Module, Opts) ->
     Opts.
 
 fast_tls_opt(connect, true) -> [connect];
+fast_tls_opt(connect, false) -> [];
 fast_tls_opt(mode, _) -> [];
 fast_tls_opt(verify_mode, peer) -> [];
 fast_tls_opt(verify_mode, none) -> [verify_none];

@@ -245,14 +245,13 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
-    SockMod = ejabberd_socket:get_sockmod(StateData#state.socket),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_TLS, <<"starttls">>} when TLS == true,
-                                       TLSEnabled == false,
-                                       SockMod == gen_tcp ->
+                                       TLSEnabled == false ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
             TLSOpts = tls_options_with_certfile(StateData),
-            TLSSocket = ejabberd_socket:starttls(StateData#state.socket, TLSOpts,
+            TLSSocket = mongoose_transport:wait_for_tls_handshake(
+                                                 StateData#state.socket, TLSOpts,
                                                  exml:to_binary(
                                                      #xmlel{name = <<"proceed">>,
                                                              attrs = [{<<"xmlns">>, ?NS_TLS}]})),
@@ -268,7 +267,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 <<"EXTERNAL">> ->
                     Auth = jlib:decode_base64(xml:get_cdata(Els)),
                     AuthDomain = jid:nameprep(Auth),
-                    CertData = ejabberd_socket:get_peer_certificate(
+                    CertData = mongoose_transport:get_peer_certificate(
                                  StateData#state.socket),
                     AuthRes = check_auth_domain(AuthDomain, CertData),
                     handle_auth_res(AuthRes, AuthDomain, StateData);
@@ -487,7 +486,7 @@ handle_event(_Event, StateName, StateData) ->
 -spec handle_sync_event(any(), any(), statename(), state()
                        ) -> {'reply', 'ok' | {'state_infos', [any(), ...]}, atom(), state()}.
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {ok, {Addr, Port}} = ejabberd_socket:peername(StateData#state.socket),
+    {ok, {Addr, Port}} = mongoose_transport:peername(StateData#state.socket),
     Domains = case StateData#state.authenticated of
                   true ->
                       [StateData#state.auth_domain];
@@ -557,7 +556,7 @@ handle_info(_, StateName, StateData) ->
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason}),
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -566,7 +565,7 @@ terminate(Reason, _StateName, StateData) ->
 
 -spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    ejabberd_socket:send(StateData#state.socket, Text).
+    mongoose_transport:send(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()) -> ok.
@@ -581,7 +580,7 @@ stream_features(HostType, Domain) ->
 change_shaper(StateData, Host, JID) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(Host),
     Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
-    ejabberd_socket:change_shaper(StateData#state.socket, Shaper).
+    mongoose_transport:change_shaper(StateData#state.socket, Shaper).
 
 
 -spec new_id() -> binary().
@@ -655,7 +654,7 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
     end.
 
 verify_cert_and_get_sasl(Socket, TLSCertVerify) ->
-    case ejabberd_socket:get_peer_certificate(Socket) of
+    case mongoose_transport:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],

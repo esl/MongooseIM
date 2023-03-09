@@ -288,7 +288,7 @@ open_socket2(HostType, Type, Addr, Port) ->
                 {active, false},
                 Type],
 
-    case (catch ejabberd_socket:connect(Addr, Port, SockOpts, Timeout)) of
+    case (catch mongoose_transport:connect(Addr, Port, SockOpts, Timeout)) of
         {ok, _Socket} = R -> R;
         {error, Reason} = R ->
             ?LOG_DEBUG(#{what => s2s_out_failed,
@@ -477,7 +477,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                 text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
                                 myname => StateData#state.myname,
                                 server => StateData#state.server}),
-                    ejabberd_socket:close(StateData#state.socket),
+                    mongoose_transport:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
@@ -513,8 +513,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     ?LOG_DEBUG(#{what => s2s_starttls,
                                  myname => StateData#state.myname,
                                  server => StateData#state.server}),
-                    Socket = StateData#state.socket,
-                    TLSSocket = ejabberd_socket:starttls(Socket, StateData#state.tls_options),
+                    TLSSocket = mongoose_transport:connect_tls(StateData#state.socket,
+                                                               StateData#state.tls_options),
                     NewStateData = StateData#state{socket = TLSSocket,
                                                    streamid = new_id(),
                                                    tls_enabled = true},
@@ -632,7 +632,7 @@ handle_event(_Event, StateName, StateData) ->
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {Addr, Port} = try ejabberd_socket:peername(StateData#state.socket) of
+    {Addr, Port} = try mongoose_transport:peername(StateData#state.socket) of
                        {ok, {A, P}} ->  {A, P}
                    catch
                        _:_ ->
@@ -770,7 +770,7 @@ terminate(Reason, StateName, StateData) ->
         undefined ->
             ok;
         _Socket ->
-            ejabberd_socket:close(StateData#state.socket)
+            mongoose_transport:close(StateData#state.socket)
     end,
     ok.
 
@@ -788,7 +788,7 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> 'ok'.
 send_text(StateData, Text) ->
-    ejabberd_socket:send(StateData#state.socket, Text).
+    mongoose_transport:send(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
@@ -1191,7 +1191,7 @@ get_acc_with_new_tls(_, _, Acc) ->
 
 tls_options(HostType) ->
     Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
-    Options = #{connect => true, verify_mode => peer, ciphers => Ciphers},
+    Options = #{verify_mode => peer, ciphers => Ciphers},
     case ejabberd_s2s:lookup_certfile(HostType) of
         {ok, CertFile} -> Options#{certfile => CertFile};
         {error, not_found} -> Options
@@ -1233,7 +1233,7 @@ handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled =
 handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
@@ -1243,6 +1243,6 @@ handle_parsed_features({_, _, _, StateData}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
     % TODO: clear message queue
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.
