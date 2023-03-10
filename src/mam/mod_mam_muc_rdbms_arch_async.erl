@@ -67,26 +67,36 @@ flush(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
 do_flush_muc(Acc, #{host_type := HostType, queue_length := MessageCount,
                     batch_size := MaxSize, batch_name := BatchName}) ->
     Rows = [mod_mam_muc_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
-    InsertResult =
-        case MessageCount of
-            MaxSize ->
-                mongoose_rdbms:execute(HostType, BatchName, lists:append(Rows));
-            OtherSize ->
-                Results = [mongoose_rdbms:execute(HostType, insert_mam_muc_message, Row) || Row <- Rows],
-                case lists:keyfind(error, 1, Results) of
-                    false -> {updated, OtherSize};
-                    Error -> Error
-                end
-        end,
-    case InsertResult of
-        {updated, _Count} -> ok;
-        {error, Reason} ->
-            mongoose_metrics:update(HostType, modMucMamDropped, MessageCount),
-            ?LOG_ERROR(#{what => archive_message_query_failed,
-                         text => <<"archive_message query failed, modMucMamDropped metric updated">>,
-                         message_count => MessageCount, reason => Reason}),
-            ok
+    IsFullBuffer = MessageCount =:= MaxSize,
+    case IsFullBuffer of
+        true ->
+            Result = mongoose_rdbms:execute(HostType, BatchName, lists:append(Rows)),
+            process_batch_result(Result, Acc, HostType, MessageCount);
+        _ ->
+            Results = [{mongoose_rdbms:execute(HostType, insert_mam_muc_message, Row), Row} || Row <- Rows],
+            process_list_results(Results, HostType)
     end,
     [mod_mam_muc_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
     mongoose_hooks:mam_muc_flush_messages(HostType, MessageCount),
     ok.
+
+process_batch_result({updated, _Count}, _, _, _) ->
+    ok;
+process_batch_result({error, Reason}, Rows, HostType, MessageCount) ->
+    mongoose_metrics:update(HostType, modMucMamDropped, MessageCount),
+    Keys = [ maps:with([message_id, archive_id], Row) || Row <- Rows ],
+    ?LOG_ERROR(#{what => archive_muc_batch_messages_failed,
+                 text => <<"A batch of muc messages failed to archive, modMucMamDropped metric updated">>,
+                 keys => Keys, message_count => MessageCount, reason => Reason}),
+    ok.
+
+process_list_results(Results, HostType) ->
+    lists:foreach(fun(R) -> process_single_result(R, HostType) end, Results).
+
+process_single_result({{updated, _Count}, _}, _HostType) ->
+    ok;
+process_single_result({{error, Reason}, #{message_id := MsgId, archive_id := ArcId}}, HostType) ->
+    mongoose_metrics:update(HostType, modMucMamDropped, 1),
+    ?LOG_ERROR(#{what => archive_muc_single_message_failed,
+                 text => <<"Single muc message failed to archive, modMucMamDropped metric updated">>,
+                 message_id => MsgId, archive_id => ArcId, reason => Reason}).
