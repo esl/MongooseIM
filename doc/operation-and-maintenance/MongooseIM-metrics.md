@@ -175,7 +175,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, xmpp, sent, s2s]` | spiral | A size (in bytes) of a data sent via TCP and TLS (before encryption) Server-to-Server connections. |
 | `[global, data, xmpp, received, component]` | spiral | A size (in bytes) of a data received from XMPP component. |
 | `[global, data, xmpp, sent, component]` | spiral | A size (in bytes) of a data sent to XMPP component. |
-| `[global, data, xmpp, c2s, message, processing_time`] | histogram | Processing time for incomming c2s stanzas. |
+| `[HostType, data, xmpp, c2s, message, processing_time`] | histogram | Processing time for incomming c2s stanzas. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
 | `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
