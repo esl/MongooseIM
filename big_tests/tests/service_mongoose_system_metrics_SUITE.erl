@@ -569,5 +569,3 @@ str_to_event(Qs) ->
 
 get_el(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
-
-
