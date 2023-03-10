@@ -84,7 +84,7 @@
 
 -define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, xml_stanza_size],
                             [data, xmpp, sent, xml_stanza_size],
-                            [data, xmpp, message, processing_time]
+                            [data, xmpp, c2s, message, processing_time]
                            ]).
 
 -define(DATA_FUN_METRICS,
