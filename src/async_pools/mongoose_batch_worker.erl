@@ -102,7 +102,8 @@ terminate(Reason, State) ->
     case State#state.flush_queue of
         [] -> ok;
         _ ->
-            ?LOG_WARNING(log_fields(State, #{what => batch_worker_terminate_requires_flush})),
+            ?LOG_WARNING(log_fields(State, #{what => batch_worker_terminate_requires_flush,
+                                             reason => Reason})),
             do_run_flush(State)
     end.
 
