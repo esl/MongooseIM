@@ -71,6 +71,7 @@ rdbms_queries_cases() ->
      test_request_insert,
      test_request_transaction,
      test_restart_transaction_with_execute,
+     test_restart_transaction_with_execute_eventually_passes,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -85,7 +86,7 @@ init_per_suite(Config) ->
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
         true ->
-            %% XXX inject_module does not really work well with --rerun-big-tests flag
+            %% Warning: inject_module does not really work well with --rerun-big-tests flag
             mongoose_helper:inject_module(?MODULE),
             escalus:init_per_suite(Config)
     end.
@@ -99,9 +100,11 @@ init_per_testcase(test_incremental_upsert, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(test_restart_transaction_with_execute, Config) ->
+end_per_testcase(CaseName, Config)
+    when CaseName =:= test_restart_transaction_with_execute;
+         CaseName =:= test_restart_transaction_with_execute_eventually_passes ->
     rpc(mim(), meck, unload, []),
-    escalus:end_per_testcase(test_restart_transaction_with_execute, Config);
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
     sql_query(Config, <<"TRUNCATE TABLE inbox">>),
     escalus:end_per_testcase(test_incremental_upsert, Config);
@@ -398,8 +401,7 @@ test_request_transaction(Config) ->
 
 test_restart_transaction_with_execute(Config) ->
     erase_table(Config),
-    Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
-    sql_prepare(Config, insert_int8, test_types, [int8], Q),
+    prepare_insert_int8(Config),
     ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
                                    {error, simulated_db_error}]),
@@ -409,9 +411,44 @@ test_restart_transaction_with_execute(Config) ->
     HostType = host_type(),
     Pid = self(),
     F = fun() -> Pid ! called, mongoose_rdbms:execute(HostType, insert_int8, [2]) end,
-    sql_transaction(Config, F),
+    {aborted, #{reason := simulated_db_error}} = sql_transaction(Config, F),
     called_times(11), %% 1 first run + 10 restarts
     ok.
+
+test_restart_transaction_with_execute_eventually_passes(Config) ->
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
+                                   {error, simulated_db_error}]),
+    %% Check that mocking works
+    {error, simulated_db_error} = sql_execute(Config, insert_int8, [1]),
+    %% Executed by the MIM node
+    HostType = host_type(),
+    Pid = self(),
+    F = fun() -> Pid ! called, fail_times(3, Pid, HostType) end,
+    {atomic, ok} = sql_transaction(Config, F),
+    called_times(3),
+    ok.
+
+prepare_insert_int8(Config) ->
+    Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
+    sql_prepare(Config, insert_int8, test_types, [int8], Q).
+
+fail_times(N, Pid, HostType) ->
+    case update_counter(Pid) + 1 of
+        N ->
+            ok;
+        _ ->
+            mongoose_rdbms:execute(HostType, insert_int8, [2])
+    end.
+
+%% Returns old value
+update_counter(Pid) ->
+    Key = {test_counter, Pid},
+    N = case get(Key) of undefined -> 0; X -> X end,
+    put(Key, N + 1),
+    N.
 
 called_times(0) ->
     %% Check that there are no more calls
