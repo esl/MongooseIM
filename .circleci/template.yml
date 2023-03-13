@@ -236,16 +236,18 @@ executors:
       - *elasticsearch_container
       - *cassandra_container
       - *cassandra_proxy_container
+  arm64:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: arm.medium
 commands:
   fetch_build_packages:
     steps:
       - run:
           name: Install packages necessary for building
           command: |
-            sudo pkill -9 apt-get || true && \
-            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
-            sudo ./tools/retry.sh apt-get update && \
-            sudo ./tools/retry.sh apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
+            $EXEC tools/circle-install-packages.sh \
+            'libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev'
   maybe_build_deps_and_cache:
     steps:
       - restore_cache:
@@ -266,18 +268,27 @@ commands:
           paths:
             - ~/project/_build/default/
             - ~/project/big_tests/_build/default/
-  build_and_cache_prod_build:
+  cache_prod_build:
+    parameters:
+      arch:
+        type: string
     steps:
       - run:
-          name: Generate prod release
+          name: Create prod tarball
           command: |
-            echo $ERLANG_VERSION > otp_version
-            make rel
+            export BUILD_PATH=_build/prod/rel/mongooseim
+            tar czh --transform="s,${BUILD_PATH},mongooseim,S" \
+              -f mongooseim-<<parameters.arch>>.tar.gz ${BUILD_PATH}
       - save_cache:
           key: *BUILD_CACHE_KEY
-          paths: ~/project/_build/prod/rel/mongooseim
+          paths: ~/project/mongooseim-<<parameters.arch>>.tar.gz
   restore_prod_build:
+    parameters:
+      arch:
+        type: string
     steps:
+      - run:
+          echo $OTP_VERSION-<<parameters.arch>> > otp_version
       - restore_cache:
           key: *BUILD_CACHE_KEY
   persist_workspace:
@@ -294,10 +305,7 @@ commands:
       - run:
           name: Install pip3 and codecov packages
           command: |
-            sudo pkill -9 apt-get || true && \
-            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
-            sudo ./tools/retry.sh apt-get update && \
-            sudo ./tools/retry.sh apt-get install python3-pip -y && \
+            tools/circle-install-packages.sh python3-pip && \
             pip3 install codecov && codecov
   run_coverage_analysis:
     steps:
@@ -406,7 +414,7 @@ commands:
     steps:
       - run:
           name: Prepare for cache
-          command: echo $ERLANG_VERSION > otp_version
+          command: $EXEC bash -c 'echo $OTP_VERSION-$ARCH > otp_version'
 
 jobs:
   # #########################
@@ -419,15 +427,15 @@ jobs:
         type: executor
     steps:
       - checkout
-      - prepare_for_cache
       - setup_remote_docker
-      - restore_prod_build
+      - restore_prod_build: {arch: amd64}
+      - restore_prod_build: {arch: arm64}
       - run:
           name: Execute Docker image build and upload
           command: tools/circle-build-and-push-docker.sh
       - run:
           name: Smoke testing
-          command: mongooseim-docker/smoke_test.sh
+          command: IMAGE_TAG=`cat image_tag` mongooseim-docker/smoke_test.sh
 
   docs_build_deploy:
     parallelism: 1
@@ -479,6 +487,21 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
+  build_in_docker_arm64:
+    executor: arm64
+    environment:
+      DOCKER_IMAGE: *OTP25
+      EXEC: docker exec main
+    steps:
+      - run: docker run -dit --name main --rm -v `pwd`:`pwd` $DOCKER_IMAGE
+      - checkout
+      - prepare_for_cache
+      - restore_certs
+      - fetch_build_packages
+      - run: $EXEC tools/configure with-all
+      - run: $EXEC make rel
+      - cache_prod_build: {arch: arm64}
+
   build_in_docker:
     executor: << parameters.executor >>
     parameters:
@@ -505,7 +528,9 @@ jobs:
           command: ./tools/build-releases.sh
       - when:
           condition: << parameters.build_prod >>
-          steps: [ build_and_cache_prod_build ]
+          steps:
+            - run: make rel
+            - cache_prod_build: {arch: amd64}
       - run:
           name: Build Big Tests
           command: tools/build-tests.sh
@@ -715,6 +740,9 @@ workflows:
           executor: otp_24
           context: mongooseim-org
           build_prod: false
+      - build_in_docker_arm64:
+          name: otp_25_docker_arm64
+          context: mongooseim-org
       # ============= DIALYZER =============
       - dialyzer:
           name: dialyzer_24
@@ -884,6 +912,7 @@ workflows:
           executor: otp_25
           context: mongooseim-org
           requires:
+
             - small_tests_24
             - ldap_mnesia_24
             - pgsql_mnesia_24
@@ -905,4 +934,6 @@ workflows:
 
             - xref
             - edoc
+
+            - otp_25_docker_arm64
           filters: *all_tags
