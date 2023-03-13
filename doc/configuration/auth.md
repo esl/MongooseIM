@@ -7,7 +7,9 @@ The following methods are supported:
 * [`anonymous`](../authentication-methods/anonymous.md) - allows anonymous connections,
 * [`ldap`](../authentication-methods/ldap.md) - checks the user credentials in LDAP,
 * [`jwt`](../authentication-methods/jwt.md) - authenticates the users with JSON Web Tokens,
-* [`riak`](../authentication-methods/riak.md) - stores the user accounts in a Riak database,
+* [`riak (deprecated)`](../authentication-methods/riak.md) - stores the user accounts in a Riak database,
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 * [`http`](../authentication-methods/http.md) - uses an external HTTP service to authenticate the user,
 * [`pki`](../authentication-methods/pki.md) - uses the certificate provided by the user to authenticate them,
 * [`dummy`](../authentication-methods/dummy.md) - no authentication, only for development and testing.
@@ -25,6 +27,9 @@ The options listed here affect more than one configuration method.
 * **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
 * **Default:** not set
 * **Example:** `methods = ["internal", "anonymous"]`
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 It is possible to enable more than one method - they are queried one by one in the alphabetical order until one of them succeeds or there are no more methods. You can change the default order by using this option. Make sure that all methods from the list have their corresponding sections included in the `auth` section, e.g.
 
@@ -57,18 +62,18 @@ Specifies the list of allowed SASL mechanisms, which are announced during stream
 
 The table below shows the supported SASL mechanisms (columns) for each authentication method (row).
 
-|           | plain | digest | scram_sha* | anonymous | external |
-|-----------|:-----:|:------:|:----------:|:---------:|:--------:|
-| internal  |   x   |   x    |     x      |           |          |
-| rdbms     |   x   |   x    |     x      |           |          |
-| external  |   x   |        |            |           |          |
-| anonymous |   x   |   x    |     x      |     x     |          |
-| ldap      |   x   |        |            |           |    x     |
-| jwt       |   x   |        |            |           |          |
-| riak      |   x   |   x    |     x      |           |          |
-| http      |   x   |   x    |     x      |           |          |
-| pki       |       |        |            |           |    x     |
-| dummy     |   x   |        |            |           |          |
+|                   | plain | digest | scram_sha* | anonymous | external |
+|-------------------|:-----:|:------:|:----------:|:---------:|:--------:|
+| internal          |   x   |   x    |     x      |           |          |
+| rdbms             |   x   |   x    |     x      |           |          |
+| external          |   x   |        |            |           |          |
+| anonymous         |   x   |   x    |     x      |     x     |          |
+| ldap              |   x   |        |            |           |    x     |
+| jwt               |   x   |        |            |           |          |
+| riak (deprecated) |   x   |   x    |     x      |           |          |
+| http              |   x   |   x    |     x      |           |          |
+| pki               |       |        |            |           |    x     |
+| dummy             |   x   |        |            |           |          |
 
 ### `auth.sasl_external`
 * **Syntax:** list of strings, allowed values: `"standard"`, `"common_name"`, `"auth_id"`
@@ -85,7 +90,7 @@ This option allows you to list the enabled ones in the order of preference (they
 
 ## Password-related options
 
-These options are common to the `http`, `rdbms`, `internal` and `riak` methods.
+These options are common to the `http`, `rdbms`, `internal` and `riak(deprecated)` methods.
 
 ### `auth.password.format`
 * **Syntax:** string, one of: `"plain"`, `"scram"`
@@ -156,5 +161,5 @@ See the links below for options related to the particular methods:
 * [External method options](../authentication-methods/external.md#configuration-options)
 * [LDAP method options](../authentication-methods/ldap.md#configuration-options)
 * [JWT method options](../authentication-methods/jwt.md#configuration-options)
-* [Riak method options](../authentication-methods/riak.md#configuration-options)
+* [Riak(deprecated) method options](../authentication-methods/riak.md#configuration-options)
 * [HTTP method options](../authentication-methods/http.md#configuration-options)

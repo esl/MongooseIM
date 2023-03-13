@@ -288,6 +288,9 @@ Why would we want to ever repeat the tests?
 In order to test different backends of the same parts of the system.
 E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV - the glue code between the XMPP logic module and database is different in each case, therefore repeating the same tests with different databases is necessary to guarantee a truthful code coverage measurement.
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 ### Testing a feature in development / TDD
 
 The whole suite takes a significant amount of time to complete.

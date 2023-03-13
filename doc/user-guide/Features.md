@@ -36,7 +36,7 @@ This modular architecture allows high customisability and easy access to the req
 
 MongooseIM enables authenticating users using external or internal [databases](../authentication-methods/rdbms.md) (Mnesia, RDBMS, NoSQL), [LDAP](../authentication-methods/ldap.md), [HTTP](../authentication-methods/http.md) or [external scripts](../authentication-methods/external.md). It also allows connecting [anonymous users](../authentication-methods/anonymous.md), when required.
 
-For storing persistent data, MongooseIM uses Mnesia (the distributed internal Erlang database), relational databases: MySQL, PostgreSQL or a NoSQL alternative: Riak KV.
+For storing persistent data, MongooseIM uses Mnesia (the distributed internal Erlang database), relational databases: MySQL, PostgreSQL or a NoSQL alternative: Riak KV (deprecated).
 Please take a look at [database backends configurations](../configuration/database-backends-configuration.md) to learn more.
 If necessary, MongooseIM can be customised to work with a different database.
 You can [contact us](https://www.erlang-solutions.com/contact/) to learn more.

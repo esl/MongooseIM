@@ -20,6 +20,9 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 Storage backend.
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 ### Riak-specific options
 
 #### `bucket_type`

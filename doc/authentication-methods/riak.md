@@ -1,3 +1,6 @@
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 ## Overview
 
 This authentication method stores user accounts in Riak.

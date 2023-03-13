@@ -156,6 +156,9 @@ Enables backward-compatible session establishement IQs. See https://www.rfc-edit
 * **Default:** not set
 * **Example:** `allowed_auth_methods = ["internal"]`
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 A subset of enabled methods to login with for this listener.
 This option allows to enable only some backends.
 It is useful, if you want to have several listeners for different type of users (for example, some users use PKI while other users use LDAP auth).

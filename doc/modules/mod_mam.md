@@ -10,9 +10,12 @@ MongooseIM is compatible with MAM 0.4-0.6.
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
-* Riak KV (NoSQL)
+* Riak KV (deprecated) (NoSQL)
 * Cassandra (NoSQL)
 * ElasticSearch (NoSQL)
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 `mod_mam` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
@@ -51,7 +54,7 @@ If this happens, the client will receive only messages that contain words specif
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
 For now `rdbms` backend has very limited support for this feature, while `cassandra` does not support it at all.
-`riak` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
+`riak(deprecated)` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
 
 `mod_mam_rdbms_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).
@@ -68,6 +71,9 @@ Also note that the default separator for the search query is `AND` (which roughl
 * **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
 * **Default:** `"rdbms"`
 * **Example:** `backend = "riak"`
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 Database backend to use.
 
@@ -276,7 +282,7 @@ The possible values are:
 * **Example:** `modules.mod_mam.full_text_search = false`
 
 Enables full text search in message archive (see *Full Text Search* paragraph).
-Please note that the full text search is currently only implemented for `"rdbms"` and `"riak"` backends.
+Please note that the full text search is currently only implemented for `"rdbms"` and `"riak(deprecated)"` backends.
 Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
@@ -300,6 +306,9 @@ Archiving chat markers can be enabled by setting `archive_chat_markers` option t
 When performing full text search chat markers are treated as if they had empty message body.
 
 ### Riak backend
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 The Riak KV backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.
 Archive querying is done using Riak KV 2.0 [search mechanism](http://docs.basho.com/riak/2.1.1/dev/using/search/) called Yokozuna.

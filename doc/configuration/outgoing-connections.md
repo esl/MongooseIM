@@ -2,13 +2,16 @@ MongooseIM can be configured to talk to external services like databases or HTTP
 The interface for outgoing connections management is available via the `outgoing_pools` config option for the following types of connections:
 
 * `cassandra` - pool of connections to Cassandra cluster
-* `riak` - pool of connections to Riak cluster
+* `riak (deprecated)` - pool of connections to Riak cluster
 * `redis` - pool of connections to Redis server
 * `http` - pool of connections to an HTTP(S) server MongooseIM can talk to, for example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 * **Syntax:** Each pool is specified in a subsection starting with `[outgoing_pools.type.tag]`, where `type` is one of available connection types and `tag` is an arbitrary value uniquely identifying the pool within its type.
 This allows you to create multiple dedicated pools of the same type.
@@ -221,6 +224,9 @@ Logical database index (zero-based).
 * **Example:** `password = "topsecret"`
 
 ## Riak options
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 Currently, only one Riak connection pool can exist for each supported XMPP host (the default pool).
 

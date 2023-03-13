@@ -87,7 +87,7 @@ nav:
       - 'Anonymous': 'authentication-methods/anonymous.md'
       - 'LDAP': 'authentication-methods/ldap.md'
       - 'JWT': 'authentication-methods/jwt.md'
-      - 'Riak': 'authentication-methods/riak.md'
+      - 'Riak (deprecated)': 'authentication-methods/riak.md'
       - 'HTTP': 'authentication-methods/http.md'
       - 'PKI': 'authentication-methods/pki.md'
       - 'Dummy': 'authentication-methods/dummy.md'

@@ -43,6 +43,9 @@ Options:
     user      System user to run the server as. Default:
 ```
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 This script is also accessible via the make `configure` target.
 
 ### Example
