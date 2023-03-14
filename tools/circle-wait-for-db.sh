@@ -50,6 +50,10 @@ function wait_for_db {
         minio)
             ./tools/wait-for-it.sh -p 9000
         ;;
+
+        *)
+            echo "wait_for_db(): ERROR, Unknown DB '${1}'"
+            return 1
     esac
 }
 
