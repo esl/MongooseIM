@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mongoose_transport.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : tansport module for s2s and components connection
+%%% Purpose : transport module for s2s and components connection
 %%% Created : 18 Jan 2017
 %%%----------------------------------------------------------------------
 
@@ -72,12 +72,12 @@
 -ignore_xref([start_link/3, get_all_trasport_processes/0, wait_for_tls_handshake/2]).
 
 %%----------------------------------------------------------------------
-%% Trasport API
+%% Transport API
 %%----------------------------------------------------------------------
 
 -spec accept(module(), gen_tcp:socket(),
-            mongoose_tcp_listener:options(),
-            mongoose_tcp_listener:connection_details()) -> ok.
+             mongoose_tcp_listener:options(),
+             mongoose_tcp_listener:connection_details()) -> ok.
 accept(Module, Socket, Opts, ConnectionDetails) ->
     Receiver = start_child(Socket, none, Opts),
     ConnectionType = maps:get(connection_type, Opts),
@@ -330,7 +330,6 @@ get_transport_info(ConnectionList) when is_list(ConnectionList) ->
 get_transport_info(TransportPid) when is_pid(TransportPid) ->
     State = sys:get_state(TransportPid),
     maps:from_list(lists:zip(record_info(fields, state),tl(tuple_to_list(State)))).
-
 
 -spec tcp_to_tls(pid(), mongoose_tls:options()) -> ok | {error, any()}.
 tcp_to_tls(Receiver, TLSOpts) ->

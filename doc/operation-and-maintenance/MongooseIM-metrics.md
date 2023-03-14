@@ -163,8 +163,8 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | ----------- | ---- | ----------- |
 | `[global, data, xmpp, received, xml_stanza_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
 | `[global, data, xmpp, sent, xml_stanza_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
-| `[global, data, xmpp, received, c2s, tcp]` | spiral | A size (in bytes) of an unencrypted data received from a client via TCP channel. |
-| `[global, data, xmpp, sent, c2s, tcp]` | spiral | A size (in bytes) of an unencrypted data sent to a client via TCP channel. |
+| `[global, data, xmpp, received, c2s, tcp]` | spiral | A size (in bytes) of unencrypted data received from a client via TCP channel. |
+| `[global, data, xmpp, sent, c2s, tcp]` | spiral | A size (in bytes) of unencrypted data sent to a client via TCP channel. |
 | `[global, data, xmpp, received, c2s, tls]` | spiral | A size (in bytes) of a data received from a client via TLS channel after decryption. |
 | `[global, data, xmpp, sent, c2s, tls]` | spiral | A size (in bytes) of a data sent to a client via TLS channel before encryption. |
 | `[global, data, xmpp, received, c2s, bosh]` | spiral | A size (in bytes) of a data received from a client via BOSH connection. |

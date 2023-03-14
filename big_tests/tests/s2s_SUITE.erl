@@ -66,7 +66,7 @@ metrics() ->
     [s2s_metrics_testing].
 
 all_tests() ->
-     [connections_info, nonexistent_user, unknown_domain, malformed_jid | essentials()].
+    [connections_info, nonexistent_user, unknown_domain, malformed_jid | essentials()].
 
 negative() ->
     [timeout_waiting_for_message].
