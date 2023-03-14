@@ -66,6 +66,7 @@ xep0114_tests() ->
     [register_one_component,
      dirty_disconnect,
      register_two_components,
+     intercomponent_communication,
      try_registering_with_wrong_password,
      try_registering_component_twice,
      try_registering_existing_host,
@@ -158,7 +159,7 @@ verify_component(Config, Component, ComponentAddr) ->
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
         end).
 
-register_two_components(Config) ->
+intercomponent_communication(Config) ->
     %% Given two connected components
     CompOpts1 = ?config(component1, Config),
     CompOpts2 = ?config(component2, Config),
@@ -183,36 +184,52 @@ register_two_components(Config) ->
 
     escalus_mongooseim:post_story(PreStoryData),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-                %% When the first component sends a message to Alice
-                Msg1 = escalus_stanza:chat_to(Alice, <<"Comp1-2-Alice msg">>),
-                escalus:send(Comp1, escalus_stanza:from(Msg1, CompAddr1)),
-                %% Then she receives it
-                Reply1 = escalus:wait_for_stanza(Alice),
-                escalus:assert(is_chat_message, [<<"Comp1-2-Alice msg">>], Reply1),
-                escalus:assert(is_stanza_from, [CompAddr1], Reply1),
+    disconnect_component(Comp1, CompAddr1),
+    disconnect_component(Comp2, CompAddr2).
 
-                %% When the second component sends a message to Bob
-                Msg2 = escalus_stanza:chat_to(Bob, <<"Comp2-2-Bob msg">>),
-                escalus:send(Comp2, escalus_stanza:from(Msg2, CompAddr2)),
-                %% Then he receives it
-                Reply2 = escalus:wait_for_stanza(Bob),
-                escalus:assert(is_chat_message, [<<"Comp2-2-Bob msg">>], Reply2),
-                escalus:assert(is_stanza_from, [CompAddr2], Reply2),
 
-                %% When Bob sends a reply to the second component
-                Msg3 = escalus_stanza:chat_to(CompAddr2, <<"Bob-2-Comp2 msg">>),
-                escalus:send(Bob, Msg3),
-                %% Then the second component receives it
-                Reply3 = escalus:wait_for_stanza(Comp2),
-                escalus:assert(is_chat_message, [<<"Bob-2-Comp2 msg">>], Reply3),
+register_two_components(Config) ->
+    %% Given two connected components
+    CompOpts1 = ?config(component1, Config),
+    CompOpts2 = ?config(component2, Config),
+    {Comp1, CompAddr1, _} = connect_component(CompOpts1),
+    {Comp2, CompAddr2, _} = connect_component(CompOpts2),
+    MongooseMetrics = [{[global, data, xmpp, received, component], changed},
+                       {[global, data, xmpp, sent, component], changed},
+                       {[global, data, xmpp, received, xml_stanza_size], changed},
+                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
 
-                %% WHen Alice sends a reply to the first component
-                Msg4 = escalus_stanza:chat_to(CompAddr1, <<"Alice-2-Comp1 msg">>),
-                escalus:send(Alice, Msg4),
-                %% Then the first component receives it
-                Reply4 = escalus:wait_for_stanza(Comp1),
-                escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
+    escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
+                  [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            %% When the first component sends a message to Alice
+            Msg1 = escalus_stanza:chat_to(Alice, <<"Comp1-2-Alice msg">>),
+            escalus:send(Comp1, escalus_stanza:from(Msg1, CompAddr1)),
+            %% Then she receives it
+            Reply1 = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_chat_message, [<<"Comp1-2-Alice msg">>], Reply1),
+            escalus:assert(is_stanza_from, [CompAddr1], Reply1),
+
+            %% When the second component sends a message to Bob
+            Msg2 = escalus_stanza:chat_to(Bob, <<"Comp2-2-Bob msg">>),
+            escalus:send(Comp2, escalus_stanza:from(Msg2, CompAddr2)),
+            %% Then he receives it
+            Reply2 = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_chat_message, [<<"Comp2-2-Bob msg">>], Reply2),
+            escalus:assert(is_stanza_from, [CompAddr2], Reply2),
+
+            %% When Bob sends a reply to the second component
+            Msg3 = escalus_stanza:chat_to(CompAddr2, <<"Bob-2-Comp2 msg">>),
+            escalus:send(Bob, Msg3),
+            %% Then the second component receives it
+            Reply3 = escalus:wait_for_stanza(Comp2),
+            escalus:assert(is_chat_message, [<<"Bob-2-Comp2 msg">>], Reply3),
+
+            %% WHen Alice sends a reply to the first component
+            Msg4 = escalus_stanza:chat_to(CompAddr1, <<"Alice-2-Comp1 msg">>),
+            escalus:send(Alice, Msg4),
+            %% Then the first component receives it
+            Reply4 = escalus:wait_for_stanza(Comp1),
+            escalus:assert(is_chat_message, [<<"Alice-2-Comp1 msg">>], Reply4)
         end),
 
     disconnect_component(Comp1, CompAddr1),
