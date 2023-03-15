@@ -109,14 +109,8 @@
 -define(FSMOPTS, []).
 -endif.
 
-%% Module start with or without supervisor:
--ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, p1_fsm:start(ejabberd_s2s_out, [From, Host, Type],
-                                       fsm_limit_opts() ++ ?FSMOPTS)).
--else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_out_sup,
                                                  [From, Host, Type])).
--endif.
 
 -define(FSMTIMEOUT, 30000).
 
@@ -288,7 +282,7 @@ open_socket2(HostType, Type, Addr, Port) ->
                 {active, false},
                 Type],
 
-    case (catch ejabberd_socket:connect(Addr, Port, SockOpts, Timeout)) of
+    case (catch mongoose_transport:connect(s2s, Addr, Port, SockOpts, Timeout)) of
         {ok, _Socket} = R -> R;
         {error, Reason} = R ->
             ?LOG_DEBUG(#{what => s2s_out_failed,
@@ -322,7 +316,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
-            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
+            send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             ?LOG_INFO(#{what => s2s_out_closing,
                         text => <<"Closing s2s connection: (invalid namespace)">>,
                         namespace_provided => NSProvided,
@@ -333,8 +327,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamerror, StateData);
 wait_for_stream({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_stream, xmlstreamend, StateData);
@@ -390,8 +384,8 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamend, StateData);
 wait_for_validation({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_validation, xmlstreamerror, StateData);
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
@@ -431,16 +425,15 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                   end, {false, false, false}, Els),
             handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
-            send_text(StateData,
-                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                      (?STREAM_TRAILER)/binary>>),
+            send_element(StateData, mongoose_xmpp_errors:bad_format()),
+            send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_features, bad_format, El, StateData)
     end;
 wait_for_features({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_features, xmlstreamend, StateData);
 wait_for_features({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_features, xmlstreamerror, StateData);
 wait_for_features(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_features, timeout, StateData);
@@ -465,9 +458,8 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                      authenticated = true
                                     }, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
@@ -477,26 +469,24 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                 text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
                                 myname => StateData#state.myname,
                                 server => StateData#state.server}),
-                    ejabberd_socket:close(StateData#state.socket),
+                    mongoose_transport:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
-            send_text(StateData,
-                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+            send_element(StateData, mongoose_xmpp_errors:bad_format()),
+            send_text(StateData, ?STREAM_TRAILER),
             ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
     end;
 wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamend, StateData);
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_auth_result, xmlstreamerror, StateData);
 wait_for_auth_result(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_auth_result, timeout, StateData);
@@ -513,8 +503,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     ?LOG_DEBUG(#{what => s2s_starttls,
                                  myname => StateData#state.myname,
                                  server => StateData#state.server}),
-                    Socket = StateData#state.socket,
-                    TLSSocket = ejabberd_socket:starttls(Socket, StateData#state.tls_options),
+                    TLSSocket = mongoose_transport:connect_tls(StateData#state.socket,
+                                                               StateData#state.tls_options),
                     NewStateData = StateData#state{socket = TLSSocket,
                                                    streamid = new_id(),
                                                    tls_enabled = true},
@@ -523,9 +513,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                 <<" version='1.0'">>)),
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
-                    send_text(StateData,
-                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
-                              (?STREAM_TRAILER)/binary>>),
+                    send_element(StateData, mongoose_xmpp_errors:bad_format()),
+                    send_text(StateData, ?STREAM_TRAILER),
                     ?CLOSE_GENERIC(wait_for_auth_result, bad_format, El, StateData)
             end;
         _ ->
@@ -534,8 +523,8 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamend, StateData);
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(wait_for_starttls_proceed, xmlstreamerror, StateData);
 wait_for_starttls_proceed(timeout, StateData) ->
     ?CLOSE_GENERIC(wait_for_starttls_proceed, timeout, StateData);
@@ -594,8 +583,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
 stream_established({xmlstreamend, _Name}, StateData) ->
     ?CLOSE_GENERIC(stream_established, xmlstreamend, StateData);
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     ?CLOSE_GENERIC(stream_established, xmlstreamerror, StateData);
 stream_established(timeout, StateData) ->
     ?CLOSE_GENERIC(stream_established, timeout, StateData);
@@ -632,7 +621,7 @@ handle_event(_Event, StateName, StateData) ->
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {Addr, Port} = try ejabberd_socket:peername(StateData#state.socket) of
+    {Addr, Port} = try mongoose_transport:peername(StateData#state.socket) of
                        {ok, {A, P}} ->  {A, P}
                    catch
                        _:_ ->
@@ -683,15 +672,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
-handle_info({send_text, Text}, StateName, StateData) ->
-    ?LOG_ERROR(#{what => s2s_send_text, text => <<"Deprecated ejabberd_s2s_out send_text">>,
-                 myname => StateData#state.myname, server => StateData#state.server,
-                 send_text => Text}),
-    send_text(StateData, Text),
-    cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
-    {next_state, StateName, StateData#state{timer = Timer},
-     get_timeout_interval(StateName)};
 handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
@@ -770,7 +750,7 @@ terminate(Reason, StateName, StateData) ->
         undefined ->
             ok;
         _Socket ->
-            ejabberd_socket:close(StateData#state.socket)
+            mongoose_transport:close(StateData#state.socket)
     end,
     ok.
 
@@ -788,16 +768,16 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> 'ok'.
 send_text(StateData, Text) ->
-    ejabberd_socket:send(StateData#state.socket, Text).
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
 
 -spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
 send_element(StateData, #xmlel{} = El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 -spec send_element(state(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 send_element(StateData, Acc, El) ->
-    send_text(StateData, exml:to_binary(El)),
+    mongoose_transport:send_element(StateData#state.socket, El),
     Acc.
 
 
@@ -1191,7 +1171,7 @@ get_acc_with_new_tls(_, _, Acc) ->
 
 tls_options(HostType) ->
     Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
-    Options = #{connect => true, verify_mode => peer, ciphers => Ciphers},
+    Options = #{verify_mode => peer, ciphers => Ciphers},
     case ejabberd_s2s:lookup_certfile(HostType) of
         {ok, CertFile} -> Options#{certfile => CertFile};
         {error, not_found} -> Options
@@ -1233,7 +1213,7 @@ handle_parsed_features({_, true, _, StateData = #state{tls = true, tls_enabled =
 handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
@@ -1243,6 +1223,6 @@ handle_parsed_features({_, _, _, StateData}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
     % TODO: clear message queue
-    ejabberd_socket:close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.

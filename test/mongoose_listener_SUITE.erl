@@ -49,10 +49,10 @@ tcp_socket_has_connection_details(_C) ->
     ok = listener_started(#{}),
     {Port, _, _} = tcp_port_ip(),
 
-    meck:new(ejabberd_socket),
+    meck:new(mongoose_transport),
     TestPid = self(),
-    meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+    meck:expect(mongoose_transport, accept,
+                fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),
@@ -85,10 +85,10 @@ tcp_socket_supports_proxy_protocol(_C) ->
                                       transport_protocol => stream},
     {Port, _, _} = tcp_port_ip(),
 
-    meck:new(ejabberd_socket),
+    meck:new(mongoose_transport),
     TestPid = self(),
-    meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+    meck:expect(mongoose_transport, accept,
+                fun(_Module, Socket, Opts, ConnectionDetails) ->
                         TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),
@@ -174,9 +174,6 @@ assert_connected(Sock, Port) ->
         Else ->
             ct:fail("Failed: connection to ~p is broken, error was: ~p", [Port, Else])
     end.
-
-socket_type() ->
-    xml_stream.
 
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).

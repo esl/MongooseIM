@@ -74,12 +74,6 @@
     host = "_"
     path = "/ws-xmpp"
 
-    [listen.http.handlers.mod_websockets.service]
-      access = "all"
-      shaper_rule = "fast"
-      password = "secret"
-      max_fsm_queue = 1000
-
 [services.service_mongoose_system_metrics]
   report = true
   initial_report = 20_000

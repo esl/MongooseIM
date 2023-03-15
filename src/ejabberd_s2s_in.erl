@@ -29,8 +29,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([socket_type/0,
-         start_listener/1]).
+-export([start_listener/1]).
 
 %% External exports
 -export([start/2,
@@ -48,14 +47,13 @@
          handle_info/3,
          terminate/3]).
 
--ignore_xref([match_domain/2, socket_type/0, start/2, start_link/2,
-              stream_established/2, wait_for_feature_request/2, wait_for_stream/2]).
+-ignore_xref([match_domain/2, start/2, start_link/2, stream_established/2,
+              wait_for_feature_request/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
-                sockmod                 :: ejabberd:sockmod(),
                 streamid                :: binary(),
                 shaper,
                 tls = false             :: boolean(),
@@ -85,14 +83,8 @@
 -define(FSMOPTS, []).
 -endif.
 
-%% Module start with or without supervisor:
--ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, gen_fsm_compat:start(ejabberd_s2s_in, [SockData, Opts],
-                                        ?FSMOPTS)).
--else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_in_sup,
-                                                 [SockData, Opts])).
--endif.
+                                                 [Socket, Opts])).
 
 -define(STREAM_HEADER(Version),
         (<<"<?xml version='1.0'?>"
@@ -103,28 +95,24 @@
          "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
 
--type socket_data() :: {ejabberd:sockmod(), term()}.
+-type socket() :: term().
 -type options() :: #{shaper := atom(), tls := mongoose_tls:options(), atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(socket_data(), options()) ->
+-spec start(socket(), options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
-start(SockData, Opts) ->
+start(Socket, Opts) ->
     ?SUPERVISOR_START.
 
--spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
-start_link(SockData, Opts) ->
-    gen_fsm_compat:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
+-spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
+start_link(Socket, Opts) ->
+    gen_fsm_compat:start_link(ejabberd_s2s_in, [Socket, Opts], ?FSMOPTS).
 
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
-
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    xml_stream.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -137,15 +125,14 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([socket_data() | options(), ...]) -> {ok, wait_for_stream, state()}.
-init([{SockMod, Socket}, #{shaper := Shaper, tls := TLSOpts}]) ->
+-spec init([socket() | options(), ...]) -> {ok, wait_for_stream, state()}.
+init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
     ?LOG_DEBUG(#{what => s2n_in_started,
                  text => <<"New incoming S2S connection">>,
-                 sockmod => SockMod, socket => Socket}),
+                 socket => Socket}),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
-            sockmod = SockMod,
             streamid = new_id(),
             shaper = Shaper,
             tls_enabled = false,
@@ -201,8 +188,7 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                                 host_type = HostType}) ->
     SASL = case StateData#state.tls_enabled of
                true ->
-                   verify_cert_and_get_sasl(StateData#state.sockmod,
-                                            StateData#state.socket,
+                   verify_cert_and_get_sasl(StateData#state.socket,
                                             StateData#state.tls_cert_verify);
                _Else ->
                    []
@@ -218,6 +204,7 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                         cert_error => CertError}),
             Res = stream_start_error(StateData,
                                      mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
+            %% FIXME: why do we want stop just one of the connections here?                         
             {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
                                                          jid:make(<<>>, RemoteServer, <<>>)),
             ejabberd_s2s_out:stop_connection(Pid),
@@ -253,18 +240,15 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
-    SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_TLS, <<"starttls">>} when TLS == true,
-                                       TLSEnabled == false,
-                                       SockMod == gen_tcp ->
+                                       TLSEnabled == false ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
             TLSOpts = tls_options_with_certfile(StateData),
-            TLSSocket = mongoose_transport:starttls(StateData#state.sockmod,
-                                                    StateData#state.socket, TLSOpts,
-                                                    exml:to_binary(
-                                                      #xmlel{name = <<"proceed">>,
-                                                             attrs = [{<<"xmlns">>, ?NS_TLS}]})),
+            TLSSocket = mongoose_transport:wait_for_tls_handshake(
+                                                 StateData#state.socket, TLSOpts,
+                                                 #xmlel{name = <<"proceed">>,
+                                                        attrs = [{<<"xmlns">>, ?NS_TLS}]}),
             {next_state, wait_for_stream,
              StateData#state{socket = TLSSocket,
                              streamid = new_id(),
@@ -277,7 +261,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                 <<"EXTERNAL">> ->
                     Auth = jlib:decode_base64(xml:get_cdata(Els)),
                     AuthDomain = jid:nameprep(Auth),
-                    CertData = (StateData#state.sockmod):get_peer_certificate(
+                    CertData = mongoose_transport:get_peer_certificate(
                                  StateData#state.socket),
                     AuthRes = check_auth_domain(AuthDomain, CertData),
                     handle_auth_res(AuthRes, AuthDomain, StateData);
@@ -295,7 +279,8 @@ wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
@@ -334,10 +319,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns,
                                      timer = Timer}};
                 {_, false} ->
-                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:host_unknown())),
+                    send_element(StateData, mongoose_xmpp_errors:host_unknown()),
                     {stop, normal, StateData};
                 {false, _} ->
-                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_from())),
+                    send_element(StateData, mongoose_xmpp_errors:invalid_from()),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -398,8 +383,8 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};
@@ -496,21 +481,15 @@ handle_event(_Event, StateName, StateData) ->
 -spec handle_sync_event(any(), any(), statename(), state()
                        ) -> {'reply', 'ok' | {'state_infos', [any(), ...]}, atom(), state()}.
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    SockMod = StateData#state.sockmod,
-    {Addr, Port} = try SockMod:peername(StateData#state.socket) of
-                      {ok, {A, P}} ->  {A, P};
-                      {error, _} -> {unknown, unknown}
-                  catch
-                      _:_ -> {unknown, unknown}
-                  end,
-    Domains =   case StateData#state.authenticated of
-                    true ->
-                        [StateData#state.auth_domain];
-                    false ->
-                        Connections = StateData#state.connections,
-                        [D || {{D, _}, established} <-
-                            dict:to_list(Connections)]
-                end,
+    {ok, {Addr, Port}} = mongoose_transport:peername(StateData#state.socket),
+    Domains = case StateData#state.authenticated of
+                  true ->
+                      [StateData#state.auth_domain];
+                  false ->
+                      Connections = StateData#state.connections,
+                      [D || {{D, _}, established} <-
+                          dict:to_list(Connections)]
+              end,
     Infos = [
              {direction, in},
              {statename, StateName},
@@ -522,7 +501,6 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
              {tls_options, StateData#state.tls_options},
              {authenticated, StateData#state.authenticated},
              {shaper, StateData#state.shaper},
-             {sockmod, SockMod},
              {domains, Domains}
             ],
     Reply = {state_infos, Infos},
@@ -551,13 +529,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
--spec handle_info(_, _, _) -> {next_state, atom(), state()} | {stop, normal, state()}.
-handle_info({send_text, Text}, StateName, StateData) ->
-    ?LOG_ERROR(#{what => s2s_in_send_text,
-                 text => <<"Deprecated send_text info in ejabberd_s2s_in">>,
-                 send_text => Text}),
-    send_text(StateData, Text),
-    {next_state, StateName, StateData};
 handle_info({timeout, Timer, _}, _StateName,
             #state{timer = Timer} = StateData) ->
     {stop, normal, StateData};
@@ -573,21 +544,20 @@ handle_info(_, StateName, StateData) ->
 -spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason}),
-    (StateData#state.sockmod):close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     ok.
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec send_text(state(), binary()) -> binary().
+-spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
-    (StateData#state.sockmod):send(StateData#state.socket, Text).
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
-
--spec send_element(state(), exml:element()) -> binary().
+-spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 -spec stream_features(mongooseim:host_type(), binary()) -> [exml:element()].
 stream_features(HostType, Domain) ->
@@ -597,7 +567,7 @@ stream_features(HostType, Domain) ->
 change_shaper(StateData, Host, JID) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(Host),
     Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
-    (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).
+    mongoose_transport:change_shaper(StateData#state.socket, Shaper).
 
 
 -spec new_id() -> binary().
@@ -670,8 +640,8 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
             false
     end.
 
-verify_cert_and_get_sasl(SockMod, Socket, TLSCertVerify) ->
-    case SockMod:get_peer_certificate(Socket) of
+verify_cert_and_get_sasl(Socket, TLSCertVerify) ->
+    case mongoose_transport:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],

@@ -6,6 +6,7 @@
          disconnect_component/2,
          disconnect_components/2,
          connect_component_subdomain/1,
+         get_components/1, get_components/2, get_components/3, 
          spec/2,
          common/1,
          common/2,
@@ -136,6 +137,17 @@ common(Config) ->
 
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
+
+get_components(Config) ->
+    Opts = common(Config),
+    get_components(Opts, Config).
+
+get_components(Opts, Config) ->
+    Components = [component1, component2, vjud_component],
+    get_components(Opts, Components, Config).
+
+get_components(Opts, Components, Config) ->
+    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 kicking_service_port() ->
     ct:get_config({hosts, mim, kicking_service_port}).

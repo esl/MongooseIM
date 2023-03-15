@@ -25,8 +25,7 @@
 
 -import(component_helper, [connect_component/1,
                            disconnect_component/2,
-                           spec/2,
-                           common/1]).
+                           get_components/1]).
 
 -import(domain_helper, [host_type/0]).
 -import(config_parser_helper, [mod_config/2, config/2]).
@@ -122,7 +121,7 @@ init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, 
     Config;
 init_per_testcase(xmpp_components_are_reported, Config) ->
     create_events_collection(),
-    Config1 = get_components(common(Config), Config),
+    Config1 = get_components(Config),
     enable_system_metrics(mim()),
     Config1;
 init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
@@ -570,7 +569,3 @@ str_to_event(Qs) ->
 
 get_el(Key, Proplist) ->
     proplists:get_value(Key, Proplist, undef).
-
-get_components(Opts, Config) ->
-    Components = [component1, component2, vjud_component],
-    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.

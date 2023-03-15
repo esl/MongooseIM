@@ -396,6 +396,7 @@ filter_hook(_) -> use.
 -spec create_metrics(mongooseim:host_type()) -> 'ok'.
 create_metrics(HostType) ->
     lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS),
+    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, histogram) end, ?GENERAL_HISTOGRAMS),
     lists:foreach(fun(Name) -> ensure_metric(HostType, Name, counter) end, ?TOTAL_COUNTERS).
 
 ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->

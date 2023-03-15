@@ -45,11 +45,11 @@
          code_change/4]).
 
 -ignore_xref([{mod_bosh_backend, delete_session, 1},
-              accumulate/2, accumulate/3, change_shaper/2, close/1, closing/2,
-              closing/3, compress/1, compress/3, get_cached_responses/1,
+              accumulate/2, accumulate/3, closing/2,
+              closing/3, get_cached_responses/1,
               get_client_acks/1, get_handlers/1, get_peer_certificate/1,
-              get_pending/1, get_pending/1, get_sockmod/1, normal/2, normal/3,
-              pause/2, send/2, set_client_acks/2, start_link/5]).
+              get_pending/1, normal/2, normal/3,
+              pause/2, set_client_acks/2, start_link/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

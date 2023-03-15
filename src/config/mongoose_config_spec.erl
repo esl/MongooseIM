@@ -6,7 +6,6 @@
 %% spec parts used by http handlers, modules and services
 -export([wpool/1,
          iqdisc/0,
-         xmpp_listener_extra/1,
          tls/2]).
 
 %% callbacks for the 'process' step
@@ -1030,12 +1029,18 @@ check_tls_verify_mode(_Module, #{}) ->
     ok.
 
 process_listener([item, Type | _], Opts) ->
-    mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type)}).
+    mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),
+                                                     connection_type => connection_type(Type)}).
 
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> mongoose_c2s_listener;
 listener_module(<<"s2s">>) -> ejabberd_s2s_in;
 listener_module(<<"service">>) -> ejabberd_service.
+
+%% required for correct metrics reporting by mongoose_transport module
+connection_type(<<"s2s">>) -> s2s;
+connection_type(<<"service">>) -> component;
+connection_type(_) -> undefined.
 
 process_sasl_external(V) when V =:= standard;
                               V =:= common_name;

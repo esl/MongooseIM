@@ -3,7 +3,7 @@
 -include("mongoose.hrl").
 
 -behaviour(mongoose_listener).
--export([socket_type/0, start_listener/1]).
+-export([start_listener/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
@@ -19,10 +19,6 @@
                      atom() => any()}.
 
 %% mongoose_listener
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    xml_stream.
-
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
     ListenerId = mongoose_listener_config:listener_id(Opts),

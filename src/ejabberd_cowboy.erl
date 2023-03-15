@@ -21,8 +21,7 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([socket_type/0,
-         start_listener/1]).
+-export([start_listener/1]).
 
 %% cowboy_middleware API
 -export([execute/2]).
@@ -40,7 +39,7 @@
 -export([ref/1, reload_dispatch/1]).
 -export([start_cowboy/4, start_cowboy/2, stop_cowboy/1]).
 
--ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, socket_type/0, start_cowboy/2,
+-ignore_xref([behaviour_info/1, process/1, ref/1, reload_dispatch/1, start_cowboy/2,
               start_cowboy/4, start_link/1, start_listener/2, start_listener/1, stop_cowboy/1]).
 
 -include("mongoose.hrl").
@@ -60,10 +59,6 @@
 %%--------------------------------------------------------------------
 %% mongoose_listener API
 %%--------------------------------------------------------------------
-
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    independent.
 
 -spec start_listener(listener_options()) -> ok.
 start_listener(Opts = #{proto := tcp}) ->

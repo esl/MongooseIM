@@ -68,11 +68,7 @@ options("miscellaneous") ->
               #{port => 5280,
                 handlers =>
                     [config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp",
-                              service => maps:merge(extra_service_listener_config(),
-                                                    #{password => "secret",
-                                                      shaper_rule => fast,
-                                                      max_fsm_queue => 1000})}
+                            #{host => '_', path => "/ws-xmpp"}
                            )],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                })]},
@@ -153,10 +149,7 @@ options("mongooseim-pgsql") ->
                     [config([listen, http, handlers, mod_bosh],
                             #{host => '_', path => "/http-bind"}),
                      config([listen, http, handlers, mod_websockets],
-                            #{host => '_', path => "/ws-xmpp",
-                              service => maps:merge(extra_service_listener_config(),
-                                                    #{password => "secret", shaper_rule => fast})
-                             })
+                            #{host => '_', path => "/ws-xmpp"})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024}
                }),
@@ -1055,14 +1048,16 @@ common_listener_config() ->
     #{ip_address => "0",
       ip_tuple => {0, 0, 0, 0},
       ip_version => 4,
-      proto => tcp}.
+      proto => tcp,
+      connection_type => undefined}.
 
 extra_service_listener_config() ->
     #{access => all,
       shaper_rule => none,
       check_from => true,
       hidden_components => false,
-      conflict_behaviour => disconnect}.
+      conflict_behaviour => disconnect,
+      connection_type => component}.
 
 default_config([general, mongooseimctl_access_commands, _Key]) ->
     #{commands => all, argument_restrictions => #{}};
@@ -1110,6 +1105,7 @@ default_config([listen, c2s, tls]) ->
 default_config([listen, s2s] = P) ->
     (common_xmpp_listener_config())#{module => ejabberd_s2s_in,
                                      shaper => none,
+                                     connection_type => s2s,
                                      tls => default_config(P ++ [tls])};
 default_config([listen, s2s, tls]) ->
     default_tls(fast_tls);

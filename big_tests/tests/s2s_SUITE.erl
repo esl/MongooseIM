@@ -62,8 +62,11 @@ groups() ->
 essentials() ->
     [simple_message].
 
+metrics() -> 
+    [s2s_metrics_testing].
+
 all_tests() ->
-    essentials() ++ [connections_info, nonexistent_user, unknown_domain, malformed_jid].
+    [connections_info, nonexistent_user, unknown_domain, malformed_jid | essentials()].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -85,8 +88,6 @@ suite() ->
 
 users() ->
     [alice2, alice, bob].
-
-
 
 %%%===================================================================
 %%% Init & teardown
@@ -119,7 +120,11 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 
 simple_message(Config) ->
-    escalus:fresh_story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+    %% check that metrics are bounced
+    MongooseMetrics = [{[global, data, xmpp, received, s2s], changed},
+                       {[global, data, xmpp, sent, s2s], changed}],
+    escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
+                        [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
 
         %% User on the main server sends a message to a user on a federated server
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
@@ -149,17 +154,23 @@ timeout_waiting_for_message(Config) ->
 connections_info(Config) ->
     simple_message(Config),
     FedDomain = ct:get_config({hosts, fed, domain}),
-    S2SIn = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [in]),
-    ct:pal("S2sIn: ~p", [S2SIn]),
-    true = lists:any(fun(PropList) -> [FedDomain] =:= proplists:get_value(domains, PropList) end,
-                     S2SIn),
-    S2SOut = ?dh:rpc(?dh:mim(), ejabberd_s2s, get_info_s2s_connections, [out]),
-    ct:pal("S2sOut: ~p", [S2SOut]),
-    true = lists:any(fun(PropList) -> FedDomain =:= proplists:get_value(server, PropList) end,
-                     S2SOut),
-
+    %% there should be at least one in and at least one out connection
+    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, in),
+    [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
     ok.
 
+get_s2s_connections(RPCSpec, Domain, Type)->
+    AllS2SConnections = ?dh:rpc(RPCSpec, ejabberd_s2s, get_info_s2s_connections, [Type]),
+    % ct:pal("Node = ~p, ConnectionType = ~p~nAllS2SConnections(~p): ~p",
+    %        [maps:get(node, RPCSpec), Type, length(AllS2SConnections), AllS2SConnections]),
+    DomainS2SConnections = 
+        [Connection || Connection <- AllS2SConnections,
+                       Type =/= in orelse [Domain] =:= proplists:get_value(domains, Connection),
+                       Type =/= out orelse Domain =:= proplists:get_value(server, Connection)],
+    ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p",
+           [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
+            DomainS2SConnections]),
+    DomainS2SConnections.
 
 nonexistent_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->

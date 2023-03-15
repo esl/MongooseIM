@@ -6,22 +6,12 @@
 -define(PORT, 5280).
 -define(IP, {127, 0, 0, 1}).
 -define(FAST_PING_RATE, 500).
--define(NEW_TIMEOUT, 1200).
-%The timeout is long enough to pass all test cases for ping interval settings
-%using NEW_TIMEOUT value. In these tests we wait for at most 2 pings.
-%The 300ms is just an additional overhead
--define(IDLE_TIMEOUT, ?NEW_TIMEOUT * 2 + 300).
+-define(IDLE_TIMEOUT, 1200 * 2 + 300).
 
 -import(config_parser_helper, [config/2, default_config/1]).
 
 all() ->
-    ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
-
-ping_tests() ->
-    [ping_test,
-     set_ping_test,
-     disable_ping_test,
-     disable_and_set].
+    [ping_test | subprotocol_header_tests() ++ timeout_tests()].
 
 subprotocol_header_tests() ->
     [agree_to_xmpp_subprotocol,
@@ -91,40 +81,6 @@ ping_test(_Config) ->
     Resp = wait_for_ping(Socket1, 0, 5000),
     %% then
     ?eq(Resp, ok).
-
-set_ping_test(_Config) ->
-    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
-    %% When
-    mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
-    WaitMargin = 300,
-    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + WaitMargin),
-    %% Im waiting too less time!
-    TooShort = 700,
-    ErrorTimeout = wait_for_ping(Socket1, 0, TooShort),
-    ?eq({error, timeout}, ErrorTimeout),
-    %% now I'm wait the remaining time (and some margin)
-    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT - TooShort + WaitMargin).
-
-disable_ping_test(_Config) ->
-    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
-    %% When
-    mod_websockets:disable_ping(InternalSocket),
-    %% Should not receive any packets
-    ErrorTimeout = wait_for_ping(Socket1, 0, ?FAST_PING_RATE),
-    %% then
-    ?eq(ErrorTimeout, {error, timeout}).
-
-disable_and_set(_Config) ->
-    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
-    %% When
-    mod_websockets:disable_ping(InternalSocket),
-    %% Should not receive any packets
-    ErrorTimeout = wait_for_ping(Socket1, 0, ?FAST_PING_RATE),
-    mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
-    Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 100),
-    %% then
-    ?eq(ErrorTimeout, {error, timeout}),
-    ?eq(Resp1, ok).
 
 connection_is_closed_after_idle_timeout(_Config) ->
     #{socket := Socket} = ws_handshake(),

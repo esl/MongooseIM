@@ -80,9 +80,9 @@ init([]) ->
          supervisor,
          [mongoose_listener_sup]},
     ReceiverSupervisor =
-        {ejabberd_receiver_sup,
+        {mongoose_transport_sup,
          {ejabberd_tmp_sup, start_link,
-          [ejabberd_receiver_sup, ejabberd_receiver]},
+          [mongoose_transport_sup, mongoose_transport]},
          permanent,
          infinity,
          supervisor,

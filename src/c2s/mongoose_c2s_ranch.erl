@@ -77,16 +77,16 @@ socket_handle_data(#state{transport = fast_tls, socket = TlsSocket}, {tcp, _, Da
     case fast_tls:recv_data(TlsSocket, Data) of
         {ok, DecryptedData} ->
             DataSize = byte_size(DecryptedData),
-            mongoose_metrics:update(global, [data, xmpp, received, c2s, tls, raw], DataSize),
+            mongoose_metrics:update(global, [data, xmpp, received, c2s, tls], DataSize),
             DecryptedData;
         {error, Reason} ->
             {error, Reason}
     end;
 socket_handle_data(#state{transport = just_tls}, {ssl, _, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, c2s, tls, raw], byte_size(Data)),
+    mongoose_metrics:update(global, [data, xmpp, received, c2s, tls], byte_size(Data)),
     Data;
 socket_handle_data(#state{transport = ranch_tcp, socket = Socket}, {tcp, Socket, Data}) ->
-    mongoose_metrics:update(global, [data, xmpp, received, c2s, tcp, raw], byte_size(Data)),
+    mongoose_metrics:update(global, [data, xmpp, received, c2s, tcp], byte_size(Data)),
     Data.
 
 -spec socket_activate(state()) -> ok.
@@ -118,13 +118,13 @@ socket_send_xml(#state{transport = Transport, socket = Socket}, XML) ->
 
 -spec send(transport(), ranch_transport:socket(), iodata()) -> ok | {error, term()}.
 send(fast_tls, Socket, Data) ->
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tls, raw], iolist_size(Data)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tls], iolist_size(Data)),
     fast_tls:send(Socket, Data);
 send(just_tls, Socket, Data) ->
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tls, raw], iolist_size(Data)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tls], iolist_size(Data)),
     just_tls:send(Socket, Data);
 send(ranch_tcp, Socket, Data) ->
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tcp, raw], iolist_size(Data)),
+    mongoose_metrics:update(global, [data, xmpp, sent, c2s, tcp], iolist_size(Data)),
     ranch_tcp:send(Socket, Data).
 
 -spec get_peer_certificate(state(), mongoose_listener:options()) ->

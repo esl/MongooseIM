@@ -105,8 +105,8 @@ accept_loop(ListenSocket, Module, Opts) ->
             ?LOG_INFO(#{what => tcp_accepted,
                         socket => Socket, handler_module => Module,
                         conn_details => ConnectionDetails}),
-            ejabberd_socket:start(
-              Module, gen_tcp, Socket, Opts, ConnectionDetails),
+            mongoose_transport:accept(
+              Module, Socket, Opts, ConnectionDetails),
             ?MODULE:accept_loop(ListenSocket, Module, Opts);
         {error, Reason} ->
             ?LOG_INFO(#{what => tcp_accept_failed,

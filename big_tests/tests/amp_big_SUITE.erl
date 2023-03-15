@@ -340,7 +340,8 @@ notify_deliver_to_online_user_broken_connection_test(Config) ->
                                    _ -> none
                                end, notify},
               Rules = rules(Config, [Rule]),
-              %% This special message is matched by the ejabberd_socket mock
+              %% This special message is matched by the
+              %% amp_test_helper:ranch_tcp_send/2 mock,
               %% (see amp_test_helper_code/0)
               Msg = amp_message_to(Bob, Rules, <<"Recipient connection breaks">>),
 

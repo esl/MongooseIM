@@ -32,14 +32,11 @@
 -behaviour(mongoose_listener).
 
 %% mongoose_listener API
--export([socket_type/0,
-         start_listener/1]).
+-export([start_listener/1]).
 
 %% External exports
 -export([start/2,
-         start_link/2,
-         send_text/2,
-         send_element/2]).
+         start_link/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -56,8 +53,8 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--ignore_xref([print_state/1, send_element/2, send_text/2, start_listener/1, socket_type/0,
-              start_link/2, stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
+-ignore_xref([print_state/1, start_listener/1, start_link/2, start/2,
+              stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -66,7 +63,6 @@
 -type conflict_behaviour() :: disconnect | kick_old.
 
 -record(state, {socket,
-                sockmod      :: ejabberd:sockmod(),
                 socket_monitor,
                 streamid,
                 password     :: string(),
@@ -118,7 +114,7 @@
         "</stream:stream>">>
        ).
 
--type socket_data() :: {ejabberd:sockmod(), term()}.
+-type socket() :: term().
 -type options() :: #{access := atom(),
                      shaper_rule := atom(),
                      password := binary(),
@@ -130,20 +126,16 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(socket_data(), options()) ->
+-spec start(socket(), options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
-start(SockData, Opts) ->
-    supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
+start(Socket, Opts) ->
+    supervisor:start_child(ejabberd_service_sup, [Socket, Opts]).
 
 
--spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
+-spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
-
--spec socket_type() -> mongoose_listener:socket_type().
-socket_type() ->
-    xml_stream.
 
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
@@ -170,18 +162,17 @@ process_packet(Acc, _From, _To, _El, #{pid := Pid}) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([socket_data() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
-init([{SockMod, Socket}, Opts]) ->
+-spec init([socket() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
+init([Socket, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,
                 socket => Socket}),
     #{access := Access, shaper_rule := Shaper, password := Password,
       check_from := CheckFrom, hidden_components := HiddenComponents,
       conflict_behaviour := ConflictBehaviour} = Opts,
-    SockMod:change_shaper(Socket, Shaper),
-    SocketMonitor = SockMod:monitor(Socket),
+    mongoose_transport:change_shaper(Socket, Shaper),
+    SocketMonitor = mongoose_transport:monitor(Socket),
     {ok, wait_for_stream, #state{socket = Socket,
-                                 sockmod = SockMod,
                                  socket_monitor = SocketMonitor,
                                  streamid = new_id(),
                                  password = Password,
@@ -224,8 +215,9 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
-    send_text(StateData, <<(iolist_to_binary(Header))/binary,
-                           (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, iolist_to_binary(Header)),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData};
@@ -252,7 +244,8 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_handshake(replaced, StateData) ->
     %% We don't expect to receive replaced before handshake
@@ -306,7 +299,8 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
+    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established(replaced, StateData) ->
     do_disconnect_on_conflict(StateData);
@@ -360,12 +354,6 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
-handle_info({send_text, Text}, StateName, StateData) ->
-    % is it ever called?
-    ?LOG_ERROR(#{what => comp_deprecated_send_text,
-                 component => component_host(StateData), send_text => Text}),
-    send_text(StateData, Text),
-    {next_state, StateName, StateData};
 handle_info({send_element, El}, StateName, StateData) ->
     % is it ever called?
     ?LOG_ERROR(#{what => comp_deprecated_send_element,
@@ -384,8 +372,7 @@ handle_info({route, Acc}, StateName, StateData) ->
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                                                 jid:to_binary(To),
                                                 Packet#xmlel.attrs),
-            Text = exml:to_binary(Packet#xmlel{ attrs = Attrs2 }),
-            send_text(StateData, Text);
+            send_element(StateData, Packet#xmlel{ attrs = Attrs2 });
         deny ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
     end,
@@ -412,7 +399,7 @@ terminate(Reason, StateName, StateData) ->
         _ ->
             ok
     end,
-    (StateData#state.sockmod):close(StateData#state.socket),
+    mongoose_transport:close(StateData#state.socket),
     ok.
 
 %%----------------------------------------------------------------------
@@ -427,17 +414,16 @@ print_state(State) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec send_text(state(), binary()) -> binary().
+-spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
     ?LOG_DEBUG(#{what => comp_send_text,
                  component => component_host(StateData),
                  send_text => Text}),
-    (StateData#state.sockmod):send(StateData#state.socket, Text).
+    mongoose_transport:send_text(StateData#state.socket, Text).
 
-
--spec send_element(state(), exml:element()) -> binary().
+-spec send_element(state(), exml:element()) -> ok.
 send_element(StateData, El) ->
-    send_text(StateData, exml:to_binary(El)).
+    mongoose_transport:send_element(StateData#state.socket, El).
 
 
 -spec new_id() -> string().
@@ -465,7 +451,7 @@ try_register_routes(StateData) ->
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
         ok ->
-            send_text(StateData, <<"<handshake/>">>),
+            send_element(StateData, #xmlel{name = <<"handshake">>}),
             {next_state, stream_established, StateData};
         {error, Reason} ->
             RoutesInfo = lookup_routes(StateData),
@@ -506,7 +492,7 @@ handle_registration_conflict(_Behaviour, _RoutesInfo, StateData, _Retries) ->
     do_disconnect_on_conflict(StateData).
 
 do_disconnect_on_conflict(StateData) ->
-    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
+    send_element(StateData, mongoose_xmpp_errors:stream_conflict()),
     {stop, normal, StateData}.
 
 lookup_routes(StateData) ->
