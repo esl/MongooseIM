@@ -133,7 +133,7 @@ tcp_connections_detected(_C) ->
 
 tcp_metric_varies_with_tcp_variations(_C) ->
     X = get_new_tcp_metric_value({ok, []}),
-    {ok, Socket} = gen_tcp:listen(1805, []),
+    {ok, Socket} = gen_tcp:listen(0, []),
     Y = get_new_tcp_metric_value({ok, [{value, X}]}),
     ?assert(Y == X + 1),
     gen_tcp:close(Socket),
