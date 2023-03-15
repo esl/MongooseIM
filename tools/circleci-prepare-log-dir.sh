@@ -39,4 +39,4 @@ for dev_node_logs_path in `find _build -name log -type d`; do
 done
 
 cp *.log ${LOG_DIR_ROOT}
-cp big_tests/*.log ${LOG_DIR_ROOT}
+cp big_tests/*.log ${LOG_DIR_ROOT} || true
