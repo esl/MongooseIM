@@ -54,7 +54,7 @@ If this happens, the client will receive only messages that contain words specif
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
 For now `rdbms` backend has very limited support for this feature, while `cassandra` does not support it at all.
-`riak(deprecated)` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
+`riak` (deprecated) and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
 
 `mod_mam_rdbms_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).

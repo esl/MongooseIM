@@ -156,7 +156,7 @@ Drawbacks are:
 ### Medium
 
   * Add optional per-room processes to avoid the need of DB transactions and ensure message ordering (maybe "hard"?).
-  * Riak(deprecated) backend
+  * Riak (deprecated) backend
   * Redis backend
 
 !!! warning
