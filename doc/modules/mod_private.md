@@ -19,6 +19,9 @@ Strategy to handle incoming stanzas. For details, please refer to
 
 Database backend to use.
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 **CAUTION:**  Riak KV backend doesn't support transactions (rollbacks), so please avoid inserting
 more than one value in a single set request, otherwise you may end up with partially saved data.
 Backend returns the first error.

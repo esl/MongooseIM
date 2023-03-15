@@ -25,7 +25,7 @@ Transient data:
  Being an Erlang-based database, it's the default persistence option for most modules in MongooseIM.
   
     !!! Warning
-        We **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
+        We **strongly recommend** keeping **persistent** data in an external DB (RDBMS) for production.
         Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
         Sooner or later a migration will be needed which may be painful.
         It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
@@ -43,10 +43,13 @@ Persistent Data:
  Never loose your data.
  Use MySQL, MariaDB, PostgreSQL, or MS SQL Server.
 
-* Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
+* Riak KV (deprecated) - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
  It offers high availability and fault tolerance which is exactly what you need for your distributed MongooseIM architecture.
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
- Erlang Solutions commercially supports Riak KV.
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 
 * Cassandra - Only for MAM (Message Archive Management).
 
@@ -232,7 +235,10 @@ Configure the `outgoing_pools.rdbms` section as follows:
 
 ## NoSQL
 
-### Riak KV
+### Riak KV (deprecated)
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 Riak KV, for Key-Value, is technically supported by MongooseIM for versions upper than Riak KV 2.0. Erlang Solutions commercially supports Riak KV.
 

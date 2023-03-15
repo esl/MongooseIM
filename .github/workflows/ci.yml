@@ -47,7 +47,7 @@ jobs:
     strategy:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
-                 ldap_mnesia, riak_mnesia, elasticsearch_and_cassandra_mnesia]
+                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: ['23.0.3', '24.0.2']
     runs-on: ubuntu-20.04
     env:

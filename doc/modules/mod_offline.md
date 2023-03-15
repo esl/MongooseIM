@@ -24,6 +24,9 @@ to disable this error message.
  * **Default:** `"mnesia"`
  * **Example:** `backend = "rdbms"`
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
  Storage backend.
 
 ### `modules.mod_offline.store_groupchat_messages`
@@ -36,6 +39,9 @@ to disable this error message.
     This option can work only with MUC-light and is not expected to work with MUC.
 
 ### Riak-specific options
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 #### `modules.mod_offline.riak.bucket_type`
  * **Syntax:** non-empty string

@@ -33,6 +33,9 @@ Enables/disables the domain set in the previous option. `false` makes searching 
 
 vCard storage backend.
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 !!! Warning 
     LDAP backend is read-only.
 
@@ -91,6 +94,9 @@ A default operator used for search query items.
 An array of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
 
 ### Riak-specific options
+
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 #### `modules.mod_vcard.riak.bucket_type`
 * **Syntax:** string

@@ -10,6 +10,9 @@ This extension allows user to block IQs, messages, presences, or all, based on J
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 ### Riak-specific options
 
 #### `modules.mod_privacy.riak.defaults_bucket_type`

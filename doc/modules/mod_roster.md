@@ -33,6 +33,9 @@ Improves performance but should be disabled, when shared rosters are used.
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
+!!! warning
+    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+
 ### Riak-specific options
 
 #### `modules.mod_roster.riak.bucket_type`
