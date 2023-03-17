@@ -2,7 +2,7 @@ version: 2.1
 
 references:
   - &OTP24 mongooseim/cimg-erlang:24.3.4.9
-  - &OTP25 mongooseim/cimg-erlang:25.2.3
+  - &OTP25 mongooseim/cimg-erlang:25.3
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
@@ -326,6 +326,14 @@ commands:
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
+  run_docker_smoke_test:
+    steps:
+      - checkout
+      - run:
+          name: Smoke testing
+          command: |
+            source tools/circleci-prepare-mongooseim-docker.sh
+            ./smoke_test.sh
   upload_results_to_aws:
     steps:
       - run:
@@ -433,9 +441,17 @@ jobs:
       - run:
           name: Execute Docker image build and upload
           command: tools/circle-build-and-push-docker.sh
-      - run:
-          name: Smoke testing
-          command: IMAGE_TAG=`cat image_tag` mongooseim-docker/smoke_test.sh
+
+  docker_smoke_test:
+    executor: otp_25
+    steps:
+      - setup_remote_docker
+      - run_docker_smoke_test
+
+  docker_smoke_test_arm64:
+    executor: arm64
+    steps:
+      - run_docker_smoke_test
 
   docs_build_deploy:
     parallelism: 1
@@ -942,3 +958,11 @@ workflows:
             - edoc
 
           filters: *all_tags
+      - docker_smoke_test:
+          context: mongooseim-org
+          requires:
+            - docker_build_and_ship
+      - docker_smoke_test_arm64:
+          context: mongooseim-org
+          requires:
+            - docker_build_and_ship
