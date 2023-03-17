@@ -39,12 +39,11 @@ It may be found in `etc/` folder inside MongooseIM release and in `[repository r
 In order to change the list, please find the following lines:
 
 ```
-{protocol_version, ['tlsv1.2'
-                 %, 'tlsv1.3'
+{protocol_version, ['tlsv1.2',
+                    'tlsv1.3'
           ]}
 ```
 
-By default only TLS 1.2 is enabled. To enable TLS 1.3, remove leading `%` before `'tlsv1.3'`.
 The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 This setting affects the following MongooseIM components:
