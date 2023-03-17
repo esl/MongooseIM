@@ -301,7 +301,7 @@ commands:
           name: Install pip3 and codecov packages
           command: |
             tools/circle-install-packages.sh python3-pip && \
-            pip3 install codecov && codecov
+            pip3 install codecov
   run_coverage_analysis:
     steps:
       - fetch_coverage_packages
@@ -310,8 +310,22 @@ commands:
           when: on_success
           command: |
             echo "Success!"
-            ./rebar3 codecov analyze
+            $EXEC ./rebar3 codecov analyze
             codecov --disable=gcov --env PRESET
+  run_small_tests:
+    steps:
+      - restore_workspace
+      - run:
+          name: Wait for redis
+          command: |
+            $EXEC tools/wait-for-it.sh -p 6379
+      - run:
+          name: Run Small Tests
+          command: |
+            $EXEC tools/test.sh -p small_tests -s true -e true
+      - run_coverage_analysis
+      - upload_results_to_aws
+      - publish_github_comment
   upload_results_to_aws:
     steps:
       - run:
@@ -485,8 +499,10 @@ jobs:
       - restore_certs
       - fetch_build_packages
       - run: $EXEC tools/configure with-all
+      - run: $EXEC tools/build-releases.sh
       - run: $EXEC make rel
       - cache_prod_build: {arch: arm64}
+      - persist_workspace
 
   build_in_docker:
     executor: << parameters.executor >>
@@ -532,18 +548,26 @@ jobs:
       PRESET: small_tests
       SKIP_AUTO_COMPILE: true
     steps:
-      - restore_workspace
+      - run_small_tests
+
+  small_tests_in_docker_arm64:
+    executor: arm64
+    environment:
+      DOCKER_IMAGE: *OTP25
+      EXEC: docker exec main
+      PRESET: small_tests
+      SKIP_AUTO_COMPILE: true
+    steps:
       - run:
-          name: Wait for redis
+          name: Run main docker image
           command: |
-            ./tools/wait-for-it.sh -p "6379"
+            docker run -dit -e PRESET -e SKIP_AUTO_COMPILE --name main --network host --rm \
+              -v `pwd`:`pwd` $DOCKER_IMAGE
       - run:
-          name: Run Small Tests
+          name: Run redis docker image
           command: |
-            ./tools/test.sh -p small_tests -s true -e true
-      - run_coverage_analysis
-      - upload_results_to_aws
-      - publish_github_comment
+            docker run -dit --name redis --network host --rm redis:__REDIS_VERSION__
+      - run_small_tests
 
   big_tests_in_docker:
     executor: << parameters.executor >>
@@ -774,6 +798,12 @@ workflows:
           requires:
             - otp_25_docker
           filters: *all_tags
+      - small_tests_in_docker_arm64:
+          name: small_tests_25_arm64
+          context: mongooseim-org
+          requires:
+            - otp_25_docker_arm64
+          filters: *all_tags
       # ============= BIG TESTS =============
       - big_tests_in_docker:
           name: internal_mnesia_25
@@ -906,9 +936,9 @@ workflows:
             - dynamic_domains_mysql_redis_25
             - dynamic_domains_mssql_mnesia_25
             - dialyzer_25
+            - small_tests_25_arm64
 
             - xref
             - edoc
 
-            - otp_25_docker_arm64
           filters: *all_tags
