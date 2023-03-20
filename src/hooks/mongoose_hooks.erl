@@ -106,9 +106,7 @@
          get_mam_muc_gdpr_data/2,
          get_personal_data/2]).
 
--export([find_s2s_bridge/2,
-         s2s_allow_host/2,
-         s2s_connect_hook/2,
+-export([s2s_allow_host/2,
          s2s_receive_packet/1,
          s2s_stream_features/2,
          s2s_send_packet/4]).
@@ -135,10 +133,6 @@
          update_inbox_for_muc/2]).
 
 -export([caps_recognised/4]).
-
--export([pubsub_create_node/5,
-         pubsub_delete_node/4,
-         pubsub_publish_item/6]).
 
 -export([mod_global_distrib_known_recipient/4,
          mod_global_distrib_unknown_recipient/2]).
@@ -1129,16 +1123,6 @@ get_personal_data(HostType, JID) ->
 
 %% S2S related hooks
 
-%%% @doc `find_s2s_bridge' hook is called to find a s2s bridge to a foreign protocol
-%%% when opening a socket to a different XMPP server fails.
--spec find_s2s_bridge(Name, Server) -> Result when
-    Name :: any(),
-    Server :: jid:server(),
-    Result :: any().
-find_s2s_bridge(Name, Server) ->
-    Params = #{name => Name, server => Server},
-    run_global_hook(find_s2s_bridge, undefined, Params).
-
 %%% @doc `s2s_allow_host' hook is called to check whether a server
 %%% should be allowed to be connected to.
 %%%
@@ -1151,15 +1135,6 @@ find_s2s_bridge(Name, Server) ->
 s2s_allow_host(MyHost, S2SHost) ->
     Params = #{my_host => MyHost, s2s_host => S2SHost},
     run_global_hook(s2s_allow_host, allow, Params).
-
-%%% @doc `s2s_connect_hook' hook is called when a s2s connection is established.
--spec s2s_connect_hook(Name, Server) -> Result when
-    Name :: any(),
-    Server :: jid:server(),
-    Result :: any().
-s2s_connect_hook(Name, Server) ->
-    Params = #{name => Name, server => Server},
-    run_global_hook(s2s_connect_hook, ok, Params).
 
 %%% @doc `s2s_send_packet' hook is called when a message is routed.
 -spec s2s_send_packet(Acc, From, To, Packet) -> Result when
@@ -1363,50 +1338,6 @@ caps_recognised(Acc, From, Pid, Features) ->
     Params = #{from => From, pid => Pid, features => Features},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(caps_recognised, HostType, Acc, Params).
-
-%% PubSub related hooks
-
-%%% @doc The `pubsub_create_node' hook is called to
-%%% inform that a pubsub node is created.
--spec pubsub_create_node(Server, PubSubHost, NodeId, Nidx, NodeOptions) -> Result when
-    Server :: jid:server(),
-    PubSubHost :: mod_pubsub:host(),
-    NodeId :: mod_pubsub:nodeId(),
-    Nidx :: mod_pubsub:nodeIdx(),
-    NodeOptions :: list(),
-    Result :: any().
-pubsub_create_node(Server, PubSubHost, NodeId, Nidx, NodeOptions) ->
-    Params = #{pub_sub_host => PubSubHost, node_id => NodeId, node_idx => Nidx,
-               node_options => NodeOptions},
-    run_hook_for_host_type(pubsub_create_node, Server, ok, Params).
-
-%%% @doc The `pubsub_delete_node' hook is called to inform
-%%% that a pubsub node is deleted.
--spec pubsub_delete_node(Server, PubSubHost, NodeId, Nidx) -> Result when
-    Server :: jid:server(),
-    PubSubHost :: mod_pubsub:host(),
-    NodeId :: mod_pubsub:nodeId(),
-    Nidx :: mod_pubsub:nodeIdx(),
-    Result :: any().
-pubsub_delete_node(Server, PubSubHost, NodeId, Nidx) ->
-    Params = #{pub_sub_host => PubSubHost, node_id => NodeId, node_idx => Nidx},
-    run_hook_for_host_type(pubsub_delete_node, Server, ok, Params).
-
-%%% @doc The `pubsub_publish_item' hook is called to inform
-%%% that a pubsub item is published.
--spec pubsub_publish_item(Server, NodeId, Publisher,
-                          ServiceJID, ItemId, BrPayload) -> Result when
-    Server :: jid:server(),
-    NodeId :: mod_pubsub:nodeId(),
-    Publisher :: jid:jid(),
-    ServiceJID :: jid:jid(),
-    ItemId :: mod_pubsub:itemId(),
-    BrPayload :: mod_pubsub:payload(),
-    Result :: any().
-pubsub_publish_item(Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
-    Params = #{node_id => NodeId, publisher => Publisher, service_jid => ServiceJID,
-               item_id => ItemId, payload => BrPayload},
-    run_hook_for_host_type(pubsub_publish_item, Server, ok, Params).
 
 %% Global distribution related hooks
 

@@ -21,7 +21,7 @@
 
 start(HostType) ->
     gen_hook:add_handlers(hooks(HostType)),
-    % TODO check ooptions: if system messages stored ->
+    % TODO check options: if system messages stored ->
     % add hook handler for system messages on hook ie. invitation_sent
     ok.
 

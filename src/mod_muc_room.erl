@@ -1694,7 +1694,6 @@ run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_ho
 remove_online_user(JID, StateData) ->
     remove_online_user(JID, StateData, <<>>).
 
-
 -spec remove_online_user(jid:jid(), state(), Reason :: binary()) -> state().
 remove_online_user(JID, StateData, Reason) ->
 

@@ -1994,12 +1994,8 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
             case mod_pubsub_db_backend:transaction(CreateNode, ErrorDebug) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
-                    mongoose_hooks:pubsub_create_node(ServerHost,
-                                                      Host, Node, Nidx, NodeOptions),
                     create_node_reply(Node, Result);
-                {result, {Nidx, _SubsByDepth, Result}} ->
-                    mongoose_hooks:pubsub_create_node(ServerHost,
-                                                      Host, Node, Nidx, NodeOptions),
+                {result, {_Nidx, _SubsByDepth, Result}} ->
                     create_node_reply(Node, Result);
                 Error ->
                     %% in case we change transaction to sync_dirty...
@@ -2090,7 +2086,6 @@ delete_node(_Host, <<>>, _Owner) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
-    ServerHost = serverhost(Host),
     case transaction(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
@@ -2099,31 +2094,14 @@ delete_node(Host, Node, Owner) ->
                                   RType = RNode#pubsub_node.type,
                                   ROptions = RNode#pubsub_node.options,
                                   broadcast_removed_node(RH, RN, RNidx,
-                                                         RType, ROptions, SubsByDepth),
-                                  mongoose_hooks:pubsub_delete_node(ServerHost,
-                                                                    RH, RN, RNidx)
+                                                         RType, ROptions, SubsByDepth)
                           end,
                           Removed),
             case Result of
                 default -> {result, []};
                 _ -> {result, Result}
             end;
-        {result, {_, {_, {Result, Removed}}}} ->
-            lists:foreach(fun ({RNode, _RSubs}) ->
-                                  {RH, RN} = RNode#pubsub_node.nodeid,
-                                  RNidx = RNode#pubsub_node.id,
-                                  mongoose_hooks:pubsub_delete_node(ServerHost,
-                                                                    RH, RN, RNidx)
-                          end,
-                          Removed),
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
-        {result, {TNode, {_, Result}}} ->
-            Nidx = TNode#pubsub_node.id,
-            mongoose_hooks:pubsub_delete_node(ServerHost,
-                                              Host, Node, Nidx),
+        {result, {_, {_, {Result, _}}}} ->
             case Result of
                 default -> {result, []};
                 _ -> {result, Result}
@@ -2401,8 +2379,6 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
                         end,
-            mongoose_hooks:pubsub_publish_item(ServerHost,
-                               Node, Publisher, service_jid(Host), ItemId, BrPayload),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
             case get_option(Options, deliver_notifications) of
                 true ->
