@@ -95,7 +95,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_testcase(test_incremental_upsert, Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    erase_inbox(Config),
     escalus:init_per_testcase(test_incremental_upsert, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -106,7 +106,7 @@ end_per_testcase(CaseName, Config)
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    erase_inbox(Config),
     escalus:end_per_testcase(test_incremental_upsert, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -568,11 +568,14 @@ decode_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, to_bool, [Value]).
 
 erase_table(Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE test_types">>).
+    {updated, _} = sql_query(Config, <<"DELETE FROM test_types">>).
 
 erase_users(Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE users">>),
-    sql_query(Config, <<"TRUNCATE TABLE last">>).
+    {updated, _} = sql_query(Config, <<"DELETE FROM users">>),
+    {updated, _} = sql_query(Config, <<"DELETE FROM last">>).
+
+erase_inbox(Config) ->
+    {updated, _} = sql_query(Config, <<"DELETE FROM inbox">>).
 
 check_int32(Config, Value) ->
     check_generic_integer(Config, Value, <<"int32">>).
