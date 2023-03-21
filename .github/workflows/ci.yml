@@ -15,17 +15,18 @@ jobs:
   small_tests:
     name: small_tests on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: ['23.0.3', '24.0.2']
-    runs-on: ubuntu-20.04
+        otp: [ '24.3.4', '25.0.1' ]
+    runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
     steps:
-      - uses: actions/checkout@v2
-      - uses: ErlGang/setup-erlang@v1.0.0
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ~/.cache/rebar3
           key: rebar3-${{ hashFiles('rebar.lock') }}
@@ -35,75 +36,86 @@ jobs:
         run: tools/test.sh -p $PRESET -s true -e true
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
-#      - name: report coverage
-#        uses: coverallsapp/github-action@master
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          flag-name: small_tests on OTP ${{matrix.otp}}
-#          path-to-lcov: ./lcov.info
-#
+      - name: report coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: small_tests on OTP ${{matrix.otp}}
+          path-to-lcov: ./lcov.info
+
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
-                 ldap_mnesia, riak_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: ['23.0.3', '24.0.2']
-    runs-on: ubuntu-20.04
-    env:
-      PRESET: ${{matrix.preset}}
+                 ldap_mnesia, elasticsearch_and_cassandra_mnesia]
+        otp: [ '25.0.1' ]
+        include:
+          - test-spec: "default.spec"
+          - preset: elasticsearch_and_cassandra_mnesia
+            test-spec: "mam.spec"
+          - preset: ldap_mnesia
+            test-spec: "default.spec"
+            otp: '24.3.4'
+          - preset: pgsql_mnesia
+            test-spec: "default.spec"
+            otp: '24.3.4'
+          - preset: riak_mnesia
+            test-spec: "default.spec"
+            otp: '24.3.4'
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: ErlGang/setup-erlang@v1.0.0
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/big-tests
         with:
-          otp-version: ${{matrix.otp}}
-      - uses: actions/cache@v2
-        with:
-          path: ~/.cache/rebar3
-          key: rebar3-${{ hashFiles('rebar.lock') }}
-      - name: create certificates
-        run: make certs
-      - name: set required env variables for preset
-        run: tools/gh-actions-configure-preset.sh "$PRESET"
-      - if: ${{ matrix.preset == 'odbc_mssql_mnesia' }}
-        run: sudo apt-get install -y tdsodbc
-      - name: build releases
-        run: tools/build-releases.sh
-      - name: build big tests
-        run: tools/build-tests.sh
-      - name: start backends
-        run: tools/setup-db.sh
-      - name: run test
-        run: tools/test.sh -p $PRESET -s false -e false
-      - name: prepare coverage report
-        run: ./rebar3 codecov analyze --lcov --json false
-#      - name: report coverage
-#        uses: coverallsapp/github-action@master
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
-#          path-to-lcov: ./lcov.info
-#          parallel: true
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
+          test-spec: ${{matrix.test-spec}}
 
-#  coveralls_webhook:
-#    needs: [big_tests, small_tests]
-#    runs-on: ubuntu-20.04
-#    steps:
-#      - name: Finish coveralls parallel build
-#        uses: coverallsapp/github-action@v1.1.2
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          parallel-finished: true
+  dynamic_domains_big_tests:
+    name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
+        otp: [ '25.0.1' ]
+        test-spec: ["dynamic_domains.spec"]
+        include:
+          - preset: pgsql_mnesia
+            otp: '24.3.4'
+            test-spec: "dynamic_domains.spec"
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/big-tests
+        with:
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
+          test-spec: ${{matrix.test-spec}}
+
+  coveralls_webhook:
+    needs: [big_tests, small_tests, dynamic_domains_big_tests]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Finish coveralls parallel build
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
 
   dialyzer:
     name: dialyzer on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: ['24.0.2']
-    runs-on: ubuntu-20.04
+        otp: [ '25.0.1' ]
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: ErlGang/setup-erlang@v1.0.0
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p dialyzer_only
@@ -111,12 +123,13 @@ jobs:
   xref:
     name: xref on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: ['24.0.2']
-    runs-on: ubuntu-20.04
+        otp: [ '25.0.1' ]
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: ErlGang/setup-erlang@v1.0.0
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p xref_only
@@ -124,12 +137,13 @@ jobs:
   edoc:
     name: edoc on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: [ '24.0.2' ]
-    runs-on: ubuntu-20.04
+        otp: [ '25.0.1' ]
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: ErlGang/setup-erlang@v1.0.0
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p edoc_only
@@ -137,12 +151,13 @@ jobs:
   pkg:
     name: ${{matrix.pkg}} package
     strategy:
+      fail-fast: false
       matrix:
         pkg: [centos_7, debian_stretch]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
-      ESL_ERLANG_PKG_VER: "23.3.1-1"
+      ESL_ERLANG_PKG_VER: "25.0.1-1"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: tools/test.sh -p pkg
