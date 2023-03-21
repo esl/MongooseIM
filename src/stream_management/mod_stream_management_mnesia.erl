@@ -116,13 +116,10 @@ delete_stale_h(_HostType, SMID) ->
 %% stale_h cleaning logic
 
 start_cleaner(HostType, #{repeat_after := Interval, geriatric := TTL}) ->
-    Name = gen_mod:get_module_proc(HostType, stream_management_stale_h),
+    %% TODO cleaner should be a service
     WOpts = #{host_type => HostType, action => fun ?MODULE:clear_table/2,
               opts => TTL, interval => timer:seconds(Interval)},
-    MFA = {mongoose_collector, start_link, [Name, WOpts]},
-    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
-    %% TODO cleaner should be a service
-    ejabberd_sup:start_child(ChildSpec).
+    mongoose_collector:start_common(?MODULE, HostType, WOpts).
 
 clear_table(_HostType, GeriatricAge) ->
     TimeToDie = erlang:monotonic_time(second) - GeriatricAge,
