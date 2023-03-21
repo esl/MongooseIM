@@ -15,6 +15,7 @@ jobs:
   small_tests:
     name: small_tests on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         otp: [ '24.3.4', '25.2' ]
     runs-on: ubuntu-20.04
@@ -45,6 +46,7 @@ jobs:
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
@@ -98,6 +100,7 @@ jobs:
   dialyzer:
     name: dialyzer on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
@@ -111,6 +114,7 @@ jobs:
   xref:
     name: xref on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
@@ -124,6 +128,7 @@ jobs:
   edoc:
     name: edoc on OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
@@ -137,6 +142,7 @@ jobs:
   pkg:
     name: ${{matrix.pkg}} package
     strategy:
+      fail-fast: false
       matrix:
         pkg: [centos_7, debian_stretch]
     runs-on: ubuntu-20.04
