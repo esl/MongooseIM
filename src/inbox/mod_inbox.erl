@@ -168,12 +168,9 @@ process_inbox_boxes(Config = #{boxes := Boxes}) ->
 
 %% Cleaner gen_server callbacks
 start_cleaner(HostType, #{bin_ttl := TTL, bin_clean_after := Interval}) ->
-    Name = gen_mod:get_module_proc(HostType, ?MODULE),
     WOpts = #{host_type => HostType, action => fun mod_inbox_api:flush_global_bin/2,
               opts => TTL, interval => Interval},
-    MFA = {mongoose_collector, start_link, [Name, WOpts]},
-    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongoose_collector:start_common(?MODULE, HostType, WOpts).
 
 stop_cleaner(HostType) ->
     Name = gen_mod:get_module_proc(HostType, ?MODULE),
