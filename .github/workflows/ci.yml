@@ -22,11 +22,11 @@ jobs:
     env:
       PRESET: 'small_tests'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ~/.cache/rebar3
           key: rebar3-${{ hashFiles('rebar.lock') }}
@@ -37,7 +37,7 @@ jobs:
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           flag-name: small_tests on OTP ${{matrix.otp}}
@@ -55,11 +55,11 @@ jobs:
     env:
       PRESET: ${{matrix.preset}}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ~/.cache/rebar3
           key: rebar3-${{ hashFiles('rebar.lock') }}
@@ -80,7 +80,7 @@ jobs:
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Finish coveralls parallel build
-        uses: coverallsapp/github-action@v1.1.2
+        uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
@@ -105,7 +105,7 @@ jobs:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
@@ -119,7 +119,7 @@ jobs:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
@@ -133,7 +133,7 @@ jobs:
         otp: [ '25.2' ]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
@@ -150,5 +150,5 @@ jobs:
       ESL_ERLANG_PKG_VER: "25.0.1-1"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: tools/test.sh -p pkg
