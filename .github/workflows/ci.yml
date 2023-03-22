@@ -36,13 +36,13 @@ jobs:
         run: tools/test.sh -p $PRESET -s true -e true
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
-#      - name: report coverage
-#        uses: coverallsapp/github-action@master
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          flag-name: small_tests on OTP ${{matrix.otp}}
-#          path-to-lcov: ./lcov.info
-#
+      - name: report coverage
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: small_tests on OTP ${{matrix.otp}}
+          path-to-lcov: ./lcov.info
+
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
@@ -79,23 +79,23 @@ jobs:
         run: tools/test.sh -p $PRESET -s false -e false
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
-#      - name: report coverage
-#        uses: coverallsapp/github-action@master
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
-#          path-to-lcov: ./lcov.info
-#          parallel: true
+      - name: report coverage
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+          path-to-lcov: ./lcov.info
+          parallel: true
 
-#  coveralls_webhook:
-#    needs: [big_tests, small_tests]
-#    runs-on: ubuntu-20.04
-#    steps:
-#      - name: Finish coveralls parallel build
-#        uses: coverallsapp/github-action@v1.1.2
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          parallel-finished: true
+  coveralls_webhook:
+    needs: [big_tests, small_tests]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Finish coveralls parallel build
+        uses: coverallsapp/github-action@v1.1.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
 
   dialyzer:
     name: dialyzer on OTP ${{matrix.otp}}
