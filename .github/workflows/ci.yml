@@ -52,40 +52,13 @@ jobs:
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
         otp: [ '24.3.4', '25.2' ]
     runs-on: ubuntu-20.04
-    env:
-      PRESET: ${{matrix.preset}}
     steps:
       - uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: ./.github/actions/big-tests
         with:
-          otp-version: ${{matrix.otp}}
-      - uses: actions/cache@v3
-        with:
-          path: ~/.cache/rebar3
-          key: rebar3-${{ hashFiles('rebar.lock') }}
-      - name: create certificates
-        run: make certs
-      - name: set required env variables for preset
-        run: tools/gh-actions-configure-preset.sh "$PRESET"
-      - if: ${{ matrix.preset == 'odbc_mssql_mnesia' }}
-        run: sudo apt-get install -y tdsodbc
-      - name: build releases
-        run: tools/build-releases.sh
-      - name: build big tests
-        run: tools/build-tests.sh
-      - name: start backends
-        run: tools/setup-db.sh
-      - name: run test
-        run: tools/test.sh -p $PRESET -s false -e false
-      - name: prepare coverage report
-        run: ./rebar3 codecov analyze --lcov --json false
-      - name: report coverage
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
-          path-to-lcov: ./lcov.info
-          parallel: true
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
 
   coveralls_webhook:
     needs: [big_tests, small_tests]

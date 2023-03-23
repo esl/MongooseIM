@@ -1,0 +1,56 @@
+
+name: big_tests execution
+inputs:
+    preset:
+      description: "test preset"
+      required: true
+      type: string
+    otp:
+      description: "OTP version"
+      required: true
+      type: string
+    gh-token:
+      description: "GH token (required for coveralls action)"
+      required: true
+      type: string
+runs:
+  using: "composite"
+  steps:
+    - uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{inputs.otp}}
+    - uses: actions/cache@v3
+      with:
+        path: ~/.cache/rebar3
+        key: rebar3-${{ hashFiles('rebar.lock') }}
+    - name: create certificates
+      shell: bash
+      run: make certs
+    - name: set required env variables for preset
+      shell: bash
+      run: tools/gh-actions-configure-preset.sh "${{inputs.preset}}"
+    - if: ${{ inputs.preset == 'odbc_mssql_mnesia' }}
+      shell: bash
+      run: sudo apt-get install -y tdsodbc
+    - name: build releases
+      shell: bash
+      run: tools/build-releases.sh
+    - name: build big tests
+      shell: bash
+      run: tools/build-tests.sh
+    - name: start backends
+      shell: bash
+      run: tools/setup-db.sh
+    - name: run test
+      shell: bash
+      run: tools/test.sh -p "${{inputs.preset}}" -s false -e false
+    - name: prepare coverage report
+      shell: bash
+      run: ./rebar3 codecov analyze --lcov --json false
+    - name: report coverage
+      uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ inputs.gh-token }}
+        flag-name: "${{inputs.preset}} on OTP ${{inputs.otp}}"
+        path-to-lcov: ./lcov.info
+        parallel: true
