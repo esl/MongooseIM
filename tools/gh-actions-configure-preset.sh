@@ -1,10 +1,12 @@
 #!/bin/bash
 ## GITHUB_ENV=/dev/tty ./gh-actions-configure-preset.sh internal-mnesia
 
-DB_ARRAY=( $(./tools/test_runner/presets_to_dbs.sh "$1" ) )
+export PRESET="$1"
+
+DB_ARRAY=( $(./tools/test_runner/presets_to_dbs.sh "$PRESET" ) )
 [ "${#DB_ARRAY[@]}" -gt 0 ] && export DB="${DB_ARRAY[@]}"
 
-case "$1" in
+case "$PRESET" in
   internal_mnesia)
     export REL_CONFIG="with-all" TLS_DIST=true ;;
   odbc_mssql_mnesia)
@@ -22,5 +24,5 @@ case "$1" in
 esac
 
 if [ ! -z "$GITHUB_ENV" ]; then
-  env | grep -E "^(DB|REL_CONFIG|TLS_DIST|TESTSPEC)=" >> $GITHUB_ENV
+  env | grep -E "^(DB|REL_CONFIG|TLS_DIST|TESTSPEC|PRESET)=" >> $GITHUB_ENV
 fi
