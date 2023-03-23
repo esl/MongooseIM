@@ -24,6 +24,8 @@
 
 -import(domain_helper, [host_type/0]).
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -68,6 +70,8 @@ rdbms_queries_cases() ->
      test_cast_insert,
      test_request_insert,
      test_request_transaction,
+     test_restart_transaction_with_execute,
+     test_restart_transaction_with_execute_eventually_passes,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -81,20 +85,28 @@ init_per_suite(Config) ->
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
-        true -> escalus:init_per_suite(Config)
+        true ->
+            %% Warning: inject_module does not really work well with --rerun-big-tests flag
+            mongoose_helper:inject_module(?MODULE),
+            escalus:init_per_suite(Config)
     end.
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_testcase(test_incremental_upsert, Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    erase_inbox(Config),
     escalus:init_per_testcase(test_incremental_upsert, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CaseName, Config)
+    when CaseName =:= test_restart_transaction_with_execute;
+         CaseName =:= test_restart_transaction_with_execute_eventually_passes ->
+    rpc(mim(), meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    erase_inbox(Config),
     escalus:end_per_testcase(test_incremental_upsert, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -387,6 +399,64 @@ test_request_transaction(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_restart_transaction_with_execute(Config) ->
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
+                                   {error, simulated_db_error}]),
+    %% Check that mocking works
+    {error, simulated_db_error} = sql_execute(Config, insert_int8, [1]),
+    %% Executed by the MIM node
+    HostType = host_type(),
+    Pid = self(),
+    F = fun() -> Pid ! called, mongoose_rdbms:execute(HostType, insert_int8, [2]) end,
+    {aborted, #{reason := simulated_db_error}} = sql_transaction(Config, F),
+    called_times(11), %% 1 first run + 10 restarts
+    ok.
+
+test_restart_transaction_with_execute_eventually_passes(Config) ->
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
+                                   {error, simulated_db_error}]),
+    %% Check that mocking works
+    {error, simulated_db_error} = sql_execute(Config, insert_int8, [1]),
+    %% Executed by the MIM node
+    HostType = host_type(),
+    Pid = self(),
+    F = fun() -> Pid ! called, fail_times(3, Pid, HostType) end,
+    {atomic, ok} = sql_transaction(Config, F),
+    called_times(3),
+    ok.
+
+prepare_insert_int8(Config) ->
+    Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
+    sql_prepare(Config, insert_int8, test_types, [int8], Q).
+
+fail_times(N, Pid, HostType) ->
+    case update_counter(Pid) + 1 of
+        N ->
+            ok;
+        _ ->
+            mongoose_rdbms:execute(HostType, insert_int8, [2])
+    end.
+
+%% Returns old value
+update_counter(Pid) ->
+    Key = {test_counter, Pid},
+    N = case get(Key) of undefined -> 0; X -> X end,
+    put(Key, N + 1),
+    N.
+
+called_times(0) ->
+    %% Check that there are no more calls
+    receive called -> error(unexpected) after 0 -> ok end;
+called_times(N) ->
+    receive called -> ok after 5000 -> error({called_times_timeout, N}) end,
+    called_times(N - 1).
+
 test_incremental_upsert(Config) ->
     case is_odbc() of
         true ->
@@ -454,6 +524,9 @@ sql_query_request(_Config, Query) ->
 sql_transaction_request(_Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), Query]).
 
+sql_transaction(_Config, F) ->
+    slow_rpc(mongoose_rdbms, sql_transaction, [host_type(), F]).
+
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
 
@@ -495,11 +568,14 @@ decode_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, to_bool, [Value]).
 
 erase_table(Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE test_types">>).
+    {updated, _} = sql_query(Config, <<"DELETE FROM test_types">>).
 
 erase_users(Config) ->
-    sql_query(Config, <<"TRUNCATE TABLE users">>),
-    sql_query(Config, <<"TRUNCATE TABLE last">>).
+    {updated, _} = sql_query(Config, <<"DELETE FROM users">>),
+    {updated, _} = sql_query(Config, <<"DELETE FROM last">>).
+
+erase_inbox(Config) ->
+    {updated, _} = sql_query(Config, <<"DELETE FROM inbox">>).
 
 check_int32(Config, Value) ->
     check_generic_integer(Config, Value, <<"int32">>).
@@ -923,11 +999,25 @@ drop_common_prefix(Pos, SelValue, Value) ->
       selected_suffix => safe_binary(100, SelValue),
       expected_suffix => safe_binary(100, Value)}.
 
+db_engine() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]).
+
 is_odbc() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == odbc.
+    db_engine() == odbc.
 
 is_pgsql() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == pgsql.
+    db_engine() == pgsql.
+
+is_mysql() ->
+    db_engine() == mysql.
+
+escape_column(Name) ->
+    case is_mysql() of
+        true ->
+            <<"`", Name/binary, "`">>;
+        false ->
+            Name
+    end.
 
 slow_rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),

@@ -689,7 +689,7 @@ outer_op({sql_transaction, F}, State) ->
 outer_op({sql_dirty, F}, State) ->
     sql_dirty_internal(F, State);
 outer_op({sql_execute, Name, Params}, State) ->
-    sql_execute(Name, Params, State).
+    sql_execute(outer_op, Name, Params, State).
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
@@ -703,7 +703,7 @@ nested_op({sql_transaction, F}, State) ->
     %% Transaction inside a transaction
     inner_transaction(F, State);
 nested_op({sql_execute, Name, Params}, State) ->
-    sql_execute(Name, Params, State).
+    sql_execute(nested_op, Name, Params, State).
 
 %% @doc Never retry nested transactions - only outer transactions
 -spec inner_transaction(fun(), state()) -> transaction_result() | {'EXIT', any()}.
@@ -792,9 +792,12 @@ sql_dirty_internal(F, State) ->
     end,
     {Result, erase_state()}.
 
--spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
-sql_execute(Name, Params, State = #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
+-spec sql_execute(Type :: atom(), Name :: atom(), Params :: [term()], state()) ->
+    {query_result(), state()}.
+sql_execute(Type, Name, Params, State = #state{db_ref = DBRef, query_timeout = QueryTimeout}) ->
+    %% Postgres allows to prepare statement only once, so we should take care that NewState is updated
     {StatementRef, NewState} = prepare_statement(Name, State),
+    put_state(NewState),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, QueryTimeout)
           catch Class:Reason:StackTrace ->
             ?LOG_ERROR(#{what => rdbms_sql_execute_failed, statement_name => Name,
@@ -802,7 +805,20 @@ sql_execute(Name, Params, State = #state{db_ref = DBRef, query_timeout = QueryTi
                 stacktrace => StackTrace}),
             erlang:raise(Class, Reason, StackTrace)
           end,
+    check_execute_result(Type, Res, Name, Params),
     {Res, NewState}.
+
+%% Similar check as in sql_query_t
+check_execute_result(outer_op, _Res, _Name, _Params) ->
+    ok;
+check_execute_result(nested_op, Res, Name, Params) ->
+    %% Res is not a list (i.e. executes are one query only and one result set only)
+    case Res of
+        {error, Reason} ->
+            throw({aborted, #{reason => Reason, statement_name => Name, params => Params}});
+        _ when is_tuple(Res) ->
+            ok
+    end.
 
 -spec prepare_statement(Name :: atom(), state()) -> {Ref :: term(), state()}.
 prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared}) ->
