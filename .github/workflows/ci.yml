@@ -50,7 +50,17 @@ jobs:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: [ '24.3.4', '25.2' ]
+        otp: [ '25.2' ]
+        include:
+          - test-spec: "default.spec"
+          - preset: elasticsearch_and_cassandra_mnesia
+            test-spec: "mam.spec"
+          - preset: ldap_mnesia
+            test-spec: "default.spec"
+            otp: '24.3.4'
+          - preset: pgsql_mnesia
+            test-spec: "default.spec"
+            otp: '24.3.4'
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -59,6 +69,29 @@ jobs:
           otp: ${{matrix.otp}}
           preset: ${{matrix.preset}}
           gh-token: ${{secrets.GITHUB_TOKEN}}
+          test-spec: ${{matrix.test-spec}}
+
+  dynamic_domains_big_tests:
+    name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
+        otp: [ '25.2' ]
+        test-spec: ["dynamic_domains.spec"]
+        include:
+          - preset: pgsql_mnesia
+            otp: '24.3.4'
+            test-spec: "dynamic_domains.spec"
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/big-tests
+        with:
+          otp: ${{matrix.otp}}
+          preset: ${{matrix.preset}}
+          gh-token: ${{secrets.GITHUB_TOKEN}}
+          test-spec: ${{matrix.test-spec}}
 
   coveralls_webhook:
     needs: [big_tests, small_tests]

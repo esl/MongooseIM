@@ -41,9 +41,9 @@ case "$PRESET" in
   ldap_mnesia)
     export REL_CONFIG="with-none" ;;
   elasticsearch_and_cassandra_mnesia)
-    export REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
+    export REL_CONFIG="with-elasticsearch with-cassandra"
 esac
 
 if [ ! -z "$GITHUB_ENV" ]; then
-  env | grep -E "^(DB|REL_CONFIG|TLS_DIST|TESTSPEC|PRESET)=" >> $GITHUB_ENV
+  env | grep -E "^(DB|REL_CONFIG|TLS_DIST|PRESET)=" >> $GITHUB_ENV
 fi

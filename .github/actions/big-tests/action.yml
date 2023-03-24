@@ -56,6 +56,6 @@ runs:
       uses: coverallsapp/github-action@v2
       with:
         github-token: ${{ inputs.gh-token }}
-        flag-name: "${{inputs.preset}} on OTP ${{inputs.otp}}"
+        flag-name: "${{inputs.preset}} (${{inputs.test-spec}}) on OTP ${{inputs.otp}}"
         path-to-lcov: ./lcov.info
         parallel: true
