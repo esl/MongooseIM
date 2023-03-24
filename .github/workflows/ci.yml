@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [ '24.3.4', '25.2' ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
     steps:
@@ -61,7 +61,7 @@ jobs:
           - preset: pgsql_mnesia
             test-spec: "default.spec"
             otp: '24.3.4'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/big-tests
@@ -83,7 +83,7 @@ jobs:
           - preset: pgsql_mnesia
             otp: '24.3.4'
             test-spec: "dynamic_domains.spec"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/big-tests
@@ -95,7 +95,7 @@ jobs:
 
   coveralls_webhook:
     needs: [big_tests, small_tests]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Finish coveralls parallel build
         uses: coverallsapp/github-action@v2
@@ -109,7 +109,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [ '25.2' ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
@@ -123,7 +123,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [ '25.2' ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
@@ -137,7 +137,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [ '25.2' ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
@@ -151,7 +151,7 @@ jobs:
       fail-fast: false
       matrix:
         pkg: [centos_7, debian_stretch]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       ESL_ERLANG_PKG_VER: "25.0.1-1"
       pkg_PLATFORM: ${{matrix.pkg}}
