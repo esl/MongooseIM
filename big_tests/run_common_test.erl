@@ -393,10 +393,6 @@ analyze(_Props, CoverOpts, Nodes) ->
     report_time("Import cover data into run_common_test node", fun() ->
             [cover:import(File) || File <- Files]
         end),
-
-    %% reset coverage for generated modules
-    [remove_coverage(M) || M <- [eldap_filter_yecc, 'XmppAddr']],
-
     report_time("Export merged cover data", fun() ->
 			cover:export("/tmp/mongoose_combined.coverdata")
 		end),
@@ -415,10 +411,6 @@ analyze(_Props, CoverOpts, Nodes) ->
                         cover:stop([node()|Nodes])
                     end)
     end.
-
-remove_coverage(Module) ->
-    Ret = cover:reset(Module),
-    report_progress("removing coverage for '~p' module: ~p~n", [Module, Ret]).
 
 make_html(Modules) ->
     {ok, Root} = file:get_cwd(),
