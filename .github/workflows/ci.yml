@@ -94,7 +94,7 @@ jobs:
           test-spec: ${{matrix.test-spec}}
 
   coveralls_webhook:
-    needs: [big_tests, small_tests]
+    needs: [big_tests, small_tests, dynamic_domains_big_tests]
     runs-on: ubuntu-22.04
     steps:
       - name: Finish coveralls parallel build
