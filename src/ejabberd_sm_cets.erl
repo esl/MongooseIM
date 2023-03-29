@@ -66,15 +66,7 @@ create_session(User, Server, Resource, Session) ->
         [] ->
             cets:insert(?TABLE, session_to_tuple(Session));
         Sessions when is_list(Sessions) ->
-            %% Fix potential race condition during XMPP bind, where
-            %% multiple calls (> 2) to ejabberd_sm:open_session
-            %% have been made, resulting in >1 sessions for this resource
-            %% XXX Why do we need that exactly?
-            %%     Sessions are open from c2s and that specific process is updating
-            %%     its session info. Adding info from other processes would cause some
-            %%     strange bugs. On another hand, there is very limited usage
-            %%     of that info field, so nothing would probably break if
-            %%     we keep calling merge_info (and it would make ejabberd_sm_SUITE happy).
+            %% TODO merge_info function would be removed, once MIM-1875 is done
             MergedSession = mongoose_session:merge_info
                               (Session, hd(lists:sort(Sessions))),
             cets:insert(?TABLE, session_to_tuple(MergedSession))
