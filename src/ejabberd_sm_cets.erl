@@ -94,11 +94,9 @@ update_session(_User, _Server, _Resource, Session) ->
 delete_session(SID, User, Server, Resource) ->
     cets:delete(?TABLE, make_key(User, Server, Resource, SID)).
 
+%% cleanup is called on each node in the cluster, when Node is down
 -spec cleanup(atom()) -> any().
 cleanup(Node) ->
-    %% TODO this could be optimized, we don't need to replicate deletes,
-    %% we could just call cleanup on each node (but calling the hook only
-    %% on one of the nodes)
     KeyPattern = {'_', '_', '_', {'_', '$1'}},
     Guard = {'==', {node, '$1'}, Node},
     R = {KeyPattern, '_', '_'},
@@ -110,7 +108,9 @@ cleanup(Node) ->
                           ejabberd_sm:run_session_cleanup_hook(Session),
                           Key
                   end, Tuples),
-    cets:delete_many(?TABLE, Keys).
+    %% We don't need to replicate deletes
+    %% We remove the local content here
+    ets:select_delete(?TABLE, [{R, [Guard], [true]}]).
 
 -spec total_count() -> integer().
 total_count() ->
