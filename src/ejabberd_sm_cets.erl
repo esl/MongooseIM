@@ -95,10 +95,9 @@ cleanup(Node) ->
     cets:sync(?TABLE),
     %% This is a full table scan, but cleanup is rare.
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
-    Keys = lists:map(fun({Key, _, _} = Tuple) ->
+    lists:foreach(fun({Key, _, _} = Tuple) ->
                           Session = tuple_to_session(Tuple),
-                          ejabberd_sm:run_session_cleanup_hook(Session),
-                          Key
+                          ejabberd_sm:run_session_cleanup_hook(Session)
                   end, Tuples),
     %% We don't need to replicate deletes
     %% We remove the local content here

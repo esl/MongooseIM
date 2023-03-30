@@ -79,8 +79,9 @@ start(HostType, Opts) ->
     ?LOG_INFO(#{what => stream_management_starting}).
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(_HostType) ->
+stop(HostType) ->
     ?LOG_INFO(#{what => stream_management_stopping}),
+    mod_stream_management_backend:stop(HostType),
     ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
