@@ -1,5 +1,6 @@
 -module(mod_stream_management_backend).
 -export([init/2,
+         stop/1,
          register_smid/3,
          unregister_smid/2,
          get_sid/2]).
@@ -17,6 +18,9 @@
 -callback init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
     Opts :: gen_mod:module_opts().
+
+-callback stop(HostType) -> ok when
+    HostType :: mongooseim:host_type().
 
 -callback register_smid(HostType, SMID, SID) ->
     ok | {error, term()} when
@@ -56,6 +60,11 @@ init(HostType, Opts) ->
     TrackedFuns = [],
     mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Args = [HostType],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec register_smid(HostType, SMID, SID) ->
