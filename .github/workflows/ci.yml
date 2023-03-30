@@ -10,6 +10,10 @@ env:
   # required for run_common_test.erl
   KEEP_COVER_RUNNING: '1'
   SKIP_AUTO_COMPILE: 'true'
+  # required for tools/gh-upload-to-s3.sh script
+  AWS_DEFAULT_REGION: "${{ secrets.AWS_DEFAULT_REGION }}"
+  AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+  AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
 jobs:
   small_tests:
@@ -42,6 +46,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           flag-name: small_tests on OTP ${{matrix.otp}}
           path-to-lcov: ./lcov.info
+      - name: upload common test results on failure
+        if: ${{ failure() }}
+        run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
 
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -70,6 +77,9 @@ jobs:
           preset: ${{matrix.preset}}
           gh-token: ${{secrets.GITHUB_TOKEN}}
           test-spec: ${{matrix.test-spec}}
+      - name: upload common test results on failure
+        if: ${{ failure() }}
+        run: tools/gh-upload-to-s3.sh big_tests/ct_report
 
   dynamic_domains_big_tests:
     name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -92,6 +102,9 @@ jobs:
           preset: ${{matrix.preset}}
           gh-token: ${{secrets.GITHUB_TOKEN}}
           test-spec: ${{matrix.test-spec}}
+      - name: upload common test results on failure
+        if: ${{ failure() }}
+        run: tools/gh-upload-to-s3.sh big_tests/ct_report
 
   coveralls_webhook:
     needs: [big_tests, small_tests, dynamic_domains_big_tests]
