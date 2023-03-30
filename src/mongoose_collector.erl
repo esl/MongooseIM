@@ -4,7 +4,7 @@
 
 %% gen_server callbacks
 -behaviour(gen_server).
--export([start_common/3]).
+-export([start_common/3, stop_common/2]).
 -export([start_link/2, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
 -ignore_xref([start_link/2]).
@@ -23,6 +23,10 @@ start_common(Module, HostType, WOpts) ->
     MFA = {mongoose_collector, start_link, [Name, WOpts]},
     ChildSpec = {Name, MFA, permanent, 5000, worker, [Module, mongoose_collector]},
     ejabberd_sup:start_child(ChildSpec).
+
+stop_common(Module, HostType) ->
+    Name = gen_mod:get_module_proc(HostType, Module),
+    ejabberd_sup:stop_child(Name).
 
 start_link(Name, Opts) ->
     gen_server:start_link({local, Name}, ?MODULE, Opts, []).
