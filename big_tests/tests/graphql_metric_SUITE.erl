@@ -287,13 +287,13 @@ get_cluster_metrics_by_nonexistent_name(Config) ->
     Result = get_cluster_metrics_as_dicts_by_name([<<"nonexistent">>], Config),
     ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := _, <<"result">> := []},
-     #{<<"node">> := _, <<"result">> := []}] = ParsedResult.
+     #{<<"node">> := _, <<"result">> := []}|_] = ParsedResult. %% two or three nodes.
 
 get_cluster_metrics_with_nonexistent_key(Config) ->
     Result = get_cluster_metrics_as_dicts_with_keys([<<"nonexistent">>], Config),
     ParsedResult = get_ok_value([data, metric, getClusterMetricsAsDicts], Result),
     [#{<<"node">> := _, <<"result">> := [_|_]},
-     #{<<"node">> := _, <<"result">> := [_|_]}] = ParsedResult.
+     #{<<"node">> := _, <<"result">> := [_|_]}|_] = ParsedResult.
 
 get_cluster_metrics_empty_args(Config) ->
     Node = atom_to_binary(maps:get(node, distributed_helper:mim2())),
