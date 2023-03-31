@@ -370,20 +370,21 @@ generate_certs(C) ->
     SelfSigned = [ M#{cn => CN ++ "-self-signed", signed => self, xmpp_addrs => replace_addrs(Addrs)}
                    || M = #{ cn := CN , xmpp_addrs := Addrs} <- CA],
     CertSpecs = CA ++ SelfSigned,
-    Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} || CertSpec <- CertSpecs],
+    TemplateValues = #{"xmppOids" => xmpp_oids()},
+    Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec, TemplateValues)}
+             || CertSpec <- CertSpecs],
     [{certs, maps:from_list(Certs)} | C].
 
-generate_cert(C, #{cn := User} = CertSpec) ->
+generate_cert(C, #{cn := User} = CertSpec, BasicTemplateValues) ->
     ConfigTemplate = filename:join(?config(mim_data_dir, C), "openssl-user.cnf"),
     {ok, Template} = file:read_file(ConfigTemplate),
     XMPPAddrs = maps:get(xmpp_addrs, CertSpec, undefined),
-    TemplateValues = prepare_template_values(User, XMPPAddrs),
+    TemplateValues = maps:merge(BasicTemplateValues, prepare_template_values(User, XMPPAddrs)),
     OpenSSLConfig = bbmustache:render(Template, TemplateValues),
     UserConfig = filename:join(?config(priv_dir, C), User ++ ".cfg"),
     ct:log("OpenSSL config: ~ts~n~ts", [UserConfig, OpenSSLConfig]),
     file:write_file(UserConfig, OpenSSLConfig),
     UserKey = filename:join(?config(priv_dir, C), User ++ "_key.pem"),
-
     case maps:get(signed, CertSpec, ca) of
 	ca ->
 	    generate_ca_signed_cert(C, User, UserConfig, UserKey);
@@ -441,10 +442,14 @@ transport_specific_options(_) ->
       {ssl, true}].
 
 prepare_template_values(User, XMPPAddrsIn) ->
-    Defaults = #{"cn" => User,
-		 "xmppAddrs" => ""},
     XMPPAddrs = maybe_prepare_xmpp_addresses(XMPPAddrsIn),
-    Defaults#{"xmppAddrs" => XMPPAddrs}.
+    #{"cn" => User, "xmppAddrs" => XMPPAddrs}.
+
+xmpp_oids() ->
+    case os:cmd("openssl list -objects | grep id-on-xmppAddr") of
+        "id-on-xmppAddr" ++ _ -> ""; % already defined in OpenSSL 3.*
+        _ -> "id-on-xmppAddr = 1.3.6.1.5.5.7.8.5\n"
+    end.
 
 maybe_prepare_xmpp_addresses(undefined) ->
     "";
