@@ -8,8 +8,9 @@
 -include("../mongoose_graphql_types.hrl").
 
 execute(_Ctx, server, <<"status">>, _) ->
-    {ok, {Status, String}} = mongoose_server_api:status(),
-    {ok, #{<<"statusCode">> => status_code(Status), <<"message">> => String}};
+    {ok, {Status, Message, Version}} = mongoose_server_api:status(),
+    {ok, #{<<"statusCode">> => status_code(Status), <<"message">> => Message,
+           <<"version">> => Version}};
 execute(_Ctx, server, <<"getLoglevel">>, _) ->
     mongoose_server_api:get_loglevel();
 execute(_Ctx, server, <<"getCookie">>, _) ->

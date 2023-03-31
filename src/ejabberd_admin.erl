@@ -28,6 +28,7 @@
 
 -export([start/0, stop/0,
          %% Server
+         status/0,
          %% Accounts
          register/3, register/2, unregister/2,
          registered_users/1,
@@ -65,7 +66,7 @@ commands() ->
      %% They are defined here so that other interfaces can use them too
      #ejabberd_commands{name = status, tags = [server],
                         desc = "Get status of the ejabberd server",
-                        module = mongoose_server_api, function = status,
+                        module = ?MODULE, function = status,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = restart, tags = [server],
                         desc = "Restart ejabberd gracefully",
@@ -169,6 +170,13 @@ commands() ->
                         result = {res, restuple}}
     ].
 
+%%%
+%%% Commands
+%%%
+-spec status() -> {ok, {boolean(), iolist()}} | {mongooseim_not_running, iolist()}.
+status() ->
+    {ok, {Status, Message, _}} = mongoose_server_api:status(),
+    {ok, {Status, Message}}.
 
 %%%
 %%% Server management

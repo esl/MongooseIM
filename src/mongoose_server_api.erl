@@ -39,7 +39,8 @@ status() ->
                 {false, String1 ++ " MongooseIM is not running in that node."};
             {value, {_, _, Version}} ->
                 {true,
-                 String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version])}
+                 String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version]),
+                 lists:nth(1, string:split(Version, "-"))}
         end,
     {ok, Result}.
 

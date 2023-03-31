@@ -133,7 +133,9 @@ set_and_get_loglevel_test(Config) ->
 get_status_test(Config) ->
     Result = get_ok_value([data, server, status], get_status(Config)),
     ?assertEqual(<<"RUNNING">>, maps:get(<<"statusCode">>, Result)),
-    ?assert(is_binary(maps:get(<<"message">>, Result))).
+    ?assert(is_binary(maps:get(<<"message">>, Result))),
+    ?assert(is_binary(maps:get(<<"version">>, Result))).
+
 
 join_successful(Config) ->
     #{node := Node2} = RPCSpec2 = mim2(),
