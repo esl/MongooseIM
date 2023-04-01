@@ -45,5 +45,6 @@ case "$PRESET" in
 esac
 
 if [ ! -z "$GITHUB_ENV" ]; then
+  ## $PRESET is required for gh-upload-to-s3.sh script
   env | grep -E "^(DB|REL_CONFIG|TLS_DIST|PRESET)=" >> $GITHUB_ENV
 fi
