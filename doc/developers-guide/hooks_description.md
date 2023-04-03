@@ -235,7 +235,6 @@ This is the perfect place to plug in custom security control.
 * filter_pep_recipient
 * filter_room_packet
 * filter_unacknowledged_messages
-* find_s2s_bridge
 * forbidden_session_hook
 * foreign_event
 * forget_room
@@ -284,9 +283,6 @@ This is the perfect place to plug in custom security control.
 * privacy_iq_set
 * privacy_list_push
 * privacy_updated_list
-* pubsub_create_node
-* pubsub_delete_node
-* pubsub_publish_item
 * push_notifications
 * register_subhost
 * register_user
@@ -308,7 +304,6 @@ This is the perfect place to plug in custom security control.
 * roster_push
 * roster_set
 * s2s_allow_host
-* s2s_connect_hook
 * s2s_receive_packet
 * s2s_send_packet
 * s2s_stream_features

@@ -42,7 +42,6 @@
          wait_for_features/2,
          wait_for_auth_result/2,
          wait_for_starttls_proceed/2,
-         relay_to_bridge/2,
          reopen_socket/2,
          wait_before_retry/2,
          stream_established/2,
@@ -53,7 +52,7 @@
          print_state/1,
          code_change/4]).
 
--ignore_xref([open_socket/2, print_state/1, relay_to_bridge/2,
+-ignore_xref([open_socket/2, print_state/1,
               reopen_socket/2, start_link/3, stream_established/2,
               wait_before_retry/2, wait_for_auth_result/2,
               wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
@@ -78,7 +77,6 @@
                 delay_to_retry = undefined_delay,
                 new = false             :: boolean(),
                 verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
-                bridge,
                 timer                   :: reference()
               }).
 -type state() :: #state{}.
@@ -90,8 +88,8 @@
                    | wait_for_auth_result
                    | wait_for_starttls_proceed
                    | wait_for_validation
-                   | wait_before_retry
-                   | relay_to_bridge.
+                   | wait_before_retry.
+
 %% FSM handler return value
 -type fsm_return() :: {'stop', Reason :: 'normal', state()}
                     | {'next_state', statename(), state()}
@@ -249,18 +247,7 @@ open_socket(init, StateData = #state{host_type = HostType}) ->
             ?LOG_WARNING(#{what => s2s_out_failed, reason => Reason,
                            text => <<"Outgoing s2s connection failed (remote server not found)">>,
                            myname => StateData#state.myname, server => StateData#state.server}),
-            case mongoose_hooks:find_s2s_bridge(StateData#state.myname,
-                                                StateData#state.server) of
-                {Mod, Fun, Type} ->
-                    ?LOG_INFO(#{what => s2s_out_bridge_found,
-                                text => <<"Found a bridge, relay_to_bridge next.">>,
-                                type => Type,
-                                myname => StateData#state.myname, server => StateData#state.server}),
-                    NewStateData = StateData#state{bridge={Mod, Fun}},
-                    {next_state, relay_to_bridge, NewStateData};
-                _ ->
-                    wait_before_reconnect(StateData)
-            end
+            wait_before_reconnect(StateData)
     end;
 open_socket(closed, StateData) ->
     ?CLOSE_GENERIC(open_socket, closed, StateData);
@@ -351,8 +338,6 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                                 text => <<"New outgoing s2s connection established">>,
                                 tls_enabled => StateData#state.tls_enabled,
                                 myname => StateData#state.myname, server => StateData#state.server}),
-                    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
-                                                    StateData#state.server),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
                 {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
@@ -551,16 +536,6 @@ reopen_socket(closed, StateData) ->
 wait_before_retry(_Event, StateData) ->
     {next_state, wait_before_retry, StateData, ?FSMTIMEOUT}.
 
-
--spec relay_to_bridge(ejabberd:xml_stream_item(), state()) -> fsm_return().
-relay_to_bridge(stop, StateData) ->
-    wait_before_reconnect(StateData);
-relay_to_bridge(closed, StateData) ->
-    ?CLOSE_GENERIC(relay_to_bridge, closed, StateData);
-relay_to_bridge(_Event, StateData) ->
-    {next_state, relay_to_bridge, StateData}.
-
-
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
@@ -684,26 +659,6 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
         wait_before_retry ->
             bounce_element(Acc, El, mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"From s2s">>)),
             {next_state, StateName, StateData};
-        relay_to_bridge ->
-            %% In this state we relay all outbound messages
-            %% to a foreign protocol bridge such as SMTP, SIP, etc.
-            {Mod, Fun} = StateData#state.bridge,
-            ?LOG_DEBUG(#{what => s2s_relay_stanza,
-                         text => <<"Relaying stanza to bridge">>,
-                         bridge_module => Mod, bridge_fun => Fun, acc => Acc,
-                         myname => StateData#state.myname, server => StateData#state.server}),
-            case catch Mod:Fun(El) of
-                {'EXIT', Reason} ->
-                    ?LOG_ERROR(#{what => s2s_relay_to_bridge_failed,
-                                 bridge_module => Mod, bridge_fun => Fun,
-                                 reason => Reason, acc => Acc,
-                                 myname => StateData#state.myname,
-                                 server => StateData#state.server}),
-                    bounce_element(Acc, El, mongoose_xmpp_errors:internal_server_error()),
-                    wait_before_reconnect(StateData);
-                _ ->
-                    {next_state, StateName, StateData}
-            end;
         _ ->
             Q = queue:in({Acc, El}, StateData#state.queue),
             {next_state, StateName, StateData#state{queue = Q},
@@ -1189,8 +1144,6 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
     ?LOG_INFO(#{what => s2s_out_connected,
                 text => <<"New outgoing s2s connection established">>,
                 myname => StateData#state.myname, server => StateData#state.server}),
-    mongoose_hooks:s2s_connect_hook(StateData#state.myname,
-                                    StateData#state.server),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
 handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when
