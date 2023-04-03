@@ -1,10 +1,10 @@
 # MongooseIM platform overview
 
-[![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=master)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Amaster)
-[![CircleCI](https://circleci.com/gh/esl/MongooseIM.svg?style=shield&circle-token=53cdda11cfb95bd7a7044c509c89cb73d3fdeb5a)](https://app.circleci.com/pipelines/github/esl/MongooseIM)
-[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
-[![Coveralls](https://coveralls.io/repos/github/DenysGonchar/MongooseIM/badge.svg?branch=master)](https://coveralls.io/github/DenysGonchar/MongooseIM?branch=master)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.0.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.0)
+[![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.0/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.0)
+[![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=rel-6.0)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Arel-6.0)
+[![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.0)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.0)
 
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
