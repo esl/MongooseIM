@@ -228,11 +228,15 @@ session_can_be_kicked(Config) ->
         {?OK, Sessions1} = gett(admin, path("sessions")),
         assert_inlist(AliceJid, Sessions1),
         % kick alice
+        % mongoose_c2s:exit is an async operation
         {?NOCONTENT, _} = delete(admin, AliceSessionPath),
         escalus:wait_for_stanza(Alice),
         true = escalus_connection:wait_for_close(Alice, timer:seconds(1)),
-        {?OK, Sessions2} = gett(admin, path("sessions")),
-        assert_notinlist(AliceJid, Sessions2),
+        mongoose_helper:wait_until(
+            fun() ->
+                  {?OK, Sessions2} = gett(admin, path("sessions")),
+                  lists:member(AliceJid, Sessions2)
+            end, false),
         {?NOT_FOUND, <<"No active session">>} = delete(admin, AliceSessionPath),
         ok
     end).
