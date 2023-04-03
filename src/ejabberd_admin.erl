@@ -173,7 +173,7 @@ commands() ->
 %%%
 %%% Commands
 %%%
--spec status() -> {ok, {boolean(), iolist()}} | {mongooseim_not_running, iolist()}.
+-spec status() -> {ok, {boolean(), iolist()}}.
 status() ->
     {ok, {Status, Message, _}} = mongoose_server_api:status(),
     {ok, {Status, Message}}.

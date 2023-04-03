@@ -276,7 +276,7 @@ ensure_node_started(Node) ->
     Timeout = timer:seconds(60),
     F = fun() -> 
         case rpc(Node#{timeout => Timeout}, mongoose_server_api, status, []) of 
-            {ok, {true, _}} -> true;
+            {ok, {true, _, _}} -> true;
             _Other -> false
         end
     end,
