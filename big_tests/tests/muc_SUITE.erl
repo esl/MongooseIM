@@ -4359,6 +4359,13 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Participant)),
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Owner)),
     wait_for_hibernation(Pid),
+    %% Archiving is an async operation, so ensure that the message is actually stored
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        true ->
+            mam_helper:wait_for_room_archive_size(muc_host(), RoomName, 1);
+        false ->
+            skip
+    end,
     {MessageBin, Result}.
 
 forget_room(HostType, MUCHost, RoomName) ->
