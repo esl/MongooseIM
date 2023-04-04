@@ -1,9 +1,9 @@
 # MongooseIM platform
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
-[![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=rel-6.0)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Arel-6.0)
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.0.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.0)
 [![Codecov](https://codecov.io/gh/esl/MongooseIM/branch/rel-6.0/graph/badge.svg)](https://app.codecov.io/gh/esl/MongooseIM/tree/rel-6.0)
+[![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=rel-6.0)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Arel-6.0)
 [![Coveralls](https://coveralls.io/repos/github/esl/MongooseIM/badge.svg?branch=rel-6.0)](https://coveralls.io/github/esl/MongooseIM?branch=rel-6.0)
 
 * [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
