@@ -69,6 +69,7 @@ rdbms_queries_cases() ->
      insert_batch_with_null_case,
      test_cast_insert,
      test_request_insert,
+     test_measured_request,
      test_request_transaction,
      test_restart_transaction_with_execute,
      test_restart_transaction_with_execute_eventually_passes,
@@ -387,6 +388,33 @@ test_request_insert(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_measured_request(Config) ->
+    % given
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    rpc(mim(), mongoose_metrics, ensure_metric, [global, [test_metric], histogram]),
+    MeasureFun = fun(SqlExecute) ->
+        {Time, Result} = timer:tc(SqlExecute),
+        mongoose_metrics:update(global, [test_metric], Time),
+        Result
+    end,
+
+    % when
+    sql_execute_measured_request(Config, insert_one, [<<"check1">>], MeasureFun),
+
+    % then
+    mongoose_helper:wait_until(
+        fun() ->
+            SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+            ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
+        end, ok, #{name => request_queries}),
+
+    {ok, Metric} = rpc(mim(), mongoose_metrics, get_metric_value, [global, [test_metric]]),
+    MetricValue = proplists:get_value(mean, Metric),
+    ?assert(MetricValue > 0),
+    ok.
+
 test_request_transaction(Config) ->
     erase_table(Config),
     Queries = [<<"INSERT INTO test_types(unicode) VALUES ('check1')">>,
@@ -514,6 +542,9 @@ sql_query_cast(_Config, Query) ->
 
 sql_execute_request(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute_request, [host_type(), Name, Parameters]).
+
+sql_execute_measured_request(_Config, Name, Parameters, MeasureFun) ->
+    slow_rpc(mongoose_rdbms, execute_measured_request, [host_type(), Name, Parameters, MeasureFun]).
 
 sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
     slow_rpc(rdbms_queries, execute_upsert, [host_type(), Name, Insert, Update, Unique]).
