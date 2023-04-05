@@ -438,6 +438,7 @@ jobs:
       - image: cimg/python:3.11.0-node
     steps:
       - checkout
+      - add_ssh_keys
       - run:
           name: Build GraphQL static docs
           command: |
@@ -456,7 +457,6 @@ jobs:
               - equal: [ master, << pipeline.git.branch >> ]
               - << pipeline.git.tag >>
           steps:
-            - add_ssh_keys
             - run:
                 name: Configure Git
                 command: |
