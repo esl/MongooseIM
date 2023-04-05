@@ -70,7 +70,7 @@
          execute/3,
          execute_cast/3,
          execute_request/3,
-         execute_measured_request/4,
+         execute_wrapped_request/4,
          execute_successfully/3,
          sql_query/2,
          sql_query_cast/2,
@@ -129,7 +129,7 @@
 
 -ignore_xref([sql_query_cast/2, sql_query_request/2,
               execute_cast/3, execute_request/3,
-              execute_measured_request/4,
+              execute_wrapped_request/4,
               sql_transaction_request/2,
               sql_query_t/1, use_escaped/1,
               escape_like/1, escape_like_prefix/1, use_escaped_like/1,
@@ -161,11 +161,12 @@
 -define(CONNECT_RETRIES, 5).
 
 -type server() :: mongooseim:host_type() | global.
+-type request_wrapper() :: fun((fun(() -> T)) -> T).
 -type rdbms_msg() :: {sql_query, _}
                    | {sql_transaction, fun()}
                    | {sql_dirty, fun()}
                    | {sql_execute, atom(), [binary() | boolean() | integer()]}
-                   | {sql_execute_measured, atom(), [binary() | boolean() | integer()], fun((fun(() -> T)) -> T)}.
+                   | {sql_execute_wrapped, atom(), [binary() | boolean() | integer()], request_wrapper()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {updated, non_neg_integer(), [tuple()]} |
@@ -244,15 +245,14 @@ execute_cast(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters)
 execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_request(HostType, {sql_execute, Name, Parameters}).
 
--spec execute_measured_request(
+-spec execute_wrapped_request(
     HostType :: server(),
     Name :: atom(),
     Parameters :: [term()],
-    MeasureFun :: fun((fun(() -> T)) -> T)
-) -> request_id().
-execute_measured_request(HostType, Name, Parameters, MeasureFun)
-  when is_atom(Name), is_list(Parameters), is_function(MeasureFun) ->
-    sql_request(HostType, {sql_execute_measured, Name, Parameters, MeasureFun}).
+    Wrapper :: request_wrapper()) -> request_id().
+execute_wrapped_request(HostType, Name, Parameters, Wrapper)
+  when is_atom(Name), is_list(Parameters), is_function(Wrapper) ->
+    sql_request(HostType, {sql_execute_wrapped, Name, Parameters, Wrapper}).
 
 
 %% Same as execute/3, but would fail loudly on any error.
@@ -704,8 +704,8 @@ outer_op({sql_dirty, F}, State) ->
     sql_dirty_internal(F, State);
 outer_op({sql_execute, Name, Params}, State) ->
     sql_execute(outer_op, Name, Params, State);
-outer_op({sql_execute_measured, Name, Params, MeasureFun}, State) ->
-    MeasureFun(fun() -> sql_execute(outer_op, Name, Params, State) end).
+outer_op({sql_execute_wrapped, Name, Params, Wrapper}, State) ->
+    Wrapper(fun() -> sql_execute(outer_op, Name, Params, State) end).
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
@@ -720,8 +720,8 @@ nested_op({sql_transaction, F}, State) ->
     inner_transaction(F, State);
 nested_op({sql_execute, Name, Params}, State) ->
     sql_execute(nested_op, Name, Params, State);
-nested_op({sql_execute_measured, Name, Params, MeasureFun}, State) ->
-    MeasureFun(fun() -> sql_execute(nested_op, Name, Params, State) end).
+nested_op({sql_execute_wrapped, Name, Params, Wrapper}, State) ->
+    Wrapper(fun() -> sql_execute(nested_op, Name, Params, State) end).
 
 %% @doc Never retry nested transactions - only outer transactions
 -spec inner_transaction(fun(), state()) -> transaction_result() | {'EXIT', any()}.
