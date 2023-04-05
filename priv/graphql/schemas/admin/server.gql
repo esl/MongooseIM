@@ -46,6 +46,8 @@ type Status {
   statusCode: StatusCode
   "Message about the status"
   message: String
+  "MongooseIM version"
+  version: String
 }
 
 "Specifies status of the server"
