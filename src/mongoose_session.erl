@@ -1,6 +1,5 @@
 -module(mongoose_session).
 
--export([merge_info/2]).
 -export([get_info/1]).
 -export([get_info/3]).
 -export([set_info/3]).
@@ -9,10 +8,6 @@
 -ignore_xref([get_info/1, set_info/3]).
 
 -include("session.hrl").
-
--spec merge_info(ejabberd_sm:session(), ejabberd_sm:session()) -> ejabberd_sm:session().
-merge_info(New = #session{info = NewInfo}, #session{info = OldInfo}) ->
-    New#session{info = maps:merge(OldInfo, NewInfo)}.
 
 -spec get_info(ejabberd_sm:session()) -> ejabberd_sm:info().
 get_info(#session{info = Info}) ->

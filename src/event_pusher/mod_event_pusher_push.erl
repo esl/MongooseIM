@@ -18,6 +18,7 @@
 
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").
+-include("session.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
@@ -145,7 +146,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
                   ok = enable_node(HostType, From, BarePubSubJID, Node, FormFields),
-                  store_session_info(From, {BarePubSubJID, Node, FormFields}),
+                  store_session_info(From, {BarePubSubJID, Node, FormFields}, Acc),
                   IQ#iq{type = result, sub_el = []};
               {disable, BarePubsubJID, Node} ->
                   ok = disable_node(HostType, From, BarePubsubJID, Node),
@@ -270,9 +271,10 @@ enable_node(HostType, From, BarePubSubJID, Node, FormFields) ->
     mod_event_pusher_push_backend:enable(HostType, jid:to_bare(From), BarePubSubJID, Node,
                                          FormFields).
 
--spec store_session_info(jid:jid(), publish_service()) -> any().
-store_session_info(Jid, Service) ->
-    ejabberd_sm:store_info(Jid, ?SESSION_KEY, Service).
+-spec store_session_info(jid:jid(), publish_service(), mongoose_acc:t()) -> any().
+store_session_info(Jid, Service, Acc) ->
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    ejabberd_sm:store_info(Jid, OriginSid, ?SESSION_KEY, Service).
 
 -spec maybe_remove_push_node_from_sessions_info(jid:jid(), jid:jid(), pubsub_node() | undefined) ->
           ok.
@@ -289,7 +291,8 @@ find_and_remove_push_node(From, [RawSession | Rest], PubSubJid, Node) ->
         true ->
             LResource  = mongoose_session:get_resource(RawSession),
             JID = jid:replace_resource(From, LResource),
-            ejabberd_sm:remove_info(JID, ?SESSION_KEY),
+            Sid = RawSession#session.sid,
+            ejabberd_sm:remove_info(JID, Sid, ?SESSION_KEY),
             find_and_remove_push_node(From, Rest, PubSubJid, Node);
         false ->
             find_and_remove_push_node(From, Rest, PubSubJid, Node)

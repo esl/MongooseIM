@@ -37,9 +37,9 @@
          make_new_sid/0,
          open_session/5,
          close_session/4,
-         store_info/3,
+         store_info/4,
          get_info/2,
-         remove_info/2,
+         remove_info/3,
          get_user_resources/1,
          set_presence/6,
          unset_presence/5,
@@ -208,10 +208,10 @@ close_session(Acc, SID, JID, Reason) ->
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
     mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
--spec store_info(jid:jid(), info_key(), any()) ->
+-spec store_info(jid:jid(), sid(), info_key(), any()) ->
     {ok, any()} | {error, offline}.
-store_info(JID, Key, Value) ->
-    case get_session(JID) of
+store_info(JID, SID, Key, Value) ->
+    case get_session_by_sid(JID, SID) of
         offline -> {error, offline};
         #session{sid = SID, priority = SPriority, info = SInfo} ->
             case SID of
@@ -223,7 +223,7 @@ store_info(JID, Key, Value) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    mongoose_c2s:async(Pid, fun ejabberd_sm:store_info/3, [JID, Key, Value]),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:store_info/4, [JID, SID, Key, Value]),
                     {ok, Key}
             end
     end.
@@ -240,10 +240,10 @@ get_info(JID, Key) ->
             end
     end.
 
--spec remove_info(jid:jid(), info_key()) ->
+-spec remove_info(jid:jid(), sid(), info_key()) ->
     ok | {error, offline}.
-remove_info(JID, Key) ->
-    case get_session(JID) of
+remove_info(JID, SID, Key) ->
+    case get_session_by_sid(JID, SID) of
         offline -> {error, offline};
         #session{sid = SID, priority = SPriority, info = SInfo} ->
             case SID of
@@ -255,7 +255,7 @@ remove_info(JID, Key) ->
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    mongoose_c2s:async(Pid, fun ejabberd_sm:remove_info/2, [JID, Key]),
+                    mongoose_c2s:async(Pid, fun ejabberd_sm:remove_info/3, [JID, SID, Key]),
                     ok
             end
     end.
@@ -287,6 +287,23 @@ get_session(JID) ->
             offline;
         Ss ->
             lists:max(Ss)
+    end.
+
+-spec get_session_by_sid(JID, SID) -> offline | session() when
+      JID :: jid:jid(),
+      SID :: sid().
+get_session_by_sid(JID, SID) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
+        [] ->
+            offline;
+        Ss ->
+            case lists:keyfind(SID, #session.sid, Ss) of
+                false ->
+                    offline;
+                S ->
+                    S
+            end
     end.
 
 -spec get_raw_sessions(jid:jid()) -> [session()].

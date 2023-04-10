@@ -79,9 +79,8 @@ create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->
-            MergedInfoSession = mongoose_session:merge_info(Session, OldSession),
             BOldSession = term_to_binary(OldSession),
-            BSession = term_to_binary(MergedInfoSession),
+            BSession = term_to_binary(Session),
             mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
                                  ["SREM", hash(User, Server), BOldSession],
                                  ["SREM", hash(User, Server, Resource), BOldSession],

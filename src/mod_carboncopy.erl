@@ -118,12 +118,13 @@ iq_handler1(Acc, From, _To, IQ, _Extra) ->
 iq_handler(Acc, From, #iq{type = set,
                           sub_el = #xmlel{name = Operation,
                                           children = []}} = IQ, CC) ->
+    ?LOG_ERROR(#{what => cc_iq_received, accss => iolist_to_binary(io_lib:format("~p", [Acc]))}),
     ?LOG_DEBUG(#{what => cc_iq_received, acc => Acc}),
     Result = case Operation of
                  <<"enable">> ->
-                     enable(From, CC);
+                     enable(From, CC, Acc);
                  <<"disable">> ->
-                     disable(From)
+                     disable(From, Acc)
              end,
     case Result of
         ok ->
@@ -157,7 +158,7 @@ user_receive_message(Acc, #{c2s_data := C2SData}, _) ->
     Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 remove_connection(Acc, #{jid := JID}, _) ->
-    disable(JID),
+    disable(JID, Acc),
     {ok, Acc}.
 
 % Check if the traffic is local.
@@ -332,18 +333,20 @@ carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
                                  attrs = [{<<"xmlns">>, ?NS_FORWARD}],
                                  children = [complete_packet(Acc, JID, Packet, Direction)]} ]} ].
 
-enable(JID, CC) ->
+enable(JID, CC, Acc) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    case ejabberd_sm:store_info(JID, ?CC_KEY, cc_ver_to_int(CC)) of
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    case ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)) of
         {ok, ?CC_KEY} -> ok;
         {error, _} = Err -> Err
     end.
 
-disable(JID) ->
+disable(JID, Acc) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    case ejabberd_sm:remove_info(JID, ?CC_KEY) of
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    case ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY) of
         ok -> ok;
         {error, offline} -> ok
     end.

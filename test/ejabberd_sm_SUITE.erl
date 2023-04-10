@@ -44,11 +44,12 @@ tests() ->
      session_is_updated_when_created_twice,
      delete_session,
      clean_up,
-     too_much_sessions,
+     too_many_sessions,
      unique_count,
      unique_count_while_removing_entries,
      session_info_is_stored,
      session_info_is_updated_if_keys_match,
+     session_info_is_updated_properly_if_session_conflicts,
      session_info_is_extended_if_new_keys_present,
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
@@ -90,7 +91,7 @@ end_per_group(_, Config) ->
     whereis(test_helper) ! stop,
     Config.
 
-init_per_testcase(too_much_sessions, Config) ->
+init_per_testcase(too_many_sessions, Config) ->
     set_test_case_meck(?MAX_USER_SESSIONS),
     setup_sm(Config),
     Config;
@@ -181,6 +182,27 @@ session_info_is_updated_if_keys_match(C) ->
     [#session{sid = Sid, info = #{key1 := val2}}]
      = ?B(C):get_sessions(U,S).
 
+%% Same resource but different sids
+session_info_is_updated_properly_if_session_conflicts(C) ->
+    %% We use 2 seeds here
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    %% Sid2 > Sid in this case, because SIDs have a timestamp in them
+    %% We cannot test store_info for Sid2 though, because it has a different pid
+    Sid2 = make_sid_with_unique_pid(),
+
+    %% Two sessions for the same USR are registered after that:
+    given_session_opened(Sid, USR, 1, [{key1, val1}, {key2, a}]),
+    given_session_opened(Sid2, USR, 1, [{key1, val2}, {key3, b}]),
+
+    %% Overwritten without merging
+    %% Because we don't call open_session twice for the same Sid, so no need to merge info
+    when_session_opened(Sid, USR, 1, [{key1, val3}, {key4, c}]),
+
+    [#session{sid = Sid, info = Info1}, #session{sid = Sid2, info = Info2}]
+        = lists:keysort(#session.sid, ?B(C):get_sessions(U, S)),
+    [{key1, val3}, {key4, c}] = maps:to_list(Info1),
+    [{key1, val2}, {key3, b}] = maps:to_list(Info2).
+
 session_info_is_extended_if_new_keys_present(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
@@ -194,18 +216,17 @@ session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
+    %% Should not be called twice in the real life
     when_session_opened(Sid, USR, 1, []),
 
-    [#session{sid = Sid, info = #{key1 := val1}}]
+    [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U,S).
 
 
 kv_can_be_stored_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
-
-    when_session_info_stored(U, S, R, {key2, newval}),
-
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
     ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := newval}}],
                  ?B(C):get_sessions(U,S)).
 
@@ -213,8 +234,8 @@ kv_can_be_updated_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
-    when_session_info_stored(U, S, R, {key2, newval}),
-    when_session_info_stored(U, S, R, {key2, override}),
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
+    when_session_info_stored(Sid, U, S, R, {key2, override}),
 
     ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := override}}],
                  ?B(C):get_sessions(U, S)).
@@ -223,17 +244,17 @@ kv_can_be_removed_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
-    when_session_info_stored(U, S, R, {key2, newval}),
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
 
     [#session{sid = Sid, info = #{key1 := val1, key2 := newval}}]
      = ?B(C):get_sessions(U, S),
 
-    when_session_info_removed(U, S, R, key2),
+    when_session_info_removed(Sid, U, S, R, key2),
 
     [#session{sid = Sid, info = #{key1 := val1}}]
      = ?B(C):get_sessions(U, S),
 
-    when_session_info_removed(U, S, R, key1),
+    when_session_info_removed(Sid, U, S, R, key1),
 
     [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U, S).
@@ -251,14 +272,13 @@ store_info_sends_message_to_the_session_owner(C) ->
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
     JID = jid:make_noprep(U, S, R),
-    spawn_link(fun() -> ejabberd_sm:store_info(JID, cc, undefined) end),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, SID, cc, undefined) end),
     %% The original process receives a message
     receive
         {'$gen_cast', {async,
                        _Fun,
                        [#jid{luser = User, lserver = Server, lresource = Resource},
-                       K,
-                       V]}} ->
+                        SID, K, V]}} ->
             ?eq(U, User),
             ?eq(S, Server),
             ?eq(R, Resource),
@@ -280,12 +300,12 @@ remove_info_sends_message_to_the_session_owner(C) ->
     ?B(C):create_session(U, S, R, Session),
     %% but call remove_info from another process
     JID = jid:make_noprep(U, S, R),
-    spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
+    spawn_link(fun() -> ejabberd_sm:remove_info(JID, SID, cc) end),
     %% The original process receives a message
     receive
         {'$gen_cast', {async,
                        _Fun,
-                       [#jid{luser = User, lserver = Server, lresource = Resource},
+                       [#jid{luser = User, lserver = Server, lresource = Resource}, SID,
                        Key]}} ->
             ?eq(U, User),
             ?eq(S, Server),
@@ -330,7 +350,7 @@ ensure_empty(C, N, Sessions) ->
             ensure_empty(C, N-1, ?B(C):get_sessions())
     end.
 
-too_much_sessions(_C) ->
+too_many_sessions(_C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
     UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
     {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
@@ -401,7 +421,13 @@ get_fun_for_unique_count(ejabberd_sm_redis) ->
     end.
 
 make_sid() ->
-    {erlang:timestamp(), self()}.
+    %% ejabberd_sm:store_info has different behaviour when called
+    %% from inside and from outside of the c2s process. So, self() here is important.
+    {erlang:system_time(microsecond), self()}.
+
+make_sid_with_unique_pid() ->
+    %% Use spawn to get an unique pid
+    {erlang:system_time(microsecond), spawn(fun() -> ok end)}.
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
@@ -416,13 +442,13 @@ given_session_opened(Sid, {U, S, R}, Priority, Info) ->
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
 
-when_session_info_stored(U, S, R, {K, V}) ->
+when_session_info_stored(SID, U, S, R, {K, V}) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:store_info(JID, K, V).
+    ejabberd_sm:store_info(JID, SID, K, V).
 
-when_session_info_removed(U, S, R, Key) ->
+when_session_info_removed(SID, U, S, R, Key) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:remove_info(JID, Key).
+    ejabberd_sm:remove_info(JID, SID, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
@@ -551,7 +577,7 @@ try_to_reproduce_race_condition(Config) ->
                             end),
     SetterPid = spawn_link(fun() ->
                                    receive start -> ok end,
-                                   when_session_info_stored(U, S, R, {cc, undefined}),
+                                   when_session_info_stored(SID, U, S, R, {cc, undefined}),
                                    Parent ! p2_done
                            end),
     %% Step2 setup mocking for some ejabbers_sm_mnesia functions
