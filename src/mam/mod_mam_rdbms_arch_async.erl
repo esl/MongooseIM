@@ -101,8 +101,9 @@ do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
             Result = mongoose_rdbms:execute(HostType, BatchName, lists:append(Rows)),
             process_batch_result(Result, Acc, HostType, MessageCount);
         false ->
-            Results = [{mongoose_rdbms:execute(HostType, insert_mam_message, Row), Row} || Row <- Rows],
-            process_list_results(Results, HostType)
+            Results = [mongoose_rdbms:execute(HostType, insert_mam_message, Row) || Row <- Rows],
+            Process = lists:zip(Results, Acc),
+            process_list_results(Process, HostType)
     end,
     [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
     mongoose_hooks:mam_flush_messages(HostType, MessageCount),
