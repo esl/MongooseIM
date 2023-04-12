@@ -11,15 +11,10 @@
     [ejabberd_sm:session()].
 -callback get_sessions(jid:user(), jid:server(), jid:resource()) ->
     [ejabberd_sm:session()].
--callback create_session(jid:luser(),
-                         jid:lserver(),
-                         jid:lresource(),
-                         ejabberd_sm:session()) ->
-    ok | {error, term()}.
--callback update_session(jid:luser(),
-                         jid:lserver(),
-                         jid:lresource(),
-                         ejabberd_sm:session()) ->
+-callback set_session(jid:luser(),
+                      jid:lserver(),
+                      jid:lresource(),
+                      ejabberd_sm:session()) ->
     ok | {error, term()}.
 -callback delete_session(ejabberd_sm:sid(),
                          jid:user(),
@@ -31,7 +26,7 @@
 
 -export([init/1,
          get_sessions/0, get_sessions/1, get_sessions/2, get_sessions/3,
-         create_session/4, update_session/4, delete_session/4, cleanup/1,
+         set_session/4, delete_session/4, cleanup/1,
          total_count/0, unique_count/0]).
 
 -ignore_xref([cleanup/1, behaviour_info/1]).
@@ -67,19 +62,11 @@ get_sessions(User, Server, Resource) ->
     Args = [User, Server, Resource],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec create_session(User :: jid:user(),
-                     Server :: jid:server(),
-                     Resource :: jid:resource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-create_session(User, Server, Resource, Session) ->
-    Args = [User, Server, Resource, Session],
-    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
-
--spec update_session(User :: jid:luser(),
-                     Server :: jid:lserver(),
-                     Resource :: jid:lresource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-update_session(User, Server, Resource, Session) ->
+-spec set_session(User :: jid:user(),
+                  Server :: jid:server(),
+                  Resource :: jid:resource(),
+                  Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+set_session(User, Server, Resource, Session) ->
     Args = [User, Server, Resource, Session],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

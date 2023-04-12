@@ -273,23 +273,6 @@ get_session(JID) ->
             lists:max(Ss)
     end.
 
--spec get_session_by_sid(JID, SID) -> offline | session() when
-      JID :: jid:jid(),
-      SID :: sid().
-get_session_by_sid(JID, SID) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
-        [] ->
-            offline;
-        Ss ->
-            case lists:keyfind(SID, #session.sid, Ss) of
-                false ->
-                    offline;
-                S ->
-                    S
-            end
-    end.
-
 -spec get_raw_sessions(jid:jid()) -> [session()].
 get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
@@ -581,23 +564,7 @@ set_session(SID, JID, Priority, Info) ->
                        us = US,
                        priority = Priority,
                        info = Info},
-    ejabberd_sm_backend:create_session(LUser, LServer, LResource, Session).
-
--spec update_session(SID, JID, Prio, Info) -> ok | {error, any()} when
-      SID :: sid() | 'undefined',
-      JID :: jid:jid(),
-      Prio :: priority(),
-      Info :: info().
-update_session(SID, JID, Priority, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    US = {LUser, LServer},
-    USR = {LUser, LServer, LResource},
-    Session = #session{sid = SID,
-                       usr = USR,
-                       us = US,
-                       priority = Priority,
-                       info = Info},
-    ejabberd_sm_backend:update_session(LUser, LServer, LResource, Session).
+    ejabberd_sm_backend:set_session(LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
