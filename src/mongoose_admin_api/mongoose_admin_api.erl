@@ -73,15 +73,7 @@ api_paths_for_handler(Handler, State) ->
 
 -spec init(req(), state()) -> {cowboy_rest, req(), state()}.
 init(Req, State) ->
-    {cowboy_rest, set_cors_headers(Req), State}.
-
-set_cors_headers(Req) ->
-    Req1 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Methods">>,
-                                      <<"GET, OPTIONS, PUT, POST, DELETE">>, Req),
-    Req2 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Origin">>,
-                                      <<"*">>, Req1),
-    cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
-                               <<"Content-Type">>, Req2).
+    {cowboy_rest, Req, State}.
 
 -spec is_authorized(req(), state()) -> {true | {false, iodata()}, req(), state()}.
 is_authorized(Req, State) ->
