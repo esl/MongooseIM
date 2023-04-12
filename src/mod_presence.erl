@@ -401,7 +401,8 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
-    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, #{}),
+    Info = mongoose_c2s:get_info(StateData),
+    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, Info),
     presence_broadcast(Acc1, Presences#presences_state.pres_a),
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
     NewPresences = Presences#presences_state{pres_last = undefined,
@@ -658,7 +659,8 @@ get_old_priority(Presences) ->
 update_priority(Acc, Priority, Packet, StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
-    ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, #{}).
+    Info = mongoose_c2s:get_info(StateData),
+    ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info).
 
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->
     gb_sets:is_element(LJID, S#presences_state.pres_t)

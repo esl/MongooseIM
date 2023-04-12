@@ -13,7 +13,7 @@
 
 %% utils
 -export([start_link/2, start/2, stop/2, exit/2, async/3, call/3, cast/3]).
--export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
+-export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1, get_info/1,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
@@ -33,12 +33,14 @@
           shaper :: undefined | shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
           auth_module :: undefined | module(),
-          state_mod = #{} :: #{module() => term()}
+          state_mod = #{} :: #{module() => term()},
+          info = #{} :: info()
          }).
 -type data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(state(), data()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
+-type info() :: #{atom() => term()}.
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
@@ -537,14 +539,15 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
 -spec do_open_session(data(), state(), mongoose_acc:t()) -> fsm_res().
 do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
-    FsmActions = case open_session(StateData) of
+    {ReplacedPids, StateData2} = open_session(StateData),
+    FsmActions = case ReplacedPids of
                      [] -> [];
-                     ReplacedPids ->
+                     _ ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
                          [{{timeout, replaced_wait_timeout}, Timeout, ReplacedPids}]
                  end,
     Acc2 = mongoose_c2s_acc:to_acc(Acc1, actions, FsmActions),
-    handle_state_after_packet(StateData, C2SState, Acc2).
+    handle_state_after_packet(StateData2, C2SState, Acc2).
 
 maybe_wait_for_session(#c2s_data{listener_opts = #{backwards_compatible_session := false}}) ->
     session_established;
@@ -902,13 +905,16 @@ reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->
 route(Pid, Acc) ->
     Pid ! {route, Acc}.
 
--spec open_session(data()) -> [pid()].
+-spec open_session(data()) -> {[pid()], data()}.
 open_session(
-  #c2s_data{host_type = HostType, sid = Sid, jid = Jid, socket = Socket, auth_module = AuthModule}) ->
-    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
-             conn => mongoose_c2s_socket:get_conn_type(Socket),
-             auth_module => AuthModule},
-    ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info).
+  StateData = #c2s_data{host_type = HostType, sid = Sid, jid = Jid,
+                        socket = Socket, auth_module = AuthModule, info = Info}) ->
+    NewFields = #{ip => mongoose_c2s_socket:get_ip(Socket),
+                  conn => mongoose_c2s_socket:get_conn_type(Socket),
+                  auth_module => AuthModule},
+    Info2 = maps:merge(Info, NewFields),
+    ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
+    {ReplacedPids, StateData#c2s_data{info = Info2}}.
 
 -spec close_session(data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
 close_session(#c2s_data{sid = Sid, jid = Jid}, Acc, Reason) ->
@@ -1057,6 +1063,10 @@ get_socket(#c2s_data{socket = Socket}) ->
 get_jid(#c2s_data{jid = Jid}) ->
     Jid.
 
+-spec get_info(data()) -> info().
+get_info(#c2s_data{info = Info}) ->
+    Info.
+
 -spec get_lang(data()) -> ejabberd:lang().
 get_lang(#c2s_data{lang = Lang}) ->
     Lang.
@@ -1090,5 +1100,6 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
       host_type = S0#c2s_data.host_type,
       lserver = S0#c2s_data.lserver,
       jid = S0#c2s_data.jid,
-      state_mod = S0#c2s_data.state_mod
+      state_mod = S0#c2s_data.state_mod,
+      info = S0#c2s_data.info
      }.
