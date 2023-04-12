@@ -12,8 +12,9 @@
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
--export([start_link/2, start/2, stop/2, exit/2, async/3, call/3, cast/3]).
--export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1, get_info/1,
+-export([start_link/2, start/2, stop/2, exit/2, async/3, async_with_state/3, call/3, cast/3]).
+-export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
+         get_info/1, set_info/2,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
@@ -579,6 +580,10 @@ handle_cast(StateData, C2SState, {stop, Reason}) ->
 handle_cast(_StateData, _C2SState, {async, Fun, Args}) ->
     apply(Fun, Args),
     keep_state_and_data;
+
+handle_cast(StateData, _C2SState, {async_with_state, Fun, Args}) ->
+    StateData2 = apply(Fun, [StateData | Args]),
+    {keep_state, StateData2};
 handle_cast(StateData, C2SState, Event) ->
     handle_foreign_event(StateData, C2SState, cast, Event).
 
@@ -1027,6 +1032,10 @@ exit(Pid, Reason) ->
 async(Pid, Fun, Args) ->
     gen_statem:cast(Pid, {async, Fun, Args}).
 
+-spec async_with_state(pid(), fun(), [term()]) -> ok.
+async_with_state(Pid, Fun, Args) ->
+    gen_statem:cast(Pid, {async_with_state, Fun, Args}).
+
 -spec call(pid(), atom(), term()) -> term().
 call(Pid, EventTag, EventContent) ->
     gen_statem:call(Pid, #{event_tag => EventTag, event_content => EventContent}, 5000).
@@ -1066,6 +1075,10 @@ get_jid(#c2s_data{jid = Jid}) ->
 -spec get_info(data()) -> info().
 get_info(#c2s_data{info = Info}) ->
     Info.
+
+-spec set_info(data(), info()) -> data().
+set_info(StateData, Info) ->
+    StateData#c2s_data{info = Info}.
 
 -spec get_lang(data()) -> ejabberd:lang().
 get_lang(#c2s_data{lang = Lang}) ->

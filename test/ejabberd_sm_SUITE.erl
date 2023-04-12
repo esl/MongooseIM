@@ -56,8 +56,7 @@ tests() ->
      kv_can_be_updated_for_session,
      kv_can_be_removed_for_session,
      store_info_sends_message_to_the_session_owner,
-     remove_info_sends_message_to_the_session_owner,
-     cannot_reproduce_race_condition_in_store_info
+     remove_info_sends_message_to_the_session_owner
     ].
 
 init_per_group(mnesia, Config) ->
@@ -92,13 +91,17 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(too_many_sessions, Config) ->
-    set_test_case_meck(?MAX_USER_SESSIONS),
+    set_test_case_meck(?MAX_USER_SESSIONS, true),
     setup_sm(Config),
     Config;
-init_per_testcase(_, Config) ->
-    set_test_case_meck(infinity),
+init_per_testcase(Case, Config) ->
+    set_test_case_meck(infinity, should_meck_c2s(Case)),
     setup_sm(Config),
     Config.
+
+should_meck_c2s(store_info_sends_message_to_the_session_owner) -> false;
+should_meck_c2s(remove_info_sends_message_to_the_session_owner) -> false;
+should_meck_c2s(_) -> true.
 
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
@@ -259,9 +262,6 @@ kv_can_be_removed_for_session(C) ->
     [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U, S).
 
-cannot_reproduce_race_condition_in_store_info(C) ->
-    ok = try_to_reproduce_race_condition(C).
-
 store_info_sends_message_to_the_session_owner(C) ->
     SID = {erlang:system_time(microsecond), self()},
     U = <<"alice2">>,
@@ -275,10 +275,10 @@ store_info_sends_message_to_the_session_owner(C) ->
     spawn_link(fun() -> ejabberd_sm:store_info(JID, SID, cc, undefined) end),
     %% The original process receives a message
     receive
-        {'$gen_cast', {async,
+        {'$gen_cast', {async_with_state,
                        _Fun,
-                       [#jid{luser = User, lserver = Server, lresource = Resource},
-                        SID, K, V]}} ->
+                       [SID, #jid{luser = User, lserver = Server, lresource = Resource},
+                        K, V]}} ->
             ?eq(U, User),
             ?eq(S, Server),
             ?eq(R, Resource),
@@ -303,10 +303,10 @@ remove_info_sends_message_to_the_session_owner(C) ->
     spawn_link(fun() -> ejabberd_sm:remove_info(JID, SID, cc) end),
     %% The original process receives a message
     receive
-        {'$gen_cast', {async,
+        {'$gen_cast', {async_with_state,
                        _Fun,
-                       [#jid{luser = User, lserver = Server, lresource = Resource}, SID,
-                       Key]}} ->
+                       [SID, #jid{luser = User, lserver = Server, lresource = Resource},
+                        Key, undefined]}} ->
             ?eq(U, User),
             ?eq(S, Server),
             ?eq(R, Resource),
@@ -395,15 +395,34 @@ unload_meck() ->
     meck:unload(acl),
     meck:unload(gen_hook),
     meck:unload(ejabberd_commands),
-    meck:unload(mongoose_domain_api).
+    meck:unload(mongoose_domain_api),
+    catch ets:delete(test_c2s_info),
+    catch meck:unload(mongoose_c2s).
 
-set_test_case_meck(MaxUserSessions) ->
+set_test_case_meck(MaxUserSessions, MeckC2s) ->
+    ets:new(test_c2s_info, [public, named_table]),
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _, _) -> MaxUserSessions end),
     meck:new(gen_hook, []),
     meck:expect(gen_hook, run_fold, fun(_, _, Acc, _) -> {ok, Acc} end),
     meck:new(mongoose_domain_api, []),
-    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end).
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
+    do_meck_c2s(MeckC2s).
+
+do_meck_c2s(false) ->
+    ok;
+do_meck_c2s(true) ->
+    %% Very simple mock, not even reproducing async behaviour
+    %% It is for a limited use only, for more complex tests use a real c2s process (i.e. probably big tests)
+    meck:new(mongoose_c2s, [passthrough]),
+    meck:expect(mongoose_c2s, async_with_state, fun(Pid, Fun, Args) -> apply(Fun, [{ministate, Pid}|Args]), ok end),
+    GF = fun({ministate, Pid}) -> case ets:lookup(test_c2s_info, Pid) of [] -> #{}; [{Pid, Info}] -> Info end end,
+    SF = fun({ministate, Pid} = S, Info) -> ets:insert(test_c2s_info, {Pid, Info}), S end,
+    meck:expect(mongoose_c2s, get_info, GF),
+    meck:expect(mongoose_c2s, set_info, SF),
+    %% Just return same thing all the time
+    meck:expect(mongoose_c2s, get_mod_state, fun(_C2sState, _Mod) -> {error, not_found} end).
+
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
@@ -436,8 +455,13 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
     given_session_opened(Sid, {U, S, R}, Priority, []).
 
 given_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    {_, Pid} = Sid,
+    Map = maps:from_list(Info),
+    %% open_session is called by c2s usually, but here in tests the function is called by the test.
+    %% we still need to remember the initial info for tests to work though.
+    ets:insert_new(test_c2s_info, {Pid, Map}),
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:open_session(S, Sid, JID, Priority, maps:from_list(Info)).
+    ejabberd_sm:open_session(S, Sid, JID, Priority, Map).
 
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
@@ -555,63 +579,6 @@ is_redis_running() ->
             end;
         _ ->
             false
-    end.
-
-try_to_reproduce_race_condition(Config) ->
-    SID = {erlang:timestamp(), self()},
-    U = <<"alice">>,
-    S = <<"localhost">>,
-    R = <<"res1">>,
-    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
-    ?B(Config):create_session(U, S, R, Session),
-    Parent = self(),
-    %% Add some instrumentation to simulate race conditions
-    %% The goal is to delete the session after other process reads it
-    %% but before it updates it. In other words, delete a record
-    %% between get_sessions and create_session in ejabberd_sm:store_info
-    %% Step1 prepare concurrent processes
-    DeleterPid = spawn_link(fun() ->
-                                    receive start -> ok end,
-                                    ?B(Config):delete_session(SID, U, S, R),
-                                    Parent ! p1_done
-                            end),
-    SetterPid = spawn_link(fun() ->
-                                   receive start -> ok end,
-                                   when_session_info_stored(SID, U, S, R, {cc, undefined}),
-                                   Parent ! p2_done
-                           end),
-    %% Step2 setup mocking for some ejabbers_sm_mnesia functions
-    meck:new(?B(Config), []),
-    %% When the first get_sessions (run from ejabberd_sm:store_info)
-    %% is executed, the start msg is sent to Deleter process
-    %% Thanks to that, setter will get not empty list of sessions
-    PassThrough3 = fun(A, B, C) ->
-                           DeleterPid ! start,
-                           meck:passthrough([A, B, C]) end,
-    meck:expect(?B(Config), get_sessions, PassThrough3),
-    %% Wait some time before setting the sessions
-    %% so we are sure delete operation finishes
-    meck:expect(?B(Config), create_session,
-                fun(U1, S1, R1, Session1) ->
-                        timer:sleep(100),
-                        meck:passthrough([U1, S1, R1, Session1])
-                end),
-    PassThrough4 = fun(A, B, C, D) -> meck:passthrough([A, B, C, D]) end,
-    meck:expect(?B(Config), delete_session, PassThrough4),
-    %% Start the play from setter process
-    SetterPid ! start,
-    %% Wait for both process to finish
-    receive p1_done -> ok end,
-    receive p2_done -> ok end,
-    meck:unload(?B(Config)),
-    %% Session should not exist
-    case ?B(Config):get_sessions(U, S, R) of
-        [] ->
-            ok;
-        Other ->
-            error_logger:error_msg("issue=reproduced, sid=~p, other=~1000p",
-                                   [SID, Other]),
-            {error, reproduced}
     end.
 
 setup_sm(Config) ->

@@ -118,23 +118,14 @@ iq_handler1(Acc, From, _To, IQ, _Extra) ->
 iq_handler(Acc, From, #iq{type = set,
                           sub_el = #xmlel{name = Operation,
                                           children = []}} = IQ, CC) ->
-    ?LOG_ERROR(#{what => cc_iq_received, accss => iolist_to_binary(io_lib:format("~p", [Acc]))}),
     ?LOG_DEBUG(#{what => cc_iq_received, acc => Acc}),
-    Result = case Operation of
-                 <<"enable">> ->
-                     enable(From, CC, Acc);
-                 <<"disable">> ->
-                     disable(From, Acc)
-             end,
-    case Result of
-        ok ->
-            ?LOG_DEBUG(#{what => cc_iq_result, acc => Acc}),
-            {Acc, IQ#iq{type = result, sub_el = []}};
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => cc_iq_failed, acc => Acc, reason => Reason}),
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:not_allowed()]}}
-    end;
-
+    case Operation of
+        <<"enable">> ->
+            enable(From, CC, Acc);
+        <<"disable">> ->
+            disable(From, Acc)
+    end,
+    {Acc, IQ#iq{type = result, sub_el = []}};
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
@@ -337,19 +328,13 @@ enable(JID, CC, Acc) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
     OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
-    case ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)) of
-        {ok, ?CC_KEY} -> ok;
-        {error, _} = Err -> Err
-    end.
+    ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)).
 
 disable(JID, Acc) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
     OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
-    case ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY) of
-        ok -> ok;
-        {error, offline} -> ok
-    end.
+    ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY).
 
 complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
     %% if this is a packet sent by user on this host, then Packet doesn't

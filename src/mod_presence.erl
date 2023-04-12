@@ -47,7 +47,8 @@
          get_presence/1,
          get_subscribed/1,
          set_presence/2,
-         maybe_get_handler/1
+         maybe_get_handler/1,
+         get_old_priority/1
         ]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
