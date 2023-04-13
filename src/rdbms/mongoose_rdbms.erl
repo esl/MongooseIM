@@ -254,7 +254,6 @@ execute_wrapped_request(HostType, Name, Parameters, Wrapper)
   when is_atom(Name), is_list(Parameters), is_function(Wrapper) ->
     sql_request(HostType, {sql_execute_wrapped, Name, Parameters, Wrapper}).
 
-
 %% Same as execute/3, but would fail loudly on any error.
 -spec execute_successfully(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
@@ -705,7 +704,13 @@ outer_op({sql_dirty, F}, State) ->
 outer_op({sql_execute, Name, Params}, State) ->
     sql_execute(outer_op, Name, Params, State);
 outer_op({sql_execute_wrapped, Name, Params, Wrapper}, State) ->
-    Wrapper(fun() -> sql_execute(outer_op, Name, Params, State) end).
+    try
+        Wrapper(fun() -> sql_execute(outer_op, Name, Params, State) end)
+    catch
+        _Class:Error ->
+            ?LOG_ERROR(#{what => sql_execute_wrapped_failed, reason => Error}),
+            {{error, Error}, State}
+    end.
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation

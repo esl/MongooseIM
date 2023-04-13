@@ -70,10 +70,12 @@ rdbms_queries_cases() ->
      test_cast_insert,
      test_request_insert,
      test_wrapped_request,
+     test_failed_wrapper,
      test_request_transaction,
      test_restart_transaction_with_execute,
      test_restart_transaction_with_execute_eventually_passes,
      test_failed_transaction_with_execute_wrapped,
+     test_failed_wrapper_transaction,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -105,7 +107,9 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config)
     when CaseName =:= test_restart_transaction_with_execute;
          CaseName =:= test_restart_transaction_with_execute_eventually_passes;
-         CaseName =:= test_failed_transaction_with_execute_wrapped ->
+         CaseName =:= test_failed_transaction_with_execute_wrapped;
+         CaseName =:= test_failed_wrapper;
+         CaseName =:= test_failed_wrapper_transaction ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
@@ -416,6 +420,22 @@ test_wrapped_request(Config) ->
     MetricValue = proplists:get_value(mean, Metric),
     ?assert(MetricValue > 0).
 
+test_failed_wrapper(Config) ->
+    % given
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    ok = rpc(mim(), meck, new, [supervisor, [passthrough, no_link, unstick]]),
+    WrapperFun = fun(_SqlExecute) ->
+        error(wrapper_crashed)
+    end,
+
+    % when
+    sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun),
+
+    % then
+    ?assertEqual([], rpc(mim(), meck, history, [supervisor])).
+
 test_request_transaction(Config) ->
     erase_table(Config),
     Queries = [<<"INSERT INTO test_types(unicode) VALUES ('check1')">>,
@@ -481,7 +501,23 @@ test_failed_transaction_with_execute_wrapped(Config) ->
     {aborted, #{reason := simulated_db_error}} = sql_transaction(Config, F),
 
     % then
-    check_not_reveived(msg_after).
+    check_not_received(msg_after).
+
+test_failed_wrapper_transaction(Config) ->
+    % given
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [supervisor, [passthrough, no_link, unstick]]),
+    WrapperFun = fun(_SqlExecute) ->
+        error(wrapper_crashed)
+    end,
+
+    % when
+    F = fun() -> sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun) end,
+    sql_transaction(Config, F),
+
+    % then
+    ?assertEqual([], rpc(mim(), meck, history, [supervisor])).
 
 prepare_insert_int8(Config) ->
     Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
@@ -1085,12 +1121,12 @@ slow_rpc(M, F, A) ->
             Res
     end.
 
-check_not_reveived(Msg) ->
+check_not_received(Msg) ->
     receive
         Msg ->
             error({msg_received, Msg});
         _ ->
-            check_not_reveived(Msg)
+            check_not_received(Msg)
     after 0 ->
         ok
     end.
