@@ -69,9 +69,13 @@ rdbms_queries_cases() ->
      insert_batch_with_null_case,
      test_cast_insert,
      test_request_insert,
+     test_wrapped_request,
+     test_failed_wrapper,
      test_request_transaction,
      test_restart_transaction_with_execute,
      test_restart_transaction_with_execute_eventually_passes,
+     test_failed_transaction_with_execute_wrapped,
+     test_failed_wrapper_transaction,
      test_incremental_upsert,
      arguments_from_two_tables].
 
@@ -102,7 +106,10 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config)
     when CaseName =:= test_restart_transaction_with_execute;
-         CaseName =:= test_restart_transaction_with_execute_eventually_passes ->
+         CaseName =:= test_restart_transaction_with_execute_eventually_passes;
+         CaseName =:= test_failed_transaction_with_execute_wrapped;
+         CaseName =:= test_failed_wrapper;
+         CaseName =:= test_failed_wrapper_transaction ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(test_incremental_upsert, Config) ->
@@ -387,6 +394,49 @@ test_request_insert(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_wrapped_request(Config) ->
+    % given
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    rpc(mim(), mongoose_metrics, ensure_metric, [global, [test_metric], histogram]),
+    WrapperFun = fun(SqlExecute) ->
+        {Time, Result} = timer:tc(SqlExecute),
+        mongoose_metrics:update(global, [test_metric], Time),
+        Result
+    end,
+
+    % when
+    sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
+
+    % then
+    mongoose_helper:wait_until(
+        fun() ->
+            SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+            ?assertEqual({selected, [{<<"check1">>}]}, selected_to_sorted(SelectResult))
+        end, ok, #{name => request_queries}),
+
+    {ok, Metric} = rpc(mim(), mongoose_metrics, get_metric_value, [global, [test_metric]]),
+    MetricValue = proplists:get_value(mean, Metric),
+    ?assert(MetricValue > 0).
+
+test_failed_wrapper(Config) ->
+    % given
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    ok = rpc(mim(), meck, new, [supervisor, [passthrough, no_link, unstick]]),
+    WrapperFun = fun(_SqlExecute) ->
+        error(wrapper_crashed)
+    end,
+
+    % when
+    Result = sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
+
+    % then
+    ?assertEqual({reply,{error,wrapper_crashed}}, Result),
+    ?assertEqual([], rpc(mim(), meck, history, [supervisor])).
+
 test_request_transaction(Config) ->
     erase_table(Config),
     Queries = [<<"INSERT INTO test_types(unicode) VALUES ('check1')">>,
@@ -430,6 +480,45 @@ test_restart_transaction_with_execute_eventually_passes(Config) ->
     {atomic, ok} = sql_transaction(Config, F),
     called_times(3),
     ok.
+
+test_failed_transaction_with_execute_wrapped(Config) ->
+    % given
+    HostType = host_type(),
+    Pid = self(),
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [mongoose_rdbms_backend, [passthrough, no_link]]),
+    ok = rpc(mim(), meck, expect, [mongoose_rdbms_backend, execute, 4,
+                                   {error, simulated_db_error}]),
+    WrapperFun = fun(SqlExecute) ->
+        Pid ! msg_before,
+        Result = SqlExecute(),
+        Pid ! msg_after,
+        Result
+    end,
+
+    % when
+    F = fun() -> mongoose_rdbms:execute_wrapped_request(HostType, insert_int8, [2], WrapperFun) end,
+    {aborted, #{reason := simulated_db_error}} = sql_transaction(Config, F),
+
+    % then
+    check_not_received(msg_after).
+
+test_failed_wrapper_transaction(Config) ->
+    % given
+    erase_table(Config),
+    prepare_insert_int8(Config),
+    ok = rpc(mim(), meck, new, [supervisor, [passthrough, no_link, unstick]]),
+    WrapperFun = fun(_SqlExecute) ->
+        error(wrapper_crashed)
+    end,
+
+    % when
+    F = fun() -> sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun) end,
+    sql_transaction(Config, F),
+
+    % then
+    ?assertEqual([], rpc(mim(), meck, history, [supervisor])).
 
 prepare_insert_int8(Config) ->
     Q = <<"INSERT INTO test_types(", (escape_column(<<"int8">>))/binary, ") VALUES (?)">>,
@@ -514,6 +603,16 @@ sql_query_cast(_Config, Query) ->
 
 sql_execute_request(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute_request, [host_type(), Name, Parameters]).
+
+sql_execute_wrapped_request(_Config, Name, Parameters, WrapperFun) ->
+    slow_rpc(mongoose_rdbms, execute_wrapped_request, [host_type(), Name, Parameters, WrapperFun]).
+
+sql_execute_wrapped_request_and_wait_response(_Config, Name, Parameters, WrapperFun) ->
+    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, [host_type(), Name, Parameters, WrapperFun]).
+
+execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun) ->
+    RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Name, Parameters, WrapperFun),
+    gen_server:wait_response(RequestId, 100).
 
 sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
     slow_rpc(rdbms_queries, execute_upsert, [host_type(), Name, Insert, Update, Unique]).
@@ -1028,6 +1127,16 @@ slow_rpc(M, F, A) ->
             {badrpc, {timeout, M, F}};
         _ ->
             Res
+    end.
+
+check_not_received(Msg) ->
+    receive
+        Msg ->
+            error({msg_received, Msg});
+        _ ->
+            check_not_received(Msg)
+    after 0 ->
+        ok
     end.
 
 check_like_prep(Config, TextMap = #{text := TextValue,
