@@ -407,7 +407,7 @@ test_wrapped_request(Config) ->
     end,
 
     % when
-    sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun),
+    sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
 
     % then
     mongoose_helper:wait_until(
@@ -431,9 +431,10 @@ test_failed_wrapper(Config) ->
     end,
 
     % when
-    sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun),
+    Result = sql_execute_wrapped_request_and_wait_response(Config, insert_one, [<<"check1">>], WrapperFun),
 
     % then
+    ?assertEqual({reply,{error,wrapper_crashed}}, Result),
     ?assertEqual([], rpc(mim(), meck, history, [supervisor])).
 
 test_request_transaction(Config) ->
@@ -605,6 +606,13 @@ sql_execute_request(_Config, Name, Parameters) ->
 
 sql_execute_wrapped_request(_Config, Name, Parameters, WrapperFun) ->
     slow_rpc(mongoose_rdbms, execute_wrapped_request, [host_type(), Name, Parameters, WrapperFun]).
+
+sql_execute_wrapped_request_and_wait_response(_Config, Name, Parameters, WrapperFun) ->
+    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, [host_type(), Name, Parameters, WrapperFun]).
+
+execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun) ->
+    RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Name, Parameters, WrapperFun),
+    gen_server:wait_response(RequestId, 100).
 
 sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
     slow_rpc(rdbms_queries, execute_upsert, [host_type(), Name, Insert, Update, Unique]).

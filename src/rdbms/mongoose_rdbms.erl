@@ -708,7 +708,8 @@ outer_op({sql_execute_wrapped, Name, Params, Wrapper}, State) ->
         Wrapper(fun() -> sql_execute(outer_op, Name, Params, State) end)
     catch
         _Class:Error ->
-            ?LOG_ERROR(#{what => sql_execute_wrapped_failed, reason => Error}),
+            ?LOG_ERROR(#{what => sql_execute_wrapped_failed, reason => Error,
+                         statement_name => Name, wrapper_fun => Wrapper}),
             {{error, Error}, State}
     end.
 
