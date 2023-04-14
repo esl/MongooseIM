@@ -295,23 +295,24 @@ commands:
   restore_workspace:
     steps:
       - attach_workspace: {at: ~/project}
-  fetch_coverage_packages:
-    steps:
-      - run:
-          name: Install pip3 and codecov packages
-          command: |
-            tools/circle-install-packages.sh python3-pip && \
-            pip3 install codecov
-  run_coverage_analysis:
-    steps:
-      - fetch_coverage_packages
-      - run:
-          name: Coverage
-          when: on_success
-          command: |
-            echo "Success!"
-            $EXEC ./rebar3 codecov analyze
-            codecov --disable=gcov --env PRESET
+  # TODO migrate to a new codecov uploader, see - https://docs.codecov.com/docs/deprecated-uploader-migration-guide#python-uploader
+  # fetch_coverage_packages:
+  #   steps:
+  #     - run:
+  #         name: Install pip3 and codecov packages
+  #         command: |
+  #           tools/circle-install-packages.sh python3-pip && \
+  #           pip3 install codecov
+  # run_coverage_analysis:
+  #   steps:
+  #     - fetch_coverage_packages
+  #     - run:
+  #         name: Coverage
+  #         when: on_success
+  #         command: |
+  #           echo "Success!"
+  #           $EXEC ./rebar3 codecov analyze
+  #           codecov --disable=gcov --env PRESET
   run_small_tests:
     steps:
       - restore_workspace
@@ -323,7 +324,7 @@ commands:
           name: Run Small Tests
           command: |
             $EXEC tools/test.sh -p small_tests -s true -e true
-      - run_coverage_analysis
+      # - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
   run_docker_smoke_test:
@@ -650,7 +651,7 @@ jobs:
             - store_test_results:
                 when: always
                 path: junit_report.xml
-      - run_coverage_analysis
+      # - run_coverage_analysis
       - run:
           name: Build Failed - Logs
           when: on_fail
