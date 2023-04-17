@@ -103,7 +103,7 @@ wait_for_user_online(Client) ->
 
 is_offline(LUser, LServer, LRes) ->
     JID = mongoose_helper:make_jid_noprep(LUser, LServer, LRes),
-    PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]),
+    PResources = rpc(mim(), ejabberd_sm, get_user_present_resources, [JID]),
     case lists:keyfind(LRes, 2, PResources) of
         false ->
             true;
@@ -111,14 +111,18 @@ is_offline(LUser, LServer, LRes) ->
             false
     end.
 
+get_raw_sessions(LUser, LServer) ->
+    JID = mongoose_helper:make_jid_noprep(LUser, LServer, <<>>),
+    rpc(mim(), ejabberd_sm, get_raw_sessions, [JID]).
+
 wait_for_user_offline(Client) ->
-    mongoose_helper:wait_until(fun() ->
-                                       is_offline(escalus_utils:jid_to_lower(escalus_client:username(Client)),
-                                                  escalus_utils:jid_to_lower(escalus_client:server(Client)),
-                                                  escalus_utils:jid_to_lower(escalus_client:resource(Client)))
-                               end,
+    U = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    S = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    R = escalus_utils:jid_to_lower(escalus_client:resource(Client)),
+    mongoose_helper:wait_until(fun() -> is_offline(U, S, R) end,
                                true,
-                               #{time_left => timer:seconds(20), name => is_offline}).
+                               #{time_left => timer:seconds(20), name => wait_for_user_offline,
+                                 on_error => fun() -> get_raw_sessions(U, S) end}).
 
 
 http_notifications_port() ->

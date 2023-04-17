@@ -367,9 +367,8 @@ wait_until(Fun, ExpectedValue, Opts) ->
 do_wait_until(_Fun, #{expected_value := ExpectedValue,
                       time_left := TimeLeft,
                       history := History,
-                      name := Name}) when TimeLeft =< 0 ->
-    error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1)});
-
+                      name := Name} = Opts) when TimeLeft =< 0 ->
+    error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1), on_error(Opts)});
 do_wait_until(Fun, #{validator := Validator} = Opts) ->
     try Fun() of
         Value -> case Validator(Value) of
@@ -379,6 +378,11 @@ do_wait_until(Fun, #{validator := Validator} = Opts) ->
     catch Error:Reason:Stacktrace ->
               wait_and_continue(Fun, {Error, Reason, Stacktrace}, Opts)
     end.
+
+on_error(#{on_error := F}) ->
+    F();
+on_error(_Opts) ->
+    ok.
 
 simplify_history([H|[H|_]=T], Times) ->
     simplify_history(T, Times + 1);
