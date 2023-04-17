@@ -36,7 +36,7 @@
          route/4,
          make_new_sid/0,
          open_session/5,
-         close_session/4,
+         close_session/5,
          store_info/4,
          get_info/2,
          remove_info/3,
@@ -194,20 +194,15 @@ open_session(HostType, SID, JID, Priority, Info) ->
     mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
     ReplacedPIDs.
 
--spec close_session(Acc, SID, JID, Reason) -> Acc1 when
+-spec close_session(Acc, SID, JID, Reason, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Reason :: close_reason(),
+      Info :: info(),
       Acc1 :: mongoose_acc:t().
-close_session(Acc, SID, JID, Reason) ->
+close_session(Acc, SID, JID, Reason, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    Info = case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
-               [Session] ->
-                   Session#session.info;
-               _ ->
-                   []
-           end,
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
     mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 

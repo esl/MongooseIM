@@ -70,9 +70,7 @@ set_session(_User, _Server, _Resource, Session) ->
                      _Server :: jid:lserver(),
                      _Resource :: jid:lresource()) -> ok.
 delete_session(SID, _User, _Server, _Resource) ->
-    mnesia:sync_dirty(fun() ->
-                              mnesia:delete({session, SID})
-                      end).
+    mnesia:sync_dirty(fun() -> mnesia:delete({session, SID}) end).
 
 -spec cleanup(atom()) -> any().
 cleanup(Node) ->

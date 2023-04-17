@@ -191,13 +191,14 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
     handle_foreign_event(StateData, C2SState, EventType, EventContent).
 
 -spec terminate(term(), state(), data()) -> term().
-terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
+terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer, sid = SID} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
-    Acc2 = do_close_session(StateData, C2SState, Acc1, Reason),
-    mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
+    Acc1 = mongoose_acc:set_permanent(c2s, [{origin_sid, SID}], Acc0),
+    Acc2 = mongoose_c2s_hooks:user_terminate(HostType, Acc1, Params),
+    Acc3 = do_close_session(StateData, C2SState, Acc2, Reason),
+    mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc3, Params),
     bounce_messages(StateData),
     close_parser(StateData),
     close_socket(StateData),
@@ -922,8 +923,8 @@ open_session(
     {ReplacedPids, StateData#c2s_data{info = Info2}}.
 
 -spec close_session(data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(#c2s_data{sid = Sid, jid = Jid}, Acc, Reason) ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)).
+close_session(#c2s_data{sid = Sid, jid = Jid, info = Info}, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason), Info).
 
 -spec patch_acc_for_reroute(mongoose_acc:t(), ejabberd_sm:sid()) -> mongoose_acc:t().
 patch_acc_for_reroute(Acc, Sid) ->

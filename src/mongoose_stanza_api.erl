@@ -63,7 +63,7 @@ close_session(#{jid := Jid = #jid{lserver = S}, sid := Sid, host_type := HostTyp
               lserver => S,
               host_type => HostType,
               element => undefined}),
-    ejabberd_sm:close_session(Acc, Sid, Jid, normal),
+    ejabberd_sm:close_session(Acc, Sid, Jid, normal, #{}),
     {ok, closed}.
 
 %% Steps
