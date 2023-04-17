@@ -47,6 +47,9 @@
 -ignore_xref([sip_bye/2, sip_cancel/3, sip_dialog_update/3, sip_info/2,
               sip_invite/2, sip_reinvite/2]).
 
+%% nksip specs do not fully cover case when they return a parsing error
+-dialyzer({nowarn_function, [assert_sdp_record/2]}).
+
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
