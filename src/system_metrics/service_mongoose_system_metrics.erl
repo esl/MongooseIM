@@ -7,11 +7,14 @@
 -include("mongoose_config_spec.hrl").
 
 -ifdef(PROD_NODE).
--define(TRACKING_ID, "UA-151671255-3").
+-define(TRACKING_ID, #{id => "UA-151671255-3",
+                       secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -else.
--define(TRACKING_ID, "UA-151671255-2").
+-define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
+                       secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -endif.
--define(TRACKING_ID_CI, "UA-151671255-1").
+-define(TRACKING_ID_CI, #{id => "UA-151671255-1",
+                          secret => "8P4wQIkwSV6zay22uKsnLg"}).
 
 -include("mongoose.hrl").
 
@@ -74,7 +77,7 @@ config_spec() ->
                                               validate = non_empty}
                 },
        defaults = #{<<"initial_report">> => timer:minutes(5),
-                    <<"periodic_report">> => timer:hours(3)}
+                    <<"periodic_report">> => timer:minutes(6)}
       }.
 
 -spec start_link(mongoose_service:options()) -> {ok, pid()}.

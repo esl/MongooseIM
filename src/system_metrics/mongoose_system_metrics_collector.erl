@@ -43,11 +43,11 @@ report_getters() ->
 get_hosts_count() ->
     HostTypes = ?ALL_HOST_TYPES,
     NumberOfHosts = length(HostTypes),
-    [#{report_name => hosts, key => count, value => NumberOfHosts}].
+    [#{name => hosts_count, params => #{value => NumberOfHosts}}].
 
 get_domains_count() ->
     DomainsCount = mongoose_domain_core:domains_count(),
-    [#{report_name => domains, key => count, value => DomainsCount}].
+    [#{name => domains_count, params => #{value => DomainsCount}}].
 
 get_modules() ->
     HostTypes = ?ALL_HOST_TYPES,
@@ -79,10 +79,15 @@ get_modules_metrics(Host, Modules) ->
         end, Modules).
 
 report_module_with_opts(Module, Opts) ->
-    lists:map(
-        fun({OptKey, OptValue}) ->
-            #{report_name => Module, key => OptKey, value => OptValue}
-        end,Opts).
+    #{name => module_with_opts, params =>
+        lists:foldl(
+            fun
+                ({none, _}, Acc) -> 
+                    Acc;
+                ({OptKey, OptValue}, Acc) ->
+                    maps:put(OptKey, OptValue, Acc)
+            end, #{module => Module}, Opts)
+    }.
 
 get_number_of_custom_modules() ->
     HostTypes = ?ALL_HOST_TYPES,
@@ -94,23 +99,23 @@ get_number_of_custom_modules() ->
                                                      mongoose_module_metrics),
     MetricsModuleSet = sets:from_list(MetricsModule),
     CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
-    #{report_name => custom_modules, key => count, value => CountCustomMods}.
+    #{name => custom_modules_count, params => #{value => CountCustomMods}}.
 
 get_uptime() ->
     {Uptime, _} = statistics(wall_clock),
     UptimeSeconds = Uptime div 1000,
     {D, {H, M, S}} = calendar:seconds_to_daystime(UptimeSeconds),
     Formatted = io_lib:format("~4..0B-~2..0B:~2..0B:~2..0B", [D,H,M,S]),
-    [#{report_name => cluster, key => uptime, value => list_to_binary(Formatted)}].
+    [#{name => cluster_uptime, params => #{value => list_to_binary(Formatted)}}].
 
 get_cluster_size() ->
     NodesNo = length(nodes()) + 1,
-    [#{report_name => cluster, key => number_of_nodes, value => NodesNo}].
+    [#{name => cluster_size, params => #{value => NodesNo}}].
 
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
         {_, _, Version} ->
-            #{report_name => cluster, key => mim_version, value => list_to_binary(Version)};
+            #{name => mongooseim_version, params => #{value => list_to_binary(Version)}};
         _ ->
             []
     end.
@@ -119,11 +124,14 @@ get_components() ->
     Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_components(all),
     Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
     LenComponents = length(lists:flatten(Components)),
-    #{report_name => cluster, key => number_of_components, value => LenComponents}.
+    #{name => cluster_components, params => #{value => LenComponents}}.
 
 get_api() ->
     ApiList = filter_unknown_api(get_http_handler_modules()),
-    [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
+    [#{name => http_api, params => 
+        lists:foldl(fun(Element, Acc) ->
+            maps:put(Element, enabled, Acc)
+        end, #{}, ApiList)}].
 
 filter_unknown_api(ApiList) ->
     AllowedToReport = [mongoose_client_api, mongoose_admin_api, mod_bosh, mod_websockets],
@@ -133,9 +141,10 @@ get_transport_mechanisms() ->
     HTTP = [Mod || Mod <- get_http_handler_modules(),
                    Mod =:= mod_bosh orelse Mod =:= mod_websockets],
     TCP = lists:usort([tcp || #{proto := tcp} <- get_listeners(mongoose_c2s_listener)]),
-    [#{report_name => transport_mechanism,
-       key => Transport,
-       value => enabled} || Transport <- HTTP ++ TCP].
+    [#{name => transport_mechanism,
+       params => lists:foldl(fun(Element, Acc) ->
+                                 maps:put(Element, enabled, Acc)
+                             end, #{}, HTTP ++ TCP)}].
 
 get_http_handler_modules() ->
     Listeners = get_listeners(ejabberd_cowboy),
@@ -150,8 +159,10 @@ get_http_handler_modules(#{handlers := Handlers}) ->
 
 get_tls_options() ->
     TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(mongoose_c2s_listener)),
-    [#{report_name => tls_option, key => TLSMode, value => TLSModule} ||
-        {TLSMode, TLSModule} <- lists:usort(TLSOptions)].
+    [#{name => tls_options, 
+       params => lists:foldl(fun({Key, Val}, Acc) ->
+                                 maps:put(Key, Val, Acc)
+                             end, #{}, lists:usort(TLSOptions))}].
 
 extract_tls_options(#{tls := #{mode := TLSMode, module := TLSModule}}) ->
     [{TLSMode, TLSModule}];
@@ -159,18 +170,21 @@ extract_tls_options(_) -> [].
 
 get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools),
-    [#{report_name => outgoing_pools,
-       key => type,
-       value => Type} || #{type := Type} <- OutgoingPools].
+    [#{name => outgoing_pools,
+       params => #{key => Type}} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
+    io:format("PREV_REPORT: ~p", [PrevReport]),
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
     NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
     StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
-    [#{report_name => StanzaType,
-       key => Total,
-       value => Increment} || {StanzaType, Total, Increment} <- StanzasCount].
+    [#{name => xmpp_stanzas_count,
+       params => #{
+        stanza_type => StanzaType,
+        total => Total,
+        increment => Increment
+       }} || {StanzaType, Total, Increment} <- StanzasCount].
 
 count_stanzas(StanzaType) ->
     ExometerResults = exometer:get_values(['_', StanzaType]),
@@ -182,7 +196,9 @@ calculate_stanza_rate([], NewCount) ->
     [{Type, Count, Count} || {Type, Count} <- NewCount];
 calculate_stanza_rate(PrevReport, NewCount) ->
     ReportProplist = [{Name, Key} ||
-        #{report_name := Name, key := Key}  <- PrevReport],
+        #{name := xmpp_stanzas_count,
+          params := #{stanza_type := Name, total := Key}}  <- PrevReport],
+    io:format("ReportProplist: ~p\n", [ReportProplist]),
     [{Type, Count,
         case proplists:get_value(Type, ReportProplist) of
             undefined -> Count;
@@ -196,4 +212,4 @@ get_config_type() ->
         ".cfg" -> cfg;
         _ -> unknown_config_type
     end,
-    [#{report_name => cluster, key => config_type, value => ConfigType}].
+    [#{name => config_type, params => #{config_type => ConfigType}}].
