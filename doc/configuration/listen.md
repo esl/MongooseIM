@@ -133,7 +133,7 @@ Timeout value (in milliseconds) used by the C2S state machine when waiting for t
 * **Default:** `false`
 * **Example:** `reuse_port = true`
 
-Enables linux support for `SO_REUSEPORT`, see [https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ] for more details.
+Enables linux support for `SO_REUSEPORT`, see [Stack Overflow](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more details.
 
 ### `listen.c2s.backwards_compatible_session`
 * **Syntax:** boolean

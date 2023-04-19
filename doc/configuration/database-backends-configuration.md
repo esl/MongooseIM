@@ -93,13 +93,7 @@ Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options) for m
 
 **Version notice**
 
-The required minimum version of MySQL is `5.7.9`.
-This is mainly to benefit from the JSON data type, and the default settings which work out of the box with MongooseIM.
-
-#### MySQL 8
-
-In case of using MySQL version 8 and MongooseIM `3.6.2` or older the `mysql_native_password` authentication plugin must be used as the default one.
-Newer versions of MongooseIM works correctly with MySQL 8 and its default auth plugins.
+The required minimum version of MySQL is `8.0` because MongooseIM uses the JSON data type and the `INSERT INTO ... AS ...` query syntax.
 
 ### PostgreSQL
 
