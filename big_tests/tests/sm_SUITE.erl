@@ -86,6 +86,8 @@ parallel_cases() ->
      resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
      resume_session_kills_old_C2S_gracefully,
+     carboncopy_works,
+     carboncopy_works_after_resume,
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
@@ -941,8 +943,52 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     sm_helper:wait_for_process_termination(MonitorRef),
     escalus_connection:stop(NewAlice).
 
+carboncopy_works(Config) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice, Bob) ->
+        mongoose_helper:enable_carbons([Alice1, Alice]),
+        escalus_connection:send(Bob, escalus_stanza:chat_to(Alice1, <<"msg-4">>)),
+        sm_helper:wait_for_messages(Alice1, [<<"msg-4">>]),
+        carboncopy_helper:wait_for_carbon_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1})
+    end).
+
+carboncopy_works_after_resume(Config) ->
+    Texts = three_texts(),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice1, Bob) ->
+        AliceSpec = [{resource, <<"res2">>} | sm_helper:client_to_spec(Alice1)],
+        F = fun(Alice2) ->
+            [escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(A)) || A <- [Alice1, Alice2]],
+            mongoose_helper:enable_carbons([Alice1, Alice2])
+            end,
+        {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts, F),
+        %% Resume the session.
+        Alice = connect_spec(AliceSpec, {resume, SMID, 1}, manual),
+        wait_for_carbon_with_bodies(Alice1, Texts, #{from => Bob, to => Alice}),
+        %% Get a presence from Alice1 again
+        escalus:assert(is_presence_with_type, [<<"available">>], escalus:wait_for_stanza(Alice)),
+        %% Alice receives an IQ result from the carbon copy enable request
+        escalus:assert(is_iq_result, [], escalus:wait_for_stanza(Alice)),
+        %% Alice receives the unacked messages from the previous
+        %% interrupted session.
+        sm_helper:wait_for_messages(Alice, Texts),
+        %% Alice acks the received messages.
+        escalus_connection:send(Alice, escalus_stanza:sm_ack(5)),
+        %% Direct send
+        escalus_connection:send(Bob, escalus_stanza:chat_to(Alice1, <<"msg-4">>)),
+        sm_helper:wait_for_messages(Alice1, [<<"msg-4">>]),
+        carboncopy_helper:wait_for_carbon_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1}),
+        escalus_connection:stop(Alice)
+    end).
+
+wait_for_carbon_with_bodies(Client, Texts, Params) ->
+    [carboncopy_helper:wait_for_carbon_with_body(Client, Text, Params) || Text <- Texts].
+
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->
+    F = fun(_Client) -> ok end,
+    buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts, F).
+
+buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts, F) ->
     Alice = connect_spec(AliceSpec, sr_presence, manual),
+    F(Alice),
     C2SPid = mongoose_helper:get_session_pid(Alice),
     %% Bobs sends some messages to Alice.
     sm_helper:send_messages(Bob, Alice, Texts),
