@@ -29,16 +29,25 @@ report_getters() ->
         fun get_domains_count/0,
         fun get_modules/0,
         fun get_number_of_custom_modules/0,
-        fun get_uptime/0,
-        fun get_cluster_size/0,
-        fun get_version/0,
-        fun get_components/0,
+        fun get_cluster_data/0,
         fun get_api/0,
         fun get_transport_mechanisms/0,
         fun get_tls_options/0,
-        fun get_outgoing_pools/0,
-        fun get_config_type/0
+        fun get_outgoing_pools/0
     ].
+
+get_cluster_data() ->
+    Steps = [
+        fun get_uptime/0,
+        fun get_version/0,
+        fun get_components/0,
+        fun get_cluster_size/0,
+        fun get_config_type/0
+    ],
+    Params = lists:foldl(fun(Step, Acc) ->
+                             maps:merge(Acc, Step())
+                         end, #{}, Steps),
+    [#{name => cluster, params => Params}].
 
 get_hosts_count() ->
     HostTypes = ?ALL_HOST_TYPES,
@@ -99,23 +108,23 @@ get_number_of_custom_modules() ->
                                                      mongoose_module_metrics),
     MetricsModuleSet = sets:from_list(MetricsModule),
     CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
-    #{name => custom_modules_count, params => #{value => CountCustomMods}}.
+    [#{name => custom_modules_count, params => #{value => CountCustomMods}}].
 
 get_uptime() ->
     {Uptime, _} = statistics(wall_clock),
     UptimeSeconds = Uptime div 1000,
     {D, {H, M, S}} = calendar:seconds_to_daystime(UptimeSeconds),
     Formatted = io_lib:format("~4..0B-~2..0B:~2..0B:~2..0B", [D,H,M,S]),
-    [#{name => cluster_uptime, params => #{value => list_to_binary(Formatted)}}].
+    #{uptime => list_to_binary(Formatted)}.
 
 get_cluster_size() ->
     NodesNo = length(nodes()) + 1,
-    [#{name => cluster_size, params => #{value => NodesNo}}].
+    #{number_of_nodes => NodesNo}.
 
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
         {_, _, Version} ->
-            #{name => mongooseim_version, params => #{value => list_to_binary(Version)}};
+            #{version => list_to_binary(Version)};
         _ ->
             []
     end.
@@ -124,7 +133,7 @@ get_components() ->
     Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_components(all),
     Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
     LenComponents = length(lists:flatten(Components)),
-    #{name => cluster_components, params => #{value => LenComponents}}.
+    #{components => LenComponents}.
 
 get_api() ->
     ApiList = filter_unknown_api(get_http_handler_modules()),
@@ -159,10 +168,9 @@ get_http_handler_modules(#{handlers := Handlers}) ->
 
 get_tls_options() ->
     TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(mongoose_c2s_listener)),
-    [#{name => tls_options, 
-       params => lists:foldl(fun({Key, Val}, Acc) ->
-                                 maps:put(Key, Val, Acc)
-                             end, #{}, lists:usort(TLSOptions))}].
+    lists:foldl(fun({Mode, Module}, Acc) ->
+                    [#{name => tls_options, params => #{mode => Mode, module => Module}}] ++ Acc
+                end, [], lists:usort(TLSOptions)).
 
 extract_tls_options(#{tls := #{mode := TLSMode, module := TLSModule}}) ->
     [{TLSMode, TLSModule}];
@@ -171,7 +179,7 @@ extract_tls_options(_) -> [].
 get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools),
     [#{name => outgoing_pools,
-       params => #{key => Type}} || #{type := Type} <- OutgoingPools].
+       params => #{value => Type}} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
     io:format("PREV_REPORT: ~p", [PrevReport]),
@@ -179,7 +187,7 @@ get_xmpp_stanzas_count(PrevReport) ->
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
     NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
     StanzasCount = calculate_stanza_rate(PrevReport, NewCount),
-    [#{name => xmpp_stanzas_count,
+    [#{name => xmpp_stanza_count,
        params => #{
         stanza_type => StanzaType,
         total => Total,
@@ -212,4 +220,4 @@ get_config_type() ->
         ".cfg" -> cfg;
         _ -> unknown_config_type
     end,
-    [#{name => config_type, params => #{config_type => ConfigType}}].
+    #{config_type => ConfigType}.
