@@ -284,7 +284,6 @@ foreign_event(Acc, #{c2s_data := StateData,
                      event_type := {call, From},
                      event_tag := ?MODULE,
                      event_content := {resume, H}}, _Extra) ->
-    %% XXX Do we deregister from SM correctly?
     case handle_resume_call(StateData, From, H) of
         {ok, SmState} ->
             FlushedStateData = mongoose_c2s:merge_mod_state(StateData, #{?MODULE => SmState}),

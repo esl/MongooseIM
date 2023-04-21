@@ -187,7 +187,7 @@ session_info_is_updated_if_keys_match(C) ->
 
 %% Same resource but different sids
 session_info_is_updated_properly_if_session_conflicts(C) ->
-    %% We use 2 seeds here
+    %% We use 2 SIDs here
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     %% Sid2 > Sid in this case, because SIDs have a timestamp in them
     %% We cannot test store_info for Sid2 though, because it has a different pid
@@ -197,8 +197,9 @@ session_info_is_updated_properly_if_session_conflicts(C) ->
     given_session_opened(Sid, USR, 1, [{key1, val1}, {key2, a}]),
     given_session_opened(Sid2, USR, 1, [{key1, val2}, {key3, b}]),
 
-    %% Overwritten without merging
-    %% Because we don't call open_session twice for the same Sid, so no need to merge info
+    %% Each call to open_session overwrites the previous data without merging.
+    %% The current version of mongoose_c2s calls open_session only once per SID.
+    %% Still, we want to test what happens if we call open_session the second time.
     when_session_opened(Sid, USR, 1, [{key1, val3}, {key4, c}]),
 
     [#session{sid = Sid, info = Info1}, #session{sid = Sid2, info = Info2}]
@@ -415,14 +416,27 @@ do_meck_c2s(true) ->
     %% Very simple mock, not even reproducing async behaviour
     %% It is for a limited use only, for more complex tests use a real c2s process (i.e. probably big tests)
     meck:new(mongoose_c2s, [passthrough]),
-    meck:expect(mongoose_c2s, async_with_state, fun(Pid, Fun, Args) -> apply(Fun, [{ministate, Pid}|Args]), ok end),
-    GF = fun({ministate, Pid}) -> case ets:lookup(test_c2s_info, Pid) of [] -> #{}; [{Pid, Info}] -> Info end end,
-    SF = fun({ministate, Pid} = S, Info) -> ets:insert(test_c2s_info, {Pid, Info}), S end,
-    meck:expect(mongoose_c2s, get_info, GF),
-    meck:expect(mongoose_c2s, set_info, SF),
+    meck:expect(mongoose_c2s, async_with_state, fun async_with_state/3),
+    meck:expect(mongoose_c2s, get_info, fun get_info/1),
+    meck:expect(mongoose_c2s, set_info, fun set_info/2),
     %% Just return same thing all the time
     meck:expect(mongoose_c2s, get_mod_state, fun(_C2sState, _Mod) -> {error, not_found} end).
 
+async_with_state(Pid, Fun, Args) ->
+    apply(Fun, [{ministate, Pid}|Args]),
+    ok.
+
+get_info({ministate, Pid}) ->
+    case ets:lookup(test_c2s_info, Pid) of
+        [] ->
+            #{};
+        [{Pid, Info}] ->
+            Info
+    end.
+
+set_info({ministate, Pid} = S, Info) ->
+    ets:insert(test_c2s_info, {Pid, Info}),
+    S.
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
