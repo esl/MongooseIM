@@ -75,6 +75,17 @@ init_per_group(Group, Config)
 init_per_group(Group, Config) ->
     do_init_per_group(Group, Config).
 
+do_init_per_group(auth_removal = Group, Config) ->
+    case is_internal_or_rdbms() of
+        true ->
+            HostTypes = domain_helper:host_types(),
+            Config2 = dynamic_modules:save_modules(HostTypes, Config),
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+                HostType <- HostTypes],
+            Config2;
+        false ->
+            {skip, require_internal_or_rdbms}
+    end;
 do_init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
@@ -87,7 +98,14 @@ do_init_per_group(Group, Config) ->
             {skip, require_rdbms}
     end.
 
-end_per_group(_Groupname, Config) ->
+end_per_group(auth_removal, Config) ->
+    case is_internal_or_rdbms() of
+        true ->
+            dynamic_modules:restore_modules(Config);
+        false ->
+            ok
+    end;
+end_per_group(_GroupName, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
             dynamic_modules:restore_modules(Config);
@@ -133,6 +151,11 @@ group_to_modules(vcard_removal) ->
     [{mod_vcard, mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
     [{mod_last, mod_config(mod_last, #{backend => rdbms})}].
+
+is_internal_or_rdbms() ->
+    AuthMods = mongoose_helper:auth_modules(),
+    Pred = fun(E) -> E == ejabberd_auth_internal orelse E == ejabberd_auth_rdbms end,
+    lists:any(Pred, AuthMods).
 
 %%%===================================================================
 %%% Testcase specific setup/teardown

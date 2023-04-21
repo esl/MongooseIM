@@ -40,6 +40,7 @@
          get_password_s/3,
          does_user_exist/3,
          remove_user/3,
+         remove_domain/2,
          supports_sasl_module/2,
          supported_features/0
         ]).
@@ -312,6 +313,19 @@ remove_user(_HostType, LUser, LServer) ->
                 mnesia:delete({passwd, US}),
                 mnesia:dirty_update_counter(reg_users_counter,
                                             LServer, -1)
+        end,
+    mnesia:transaction(F),
+    ok.
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(_HostType, LServer) ->
+    Users = get_users(LServer),
+    F = fun() ->
+                lists:foreach(fun(User) ->
+                    mnesia:delete({passwd, User}),
+                    mnesia:dirty_update_counter(reg_users_counter,
+                                                LServer, -1)
+                end, Users)
         end,
     mnesia:transaction(F),
     ok.
