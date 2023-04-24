@@ -36,10 +36,10 @@
          route/4,
          make_new_sid/0,
          open_session/5,
-         close_session/4,
-         store_info/3,
+         close_session/5,
+         store_info/4,
          get_info/2,
-         remove_info/2,
+         remove_info/3,
          get_user_resources/1,
          set_presence/6,
          unset_presence/5,
@@ -71,6 +71,9 @@
          bounce_offline_message/3,
          disconnect_removed_user/3
         ]).
+
+%% c2s async callback
+-export([store_info_async/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -191,42 +194,38 @@ open_session(HostType, SID, JID, Priority, Info) ->
     mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
     ReplacedPIDs.
 
--spec close_session(Acc, SID, JID, Reason) -> Acc1 when
+-spec close_session(Acc, SID, JID, Reason, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Reason :: close_reason(),
+      Info :: info(),
       Acc1 :: mongoose_acc:t().
-close_session(Acc, SID, JID, Reason) ->
+close_session(Acc, SID, JID, Reason, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    Info = case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
-               [Session] ->
-                   Session#session.info;
-               _ ->
-                   []
-           end,
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
     mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
--spec store_info(jid:jid(), info_key(), any()) ->
-    {ok, any()} | {error, offline}.
-store_info(JID, Key, Value) ->
-    case get_session(JID) of
-        offline -> {error, offline};
-        #session{sid = SID, priority = SPriority, info = SInfo} ->
-            case SID of
-                {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update its own record
-                    update_session(SID, JID, SPriority,
-                                   maps:put(Key, Value, SInfo)),
-                    {ok, Key};
-                {_, Pid} ->
-                    %% Ask the process to update its record itself
-                    %% Async operation
-                    mongoose_c2s:async(Pid, fun ejabberd_sm:store_info/3, [JID, Key, Value]),
-                    {ok, Key}
-            end
-    end.
+-spec store_info(jid:jid(), sid(), info_key(), any()) -> ok.
+store_info(JID, SID, Key, Value) ->
+    {_, Pid} = SID,
+    mongoose_c2s:async_with_state(Pid, fun ejabberd_sm:store_info_async/5, [SID, JID, Key, Value]).
+
+-spec remove_info(jid:jid(), sid(), info_key()) -> ok.
+remove_info(JID, SID, Key) ->
+    store_info(JID, SID, Key, undefined).
+
+store_info_async(C2sData, SID, JID, Key, Value) ->
+    Info = mongoose_c2s:get_info(C2sData),
+    Info2 = update_info(Key, Value, Info),
+    Priority = mod_presence:get_old_priority(mod_presence:maybe_get_handler(C2sData)),
+    set_session(SID, JID, Priority, Info2),
+    mongoose_c2s:set_info(C2sData, Info2).
+
+update_info(Key, undefined, Info) ->
+    maps:remove(Key, Info);
+update_info(Key, Value, Info) ->
+    maps:put(Key, Value, Info).
 
 -spec get_info(jid:jid(), info_key()) ->
     {ok, any()} | {error, offline | not_set}.
@@ -237,26 +236,6 @@ get_info(JID, Key) ->
             case mongoose_session:get_info(Session, Key, {error, not_set}) of
                 {Key, Value} -> {ok, Value};
                 Other -> Other
-            end
-    end.
-
--spec remove_info(jid:jid(), info_key()) ->
-    ok | {error, offline}.
-remove_info(JID, Key) ->
-    case get_session(JID) of
-        offline -> {error, offline};
-        #session{sid = SID, priority = SPriority, info = SInfo} ->
-            case SID of
-                {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update its own record
-                    update_session(SID, JID, SPriority,
-                                   maps:remove(Key, SInfo)),
-                    ok;
-                {_, Pid} ->
-                    %% Ask the process to update its record itself
-                    %% Async operation
-                    mongoose_c2s:async(Pid, fun ejabberd_sm:remove_info/2, [JID, Key]),
-                    ok
             end
     end.
 
@@ -580,23 +559,7 @@ set_session(SID, JID, Priority, Info) ->
                        us = US,
                        priority = Priority,
                        info = Info},
-    ejabberd_sm_backend:create_session(LUser, LServer, LResource, Session).
-
--spec update_session(SID, JID, Prio, Info) -> ok | {error, any()} when
-      SID :: sid() | 'undefined',
-      JID :: jid:jid(),
-      Prio :: priority(),
-      Info :: info().
-update_session(SID, JID, Priority, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    US = {LUser, LServer},
-    USR = {LUser, LServer, LResource},
-    Session = #session{sid = SID,
-                       usr = USR,
-                       us = US,
-                       priority = Priority,
-                       info = Info},
-    ejabberd_sm_backend:update_session(LUser, LServer, LResource, Session).
+    ejabberd_sm_backend:set_session(LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

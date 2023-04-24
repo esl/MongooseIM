@@ -44,19 +44,19 @@ tests() ->
      session_is_updated_when_created_twice,
      delete_session,
      clean_up,
-     too_much_sessions,
+     too_many_sessions,
      unique_count,
      unique_count_while_removing_entries,
      session_info_is_stored,
      session_info_is_updated_if_keys_match,
+     session_info_is_updated_properly_if_session_conflicts,
      session_info_is_extended_if_new_keys_present,
      session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
      kv_can_be_stored_for_session,
      kv_can_be_updated_for_session,
      kv_can_be_removed_for_session,
      store_info_sends_message_to_the_session_owner,
-     remove_info_sends_message_to_the_session_owner,
-     cannot_reproduce_race_condition_in_store_info
+     remove_info_sends_message_to_the_session_owner
     ].
 
 init_per_group(mnesia, Config) ->
@@ -90,14 +90,18 @@ end_per_group(_, Config) ->
     whereis(test_helper) ! stop,
     Config.
 
-init_per_testcase(too_much_sessions, Config) ->
-    set_test_case_meck(?MAX_USER_SESSIONS),
+init_per_testcase(too_many_sessions, Config) ->
+    set_test_case_meck(?MAX_USER_SESSIONS, true),
     setup_sm(Config),
     Config;
-init_per_testcase(_, Config) ->
-    set_test_case_meck(infinity),
+init_per_testcase(Case, Config) ->
+    set_test_case_meck(infinity, should_meck_c2s(Case)),
     setup_sm(Config),
     Config.
+
+should_meck_c2s(store_info_sends_message_to_the_session_owner) -> false;
+should_meck_c2s(remove_info_sends_message_to_the_session_owner) -> false;
+should_meck_c2s(_) -> true.
 
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
@@ -181,6 +185,28 @@ session_info_is_updated_if_keys_match(C) ->
     [#session{sid = Sid, info = #{key1 := val2}}]
      = ?B(C):get_sessions(U,S).
 
+%% Same resource but different sids
+session_info_is_updated_properly_if_session_conflicts(C) ->
+    %% We use 2 SIDs here
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    %% Sid2 > Sid in this case, because SIDs have a timestamp in them
+    %% We cannot test store_info for Sid2 though, because it has a different pid
+    Sid2 = make_sid_with_unique_pid(),
+
+    %% Two sessions for the same USR are registered after that:
+    given_session_opened(Sid, USR, 1, [{key1, val1}, {key2, a}]),
+    given_session_opened(Sid2, USR, 1, [{key1, val2}, {key3, b}]),
+
+    %% Each call to open_session overwrites the previous data without merging.
+    %% The current version of mongoose_c2s calls open_session only once per SID.
+    %% Still, we want to test what happens if we call open_session the second time.
+    when_session_opened(Sid, USR, 1, [{key1, val3}, {key4, c}]),
+
+    [#session{sid = Sid, info = Info1}, #session{sid = Sid2, info = Info2}]
+        = lists:keysort(#session.sid, ?B(C):get_sessions(U, S)),
+    [{key1, val3}, {key4, c}] = maps:to_list(Info1),
+    [{key1, val2}, {key3, b}] = maps:to_list(Info2).
+
 session_info_is_extended_if_new_keys_present(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
@@ -194,18 +220,17 @@ session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
+    %% Should not be called twice in the real life
     when_session_opened(Sid, USR, 1, []),
 
-    [#session{sid = Sid, info = #{key1 := val1}}]
+    [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U,S).
 
 
 kv_can_be_stored_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
-
-    when_session_info_stored(U, S, R, {key2, newval}),
-
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
     ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := newval}}],
                  ?B(C):get_sessions(U,S)).
 
@@ -213,8 +238,8 @@ kv_can_be_updated_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
-    when_session_info_stored(U, S, R, {key2, newval}),
-    when_session_info_stored(U, S, R, {key2, override}),
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
+    when_session_info_stored(Sid, U, S, R, {key2, override}),
 
     ?assertMatch([#session{sid = Sid, info = #{key1 := val1, key2 := override}}],
                  ?B(C):get_sessions(U, S)).
@@ -223,23 +248,20 @@ kv_can_be_removed_for_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR, 1, [{key1, val1}]),
 
-    when_session_info_stored(U, S, R, {key2, newval}),
+    when_session_info_stored(Sid, U, S, R, {key2, newval}),
 
     [#session{sid = Sid, info = #{key1 := val1, key2 := newval}}]
      = ?B(C):get_sessions(U, S),
 
-    when_session_info_removed(U, S, R, key2),
+    when_session_info_removed(Sid, U, S, R, key2),
 
     [#session{sid = Sid, info = #{key1 := val1}}]
      = ?B(C):get_sessions(U, S),
 
-    when_session_info_removed(U, S, R, key1),
+    when_session_info_removed(Sid, U, S, R, key1),
 
     [#session{sid = Sid, info = #{}}]
      = ?B(C):get_sessions(U, S).
-
-cannot_reproduce_race_condition_in_store_info(C) ->
-    ok = try_to_reproduce_race_condition(C).
 
 store_info_sends_message_to_the_session_owner(C) ->
     SID = {erlang:system_time(microsecond), self()},
@@ -248,17 +270,16 @@ store_info_sends_message_to_the_session_owner(C) ->
     R = <<"res1">>,
     Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
     %% Create session in one process
-    ?B(C):create_session(U, S, R, Session),
+    ?B(C):set_session(U, S, R, Session),
     %% but call store_info from another process
     JID = jid:make_noprep(U, S, R),
-    spawn_link(fun() -> ejabberd_sm:store_info(JID, cc, undefined) end),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, SID, cc, undefined) end),
     %% The original process receives a message
     receive
-        {'$gen_cast', {async,
+        {'$gen_cast', {async_with_state,
                        _Fun,
-                       [#jid{luser = User, lserver = Server, lresource = Resource},
-                       K,
-                       V]}} ->
+                       [SID, #jid{luser = User, lserver = Server, lresource = Resource},
+                        K, V]}} ->
             ?eq(U, User),
             ?eq(S, Server),
             ?eq(R, Resource),
@@ -277,16 +298,16 @@ remove_info_sends_message_to_the_session_owner(C) ->
     R = <<"res1">>,
     Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
     %% Create session in one process
-    ?B(C):create_session(U, S, R, Session),
+    ?B(C):set_session(U, S, R, Session),
     %% but call remove_info from another process
     JID = jid:make_noprep(U, S, R),
-    spawn_link(fun() -> ejabberd_sm:remove_info(JID, cc) end),
+    spawn_link(fun() -> ejabberd_sm:remove_info(JID, SID, cc) end),
     %% The original process receives a message
     receive
-        {'$gen_cast', {async,
+        {'$gen_cast', {async_with_state,
                        _Fun,
-                       [#jid{luser = User, lserver = Server, lresource = Resource},
-                       Key]}} ->
+                       [SID, #jid{luser = User, lserver = Server, lresource = Resource},
+                        Key, undefined]}} ->
             ?eq(U, User),
             ?eq(S, Server),
             ?eq(R, Resource),
@@ -330,7 +351,7 @@ ensure_empty(C, N, Sessions) ->
             ensure_empty(C, N-1, ?B(C):get_sessions())
     end.
 
-too_much_sessions(_C) ->
+too_many_sessions(_C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
     UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
     {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
@@ -375,15 +396,47 @@ unload_meck() ->
     meck:unload(acl),
     meck:unload(gen_hook),
     meck:unload(ejabberd_commands),
-    meck:unload(mongoose_domain_api).
+    meck:unload(mongoose_domain_api),
+    catch ets:delete(test_c2s_info),
+    catch meck:unload(mongoose_c2s).
 
-set_test_case_meck(MaxUserSessions) ->
+set_test_case_meck(MaxUserSessions, MeckC2s) ->
+    ets:new(test_c2s_info, [public, named_table]),
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _, _) -> MaxUserSessions end),
     meck:new(gen_hook, []),
     meck:expect(gen_hook, run_fold, fun(_, _, Acc, _) -> {ok, Acc} end),
     meck:new(mongoose_domain_api, []),
-    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end).
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
+    do_meck_c2s(MeckC2s).
+
+do_meck_c2s(false) ->
+    ok;
+do_meck_c2s(true) ->
+    %% Very simple mock, not even reproducing async behaviour
+    %% It is for a limited use only, for more complex tests use a real c2s process (i.e. probably big tests)
+    meck:new(mongoose_c2s, [passthrough]),
+    meck:expect(mongoose_c2s, async_with_state, fun async_with_state/3),
+    meck:expect(mongoose_c2s, get_info, fun get_info/1),
+    meck:expect(mongoose_c2s, set_info, fun set_info/2),
+    %% Just return same thing all the time
+    meck:expect(mongoose_c2s, get_mod_state, fun(_C2sState, _Mod) -> {error, not_found} end).
+
+async_with_state(Pid, Fun, Args) ->
+    apply(Fun, [{ministate, Pid}|Args]),
+    ok.
+
+get_info({ministate, Pid}) ->
+    case ets:lookup(test_c2s_info, Pid) of
+        [] ->
+            #{};
+        [{Pid, Info}] ->
+            Info
+    end.
+
+set_info({ministate, Pid} = S, Info) ->
+    ets:insert(test_c2s_info, {Pid, Info}),
+    S.
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
@@ -401,7 +454,13 @@ get_fun_for_unique_count(ejabberd_sm_redis) ->
     end.
 
 make_sid() ->
-    {erlang:timestamp(), self()}.
+    %% ejabberd_sm:store_info has different behaviour when called
+    %% from inside and from outside of the c2s process. So, self() here is important.
+    {erlang:system_time(microsecond), self()}.
+
+make_sid_with_unique_pid() ->
+    %% Use spawn to get an unique pid
+    {erlang:system_time(microsecond), spawn(fun() -> ok end)}.
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
@@ -410,19 +469,24 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
     given_session_opened(Sid, {U, S, R}, Priority, []).
 
 given_session_opened(Sid, {U, S, R}, Priority, Info) ->
+    {_, Pid} = Sid,
+    Map = maps:from_list(Info),
+    %% open_session is called by c2s usually, but here in tests the function is called by the test.
+    %% we still need to remember the initial info for tests to work though.
+    ets:insert_new(test_c2s_info, {Pid, Map}),
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:open_session(S, Sid, JID, Priority, maps:from_list(Info)).
+    ejabberd_sm:open_session(S, Sid, JID, Priority, Map).
 
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
 
-when_session_info_stored(U, S, R, {K, V}) ->
+when_session_info_stored(SID, U, S, R, {K, V}) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:store_info(JID, K, V).
+    ejabberd_sm:store_info(JID, SID, K, V).
 
-when_session_info_removed(U, S, R, Key) ->
+when_session_info_removed(SID, U, S, R, Key) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:remove_info(JID, Key).
+    ejabberd_sm:remove_info(JID, SID, Key).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
@@ -529,63 +593,6 @@ is_redis_running() ->
             end;
         _ ->
             false
-    end.
-
-try_to_reproduce_race_condition(Config) ->
-    SID = {erlang:timestamp(), self()},
-    U = <<"alice">>,
-    S = <<"localhost">>,
-    R = <<"res1">>,
-    Session = #session{sid = SID, usr = {U, S, R}, us = {U, S}, priority = 1, info = #{}},
-    ?B(Config):create_session(U, S, R, Session),
-    Parent = self(),
-    %% Add some instrumentation to simulate race conditions
-    %% The goal is to delete the session after other process reads it
-    %% but before it updates it. In other words, delete a record
-    %% between get_sessions and create_session in ejabberd_sm:store_info
-    %% Step1 prepare concurrent processes
-    DeleterPid = spawn_link(fun() ->
-                                    receive start -> ok end,
-                                    ?B(Config):delete_session(SID, U, S, R),
-                                    Parent ! p1_done
-                            end),
-    SetterPid = spawn_link(fun() ->
-                                   receive start -> ok end,
-                                   when_session_info_stored(U, S, R, {cc, undefined}),
-                                   Parent ! p2_done
-                           end),
-    %% Step2 setup mocking for some ejabbers_sm_mnesia functions
-    meck:new(?B(Config), []),
-    %% When the first get_sessions (run from ejabberd_sm:store_info)
-    %% is executed, the start msg is sent to Deleter process
-    %% Thanks to that, setter will get not empty list of sessions
-    PassThrough3 = fun(A, B, C) ->
-                           DeleterPid ! start,
-                           meck:passthrough([A, B, C]) end,
-    meck:expect(?B(Config), get_sessions, PassThrough3),
-    %% Wait some time before setting the sessions
-    %% so we are sure delete operation finishes
-    meck:expect(?B(Config), create_session,
-                fun(U1, S1, R1, Session1) ->
-                        timer:sleep(100),
-                        meck:passthrough([U1, S1, R1, Session1])
-                end),
-    PassThrough4 = fun(A, B, C, D) -> meck:passthrough([A, B, C, D]) end,
-    meck:expect(?B(Config), delete_session, PassThrough4),
-    %% Start the play from setter process
-    SetterPid ! start,
-    %% Wait for both process to finish
-    receive p1_done -> ok end,
-    receive p2_done -> ok end,
-    meck:unload(?B(Config)),
-    %% Session should not exist
-    case ?B(Config):get_sessions(U, S, R) of
-        [] ->
-            ok;
-        Other ->
-            error_logger:error_msg("issue=reproduced, sid=~p, other=~1000p",
-                                   [SID, Other]),
-            {error, reproduced}
     end.
 
 setup_sm(Config) ->

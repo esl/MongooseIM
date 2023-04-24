@@ -150,7 +150,7 @@ unavailable_resources_dont_get_carbons(Config) ->
           Body2 = <<"carbonated">>,
           escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, Body2)),
           wait_for_message_with_body(Alice2, Body2),
-          wait_for_carbon_with_body(Alice1, Body2, #{from => Bob, to => Alice2})
+          carboncopy_helper:wait_for_carbon_with_body(Alice1, Body2, #{from => Bob, to => Alice2})
       end).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
@@ -287,9 +287,3 @@ run_prop(PropName, Property) ->
 wait_for_message_with_body(Alice, Body) ->
     AliceReceived = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_chat_message, [Body], AliceReceived).
-
-wait_for_carbon_with_body(Alice, Body, #{from := From, to := To}) ->
-    escalus:assert(
-      is_forwarded_received_message,
-      [escalus_client:full_jid(From), escalus_client:full_jid(To), Body],
-      escalus_client:wait_for_stanza(Alice)).

@@ -47,6 +47,9 @@
 -ignore_xref([sip_bye/2, sip_cancel/3, sip_dialog_update/3, sip_info/2,
               sip_invite/2, sip_reinvite/2]).
 
+%% nksip specs do not fully cover case when they return a parsing error
+-dialyzer({nowarn_function, [assert_sdp_record/2]}).
+
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
@@ -91,6 +94,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     {ok, ReqID} = nksip_request:get_handle(Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
+    assert_sdp_record(Body, SDP),
 
     OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
 
@@ -123,6 +127,7 @@ sip_reinvite_unsafe(Req, _Call) ->
     Body = nksip_sipmsg:meta(body, Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
+    assert_sdp_record(Body, SDP),
     RemainingAttrs = SDP#sdp.attributes,
     OtherEls = sip_to_jingle:parse_sdp_attributes(RemainingAttrs),
 
@@ -229,6 +234,7 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
     Body = nksip_sipmsg:meta(body, SIPMsg),
     CallID = nksip_sipmsg:header(<<"call-id">>, SIPMsg),
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
+    assert_sdp_record(Body, SDP),
     OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
 
 
@@ -342,3 +348,8 @@ maybe_route_to_all_sessions(From, To, Acc, Packet) ->
               ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)
       end, PResources).
 
+
+assert_sdp_record(_Body, #sdp{}) ->
+    ok;
+assert_sdp_record(Body, SDP) ->
+    error({assert_sdp_record, Body, SDP}).

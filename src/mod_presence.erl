@@ -8,6 +8,7 @@
 
 -type jid_set() :: gb_sets:set(jid:jid()).
 -type priority() :: -128..128.
+-type maybe_priority() :: priority() | undefined.
 -record(presences_state, {
           %% We have _subscription to_ these users' presence status;
           %% i.e. they send us presence updates.
@@ -47,7 +48,8 @@
          get_presence/1,
          get_subscribed/1,
          set_presence/2,
-         maybe_get_handler/1
+         maybe_get_handler/1,
+         get_old_priority/1
         ]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -401,7 +403,8 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
-    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, #{}),
+    Info = mongoose_c2s:get_info(StateData),
+    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, Info),
     presence_broadcast(Acc1, Presences#presences_state.pres_a),
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
     NewPresences = Presences#presences_state{pres_last = undefined,
@@ -494,7 +497,7 @@ presence_broadcast(Acc, JIDSet) ->
 
 -spec presence_update_to_available(
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(),
-        presences_state(), list(), priority(), priority(), boolean()) ->
+        presences_state(), list(), maybe_priority(), priority(), boolean()) ->
     mongoose_acc:t().
 presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, SocketSend,
                              _OldPriority, NewPriority, true) ->
@@ -510,7 +513,7 @@ presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences,
                              OldPriority, NewPriority, false) ->
     presence_broadcast_to_trusted(
              Acc, FromJid, Presences#presences_state.pres_f, Presences#presences_state.pres_a, Packet),
-    Acc1 = case OldPriority < 0 andalso NewPriority >= 0 of
+    Acc1 = case (OldPriority < 0 orelse OldPriority =:= undefined) andalso NewPriority >= 0 of
                true ->
                    resend_offline_messages(Acc, StateData);
                false ->
@@ -644,10 +647,10 @@ get_priority_from_presence(PresencePacket) ->
         _ -> 0
     end.
 
--spec get_old_priority(presences_state()) -> priority().
+-spec get_old_priority(presences_state()) -> maybe_priority().
 get_old_priority(Presences) ->
     case Presences#presences_state.pres_last of
-        undefined -> 0;
+        undefined -> undefined;
         OldPresence -> get_priority_from_presence(OldPresence)
     end.
 
@@ -658,7 +661,8 @@ get_old_priority(Presences) ->
 update_priority(Acc, Priority, Packet, StateData) ->
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
-    ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, #{}).
+    Info = mongoose_c2s:get_info(StateData),
+    ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info).
 
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->
     gb_sets:is_element(LJID, S#presences_state.pres_t)

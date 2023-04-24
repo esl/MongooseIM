@@ -119,21 +119,13 @@ iq_handler(Acc, From, #iq{type = set,
                           sub_el = #xmlel{name = Operation,
                                           children = []}} = IQ, CC) ->
     ?LOG_DEBUG(#{what => cc_iq_received, acc => Acc}),
-    Result = case Operation of
-                 <<"enable">> ->
-                     enable(From, CC);
-                 <<"disable">> ->
-                     disable(From)
-             end,
-    case Result of
-        ok ->
-            ?LOG_DEBUG(#{what => cc_iq_result, acc => Acc}),
-            {Acc, IQ#iq{type = result, sub_el = []}};
-        {error, Reason} ->
-            ?LOG_WARNING(#{what => cc_iq_failed, acc => Acc, reason => Reason}),
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:not_allowed()]}}
-    end;
-
+    case Operation of
+        <<"enable">> ->
+            enable(From, CC, Acc);
+        <<"disable">> ->
+            disable(From, Acc)
+    end,
+    {Acc, IQ#iq{type = result, sub_el = []}};
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
@@ -157,7 +149,7 @@ user_receive_message(Acc, #{c2s_data := C2SData}, _) ->
     Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 remove_connection(Acc, #{jid := JID}, _) ->
-    disable(JID),
+    disable(JID, Acc),
     {ok, Acc}.
 
 % Check if the traffic is local.
@@ -332,21 +324,17 @@ carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
                                  attrs = [{<<"xmlns">>, ?NS_FORWARD}],
                                  children = [complete_packet(Acc, JID, Packet, Direction)]} ]} ].
 
-enable(JID, CC) ->
+enable(JID, CC, Acc) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    case ejabberd_sm:store_info(JID, ?CC_KEY, cc_ver_to_int(CC)) of
-        {ok, ?CC_KEY} -> ok;
-        {error, _} = Err -> Err
-    end.
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)).
 
-disable(JID) ->
+disable(JID, Acc) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    case ejabberd_sm:remove_info(JID, ?CC_KEY) of
-        ok -> ok;
-        {error, offline} -> ok
-    end.
+    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY).
 
 complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
     %% if this is a packet sent by user on this host, then Packet doesn't

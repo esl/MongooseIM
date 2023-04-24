@@ -431,6 +431,7 @@ pm_no_msg_notifications_if_user_online(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+            escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
             ?assert(not truly(received_push())),
             ok

@@ -17,8 +17,7 @@
          get_sessions/1,
          get_sessions/2,
          get_sessions/3,
-         create_session/4,
-         update_session/4,
+         set_session/4,
          delete_session/4,
          cleanup/1,
          maybe_initial_cleanup/2,
@@ -71,34 +70,11 @@ get_sessions(User, Server, Resource) ->
 
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
--spec create_session(User :: jid:luser(),
-                     Server :: jid:lserver(),
-                     Resource :: jid:lresource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-create_session(User, Server, Resource, Session) ->
-    OldSessions = get_sessions(User, Server, Resource),
-    case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
-        {value, OldSession} ->
-            MergedInfoSession = mongoose_session:merge_info(Session, OldSession),
-            BOldSession = term_to_binary(OldSession),
-            BSession = term_to_binary(MergedInfoSession),
-            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                 ["SREM", hash(User, Server), BOldSession],
-                                 ["SREM", hash(User, Server, Resource), BOldSession],
-                                 ["SADD", hash(User, Server), BSession],
-                                 ["SADD", hash(User, Server, Resource), BSession]]);
-        false ->
-            BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                 ["SADD", hash(User, Server), BSession],
-                                 ["SADD", hash(User, Server, Resource), BSession]])
-    end.
-
--spec update_session(User :: jid:luser(),
-                     Server :: jid:lserver(),
-                     Resource :: jid:lresource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-update_session(User, Server, Resource, Session) ->
+-spec set_session(User :: jid:luser(),
+                  Server :: jid:lserver(),
+                  Resource :: jid:lresource(),
+                  Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+set_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->

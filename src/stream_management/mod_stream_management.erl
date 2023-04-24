@@ -566,10 +566,10 @@ do_handle_resume(Acc, StateData, C2SState, SMID, _H, {error, smid_not_found}) ->
       SMID :: smid(),
       HookResult :: mongoose_c2s_hooks:result().
 do_resume(Acc, StateData, SMID) ->
-    mongoose_c2s:open_session(StateData),
-    ok = register_smid(StateData, SMID),
-    Stanzas = get_all_stanzas_to_forward(StateData, SMID),
-    ToAcc = [{c2s_state, session_established}, {c2s_data, StateData}, {socket_send, Stanzas}],
+    {_ReplacedPids, StateData2} = mongoose_c2s:open_session(StateData),
+    ok = register_smid(StateData2, SMID),
+    Stanzas = get_all_stanzas_to_forward(StateData2, SMID),
+    ToAcc = [{c2s_state, session_established}, {c2s_data, StateData2}, {socket_send, Stanzas}],
     {ok, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}.
 
 register_smid(StateData, SMID) ->

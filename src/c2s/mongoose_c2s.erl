@@ -12,8 +12,9 @@
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
 %% utils
--export([start_link/2, start/2, stop/2, exit/2, async/3, call/3, cast/3]).
+-export([start_link/2, start/2, stop/2, exit/2, async/3, async_with_state/3, call/3, cast/3]).
 -export([create_data/1, get_host_type/1, get_lserver/1, get_sid/1, get_jid/1,
+         get_info/1, set_info/2,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
@@ -33,12 +34,14 @@
           shaper :: undefined | shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
           auth_module :: undefined | module(),
-          state_mod = #{} :: #{module() => term()}
+          state_mod = #{} :: #{module() => term()},
+          info = #{} :: info()
          }).
 -type data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
 -type fsm_res() :: gen_statem:event_handler_result(state(), data()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
+-type info() :: #{atom() => term()}.
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
@@ -188,13 +191,14 @@ handle_event(EventType, EventContent, C2SState, StateData) ->
     handle_foreign_event(StateData, C2SState, EventType, EventContent).
 
 -spec terminate(term(), state(), data()) -> term().
-terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer} = StateData) ->
+terminate(Reason, C2SState, #c2s_data{host_type = HostType, lserver = LServer, sid = SID} = StateData) ->
     ?LOG_DEBUG(#{what => c2s_statem_terminate, reason => Reason, c2s_state => C2SState, c2s_data => StateData}),
     Params = hook_arg(StateData, C2SState, terminate, Reason, Reason),
     Acc0 = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    Acc1 = mongoose_c2s_hooks:user_terminate(HostType, Acc0, Params),
-    Acc2 = do_close_session(StateData, C2SState, Acc1, Reason),
-    mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc2, Params),
+    Acc1 = mongoose_acc:set_permanent(c2s, [{origin_sid, SID}], Acc0),
+    Acc2 = mongoose_c2s_hooks:user_terminate(HostType, Acc1, Params),
+    Acc3 = do_close_session(StateData, C2SState, Acc2, Reason),
+    mongoose_c2s_hooks:reroute_unacked_messages(HostType, Acc3, Params),
     bounce_messages(StateData),
     close_parser(StateData),
     close_socket(StateData),
@@ -537,14 +541,15 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
 -spec do_open_session(data(), state(), mongoose_acc:t()) -> fsm_res().
 do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
-    FsmActions = case open_session(StateData) of
+    {ReplacedPids, StateData2} = open_session(StateData),
+    FsmActions = case ReplacedPids of
                      [] -> [];
-                     ReplacedPids ->
+                     _ ->
                          Timeout = mongoose_config:get_opt({replaced_wait_timeout, HostType}),
                          [{{timeout, replaced_wait_timeout}, Timeout, ReplacedPids}]
                  end,
     Acc2 = mongoose_c2s_acc:to_acc(Acc1, actions, FsmActions),
-    handle_state_after_packet(StateData, C2SState, Acc2).
+    handle_state_after_packet(StateData2, C2SState, Acc2).
 
 maybe_wait_for_session(#c2s_data{listener_opts = #{backwards_compatible_session := false}}) ->
     session_established;
@@ -576,6 +581,10 @@ handle_cast(StateData, C2SState, {stop, Reason}) ->
 handle_cast(_StateData, _C2SState, {async, Fun, Args}) ->
     apply(Fun, Args),
     keep_state_and_data;
+
+handle_cast(StateData, _C2SState, {async_with_state, Fun, Args}) ->
+    StateData2 = apply(Fun, [StateData | Args]),
+    {keep_state, StateData2};
 handle_cast(StateData, C2SState, Event) ->
     handle_foreign_event(StateData, C2SState, cast, Event).
 
@@ -902,17 +911,20 @@ reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->
 route(Pid, Acc) ->
     Pid ! {route, Acc}.
 
--spec open_session(data()) -> [pid()].
+-spec open_session(data()) -> {[pid()], data()}.
 open_session(
-  #c2s_data{host_type = HostType, sid = Sid, jid = Jid, socket = Socket, auth_module = AuthModule}) ->
-    Info = #{ip => mongoose_c2s_socket:get_ip(Socket),
-             conn => mongoose_c2s_socket:get_conn_type(Socket),
-             auth_module => AuthModule},
-    ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info).
+  StateData = #c2s_data{host_type = HostType, sid = Sid, jid = Jid,
+                        socket = Socket, auth_module = AuthModule, info = Info}) ->
+    NewFields = #{ip => mongoose_c2s_socket:get_ip(Socket),
+                  conn => mongoose_c2s_socket:get_conn_type(Socket),
+                  auth_module => AuthModule},
+    Info2 = maps:merge(Info, NewFields),
+    ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
+    {ReplacedPids, StateData#c2s_data{info = Info2}}.
 
 -spec close_session(data(), mongoose_acc:t(), term()) -> mongoose_acc:t().
-close_session(#c2s_data{sid = Sid, jid = Jid}, Acc, Reason) ->
-    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason)).
+close_session(#c2s_data{sid = Sid, jid = Jid, info = Info}, Acc, Reason) ->
+    ejabberd_sm:close_session(Acc, Sid, Jid, sm_unset_reason(Reason), Info).
 
 -spec patch_acc_for_reroute(mongoose_acc:t(), ejabberd_sm:sid()) -> mongoose_acc:t().
 patch_acc_for_reroute(Acc, Sid) ->
@@ -1021,6 +1033,10 @@ exit(Pid, Reason) ->
 async(Pid, Fun, Args) ->
     gen_statem:cast(Pid, {async, Fun, Args}).
 
+-spec async_with_state(pid(), fun(), [term()]) -> ok.
+async_with_state(Pid, Fun, Args) ->
+    gen_statem:cast(Pid, {async_with_state, Fun, Args}).
+
 -spec call(pid(), atom(), term()) -> term().
 call(Pid, EventTag, EventContent) ->
     gen_statem:call(Pid, #{event_tag => EventTag, event_content => EventContent}, 5000).
@@ -1057,6 +1073,14 @@ get_socket(#c2s_data{socket = Socket}) ->
 get_jid(#c2s_data{jid = Jid}) ->
     Jid.
 
+-spec get_info(data()) -> info().
+get_info(#c2s_data{info = Info}) ->
+    Info.
+
+-spec set_info(data(), info()) -> data().
+set_info(StateData, Info) ->
+    StateData#c2s_data{info = Info}.
+
 -spec get_lang(data()) -> ejabberd:lang().
 get_lang(#c2s_data{lang = Lang}) ->
     Lang.
@@ -1090,5 +1114,6 @@ merge_states(S0 = #c2s_data{}, S1 = #c2s_data{}) ->
       host_type = S0#c2s_data.host_type,
       lserver = S0#c2s_data.lserver,
       jid = S0#c2s_data.jid,
-      state_mod = S0#c2s_data.state_mod
+      state_mod = S0#c2s_data.state_mod,
+      info = S0#c2s_data.info
      }.

@@ -18,8 +18,7 @@
          get_sessions/1,
          get_sessions/2,
          get_sessions/3,
-         create_session/4,
-         update_session/4,
+         set_session/4,
          delete_session/4,
          cleanup/1,
          total_count/0,
@@ -59,27 +58,11 @@ get_sessions(User, Server) ->
 get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
 
--spec create_session(_User :: jid:luser(),
-                     _Server :: jid:lserver(),
-                     _Resource :: jid:lresource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-create_session(User, Server, Resource, Session) ->
-    case get_sessions(User, Server, Resource) of
-        [] -> mnesia:sync_dirty(fun() -> mnesia:write(Session) end);
-        Sessions when is_list(Sessions) ->
-            %% Fix potential race condition during XMPP bind, where
-            %% multiple calls (> 2) to ejabberd_sm:open_session
-            %% have been made, resulting in >1 sessions for this resource
-            MergedSession = mongoose_session:merge_info
-                              (Session, hd(lists:sort(Sessions))),
-            mnesia:sync_dirty(fun() -> mnesia:write(MergedSession) end)
-    end.
-
--spec update_session(_User :: jid:luser(),
-                     _Server :: jid:lserver(),
-                     _Resource :: jid:lresource(),
-                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-update_session(_User, _Server, _Resource, Session) ->
+-spec set_session(_User :: jid:luser(),
+                  _Server :: jid:lserver(),
+                  _Resource :: jid:lresource(),
+                  Session :: ejabberd_sm:session()) -> ok | {error, term()}.
+set_session(_User, _Server, _Resource, Session) ->
     mnesia:sync_dirty(fun() -> mnesia:write(Session) end).
 
 -spec delete_session(ejabberd_sm:sid(),
@@ -87,9 +70,7 @@ update_session(_User, _Server, _Resource, Session) ->
                      _Server :: jid:lserver(),
                      _Resource :: jid:lresource()) -> ok.
 delete_session(SID, _User, _Server, _Resource) ->
-    mnesia:sync_dirty(fun() ->
-                              mnesia:delete({session, SID})
-                      end).
+    mnesia:sync_dirty(fun() -> mnesia:delete({session, SID}) end).
 
 -spec cleanup(atom()) -> any().
 cleanup(Node) ->

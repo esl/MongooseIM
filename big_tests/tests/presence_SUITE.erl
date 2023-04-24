@@ -45,6 +45,7 @@ groups() ->
                              explicit_available,
                              available_direct,
                              available_direct_then_unavailable,
+                             become_unavailable,
                              available_direct_then_disconnect,
                              additions,
                              invisible_presence]},
@@ -167,6 +168,11 @@ available_direct_then_unavailable(Config) ->
         escalus:assert(is_presence, Received2),
         escalus_assert:is_stanza_from(Alice, Received2)
         end).
+
+become_unavailable(Config) ->
+    %% We test that after sending presence unavailable, priority is set to undefined in the SM table,
+    %% so the session is not on a list of active sessions
+    escalus:story(Config, [{alice, 1}], fun(Alice) -> push_helper:become_unavailable(Alice) end).
 
 available_direct_then_disconnect(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
