@@ -7,17 +7,16 @@
 
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
--define(TRACKING_ID, "UA-151671255-2").
--define(TRACKING_ID_CI, "UA-151671255-1").
--define(TRACKING_ID_EXTRA, "UA-EXTRA-TRACKING-ID").
+-define(TRACKING_ID, #{id => "G-7KQE4W9SVJ", secret => "Secret"}).
+-define(TRACKING_ID_CI, #{id => "G-7KQE4W9SVJ", secret => "Secret2"}).
+-define(TRACKING_ID_EXTRA, #{id => "UA-EXTRA-TRACKING-ID", secret => "Secret3"}).
 
 -record(event, {
-    cid = "",
-    tid = "",
-    ec = "",
-    ea = "",
-    ev = "",
-    el = "" }).
+    name = <<"">>,
+    params = #{},
+    client_id = <<"">>,
+    instance_id = <<"">>,
+    app_secret = <<"">>}).
 
 -import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4,
                              require_rpc_nodes/1
@@ -228,7 +227,7 @@ module_opts_are_reported(_Config) ->
     check_module_backend(mod_privacy, Backend),
     check_module_backend(mod_private, Backend),
     check_module_backend(mod_pubsub, Backend),
-    check_module_opt(mod_push_service_mongoosepush, api_version, <<"\"v3\"">>),
+    check_module_opt(<<"mod_push_service_mongoosepush">>, <<"api_version">>, <<"\"v3\"">>),
     check_module_backend(mod_roster, Backend),
     check_module_backend(mod_vcard, Backend).
 
@@ -239,7 +238,7 @@ rdbms_module_opts_are_reported(_Config) ->
     check_module_backend(mod_mam, rdbms).
 
 check_module_backend(Module, Backend) ->
-    check_module_opt(Module, backend, atom_to_binary(Backend)).
+    check_module_opt(atom_to_binary(Module), <<"backend">>, atom_to_binary(Backend)).
 
 mongoose_version_is_reported(_Config) ->
     mongoose_helper:wait_until(fun is_mongoose_version_reported/0, true).
@@ -272,7 +271,7 @@ xmpp_stanzas_counts_are_reported(Config) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
         escalus:assert(is_chat_message, [<<"Hi">>], escalus:wait_for_stanza(Bob)),
         F = fun() -> assert_message_count_is_incremented(Sent, Received) end,
-        mongoose_helper:wait_until(F, ok)
+        mongoose_helper:wait_until(F, ok, #{sleep_time => 500, time_left => timer:seconds(20)})
     end).
 
 config_type_is_reported(_Config) ->
@@ -384,31 +383,32 @@ supports_dynamic_domains(Module) ->
 
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
-    UniqueSortedTab = lists:usort([Cid || #event{cid = Cid} <- Tab]),
+    UniqueSortedTab = lists:usort([Cid || #event{client_id = Cid} <- Tab]),
     1 = length(UniqueSortedTab).
 
 is_host_count_reported() ->
-    is_in_table(<<"hosts">>).
+    is_in_table(<<"hosts_count">>).
 
 are_modules_reported() ->
     is_in_table(<<"module">>).
 
-is_in_table(EventCategory) ->
+is_in_table(EventName) ->
     Tab = ets:tab2list(?ETS_TABLE),
     lists:any(
-        fun(#event{ec = EC}) ->
-            verify_category(EC, EventCategory)
+        fun(#event{name = Name, params = Params}) ->
+            verify_name(Name, EventName, Params)
         end, Tab).
 
-verify_category(EC, <<"module">>) ->
-    Result = re:run(EC, "^mod_.*"),
+verify_name(<<"module_with_opts">>, <<"module">>, Params) ->
+    Module = maps:get(<<"module">>, Params),
+    Result = re:run(Module, "^mod_.*"),
     case Result of
         {match, _Captured} -> true;
         nomatch -> false
     end;
-verify_category(EC, EC) ->
+verify_name(Name, Name, _) ->
     true;
-verify_category(_EC, _EventCategory) ->
+verify_name(_, _, _) ->
     false.
 
 get_events_collection_size() ->
@@ -464,30 +464,30 @@ primary_tracking_id() ->
 
 events_are_reported_to_tracking_ids(ConfiguredTrackingIds) ->
     Tab = ets:tab2list(?ETS_TABLE),
-    ActualTrackingIds = lists:usort([Tid || #event{tid = Tid} <- Tab]),
-    ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || Tid <- ConfiguredTrackingIds]),
+    ActualTrackingIds = lists:usort([InstanceId || #event{instance_id = InstanceId} <- Tab]),
+    ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || #{id := Tid} <- ConfiguredTrackingIds]),
     ?assertEqual(ExpectedTrackingIds, ActualTrackingIds).
 
-is_feature_reported(EventCategory, EventAction) ->
-    length(match_events(EventCategory, EventAction)) > 0.
+is_feature_reported(EventName, Key) ->
+    length(match_events(EventName, Key)) > 0.
 
-is_feature_reported(EventCategory, EventAction, EventLabel) ->
-    length(match_events(EventCategory, EventAction, EventLabel)) > 0.
+is_feature_reported(EventName, Key, Value) ->
+    length(match_events(EventName, Key, Value)) > 0.
 
 is_module_backend_reported(Module, Backend) ->
-    is_feature_reported(atom_to_binary(Module), <<"backend">>, atom_to_binary(Backend)).
+    is_module_opt_reported(Module, <<"backend">>, Backend).
 
 is_module_opt_reported(Module, Key, Value) ->
-    is_feature_reported(atom_to_binary(Module), atom_to_binary(Key), Value).
+    length(get_matched_events_for_module(Module, Key, Value)) > 0.
 
 is_mongoose_version_reported() ->
-    is_feature_reported(<<"cluster">>, <<"mim_version">>).
+    is_feature_reported(<<"cluster">>, <<"version">>).
 
 is_cluster_uptime_reported() ->
     is_feature_reported(<<"cluster">>, <<"uptime">>).
 
 are_xmpp_components_reported() ->
-    is_feature_reported(<<"cluster">>, <<"number_of_components">>).
+    is_feature_reported(<<"cluster">>, <<"components">>).
 
 is_config_type_reported() ->
     IsToml = is_feature_reported(<<"cluster">>, <<"config_type">>, <<"toml">>),
@@ -504,68 +504,74 @@ are_outgoing_pools_reported() ->
     is_in_table(<<"outgoing_pools">>).
 
 is_iq_count_reported() ->
-    is_in_table(<<"xmppIqSent">>).
+    is_feature_reported(<<"xmpp_stanza_count">>,
+                        <<"stanza_type">>,
+                        <<"xmppIqSent">>).
 
 is_message_count_reported() ->
-    is_in_table(<<"xmppMessageSent">>) andalso is_in_table(<<"xmppMessageReceived">>).
+    XmppMessageSent = is_feature_reported(<<"xmpp_stanza_count">>,
+                                          <<"stanza_type">>,
+                                          <<"xmppMessageSent">>),
+    XmppMessageReceived = is_feature_reported(<<"xmpp_stanza_count">>,
+                                               <<"stanza_type">>,
+                                               <<"xmppMessageReceived">>),
+    XmppMessageSent andalso XmppMessageReceived. 
 
 assert_message_count_is_incremented(Sent, Received) ->
     assert_increment(<<"xmppMessageSent">>, Sent),
     assert_increment(<<"xmppMessageReceived">>, Received).
 
 assert_increment(EventCategory, InitialValue) ->
-    Events = match_events(EventCategory, integer_to_binary(InitialValue + 1), <<$1>>),
-    ?assertMatch([_], Events). % expect exactly one event with an increment of 1
+    Events = match_events(<<"xmpp_stanza_count">>, <<"stanza_type">>, EventCategory),
+    % expect exactly one event with an increment of 1
+    SeekedEvent = [Event || Event = #event{params = 
+        #{<<"total">> := Total, <<"increment">> := 1}} <- Events, Total == InitialValue + 1],
+    ?assertMatch([_], SeekedEvent).
 
 get_metric_value(EventCategory) ->
-    [#event{ea = Value} | _] = match_events(EventCategory),
-    binary_to_integer(Value).
+    [#event{params = #{<<"total">> := Value}} | _] = match_events(<<"xmpp_stanza_count">>, <<"stanza_type">>, EventCategory),
+    Value.
 
 more_than_one_component_is_reported() ->
-    Events = match_events(<<"cluster">>, <<"number_of_components">>),
-    lists:any(fun(#event{el = EL}) ->
-                       binary_to_integer(EL) > 0
+    Events = match_events(<<"cluster">>),
+    lists:any(fun(#event{params = Params}) ->
+                       maps:get(<<"components">>, Params) > 0
               end, Events).
 
-match_events(EC) ->
-    ets:match_object(?ETS_TABLE, #event{ec = EC, _ = '_'}).
+match_events(EventName) ->
+    ets:match_object(?ETS_TABLE, #event{name = EventName, _ = '_'}).
 
-match_events(EC, EA) ->
-    ets:match_object(?ETS_TABLE, #event{ec = EC, ea = EA, _ = '_'}).
+match_events(EventName, ParamKey) ->
+    Res = ets:match_object(?ETS_TABLE, #event{name = EventName, _ = '_'}),
+    [Event || Event = #event{params = #{ParamKey := _}} <- Res].
 
-match_events(EC, EA, EL) ->
-    ets:match_object(?ETS_TABLE, #event{ec = EC, ea = EA, el = EL, _ = '_'}).
+match_events(EventName, ParamKey, ParamValue) ->
+    Res = ets:match_object(?ETS_TABLE, #event{name = EventName, _ = '_'}),
+    [Event || Event = #event{params = #{ParamKey := Value}} <- Res, Value == ParamValue].
+
+get_matched_events_for_module(ParamModule, Key, ParamValue) ->
+    Res = ets:match_object(?ETS_TABLE, #event{name = <<"module_with_opts">>, _ = '_'}),
+    [Event || Event = #event{params = #{<<"module">> := Module, Key := Value}} <- Res,
+         Value == ParamValue, Module == ParamModule].
 
 %%--------------------------------------------------------------------
 %% Cowboy handlers
 %%--------------------------------------------------------------------
 handler_init(Req0) ->
     {ok, Body, Req} = cowboy_req:read_body(Req0),
-    StrEvents = string:split(Body, "\n", all),
+    #{measurement_id := InstanceId, api_secret := AppSecret} = cowboy_req:match_qs([measurement_id, api_secret], Req0),
+    BodyMap = jiffy:decode(Body, [return_maps]),
+    EventTab = maps:get(<<"events">>, BodyMap), 
+    ClientID = maps:get(<<"client_id">>, BodyMap),
     lists:map(
-        fun(StrEvent) ->
-            Event = str_to_event(StrEvent),
+        fun(Event) ->
+            EventRecord = #event{name = maps:get(<<"name">>, Event),
+                                 params = maps:get(<<"params">>, Event),
+                                 client_id = ClientID,
+                                 instance_id = InstanceId,
+                                 app_secret = AppSecret},
             %% TODO there is a race condition when table is not available
-            ets:insert(?ETS_TABLE, Event)
-        end, StrEvents),
+            ets:insert(?ETS_TABLE, EventRecord)
+        end, EventTab),
     Req1 = cowboy_req:reply(200, #{}, <<"">>, Req),
     {ok, Req1, no_state}.
-
-str_to_event(Qs) ->
-    StrParams = string:split(Qs, "&", all),
-    Params = lists:map(
-        fun(StrParam) ->
-            [StrKey, StrVal] = string:split(StrParam, "="),
-            {binary_to_atom(StrKey, utf8), StrVal}
-        end, StrParams),
-    #event{
-        cid = get_el(cid, Params),
-        tid = get_el(tid, Params),
-        ec = get_el(ec, Params),
-        ea = get_el(ea, Params),
-        el = get_el(el, Params),
-        ev = get_el(ev, Params)
-    }.
-
-get_el(Key, Proplist) ->
-    proplists:get_value(Key, Proplist, undef).

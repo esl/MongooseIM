@@ -41,7 +41,7 @@
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
--type tracking_id() :: string().
+-type tracking_id() :: #{id => string(), secret => string()}.
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
@@ -73,12 +73,21 @@ config_spec() ->
                  <<"periodic_report">> => #option{type = integer,
                                                   validate = non_negative},
                  <<"report">> => #option{type = boolean},
-                 <<"tracking_id">> => #option{type = string,
-                                              validate = non_empty}
+                 <<"tracking_id">> => tracking_id_section()
                 },
        defaults = #{<<"initial_report">> => timer:minutes(5),
                     <<"periodic_report">> => timer:minutes(6)}
       }.
+
+tracking_id_section() ->
+    #section{
+       items = #{<<"id">> => #option{type = string,
+                                     validate = non_empty},
+                 <<"secret">> => #option{type = string,
+                                         validate = non_empty}
+                },
+       required = all
+       }.
 
 -spec start_link(mongoose_service:options()) -> {ok, pid()}.
 start_link(Opts) ->

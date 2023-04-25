@@ -12,7 +12,6 @@
            [report_struct()],
            [service_mongoose_system_metrics:tracking_id()]) -> ok.
 send(ClientId, Reports, TrackingIds) ->
-    io:format("\nReports: ~p", [Reports]),
     send_reports_for_each_tracking_id(ClientId, TrackingIds, Reports),
     ok.
 
@@ -39,20 +38,11 @@ flush_reports(ReportUrl, Reports, ClientId,
     Headers = [],
     ContentType = "application/json",
     Body = jiffy:encode(#{client_id => list_to_binary(ClientId), events => Reports}),
-    io:format("Body: ~p", [Body]),
-    ReportUrl2 = uri_string:normalize(ReportUrl ++ "?api_secret=" ++ TrackingSecret ++ "&measurement_id=" ++ TrackingId),
-    io:format("URL: ~p", [ReportUrl2]),
+    ReportUrl2 = uri_string:normalize(
+        ReportUrl ++ "?api_secret=" ++ TrackingSecret ++ "&measurement_id=" ++ TrackingId),
     Request = {ReportUrl2, Headers, ContentType, Body},
-    Res = httpc:request(post, Request, [{ssl, [{verify, verify_none}]}], []),
-    io:format("RES: ~p", [Res]),
-    Res;
+    httpc:request(post, Request, [{ssl, [{verify, verify_none}]}], []);
 flush_reports(ReportUrl, Reports, ClientId, TrackingId) ->
     {NewBatch, RemainingLines} = lists:split(20, Reports),
     flush_reports(ReportUrl, NewBatch, ClientId, TrackingId),
     flush_reports(ReportUrl, RemainingLines, ClientId, TrackingId).
-
-term_to_string(Term) when is_binary(Term) ->
-    term_to_string(binary_to_list(Term));
-term_to_string(Term) ->
-    R = io_lib:format("~p",[Term]),
-    lists:flatten(R).

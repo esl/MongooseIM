@@ -182,7 +182,6 @@ get_outgoing_pools() ->
        params => #{value => Type}} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
-    io:format("PREV_REPORT: ~p", [PrevReport]),
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,
                    xmppIqReceived, xmppPresenceSent, xmppPresenceReceived],
     NewCount = [count_stanzas(StanzaType) || StanzaType <- StanzaTypes],
@@ -204,9 +203,8 @@ calculate_stanza_rate([], NewCount) ->
     [{Type, Count, Count} || {Type, Count} <- NewCount];
 calculate_stanza_rate(PrevReport, NewCount) ->
     ReportProplist = [{Name, Key} ||
-        #{name := xmpp_stanzas_count,
+        #{name := xmpp_stanza_count,
           params := #{stanza_type := Name, total := Key}}  <- PrevReport],
-    io:format("ReportProplist: ~p\n", [ReportProplist]),
     [{Type, Count,
         case proplists:get_value(Type, ReportProplist) of
             undefined -> Count;
