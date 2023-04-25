@@ -45,6 +45,7 @@
 {suites, "tests", graphql_gdpr_SUITE}.
 {suites, "tests", graphql_token_SUITE}.
 {suites, "tests", graphql_mnesia_SUITE}.
+{suites, "tests", graphql_cets_SUITE}.
 {suites, "tests", graphql_vcard_SUITE}.
 {suites, "tests", graphql_http_upload_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
