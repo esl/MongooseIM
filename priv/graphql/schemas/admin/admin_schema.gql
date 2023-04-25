@@ -39,6 +39,8 @@ type AdminQuery{
   gdpr: GdprAdminQuery
   "Mnesia internal database management"
   mnesia: MnesiaAdminQuery
+  "CETS internal database management"
+  cets: CETSAdminQuery
   "Server info and management"
   server: ServerAdminQuery
 }
