@@ -194,6 +194,7 @@ admin_mapping_rules() ->
         'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
         'MnesiaAdminMutation' => mongoose_graphql_mnesia_admin_mutation,
         'MnesiaAdminQuery' => mongoose_graphql_mnesia_admin_query,
+        'CETSAdminQuery' => mongoose_graphql_cets_admin_query,
         'OfflineAdminMutation' => mongoose_graphql_offline_admin_mutation,
         'PrivateAdminMutation' => mongoose_graphql_private_admin_mutation,
         'PrivateAdminQuery' => mongoose_graphql_private_admin_query,
