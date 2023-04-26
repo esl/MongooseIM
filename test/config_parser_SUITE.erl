@@ -1556,6 +1556,8 @@ mod_inbox(_Config) ->
     ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
     ?cfgh(P ++ [delete_domain_limit], 1000, T(#{<<"delete_domain_limit">> => 1000})),
     ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),
+    ?cfgh(P ++ [max_result_limit], infinity, T(#{<<"max_result_limit">> => <<"infinity">>})),
+    ?cfgh(P ++ [max_result_limit], 100, T(#{<<"max_result_limit">> => 100})),
     ?errh(T(#{<<"backend">> => <<"nodejs">>})),
     ?errh(T(#{<<"pool_size">> => -1})),
     ?errh(T(#{<<"reset_markers">> => 1})),
@@ -1568,7 +1570,9 @@ mod_inbox(_Config) ->
     ?errh(T(#{<<"bin_clean_after">> => -1})),
     ?errh(T(#{<<"aff_changes">> => 1})),
     ?errh(T(#{<<"delete_domain_limit">> => []})),
-    ?errh(T(#{<<"remove_on_kicked">> => 1})).
+    ?errh(T(#{<<"remove_on_kicked">> => 1})),
+    ?errh(T(#{<<"max_result_limit">> => 0})),
+    ?errh(T(#{<<"max_result_limit">> => -1})).
 
 mod_global_distrib(_Config) ->
     P = [modules, mod_global_distrib],

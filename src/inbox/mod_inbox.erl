@@ -133,7 +133,8 @@ config_spec() ->
                                                        validate = positive},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
-                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
+                  <<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                  <<"max_result_limit">> => #option{type = int_or_infinity, validate = positive}
         },
         defaults = #{<<"backend">> => rdbms,
                      <<"groupchat">> => [muclight],
@@ -144,7 +145,8 @@ config_spec() ->
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
                      <<"reset_markers">> => [<<"displayed">>],
-                     <<"iqdisc">> => no_queue
+                     <<"iqdisc">> => no_queue,
+                     <<"max_result_limit">> => infinity
                     },
         process = fun ?MODULE:process_inbox_boxes/1
     }.
@@ -461,8 +463,21 @@ text_single_form_field(Var, DefaultValue) ->
     get_inbox_params() | {error, atom(), binary()}.
 query_to_params(HostType, QueryEl) ->
     Form = form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)),
-    Rsm = jlib:rsm_decode(QueryEl),
+    Rsm = create_rsm(HostType, QueryEl),
     build_params(Form, Rsm).
+
+-spec create_rsm(mongooseim:host_type(), exml:element()) -> none | jlib:rsm_in().
+create_rsm(HostType, QueryEl) ->
+    case {jlib:rsm_decode(QueryEl), get_max_result_limit(HostType)} of
+        {Rsm, infinity} ->
+            Rsm;
+        {none, MaxResultLimit} ->
+            #rsm_in{max = MaxResultLimit};
+        {Rsm = #rsm_in{max = Max}, MaxResultLimit} when is_integer(Max) ->
+            Rsm#rsm_in{max = min(Max, MaxResultLimit)};
+        {Rsm, MaxResultLimit} ->
+            Rsm#rsm_in{max = MaxResultLimit}
+    end.
 
 -spec build_params(get_inbox_params() | {error, atom(), binary()}, none | jlib:rsm_in()) ->
     get_inbox_params() | {error, atom(), binary()}.
@@ -622,6 +637,9 @@ hooks(HostType) ->
 
 get_groupchat_types(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, groupchat).
+
+get_max_result_limit(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, max_result_limit, infinity).
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
