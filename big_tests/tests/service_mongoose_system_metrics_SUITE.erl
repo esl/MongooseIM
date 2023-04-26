@@ -227,7 +227,7 @@ module_opts_are_reported(_Config) ->
     check_module_backend(mod_privacy, Backend),
     check_module_backend(mod_private, Backend),
     check_module_backend(mod_pubsub, Backend),
-    check_module_opt(<<"mod_push_service_mongoosepush">>, <<"api_version">>, <<"\"v3\"">>),
+    check_module_opt(mod_push_service_mongoosepush, <<"api_version">>, <<"v3">>),
     check_module_backend(mod_roster, Backend),
     check_module_backend(mod_vcard, Backend).
 
@@ -238,7 +238,7 @@ rdbms_module_opts_are_reported(_Config) ->
     check_module_backend(mod_mam, rdbms).
 
 check_module_backend(Module, Backend) ->
-    check_module_opt(atom_to_binary(Module), <<"backend">>, atom_to_binary(Backend)).
+    check_module_opt(Module, <<"backend">>, atom_to_binary(Backend)).
 
 mongoose_version_is_reported(_Config) ->
     mongoose_helper:wait_until(fun is_mongoose_version_reported/0, true).
@@ -367,7 +367,7 @@ required_module(Module, Opts) ->
 check_module_opt(Module, Key, Value) ->
     case is_module_supported(Module) of
         true ->
-            ?assertEqual(true, is_module_opt_reported(Module, Key, Value));
+            ?assertEqual(true, is_module_opt_reported(atom_to_binary(Module), Key, Value));
         false ->
             ct:log("Skipping unsupported module ~p", [Module])
     end.
@@ -473,9 +473,6 @@ is_feature_reported(EventName, Key) ->
 
 is_feature_reported(EventName, Key, Value) ->
     length(match_events(EventName, Key, Value)) > 0.
-
-is_module_backend_reported(Module, Backend) ->
-    is_module_opt_reported(Module, <<"backend">>, Backend).
 
 is_module_opt_reported(Module, Key, Value) ->
     length(get_matched_events_for_module(Module, Key, Value)) > 0.
