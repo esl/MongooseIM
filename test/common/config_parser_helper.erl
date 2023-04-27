@@ -86,7 +86,7 @@ options("miscellaneous") ->
                                              periodic_report => 300000,
                                              report => true,
                                              tracking_id => #{
-                                              id => "UA-12345678",
+                                              id => "G-12345678",
                                               secret => "Secret"
                                              }}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},

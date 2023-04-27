@@ -60,11 +60,15 @@ Tracking ID is a property identification code that all collected data is associa
 It is determining the destination where the collected data is sent.
 To create a new Tracking ID, please follow the steps below:
 
+!!! warning
+    MongooseIM no longer supports Universal Analytics. To use metrics it is needed to create an instance of Google Analytics 4.
+
 * Go to the `Admin` tab of your user dashboard.
 * Create a new account with `+ Create Account`.
 * Add new property with `+ Create Property`.
-    * Within the new property go to `Tracking Info > Tracking Code`.
-    * Tracking ID can be found in the top left corner of the section and has following format UA-XXXX-Y.
+    * Within the new property go to `Data Streams > Add stream > Web`.
+    * After successful creation, the ID can be found in the top right corner of the section and has the following format G-XXXX and is named `Measurement ID`.
+* To create an API secret, in a `Data Stream` view go to `Event > Measurement Protocol API secrets` and use the `Create` button in the top right corner to create a new secret. 
 
 ### Example configuration
 New Tracking ID can be added to the list of options
@@ -72,7 +76,8 @@ New Tracking ID can be added to the list of options
 [services.service_mongoose_system_metrics]
   initial_report = 300_000
   periodic_report = 10_800_000
-  tracking_id = "UA-XXXX-Y"
+  tracking_id.id = "G-XXXX"
+  tracking_id.secret = "Secret"
 ```
 
 For more details regarding service configuration, please see [Services](../configuration/Services.md) section.
