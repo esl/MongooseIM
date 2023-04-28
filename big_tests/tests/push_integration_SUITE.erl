@@ -45,6 +45,7 @@ basic_groups() ->
      {group, failure_cases_v3},
      {group, failure_cases_v2},
      {group, integration_with_sm_and_offline_storage},
+     {group, enhanced_integration_with_sm_and_filtering},
      {group, enhanced_integration_with_sm},
      {group, disco}
     ].
@@ -62,6 +63,12 @@ groups() ->
           [
               immediate_notification,
               double_notification_with_two_sessions_in_resume
+          ]},
+         {enhanced_integration_with_sm_and_filtering,[],
+          [
+              immediate_notification,
+              double_notification_with_two_sessions_in_resume,
+              hints_filtering
           ]},
          {pm_msg_notifications, [],
           [
@@ -134,7 +141,7 @@ init_per_suite(Config) ->
     %% if the worker dies first it passes ETS ownership to heir process,
     %% which is the supervisor process not expecting this message
     %%
-    %% [error] 2026-03-31T18:54:49.467092+02:00 mongooseim@localhost 
+    %% [error] 2026-03-31T18:54:49.467092+02:00 mongooseim@localhost
     %% Supervisor received unexpected message: {'ETS-TRANSFER',mongoose_wpool_http,
     %%                                     <10782.4892.0>,testing}
     %%
@@ -442,6 +449,36 @@ double_notification_with_two_sessions_in_resume(Config) ->
     ?assertExit({test_case_failed, _}, wait_for_push_request(APNSDevice2, 500)),
 
     escalus_connection:stop(Bob).
+
+hints_filtering(Config) ->
+        escalus:fresh_story(
+        Config, [{bob, 1}, {alice, 1}],
+        fun(Bob, Alice) ->
+            #{device_token := FcmDeviceToken} =
+                 enable_push_for_user(Bob, <<"fcm">>, [], Config),
+            #{device_token := ApnsDeviceToken} =
+                 enable_push_for_user(Bob, <<"apns">>, [], Config),
+            become_unavailable(Bob),
+            Msg = escalus_stanza:chat_to(Bob, <<"OH, HAI!">>),
+            %% message with no-copy hint should pass
+            escalus:send(Alice, add_message_hint(Msg, <<"no-copy">>)),
+            {ApnsNotification, _} = wait_for_push_request(ApnsDeviceToken),
+            {FcmNotification, _} = wait_for_push_request(FcmDeviceToken),
+            AliceJID = bare_jid(Alice),
+            assert_push_notification(ApnsNotification, <<"apns">>, [], AliceJID, []),
+            assert_push_notification(FcmNotification, <<"fcm">>, [], AliceJID, []),
+            %% message with no-store hint should be blocked
+            escalus:send(Alice, add_message_hint(Msg, <<"no-store">>)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(FcmDeviceToken, 500)),
+            ?assertExit({test_case_failed, _}, wait_for_push_request(ApnsDeviceToken, 1))
+
+        end).
+
+add_message_hint(#xmlel{children = Children} = Msg, HintType) when is_binary(HintType) ->
+    MsgHintEl = #xmlel{name = HintType,
+                       attrs = #{<<"xmlns">> => <<"urn:xmpp:hints">>},
+                       children = []},
+    Msg#xmlel{children = [MsgHintEl | Children]}.
 
 verify_notification(DeviceToken, Service, EnableOpts, Jid, Msg) ->
     verify_notification(DeviceToken, Service, EnableOpts, [{Jid, Msg}]).
@@ -1043,6 +1080,12 @@ required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
       config_parser_helper:mod_config(mod_stream_management,
                                       #{ack_freq => never, backend => MemBackend})} |
      required_modules(API, PubSubHost, enhanced_plugin_module_opts())];
+required_modules_for_group(enhanced_integration_with_sm_and_filtering, API, PubSubHost) ->
+    MemBackend = ct_helper:get_internal_database(),
+    [{mod_stream_management,
+      config_parser_helper:mod_config(mod_stream_management,
+                                      #{ack_freq => never, backend => MemBackend})} |
+     required_modules(API, PubSubHost, hints_plugin_module_opts())];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
 
@@ -1079,6 +1122,9 @@ push_opts(ExtraOpts) ->
 
 enhanced_plugin_module_opts() ->
     #{plugin_module => mod_event_pusher_push_plugin_enhanced}.
+
+hints_plugin_module_opts() ->
+    #{plugin_module => mod_event_pusher_push_plugin_hints}.
 
 muc_light_opts() ->
     mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
