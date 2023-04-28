@@ -56,6 +56,11 @@ groups() ->
        returns_error_when_no_reset_field_jid,
        returns_error_when_unknown_field_sent
       ]},
+     {limit_result, [],
+      [
+       inbox_result_cannot_exceed_configured_limit,
+       should_apply_lower_limit_when_both_provided
+      ]},
      {one_to_one, [],
       [
        user_has_empty_inbox,
@@ -78,9 +83,7 @@ groups() ->
        reset_unread_counter_and_show_only_unread,
        check_total_unread_count_and_active_conv_count,
        check_total_unread_count_when_there_are_no_active_conversations,
-       total_unread_count_and_active_convs_are_zero_at_no_activity,
-       inbox_result_cannot_exceed_configured_limit,
-       should_apply_lower_limit_when_both_provided
+       total_unread_count_and_active_convs_are_zero_at_no_activity
       ]},
      {muclight, [],
       [
@@ -139,6 +142,7 @@ groups() ->
 test_groups() ->
     [
      {group, generic},
+     {group, limit_result},
      {group, one_to_one},
      {group, muclight},
      {group, muclight_config},
@@ -184,6 +188,9 @@ init_per_group(muclight_config, Config) ->
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
+init_per_group(limit_result, Config) ->
+    OptKey = [{modules, domain_helper:host_type()}, mod_inbox, max_result_limit],
+    mongoose_helper:backup_and_set_config_option(Config, OptKey, 2);
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -196,6 +203,9 @@ end_per_group(muclight_config, Config) ->
 end_per_group(muc, Config) ->
     inbox_helper:restore_inbox_option(Config),
     muc_helper:unload_muc();
+end_per_group(limit_result, Config) ->
+    mongoose_helper:restore_config(Config),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -225,12 +235,6 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
                                  Config, muc_light_helper:ver(1)),
     inbox_helper:reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
     escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
-init_per_testcase(CaseName, Config)
-    when CaseName == inbox_result_cannot_exceed_configured_limit;
-         CaseName == should_apply_lower_limit_when_both_provided ->
-    OptKey = [{modules, domain_helper:host_type()}, mod_inbox, max_result_limit],
-    NewConfig = mongoose_helper:backup_and_set_config_option(Config, OptKey, 2),
-    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -255,11 +259,6 @@ end_per_testcase(no_stored_and_remain_after_kicked, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(no_stored_and_remain_after_kicked, Config);
-end_per_testcase(CaseName, Config)
-    when CaseName == inbox_result_cannot_exceed_configured_limit;
-         CaseName == should_apply_lower_limit_when_both_provided ->
-    mongoose_helper:restore_config(Config),
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(msg_sent_to_not_existing_user, Config) ->
     HostType = domain_helper:host_type(),
     escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [HostType, <<"not_existing_user">>,<<"localhost">>]),
