@@ -543,18 +543,7 @@ all_modules() ->
             max_http_connections => 100,
             pool_name => mongoose_push_http},
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
-      mod_inbox =>
-          #{backend => rdbms,
-            async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
-            boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
-            bin_ttl => 30,
-            bin_clean_after => timer:hours(1),
-            iqdisc => no_queue,
-            aff_changes => true,
-            delete_domain_limit => infinity,
-            groupchat => [muclight],
-            remove_on_kicked => true,
-            reset_markers => [<<"displayed">>]},
+      mod_inbox => default_mod_config(mod_inbox),
       mod_mam =>
           mod_config(mod_mam,
                      #{archive_chat_markers => true,
@@ -876,7 +865,8 @@ default_mod_config(mod_inbox) ->
       delete_domain_limit => infinity,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
-      iqdisc => no_queue};
+      iqdisc => no_queue,
+      max_result_limit => infinity};
 default_mod_config(mod_jingle_sip) ->
     #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
       sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => []};

@@ -100,6 +100,15 @@ If true, the inbox conversation is removed for a user when they are removed from
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
+#### `modules.mod_inbox.max_result_limit`
+* **Syntax:** the string `"infinity"` or a positive integer
+* **Default:** `"infinity"`
+* **Example:** `modules.mod_inbox.max_result_limit = 100`
+
+This option sets the maximum size of returned results when quering inbox.
+It works in the same manner as [setting a limit in iq stanza](../open-extensions/inbox.md#limiting-the-query).
+The special value `infinity` means no limit.
+
 ## Note about supported RDBMS
 
 `mod_inbox` executes upsert queries, which have different syntax in every supported RDBMS.

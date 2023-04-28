@@ -56,6 +56,11 @@ groups() ->
        returns_error_when_no_reset_field_jid,
        returns_error_when_unknown_field_sent
       ]},
+     {limit_result, [],
+      [
+       inbox_result_cannot_exceed_configured_limit,
+       should_apply_lower_limit_when_both_provided
+      ]},
      {one_to_one, [],
       [
        user_has_empty_inbox,
@@ -137,6 +142,7 @@ groups() ->
 test_groups() ->
     [
      {group, generic},
+     {group, limit_result},
      {group, one_to_one},
      {group, muclight},
      {group, muclight_config},
@@ -182,6 +188,9 @@ init_per_group(muclight_config, Config) ->
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
+init_per_group(limit_result, Config) ->
+    OptKey = [{modules, domain_helper:host_type()}, mod_inbox, max_result_limit],
+    mongoose_helper:backup_and_set_config_option(Config, OptKey, 2);
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -194,6 +203,9 @@ end_per_group(muclight_config, Config) ->
 end_per_group(muc, Config) ->
     inbox_helper:restore_inbox_option(Config),
     muc_helper:unload_muc();
+end_per_group(limit_result, Config) ->
+    mongoose_helper:restore_config(Config),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -578,6 +590,22 @@ total_unread_count_and_active_convs_are_zero_at_no_activity(Config) ->
     escalus:fresh_story(Config, [{kate, 1}], fun(Kate) ->
         inbox_helper:get_inbox(Kate, #{count => 0, unread_messages => 0, active_conversations => 0})
     end).
+
+inbox_result_cannot_exceed_configured_limit(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
+        inbox_helper:send_msg(Alice, Bob),
+        inbox_helper:send_msg(Kate, Bob),
+        inbox_helper:send_msg(Mike, Bob),
+        inbox_helper:get_inbox(Bob, #{count => 2})
+      end).
+
+should_apply_lower_limit_when_both_provided(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
+        inbox_helper:send_msg(Alice, Bob),
+        inbox_helper:send_msg(Kate, Bob),
+        inbox_helper:send_msg(Mike, Bob),
+        inbox_helper:get_inbox(Bob, #{limit => 1}, #{count => 1})
+      end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->

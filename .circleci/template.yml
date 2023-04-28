@@ -701,7 +701,7 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [centos_7, debian_stretch]
+        enum: [centos_7, debian_bullseye]
         description: Platform type
       otp_package:
         type: string
@@ -742,9 +742,9 @@ workflows:
           otp_package: "25.0.1-1"
           filters: *all_tags
       - package:
-          name: debian_stretch
+          name: debian_bullseye
           executor: otp_25
-          platform: debian_stretch
+          platform: debian_bullseye
           context: mongooseim-org
           otp_package: "25.0.1-1"
           filters: *all_tags
