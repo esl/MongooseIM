@@ -7,6 +7,8 @@
 -include("mongoose_config_spec.hrl").
 
 -ifdef(PROD_NODE).
+% The value "Secret" here is an app id from Google Analytics.
+% We refer to it as "Secret" because it is named there that way.
 -define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
                        secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -else.

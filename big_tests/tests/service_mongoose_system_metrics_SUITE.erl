@@ -12,11 +12,11 @@
 -define(TRACKING_ID_EXTRA, #{id => "UA-EXTRA-TRACKING-ID", secret => "Secret3"}).
 
 -record(event, {
-    name = <<"">>,
+    name = <<>>,
     params = #{},
-    client_id = <<"">>,
-    instance_id = <<"">>,
-    app_secret = <<"">>}).
+    client_id = <<>>,
+    instance_id = <<>>,
+    app_secret = <<>>}).
 
 -import(distributed_helper, [mim/0, mim2/0, mim3/0, rpc/4,
                              require_rpc_nodes/1
@@ -387,7 +387,7 @@ all_event_have_the_same_client_id() ->
     1 = length(UniqueSortedTab).
 
 is_host_count_reported() ->
-    is_in_table(<<"hosts_count">>).
+    is_in_table(<<"host_count">>).
 
 are_modules_reported() ->
     is_in_table(<<"module">>).
@@ -399,7 +399,7 @@ is_in_table(EventName) ->
             verify_name(Name, EventName, Params)
         end, Tab).
 
-verify_name(<<"module_with_opts">>, <<"module">>, Params) ->
+verify_name(<<"module_with_opt">>, <<"module">>, Params) ->
     Module = maps:get(<<"module">>, Params),
     Result = re:run(Module, "^mod_.*"),
     case Result of
@@ -484,7 +484,7 @@ is_cluster_uptime_reported() ->
     is_feature_reported(<<"cluster">>, <<"uptime">>).
 
 are_xmpp_components_reported() ->
-    is_feature_reported(<<"cluster">>, <<"components">>).
+    is_feature_reported(<<"cluster">>, <<"component">>).
 
 is_config_type_reported() ->
     IsToml = is_feature_reported(<<"cluster">>, <<"config_type">>, <<"toml">>),
@@ -498,7 +498,7 @@ are_transport_mechanisms_reported() ->
     is_in_table(<<"transport_mechanism">>).
 
 are_outgoing_pools_reported() ->
-    is_in_table(<<"outgoing_pools">>).
+    is_in_table(<<"outgoing_pool">>).
 
 is_iq_count_reported() ->
     is_feature_reported(<<"xmpp_stanza_count">>,
@@ -521,8 +521,8 @@ assert_message_count_is_incremented(Sent, Received) ->
 assert_increment(EventCategory, InitialValue) ->
     Events = match_events(<<"xmpp_stanza_count">>, <<"stanza_type">>, EventCategory),
     % expect exactly one event with an increment of 1
-    SeekedEvent = [Event || Event = #event{params = 
-        #{<<"total">> := Total, <<"increment">> := 1}} <- Events, Total == InitialValue + 1],
+    SeekedEvent = [Event || Event = #event{params = #{<<"total">> := Total, <<"increment">> := 1}}
+        <- Events, Total == InitialValue + 1],
     ?assertMatch([_], SeekedEvent).
 
 get_metric_value(EventCategory) ->
@@ -532,7 +532,7 @@ get_metric_value(EventCategory) ->
 more_than_one_component_is_reported() ->
     Events = match_events(<<"cluster">>),
     lists:any(fun(#event{params = Params}) ->
-                       maps:get(<<"components">>, Params) > 0
+                       maps:get(<<"component">>, Params) > 0
               end, Events).
 
 match_events(EventName) ->
@@ -547,7 +547,7 @@ match_events(EventName, ParamKey, ParamValue) ->
     [Event || Event = #event{params = #{ParamKey := Value}} <- Res, Value == ParamValue].
 
 get_matched_events_for_module(ParamModule, Key, ParamValue) ->
-    Res = ets:match_object(?ETS_TABLE, #event{name = <<"module_with_opts">>, _ = '_'}),
+    Res = ets:match_object(?ETS_TABLE, #event{name = <<"module_with_opt">>, _ = '_'}),
     [Event || Event = #event{params = #{<<"module">> := Module, Key := Value}} <- Res,
          Value == ParamValue, Module == ParamModule].
 
@@ -570,5 +570,5 @@ handler_init(Req0) ->
             %% TODO there is a race condition when table is not available
             ets:insert(?ETS_TABLE, EventRecord)
         end, EventTab),
-    Req1 = cowboy_req:reply(200, #{}, <<"">>, Req),
+    Req1 = cowboy_req:reply(200, #{}, <<>>, Req),
     {ok, Req1, no_state}.

@@ -12,29 +12,22 @@
            [report_struct()],
            [service_mongoose_system_metrics:tracking_id()]) -> ok.
 send(ClientId, Reports, TrackingIds) ->
-    send_reports_for_each_tracking_id(ClientId, TrackingIds, Reports),
-    ok.
-
-%-spec build_reports_for_each_tracking_id(service_mongoose_system_metrics:client_id(),
-%                                         [service_mongoose_system_metrics:tracking_id()],
-%                                         [report_struct()]) -> [google_analytics_report()].
-% 
-send_reports_for_each_tracking_id(ClientId, TrackingIds, Reports) ->
     Url = get_url(),
     lists:map(
         fun(TrackingId) ->
             flush_reports(Url, Reports, ClientId, TrackingId)
-        end, TrackingIds).
+        end, TrackingIds),
+    ok.
 
 get_url() ->
     mongoose_config:get_opt(google_analytics_url, ?BASE_URL).
 
-% % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
-% % A maximum of 20 hits can be specified per request.
+% https://developers.google.com/analytics/devguides/collection/protocol/ga4/sending-events?client_type=gtag#limitations
+% % A maximum of 25 hits can be specified per request.
 flush_reports(_, [], _, _) ->
     {ok, nothing_to_do};
 flush_reports(ReportUrl, Reports, ClientId,
-              #{id := TrackingId, secret := TrackingSecret}) when length(Reports) =< 20 ->
+              #{id := TrackingId, secret := TrackingSecret}) when length(Reports) =< 25 ->
     Headers = [],
     ContentType = "application/json",
     Body = jiffy:encode(#{client_id => list_to_binary(ClientId), events => Reports}),
@@ -43,6 +36,6 @@ flush_reports(ReportUrl, Reports, ClientId,
     Request = {ReportUrl2, Headers, ContentType, Body},
     httpc:request(post, Request, [{ssl, [{verify, verify_none}]}], []);
 flush_reports(ReportUrl, Reports, ClientId, TrackingId) ->
-    {NewBatch, RemainingLines} = lists:split(20, Reports),
+    {NewBatch, RemainingLines} = lists:split(25, Reports),
     flush_reports(ReportUrl, NewBatch, ClientId, TrackingId),
     flush_reports(ReportUrl, RemainingLines, ClientId, TrackingId).

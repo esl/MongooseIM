@@ -2946,8 +2946,8 @@ service_mongoose_system_metrics(_Config) ->
     ?err(T(#{<<"periodic_report">> => <<"forever">>})),
     ?err(T(#{<<"initial_report">> => -1})),
     ?err(T(#{<<"periodic_report">> => -1})),
-    ?err(T(#{<<"tracking_id">> => #{<<"id">> => 666}})),
-    ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666}})),
+    ?err(T(#{<<"tracking_id">> => #{<<"id">> => "G-12345678"}})),
+    ?err(T(#{<<"tracking_id">> => #{<<"secret">> => "Secret"}})),
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666, <<"id">> => 666}})),
     ?err(T(#{<<"report">> => <<"maybe">>})).
 

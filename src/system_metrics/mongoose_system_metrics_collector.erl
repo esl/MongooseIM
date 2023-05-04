@@ -4,9 +4,8 @@
 
 -type report_struct() ::
     #{
-        report_name := term(),
-        key := term(),
-        value := term()
+        name := term(),
+        params := #{term() := term()}
     }.
 
 -export_type([report_struct/0]).
@@ -52,11 +51,11 @@ get_cluster_data() ->
 get_hosts_count() ->
     HostTypes = ?ALL_HOST_TYPES,
     NumberOfHosts = length(HostTypes),
-    [#{name => hosts_count, params => #{value => NumberOfHosts}}].
+    [#{name => host_count, params => #{value => NumberOfHosts}}].
 
 get_domains_count() ->
     DomainsCount = mongoose_domain_core:domains_count(),
-    [#{name => domains_count, params => #{value => DomainsCount}}].
+    [#{name => domain_count, params => #{value => DomainsCount}}].
 
 get_modules() ->
     HostTypes = ?ALL_HOST_TYPES,
@@ -88,7 +87,7 @@ get_modules_metrics(Host, Modules) ->
         end, Modules).
 
 report_module_with_opts(Module, Opts) ->
-    #{name => module_with_opts, params =>
+    #{name => module_with_opt, params =>
         lists:foldl(
             fun
                 ({none, _}, Acc) -> 
@@ -108,7 +107,7 @@ get_number_of_custom_modules() ->
                                                      mongoose_module_metrics),
     MetricsModuleSet = sets:from_list(MetricsModule),
     CountCustomMods= sets:size(sets:subtract(GenModsSet, MetricsModuleSet)),
-    [#{name => custom_modules_count, params => #{value => CountCustomMods}}].
+    [#{name => custom_module_count, params => #{value => CountCustomMods}}].
 
 get_uptime() ->
     {Uptime, _} = statistics(wall_clock),
@@ -119,7 +118,7 @@ get_uptime() ->
 
 get_cluster_size() ->
     NodesNo = length(nodes()) + 1,
-    #{number_of_nodes => NodesNo}.
+    #{node_number => NodesNo}.
 
 get_version() ->
     case lists:keyfind(mongooseim, 1, application:which_applications()) of
@@ -133,14 +132,14 @@ get_components() ->
     Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_components(all),
     Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
     LenComponents = length(lists:flatten(Components)),
-    #{components => LenComponents}.
+    #{component => LenComponents}.
 
 get_api() ->
     ApiList = filter_unknown_api(get_http_handler_modules()),
-    [#{name => http_api, params => 
-        lists:foldl(fun(Element, Acc) ->
-            maps:put(Element, enabled, Acc)
-        end, #{}, ApiList)}].
+    [#{name => http_api,
+       params => lists:foldl(fun(Element, Acc) ->
+                                 maps:put(Element, enabled, Acc)
+                             end, #{}, ApiList)}].
 
 filter_unknown_api(ApiList) ->
     AllowedToReport = [mongoose_client_api, mongoose_admin_api, mod_bosh, mod_websockets],
@@ -169,7 +168,7 @@ get_http_handler_modules(#{handlers := Handlers}) ->
 get_tls_options() ->
     TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(mongoose_c2s_listener)),
     lists:foldl(fun({Mode, Module}, Acc) ->
-                    [#{name => tls_options, params => #{mode => Mode, module => Module}}] ++ Acc
+                    [#{name => tls_option, params => #{mode => Mode, module => Module}}] ++ Acc
                 end, [], lists:usort(TLSOptions)).
 
 extract_tls_options(#{tls := #{mode := TLSMode, module := TLSModule}}) ->
@@ -178,7 +177,7 @@ extract_tls_options(_) -> [].
 
 get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools),
-    [#{name => outgoing_pools,
+    [#{name => outgoing_pool,
        params => #{value => Type}} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
