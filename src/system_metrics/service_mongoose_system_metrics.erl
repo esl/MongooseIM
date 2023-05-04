@@ -7,11 +7,16 @@
 -include("mongoose_config_spec.hrl").
 
 -ifdef(PROD_NODE).
--define(TRACKING_ID, "UA-151671255-3").
+% The value "Secret" here is an app id from Google Analytics.
+% We refer to it as "Secret" because it is named there that way.
+-define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
+                       secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -else.
--define(TRACKING_ID, "UA-151671255-2").
+-define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
+                       secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -endif.
--define(TRACKING_ID_CI, "UA-151671255-1").
+-define(TRACKING_ID_CI, #{id => "G-7KQE4W9SVJ",
+                          secret => "8P4wQIkwSV6zay22uKsnLg"}).
 
 -include("mongoose.hrl").
 
@@ -38,7 +43,7 @@
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
--type tracking_id() :: string().
+-type tracking_id() :: #{id => string(), secret => string()}.
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
@@ -70,12 +75,21 @@ config_spec() ->
                  <<"periodic_report">> => #option{type = integer,
                                                   validate = non_negative},
                  <<"report">> => #option{type = boolean},
-                 <<"tracking_id">> => #option{type = string,
-                                              validate = non_empty}
+                 <<"tracking_id">> => tracking_id_section()
                 },
        defaults = #{<<"initial_report">> => timer:minutes(5),
                     <<"periodic_report">> => timer:hours(3)}
       }.
+
+tracking_id_section() ->
+    #section{
+       items = #{<<"id">> => #option{type = string,
+                                     validate = non_empty},
+                 <<"secret">> => #option{type = string,
+                                         validate = non_empty}
+                },
+       required = all
+       }.
 
 -spec start_link(mongoose_service:options()) -> {ok, pid()}.
 start_link(Opts) ->

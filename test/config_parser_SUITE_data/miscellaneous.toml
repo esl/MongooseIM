@@ -78,4 +78,5 @@
   report = true
   initial_report = 20_000
   periodic_report = 300_000
-  tracking_id = "UA-123456789"
+  tracking_id.id = "G-12345678"
+  tracking_id.secret = "Secret"

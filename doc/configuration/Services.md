@@ -82,12 +82,17 @@ Time delay counted when the service is started after which the first metrics rep
 
 Time delay for a periodic update report to be created and sent.
 
-### `services.service_mongoose_system_metrics.tracking_id`:
+### `services.service_mongoose_system_metrics.tracking_id.id`:
 * **Syntax:** string
 * **Default:** no default.
-* **Example:** `tracking_id = "UA-123456789"`
+* **Example:** `tracking_id.id = "G-123456789"`
 
 Tracking ID to forward the reported metrics so that they can be viewed in the Google Analytics dashboard.
+
+### `services.service_mongoose_system_metrics.tracking_id.secret`:
+* **Syntax:** string
+* **Default:** no default.
+* **Example:** `tracking_id.secret = "Secret"`
 
 Removing the `services.service_mongoose_system_metrics` entry will result in the service not being started.
 Metrics will not be collected and shared.
@@ -135,7 +140,8 @@ The number of seconds after an event must be deleted from the `domain_events` ta
   report = true
   initial_report = 300_000
   periodic_report = 108_000_000
-  tracking_id = "UA-123456789"
+  tracking_id.id = "G-123456789"
+  tracking_id.secret = "Secret"
   
 [services.service_domain_db]
   db_pool = "global"

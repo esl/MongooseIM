@@ -85,7 +85,10 @@ options("miscellaneous") ->
       #{service_mongoose_system_metrics => #{initial_report => 20000,
                                              periodic_report => 300000,
                                              report => true,
-                                             tracking_id => "UA-123456789"}}},
+                                             tracking_id => #{
+                                              id => "G-12345678",
+                                              secret => "Secret"
+                                             }}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},

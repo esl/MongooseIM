@@ -2939,13 +2939,16 @@ service_mongoose_system_metrics(_Config) ->
     ?cfg(P, default_config(P), T(#{})),
     ?cfg(P ++ [initial_report], 5000, T(#{<<"initial_report">> => 5000})),
     ?cfg(P ++ [periodic_report], 5000, T(#{<<"periodic_report">> => 5000})),
-    ?cfg(P ++ [tracking_id], "UA-123456789", T(#{<<"tracking_id">> => <<"UA-123456789">>})),
+    ?cfg(P ++ [tracking_id], #{id => "G-12345678", secret => "Secret"},
+         T(#{<<"tracking_id">> => #{<<"id">> => <<"G-12345678">>, <<"secret">> => <<"Secret">>}})),
     ?cfg(P ++ [report], true, T(#{<<"report">> => true})),
     ?err(T(#{<<"initial_report">> => <<"forever">>})),
     ?err(T(#{<<"periodic_report">> => <<"forever">>})),
     ?err(T(#{<<"initial_report">> => -1})),
     ?err(T(#{<<"periodic_report">> => -1})),
-    ?err(T(#{<<"tracking_id">> => 666})),
+    ?err(T(#{<<"tracking_id">> => #{<<"id">> => "G-12345678"}})),
+    ?err(T(#{<<"tracking_id">> => #{<<"secret">> => "Secret"}})),
+    ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666, <<"id">> => 666}})),
     ?err(T(#{<<"report">> => <<"maybe">>})).
 
 %% Helpers for module tests
