@@ -8,7 +8,7 @@
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, #{id => "G-7KQE4W9SVJ", secret => "Secret"}).
--define(TRACKING_ID_CI, #{id => "G-7KQE4W9SVJ", secret => "Secret2"}).
+-define(TRACKING_ID_CI, #{id => "G-VB91V60SKT", secret => "Secret2"}).
 -define(TRACKING_ID_EXTRA, #{id => "UA-EXTRA-TRACKING-ID", secret => "Secret3"}).
 
 -record(event, {
