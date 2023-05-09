@@ -8,7 +8,7 @@
 -define(SERVER_URL, "http://localhost:8765").
 -define(ETS_TABLE, qs).
 -define(TRACKING_ID, #{id => "G-7KQE4W9SVJ", secret => "Secret"}).
--define(TRACKING_ID_CI, #{id => "G-7KQE4W9SVJ", secret => "Secret2"}).
+-define(TRACKING_ID_CI, #{id => "G-VB91V60SKT", secret => "Secret2"}).
 -define(TRACKING_ID_EXTRA, #{id => "UA-EXTRA-TRACKING-ID", secret => "Secret3"}).
 
 -record(event, {
@@ -193,13 +193,13 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
 system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun is_host_count_reported/0, true),
     mongoose_helper:wait_until(fun are_modules_reported/0, true),
-    events_are_reported_to_primary_tracking_id(),
+    mongoose_helper:wait_until(fun events_are_reported_to_primary_tracking_id/0, true),
     all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
     mongoose_helper:wait_until(fun is_host_count_reported/0, true),
     mongoose_helper:wait_until(fun are_modules_reported/0, true),
-    events_are_reported_to_both_tracking_ids(),
+    mongoose_helper:wait_until(fun events_are_reported_to_both_tracking_ids/0, true),
     all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_a_json_file(_Config) ->
@@ -466,7 +466,7 @@ events_are_reported_to_tracking_ids(ConfiguredTrackingIds) ->
     Tab = ets:tab2list(?ETS_TABLE),
     ActualTrackingIds = lists:usort([InstanceId || #event{instance_id = InstanceId} <- Tab]),
     ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || #{id := Tid} <- ConfiguredTrackingIds]),
-    ?assertEqual(ExpectedTrackingIds, ActualTrackingIds).
+    ExpectedTrackingIds =:= ActualTrackingIds.
 
 is_feature_reported(EventName, Key) ->
     length(match_events(EventName, Key)) > 0.

@@ -9,14 +9,14 @@
 -ifdef(PROD_NODE).
 % The value "Secret" here is an app id from Google Analytics.
 % We refer to it as "Secret" because it is named there that way.
--define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
-                       secret => "8P4wQIkwSV6zay22uKsnLg"}).
+-define(TRACKING_ID, #{id => "G-B4S18X6KY5",
+                       secret => "Rj6lopOLQZ2HPLj50QtYeQ"}).
 -else.
 -define(TRACKING_ID, #{id => "G-7KQE4W9SVJ",
                        secret => "8P4wQIkwSV6zay22uKsnLg"}).
 -endif.
--define(TRACKING_ID_CI, #{id => "G-7KQE4W9SVJ",
-                          secret => "8P4wQIkwSV6zay22uKsnLg"}).
+-define(TRACKING_ID_CI, #{id => "G-VB91V60SKT",
+                          secret => "LFxdCgDsSa-OAPtBnLDqpQ"}).
 
 -include("mongoose.hrl").
 
