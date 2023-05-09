@@ -18,6 +18,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("exml/include/exml.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -52,7 +53,8 @@ groups() ->
      {access, [], access_tests()}].
 
 scram_tests() ->
-    [log_one,
+    [scram_failed_with_non_authorized,
+     log_one,
      log_one_scram_sha1,
      log_one_scram_sha224,
      log_one_scram_sha256,
@@ -229,6 +231,22 @@ set_access_none(C2SPort, Config) ->
 %%--------------------------------------------------------------------
 %% Message tests
 %%--------------------------------------------------------------------
+
+scram_failed_with_non_authorized(Config) ->
+    ConnectionSteps = [start_stream, stream_features],
+    UserSpec = escalus_fresh:create_fresh_user(Config, alice),
+    {ok, Alice, _Features} = escalus_connection:start(UserSpec, ConnectionSteps),
+    Username = escalus_utils:get_username(Alice),
+    BadPayload = <<"n,,n=", Username/binary, ",r=9ZdW+o71OwOrDUx4J5+M+A==">>,
+    AuthStanza = auth_stanza(<<"SCRAM-SHA-1">>, BadPayload),
+    escalus_client:send(Alice, AuthStanza),
+    _Challenge = escalus_client:wait_for_stanza(Alice),
+    WrongProof = <<"c=biws,r=invalid_nonce,p=wrong_proof">>,
+    Response = auth_response(WrongProof),
+    escalus_client:send(Alice, Response),
+    Failure = escalus_client:wait_for_stanza(Alice),
+    ?assertMatch(#xmlel{name = <<"failure">>}, Failure),
+    ?assertMatch(#xmlel{}, exml_query:subelement(Failure, <<"not-authorized">>)).
 
 log_one(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -498,3 +516,15 @@ are_sasl_scram_modules_supported() ->
 restore_c2s(Config) ->
    C2SListener = proplists:get_value(c2s_listener, Config),
    mongoose_helper:restart_listener(mim(), C2SListener).
+
+-define(NS_SASL, <<"urn:ietf:params:xml:ns:xmpp-sasl">>).
+auth_stanza(Mech, Payload) ->
+    #xmlel{name = <<"auth">>,
+           attrs = [{<<"xmlns">>, ?NS_SASL},
+                    {<<"mechanism">>, Mech}],
+           children = [#xmlcdata{content = base64:encode(Payload)}]}.
+
+auth_response(Payload) ->
+    #xmlel{name = <<"response">>,
+           attrs = [{<<"xmlns">>, ?NS_SASL}],
+           children = [#xmlcdata{content = base64:encode(Payload)}]}.
