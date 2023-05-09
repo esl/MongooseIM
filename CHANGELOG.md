@@ -70,6 +70,7 @@
 - Issue with certificate verification for Google Analytics (#3978)
 - Incremental removal query (#3924)
 - Unknown types in Dialyzer (#3929)
+- Scram invalid xml response (#4020)
 
 ### Removed
 - Legacy C2S implementation (#3805, #3860)
