@@ -60,7 +60,8 @@ mech_step(State, ClientIn) ->
             Creds1 = mongoose_credentials:extend(Creds0, R),
             {ok, Creds1};
         {error, Reason, _} ->
-            {error, Reason}
+            ?LOG_INFO(#{what => scram_authentication_failed, reason => Reason}),
+            {error, <<"not-authorized">>}
     end.
 
 -spec get_scram_attributes(mongooseim:host_type(), jid:jid(), sha()) -> scram_att() | error().
