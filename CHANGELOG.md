@@ -91,6 +91,9 @@
 
 - [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222022-12-19..2023-05-10%22+sort%3Acreated-asc+)
 
+## Special thanks to our contributors:
+- [@askarsyzdykov](https://github.com/askarsyzdykov) Fix typo in documentation (#3966)
+
 # [MongooseIM 6.0.0](https://github.com/esl/MongooseIM/releases/tag/6.0.0) - 2022-12-19
 
 ## Highlights
