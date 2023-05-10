@@ -62,6 +62,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://esl.github.io/MongooseDocs/latest/)
+* [6.1.0](https://esl.github.io/MongooseDocs/6.1.0/)
 * [6.0.0](https://esl.github.io/MongooseDocs/6.0.0/)
 * [5.1.0](https://esl.github.io/MongooseDocs/5.1.0/)
 * [5.0.0](https://esl.github.io/MongooseDocs/5.0.0/)

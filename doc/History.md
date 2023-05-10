@@ -1,5 +1,14 @@
 # MongooseIM history
 
+## 2023: C2S
+
+Moved the C2S implementation to state machine.
+Added Docker image for arm64.
+
+Release:
+
+* [MongooseIM 6.1.0](https://github.com/esl/MongooseIM/releases/tag/6.1.0) in May 2023.
+
 ## 2022: GraphQL
 
 New GraphQL API allows to access MongooseIM using HTTP protocol to extract data and make changes in a flexible way.

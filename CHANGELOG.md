@@ -1,3 +1,99 @@
+# [MongooseIM 6.1.0](https://github.com/esl/MongooseIM/releases/tag/6.1.0) - 2023-05-10
+
+## Highlights
+
+- Reworked C2S architecture
+- Docker image for arm64
+- Update of Universal Analytics to Google Analytics 4
+- Dialyzer types fix
+- Deprecation of Riak
+- More reliable test suites
+- Various improvements and fixes
+
+## All changes
+
+### Added
+- New C2S architecture (#3765)
+  - `presence` (#3746)
+  - `mod_last` (#3750)
+  - `mod_register` (#3751)
+  - `privacy` (#3747)
+  - `pubsub` (#3785)
+  - `ping` (#3748)
+  - `metrics` (#3800)
+  - `steam_management` (#3796)
+  - `mod_csi` (#3880)
+  - `sasl_external` (#3911)
+  - More granular hooks (#3852, #3857, #3955)
+  - Fixed `stream_management` timeouts (#3934)
+  - Stopped routing broadcast tuples (#3946)
+  - Unified metrics (#3967)
+  - C2S Migration guide (#3965)
+  - Fixed duplicated logout in `stream_management` (#3983)
+  - Adapted existing test suites (#3772, #3778, #3783, #3787, #3786,  #3845, #3882, #3909, #3925, #3927, #3932, #3931, #3940)
+  - Miscellaneous changes (#3729, #3797, #3790, #3816, #3858, #3888, #3904, #3908, #3917, #3919, #3935, #3950, #3957, #3959, #3972)
+- Added information about GraphQL (#3905)
+- Enable CircleCI tests insights (#3899)
+- Hooks improvement (#3913, #3912)
+- `mod_inbox` improvements (#3910, #3974, #4016)
+- Checking push form fields (#3916)
+- Checking for MUC domain when archiving messages (#3936)
+- Updated base Docker image (#3943)
+- Implemented `mod_pubsub_db` without dynamic modules (#3953)
+- Checking the `to` JID (#3971)
+- Auto registration/unregistration of hooks in `gen_mod` (#3954)
+- Added port and IP in the listener options for WebSockets and BOSH (#3977)
+- Improved MAM logging (#3984)
+- Added error reason to batch worker termination (#3985)
+- Docker image for arm64 (#3979, #3986, #3988, #4009)
+- Full support for TLS version 1.3 (#3989)
+- Restarting executes in transactions (#3973)
+- GraphQL server status now returns MongooseIM version (#3995)
+- Capability of measuring asynchronous SQL execute requests (#4002)
+- Enabled codecov with the new uploader (#4013)
+- `remove_domain` for `internal` auth (#4010)
+- Passing SID into `store_info` (#4007)
+
+### Changed
+- Unified status icons (#4000)
+- Reworked mongoose transport (#3982)
+- Updated dependencies (#3918, #3976, #4017)
+- Updated MySQL schema (#3944)
+- Set cookie to mongooseim (#3930)
+- Moved to Google Analytics 4 (#4011, #4019)
+
+### Fixed
+- Issues with GitHub actions (#3992, #4003)
+- Status badges (#3975)
+- Announcing session establishment (#3970)
+- Input for `mam` errors (#4008)
+- Issue with certificate verification for Google Analytics (#3978)
+- Incremental removal query (#3924)
+- Unknown types in Dialyzer (#3929)
+- Scram invalid xml response (#4020)
+
+### Removed
+- Legacy C2S implementation (#3805, #3860)
+- Some of the hooks with no handlers (#3990)
+- Incorrect CORS headers (#4005)
+- Riak is now deprecated (#3981)
+
+### Other
+- Test suites improvements (#3906, #3923, #3926, #3937, #3961, #3968, #3964, #3960, #3969, #3960, #3998, #3999)
+- Updated documentation (#3914, #3962, #3966, #4014)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.1.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2022-12-20..2023-05-10)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2022-12-20&to=2023-05-10&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222022-12-19..2023-05-10%22+sort%3Acreated-asc+)
+
+## Special thanks to our contributors:
+- [@askarsyzdykov](https://github.com/askarsyzdykov) Fix typo in documentation (#3966)
+
 # [MongooseIM 6.0.0](https://github.com/esl/MongooseIM/releases/tag/6.0.0) - 2022-12-19
 
 ## Highlights
@@ -338,7 +434,7 @@
 ## Highlights
 
 - Support for dynamic domains
-- Documentation improvements and reorganization 
+- Documentation improvements and reorganization
 - Miscellaneous enhancements & improvements
 
 ## All changes
