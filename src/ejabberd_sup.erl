@@ -155,7 +155,9 @@ init([]) ->
           permanent, infinity, supervisor, [pg]},
     ConfigDir = filename:dirname(mongoose_config:get_config_path()),
     DiscoFile = filename:join(ConfigDir, "cets_disco.txt"),
-    DiscoOpts = #{name => mongoose_cets_discovery, disco_file => DiscoFile},
+    DiscoOpts = #{
+        backend_module => mongoose_cets_discovery_rdbms,
+        name => mongoose_cets_discovery, disco_file => DiscoFile},
     CetsDisco =
         {cets_discovery,
           {cets_discovery, start_link, [DiscoOpts]},
