@@ -447,7 +447,7 @@ jobs:
     docker:
       - image: cimg/python:3.11.0-node
     steps:
-      - checkout
+      - restore_workspace
       - add_ssh_keys
       - run:
           name: Build GraphQL static docs
@@ -538,6 +538,9 @@ jobs:
           steps:
             - run: make rel
             - cache_prod_build: {arch: amd64}
+            - run:
+                name: Generate DOAP file for xmpp.org
+                command: make xeplist
       - run:
           name: Build Big Tests
           command: tools/build-tests.sh
@@ -732,6 +735,8 @@ workflows:
       - docs_build_deploy:
           name: build_and_deploy_docs
           context: mongooseim-org
+          requires:
+            - otp_25_docker
           filters: *all_tags
       # ============= PACKAGES =============
       - package:
