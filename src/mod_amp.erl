@@ -7,7 +7,7 @@
 
 -behavior(gen_mod).
 -behaviour(mongoose_module_metrics).
--xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
+-xep([{xep, 79}, {version, "1.2"}, {status, partial}]).
 -export([start/2, stop/1, supported_features/0]).
 -export([user_send_message/3,
          check_packet/2,

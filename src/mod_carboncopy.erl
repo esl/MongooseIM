@@ -25,8 +25,7 @@
 %%%----------------------------------------------------------------------
 -module (mod_carboncopy).
 -author ('ecestari@process-one.net').
--xep([{xep, 280}, {version, "0.6"}]).
--xep([{xep, 280}, {version, "0.13.3"}]).
+-xep([{xep, 280}, {version, "0.13.3"}, {legacy_versions, ["0.6"]}]).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
