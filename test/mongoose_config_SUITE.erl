@@ -177,6 +177,11 @@ minimal_config_opts() ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>]},
+     {internal_databases,
+          #{cets =>
+                #{backend => rdbms, cluster_name => mongooseim,
+                  nodelist_file => "cets_disco.txt"},
+            mnesia => #{}}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
