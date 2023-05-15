@@ -9,14 +9,14 @@
 -type state() :: opts().
 
 -spec init(opts()) -> state().
-init(Opts) ->
+init(Opts = #{cluster_name := _}) ->
     Opts.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
-get_nodes(State = #{}) ->
+get_nodes(State = #{cluster_name := ClusterName}) ->
     prepare(),
-    insert(),
-    try mongoose_rdbms:execute_successfully(global, cets_disco_select, []) of
+    insert(ClusterName),
+    try mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]) of
         {selected, Rows} ->
             Nodes = [binary_to_atom(X, latin1) || {X} <- Rows, X =/= <<>>],
             {{ok, Nodes}, State}
@@ -31,19 +31,22 @@ get_nodes(State = #{}) ->
     end.
 
 prepare() ->
-    Filter = [<<"node_name">>],
+    Filter = [<<"node_name">>, <<"cluster_name">>],
     Fields = [<<"updated_timestamp">>],
     rdbms_queries:prepare_upsert(global, cets_disco_insert, discovery_nodes,
                                  Filter ++ Fields, Fields, Filter),
-    mongoose_rdbms:prepare(cets_disco_select, discovery_nodes, [node_name],
-            <<"SELECT node_name FROM discovery_nodes">>).
+    mongoose_rdbms:prepare(cets_disco_select, discovery_nodes, [cluster_name],
+            <<"SELECT node_name FROM discovery_nodes WHERE cluster_name = ?">>).
 
-insert() ->
+insert(ClusterName) ->
     Node = atom_to_binary(node(), latin1),
     Timestamp = os:system_time(microsecond),
+    Filter = [Node, ClusterName],
+    Fields = [Timestamp],
     try 
         {updated, _} = rdbms_queries:execute_upsert(global, cets_disco_insert,
-                                                    [Node, Timestamp], [Timestamp], [Node])
+                                                    Filter ++ Fields, Fields,
+                                                    Filter)
         catch Class:Reason:Stacktrace ->
                 ?LOG_ERROR(#{
                     what => discovery_failed_insert,

@@ -162,6 +162,8 @@
     {{{auth_method_opts}}}{{/auth_method_opts}}
   {{/auth_method}}
 
+{{{internal_databases}}}
+
 {{#outgoing_pools}}
 {{{outgoing_pools}}}
 {{/outgoing_pools}}
