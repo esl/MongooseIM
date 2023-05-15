@@ -154,9 +154,13 @@ init([]) ->
           {pg, start_link, [mim_scope]},
           permanent, infinity, supervisor, [pg]},
     ConfigDir = filename:dirname(mongoose_config:get_config_path()),
-    DiscoFile = filename:join(ConfigDir, "cets_disco.txt"),
+    #{backend := DiscoBackend, cluster_name := ClusterName,
+      nodelist_file := NodeFile} = 
+        mongoose_config:get_opt([internal_databases, cets]),
+    DiscoFile = filename:join(ConfigDir, NodeFile),
     DiscoOpts = #{
-        backend_module => mongoose_cets_discovery_rdbms,
+        backend_module => disco_backend_to_module(DiscoBackend),
+        cluster_name => atom_to_binary(ClusterName),
         name => mongoose_cets_discovery, disco_file => DiscoFile},
     CetsDisco =
         {cets_discovery,
@@ -197,3 +201,6 @@ stop_child(Proc) ->
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc),
     ok.
+
+disco_backend_to_module(rdbms) -> mongoose_cets_discovery_rdbms;
+disco_backend_to_module(file) -> cets_discovery_file.
