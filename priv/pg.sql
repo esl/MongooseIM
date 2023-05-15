@@ -509,5 +509,5 @@ CREATE TABLE discovery_nodes (
     node_name varchar(250),
     cluster_name varchar(250),
     updated_timestamp BIGINT NOT NULL, -- in microseconds
-    PRIMARY KEY (node_name)
+    PRIMARY KEY (cluster_name, node_name)
 );
