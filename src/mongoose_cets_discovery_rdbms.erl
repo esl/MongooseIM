@@ -5,7 +5,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--type opts() :: #{}.
+-type opts() :: #{cluster_name => binary()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().
