@@ -827,7 +827,7 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: pgsql_cets_25
-          executor: otp_25_redis
+          executor: otp_25_pgsql_redis
           context: mongooseim-org
           preset: pgsql_cets
           db: "mnesia postgres cets"
