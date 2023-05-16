@@ -161,6 +161,7 @@ init([]) ->
     DiscoOpts = #{
         backend_module => disco_backend_to_module(DiscoBackend),
         cluster_name => atom_to_binary(ClusterName),
+        node_name_to_insert => atom_to_binary(node(), latin1),
         name => mongoose_cets_discovery, disco_file => DiscoFile},
     CetsDisco =
         {cets_discovery,

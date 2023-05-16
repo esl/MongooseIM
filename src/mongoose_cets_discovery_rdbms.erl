@@ -5,17 +5,17 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--type opts() :: #{cluster_name => binary()}.
+-type opts() :: #{cluster_name => binary(), node_name_to_insert => binary()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().
-init(Opts = #{cluster_name := _}) ->
+init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
     Opts.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
-get_nodes(State = #{cluster_name := ClusterName}) ->
+get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     prepare(),
-    insert(ClusterName),
+    insert(ClusterName, Node),
     try mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]) of
         {selected, Rows} ->
             Nodes = [binary_to_atom(X, latin1) || {X} <- Rows, X =/= <<>>],
@@ -38,8 +38,7 @@ prepare() ->
     mongoose_rdbms:prepare(cets_disco_select, discovery_nodes, [cluster_name],
             <<"SELECT node_name FROM discovery_nodes WHERE cluster_name = ?">>).
 
-insert(ClusterName) ->
-    Node = atom_to_binary(node(), latin1),
+insert(ClusterName, Node) ->
     Timestamp = os:system_time(microsecond),
     Filter = [Node, ClusterName],
     Fields = [Timestamp],

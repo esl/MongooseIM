@@ -158,6 +158,7 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", tcp_listener_SUITE}.
+{suites, "tests", cets_disco_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
