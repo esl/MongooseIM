@@ -30,9 +30,6 @@
 -module(mod_mam_pm).
 -behavior(gen_mod).
 -behaviour(mongoose_module_metrics).
--xep([{xep, 313}, {version, "0.4.1"}]).
--xep([{xep, 313}, {version, "0.5"}]).
--xep([{xep, 313}, {version, "0.6"}]).
 %% ----------------------------------------------------------------------
 %% Exports
 

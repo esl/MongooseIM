@@ -72,7 +72,7 @@ certs: maybe_clean_certs
 	fi
 
 xeplist:
-	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)
+	$(XEP_TOOL)/xep_tool.escript doap doc/mongooseim.doap
 
 install: configure.out rel
 	@. ./configure.out && tools/install

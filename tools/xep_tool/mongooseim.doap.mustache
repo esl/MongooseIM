@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+         xmlns='http://usefulinc.com/ns/doap#'
+         xmlns:xmpp='https://linkmauve.fr/ns/xmpp-doap#'
+         xmlns:schema='https://schema.org/'>
+  <Project>
+    <name>MongooseIM</name>
+    <os>Linux</os>
+    <os>macOS</os>
+    <shortdesc xml:lang='en'>Robust, scalable and efficient Instant Messaging server</shortdesc>
+    <description xml:lang='en'>MongooseIM is a highly customisable instant messaging backend, that can handle millions of messages per minute, exchanged between millions of users from thousands of dynamically configurable XMPP domains</description>
+    <homepage rdf:resource='https://www.erlang-solutions.com/products/mongooseim.html'/>
+    <schema:documentation rdf:resource='https://esl.github.io/MongooseDocs/'/>
+    <download-page rdf:resource='https://www.erlang-solutions.com/downloads/'/>
+    <category rdf:resource='https://linkmauve.fr/ns/xmpp-doap#category-server'/>
+    <repository>
+      <GitRepository>
+	<location rdf:resource='https://github.com/esl/MongooseIM.git'/>
+	<browse rdf:resource='https://github.com/esl/MongoooseIM'/>
+      </GitRepository>
+    </repository>
+    <bug-database rdf:resource='https://github.com/esl/MongooseIM/issues'/>
+    <license rdf:resource='https://raw.githubusercontent.com/esl/MongooseIM/master/COPYING'/>
+    <language>en</language>
+    <schema:logo rdf:resource='https://esl.github.io/MongooseDocs/latest/MongooseIM_logo.png'/>
+    <programming-language>Erlang</programming-language>
+    <implements rdf:resource='https://xmpp.org/rfcs/rfc6120.html'/>
+    <implements rdf:resource='https://xmpp.org/rfcs/rfc6121.html'/>
+    <implements rdf:resource='https://xmpp.org/rfcs/rfc7395.html'/>
+    <implements rdf:resource='https://xmpp.org/rfcs/rfc7590.html'/>
+    <implements rdf:resource='https://xmpp.org/rfcs/rfc7622.html'/>
+    {{#xeps}}
+    <implements>
+      <xmpp:SupportedXep>
+        <xmpp:xep rdf:resource='{{url}}'/>
+        <xmpp:status>{{status}}</xmpp:status>
+        <xmpp:version>{{version}}</xmpp:version>
+      </xmpp:SupportedXep>
+    </implements>
+    {{/xeps}}
+  </Project>
+</rdf:RDF>
