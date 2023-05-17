@@ -14,7 +14,7 @@
 %% $> escript xep_tool.escript <FORMAT> [<OUTPUT_FILE>]
 %% Escript will produce a list of XEPs in the specified format ('markdown', 'list' or 'doap').
 
--define(HTTP_PREFIX, "http://www.xmpp.org/extensions/").
+-define(HTTP_PREFIX, "https://xmpp.org/extensions/").
 -define(HTTP_SUFFIX, ".html").
 
 -type ver() :: string().
