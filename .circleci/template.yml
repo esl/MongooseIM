@@ -460,6 +460,7 @@ jobs:
           command: |
             pip3 install mkdocs
             pip3 install mkdocs-material
+            pip3 install mkdocs-include-markdown-plugin
             mkdocs build --strict
       - when:
           condition:
