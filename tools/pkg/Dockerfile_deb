@@ -3,9 +3,6 @@ ARG dockerfile_platform
 
 FROM $dockerfile_platform AS builder
 
-# Update repositories
-RUN sed -i 's/\/updates/-security/g' /etc/apt/sources.list
-
 # Install build deps
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update

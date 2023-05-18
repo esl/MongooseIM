@@ -706,7 +706,7 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [centos_7, debian_bullseye, debian_buster, ubuntu_jammy, ubuntu_focal, ubuntu_bionic]
+        enum: [centos_7, debian_bullseye, debian_buster, ubuntu_xenial, ubuntu_focal, ubuntu_bionic]
         description: Platform type
       otp_package:
         type: string
@@ -722,6 +722,10 @@ jobs:
           name: Build package
           command: |
             ./tools/test.sh -p pkg -s false
+      - run:
+          name: Publish package
+          command: |
+            ./tools/pkg/publish.sh
 
 filters: &all_tags
   tags:
@@ -761,13 +765,6 @@ workflows:
           name: debian_buster
           executor: otp_25
           platform: debian_buster
-          context: mongooseim-org
-          otp_package: "25.0.1-1"
-          filters: *all_tags
-      - package:
-          name: ubuntu_jammy
-          executor: otp_25
-          platform: ubuntu_jammy
           context: mongooseim-org
           otp_package: "25.0.1-1"
           filters: *all_tags
