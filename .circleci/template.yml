@@ -541,7 +541,7 @@ jobs:
             - run: make rel
             - cache_prod_build: {arch: amd64}
             - run:
-                name: Generate DOAP file for xmpp.org
+                name: Generate DOAP and Markdown files with supported XEPs
                 command: make xeplist
       - run:
           name: Build Big Tests

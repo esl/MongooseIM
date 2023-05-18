@@ -133,3 +133,7 @@ big_tests/auto_big_tests.spec
 *.rpm
 
 tools/pkg/packages/
+tools/xep_tool/xeplist.xml
+
+doc/mongooseim.doap
+doc/user-guide/Supported-XEPs.md
