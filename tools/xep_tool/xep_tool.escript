@@ -195,23 +195,19 @@ generate_output(_, _Records) -> usage().
 
 -spec generate_table([#xep{}]) -> iodata().
 generate_table(List) ->
-    F = fun(#xep{name = Name, url = Url}, {Num, BuildingTable}) ->
-        Add = case Num rem 4 of
-                  0 ->
-                      "\n";
-                  _ ->
-                      " "
-              end,
-        {Num + 1, [BuildingTable, "[", Name, "](", Url, ") |", Add]}
-    end,
-    {_, TableListElement} = lists:foldl(F, {1, ""}, List),
-    [generate_prefix(), TableListElement].
+    [generate_prefix(), [generate_row(Record) || Record <- List]].
 
 -spec generate_prefix() -> string().
 generate_prefix() ->
-    "|||||\n"
-    "|-------------|-------------|-------------|-------------|\n"
-    "|".
+    "|XEP|Name|Version|Status|Modules|\n"
+    "|---|----|-------|------|-------|\n".
+
+-spec generate_row(#xep{}) -> iodata().
+generate_row(#xep{xep = XepId, url = URL, name = Name, version = Version,
+                  status = Status, modules = Modules}) ->
+    FormatStr = "|`~4..0B`|[~s](~s)|~s|~p|`~s`|~n",
+    ModuleStr = [string:join(lists:map(fun atom_to_list/1, Modules), "`, `")],
+    io_lib:format(FormatStr, [XepId, Name, URL, Version, Status, ModuleStr]).
 
 -spec generate_list([#xep{}]) -> iodata().
 generate_list(RecordList) ->
