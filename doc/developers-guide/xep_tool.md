@@ -79,25 +79,16 @@ To save the output to a file, you can just provide the file name as the second a
 
 ```bash
 tools/xep_tool/xep_tool.escript doap doc/mongooseim.doap
+tools/xep_tool/xep_tool.escript markdown doc/user-guide/Supported-XEPs.md
 ```
 
-The last command has a shortcut in the Makefile:
+The last two commands have a shortcut in the Makefile:
 
 ```bash
 make xeplist
 ```
 
-## Generated markdown file example
+## Examples of generated content
 
-|||||
-| ------------- | ------------- | ------------- |------------- |
-|[XEP-0012: Last Activity](http://www.xmpp.org/extensions/xep-0012.html) | [XEP-0016: Privacy Lists](http://www.xmpp.org/extensions/xep-0016.html) | [XEP-0018: Invisible Presence](http://www.xmpp.org/extensions/xep-0018.html) | [XEP-0022: Message Events](http://www.xmpp.org/extensions/xep-0022.html) |
-[XEP-0023: Message Expiration](http://www.xmpp.org/extensions/xep-0023.html) | [XEP-0030: Service Discovery](http://www.xmpp.org/extensions/xep-0030.html) | [XEP-0045: Multi-User Chat](http://www.xmpp.org/extensions/xep-0045.html) | [XEP-0049: Private XML Storage](http://www.xmpp.org/extensions/xep-0049.html) |
-[XEP-0050: Ad-Hoc Commands](http://www.xmpp.org/extensions/xep-0050.html) | [XEP-0054: vcard-temp](http://www.xmpp.org/extensions/xep-0054.html) | [XEP-0055: Jabber Search](http://www.xmpp.org/extensions/xep-0055.html) | [XEP-0059: Result Set Management](http://www.xmpp.org/extensions/xep-0059.html) |
-[XEP-0068: Field Standardization for Data Forms](http://www.xmpp.org/extensions/xep-0068.html) | [XEP-0077: In-Band Registration](http://www.xmpp.org/extensions/xep-0077.html) | [XEP-0078: Non-SASL Authentication](http://www.xmpp.org/extensions/xep-0078.html) | [XEP-0079: Advanced Message Processing](http://www.xmpp.org/extensions/xep-0079.html) |
-[XEP-0082: XMPP Date and Time Profiles](http://www.xmpp.org/extensions/xep-0082.html) | [XEP-0083: Nested Roster Groups](http://www.xmpp.org/extensions/xep-0083.html) | [XEP-0085: Chat State Notifications](http://www.xmpp.org/extensions/xep-0085.html) | [XEP-0086: Error Condition Mappings](http://www.xmpp.org/extensions/xep-0086.html) |
-[XEP-0093: Roster Item Exchange](http://www.xmpp.org/extensions/xep-0093.html) | [XEP-0114: Jabber Component Protocol](http://www.xmpp.org/extensions/xep-0114.html) | [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://www.xmpp.org/extensions/xep-0124.html) | [XEP-0126: Invisibility](http://www.xmpp.org/extensions/xep-0126.html) |
-[XEP-0138: Stream Compression](http://www.xmpp.org/extensions/xep-0138.html) | [XEP-0157: Contact Addresses for XMPP Services](http://www.xmpp.org/extensions/xep-0157.html) | [XEP-0160: Best Practices for Handling Offline Messages](http://www.xmpp.org/extensions/xep-0160.html) | [XEP-0170: Recommended Order of Stream Feature Negotiation](http://www.xmpp.org/extensions/xep-0170.html) |
-[XEP-0175: Best Practices for Use of SASL ANONYMOUS](http://www.xmpp.org/extensions/xep-0175.html) | [XEP-0198: Stream Management](http://www.xmpp.org/extensions/xep-0198.html) | [XEP-0199: XMPP Ping](http://www.xmpp.org/extensions/xep-0199.html) | [XEP-0202: Entity Time](http://www.xmpp.org/extensions/xep-0202.html) |
-[XEP-0206: XMPP Over BOSH](http://www.xmpp.org/extensions/xep-0206.html) | [XEP-0212: XMPP Basic Server 2008](http://www.xmpp.org/extensions/xep-0212.html) | [XEP-0237: Roster Versioning](http://www.xmpp.org/extensions/xep-0237.html) | [XEP-0279: Server IP Check](http://www.xmpp.org/extensions/xep-0279.html) |
-[XEP-0280: Message Carbons](http://www.xmpp.org/extensions/xep-0280.html) | [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep-0313.html) |
+* [Markdown table](../../user-guide/Supported-XEPs/)
+* [DOAP file](https://raw.githubusercontent.com/esl/MongooseDocs/gh-pages/latest/mongooseim.doap)
