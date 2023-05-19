@@ -18,6 +18,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 313}, {version, "0.6"}, {legacy_versions, ["0.5"]}]).
+-xep([{xep, 424}, {version, "0.3.0"}]).
 
 -include("mod_mam.hrl").
 -include("mongoose_config_spec.hrl").
