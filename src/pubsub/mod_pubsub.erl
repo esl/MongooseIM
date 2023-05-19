@@ -52,6 +52,9 @@
 -xep([{xep, 248}, {version, "0.2"}]).
 -xep([{xep, 277}, {version, "0.6.1"}]).
 
+%% https://xmpp.org/extensions/xep-0384.html#server-side
+-xep([{xep, 384}, {version, "0.8.3"}]).
+
 -include("mongoose.hrl").
 -include("adhoc.hrl").
 -include("jlib.hrl").
