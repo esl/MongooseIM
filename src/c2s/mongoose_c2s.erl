@@ -1,4 +1,5 @@
 -module(mongoose_c2s).
+-xep([{xep, 170}, {version, "1.0"}]).
 
 -behaviour(gen_statem).
 -include("mongoose_logger.hrl").
