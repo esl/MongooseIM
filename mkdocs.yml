@@ -29,6 +29,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/esl/MongooseIM
 plugins:
+  - include-markdown
   - search:
       lang: en
 extra_css: [css/custom.css]
