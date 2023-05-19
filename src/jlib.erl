@@ -25,6 +25,7 @@
 
 -module(jlib).
 -author('alexey@process-one.net').
+-xep([{xep, 4}, {version, "2.13.1"}]).
 -xep([{xep, 59}, {version, "1.0"}]).
 -xep([{xep, 68}, {version, "1.2"}]).
 -xep([{xep, 86}, {version, "1.0"}]).
