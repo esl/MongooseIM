@@ -15,6 +15,7 @@ The file is divided into the following sections:
 * [**general**](general.md) - Served XMPP domains, log level, server language and some other miscellaneous settings.
 * [**listen**](listen.md) - Configured listeners, receiving incoming XMPP and HTTP connections.
 * [**auth**](auth.md) - Supported client authentication methods and their options.
+* [**internal_databases**](internal-databases.md) - Options for Mnesia and CETS. They are primarily used for clustering.
 * [**outgoing_pools**](outgoing-connections.md) - Outgoing connections to external services, including databases, message queues and HTTP services.
 * [**services**](Services.md) - Internal services like an administration API and system metrics.
 * [**modules**](Modules.md) - [XMPP extension](https://xmpp.org/extensions/) modules, which extend the basic functionality provided by XMPP.
