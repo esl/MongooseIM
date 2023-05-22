@@ -433,7 +433,8 @@ internal_databases() ->
     #section{items = Items,
              format_items = map,
              wrap = global_config,
-             include = always}.
+             include = always,
+             defaults = #{}}.
 
 %% path: internal_databases.*.*
 internal_database_cets() ->
@@ -446,16 +447,14 @@ internal_database_cets() ->
                                                 validate = filename}
                 },
        defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim,
-                    <<"nodelist_file">> => "cets_disco.txt"},
-       include = always
+                    <<"nodelist_file">> => "cets_disco.txt"}
       }.
 
 %% path: internal_databases.*.*
 internal_database_mnesia() ->
     #section{
        items = #{},
-       defaults = #{},
-       include = always
+       defaults = #{}
       }.
 
 %% path: outgoing_pools

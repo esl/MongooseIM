@@ -80,3 +80,7 @@
   periodic_report = 300_000
   tracking_id.id = "G-12345678"
   tracking_id.secret = "Secret"
+
+[internal_databases]
+  [internal_databases.mnesia]
+  [internal_databases.cets]
