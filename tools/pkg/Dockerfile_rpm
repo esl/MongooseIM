@@ -45,7 +45,7 @@ RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \
 ARG version
 ARG revision
 
-RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision
+RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/build_package.sh $version $revision $erlang_version
 
 # Create image for sharing and validation of built package
 FROM $dockerfile_platform

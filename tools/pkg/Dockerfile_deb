@@ -29,7 +29,7 @@ RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
 ARG version
 ARG revision
 
-RUN ./deb/build_package.sh $version $revision
+RUN ./deb/build_package.sh $version $revision $erlang_version
 
 # Create image for sharing and validation of built package
 FROM $dockerfile_platform
