@@ -759,28 +759,28 @@ workflows:
           executor: otp_25
           platform: debian_bullseye
           context: mongooseim-org
-          otp_package: "25.0.1-1"
+          otp_package: "25.3-1"
           filters: *all_tags
       - package:
           name: debian_buster
           executor: otp_25
           platform: debian_buster
           context: mongooseim-org
-          otp_package: "25.0.1-1"
+          otp_package: "25.3-1"
           filters: *all_tags
       - package:
           name: ubuntu_focal
           executor: otp_25
           platform: ubuntu_focal
           context: mongooseim-org
-          otp_package: "25.0.1-1"
+          otp_package: "25.3-1"
           filters: *all_tags
       - package:
           name: ubuntu_bionic
           executor: otp_25
           platform: ubuntu_bionic
           context: mongooseim-org
-          otp_package: "25.0.1-1"
+          otp_package: "25.3-1"
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
