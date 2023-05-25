@@ -761,14 +761,17 @@ workflows:
           executor: otp_25
           context: mongooseim-org
           build_prod: true
+          filters: *all_tags
       - build_in_docker:
           name: otp_24_docker
           executor: otp_24
           context: mongooseim-org
           build_prod: false
+          filters: *all_tags
       - build_in_docker_arm64:
           name: otp_25_docker_arm64
           context: mongooseim-org
+          filters: *all_tags
       # ============= DIALYZER =============
       - dialyzer:
           name: dialyzer_24
@@ -963,7 +966,9 @@ workflows:
           context: mongooseim-org
           requires:
             - docker_build_and_ship
+          filters: *all_tags
       - docker_smoke_test_arm64:
           context: mongooseim-org
           requires:
             - docker_build_and_ship
+          filters: *all_tags
