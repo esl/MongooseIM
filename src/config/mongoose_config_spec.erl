@@ -442,12 +442,11 @@ internal_database_cets() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {enum, [file, rdbms]}},
                  <<"cluster_name">> => #option{type = atom, validate = non_empty},
-                 %% Relative to the config directory (or an absolute name)
+                 %% Relative to the release directory (or an absolute name)
                  <<"nodelist_file">> => #option{type = string,
                                                 validate = filename}
                 },
-       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim,
-                    <<"nodelist_file">> => "cets_disco.txt"}
+       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
       }.
 
 %% path: internal_databases.*.*

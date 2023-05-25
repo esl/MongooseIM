@@ -1206,6 +1206,8 @@ test_fast_tls_server(P, T) ->
 
 internal_database_cets(_Config) ->
     CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}}},
+    CetsFile = #{<<"internal_databases">> => #{<<"cets">> =>
+        #{<<"backend">> => <<"file">>, <<"nodelist_file">> => <<"/dev/null">>}}},
     %% No internal_databases section means an empty list of databases
     ?cfg([internal_databases], #{}, #{}), % default
     %% Empty internal_databases could be configured explicitly
@@ -1217,7 +1219,7 @@ internal_database_cets(_Config) ->
          #{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
 
     ?cfg([internal_databases, cets, cluster_name], mongooseim, CetsEnabled),
-    ?cfg([internal_databases, cets, nodelist_file], "cets_disco.txt", CetsEnabled),
+    ?cfg([internal_databases, cets, nodelist_file], "/dev/null", CetsFile),
     %% If only mnesia section is defined, CETS section is not included
     ?cfg([internal_databases], #{mnesia => #{}},
          #{<<"internal_databases">> => #{<<"mnesia">> => #{}}}),

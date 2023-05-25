@@ -51,8 +51,9 @@ Namespace for the cluster. Only nodes with the same cluster name would be discov
 
 ### `internal_databases.cets.nodelist_file`
 
-File to read a list of nodes from. Relative to the MongooseIM's config directory. This option is for the file backend.
+File to read a list of nodes from. Relative to the MongooseIM's release directory. This option is for the file backend.
+Required, if `backend = "file"`.
 
 * **Syntax:** path.
-* **Default:** `"cets_disco.txt"`
+* **Default:** not specified.
 * **Example:** `nodelist_file = "/etc/mim_nodes.txt"`

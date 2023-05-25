@@ -194,10 +194,18 @@ cets_specs() ->
 
 cets_specs(disabled) ->
     [];
-cets_specs(#{backend := DiscoBackend, cluster_name := ClusterName,
-             nodelist_file := NodeFile}) ->
-    ConfigDir = filename:dirname(mongoose_config:get_config_path()),
-    DiscoFile = filename:join(ConfigDir, NodeFile),
+cets_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts) ->
+    DiscoFile =
+        case {DiscoBackend, Opts} of
+            {file, #{nodelist_file := NodeFile}} ->
+                NodeFile;
+            {file, _} ->
+                ?LOG_CRITICAL(#{what => nodelist_file_option_is_required,
+                                text => <<"Specify internal_databases.cets.nodelist_file option">>}),
+                error(nodelist_file_option_is_required);
+            _ ->
+                undefined
+        end,
     DiscoOpts = #{
         backend_module => disco_backend_to_module(DiscoBackend),
         cluster_name => atom_to_binary(ClusterName),
