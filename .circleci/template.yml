@@ -739,7 +739,9 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_25_docker
-          filters: *all_tags
+          filters: &release_tags
+            tags:
+              only: /^\d+\.\d+\.\d+/
       # ============= PACKAGES =============
       - package:
           name: centos_7
