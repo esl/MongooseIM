@@ -433,8 +433,7 @@ internal_databases() ->
     #section{items = Items,
              format_items = map,
              wrap = global_config,
-             include = always,
-             defaults = #{}}.
+             include = always}.
 
 %% path: internal_databases.*.*
 internal_database_cets() ->
@@ -443,18 +442,15 @@ internal_database_cets() ->
                                           validate = {enum, [file, rdbms]}},
                  <<"cluster_name">> => #option{type = atom, validate = non_empty},
                  %% Relative to the release directory (or an absolute name)
-                 <<"nodelist_file">> => #option{type = string,
-                                                validate = filename}
+                 <<"node_list_file">> => #option{type = string,
+                                                 validate = filename}
                 },
        defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
       }.
 
 %% path: internal_databases.*.*
 internal_database_mnesia() ->
-    #section{
-       items = #{},
-       defaults = #{}
-      }.
+    #section{}.
 
 %% path: outgoing_pools
 outgoing_pools() ->

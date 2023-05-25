@@ -197,12 +197,12 @@ cets_specs(disabled) ->
 cets_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts) ->
     DiscoFile =
         case {DiscoBackend, Opts} of
-            {file, #{nodelist_file := NodeFile}} ->
+            {file, #{node_list_file := NodeFile}} ->
                 NodeFile;
             {file, _} ->
-                ?LOG_CRITICAL(#{what => nodelist_file_option_is_required,
-                                text => <<"Specify internal_databases.cets.nodelist_file option">>}),
-                error(nodelist_file_option_is_required);
+                ?LOG_CRITICAL(#{what => node_list_file_option_is_required,
+                                text => <<"Specify internal_databases.cets.node_list_file option">>}),
+                error(node_list_file_option_is_required);
             _ ->
                 undefined
         end,

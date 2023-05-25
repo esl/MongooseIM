@@ -18,7 +18,7 @@ get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) -
     insert(ClusterName, Node),
     try mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]) of
         {selected, Rows} ->
-            Nodes = [binary_to_atom(X, latin1) || {X} <- Rows, X =/= <<>>],
+            Nodes = [binary_to_atom(X) || {X} <- Rows, X =/= <<>>],
             {{ok, Nodes}, State}
         catch Class:Reason:Stacktrace ->
                 ?LOG_ERROR(#{

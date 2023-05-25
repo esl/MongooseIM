@@ -1,9 +1,9 @@
-Internal databases for MongooseIM.
+Internal databases are used to cluster MongooseIM nodes, and to replicate session list data between them.
 
-Mnesia is a legacy way to cluster MongooseIM nodes. It is also could be used to store data, but we recommend
+Mnesia is a legacy way to cluster MongooseIM nodes. It is also could be used to store persistent data, but we recommend
 to use RDBMS databases instead because of scalability and stability reasons.
 
-CETS is a new way to cluster MongooseIM nodes. It is used to replicate session list data between MongooseIM nodes.
+CETS is a new way to cluster MongooseIM nodes.
 CETS needs to know a list of nodes for the node discovery. There are two ways to get a list of nodes:
 
 - A text file with a list of nodes on each line. It is useful when there is an external script to make this file based on
@@ -21,7 +21,15 @@ Section example:
     [internal_databases.cets]
         backend = "rdbms"
         cluster_name = "mongooseim"
-        nodelist_file = "cets_disco.txt"
+```
+
+or
+
+```toml
+[internal_databases]
+    [internal_databases.cets]
+        backend = "file"
+        node_list_file = "cets_disco.txt"
 ```
 
 To enable just CETS, define only `internal_databases.cets` section:
@@ -49,11 +57,11 @@ Namespace for the cluster. Only nodes with the same cluster name would be discov
 * **Default:** `"mongooseim"`
 * **Example:** `cluster_name = "mongooseim"`
 
-### `internal_databases.cets.nodelist_file`
+### `internal_databases.cets.node_list_file`
 
 File to read a list of nodes from. Relative to the MongooseIM's release directory. This option is for the file backend.
 Required, if `backend = "file"`.
 
 * **Syntax:** path.
 * **Default:** not specified.
-* **Example:** `nodelist_file = "/etc/mim_nodes.txt"`
+* **Example:** `node_list_file = "/etc/mim_nodes.txt"`
