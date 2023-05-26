@@ -91,6 +91,7 @@ root() ->
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
                  <<"outgoing_pools">> => outgoing_pools(),
+                 <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
                  <<"shaper">> => shaper(),
@@ -424,6 +425,32 @@ auth_password() ->
                     <<"scram_iterations">> => mongoose_scram:iterations()},
        include = always
       }.
+
+%% path: internal_databases
+internal_databases() ->
+    Items = #{<<"cets">> => internal_database_cets(),
+              <<"mnesia">> => internal_database_mnesia()},
+    #section{items = Items,
+             format_items = map,
+             wrap = global_config,
+             include = always}.
+
+%% path: internal_databases.*.*
+internal_database_cets() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {enum, [file, rdbms]}},
+                 <<"cluster_name">> => #option{type = atom, validate = non_empty},
+                 %% Relative to the release directory (or an absolute name)
+                 <<"node_list_file">> => #option{type = string,
+                                                 validate = filename}
+                },
+       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
+      }.
+
+%% path: internal_databases.*.*
+internal_database_mnesia() ->
+    #section{}.
 
 %% path: outgoing_pools
 outgoing_pools() ->

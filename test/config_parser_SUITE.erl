@@ -52,6 +52,7 @@ all() ->
      {group, listen},
      {group, auth},
      {group, pool},
+     {group, internal_databases},
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
@@ -147,6 +148,7 @@ groups() ->
                          pool_rabbit_connection,
                          pool_ldap,
                          pool_ldap_connection]},
+     {internal_databases, [parallel], [internal_database_cets]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       acl_merge_host_and_global,
@@ -1199,6 +1201,30 @@ test_fast_tls_server(P, T) ->
     ?err(T(#{<<"password">> => <<"secret">>})), % option only for just_tls
     ?err(T(#{<<"versions">> => [<<"tlsv1.2">>]})), % option only for just_tls
     ?err(T(#{<<"protocol_options">> => [<<>>]})).
+
+%% tests: internal_databases
+
+internal_database_cets(_Config) ->
+    CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}}},
+    CetsFile = #{<<"internal_databases">> => #{<<"cets">> =>
+        #{<<"backend">> => <<"file">>, <<"node_list_file">> => <<"/dev/null">>}}},
+    %% No internal_databases section means an empty list of databases
+    ?cfg([internal_databases], #{}, #{}), % default
+    %% Empty internal_databases could be configured explicitly
+    ?cfg([internal_databases], #{}, #{<<"internal_databases">> => #{}}),
+
+    ?cfg([internal_databases, cets, backend], file,
+         #{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"file">>}}}),
+    ?cfg([internal_databases, cets, backend], rdbms,
+         #{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
+
+    ?cfg([internal_databases, cets, cluster_name], mongooseim, CetsEnabled),
+    ?cfg([internal_databases, cets, node_list_file], "/dev/null", CetsFile),
+    %% If only mnesia section is defined, CETS section is not included
+    ?cfg([internal_databases], #{mnesia => #{}},
+         #{<<"internal_databases">> => #{<<"mnesia">> => #{}}}),
+    ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"mnesia">>}}}),
+    ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => 123}}}).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->

@@ -591,7 +591,7 @@ jobs:
       preset:
         type: enum
         enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, internal_cets]
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, pgsql_cets]
         description: Preset to run
         default: internal_mnesia
       db:
@@ -826,11 +826,11 @@ workflows:
             - otp_25_docker
           filters: *all_tags
       - big_tests_in_docker:
-          name: internal_cets_25
-          executor: otp_25_redis
+          name: pgsql_cets_25
+          executor: otp_25_pgsql_redis
           context: mongooseim-org
-          preset: internal_cets
-          db: "mnesia cets"
+          preset: pgsql_cets
+          db: "mnesia postgres cets"
           requires:
             - otp_25_docker
           filters: *all_tags
