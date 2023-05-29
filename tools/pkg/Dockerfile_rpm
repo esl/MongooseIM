@@ -19,7 +19,7 @@ RUN yum install -y rpm-build rpmdevtools git make zlib-devel unixODBC-devel gcc 
 # Fix locale setup
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
 ARG dockerfile_platform
-RUN if [ "$dockerfile_platform" == "centos:8" ]; then \
+RUN if [ "$dockerfile_platform" == "rockylinux:8" ] || [ "$dockerfile_platform" == "almalinux:8" ]; then \
     dnf install -y glibc-locale-source; \
     fi
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8

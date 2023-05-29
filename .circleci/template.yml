@@ -706,7 +706,7 @@ jobs:
         type: executor
       platform:
         type: enum
-        enum: [centos_7, debian_bullseye, debian_buster, ubuntu_xenial, ubuntu_focal, ubuntu_bionic]
+        enum: [centos_7, rockylinux_9, rockylinux_8, almalinux_9, almalinux_8, debian_bullseye, debian_buster, ubuntu_xenial, ubuntu_focal, ubuntu_bionic]
         description: Platform type
       otp_package:
         type: string
@@ -752,7 +752,21 @@ workflows:
           executor: otp_25
           platform: centos_7
           context: mongooseim-org
-          otp_package: "25.0.1-1"
+          otp_package: "25.0.3-1"
+          filters: *all_tags
+      - package:
+          name: rockylinux_8
+          executor: otp_24
+          platform: rockylinux_8
+          context: mongooseim-org
+          otp_package: "24.1.7-1"
+          filters: *all_tags
+      - package:
+          name: almalinux_8
+          executor: otp_24
+          platform: almalinux_8
+          context: mongooseim-org
+          otp_package: "24.1.7-1"
           filters: *all_tags
       - package:
           name: debian_bullseye
