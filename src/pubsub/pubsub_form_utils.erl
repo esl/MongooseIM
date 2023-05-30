@@ -13,9 +13,7 @@
 
 -export([make_sub_xform/1, parse_sub_xform/1]).
 
--include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
--include_lib("exml/include/exml.hrl").
 
 -type convert_from_binary_fun() :: fun(([binary()]) -> any()).
 -type convert_to_binary_fun() :: fun((any()) -> [binary()]).
@@ -45,7 +43,7 @@
 %% TODO: Right now
 -spec make_sub_xform(Options :: mod_pubsub:subOptions()) -> {ok, exml:element()}.
 make_sub_xform(Options) ->
-    XFields = [make_field_xml(OptDefinition, Options) || OptDefinition <- sub_form_options()],
+    XFields = [make_field(OptDefinition, Options) || OptDefinition <- sub_form_options()],
     {ok, make_sub_xform_xml(XFields)}.
 
 %% The list of options returned by this function may be a subset of the options schema.
@@ -54,9 +52,11 @@ make_sub_xform(Options) ->
 parse_sub_xform(undefined) ->
     {ok, []};
 parse_sub_xform(XForm) ->
-    case jlib:parse_xdata_submit(XForm) of
-        invalid -> {error, invalid_form};
-        XData -> convert_fields_from_binaries(XData, [], sub_form_options())
+    case mongoose_data_forms:parse_form_fields(XForm) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            convert_fields_from_binaries(maps:to_list(KVs), [], sub_form_options());
+        _ ->
+            {error, invalid_form}
     end.
 
 %%====================================================================
@@ -65,40 +65,29 @@ parse_sub_xform(XForm) ->
 
 -spec make_sub_xform_xml(XFields :: [exml:element()]) -> exml:element().
 make_sub_xform_xml(XFields) ->
-    FormTypeEl = #xmlel{name = <<"field">>,
-                        attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
-                        children = [#xmlel{name = <<"value">>, attrs = [],
-                                           children = [{xmlcdata, ?NS_PUBSUB_SUB_OPTIONS}]}]},
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}], children = [FormTypeEl | XFields]}.
+    mongoose_data_forms:form(#{ns => ?NS_PUBSUB_SUB_OPTIONS, fields => XFields}).
 
--spec make_field_xml(OptDefinition :: option_definition(),
-                     Options :: mod_pubsub:subOptions()) -> exml:element().
-make_field_xml({VarName, Key, #{ label := Label, form_type := FormType } = VarProps}, Options) ->
-    ChoicesEls = make_choices_xml(VarProps),
-    ValEls = make_values_xml(Key, Options, VarProps),
+-spec make_field(OptDefinition :: option_definition(),
+                 Options :: mod_pubsub:subOptions()) -> mongoose_data_forms:field().
+make_field({VarName, Key, #{ label := Label, form_type := FormType } = VarProps}, Options) ->
+    #{var => VarName,
+      type => FormType,
+      label => Label,
+      options => make_choices(VarProps),
+      values => make_values(Key, Options, VarProps)}.
 
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, VarName}, {<<"type">>, FormType}, {<<"label">>, Label}],
-           children = ChoicesEls ++ ValEls}.
-
-make_choices_xml(#{ possible_choices := PossibleChoices }) ->
-    [ make_option_xml(Value, Label) || {Value, Label} <- PossibleChoices ];
-make_choices_xml(#{}) ->
+make_choices(#{ possible_choices := PossibleChoices }) ->
+    [ {Label, Value} || {Value, Label} <- PossibleChoices ];
+make_choices(#{}) ->
     [].
 
-make_option_xml(Value, Label) ->
-    #xmlel{name = <<"option">>, attrs = [{<<"label">>, Label}], children = [make_value_xml(Value)]}.
-
-make_values_xml(Key, Options, #{ data_type := DataType }) ->
+make_values(Key, Options, #{ data_type := DataType }) ->
     case lists:keyfind(Key, 1, Options) of
         {_, Value} ->
-            [make_value_xml(BinVal) || BinVal <- convert_value_to_binaries(Value, DataType)];
+            convert_value_to_binaries(Value, DataType);
         false ->
             []
     end.
-
-make_value_xml(Value) ->
-    #xmlel{name = <<"value">>, attrs = [], children = [#xmlcdata{ content = Value }]}.
 
 %%====================================================================
 %% Form definitions & conversions
@@ -176,8 +165,6 @@ sub_form_options() ->
     {ok, mod_pubsub:subOptions()} | convert_from_binary_error().
 convert_fields_from_binaries([], Result, _Schema) ->
     {ok, Result};
-convert_fields_from_binaries([{<<"FORM_TYPE">>, _Values} | RData], Acc, Schema) ->
-    convert_fields_from_binaries(RData, Acc, Schema);
 convert_fields_from_binaries([{VarBin, Values} | RData], Acc, Schema) ->
     case lists:keyfind(VarBin, 1, Schema) of
         {_VBin, _Var, #{ data_type := DataType }} when Values == [] andalso DataType /= list ->

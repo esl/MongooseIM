@@ -788,10 +788,12 @@ handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->
 handle_pep_authorization_response(<<"message">>, _, From, To, Acc, Packet)
   when From#jid.luser == To#jid.luser, From#jid.lserver == To#jid.lserver ->
         case find_authorization_response(Packet) of
-            none -> {From, To, Acc, Packet};
-            invalid -> {From, To, Acc, Packet};
-            XFields ->
-                handle_authorization_response(Acc, jid:to_lower(To), From, To, Packet, XFields),
+            none ->
+                {From, To, Acc, Packet};
+            invalid ->
+                {From, To, Acc, Packet};
+            KVs ->
+                handle_authorization_response(Acc, jid:to_lower(To), From, To, Packet, KVs),
                 drop
         end;
 handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
@@ -1464,8 +1466,10 @@ iq_pubsub_set_retract(Host, Node, From,
 
 iq_pubsub_set_subscribe(Host, Node, From, #{query_el := QueryEl,
                                             action_el := #xmlel{attrs = SubscribeAttrs}}) ->
-    ConfigXForm = exml_query:path(QueryEl, [{element, <<"options">>},
-                                            {element_with_ns, <<"x">>, ?NS_XDATA}]),
+    ConfigXForm = case exml_query:subelement(QueryEl, <<"options">>) of
+                      undefined -> undefined;
+                      Options -> mongoose_data_forms:find_form(Options)
+                  end,
     JID = xml:get_attr_s(<<"jid">>, SubscribeAttrs),
     subscribe_node(Host, Node, From, JID, ConfigXForm).
 
@@ -1504,7 +1508,7 @@ iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{attrs = GetOptions
     get_options(Host, Node, JID, SubId, Lang).
 
 iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{attrs = SetOptionsAttrs} = ActionEl}) ->
-    XForm = exml_query:subelement_with_name_and_ns(ActionEl, <<"x">>, ?NS_XDATA),
+    XForm = mongoose_data_forms:find_form(ActionEl),
     SubId = xml:get_attr_s(<<"subid">>, SetOptionsAttrs),
     JID = xml:get_attr_s(<<"jid">>, SetOptionsAttrs),
     set_options(Host, Node, JID, SubId, XForm).
@@ -1616,19 +1620,11 @@ send_pending_node_form(Request, Host, Owner, Plugins) ->
         [] ->
             {error, mongoose_xmpp_errors:feature_not_implemented()};
         Ps ->
-            XOpts = [#xmlel{name = <<"option">>, attrs = [],
-                            children = [#xmlel{name = <<"value">>,
-                                               attrs = [],
-                                               children = [{xmlcdata, Node}]}]}
-                     || Node <- get_pending_nodes(Host, Owner, Ps)],
-            XForm = #xmlel{name = <<"x">>,
-                           attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                    {<<"type">>, <<"form">>}],
-                           children = [#xmlel{name = <<"field">>,
-                                              attrs = [{<<"type">>, <<"list-single">>},
-                                                       {<<"var">>, <<"pubsub#node">>}],
-                                              children = lists:usort(XOpts)}]},
-            adhoc:produce_response(Request, executing, <<"execute">>, [XForm])
+            Options = get_pending_nodes(Host, Owner, Ps),
+            Field = #{type => <<"list-single">>, var => <<"pubsub#node">>,
+                      options => lists:usort(Options)},
+            Form = mongoose_data_forms:form(#{fields => [Field]}),
+            adhoc:produce_response(Request, executing, <<"execute">>, [Form])
     end.
 
 get_pending_nodes(Host, Owner, Plugins) ->
@@ -1650,19 +1646,18 @@ get_pending_nodes(Host, Owner, Plugins) ->
         Err -> Err
     end.
 
-adhoc_get_pending_parse_options(Host, #xmlel{name = <<"x">>} = XEl) ->
-    case jlib:parse_xdata_submit(XEl) of
-        invalid ->
-            {error, mongoose_xmpp_errors:bad_request()};
-        XData2 ->
-            case set_xoption(Host, XData2, []) of
+adhoc_get_pending_parse_options(Host, XEl) ->
+    case mongoose_data_forms:parse_form(XEl) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            case set_xoption(Host, maps:to_list(KVs), []) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
                 Err -> Err
-            end
-    end;
-adhoc_get_pending_parse_options(_Host, XData) ->
-    ?LOG_INFO(#{what => pubsub_bad_xform, exml_packet => XData}),
-    {error, mongoose_xmpp_errors:bad_request()}.
+            end;
+        {error, Msg} ->
+            {error, mongoose_xmpp_errors:bad_request(<<"en">>, Msg)};
+        _ ->
+            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
+    end.
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
@@ -1700,88 +1695,42 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                            Subscriber) ->
     Lang = <<"en">>,
-    FormChildren = [#xmlel{name = <<"title">>, attrs = [],
-                           children =
-                           [#xmlcdata{content =
-                                      translate:translate(Lang, <<"PubSub subscriber request">>)}]},
-                    #xmlel{name = <<"instructions">>,
-                           attrs = [],
-                           children =
-                           [#xmlcdata{content = translate:translate(
-                                                  Lang, <<"Choose whether to approve this entity's "
-                                                          "subscription.">>)}]},
-                    #xmlel{name = <<"field">>,
-                           attrs =
-                           [{<<"var">>, <<"FORM_TYPE">>},
-                            {<<"type">>, <<"hidden">>}],
-                           children =
-                           [#xmlel{name = <<"value">>,
-                                   attrs = [],
-                                   children = [#xmlcdata{content = ?NS_PUBSUB_SUB_AUTH}]}]},
-                    #xmlel{name = <<"field">>,
-                           attrs =
-                           [{<<"var">>, <<"pubsub#node">>},
-                            {<<"type">>,
-                             <<"text-single">>},
-                            {<<"label">>, translate:translate(Lang, <<"Node ID">>)}],
-                           children = [#xmlel{name = <<"value">>,
-                                              attrs = [],
-                                              children = [#xmlcdata{content = Node}]}]},
-                    #xmlel{name = <<"field">>,
-                           attrs =
-                           [{<<"var">>,
-                             <<"pubsub#subscriber_jid">>},
-                            {<<"type">>, <<"jid-single">>},
-                            {<<"label">>,
-                             translate:translate(Lang, <<"Subscriber Address">>)}],
-                           children =
-                           [#xmlel{name = <<"value">>,
-                                   attrs = [],
-                                   children = [#xmlcdata{content = jid:to_binary(Subscriber)}]}]},
-                    #xmlel{name = <<"field">>,
-                           attrs =
-                           [{<<"var">>,
-                             <<"pubsub#allow">>},
-                            {<<"type">>, <<"boolean">>},
-                            {<<"label">>,
-                             translate:translate(Lang,
-                                                 <<"Allow this Jabber ID to subscribe to "
-                                                   "this pubsub node?">>)}],
-                           children = [#xmlel{name = <<"value">>,
-                                              attrs = [],
-                                              children = [#xmlcdata{content = <<"false">>}]}]}],
+    Title = translate:translate(Lang, <<"PubSub subscriber request">>),
+    Instructions = translate:translate(Lang, <<"Choose whether to approve this entity's "
+                                               "subscription.">>),
+    Fields = [#{var => <<"pubsub#node">>,
+                type => <<"text-single">>,
+                label => translate:translate(Lang, <<"Node ID">>),
+                values => [Node]},
+              #{var => <<"pubsub#subscriber_jid">>,
+                type => <<"jid-single">>,
+                label => translate:translate(Lang, <<"Subscriber Address">>),
+                values => [jid:to_binary(Subscriber)]},
+              #{var => <<"pubsub#allow">>,
+                type => <<"boolean">>,
+                label => translate:translate(Lang, <<"Allow this Jabber ID to subscribe to "
+                                                     "this pubsub node?">>),
+                values => [<<"false">>]}],
+    Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
+                                      ns => ?NS_PUBSUB_SUB_AUTH, fields => Fields}),
     Stanza = #xmlel{name = <<"message">>,
                     attrs = [{<<"id">>, mongoose_bin:gen_from_crypto()}],
-                    children = [#xmlel{name = <<"x">>,
-                                       attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
-                                       children = FormChildren}]},
+                    children = [Form]},
     lists:foreach(fun(Owner) ->
                           ejabberd_router:route(service_jid(Host), jid:make(Owner), Stanza)
                   end, Owners).
 
-find_authorization_response(#xmlel{ children = Els }) ->
-    XData = lists:foldl(fun(#xmlel{name = <<"x">>, attrs = XAttrs} = XEl, Acc) ->
-                                case {xml:get_attr_s(<<"xmlns">>, XAttrs),
-                                      xml:get_attr_s(<<"type">>, XAttrs)} of
-                                    {?NS_XDATA, <<"submit">>} ->
-                                        [jlib:parse_xdata_submit(XEl) | Acc];
-                                    _ ->
-                                        Acc
-                                end;
-                           (_, Acc) ->
-                                Acc
-                        end, [], xml:remove_cdata(Els)),
-    case XData of
-        [] ->
+find_authorization_response(El) ->
+    case mongoose_data_forms:find_form(El) of
+        undefined ->
             none;
-        [XFields] when is_list(XFields) ->
-            ?LOG_DEBUG(#{what => pubsub_xfields, xfields => XFields}),
-            case lists:keysearch(<<"FORM_TYPE">>, 1, XFields) of
-                {value, {_, [?NS_PUBSUB_SUB_AUTH]}} -> XFields;
-                _ -> invalid
-            end;
-        _ ->
-            invalid
+        Form ->
+            case mongoose_data_forms:parse_form_fields(Form) of
+                #{type := <<"submit">>, ns := ?NS_PUBSUB_SUB_AUTH, kvs := KVs} ->
+                    KVs;
+                _ ->
+                    invalid
+            end
     end.
 
 %% @doc Send a message to JID with the supplied Subscription
@@ -1800,12 +1749,10 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
     ejabberd_router:route(service_jid(Host), JID, Stanza).
 
 handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
-    case {lists:keysearch(<<"pubsub#node">>, 1, XFields),
-          lists:keysearch(<<"pubsub#subscriber_jid">>, 1, XFields),
-          lists:keysearch(<<"pubsub#allow">>, 1, XFields)} of
-        {{value, {_, [Node]}},
-         {value, {_, [SSubscriber]}},
-         {value, {_, [SAllow]}}} ->
+    case XFields of
+        #{<<"pubsub#node">> := [Node],
+          <<"pubsub#subscriber_jid">> := [SSubscriber],
+          <<"pubsub#allow">> := [SAllow]} ->
             FromLJID = jid:to_lower(jid:to_bare(From)),
             Subscriber = jid:from_binary(SSubscriber),
             Allow = string_allow_to_boolean(SAllow),
@@ -1863,12 +1810,10 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
     end.
 
 -define(XFIELD(Type, Label, Var, Val),
-        #xmlel{name = <<"field">>,
-               attrs = [{<<"type">>, Type},
-                        {<<"label">>, translate:translate(Lang, Label)},
-                        {<<"var">>, Var}],
-               children = [#xmlel{name = <<"value">>, attrs = [],
-                                  children = [{xmlcdata, Val}]}]}).
+        #{type => Type,
+          label => translate:translate(Lang, Label),
+          var => Var,
+          values => [Val]}).
 
 -define(BOOLXFIELD(Label, Var, Val),
         ?XFIELD(<<"boolean">>, Label, Var,
@@ -1881,45 +1826,27 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
         ?XFIELD(<<"text-single">>, Label, Var, Val)).
 
 -define(STRINGMXFIELD(Label, Var, Vals),
-        #xmlel{name = <<"field">>,
-               attrs = [{<<"type">>, <<"text-multi">>},
-                        {<<"label">>, translate:translate(Lang, Label)},
-                        {<<"var">>, Var}],
-               children = [#xmlel{name = <<"value">>, attrs = [],
-                                  children = [{xmlcdata, V}]}
-                           || V <- Vals]}).
+        #{type => <<"text-multi">>,
+          label => translate:translate(Lang, Label),
+          var => Var,
+          values => Vals}).
 
 -define(XFIELDOPT(Type, Label, Var, Val, Opts),
-        #xmlel{name = <<"field">>,
-               attrs = [{<<"type">>, Type},
-                        {<<"label">>, translate:translate(Lang, Label)},
-                        {<<"var">>, Var}],
-               children = [#xmlel{name = <<"option">>, attrs = [],
-                                  children = [#xmlel{name = <<"value">>,
-                                                     attrs = [],
-                                                     children = [{xmlcdata, Opt}]}]}
-                           || Opt <- Opts]
-               ++
-                   [#xmlel{name = <<"value">>, attrs = [],
-                           children = [{xmlcdata, Val}]}]}).
+        #{type => Type,
+          label => translate:translate(Lang, Label),
+          var => Var,
+          options => Opts,
+          values => [Val]}).
 
 -define(LISTXFIELD(Label, Var, Val, Opts),
         ?XFIELDOPT(<<"list-single">>, Label, Var, Val, Opts)).
 
 -define(LISTMXFIELD(Label, Var, Vals, Opts),
-        #xmlel{name = <<"field">>,
-               attrs = [{<<"type">>, <<"list-multi">>},
-                        {<<"label">>, translate:translate(Lang, Label)},
-                        {<<"var">>, Var}],
-               children = [#xmlel{name = <<"option">>, attrs = [],
-                                  children = [#xmlel{name = <<"value">>,
-                                                     attrs = [],
-                                                     children = [{xmlcdata, Opt}]}]}
-                           || Opt <- Opts]
-               ++
-                   [#xmlel{name = <<"value">>, attrs = [],
-                           children = [{xmlcdata, Val}]}
-                    || Val <- Vals]}).
+        #{type => <<"list-multi">>,
+          label => translate:translate(Lang, Label),
+          var => Var,
+          options => Opts,
+          values => Vals}).
 
 %% @doc <p>Create new pubsub nodes</p>
 %%<p>In addition to method-specific error conditions, there are several general reasons
@@ -1973,17 +1900,7 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     end;
 create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
     Type = select_type(ServerHost, Host, Node, GivenType),
-    ConfigXEl = case xml:remove_cdata(Configuration) of
-                    [] ->
-                        {result, node_options(Host, Type)};
-                    [#xmlel{name = <<"x">>} = XEl] ->
-                        XEl;
-                    _ ->
-                        ?LOG_INFO(#{what => pubsub_bad_node_configuration,
-                            pubsub_node => Node, configuration => Configuration}),
-                        {error, mongoose_xmpp_errors:bad_request()}
-                end,
-    case parse_create_node_options_if_possible(Host, Type, ConfigXEl) of
+    case parse_create_node_options(Host, Type, xml:remove_cdata(Configuration)) of
         {result, NodeOptions} ->
             CreateNode = fun () ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
@@ -2007,21 +1924,27 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                     Error
             end;
         Error ->
+            ?LOG_INFO(#{what => pubsub_bad_node_configuration,
+                        pubsub_node => Node, configuration => Configuration}),
             Error
     end.
 
-parse_create_node_options_if_possible(Host, Type, #xmlel{} = ConfigXEl) ->
-    case jlib:parse_xdata_submit(ConfigXEl) of
-        invalid ->
-            {error, mongoose_xmpp_errors:bad_request()};
-        XData ->
-            case set_xoption(Host, XData, node_options(Host, Type)) of
+parse_create_node_options(Host, Type, []) ->
+    {result, node_options(Host, Type)};
+parse_create_node_options(Host, Type, [XEl]) ->
+    case mongoose_data_forms:parse_form(XEl) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            case set_xoption(Host, maps:to_list(KVs), node_options(Host, Type)) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
                 Err -> Err
-            end
+            end;
+        {error, Msg} ->
+            {error, mongoose_xmpp_errors:bad_request(<<"en">>, Msg)};
+        _ ->
+            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
     end;
-parse_create_node_options_if_possible(_Host, _Type, InvalidConfigXEl) ->
-    InvalidConfigXEl.
+parse_create_node_options(_Host, _Type, _) ->
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions) ->
     Parent = get_parent(Type, Node),
@@ -3534,11 +3457,10 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
             {result, false}
     end.
 
-payload_by_option(Type, NodeOptions, Lang) ->
+payload_by_option(_Type, NodeOptions, Lang) ->
     case get_option(NodeOptions, deliver_payloads) of
         true ->
-            [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-                    children = get_configure_xfields(Type, NodeOptions, Lang, [])}];
+            [configure_form(<<"result">>, NodeOptions, Lang, [])];
         false ->
             []
     end.
@@ -3730,10 +3652,7 @@ get_configure_transaction(ServerHost, Node, From, Lang,
     case node_call(Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
             Groups = mongoose_hooks:roster_groups(ServerHost),
-            XEl = #xmlel{name = <<"x">>,
-                         attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                  {<<"type">>, <<"form">>}],
-                         children = get_configure_xfields(Type, Options, Lang, Groups)},
+            XEl = configure_form(<<"form">>, Options, Lang, Groups),
             ConfigureEl = #xmlel{name = <<"configure">>,
                                  attrs = node_attr(Node),
                                  children = [XEl]},
@@ -3748,12 +3667,8 @@ get_configure_transaction(ServerHost, Node, From, Lang,
 get_default(Host, Node, _From, #{lang := Lang}) ->
     Type = select_type(Host, Node),
     Options = node_options(Host, Type),
-    DefaultEl = #xmlel{name = <<"default">>, attrs = [],
-                       children =
-                       [#xmlel{name = <<"x">>,
-                               attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                        {<<"type">>, <<"form">>}],
-                               children = get_configure_xfields(Type, Options, Lang, [])}]},
+    XEl = configure_form(<<"form">>, Options, Lang, []),
+    DefaultEl = #xmlel{name = <<"default">>, attrs = [], children = [XEl]},
     {result,
      [#xmlel{name = <<"pubsub">>,
              attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
@@ -3855,9 +3770,12 @@ max_items(Host, Options) ->
                        <<"pubsub#", (atom_to_binary(Var, latin1))/binary>>,
                        get_option(Options, Var, []))).
 
-get_configure_xfields(_Type, Options, Lang, Groups) ->
-    [?XFIELD(<<"hidden">>, <<>>, <<"FORM_TYPE">>, (?NS_PUBSUB_NODE_CONFIG)),
-     ?BOOL_CONFIG_FIELD(<<"Deliver payloads with event notifications">>,
+configure_form(Type, Options, Lang, Groups) ->
+    Fields = get_configure_xfields(Options, Lang, Groups),
+    mongoose_data_forms:form(#{type => Type, ns => ?NS_PUBSUB_NODE_CONFIG, fields => Fields}).
+
+get_configure_xfields(Options, Lang, Groups) ->
+    [?BOOL_CONFIG_FIELD(<<"Deliver payloads with event notifications">>,
                         deliver_payloads),
      ?BOOL_CONFIG_FIELD(<<"Deliver event notifications">>,
                         deliver_notifications),
@@ -3905,20 +3823,20 @@ get_configure_xfields(_Type, Options, Lang, Groups) ->
 %%<li>The specified node does not exist.</li>
 %%</ul>
 set_configure(Host, Node, From, #{action_el := ActionEl, lang := Lang}) ->
-    case xml:remove_cdata(ActionEl#xmlel.children) of
-        [#xmlel{name = <<"x">>} = XEl] ->
-            case {xml:get_tag_attr_s(<<"xmlns">>, XEl), xml:get_tag_attr_s(<<"type">>, XEl)} of
-                {?NS_XDATA, <<"cancel">>} -> {result, []};
-                {?NS_XDATA, <<"submit">>} -> set_configure_submit(Host, Node, From, XEl, Lang);
-                _ -> {error, mongoose_xmpp_errors:bad_request()}
-            end;
+    case mongoose_data_forms:find_and_parse_form(ActionEl) of
+        #{type := <<"cancel">>} ->
+            {result, []};
+        #{type := <<"submit">>, kvs := KVs} ->
+            set_configure_submit(Host, Node, From, KVs, Lang);
+        {error, Msg} ->
+            {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
         _ ->
-            {error, mongoose_xmpp_errors:bad_request()}
+            {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
     end.
 
-set_configure_submit(Host, Node, User, XEl, Lang) ->
+set_configure_submit(Host, Node, User, KVs, Lang) ->
     Action = fun(NodeRec) ->
-                     set_configure_transaction(Host, User, XEl, NodeRec)
+                     set_configure_transaction(Host, User, KVs, NodeRec)
              end,
     case transaction(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_OldNode, TNode}} ->
@@ -3931,24 +3849,21 @@ set_configure_submit(Host, Node, User, XEl, Lang) ->
             Other
     end.
 
-set_configure_transaction(Host, User, XEl, #pubsub_node{ type = Type, id = Nidx } = NodeRec) ->
+set_configure_transaction(Host, User, KVs, #pubsub_node{ type = Type, id = Nidx } = NodeRec) ->
     case node_call(Type, get_affiliation, [Nidx, User]) of
         {result, owner} ->
-            case jlib:parse_xdata_submit(XEl) of
-                invalid -> {error, mongoose_xmpp_errors:bad_request()};
-                XData -> set_configure_valid_transaction(Host, NodeRec, XData)
-            end;
+            set_configure_valid_transaction(Host, NodeRec, KVs);
         _ ->
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 set_configure_valid_transaction(Host, #pubsub_node{ type = Type, options = Options } = NodeRec,
-                                XData) ->
+                                KVs) ->
     OldOpts = case Options of
                   [] -> node_options(Host, Type);
                   _ -> Options
               end,
-    case set_xoption(Host, XData, OldOpts) of
+    case set_xoption(Host, maps:to_list(KVs), OldOpts) of
         NewOpts when is_list(NewOpts) ->
             NewNode = NodeRec#pubsub_node{options = NewOpts},
             case tree_call(Host, set_node, [NewNode]) of
@@ -4002,8 +3917,6 @@ add_opt(Key, Value, Opts) ->
         set_xoption(Host, Opts, add_opt(Opt, Val, NewOpts))).
 
 set_xoption(_Host, [], NewOpts) -> NewOpts;
-set_xoption(Host, [{<<"FORM_TYPE">>, _} | Opts], NewOpts) ->
-    set_xoption(Host, Opts, NewOpts);
 set_xoption(Host, [{<<"pubsub#roster_groups_allowed">>, Value} | Opts], NewOpts) ->
     ?SET_LIST_XOPT(roster_groups_allowed, Value);
 set_xoption(Host, [{<<"pubsub#deliver_payloads">>, [Val]} | Opts], NewOpts) ->
