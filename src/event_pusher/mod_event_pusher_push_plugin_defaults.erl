@@ -123,11 +123,10 @@ push_content_fields(SenderId, BodyCData, MessageCount) ->
                        PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
                           any().
 publish_via_hook(Acc0, HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
-    OptionMap = maps:from_list(Form),
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% traceability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
-    case mongoose_hooks:push_notifications(HostType, Acc, [maps:from_list(PushPayload)], OptionMap) of
+    case mongoose_hooks:push_notifications(HostType, Acc, [maps:from_list(PushPayload)], Form) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
             mod_event_pusher_push:disable_node(HostType, To, PubsubJID, Node);
@@ -182,34 +181,26 @@ handle_publish_response(HostType, Recipient, PubsubJID, Node, #iq{type = error, 
                            PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
                               jlib:iq().
 push_notification_iq(Node, Form, PushPayload) ->
-    NotificationFields = [{<<"FORM_TYPE">>, ?PUSH_FORM_TYPE} | PushPayload ],
-
     #iq{type = set, sub_el = [
         #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
             #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
                 #xmlel{name = <<"item">>, children = [
                     #xmlel{name = <<"notification">>,
                            attrs = [{<<"xmlns">>, ?NS_PUSH}],
-                           children = [make_form(NotificationFields)]}
+                           children = [make_form(?PUSH_FORM_TYPE, PushPayload)]}
                 ]}
             ]}
-        ] ++ maybe_publish_options(Form)}
+        ] ++ maybe_publish_options(maps:to_list(Form))}
     ]}.
 
--spec make_form(mod_event_pusher_push:form()) -> exml:element().
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Field) || Field <- Fields]}.
+-spec make_form(binary(), mod_event_pusher_push_plugin:push_payload()) -> exml:element().
+make_form(FormType, FieldKVs) ->
+    Fields = [#{var => Name, values => [Value]} || {Name, Value} <- FieldKVs],
+    mongoose_data_forms:form(#{ns => FormType, type => <<"submit">>, fields => Fields}).
 
--spec make_form_field(mod_event_pusher_push:form_field()) -> exml:element().
-make_form_field({Name, Value}) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
-
--spec maybe_publish_options(mod_event_pusher_push:form()) -> [exml:element()].
+-spec maybe_publish_options([{binary(), binary()}]) -> [exml:element()].
 maybe_publish_options([]) ->
     [];
 maybe_publish_options(FormFields) ->
-    Children = [make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)],
+    Children = [make_form(?NS_PUBSUB_PUB_OPTIONS, FormFields)],
     [#xmlel{name = <<"publish-options">>, children = Children}].
