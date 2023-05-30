@@ -179,7 +179,7 @@ get_or_generate_mam_id(Acc) ->
 
 -spec generate_message_id(integer()) -> integer().
 generate_message_id(CandidateStamp) ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
+    NodeId = service_node_id:node_id(),
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
     encode_compact_uuid(UniqueStamp, NodeId).
 

@@ -742,7 +742,8 @@ services() ->
       }.
 
 configurable_services() ->
-    [service_admin_extra,
+    [service_node_id,
+     service_admin_extra,
      service_mongoose_system_metrics,
      service_domain_db].
 

@@ -43,19 +43,20 @@ start(normal, _Args) ->
     mongoose_fips:notify(),
     write_pid_file(),
     update_status_file(starting),
-    db_init(),
     application:start(cache_tab),
 
     mongoose_graphql:init(),
     translate:start(),
-    ejabberd_node_id:start(),
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
+    db_init(),
+
     {ok, _} = Sup = ejabberd_sup:start_link(),
+
     mongoose_domain_api:init(),
     mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
@@ -107,11 +108,10 @@ stop(_State) ->
 db_init() ->
     case mnesia:system_info(extra_db_nodes) of
         [] ->
-            application:stop(mnesia),
             mnesia:create_schema([node()]),
             application:start(mnesia, permanent);
         _ ->
-            ok
+            application:start(mnesia)
     end,
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 

@@ -222,7 +222,8 @@ deps(_HostType, Opts) ->
     DepsWithPm = handle_nested_opts(pm, Opts, #{}),
     DepsWithPmAndMuc = handle_nested_opts(muc, Opts, DepsWithPm),
 
-    [{DepMod, DepOpts, hard} || {DepMod, DepOpts} <- maps:to_list(DepsWithPmAndMuc)].
+    [{service, service_node_id}] ++
+        [{DepMod, DepOpts, hard} || {DepMod, DepOpts} <- maps:to_list(DepsWithPmAndMuc)].
 
 %%--------------------------------------------------------------------
 %% Helpers
