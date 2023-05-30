@@ -153,9 +153,14 @@ init([]) ->
         {pg,
           {pg, start_link, [mim_scope]},
           permanent, infinity, supervisor, [pg]},
+    StartIdServer =
+        {mongoose_start_node_id,
+          {mongoose_start_node_id, start_link, []},
+          permanent, infinity, supervisor, [mongoose_start_node_id]},
     {ok, {{one_for_one, 10, 1},
           cets_specs() ++
-          [PG,
+          [StartIdServer,
+           PG,
            Hooks,
            Cleaner,
            SMBackendSupervisor,

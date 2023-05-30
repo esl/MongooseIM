@@ -53,7 +53,7 @@ start(normal, _Args) ->
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
-    db_init(),
+    %db_init(),
 
     {ok, _} = Sup = ejabberd_sup:start_link(),
 

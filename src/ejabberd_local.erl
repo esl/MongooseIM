@@ -432,14 +432,12 @@ make_iq_id() ->
     local_node | {remote_node, node()}
     | {error, {unknown_node_id, term()} | bad_iq_format}.
 parse_iq_id(ID) ->
-    NodeId = service_node_id:node_id(),
-    BinNodeId = integer_to_binary(NodeId),
+    BinNodeId = mongoose_start_node_id:node_id(),
     case binary:split(ID, <<"_">>) of
         [BinNodeId, _Rest] ->
             local_node;
         [OtherBinNodeId, _Rest] ->
-            OtherNodeId = binary_to_integer(OtherBinNodeId),
-            case service_node_id:node_id_to_name(OtherNodeId) of
+            case mongoose_start_node_id:node_id_to_name(OtherBinNodeId) of
                 {ok, NodeName} ->
                     {remote_node, NodeName};
                 {error, Reason} ->

@@ -183,7 +183,7 @@
 #    tls.server_name_indication.enabled = false
 {{/outgoing_pools}}
 
-[services.service_node_id]
+#[services.service_node_id]
 
 [services.service_admin_extra]
 
