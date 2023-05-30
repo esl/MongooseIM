@@ -405,15 +405,16 @@ initial_state({route, From, ToNick, _Acc, % TOODOO
             process_presence(From, ToNick, Presence, StateData)
     end.
 
-
 -spec is_query_allowed(exml:element()) -> boolean().
-is_query_allowed(Query) ->
-    X = xml:get_subtag(Query, <<"x">>),
-    xml:get_subtag(Query, <<"destroy">>) =/= false orelse
-        (X =/= false andalso xml:get_tag_attr_s(<<"xmlns">>, X)== ?NS_XDATA andalso
-        (xml:get_tag_attr_s(<<"type">>, X) == <<"submit">> orelse
-        xml:get_tag_attr_s(<<"type">>, X)== <<"cancel">>)).
-
+is_query_allowed(#xmlel{children = Els}) ->
+    case xml:remove_cdata(Els) of
+        [#xmlel{name = <<"destroy">>}] ->
+            true;
+        [El] ->
+            mongoose_data_forms:is_form(El, [<<"submit">>, <<"cancel">>]);
+        _ ->
+            false
+    end.
 
 -spec locked_state_process_owner_iq(jid:jid(), exml:element(),
         ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result', _)
@@ -3178,30 +3179,31 @@ process_iq_owner(From, Type, Lang, SubEl, StateData, StateName) ->
 process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
-        [#xmlel{name = <<"x">>} = XEl] ->
-            case {xml:get_tag_attr_s(<<"xmlns">>, XEl),
-                  xml:get_tag_attr_s(<<"type">>, XEl),
-                  StateName} of
-                {?NS_XDATA, <<"cancel">>, locked_state} ->
-                    ?LOG_INFO(ls(#{what => muc_cancel_locked,
-                                   text => <<"Received cancel before the room was configured - destroy room">>,
-                                   from_jid => jid:to_binary(From)}, StateData)),
-                    add_to_log(room_existence, destroyed, StateData),
-                    destroy_room(XEl, StateData);
-                {?NS_XDATA, <<"cancel">>, normal_state} ->
-                    %% received cancel when room was configured - continue without changes
-                    {result, [], StateData};
-                {?NS_XDATA, <<"submit">>, _} ->
-                    process_authorized_submit_owner(From, XEl, StateData);
-                _ ->
-                    {error, mongoose_xmpp_errors:bad_request()}
-            end;
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
             ?LOG_INFO(ls(#{what => muc_room_destroy,
                            text => <<"Destroyed MUC room by the owner">>,
                            from_jid => jid:to_binary(From)}, StateData)),
             add_to_log(room_existence, destroyed, StateData),
             destroy_room(SubEl1, StateData);
+        [XEl] ->
+            case {mongoose_data_forms:parse_form(XEl), StateName} of
+                {#{type := <<"cancel">>}, locked_state} ->
+                    ?LOG_INFO(ls(#{what => muc_cancel_locked,
+                                   text => <<"Received cancel before the room was configured "
+                                             "- destroy room">>,
+                                   from_jid => jid:to_binary(From)}, StateData)),
+                    add_to_log(room_existence, destroyed, StateData),
+                    destroy_room(XEl, StateData);
+                {#{type := <<"cancel">>}, normal_state} ->
+                    %% received cancel when room was configured - continue without changes
+                    {result, [], StateData};
+                {#{type := <<"submit">>, kvs := KVs}, _} ->
+                    process_authorized_submit_owner(From, maps:to_list(KVs), StateData);
+                {{error, Msg}, _} ->
+                    {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
+                _ ->
+                    {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form contents">>)}
+            end;
         Items ->
             process_admin_items_set(From, Items, Lang, StateData)
     end;
@@ -3221,26 +3223,26 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
             end
     end.
 
--spec process_authorized_submit_owner(From ::jid:jid(), XEl :: exml:element(), StateData :: state()) ->
+-spec process_authorized_submit_owner(From ::jid:jid(), [{binary(), [binary()]}],
+                                      StateData :: state()) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
-process_authorized_submit_owner(_From, #xmlel{ children = [] } = _XEl, StateData) ->
+process_authorized_submit_owner(_From, [], StateData) ->
     %confirm an instant room
     save_persistent_room_state(StateData),
     {result, [], StateData};
-process_authorized_submit_owner(From, XEl, StateData) ->
+process_authorized_submit_owner(From, XData, StateData) ->
     %attempt to configure
-    case is_allowed_log_change(XEl, StateData, From)
-         andalso is_allowed_persistent_change(XEl, StateData, From)
-         andalso is_allowed_room_name_desc_limits(XEl, StateData)
-         andalso is_password_settings_correct(XEl, StateData) of
-        true -> set_config(XEl, StateData);
+    case is_allowed_log_change(XData, StateData, From)
+         andalso is_allowed_persistent_change(XData, StateData, From)
+         andalso is_allowed_room_name_desc_limits(XData, StateData)
+         andalso is_password_settings_correct(XData, StateData) of
+        true -> set_config(XData, StateData);
         false -> {error, mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"not allowed to configure">>)}
     end.
 
--spec is_allowed_log_change(exml:element(), state(), jid:jid()) -> boolean().
-is_allowed_log_change(XEl, StateData, From) ->
-    case lists:keymember(<<"muc#roomconfig_enablelogging">>, 1,
-             jlib:parse_xdata_submit(XEl)) of
+-spec is_allowed_log_change([{binary(), [binary()]}], state(), jid:jid()) -> boolean().
+is_allowed_log_change(XData, StateData, From) ->
+    case lists:keymember(<<"muc#roomconfig_enablelogging">>, 1, XData) of
     false ->
         true;
     true ->
@@ -3250,10 +3252,9 @@ is_allowed_log_change(XEl, StateData, From) ->
     end.
 
 
--spec is_allowed_persistent_change(exml:element(), state(), jid:jid()) -> boolean().
-is_allowed_persistent_change(XEl, StateData, From) ->
-    case lists:keymember(<<"muc#roomconfig_persistentroom">>, 1,
-             jlib:parse_xdata_submit(XEl)) of
+-spec is_allowed_persistent_change([{binary(), [binary()]}], state(), jid:jid()) -> boolean().
+is_allowed_persistent_change(XData, StateData, From) ->
+    case lists:keymember(<<"muc#roomconfig_persistentroom">>, 1, XData) of
     false ->
         true;
     true ->
@@ -3265,19 +3266,17 @@ is_allowed_persistent_change(XEl, StateData, From) ->
 
 %% @doc Check if the Room Name and Room Description defined in the Data Form
 %% are conformant to the configured limits
--spec is_allowed_room_name_desc_limits(exml:element(), state()) -> boolean().
-is_allowed_room_name_desc_limits(XEl, StateData) ->
+-spec is_allowed_room_name_desc_limits([{binary(), [binary()]}], state()) -> boolean().
+is_allowed_room_name_desc_limits(XData, StateData) ->
     IsNameAccepted =
-    case lists:keysearch(<<"muc#roomconfig_roomname">>, 1,
-                 jlib:parse_xdata_submit(XEl)) of
+    case lists:keysearch(<<"muc#roomconfig_roomname">>, 1, XData) of
         {value, {_, [N]}} ->
         byte_size(N) =< get_opt(StateData, max_room_name);
         _ ->
         true
     end,
     IsDescAccepted =
-    case lists:keysearch(<<"muc#roomconfig_roomdesc">>, 1,
-                 jlib:parse_xdata_submit(XEl)) of
+    case lists:keysearch(<<"muc#roomconfig_roomdesc">>, 1, XData) of
         {value, {_, [D]}} ->
         byte_size(D) =< get_opt(StateData, max_room_desc);
         _ ->
@@ -3287,40 +3286,38 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
 
 %% @doc Return false if:
 %% `<<"the password for a password-protected room is blank">>'
--spec is_password_settings_correct(exml:element(), state()) -> boolean().
-is_password_settings_correct(XEl, StateData) ->
+-spec is_password_settings_correct([{binary(), [binary()]}], state()) -> boolean().
+is_password_settings_correct(KVs, StateData) ->
     Config = StateData#state.config,
     OldProtected = Config#config.password_protected,
     OldPassword = Config#config.password,
     NewProtected =
-    case lists:keysearch(<<"muc#roomconfig_passwordprotectedroom">>, 1,
-                 jlib:parse_xdata_submit(XEl)) of
-        {value, {_, [<<"1">>]}} ->
-        true;
-        {value, {_, [<<"0">>]}} ->
-        false;
-        _ ->
-        undefined
-    end,
+        case lists:keysearch(<<"muc#roomconfig_passwordprotectedroom">>, 1, KVs) of
+            {value, {_, [<<"1">>]}} ->
+                true;
+            {value, {_, [<<"0">>]}} ->
+                false;
+            _ ->
+                undefined
+        end,
     NewPassword =
-    case lists:keysearch(<<"muc#roomconfig_roomsecret">>, 1,
-                 jlib:parse_xdata_submit(XEl)) of
-        {value, {_, [P]}} ->
-        P;
-        _ ->
-        undefined
-    end,
+        case lists:keysearch(<<"muc#roomconfig_roomsecret">>, 1, KVs) of
+            {value, {_, [P]}} ->
+                P;
+            _ ->
+                undefined
+        end,
     case {OldProtected, NewProtected, OldPassword, NewPassword} of
-    {true, undefined, <<>>, undefined} ->
-        false;
-    {true, undefined, _, <<>>} ->
-        false;
-    {_, true, <<>>, undefined} ->
-        false;
-    {_, true, _, <<>>} ->
-        false;
-    _ ->
-        true
+        {true, undefined, <<>>, undefined} ->
+            false;
+        {true, undefined, _, <<>>} ->
+            false;
+        {_, true, <<>>, undefined} ->
+            false;
+        {_, true, _, <<>>} ->
+            false;
+        _ ->
+            true
     end.
 
 -spec get_default_room_maxusers(state()) -> any().
@@ -3333,18 +3330,10 @@ get_default_room_maxusers(RoomState) ->
 get_config(Lang, StateData, From) ->
     AccessPersistent = access_persistent(StateData),
     Config = StateData#state.config,
-
     TitleTxt = translate:translate(Lang, <<"Configuration of room ">>),
-    Res =
-    [#xmlel{name = <<"title">>,
-            children = [#xmlcdata{content = <<TitleTxt/binary,
-                                              (jid:to_binary(StateData#state.jid))/binary>>}]},
-     #xmlel{name = <<"field">>,
-            attrs = [{<<"type">>, <<"hidden">>},
-          {<<"var">>, <<"FORM_TYPE">>}],
-            children = [#xmlel{name = <<"value">>,
-                               children = [#xmlcdata{content = ?NS_MUC_CONFIG}]}]},
-     stringxfield(<<"Room title">>,
+    Title = <<TitleTxt/binary, (jid:to_binary(StateData#state.jid))/binary>>,
+    Fields =
+    [stringxfield(<<"Room title">>,
                <<"muc#roomconfig_roomname">>,
                 Config#config.title, Lang),
      stringxfield(<<"Room description">>,
@@ -3420,50 +3409,17 @@ get_config(Lang, StateData, From) ->
     InstructionsTxt = translate:translate(
                         Lang, <<"You need an x:data capable client to configure room">>),
     {result, [#xmlel{name = <<"instructions">>, children = [#xmlcdata{content = InstructionsTxt}]},
-              #xmlel{name = <<"x">>,
-                     attrs = [{<<"xmlns">>, ?NS_XDATA},
-                              {<<"type">>, <<"form">>}],
-                     children = Res}],
+              mongoose_data_forms:form(#{title => Title, ns => ?NS_MUC_CONFIG, fields => Fields})],
      StateData}.
 
--spec getmemberlist_field(Lang :: ejabberd:lang()) -> exml:element().
+-spec getmemberlist_field(Lang :: ejabberd:lang()) -> mongoose_data_forms:field().
 getmemberlist_field(Lang) ->
     LabelTxt = translate:translate(
                  Lang, <<"Roles and affiliations that may retrieve member list">>),
-    OptModerator = #xmlel{name = <<"option">>,
-                          attrs = [{<<"label">>, translate:translate(Lang, <<"moderator">>)}],
-                          children = [
-                                      #xmlel{name = <<"value">>,
-                                             children = [#xmlcdata{content = <<"moderator">>}]}
-                                     ]},
-    OptParticipant = #xmlel{name = <<"option">>,
-                            attrs = [{<<"label">>, translate:translate(Lang, <<"participant">>)}],
-                            children = [
-                                        #xmlel{name = <<"value">>,
-                                               children = [#xmlcdata{content = <<"participant">>}]}
-                                       ]},
-    OptVisitor = #xmlel{name = <<"option">>,
-                              attrs = [{<<"label">>, translate:translate(Lang, <<"visitor">>)}],
-                              children = [
-                                          #xmlel{name = <<"value">>,
-                                                 children = [#xmlcdata{content = <<"visitor">>}]}
-                                         ]},
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, <<"list-multi">>},
-                    {<<"label">>, LabelTxt},
-                    {<<"var">>, <<"muc#roomconfig_getmemberlist">>}],
-           children = [
-                       #xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = <<"moderator">>}]},
-                       #xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = <<"participant">>}]},
-                       #xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = <<"visitor">>}]},
-                       OptModerator,
-                       OptParticipant,
-                       OptVisitor
-                      ]
-          }.
+    Values = [<<"moderator">>, <<"participant">>, <<"visitor">>],
+    Options = [{translate:translate(Lang, Opt), Opt} || Opt <- Values],
+    #{type => <<"list-multi">>, label => LabelTxt,
+      var => <<"muc#roomconfig_getmemberlist">>, values => Values, options => Options}.
 
 maxusers_field(Lang, StateData) ->
     ServiceMaxUsers = get_service_max_users(StateData),
@@ -3474,76 +3430,45 @@ maxusers_field(Lang, StateData) ->
             {N, integer_to_binary(N)};
         _ -> {0, <<"none">>}
     end,
-
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, <<"list-single">>},
-                    {<<"label">>, translate:translate(Lang, <<"Maximum Number of Occupants">>)},
-                    {<<"var">>, <<"muc#roomconfig_maxusers">>}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = MaxUsersRoomString}]}] ++
-           if
-               is_integer(ServiceMaxUsers) -> [];
-               true ->
-                   [#xmlel{name = <<"option">>,
-                           attrs = [{<<"label">>, translate:translate(Lang, <<"No limit">>)}],
-                           children = [#xmlel{name = <<"value">>,
-                                              children = [#xmlcdata{content = <<"none">>}]}]}]
-           end ++
-           [#xmlel{name = <<"option">>,
-                   attrs = [{<<"label">>, integer_to_binary(N)}],
-                   children = [#xmlel{name = <<"value">>,
-                                      children = [#xmlcdata{content = integer_to_binary(N)}]}]} ||
+    LabelTxt = translate:translate(Lang, <<"Maximum Number of Occupants">>),
+    Options = if
+                  is_integer(ServiceMaxUsers) -> [];
+                  true -> {translate:translate(Lang, <<"No limit">>), <<"none">>}
+              end ++
+        [integer_to_binary(N) ||
             N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
-                              ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers]}.
+                              ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers],
+    #{type => <<"list-single">>, label => LabelTxt,
+      var => <<"muc#roomconfig_maxusers">>, values => [MaxUsersRoomString], options => Options}.
 
--spec whois_field(Lang :: ejabberd:lang(), Config :: config()) -> exml:element().
+-spec whois_field(Lang :: ejabberd:lang(), Config :: config()) -> mongoose_data_forms:field().
 whois_field(Lang, Config) ->
-    OptModerators = #xmlel{name = <<"option">>,
-                           attrs = [{<<"label">>,
-                                     translate:translate(Lang, <<"moderators only">>)}],
-                           children = [#xmlel{name = <<"value">>,
-                                              children = [#xmlcdata{content = <<"moderators">>}]}]},
-    OptAnyone = #xmlel{name = <<"option">>,
-                       attrs = [{<<"label">>, translate:translate(Lang, <<"anyone">>)}],
-                       children = [#xmlel{name = <<"value">>,
-                                          children = [#xmlcdata{content = <<"anyone">>}]}]},
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, <<"list-single">>},
-                    {<<"label">>, translate:translate(Lang, <<"Present real Jabber IDs to">>)},
-                    {<<"var">>, <<"muc#roomconfig_whois">>}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = if Config#config.anonymous ->
-                                                                     <<"moderators">>;
-                                                                 true ->
-                                                                     <<"anyone">>
-                                                              end}]},
-                       OptModerators,
-                       OptAnyone]}.
+    Value = if Config#config.anonymous -> <<"moderators">>;
+               true -> <<"anyone">>
+            end,
+    Options = [{translate:translate(Lang, <<"moderators only">>), <<"moderators">>},
+               {translate:translate(Lang, <<"anyone">>), <<"anyone">>}],
+    #{type => <<"list-single">>, label => translate:translate(Lang, <<"moderators only">>),
+      var => <<"muc#roomconfig_whois">>, values => [Value], options => Options}.
 
--spec set_config(exml:element(), state()) -> any().
-set_config(XEl, StateData) ->
-    XData = jlib:parse_xdata_submit(XEl),
-    case XData of
-        invalid ->
-            {error, mongoose_xmpp_errors:bad_request()};
-        _ ->
-            case set_xoption(XData, StateData#state.config) of
-                #config{} = Config ->
-                    Res = change_config(Config, StateData),
-                    {result, _, NSD} = Res,
-                    PrevLogging = (StateData#state.config)#config.logging,
-                    NewLogging = Config#config.logging,
-                    PrevAnon = (StateData#state.config)#config.anonymous,
-                    NewAnon = Config#config.anonymous,
-                    Type = notify_config_change_and_get_type(PrevLogging, NewLogging,
-                                                             PrevAnon, NewAnon, StateData),
+-spec set_config([{binary(), [binary()]}], state()) -> any().
+set_config(XData, StateData) ->
+    case set_xoption(XData, StateData#state.config) of
+        #config{} = Config ->
+            Res = change_config(Config, StateData),
+            {result, _, NSD} = Res,
+            PrevLogging = (StateData#state.config)#config.logging,
+            NewLogging = Config#config.logging,
+            PrevAnon = (StateData#state.config)#config.anonymous,
+            NewAnon = Config#config.anonymous,
+            Type = notify_config_change_and_get_type(PrevLogging, NewLogging,
+                                                     PrevAnon, NewAnon, StateData),
                     Users = [{U#user.jid, U#user.nick, U#user.role} ||
-                             {_, U} <- maps:to_list(StateData#state.users)],
-                    add_to_log(Type, Users, NSD),
-                    Res;
+                                {_, U} <- maps:to_list(StateData#state.users)],
+            add_to_log(Type, Users, NSD),
+            Res;
                 Err ->
-                    Err
-            end
+            Err
     end.
 
 -spec notify_config_change_and_get_type(PrevLogging :: boolean(), NewLogging :: boolean(),
@@ -3651,9 +3576,6 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
     end;
 set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(logging, Val);
-set_xoption([{<<"FORM_TYPE">>, _} | Opts], Config) ->
-    %% Ignore our FORM_TYPE
-    set_xoption(Opts, Config);
 set_xoption([_ | _Opts], _Config) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
@@ -3986,41 +3908,31 @@ disco_item(User=#user{nick=Nick}, RoomJID) ->
            | {role, BRole :: binary(), RoomNick :: mod_muc:nick()}
            | {error, any()}
            | ok.
-check_voice_approval(From, [#xmlel{name = <<"x">>,
-                                   children = Items}], _Lang, StateData) ->
-    BRole = get_field(<<"muc#role">>, Items),
-    case Items of
-        [_Form, _Role] ->
-            case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
-                _ -> {form, BRole}
+check_voice_approval(From, [XEl], Lang, StateData) ->
+    case mongoose_data_forms:parse_form(XEl) of
+        #{kvs := #{<<"muc#role">> := [BRole]} = KVs} ->
+            case {get_role(From, StateData) =:= moderator,
+                  maps:find(<<"muc#request_allow">>, KVs),
+                  maps:find(<<"muc#roomnick">>, KVs)} of
+                {_, error, error} ->
+                    case catch binary_to_role(BRole) of
+                        {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
+                        _ -> {form, BRole}
+                    end;
+                {false, _, _} ->
+                    {error, mongoose_xmpp_errors:not_allowed()};
+                {true, {ok, [<<"true">>]}, error} ->
+                    {error, mongoose_xmpp_errors:bad_request()};
+                {true, {ok, [<<"true">>]}, {ok, [RoomNick]}} ->
+                    {role, BRole, RoomNick};
+                {true, _, _} ->
+                    ok
             end;
+        {error, Msg} ->
+            {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
         _ ->
-            case {get_role(From, StateData),
-                  get_field(<<"muc#request_allow">>, Items),
-                  get_field(<<"muc#roomnick">>, Items)} of
-                {moderator, <<"true">>, false} -> {error, mongoose_xmpp_errors:bad_request()};
-                {moderator, <<"true">>, RoomNick} -> {role, BRole, RoomNick};
-                {moderator, _, _} -> ok;
-                _ -> {error, mongoose_xmpp_errors:not_allowed()}
-            end
+            {error, mongoose_xmpp_errors:bad_request(Lang, <<"MUC Role was not provided">>)}
     end.
-
-
--spec get_field(binary(), [jlib:xmlcdata() | exml:element()]) -> any().
-get_field(Var, [#xmlel{name = <<"field">>, attrs = Attrs} = Item|Items])
-    when is_binary(Var) ->
-    case xml:get_attr(<<"var">>, Attrs) of
-    {value, Var} ->
-        case xml:get_path_s(Item, [{elem, <<"value">>}, cdata]) of
-        <<>> -> get_field(Var, Items);
-        Value -> Value
-        end;
-    _ ->
-        get_field(Var, Items)
-    end;
-get_field(_Var, []) ->
-    false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Invitation support
@@ -4421,7 +4333,7 @@ route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
     StateData;
 route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     {Nick, _} = get_participant_data(From, StateData),
-    ApprovalForm = jlib:make_voice_approval_form(From, Nick, RoleName),
+    ApprovalForm = make_voice_approval_form(From, Nick, RoleName),
     F = fun({_, Info}) ->
                 ejabberd_router:route(StateData#state.jid, Info#user.jid,
                                       ApprovalForm)
@@ -4636,18 +4548,30 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
 decode_reason(Elem) ->
     xml:get_path_s(Elem, [{elem, <<"reason">>}, cdata]).
 
+-spec make_voice_approval_form(From :: jid:simple_jid() | jid:jid(),
+                               Nick :: binary(), Role :: binary()) -> exml:element().
+make_voice_approval_form(From, Nick, Role) ->
+    Title = <<"Voice request">>,
+    Instructions = <<"To approve this request"
+                     " for voice, select the &quot;Grant voice to this person?&quot; checkbox"
+                     " and click OK. To skip this request, click the cancel button.">>,
+    Fields = [#{var => <<"muc#role">>, type => <<"text-single">>,
+                label => <<"Request role">>, values => [Role]},
+              #{var => <<"muc#jid">>, type => <<"jid-single">>,
+                label => <<"User ID">>, values => [jid:to_binary(From)]},
+              #{var => <<"muc#roomnick">>, type => <<"text-single">>,
+                label => <<"Room Nickname">>, values => [Nick]},
+              #{var => <<"muc#request_allow">>, type => <<"boolean">>,
+                label => <<"Grant voice to this person?">>, values => [<<"false">>]}],
+    Form = mongoose_data_forms:form(#{title => Title, instructions => Instructions,
+                                      ns => ?NS_MUC_REQUEST, fields => Fields}),
+    #xmlel{name = <<"message">>, children = [Form]}.
 
--spec xfield(binary(), any(), binary(), binary(), ejabberd:lang()) -> exml:element().
+-spec xfield(binary(), any(), binary(), binary(), ejabberd:lang()) -> mongoose_data_forms:field().
 xfield(Type, Label, Var, Val, Lang) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, Type},
-                         {<<"label">>, translate:translate(Lang, Label)},
-                         {<<"var">>, Var}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Val}]}]}.
+    #{type => Type, label => translate:translate(Lang, Label), var => Var, values => [Val]}.
 
-
--spec boolxfield(any(), binary(), any(), ejabberd:lang()) -> exml:element().
+-spec boolxfield(any(), binary(), any(), ejabberd:lang()) -> mongoose_data_forms:field().
 boolxfield(Label, Var, Val, Lang) ->
     xfield(<<"boolean">>, Label, Var,
         case Val of
