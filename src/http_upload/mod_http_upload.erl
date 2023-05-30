@@ -299,10 +299,8 @@ parse_request(Request) ->
 
 -spec get_disco_info_form(MaxFileSizeBin :: binary()) -> exml:element().
 get_disco_info_form(MaxFileSizeBin) ->
-    #xmlel{name     = <<"x">>,
-           attrs    = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-           children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_HTTP_UPLOAD_030}),
-                       jlib:form_field({<<"max-file-size">>, MaxFileSizeBin})]}.
+    Fields = [#{var => <<"max-file-size">>, values => [MaxFileSizeBin]}],
+    mongoose_data_forms:form(#{type => <<"result">>, ns => ?NS_HTTP_UPLOAD_030, fields => Fields}).
 
 
 -spec header_to_xmlel({Key :: binary(), Value :: binary()}) -> exml:element().
