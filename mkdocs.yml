@@ -52,6 +52,7 @@ nav:
       - 'High-level Architecture': 'user-guide/High-level-Architecture.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'tutorials/How-to-build.md'
+      - 'How to build and run MongooseIM docker image': 'tutorials/Docker-build.md'
       - 'How to Set up Push Notifications': 'tutorials/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'tutorials/push-notifications/Push-notifications-client-side.md'
       - 'How to Set up MongoosePush': 'tutorials/push-notifications/MongoosePush-setup.md'

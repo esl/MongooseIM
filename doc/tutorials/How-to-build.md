@@ -5,7 +5,7 @@ Instructions provided in this page are verified for:
 * CentOS 7
 * Ubuntu 16.04 LTS (Xenial)
 * Ubuntu 18.04 LTS (Bionic)
-* macOS 10.14 (Mojave)
+* macOS 13.3 (Ventura)
 
 For any other OS versions, the instructions should still work, however, some steps or file paths may be different.
 
@@ -17,7 +17,7 @@ To compile MongooseIM you need:
 
       *   Make: `make`,
       *   C and C++ compiler: `gcc`, `gcc-c++`,
-      *   Erlang/OTP 23.3 or higher:
+      *   Erlang/OTP 24.0 or higher:
         * `erlang` package, or,
         * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
@@ -29,7 +29,7 @@ To compile MongooseIM you need:
 
       *   Make: `make`,
       *   C and C++ compiler: `gcc`, `g++`,
-      *   Erlang/OTP 23.3 or higher:
+      *   Erlang/OTP 24.0 or higher:
         * `erlang` package, or,
         * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
         * install using [kerl](https://github.com/kerl/kerl),
@@ -40,7 +40,7 @@ To compile MongooseIM you need:
 === "macOS"
 
       *   Make, C and C++ compiler: Xcode Command Line Tools,
-      *   Erlang/OTP 23.3 or higher:
+      *   Erlang/OTP 24.0 or higher:
         * [`erlang`](https://formulae.brew.sh/formula/erlang) from Homebrew,
         * install using [kerl](https://github.com/kerl/kerl),
       *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@1.1) from Homebrew
