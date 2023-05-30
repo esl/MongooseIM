@@ -54,14 +54,12 @@ maybe_get_full_entry(SubEl) ->
 -spec build_inbox_entry_form(mongooseim:host_type()) -> exml:element().
 build_inbox_entry_form(HostType) ->
     AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_XDATA},
-                    {<<"type">>, <<"form">>}],
-           children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX_CONVERSATION}),
-                       mod_inbox_utils:list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
-                       jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>}),
-                       jlib:form_field({<<"read">>, <<"boolean">>, <<"false">>}),
-                       jlib:form_field({<<"mute">>, <<"text-single">>, <<"0">>})]}.
+    Fields =
+        [#{var => <<"box">>, type => <<"list-single">>, values => [<<"all">>], options => AllBoxes},
+         #{var => <<"archive">>, type => <<"boolean">>, values => [<<"false">>]},
+         #{var => <<"read">>, type => <<"boolean">>, values => [<<"false">>]},
+         #{var => <<"mute">>, type => <<"text-single">>, values => [<<"0">>]}],
+    mongoose_data_forms:form(#{ns => ?NS_ESL_INBOX_CONVERSATION, fields => Fields}).
 
 fetch_right_query(HostType, InboxEntryKey, only_properties) ->
     mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey);

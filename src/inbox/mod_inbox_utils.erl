@@ -39,7 +39,6 @@
          build_inbox_result_elements/2,
          build_entry_result_elements/2,
          all_valid_boxes_for_query/1,
-         list_single_form_field/3,
          calculate_ts_from/2
         ]).
 
@@ -280,33 +279,6 @@ build_delay_el(Timestamp) ->
 
 all_valid_boxes_for_query(HostType) ->
     [<<"all">> | gen_mod:get_module_opt(HostType, mod_inbox, boxes)].
-
--spec list_single_form_field(Var :: binary(),
-                             Default :: binary(),
-                             Options :: [ Option | {Label, Value}]) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-list_single_form_field(Var, Default, Options) ->
-    Value = form_field_value(Default),
-    #xmlel{
-       name = <<"field">>,
-       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
-       children = [Value | [ form_field_option(Option) || Option <- Options ]]
-      }.
-
--spec form_field_option(Option | {Label, Value}) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-form_field_option({Label, Value}) ->
-    #xmlel{
-       name = <<"option">>,
-       attrs = [{<<"label">>, Label}],
-       children = [form_field_value(Value)]
-      };
-form_field_option(Option) ->
-    form_field_option({Option, Option}).
-
--spec form_field_value(Value :: binary()) -> exml:element().
-form_field_value(Value) ->
-    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
 -spec calculate_ts_from(integer(), non_neg_integer()) -> integer().
 calculate_ts_from(Now, Days) ->
