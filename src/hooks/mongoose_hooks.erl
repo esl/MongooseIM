@@ -292,8 +292,8 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
 -spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: ok | mongoose_acc:t(),
-    NotificationForms :: [#{atom() => binary()}],
-    Options :: #{atom() => binary()},
+    NotificationForms :: [#{binary() => binary()}],
+    Options :: #{binary() => binary()},
     Result :: ok | {error, any()}.
 push_notifications(HostType, Acc, NotificationForms, Options) ->
     Params = #{options => Options, notification_forms => NotificationForms},
