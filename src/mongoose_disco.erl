@@ -217,26 +217,4 @@ identity_to_xml(Identity) ->
 
 -spec info_to_xml(info()) -> exml:element().
 info_to_xml(#{xmlns := NS, fields := Fields}) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-           children = [form_type_field_xml(NS) |
-                       [info_field_to_xml(Field) || Field <- Fields]]}.
-
--spec info_field_to_xml(info_field()) -> exml:element().
-info_field_to_xml(InfoField) ->
-    {Values, Attrs} = maps:take(values, InfoField),
-    #xmlel{name = <<"field">>,
-           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
-                             maps:to_list(Attrs)),
-           children = values_to_xml(Values)}.
-
--spec values_to_xml([binary()]) -> [exml:element()].
-values_to_xml(Values) ->
-    [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]} || Value <- Values].
-
--spec form_type_field_xml(binary()) -> exml:element().
-form_type_field_xml(NS) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = NS}]}]}.
+    mongoose_data_forms:form(#{type => <<"result">>, ns => NS, fields => Fields}).
