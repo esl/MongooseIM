@@ -163,10 +163,13 @@ search_fields(_HostType, _VHost) ->
     mod_vcard:default_search_fields().
 
 %% Search vCards reported fields callback
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), ejabberd:lang()) ->
+          [mongoose_data_forms:field()].
 search_reported_fields(_HostType, _VHost, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
 %% Search vCards callback
+-spec search(mongooseim:host_type(), jid:lserver(), term()) -> [[mongoose_data_forms:field()]].
 search(HostType, LServer, Data) ->
     Filters = make_filters(LServer, Data),
     case Filters of
@@ -379,18 +382,17 @@ record_to_items(Records) ->
 record_to_item({Username, VCardVHost, FN, Family, Given, Middle,
              Nickname, BDay, CTRY, Locality,
              EMail, OrgName, OrgUnit}) ->
-    #xmlel{name = <<"item">>,
-           children = [
-                        ?FIELD(<<"jid">>, <<Username/binary, "@", VCardVHost/binary>>),
-                        ?FIELD(<<"fn">>, FN),
-                        ?FIELD(<<"last">>, Family),
-                        ?FIELD(<<"first">>, Given),
-                        ?FIELD(<<"middle">>, Middle),
-                        ?FIELD(<<"nick">>, Nickname),
-                        ?FIELD(<<"bday">>, BDay),
-                        ?FIELD(<<"ctry">>, CTRY),
-                        ?FIELD(<<"locality">>, Locality),
-                        ?FIELD(<<"email">>, EMail),
-                        ?FIELD(<<"orgname">>, OrgName),
-                        ?FIELD(<<"orgunit">>, OrgUnit)
-                       ]}.
+    [
+     ?FIELD(<<"jid">>, <<Username/binary, "@", VCardVHost/binary>>),
+     ?FIELD(<<"fn">>, FN),
+     ?FIELD(<<"last">>, Family),
+     ?FIELD(<<"first">>, Given),
+     ?FIELD(<<"middle">>, Middle),
+     ?FIELD(<<"nick">>, Nickname),
+     ?FIELD(<<"bday">>, BDay),
+     ?FIELD(<<"ctry">>, CTRY),
+     ?FIELD(<<"locality">>, Locality),
+     ?FIELD(<<"email">>, EMail),
+     ?FIELD(<<"orgname">>, OrgName),
+     ?FIELD(<<"orgunit">>, OrgUnit)
+    ].

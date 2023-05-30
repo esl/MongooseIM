@@ -62,6 +62,7 @@ get_vcard(HostType, LUser, LServer) ->
             Other
     end.
 
+-spec search(mongooseim:host_type(), jid:lserver(), term()) -> [[mongoose_data_forms:field()]].
 search(HostType, LServer, Data) ->
     YZQuery = make_yz_query(Data, []),
     do_search(YZQuery, HostType, LServer).
@@ -85,6 +86,8 @@ do_search(YZQueryIn, HostType, LServer) ->
 search_fields(_HostType, _LServer) ->
     mod_vcard:default_search_fields().
 
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), ejabberd:lang()) ->
+          [mongoose_data_forms:field()].
 search_reported_fields(_HostType, _LServer, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
@@ -116,9 +119,7 @@ make_val(Val) ->
     end.
 
 doc2item(HostType, LServer, Props) ->
-    Vals = lists:map(pa:bind(fun extract_field/2, Props), search_fields(HostType, LServer)),
-    #xmlel{name = <<"item">>,
-           children = Vals}.
+    lists:map(pa:bind(fun extract_field/2, Props), search_fields(HostType, LServer)).
 
 extract_field(Props, {_, <<"user">>}) ->
     {_, Username} = lists:keyfind(riak_search_mapping(<<"user">>), 1, Props),

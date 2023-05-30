@@ -156,7 +156,8 @@ get_vcard(HostType, LUser, LServer) ->
 set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
--spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) -> [eldap_utils:eldap_entry()].
+-spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) ->
+          [[mongoose_data_forms:field()]].
 search(HostType, LServer, Data) ->
     State = get_state(HostType, LServer),
     search_internal(State, Data).
@@ -166,20 +167,13 @@ search_fields(HostType, LServer) ->
     State = get_state(HostType, LServer),
     State#state.search_fields.
 
--spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) -> exml:element().
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) ->
+          [mongoose_data_forms:field()].
 search_reported_fields(HostType, LServer, Lang) ->
     State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
-    #xmlel{name = <<"reported">>, attrs = [],
-           children =
-           [?TLFIELD(<<"text-single">>, <<"Jabber ID">>,
-                     <<"jid">>)]
-           ++
-           lists:map(fun ({Name, Value}) ->
-                             ?TLFIELD(<<"text-single">>, Name,
-                                      Value)
-                     end,
-                     SearchReported)}.
+    [?TLFIELD(<<"text-single">>, Name, Value) ||
+        {Name, Value} <- [{<<"Jabber ID">>, <<"jid">>} | SearchReported]].
 
 %%--------------------------------------------------------------------
 %% API
@@ -362,10 +356,10 @@ limited_results(E, _) ->
    E.
 
 search_items(Entries, State) ->
-    lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item_xml(Attrs, State) end,
+    lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item(Attrs, State) end,
                   Entries).
 
-attrs_to_item_xml(Attrs, #state{uids = UIDs} = State) ->
+attrs_to_item(Attrs, #state{uids = UIDs} = State) ->
     case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
         {U, UIDAttrFormat} ->
             case eldap_utils:get_user_part(U, UIDAttrFormat) of
@@ -387,9 +381,9 @@ make_user_item_if_exists(Username, Attrs,
                                                                    {Username, LServer})}
                                 end,
                                 SearchReported),
-            Result = [?FIELD(<<"jid">>, <<Username/binary, "@", LServer/binary>>)] ++
-            [?FIELD(Name, search_item_value(Name, Value, BinFields)) || {Name, Value} <- RFields],
-            [#xmlel{name = <<"item">>, attrs = [], children = Result}];
+            [[?FIELD(<<"jid">>, <<Username/binary, "@", LServer/binary>>)] ++
+                 [?FIELD(Name, search_item_value(Name, Value, BinFields)) ||
+                     {Name, Value} <- RFields]];
         _ -> []
     end.
 
