@@ -954,8 +954,8 @@ add_user_server_to_whitelist(User, {NodeAddr, NodeName}) ->
 assert_push_notification_in_session(User, NodeName, Service, DeviceToken) ->
     Info = mongoose_helper:get_session_info(?RPC_SPEC, User),
     {_JID, NodeName, Details} = maps:get(?SESSION_KEY, Info),
-    ?assertMatch({<<"service">>, Service}, lists:keyfind(<<"service">>, 1, Details)),
-    ?assertMatch({<<"device_id">>, DeviceToken}, lists:keyfind(<<"device_id">>, 1, Details)).
+    ?assertMatch(#{<<"service">> := Service}, Details),
+    ?assertMatch(#{<<"device_id">> := DeviceToken}, Details).
 
 wait_for_push_request(DeviceToken) ->
     mongoose_push_mock:wait_for_push_request(DeviceToken, 10000).

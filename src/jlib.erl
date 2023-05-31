@@ -25,25 +25,19 @@
 
 -module(jlib).
 -author('alexey@process-one.net').
--xep([{xep, 4}, {version, "2.13.1"}]).
 -xep([{xep, 59}, {version, "1.0"}]).
--xep([{xep, 68}, {version, "1.2"}]).
 -xep([{xep, 86}, {version, "1.0"}]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
          make_error_reply/3,
          make_invitation/3,
          make_config_change_message/1,
-         make_voice_approval_form/3,
-         form_field/1,
          replace_from_to_attrs/3,
          replace_from_to/3,
          remove_attr/2,
          iq_query_info/1,
          iq_query_or_response_info/1,
          iq_to_xml/1,
-         parse_xdata_submit/1,
-         parse_xdata_fields/1,
          timestamp_to_xml/3,
          decode_base64/1,
          encode_base64/1,
@@ -199,45 +193,6 @@ make_invitation(From, Password, Reason) ->
                               attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
                               children = Elements2}]}.
 
--spec form_field({binary(), binary(), binary()}
-               | {binary(), binary()}
-               | {binary(), binary(), binary(), binary()}) -> exml:element().
-form_field({Var, Type, Value, Label}) ->
-    Field = form_field({Var, Type, Value}),
-    Field#xmlel{attrs = [{<<"label">>, Label} | Field#xmlel.attrs]};
-form_field({Var, Type, Value}) ->
-    Field = form_field({Var, Value}),
-    Field#xmlel{attrs = [{<<"type">>, Type} | Field#xmlel.attrs]};
-form_field({Var, Value}) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
-
-
--spec make_voice_approval_form(From :: jid:simple_jid() | jid:jid(),
-                               Nick :: binary(), Role :: binary()) -> exml:element().
-make_voice_approval_form(From, Nick, Role) ->
-  Fields = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_MUC_REQUEST},
-    {<<"muc#role">>, <<"text-single">>, Role, <<"Request role">>},
-    {<<"muc#jid">>, <<"jid-single">>, jid:to_binary(From), <<"User ID">>},
-    {<<"muc#roomnick">>, <<"text-single">>, Nick, <<"Room Nickname">>},
-    {<<"muc#request_allow">>, <<"boolean">>, <<"false">>, <<"Grant voice to this person?">>}
-  ],
-  #xmlel{name = <<"message">>,
-        children = [
-          #xmlel{name = <<"x">>,
-          attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
-          children = [#xmlel{name = <<"title">>,
-          children = [#xmlcdata{content = <<"Voice request">>}]},
-            #xmlel{name = <<"instructions">>,
-            children = [#xmlcdata{content = <<"To approve this request",
-            " for voice, select the &quot;Grant voice to this person?&quot; checkbox",
-            " and click OK. To skip this request, click the cancel button.">>}]} |
-            [form_field(El) || El <- Fields]
-          ]}
-        ]}.
-
-
 -spec replace_from_to_attrs(From :: binary(),
                             To :: binary() | undefined,
                             [binary_pair()]) -> [binary_pair()].
@@ -369,38 +324,6 @@ iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
 sub_el_to_els(#xmlel{}=E) -> [E];
 %% for replies.
 sub_el_to_els(Es) when is_list(Es) -> Es.
-
-
--spec parse_xdata_submit(FormEl :: exml:element()) ->
-    invalid | [{VarName :: binary(), Values :: [binary()]}].
-parse_xdata_submit(FormEl) ->
-    case exml_query:attr(FormEl, <<"type">>) of
-        <<"submit">> -> parse_xdata_fields(FormEl#xmlel.children);
-        _ -> invalid
-    end.
-
--spec parse_xdata_fields(FormChildren :: [xmlcdata() | exml:element()]) ->
-    [{VarName :: binary(), Values :: [binary()]}].
-parse_xdata_fields([]) ->
-    [];
-parse_xdata_fields([#xmlel{ name = <<"field">> } = FieldEl | REls]) ->
-    case exml_query:attr(FieldEl, <<"var">>) of
-        undefined ->
-            parse_xdata_fields(REls);
-        Var ->
-            [ {Var, parse_xdata_values(FieldEl#xmlel.children)} | parse_xdata_fields(REls) ]
-    end;
-parse_xdata_fields([_ | REls]) ->
-    parse_xdata_fields(REls).
-
--spec parse_xdata_values(VarChildren :: [xmlcdata() | exml:element()]) ->
-    Values :: [binary()].
-parse_xdata_values([]) ->
-    [];
-parse_xdata_values([#xmlel{name = <<"value">> } = ValueEl | REls]) ->
-    [exml_query:cdata(ValueEl) | parse_xdata_values(REls)];
-parse_xdata_values([_ | REls]) ->
-    parse_xdata_values(REls).
 
 -spec rsm_decode(exml:element() | iq()) -> none | #rsm_in{}.
 rsm_decode(#iq{sub_el = SubEl})->

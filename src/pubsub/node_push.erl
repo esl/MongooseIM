@@ -111,24 +111,15 @@ is_allowed_to_publish(PublishModel, Affiliation) ->
               or (Affiliation == publish_only)).
 
 
--spec parse_form(undefined | exml:element()) -> invalid_form | #{atom() => binary()}.
+-spec parse_form(undefined | exml:element()) -> invalid_form | #{binary() => binary()}.
 parse_form(undefined) ->
     #{};
 parse_form(Form) ->
-    IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
-
-    FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>),
-               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
-    {_, CustomFields} = lists:partition(
-        fun({Name, _}) ->
-            Name == <<"FORM_TYPE">>
-        end, Fields),
-
-    case IsForm andalso IsSubmit of
-        true ->
-            maps:from_list(CustomFields);
-        false ->
+    case mongoose_data_forms:parse_form(Form) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            maps:filtermap(fun(_, [V]) -> {true, V};
+                              (_, _) -> false
+                           end, KVs);
+        _ ->
             invalid_form
     end.

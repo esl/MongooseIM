@@ -48,8 +48,6 @@
 
 %% Forms
 -export([
-    form_field_value_s/2,
-    form_field_value/2,
     message_form/3,
     form_to_text/1
 ]).
@@ -98,7 +96,7 @@
                             mam_iq:lookup_params(),
                             exml:element()) -> exml:element().
 
--ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
+-ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
               maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
 
@@ -206,14 +204,6 @@ decode_compact_uuid(Id) ->
 -spec mess_id_to_external_binary(integer()) -> binary().
 mess_id_to_external_binary(MessID) when is_integer(MessID) ->
     integer_to_binary(MessID, 32).
-
-
--spec maybe_external_binary_to_mess_id(binary()) -> undefined | integer().
-maybe_external_binary_to_mess_id(<<>>) ->
-    undefined;
-maybe_external_binary_to_mess_id(BExtMessID) ->
-    external_binary_to_mess_id(BExtMessID).
-
 
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
@@ -621,12 +611,12 @@ binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
 skip_bad_jids(MaybeJids) ->
     [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
--spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
-form_borders_decode(QueryEl) ->
-    AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
-    BeforeID = form_field_mess_id(QueryEl, <<"before_id">>),
-    FromID   = form_field_mess_id(QueryEl, <<"from_id">>),
-    ToID     = form_field_mess_id(QueryEl, <<"to_id">>),
+-spec form_borders_decode(mongoose_data_forms:kv_map()) -> 'undefined' | mod_mam:borders().
+form_borders_decode(KVs) ->
+    AfterID  = form_field_mess_id(KVs, <<"after_id">>),
+    BeforeID = form_field_mess_id(KVs, <<"before_id">>),
+    FromID   = form_field_mess_id(KVs, <<"from_id">>),
+    ToID     = form_field_mess_id(KVs, <<"to_id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
 
@@ -645,14 +635,18 @@ borders(AfterID, BeforeID, FromID, ToID) ->
         to_id     = ToID
     }.
 
--spec form_field_mess_id(exml:element(), binary()) -> 'undefined' | integer().
-form_field_mess_id(QueryEl, Name) ->
-    BExtMessID = form_field_value_s(QueryEl, Name),
-    maybe_external_binary_to_mess_id(BExtMessID).
+-spec form_field_mess_id(mongoose_data_forms:kv_map(), binary()) -> 'undefined' | integer().
+form_field_mess_id(KVs, Name) ->
+    case KVs of
+        #{Name := [BExtMessID]} -> external_binary_to_mess_id(BExtMessID);
+        #{} -> undefined
+    end.
 
--spec form_decode_optimizations(exml:element()) -> boolean().
-form_decode_optimizations(QueryEl) ->
-    form_field_value(QueryEl, <<"simple">>) =:= <<"true">>.
+-spec form_decode_optimizations(mongoose_data_forms:kv_map()) -> boolean().
+form_decode_optimizations(#{<<"simple">> := [<<"true">>]}) ->
+    true;
+form_decode_optimizations(#{}) ->
+    false.
 
 is_mam_result_message(Packet = #xmlel{name = <<"message">>}) ->
     Ns = maybe_get_result_namespace(Packet),
@@ -681,78 +675,29 @@ retraction_features(Module, HostType) ->
 %% -----------------------------------------------------------------------
 %% Forms
 
--spec form_field_value(exml:element(), binary()) -> undefined | binary().
-form_field_value(QueryEl, Name) ->
-    case exml_query:subelement(QueryEl, <<"x">>) of
-        undefined ->
-            undefined;
-        #xmlel{children = Fields} -> %% <x xmlns='jabber:x:data'/>
-            case find_field(Fields, Name) of
-                undefined ->
-                    undefined;
-                Field ->
-                    field_to_value(Field)
-            end
-    end.
-
-form_field_value_s(QueryEl, Name) ->
-    undefined_to_empty(form_field_value(QueryEl, Name)).
-
-undefined_to_empty(undefined) -> <<>>;
-undefined_to_empty(X)         -> X.
-
-%% @doc Return first matched field
--spec find_field(list(exml:element()), binary()) -> undefined | exml:element().
-find_field([#xmlel{ name = <<"field">> } = Field | Fields], Name) ->
-    case exml_query:attr(Field, <<"var">>) of
-        Name -> Field;
-        _ -> find_field(Fields, Name)
-    end;
-find_field([_|Fields], Name) -> %% skip whitespaces
-    find_field(Fields, Name);
-find_field([], _Name) ->
-    undefined.
-
--spec field_to_value(exml:element()) -> binary().
-field_to_value(FieldEl) ->
-    exml_query:path(FieldEl, [{element, <<"value">>}, cdata], <<>>).
-
 -spec message_form(Mod :: mod_mam_pm | mod_mam_muc,
                    HostType :: mongooseim:host_type(), binary()) ->
     exml:element().
 message_form(Module, HostType, MamNs) ->
-    SubEl = #xmlel{name = <<"x">>,
-                   attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
-                            {<<"type">>, <<"form">>}],
-                   children = message_form_fields(Module, HostType, MamNs)},
-    result_query(SubEl, MamNs).
+    Fields = message_form_fields(Module, HostType),
+    Form = mongoose_data_forms:form(#{ns => MamNs, fields => Fields}),
+    result_query(Form, MamNs).
 
-message_form_fields(Mod, HostType, MamNs) ->
+message_form_fields(Mod, HostType) ->
     TextSearch =
         case has_full_text_search(Mod, HostType) of
-            true -> [form_field(<<"text-single">>, <<"full-text-search">>)];
+            true -> [#{type => <<"text-single">>, var => <<"full-text-search">>}];
             false -> []
         end,
-    [form_type_field(MamNs),
-     form_field(<<"jid-single">>, <<"with">>),
-     form_field(<<"text-single">>, <<"start">>),
-     form_field(<<"text-single">>, <<"end">>) | TextSearch].
-
-form_type_field(MamNs) when is_binary(MamNs) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, <<"hidden">>},
-                    {<<"var">>, <<"FORM_TYPE">>}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = MamNs}]}]}.
-
-form_field(Type, VarName) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, Type},
-                    {<<"var">>, VarName}]}.
+    [#{type => <<"jid-single">>, var => <<"with">>},
+     #{type => <<"text-single">>, var => <<"start">>},
+     #{type => <<"text-single">>, var => <<"end">>} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
-form_to_text(El) ->
-    form_field_value(El, <<"full-text-search">>).
+form_to_text(#{<<"full-text-search">> := [Text]}) ->
+    Text;
+form_to_text(#{}) ->
+    undefined.
 
 %% -----------------------------------------------------------------------
 %% Text search tokenization

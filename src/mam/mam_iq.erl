@@ -7,8 +7,7 @@
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
-         get_one_of_path/2,
-         form_field_value_s/2]).
+         get_one_of_path/2]).
 
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
@@ -103,39 +102,41 @@ elem_to_limit(QueryEl) ->
                              ]).
 
 
--spec form_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_start_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"start">>)).
+-spec form_to_start_microseconds(mongoose_data_forms:kv_map()) -> 'undefined' | non_neg_integer().
+form_to_start_microseconds(#{<<"start">> := [V]}) ->
+    maybe_microseconds(V);
+form_to_start_microseconds(#{}) ->
+    undefined.
 
--spec form_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
-form_to_end_microseconds(El) ->
-    maybe_microseconds(form_field_value_s(El, <<"end">>)).
 
--spec form_to_with_jid(exml:element()) -> 'error' | 'undefined' | jid:jid().
-form_to_with_jid(El) ->
-    maybe_jid(form_field_value_s(El, <<"with">>)).
+-spec form_to_end_microseconds(mongoose_data_forms:kv_map()) -> 'undefined' | non_neg_integer().
+form_to_end_microseconds(#{<<"end">> := [V]}) ->
+    maybe_microseconds(V);
+form_to_end_microseconds(#{}) ->
+    undefined.
 
--spec maybe_jid(binary()) -> 'error' | 'undefined' | jid:jid().
-maybe_jid(<<>>) ->
-    undefined;
-maybe_jid(JID) when is_binary(JID) ->
-    jid:from_binary(JID).
+-spec form_to_with_jid(mongoose_data_forms:kv_map()) -> 'error' | 'undefined' | jid:jid().
+form_to_with_jid(#{<<"with">> := [JID]}) ->
+    jid:from_binary(JID);
+form_to_with_jid(#{}) ->
+    undefined.
 
 -spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module(), boolean()) ->
     lookup_params().
 form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module, EnforceSimple) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
+    KVs = query_to_map(QueryEl),
     Params = Params0#{
                %% Filtering by date.
                %% Start :: integer() | undefined
-               start_ts => form_to_start_microseconds(QueryEl),
-               end_ts => form_to_end_microseconds(QueryEl),
+               start_ts => form_to_start_microseconds(KVs),
+               end_ts => form_to_end_microseconds(KVs),
                %% Filtering by contact.
-               with_jid => form_to_with_jid(QueryEl),
+               with_jid => form_to_with_jid(KVs),
                %% Filtering by text
-               search_text => mod_mam_utils:form_to_text(QueryEl),
+               search_text => mod_mam_utils:form_to_text(KVs),
 
-               borders => mod_mam_utils:form_borders_decode(QueryEl),
+               borders => mod_mam_utils:form_borders_decode(KVs),
                %% Whether or not the client query included a <set/> element,
                %% the server MAY simply return its limited results.
                %% So, disable 'policy-violation'.
@@ -144,8 +145,18 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                %% - true - do not count records (useful during pagination, when we already
                %%          know how many messages we have from a previous query);
                %% - false - count messages (slow, according XEP-0313);
-               is_simple => maybe_enforce_simple(QueryEl, EnforceSimple)},
+               is_simple => maybe_enforce_simple(KVs, EnforceSimple)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
+
+-spec query_to_map(exml:element()) -> mongoose_data_forms:kv_map().
+query_to_map(QueryEl) ->
+    case mongoose_data_forms:find_form(QueryEl) of
+        undefined ->
+            #{};
+        Form ->
+            #{kvs := KVs} = mongoose_data_forms:parse_form_fields(Form),
+            KVs
+    end.
 
 -spec common_lookup_params(exml:element(), non_neg_integer(), non_neg_integer()) ->
     lookup_params().
@@ -177,5 +188,5 @@ maybe_add_extra_lookup_params(Module, Params, IQ) ->
 
 maybe_enforce_simple(_, true) ->
     true;
-maybe_enforce_simple(QueryEl, _) ->
-    mod_mam_utils:form_decode_optimizations(QueryEl).
+maybe_enforce_simple(KVs, _) ->
+    mod_mam_utils:form_decode_optimizations(KVs).

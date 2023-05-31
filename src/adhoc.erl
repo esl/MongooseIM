@@ -50,7 +50,7 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     SessionID = xml:get_tag_attr_s(<<"sessionid">>, SubEl),
     Action = xml:get_tag_attr_s(<<"action">>, SubEl),
-    XData = find_xdata_el(SubEl),
+    XData = mongoose_data_forms:find_form(SubEl, false),
     #xmlel{children = AllEls} = SubEl,
     Others = case XData of
                  false ->
@@ -67,24 +67,6 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
                    others = Others};
 parse_request(_) ->
     {error, mongoose_xmpp_errors:bad_request()}.
-
-%% @doc Borrowed from mod_vcard.erl
--spec find_xdata_el(exml:element()) -> false | exml:element().
-find_xdata_el(#xmlel{children = SubEls}) ->
-    find_xdata_el1(SubEls).
-
-%% @private
-find_xdata_el1([]) ->
-    false;
-find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
-        ?NS_XDATA ->
-            XE;
-        _ ->
-            find_xdata_el1(Els)
-    end;
-find_xdata_el1([_ | Els]) ->
-    find_xdata_el1(Els).
 
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from

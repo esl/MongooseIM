@@ -37,7 +37,7 @@
 
 -optional_callbacks([should_publish/3, prepare_notification/2, publish_notification/4]).
 
--type push_payload() :: mod_event_pusher_push:form().
+-type push_payload() :: [{binary(), binary()}].
 -export_type([push_payload/0]).
 %%--------------------------------------------------------------------
 %% API

@@ -51,10 +51,9 @@
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node() :: binary().
--type form_field() :: {Name :: binary(), Value :: binary()}.
--type form() :: [form_field()].
+-type form() :: #{binary() => binary()}.
 
--export_type([pubsub_node/0, form_field/0, form/0]).
+-export_type([pubsub_node/0, form/0]).
 -export_type([publish_service/0]).
 
 %%--------------------------------------------------------------------
@@ -204,7 +203,7 @@ do_push_event(Acc, Event, BareRecipient) ->
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
     Node = exml_query:attr(Request, <<"node">>, <<>>), %% Treat unset node as empty - both forbidden
-    Form = exml_query:subelement(Request, <<"x">>),
+    Form = mongoose_data_forms:find_form(Request),
 
     case {JID, Node, parse_form(Form)} of
         {_, _, invalid_form}            -> bad_request;
@@ -230,40 +229,25 @@ parse_request(_) ->
 
 -spec parse_form(undefined | exml:element()) -> invalid_form | form().
 parse_form(undefined) ->
-    [];
+    #{};
 parse_form(Form) ->
-    case is_valid_form(Form) of
-        true ->
-            parse_form_fields(Form);
-        false ->
-            invalid_form
-    end.
-
--spec is_valid_form(exml:element()) -> boolean().
-is_valid_form(Form) ->
-    IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
-    IsForm andalso IsSubmit.
+    parse_form_fields(Form).
 
 -spec parse_form_fields(exml:element()) -> invalid_form | form().
 parse_form_fields(Form) ->
-    FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>),
-               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
-    case lists:keytake(<<"FORM_TYPE">>, 1, Fields) of
-        {value, {_, ?NS_PUBSUB_PUB_OPTIONS}, CustomFields} ->
-            case are_form_fields_valid(CustomFields) of
-                true ->
-                    CustomFields;
-                false ->
-                    invalid_form
+    case mongoose_data_forms:parse_form_fields(Form) of
+        #{type := <<"submit">>, ns := ?NS_PUBSUB_PUB_OPTIONS, kvs := KVs} ->
+            case maps:filtermap(fun(_, [V]) -> {true, V};
+                                   (_, _) -> false
+                                end, KVs) of
+                ParsedKVs when map_size(ParsedKVs) < map_size(KVs) ->
+                    invalid_form;
+                ParsedKVs ->
+                    ParsedKVs
             end;
         _ ->
             invalid_form
     end.
-
-are_form_fields_valid(Fields) ->
-    lists:all(fun({Key, Value}) -> is_binary(Key) andalso is_binary(Value) end, Fields).
 
 -spec enable_node(mongooseim:host_type(), jid:jid(), jid:jid(), pubsub_node(), form()) ->
     ok | {error, Reason :: term()}.

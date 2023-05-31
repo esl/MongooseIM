@@ -34,10 +34,10 @@ init(_HostType, _Opts) ->
       Node :: mod_event_pusher_push:pubsub_node(),
       Form :: mod_event_pusher_push:form(),
       Result :: ok | {error, term()}.
-enable(HostType, User, PubSub, Node, Forms) ->
+enable(HostType, User, PubSub, Node, Form) ->
     ExtUser = jid:to_bare_binary(User),
     ExtPubSub = jid:to_binary(PubSub),
-    ExtForms = encode_form(Forms),
+    ExtForms = encode_form(Form),
     execute_delete(HostType, ExtUser, Node, ExtPubSub),
     CreatedAt = os:system_time(microsecond),
     case execute_insert(HostType, ExtUser, Node, ExtPubSub, ExtForms, CreatedAt) of
@@ -81,12 +81,11 @@ decode_row({NodeID, PubSubBin, FormJSON}) ->
      NodeID,
      decode_form(FormJSON)}.
 
-encode_form(Forms) ->
-    jiffy:encode({Forms}).
+encode_form(Form) ->
+    jiffy:encode(Form).
 
 decode_form(FormJSON) ->
-    {Items} = jiffy:decode(FormJSON),
-    Items.
+    jiffy:decode(FormJSON, [return_maps]).
 
 %% Prepared queries
 
