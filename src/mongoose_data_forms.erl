@@ -83,7 +83,7 @@ is_form(Elem, Types) ->
 
 -spec form_type(exml:element()) -> binary() | undefined.
 form_type(Form) ->
-    exml_query:attr(Form, <<"type">>, <<"form">>).
+    exml_query:attr(Form, <<"type">>).
 
 -spec form_fields_to_kvs([exml:element()]) -> kv_map().
 form_fields_to_kvs(Fields) ->
