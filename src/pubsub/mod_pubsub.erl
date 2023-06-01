@@ -1647,15 +1647,13 @@ get_pending_nodes(Host, Owner, Plugins) ->
     end.
 
 adhoc_get_pending_parse_options(Host, XEl) ->
-    case mongoose_data_forms:parse_form(XEl) of
+    case mongoose_data_forms:parse_form_fields(XEl) of
         #{type := <<"submit">>, kvs := KVs} ->
             case set_xoption(Host, maps:to_list(KVs), []) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
                 Err -> Err
             end;
-        {error, Msg} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, Msg)};
-        _ ->
+        #{} ->
             {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
     end.
 
