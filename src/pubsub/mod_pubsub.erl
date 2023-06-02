@@ -1417,10 +1417,7 @@ report_iq_action_metrics_after_return(Host, Result, Time, IQType, Name) ->
 iq_pubsub_set_create(Host, Node, From,
                      #{server_host := ServerHost, access := Access, plugins := Plugins,
                        action_el := CreateEl, query_el := QueryEl}) ->
-    Config = case exml_query:subelement(QueryEl, <<"configure">>) of
-                 #xmlel{ children = C } -> C;
-                 _ -> []
-             end,
+    Config = exml_query:subelement(QueryEl, <<"configure">>),
     Type = exml_query:attr(CreateEl, <<"type">>, hd(Plugins)),
     case lists:member(Type, Plugins) of
         false ->
@@ -1437,9 +1434,7 @@ iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := A
     case xml:remove_cdata(ActionEl#xmlel.children) of
         [#xmlel{name = <<"item">>, attrs = ItemAttrs, children = Payload}] ->
             ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
-            PublishOptions = exml_query:path(QueryEl,
-                                             [{element, <<"publish-options">>},
-                                              {element, <<"x">>}]),
+            PublishOptions = exml_query:subelement(QueryEl, <<"publish-options">>),
             publish_item(Host, ServerHost, Node, From, ItemId,
                          Payload, Access, PublishOptions);
         [] ->
@@ -1868,7 +1863,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 %% @end
 
 create_node(Host, ServerHost, Node, Owner, Type) ->
-    create_node(Host, ServerHost, Node, Owner, Type, all, []).
+    create_node(Host, ServerHost, Node, Owner, Type, all, undefined).
 
 -spec create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) -> R when
       Host          :: mod_pubsub:host(),
@@ -1877,7 +1872,7 @@ create_node(Host, ServerHost, Node, Owner, Type) ->
       Owner         :: jid:jid(),
       Type          :: binary(),
       Access        :: atom(),
-      Configuration :: [exml:element()],
+      Configuration :: exml:element() | undefined,
       R             :: {result, [exml:element(), ...]}
                      | {error, exml:element()}.
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
@@ -1898,7 +1893,7 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     end;
 create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
     Type = select_type(ServerHost, Host, Node, GivenType),
-    case parse_create_node_options(Host, Type, xml:remove_cdata(Configuration)) of
+    case parse_create_node_options(Host, Type, Configuration) of
         {result, NodeOptions} ->
             CreateNode = fun () ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
@@ -1927,22 +1922,20 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
             Error
     end.
 
-parse_create_node_options(Host, Type, []) ->
+parse_create_node_options(Host, Type, undefined) ->
     {result, node_options(Host, Type)};
-parse_create_node_options(Host, Type, [XEl]) ->
-    case mongoose_data_forms:parse_form(XEl) of
+parse_create_node_options(Host, Type, Configuration) ->
+    case mongoose_data_forms:find_and_parse_form(Configuration) of
         #{type := <<"submit">>, kvs := KVs} ->
             case set_xoption(Host, maps:to_list(KVs), node_options(Host, Type)) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
                 Err -> Err
             end;
-        {error, Msg} ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, Msg)};
-        _ ->
-            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)}
-    end;
-parse_create_node_options(_Host, _Type, _) ->
-    {error, mongoose_xmpp_errors:bad_request()}.
+        #{} ->
+            {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"Invalid form type">>)};
+        {error, _} ->
+            {result, node_options(Host, Type)}
+    end.
 
 create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions) ->
     Parent = get_parent(Type, Node),
@@ -2336,7 +2329,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
         {error, ErrorItemNotFound} ->
             Type = select_type(ServerHost, Host, Node),
             autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
-                                                Type, Access, ItemId, Payload, [PublishOptions]);
+                                                Type, Access, ItemId, Payload, PublishOptions);
         Error ->
             Error
     end.

@@ -74,10 +74,9 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
 
 do_publish_item(ServerHost, PublishOptions,
                 [#xmlel{name = <<"notification">>} | _] = Notifications) ->
-    case catch parse_form(PublishOptions) of
+    case parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
-            NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
-            NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
+            NotificationForms = [parse_form(El) || El <- Notifications],
             Result = mongoose_hooks:push_notifications(ServerHost, ok,
                                                        NotificationForms, OptionMap),
             handle_push_hook_result(Result);
@@ -110,12 +109,11 @@ is_allowed_to_publish(PublishModel, Affiliation) ->
               or (Affiliation == publisher)
               or (Affiliation == publish_only)).
 
-
 -spec parse_form(undefined | exml:element()) -> invalid_form | #{binary() => binary()}.
 parse_form(undefined) ->
     #{};
-parse_form(Form) ->
-    case mongoose_data_forms:parse_form(Form) of
+parse_form(Parent) ->
+    case mongoose_data_forms:find_and_parse_form(Parent) of
         #{type := <<"submit">>, kvs := KVs} ->
             maps:filtermap(fun(_, [V]) -> {true, V};
                               (_, _) -> false
