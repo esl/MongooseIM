@@ -15,7 +15,7 @@ else
     sudo ./aws/install
 fi
 
-aws configure set aws_access_key_id $PKG_ACCESS_KEY_ID --profile $PKG_PROFILE
-aws configure set aws_secret_access_key $PKG_SECRET_ACCESS_KEY --profile $PKG_PROFILE
+aws configure set aws_access_key_id "$PKG_ACCESS_KEY_ID" --profile "$PKG_PROFILE"
+aws configure set aws_secret_access_key "$PKG_SECRET_ACCESS_KEY" --profile "$PKG_PROFILE"
 
-aws s3 cp ${PACKAGE_NAME} s3://arn:aws:s3:${PKG_AWS_REGION}:767271724337:accesspoint/mim-packages/$prefix/${PACKAGE_NAME} --acl public-read --profile $PKG_PROFILE --region $PKG_AWS_REGION
+aws s3 cp "$PACKAGE_NAME" "s3://arn:aws:s3:$PKG_AWS_REGION:$PKG_USER_ID:accesspoint/mim-packages/$prefix/$PACKAGE_NAME" --acl public-read --profile "$PKG_PROFILE" --region "$PKG_AWS_REGION"
