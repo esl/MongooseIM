@@ -14,7 +14,7 @@ init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
-    prepare(),
+    catch prepare(),
     insert(ClusterName, Node),
     try mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]) of
         {selected, Rows} ->

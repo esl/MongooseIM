@@ -158,13 +158,14 @@ init([]) ->
           {mongoose_start_node_id, start_link, []},
           permanent, infinity, supervisor, [mongoose_start_node_id]},
     {ok, {{one_for_one, 10, 1},
-          cets_specs() ++
           [StartIdServer,
            PG,
            Hooks,
            Cleaner,
            SMBackendSupervisor,
            Router,
+           OutgoingPoolsSupervisor
+           ] ++ cets_specs() ++ [
            S2S,
            Local,
            ReceiverSupervisor,
@@ -172,7 +173,6 @@ init([]) ->
            S2SInSupervisor,
            S2SOutSupervisor,
            ServiceSupervisor,
-           OutgoingPoolsSupervisor,
            IQSupervisor,
            Listener,
            MucIQ,

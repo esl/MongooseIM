@@ -106,6 +106,14 @@ stop(_State) ->
 %%% Internal functions
 %%%
 db_init() ->
+    case mongoose_config:get_opt([internal_databases, mnesia], disabled) of
+        disabled ->
+            ok;
+        _ ->
+            db_init_mnesia()
+    end.
+
+db_init_mnesia() ->
     case mnesia:system_info(extra_db_nodes) of
         [] ->
             mnesia:create_schema([node()]),

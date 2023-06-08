@@ -11,6 +11,9 @@
   {{#sm_backend}}
   sm_backend = {{{sm_backend}}}
   {{/sm_backend}}
+  {{#s2s_backend}}
+  s2s_backend = {{{s2s_backend}}}
+  {{/s2s_backend}}
   max_fsm_queue = 1000
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}
@@ -347,9 +350,6 @@
   ]
 
 [s2s]
-  {{#s2s_backend}}
-  backend = {{{s2s_backend}}}
-  {{/s2s_backend}}
   {{#s2s_use_starttls}}
   use_starttls = {{{s2s_use_starttls}}}
   {{/s2s_use_starttls}}
