@@ -347,6 +347,9 @@
   ]
 
 [s2s]
+  {{#s2s_backend}}
+  backend = {{{s2s_backend}}}
+  {{/s2s_backend}}
   {{#s2s_use_starttls}}
   use_starttls = {{{s2s_use_starttls}}}
   {{/s2s_use_starttls}}

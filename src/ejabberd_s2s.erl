@@ -533,8 +533,7 @@ lookup_certfile(HostType) ->
 %% Backend logic below:
 
 db_init() ->
-%   Backend = mongoose_config:get_opt(sm_backend),
-    Backend = mnesia,
+    Backend = mongoose_config:get_opt(s2s_backend),
     ejabberd_s2s_backend:init(#{backend => Backend}).
 
 -spec dirty_read_s2s_list_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
