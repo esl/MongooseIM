@@ -333,6 +333,8 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                          from => From, to => To, message_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
                 {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
+                    %% Initiating Server Receives Valid Verification Result from Receiving Server (Step 4)
+                    %% https://xmpp.org/extensions/xep-0220.html#example-2
                     send_queue(StateData, StateData#state.queue),
                     ?LOG_INFO(#{what => s2s_out_connected,
                                 text => <<"New outgoing s2s connection established">>,
@@ -450,10 +452,10 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
                 ?NS_SASL ->
-                    ?LOG_INFO(#{what => s2s_auth_failure,
-                                text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
-                                myname => StateData#state.myname,
-                                server => StateData#state.server}),
+                    ?LOG_WARNING(#{what => s2s_auth_failure,
+                                   text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
+                                   myname => StateData#state.myname,
+                                   server => StateData#state.server}),
                     mongoose_transport:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
@@ -700,6 +702,15 @@ terminate(Reason, StateName, StateData) ->
     E = mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"Bounced by s2s">>),
     %% bounce queue manage by process and Erlang message queue
     bounce_queue(StateData#state.queue, E),
+    case queue:is_empty(StateData#state.queue) of
+        true ->
+            ok;
+        false ->
+            ?LOG_WARNING(#{what => s2s_terminate_non_empty,
+                           state_name => StateName,
+                           queue => lists:sublist(queue:to_list(StateData#state.queue), 10),
+                           authenticated => StateData#state.authenticated})
+    end,
     bounce_messages(E),
     case StateData#state.socket of
         undefined ->
@@ -819,6 +830,8 @@ send_db_request(StateData) ->
                          StateData#state.host_type,
                          {StateData#state.myname, Server},
                          StateData#state.remote_streamid),
+                %% Initiating Server Sends Dialback Key
+                %% https://xmpp.org/extensions/xep-0220.html#example-1
                 send_element(StateData,
                              #xmlel{name = <<"db:result">>,
                                     attrs = [{<<"from">>, StateData#state.myname},
@@ -1090,15 +1103,11 @@ addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 
 send_event(<<"valid">>, Pid, StateData) ->
-    p1_fsm:send_event(
-      Pid, {valid,
-            StateData#state.server,
-            StateData#state.myname});
+    Event = {valid, StateData#state.server, StateData#state.myname},
+    p1_fsm:send_event(Pid, Event);
 send_event(_, Pid, StateData) ->
-    p1_fsm:send_event(
-      Pid, {invalid,
-            StateData#state.server,
-            StateData#state.myname}).
+    Event = {invalid, StateData#state.server, StateData#state.myname},
+    p1_fsm:send_event(Pid, Event).
 
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =

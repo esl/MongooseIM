@@ -127,7 +127,7 @@ start_listener(Opts) ->
 %%----------------------------------------------------------------------
 -spec init([socket() | options(), ...]) -> {ok, wait_for_stream, state()}.
 init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
-    ?LOG_DEBUG(#{what => s2n_in_started,
+    ?LOG_DEBUG(#{what => s2s_in_started,
                  text => <<"New incoming S2S connection">>,
                  socket => Socket}),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
@@ -177,10 +177,13 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             stream_start_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
+    ?LOG_WARNING(#{what => s2s_in_wait_for_stream_error}),
     stream_start_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
 wait_for_stream(timeout, StateData) ->
+    ?LOG_WARNING(#{what => s2s_in_wait_for_stream_timeout}),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
+    ?LOG_WARNING(#{what => s2s_in_wait_for_stream_closed}),
     {stop, normal, StateData}.
 
 start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
@@ -196,17 +199,17 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
     StartTLS = get_tls_xmlel(StateData),
     case SASL of
         {error_cert_verif, CertError} ->
-            ?LOG_INFO(#{what => s2s_connection_closing,
-                        text => <<"Closing s2s connection">>,
-                        server => StateData#state.server,
-                        remote_server => RemoteServer,
-                        reason => cert_error,
-                        cert_error => CertError}),
+            ?LOG_WARNING(#{what => s2s_connection_closing,
+                           text => <<"Closing s2s connection">>,
+                           server => StateData#state.server,
+                           remote_server => RemoteServer,
+                           reason => cert_error,
+                           cert_error => CertError}),
             Res = stream_start_error(StateData,
                                      mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
             %% FIXME: why do we want stop just one of the connections here?                         
-            {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
-                                                         jid:make(<<>>, RemoteServer, <<>>)),
+            {ok, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
+                                                     jid:make(<<>>, RemoteServer, <<>>)),
             ejabberd_s2s_out:stop_connection(Pid),
             Res;
         _ ->
@@ -232,6 +235,7 @@ stream_start_error(StateData, Error) ->
     send_text(StateData, ?STREAM_HEADER(<<>>)),
     send_element(StateData, Error),
     send_text(StateData, ?STREAM_TRAILER),
+    ?LOG_WARNING(#{what => s2s_in_stream_start_error}),
     {stop, normal, StateData}.
 
 -spec wait_for_feature_request(ejabberd:xml_stream_item(), state()
@@ -270,6 +274,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                  #xmlel{name = <<"failure">>,
                                         attrs = [{<<"xmlns">>, ?NS_SASL}],
                                         children = [#xmlel{name = <<"invalid-mechanism">>}]}),
+                    ?LOG_WARNING(#{what => s2s_in_invalid_mechanism}),
                     {stop, normal, StateData}
             end;
         _ ->
@@ -277,12 +282,15 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     end;
 wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
+    ?LOG_WARNING(#{what => s2s_in_got_stream_end_before_feature_request}),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
+    ?LOG_WARNING(#{what => s2s_in_got_stream_error_before_feature_request}),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
+    ?LOG_WARNING(#{what => s2s_in_got_closed_before_feature_request}),
     {stop, normal, StateData}.
 
 tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}) ->
@@ -320,9 +328,11 @@ stream_established({xmlstreamelement, El}, StateData) ->
                                      timer = Timer}};
                 {_, false} ->
                     send_element(StateData, mongoose_xmpp_errors:host_unknown()),
+                    ?LOG_WARNING(#{what => s2s_in_key_from_uknown_host}),
                     {stop, normal, StateData};
                 {false, _} ->
                     send_element(StateData, mongoose_xmpp_errors:invalid_from()),
+                    ?LOG_WARNING(#{what => s2s_in_key_with_invalid_from}),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -334,6 +344,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
                        Key -> <<"valid">>;
                        _ -> <<"invalid">>
                    end,
+            %% XEP-0185: Dialback Key Generation and Validation
+            %% DB means dial-back
             send_element(StateData,
                          #xmlel{name = <<"db:verify">>,
                                 attrs = [{<<"from">>, To},
@@ -385,6 +397,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
 stream_established({xmlstreamerror, _}, StateData) ->
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_text(StateData, ?STREAM_TRAILER),
+    ?LOG_WARNING(#{what => s2s_in_stream_error, state_name => stream_established}),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};
@@ -542,8 +555,8 @@ handle_info(_, StateName, StateData) ->
 %% Returns: any
 %%----------------------------------------------------------------------
 -spec terminate(any(), statename(), state()) -> 'ok'.
-terminate(Reason, _StateName, StateData) ->
-    ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason}),
+terminate(Reason, StateName, StateData) ->
+    ?LOG_DEBUG(#{what => s2s_in_stopped, reason => Reason, state_name => StateName}),
     mongoose_transport:close(StateData#state.socket),
     ok.
 
@@ -688,6 +701,7 @@ handle_auth_res(_, _, StateData) ->
                  #xmlel{name = <<"failure">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
     send_text(StateData, ?STREAM_TRAILER),
+    ?LOG_WARNING(#{what => s2s_in_auth_failed}),
     {stop, normal, StateData}.
 
 
