@@ -213,8 +213,7 @@ config_spec() ->
                                           validate = {module, mod_vcard}},
                  <<"matches">> => #option{type = int_or_infinity,
                                           validate = non_negative},
-                 <<"ldap">> => ldap_section(),
-                 <<"riak">> => riak_config_spec()
+                 <<"ldap">> => ldap_section()
                 },
        defaults = #{<<"iqdisc">> => parallel,
                     <<"host">> => mongoose_subdomain_utils:make_subdomain_pattern("vjud.@HOST@"),
@@ -281,18 +280,6 @@ ldap_search_reported_spec() ->
         process = fun ?MODULE:process_search_reported_spec/1
     }.
 
-riak_config_spec() ->
-    #section{
-        items = #{<<"bucket_type">> => #option{type = binary,
-                                               validate = non_empty},
-                  <<"search_index">> => #option{type = binary,
-                                                validate = non_empty}
-                },
-        include = always,
-        defaults = #{<<"bucket_type">> => <<"vcard">>,
-                     <<"search_index">> => <<"vcard">>}
-    }.
-
 process_map_spec(#{vcard_field := VF, ldap_pattern := LP, ldap_field := LF}) ->
     {VF, LP, [LF]}.
 
@@ -302,11 +289,8 @@ process_search_spec(#{search_field := SF, ldap_field := LF}) ->
 process_search_reported_spec(#{search_field := SF, vcard_field := VF}) ->
     {SF, VF}.
 
-remove_unused_backend_opts(Opts = #{backend := riak}) -> maps:remove(ldap, Opts);
-remove_unused_backend_opts(Opts = #{backend := ldap}) -> maps:remove(riak, Opts);
-remove_unused_backend_opts(Opts) ->
-    M = maps:remove(riak, Opts),
-    maps:remove(ldap, M).
+remove_unused_backend_opts(Opts = #{backend := ldap}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(ldap, Opts).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks for search

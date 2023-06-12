@@ -143,7 +143,6 @@
 -import(mam_helper,
         [rpc_apply/3,
          get_prop/2,
-         is_riak_enabled/1,
          is_cassandra_enabled/1,
          is_elasticsearch_enabled/1,
          is_mam_possible/1,
@@ -247,13 +246,11 @@ configurations() ->
 all_configurations() ->
     cassandra_configs(true)
     ++ rdbms_configs(true)
-    ++ riak_configs(true)
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host_type()))
     ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()))
-    ++ riak_configs(is_riak_enabled(host_type()))
     ++ elasticsearch_configs(is_elasticsearch_enabled(host_type())).
 
 rdbms_configs(true) ->
@@ -267,11 +264,6 @@ rdbms_configs(true) ->
     ];
 rdbms_configs(_) ->
     [].
-
-riak_configs(true) ->
-     [riak_timed_yz_buckets];
-riak_configs(_) ->
-     [].
 
 cassandra_configs(true) ->
      [cassandra];
@@ -636,8 +628,6 @@ init_per_group(Group, ConfigIn) ->
 do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
     case C of
-        riak_timed_yz_buckets ->
-            [{archive_wait, 2500} | Config0];
         cassandra ->
             [{archive_wait, 1500} | Config0];
         elasticsearch ->
@@ -693,9 +683,6 @@ maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
 maybe_set_wait(_C, _, Config) ->
     Config.
 
-mam_opts_for_conf(riak_timed_yz_buckets) ->
-    #{backend => riak,
-      user_prefs_store => mnesia};
 mam_opts_for_conf(elasticsearch) ->
     #{backend => elasticsearch,
       user_prefs_store => mnesia};
@@ -881,10 +868,6 @@ init_per_testcase(C=range_archive_request_not_empty, Config) ->
 init_per_testcase(C=limit_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=prefs_set_request, Config) ->
-    skip_if_riak(C, Config);
-init_per_testcase(C=prefs_set_cdata_request, Config) ->
-    skip_if_riak(C, Config);
 init_per_testcase(C=easy_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
@@ -924,14 +907,6 @@ skip_if_retraction_not_supported(Config, Init) ->
             {skip, "message retraction not supported"};
         true ->
             Init()
-    end.
-
-skip_if_riak(C, Config) ->
-    case ?config(configuration, Config) of
-        riak_timed_yz_buckets ->
-            {skip, "prefs not implemented for riak"};
-        _ ->
-            escalus:init_per_testcase(C, Config)
     end.
 
 skip_if_cassandra(Config, Init) ->
@@ -1433,9 +1408,6 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
                 mam_helper:wait_for_archive_size(Alice, 3),
 
-                %% Riak YZ is async.
-                %% It takes time to index docs  (usually 1 second).
-                %% https://docs.riak.com/riak/kv/latest/developing/usage/search/index.html#indexing-values
                 %% Each stanza_text_search_archive_request should call it regardless of wait_for_archive_size result.
                 maybe_wait_for_archive(Config),
 

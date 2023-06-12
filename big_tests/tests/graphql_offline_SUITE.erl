@@ -71,9 +71,6 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config2).
 
 -spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
-create_config(riak) ->
-    [{mod_offline, mod_config(mod_offline, #{backend => riak,
-        riak => #{bucket_type => <<"offline">>}})}];
 create_config(Backend) ->
     [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 
@@ -90,7 +87,7 @@ init_per_group(domain_admin, Config) ->
 init_per_group(GroupName, Config) when GroupName =:= admin_offline;
                                        GroupName =:= domain_admin_offline ->
     HostType = host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     ModConfig = create_config(Backend),
     dynamic_modules:ensure_modules(HostType, ModConfig),
     [{backend, Backend} | escalus:init_per_suite(Config)];

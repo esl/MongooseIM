@@ -14,23 +14,11 @@ Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_last.backend`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
 Storage backend.
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-### Riak-specific options
-
-#### `bucket_type`
-* **Syntax:** string
-* **Default:** `"last"`
-* **Example:** `bucket_type = "last"`
-
-Riak bucket type.
 
 ## Example Configuration
 

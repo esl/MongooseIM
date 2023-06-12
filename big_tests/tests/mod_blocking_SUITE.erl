@@ -99,14 +99,12 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     ModConfig = [{mod_blocking, set_opts(Backend)}],
     dynamic_modules:ensure_modules(HostType, ModConfig),
     [{backend, Backend} |
      escalus:init_per_suite(Config1)].
 
-set_opts(riak) ->
-    #{riak => config_parser_helper:config([modules, mod_privacy, riak], #{}), backend => riak};
 set_opts(Backend) ->
     #{backend => Backend}.
 

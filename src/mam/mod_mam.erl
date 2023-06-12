@@ -113,8 +113,7 @@ config_spec() ->
     Items = maps:merge(common_config_items(), root_config_items()),
     #section{
        items = Items#{<<"pm">> => pm_config_spec(),
-                      <<"muc">> => muc_config_spec(),
-                      <<"riak">> => riak_config_spec()},
+                      <<"muc">> => muc_config_spec()},
        defaults = #{<<"backend">> => rdbms,
                     <<"no_stanzaid_element">> => false,
                     <<"is_archivable_message">> => mod_mam_utils,
@@ -125,12 +124,8 @@ config_spec() ->
                     <<"cache_users">> => true,
                     <<"default_result_limit">> => 50,
                     <<"max_result_limit">> => 50,
-                    <<"enforce_simple_queries">> => false},
-       process = fun ?MODULE:remove_unused_backend_opts/1
+                    <<"enforce_simple_queries">> => false}
       }.
-
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 pm_config_spec() ->
     #section{items = maps:merge(common_config_items(), pm_config_items()),
@@ -150,7 +145,7 @@ root_config_items() ->
 common_config_items() ->
     #{%% General options
       <<"backend">> => #option{type = atom,
-                               validate = {enum, [rdbms, riak, cassandra, elasticsearch]}},
+                               validate = {enum, [rdbms, cassandra, elasticsearch]}},
       <<"no_stanzaid_element">> => #option{type = boolean},
       <<"is_archivable_message">> => #option{type = atom,
                                              validate = module},
@@ -208,17 +203,6 @@ async_config_spec() ->
                     <<"pool_size">> => 4 * erlang:system_info(schedulers_online)}
       }.
 
-riak_config_spec() ->
-    #section{
-       items = #{<<"search_index">> => #option{type = binary,
-                                               validate = non_empty},
-                 <<"bucket_type">> => #option{type = binary,
-                                              validate = non_empty}},
-       defaults = #{<<"search_index">> => <<"mam">>,
-                    <<"bucket_type">> => <<"mam_yz">>},
-       include = always
-      }.
-
 -spec deps(mongooseim:host_type(), module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->
     DepsWithPm = handle_nested_opts(pm, Opts, #{}),
@@ -231,7 +215,7 @@ deps(_HostType, Opts) ->
 %%--------------------------------------------------------------------
 
 -type mam_type() :: pm | muc.
--type mam_backend() :: rdbms | riak | cassandra | elasticsearch.
+-type mam_backend() :: rdbms | cassandra | elasticsearch.
 
 -spec handle_nested_opts(mam_type(), module_opts(), module_map()) -> module_map().
 handle_nested_opts(Key, RootOpts, Deps) ->
@@ -289,9 +273,6 @@ add_prefs_store_module(_Backend, _Type, _Opts, Deps) ->
 parse_backend_opts(cassandra, Type, Opts, Deps) ->
     Opts1 = maps:with([db_message_format], Opts),
     add_dep(cassandra_arch_module(Type), maps:merge(arch_defaults(), Opts1), Deps);
-parse_backend_opts(riak, Type, Opts, Deps) ->
-    Opts1 = maps:with([db_message_format, riak], Opts),
-    add_dep(mod_mam_riak_timed_arch_yz, maps:merge(arch_defaults(), Opts1#{Type => true}), Deps);
 parse_backend_opts(rdbms, Type, Opts, Deps) ->
     lists:foldl(fun(OptionGroup, DepsIn) -> add_rdbms_deps(OptionGroup, Type, Opts, DepsIn) end,
                 Deps, [basic, user_cache, async_writer]);

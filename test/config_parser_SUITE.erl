@@ -116,7 +116,6 @@ groups() ->
                          auth_external,
                          auth_http_basic_auth,
                          auth_jwt,
-                         auth_riak_bucket_type,
                          auth_rdbms_users_number_estimate,
                          auth_dummy]},
      {pool, [parallel], [pool_basics,
@@ -132,10 +131,6 @@ groups() ->
                          pool_http_connection_tls,
                          pool_redis,
                          pool_redis_connection,
-                         pool_riak,
-                         pool_riak_connection,
-                         pool_riak_connection_credentials,
-                         pool_riak_connection_tls,
                          pool_cassandra,
                          pool_cassandra_connection,
                          pool_cassandra_connection_auth_plain,
@@ -196,7 +191,6 @@ groups() ->
                             mod_keystore_keys,
                             mod_last,
                             mod_mam,
-                            mod_mam_riak,
                             mod_mam_pm,
                             mod_mam_muc,
                             mod_muc,
@@ -846,12 +840,6 @@ auth_jwt(_Config) ->
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"username_key">> := <<>>})),
     [?errh(auth_raw(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
 
-auth_riak_bucket_type(_Config) ->
-    ?cfgh([auth, riak, bucket_type], <<"users">>, auth_raw(<<"riak">>, #{})), % default
-    ?cfgh([auth, riak, bucket_type], <<"buckethead">>,
-          auth_raw(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
-    ?errh(auth_raw(<<"riak">>, #{<<"bucket_type">> => <<>>})).
-
 auth_rdbms_users_number_estimate(_Config) ->
     ?cfgh([auth, rdbms, users_number_estimate], false, auth_raw(<<"rdbms">>, #{})), % default
     ?cfgh([auth, rdbms, users_number_estimate], true,
@@ -999,43 +987,6 @@ pool_redis_connection(_Config) ->
     ?err(T(#{<<"port">> => 666666})),
     ?err(T(#{<<"database">> => -1})),
     ?err(T(#{<<"password">> => 0})).
-
-pool_riak(_Config) ->
-    test_pool_opts(riak, #{<<"connection">> => required_riak_connection_opts()}).
-
-pool_riak_connection(_Config) ->
-    P = [outgoing_pools, 1, conn_opts],
-    T = fun(Opts) -> pool_conn_raw(<<"riak">>, Opts) end,
-    Required = required_riak_connection_opts(),
-    ?cfg(P ++ [address], "127.0.0.1", T(Required)),
-    ?cfg(P ++ [port], 8087, T(Required)),
-    [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)],
-    ?err(T(Required#{<<"address">> => 8443})),
-    ?err(T(Required#{<<"port">> => 666666})).
-
-pool_riak_connection_credentials(_Config) ->
-    P = [outgoing_pools, 1, conn_opts, credentials],
-    T = fun(Opts) -> pool_conn_raw(<<"riak">>,
-                                   (required_riak_connection_opts())#{<<"credentials">> => Opts})
-        end,
-    Required = #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>},
-    ?cfg(P, #{user => "user", password => "pass"}, T(Required)),
-    [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)],
-    [?err(T(Required#{K => <<>>})) || K <- maps:keys(Required)].
-
-pool_riak_connection_tls(_Config) ->
-    P = [outgoing_pools, 1, conn_opts, tls],
-    T0 = fun(Opts) -> pool_conn_raw(<<"riak">>,
-                                    (required_riak_connection_opts())#{<<"tls">> => Opts}) end,
-    T = fun(Opts) -> T0(maps:merge(#{<<"cacertfile">> => <<"priv/ca.pem">>}, Opts)) end,
-    ?cfg(P, config([outgoing_pools, riak, default, conn_opts, tls], #{cacertfile => "priv/ca.pem"}),
-         T(#{})),
-    test_just_tls_client(P, T),
-    ?err(T0(#{})), % missing required 'cacertfile'
-    ?err(T(#{<<"verify_mode">> => <<"none">>})). % verification is mandatory for Riak
-
-required_riak_connection_opts() ->
-    #{<<"address">> => <<"127.0.0.1">>, <<"port">> => 8087}.
 
 pool_cassandra(_Config) ->
     test_pool_opts(cassandra, #{<<"connection">> => #{}}).
@@ -1973,11 +1924,7 @@ mod_last(_Config) ->
     P = [modules, mod_last],
     ?cfgh(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"last">>, T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
-    ?errh(T(#{<<"backend">> => <<"frontend">>})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    ?errh(T(#{<<"backend">> => <<"frontend">>})).
 
 mod_mam(_Config) ->
     check_module_defaults(mod_mam),
@@ -1985,19 +1932,6 @@ mod_mam(_Config) ->
     P = [modules, mod_mam],
     test_cache_config(P ++ [cache], fun(Opts) -> T(#{<<"cache">> => Opts}) end),
     test_mod_mam(P, T).
-
-mod_mam_riak(_Config) ->
-    T = fun(Opts) ->
-                #{<<"modules">> => #{<<"mod_mam">> => Opts#{<<"backend">> => <<"riak">>}}}
-        end,
-    P = [modules, mod_mam, riak],
-    ?cfgh(P, default_config([modules, mod_mam, riak]), T(#{})),
-    ?cfgh(P ++ [bucket_type], <<"mam_bucket">>,
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"mam_bucket">>}})),
-    ?cfgh(P ++ [search_index], <<"mam_index">>,
-          T(#{<<"riak">> => #{<<"search_index">> => <<"mam_index">>}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => <<>>}})),
-    ?errh(T(#{<<"riak">> => #{<<"search_index">> => <<>>}})).
 
 mod_mam_pm(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam">> => #{<<"pm">> => Opts}}} end,
@@ -2365,12 +2299,8 @@ mod_offline(_Config) ->
           T(#{<<"access_max_user_messages">> => <<"custom_max_user_offline_messages">>})),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
     ?errh(T(#{<<"access_max_user_messages">> => 1})),
-    ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket">> => <<"leaky">>}})).
+    ?errh(T(#{<<"backend">> => <<"frontend">>})).
 
 mod_offline_chatmarkers(_Config) ->
     check_module_defaults(mod_offline_chatmarkers),
@@ -2381,7 +2311,7 @@ mod_offline_chatmarkers(_Config) ->
     ?cfgh(P ++ [store_groupchat_messages], true,
           T(#{<<"store_groupchat_messages">> => true})),
     ?errh(T(#{<<"store_groupchat_messages">> => 1})),
-    ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})).
+    ?errh(T(#{<<"backend">> => <<"frontend">>})).
 
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
@@ -2410,34 +2340,15 @@ test_privacy_opts(Module) ->
     check_module_defaults(Module),
     ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(P ++ [riak, defaults_bucket_type], <<"defaults">>,
-          T(#{<<"backend">> => <<"riak">>,
-              <<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
-    ?cfgh(P ++ [riak, names_bucket_type], <<"names">>,
-          T(#{<<"backend">> => <<"riak">>,
-              <<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
-    ?cfgh(P ++ [riak, bucket_type], <<"bucket">>,
-          T(#{<<"backend">> => <<"riak">>,
-              <<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
-    ?cfgh(P ++ [riak],
-          default_config([modules, mod_privacy, riak]),
-          T(#{<<"backend">> => <<"riak">>})),
-    ?errh(T(#{<<"backend">> => <<"mongoddt">>})),
-    ?errh(T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<>>}})),
-    ?errh(T(#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    ?errh(T(#{<<"backend">> => <<"mongoddt">>})).
 
 mod_private(_Config) ->
     check_iqdisc(mod_private),
     check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
-    ?cfgh(P ++ [backend], riak, T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"private">>, T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"private_stuff">>, T(#{<<"backend">> => <<"riak">>,
-        <<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
-    ?errh(T(#{<<"backend">> => <<"mssql">>})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?errh(T(#{<<"backend">> => <<"mssql">>})).
 
 mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),
@@ -2648,19 +2559,10 @@ mod_roster(_Config) ->
           T(#{<<"store_current_id">> => true})),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [riak], config_parser_helper:default_config(P ++ [riak]),
-          T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"my_type">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"my_type">>}})),
-    ?cfgh(P ++ [riak, version_bucket_type], <<"my_versions">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"version_bucket_type">> => <<"my_versions">>}})),
-
     ?errh(T(#{<<"versioning">> => 1})),
     ?errh(T(#{<<"store_current_id">> => 1})),
     ?errh(T(#{<<"backend">> => 1})),
-    ?errh(T(#{<<"backend">> => <<"iloveyou">>})),
-    ?errh(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
+    ?errh(T(#{<<"backend">> => <<"iloveyou">>})).
 
 mod_shared_roster_ldap(_Config) ->
     check_module_defaults(mod_shared_roster_ldap),
@@ -2811,12 +2713,6 @@ mod_vcard(_Config) ->
           T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"search_operator">> => <<"or">>}})),
     ?cfgh(P ++ [ldap, binary_search_fields], [<<"PHOTO">>],
           T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"binary_search_fields">> => [<<"PHOTO">>]}})),
-    %% riak
-    ?cfgh(P ++ [riak, bucket_type], <<"vcard">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
-    ?cfgh(P ++ [riak, search_index], <<"vcard">>,
-          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
-
     ?errh(T(#{<<"host">> => 1})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
@@ -2830,10 +2726,7 @@ mod_vcard(_Config) ->
     ?errh(T(#{<<"ldap_field">> => -1})),
     ?errh(T(#{<<"ldap_deref">> => <<"nevernever">>})),
     ?errh(T(#{<<"ldap_search_operator">> => <<"more">>})),
-    ?errh(T(#{<<"ldap_binary_search_fields">> => [1]})),
-    %% riak
-    ?errh(T(#{<<"riak">> =>  #{<<"bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
+    ?errh(T(#{<<"ldap_binary_search_fields">> => [1]})).
 
 mod_vcard_ldap_uids(_Config) ->
     P = [modules, mod_vcard, ldap, uids],

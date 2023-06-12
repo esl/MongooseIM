@@ -93,16 +93,13 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     ModConfig = [{mod_privacy, set_opts(Backend)}],
     dynamic_modules:ensure_modules(HostType, ModConfig),
     [{escalus_no_stanzas_after_story, true},
      {backend, Backend} |
      escalus:init_per_suite(Config1)].
 
-set_opts(riak) ->
-    Riak = #{riak => config_parser_helper:config([modules, mod_privacy, riak], #{}), backend => riak},
-    config_parser_helper:mod_config(mod_privacy, Riak);
 set_opts(Backend) ->
     config_parser_helper:mod_config(mod_privacy, #{backend => Backend}).
 

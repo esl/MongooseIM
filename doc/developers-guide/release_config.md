@@ -34,7 +34,6 @@ Writes rel/configure.vars.config which can be used as Reltool input.
     with-odbc           include an ODBC driver (requires unixodbc to compile)
     with-pgsql          include pgsql driver
     with-redis          include redis driver
-    with-riak           include riak driver
 
 Options:
 
@@ -42,9 +41,6 @@ Options:
     system    Install files into $PREFIX/{bin, etc, ...} instead of a completely self contained release. Default: no
     user      System user to run the server as. Default:
 ```
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 This script is also accessible via the make `configure` target.
 
@@ -80,7 +76,7 @@ Generated build configs:
 ```sh
 $ cat configure.out rel/configure.vars.config
 export MONGOOSEIM_CONFIGURED="yes"
-export APPS="mysql eodbc epgsql eredis riakc nksip cqerl tirerl erlcloud"
+export APPS="mysql eodbc epgsql eredis nksip cqerl tirerl erlcloud"
 export PREFIX="/tmp/mim-sandbox-system"
 export RELTOOL_VARS="rel/configure.vars.config"
 export SYSTEM="yes"

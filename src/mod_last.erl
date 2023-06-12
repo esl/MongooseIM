@@ -46,8 +46,7 @@
          remove_user/3,
          on_presence_update/3,
          session_cleanup/3,
-         remove_domain/3,
-         remove_unused_backend_opts/1]).
+         remove_domain/3]).
 
 %% API
 -export([store_last_info/5,
@@ -110,25 +109,12 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"backend">> => #option{type = atom,
-                                          validate = {module, mod_last}},
-                 <<"riak">> => riak_config_spec()
+                                          validate = {module, mod_last}}
                 },
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"backend">> => mnesia
-                   },
-       process = fun ?MODULE:remove_unused_backend_opts/1
+                   }
       }.
-
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
-
-riak_config_spec() ->
-    #section{items = #{<<"bucket_type">> => #option{type = binary,
-                                                    validate = non_empty}
-                      },
-             defaults = #{<<"bucket_type">> => <<"last">>},
-             include = always
-            }.
 
 supported_features() -> [dynamic_domains].
 

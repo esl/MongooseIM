@@ -286,10 +286,7 @@ To run the server in the background instead of the interactive mode, use `mongoo
 The `quicktest` configuration is a relatively comprehensive one, giving good overview of what does and what doesn't work in the system, without repeating tests.
 Why would we want to ever repeat the tests?
 In order to test different backends of the same parts of the system.
-E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV - the glue code between the XMPP logic module and database is different in each case, therefore repeating the same tests with different databases is necessary to guarantee a truthful code coverage measurement.
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+E.g. a message archive might store messages in MySQL/PostgreSQL or Elasticsearch - the glue code between the XMPP logic module and database is different in each case, therefore repeating the same tests with different databases is necessary to guarantee a truthful code coverage measurement.
 
 ### Testing a feature in development / TDD
 
@@ -348,7 +345,7 @@ For example, to update the code on `mim1` node all you have to do is:
 
 A similar command applies to other nodes, the important thing being rebar3's profile.
 
-When the above command finishes, the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_riak)`, or restarting the node.
+When the above command finishes, the code can be reloaded on the server by either reloading changed module(s) in the node's shell, e.g. `l(mongoose_rdbms)`, or restarting the node.
 
 #### Reading test reports
 

@@ -29,24 +29,9 @@ Stores the last roster hash in DB (used in Roster Versioning).
 Improves performance but should be disabled, when shared rosters are used.
 
 ### `modules.mod_roster.backend`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-### Riak-specific options
-
-#### `modules.mod_roster.riak.bucket_type`
-* **Syntax:** string
-* **Default:** `"rosters"`
-* **Example:** `riak.bucket_type = "rosters"`
-
-#### `modules.mod_roster.riak.version_bucket_type`
-* **Syntax:** string
-* **Default:** `"roster_versions"`
-* **Example:** `riak.version_bucket_type = "roster_versions"`
 
 ## Example configuration
 

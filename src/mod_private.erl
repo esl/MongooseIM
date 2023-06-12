@@ -36,8 +36,7 @@
          config_spec/0,
          process_iq/5,
          remove_user/3,
-         remove_domain/3,
-         remove_unused_backend_opts/1]).
+         remove_domain/3]).
 
 -export([get_personal_data/3]).
 
@@ -94,24 +93,10 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"backend">> => #option{type = atom,
-                                          validate = {module, mod_private}},
-                 <<"riak">> => riak_config_spec()},
+                                          validate = {module, mod_private}}},
        defaults = #{<<"iqdisc">> => one_queue,
-                    <<"backend">> => rdbms},
-       process = fun ?MODULE:remove_unused_backend_opts/1
+                    <<"backend">> => rdbms}
     }.
-
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
-
-riak_config_spec() ->
-    #section{
-       items = #{<<"bucket_type">> => #option{type = binary,
-                                              validate = non_empty}
-                },
-       defaults = #{<<"bucket_type">> => <<"private">>},
-       include = always
-      }.
 
 %% ------------------------------------------------------------------
 %% Handlers

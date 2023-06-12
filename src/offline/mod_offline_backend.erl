@@ -1,5 +1,5 @@
 %% Just a proxy interface module between the main mod_offline module and
-%% the backend modules (i.e. mod_offline_riak, mod_offline_rdbms...).
+%% the backend modules (i.e. mod_offline_mnesia, mod_offline_rdbms...).
 -module(mod_offline_backend).
 
 -export([init/2,

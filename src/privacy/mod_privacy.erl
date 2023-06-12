@@ -89,30 +89,9 @@ deps(_HostType, _Opts) ->
 config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
-                                          validate = {module, mod_privacy}},
-                 <<"riak">> => riak_config_spec()},
-       defaults = #{<<"backend">> => mnesia},
-       process = fun ?MODULE:remove_unused_backend_opts/1
+                                          validate = {module, mod_privacy}}},
+       defaults = #{<<"backend">> => mnesia}
       }.
-
-riak_config_spec() ->
-    #section{
-       items = #{<<"defaults_bucket_type">> => #option{type = binary,
-                                                       validate = non_empty},
-                 <<"names_bucket_type">> => #option{type = binary,
-                                                    validate = non_empty},
-                 <<"bucket_type">> => #option{type = binary,
-                                              validate = non_empty}
-                },
-       defaults = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
-                    <<"names_bucket_type">> => <<"privacy_lists_names">>,
-                    <<"bucket_type">> => <<"privacy_lists">>},
-       include = always
-      }.
-
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
-
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].

@@ -35,20 +35,6 @@
     path_prefix = "/"
     request_timeout = 2000
 
-[outgoing_pools.riak.default]
-  scope = "global"
-  workers = 20
-  strategy = "next_worker"
-
-  [outgoing_pools.riak.default.connection]
-    address = "127.0.0.1"
-    port = 8087
-    credentials = {user = "username", password = "pass"}
-    tls.certfile = "priv/cert.pem"
-    tls.keyfile = "priv/dc1.pem"
-    tls.cacertfile = "priv/ca.pem"
-    tls.verify_mode = "peer"
-
 [outgoing_pools.cassandra.default]
   scope = "global"
 
