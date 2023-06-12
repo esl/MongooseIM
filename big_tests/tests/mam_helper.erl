@@ -324,7 +324,8 @@ stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) -
            maybe_rsm_elem(RSM)])
     }]).
 
-
+form_x(undefined, undefined, undefined, undefined, undefined) ->
+    undefined;
 form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
