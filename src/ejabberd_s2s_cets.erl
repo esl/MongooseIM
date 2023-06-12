@@ -17,8 +17,8 @@
 
 -include("mongoose_logger.hrl").
 
--define(TABLE, s2s_session).
--define(SECRET_TABLE, s2s_secret).
+-define(TABLE, cets_s2s_session).
+-define(SECRET_TABLE, cets_s2s_secret).
 
 init(_) ->
     cets:start(?TABLE, #{}),
