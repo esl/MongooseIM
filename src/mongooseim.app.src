@@ -21,6 +21,8 @@
                   exometer_core,
                   exometer_report_graphite,
                   exometer_report_statsd,
+                  prometheus,
+                  prometheus_cowboy,
                   graphql,
                   jiffy,
                   jwerl,

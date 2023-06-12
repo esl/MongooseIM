@@ -63,6 +63,7 @@
 
 -spec init() -> ok.
 init() ->
+    start_prometheus_endpoint(),
     prepare_prefixes(),
     create_global_metrics(),
     lists:foreach(
@@ -70,6 +71,20 @@ init() ->
             init_predefined_host_type_metrics(HostType)
         end, ?ALL_HOST_TYPES),
     init_subscriptions().
+
+get_metrics_dispatch() ->
+  [{'_', [
+          {"/metrics/[:registry]", prometheus_cowboy2_handler, []}
+         ]}].
+
+start_prometheus_endpoint() ->
+  Port = erlang:list_to_integer(os:getenv("METRICS_PORT", "4445")),
+  Dispatch = cowboy_router:compile(get_metrics_dispatch()),
+  {ok, _} = cowboy:start_clear(prometheus_metrics,
+                               [{port, Port}],
+                               #{env => #{dispatch => Dispatch},
+                                 stream_handlers => [cowboy_stream_h]
+                                }).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
