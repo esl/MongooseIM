@@ -53,8 +53,6 @@
 %% to be used by mod_blocking only
 -export([do_user_send_iq/4]).
 
--export([remove_unused_backend_opts/1]).
-
 -export([config_metrics/1]).
 
 -include("jlib.hrl").

@@ -51,7 +51,7 @@
          remove_old_messages/3]).
 
 %% Internal exports
--export([start_link/3, remove_unused_backend_opts/1]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

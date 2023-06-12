@@ -90,8 +90,6 @@
 
 -export([start/2, stop/1, config_spec/0, supported_features/0, deps/2, config_metrics/1]).
 
--export([remove_unused_backend_opts/1]).
-
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
