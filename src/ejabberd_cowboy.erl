@@ -150,7 +150,7 @@ do_start_cowboy(Ref, Opts) ->
     Handlers = [ Handler#{ip_tuple => IPTuple, port => Port, proto => tcp} || Handler <- Handlers0 ],
     Routes = mongoose_http_handler:get_routes(Handlers),
     Dispatch = cowboy_router:compile(Routes),
-    ProtocolOpts = ProtocolOpts0#{env => #{dispatch => Dispatch}},
+    ProtocolOpts = maps:merge(ProtocolOpts0, instrument_cowboy(Dispatch)),
     TransportOpts = TransportOpts0#{socket_opts => [{port, Port}, {ip, IPTuple}]},
     store_trails(Routes),
     case catch start_http_or_https(Opts, Ref, TransportOpts, ProtocolOpts) of
@@ -161,6 +161,12 @@ do_start_cowboy(Ref, Opts) ->
         Result ->
             Result
     end.
+
+instrument_cowboy(Dispatch) ->
+    #{env => #{dispatch => Dispatch,
+               metrics_callback => fun prometheus_cowboy2_instrumenter:observe/1,
+               stream_handlers => [cowboy_metrics_h, cowboy_stream_h]
+              }}.
 
 start_http_or_https(#{tls := TLSOpts}, Ref, TransportOpts, ProtocolOpts) ->
     SSLOpts = just_tls:make_ssl_opts(TLSOpts),

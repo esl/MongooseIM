@@ -14,7 +14,15 @@ _build/*
 **/erlcinfo
 # no vim temp files
 **/.*.sw*
+tags
 .git
+.github
+.circleci
+.examples
+.dockerignore
 
+tools/metrics/
+!tools/metrics/mim/start.sh
+tools/test_runner/
 tools/pkg/Dockerfile_rpm
 tools/pkg/packages/
