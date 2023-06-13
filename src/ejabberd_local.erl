@@ -423,7 +423,7 @@ do_unregister_host(Host) ->
 
 make_iq_id() ->
     %% Attach NodeId, so we know to which node to forward the response
-    NodeId = service_node_id:node_id(),
+    NodeId = mongoose_start_node_id:node_id(),
     Rand = mongoose_bin:gen_from_crypto(),
     <<(integer_to_binary(NodeId))/binary, "_", Rand/binary>>.
 
