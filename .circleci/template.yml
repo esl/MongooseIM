@@ -722,10 +722,16 @@ jobs:
           name: Build package
           command: |
             ./tools/test.sh -p pkg -s false
-      - run:
-          name: Publish package
-          command: |
-            ./tools/pkg/publish.sh
+      - when:
+          condition:
+            matches:
+              pattern: /^\d+\.\d+\.\d+/
+              value: << pipeline.git.tag >>
+          steps:
+            - run:
+                name: Publish package
+                command: |
+                  ./tools/pkg/publish.sh
 
 filters: &all_tags
   tags:
