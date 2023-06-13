@@ -189,10 +189,13 @@ decode_iq(_From, #iq{} = IQ) ->
 
 %% ------------------ Parsers ------------------
 
+-spec parse_config_form(exml:element()) -> {ok, [{binary(), binary()}]} | {error, binary()}.
 parse_config_form(QueryEl) ->
     case mongoose_data_forms:find_and_parse_form(QueryEl) of
-        #{kvs := KVs} ->
+        #{type := <<"submit">>, kvs := KVs} ->
             {ok, [{K, V} || {K, [V]} <- maps:to_list(KVs)]};
+        #{} ->
+            {error, <<"Invalid form type">>};
         {error, Msg} ->
             {error, Msg}
     end.
