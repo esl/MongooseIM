@@ -327,15 +327,13 @@ stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) -
 form_x(undefined, undefined, undefined, undefined, undefined) ->
     undefined;
 form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
-           children = skip_undefined([
-                form_field(<<"start">>, BStart),
-                form_field(<<"end">>, BEnd),
-                form_field(<<"with">>, BWithJID),
-                form_field(<<"full-text-search">>, TextSearch)]
-                ++ form_extra_fields(RSM)
-                ++ form_border_fields(RSM))}.
+    Fields = skip_undefined([form_field(<<"start">>, BStart),
+                             form_field(<<"end">>, BEnd),
+                             form_field(<<"with">>, BWithJID),
+                             form_field(<<"full-text-search">>, TextSearch)]
+                            ++ form_extra_fields(RSM)
+                            ++ form_border_fields(RSM)),
+    form_helper:form(#{fields => Fields}).
 
 form_extra_fields(undefined) ->
     [];
@@ -354,9 +352,7 @@ form_border_fields(#rsm_in{
 form_field(_VarName, undefined) ->
     undefined;
 form_field(VarName, VarValue) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, VarName}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = VarValue}]}]}.
+    #{var => VarName, values => [VarValue]}.
 
 form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
