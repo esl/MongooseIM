@@ -1,23 +1,11 @@
 -module(push_helper).
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("exml/include/exml.hrl").
 
+-include_lib("exml/include/exml.hrl").
 -include("push_helper.hrl").
 
--export([enable_stanza/2, enable_stanza/3, enable_stanza/4,
-         disable_stanza/1, disable_stanza/2]).
+-compile([export_all, nowarn_export_all]).
 
--export([become_unavailable/1, become_available/3, become_available/2]).
-
--export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
-
--export([http_notifications_port/0, http_notifications_host/0]).
-
--export([wait_for_user_offline/1]).
-
--import(distributed_helper, [mim/0,
-                             rpc/4]).
+-import(distributed_helper, [mim/0, rpc/4]).
 
 ns_push() -> <<"urn:xmpp:push:0">>.
 ns_pubsub_pub_options() -> <<"http://jabber.org/protocol/pubsub#publish-options">>.
@@ -54,18 +42,11 @@ enable_stanza(JID, Node, FormFields, FormType) ->
 maybe_form(undefined, _FormType) ->
     [];
 maybe_form(FormFields, FormType) ->
-    [make_form([{<<"FORM_TYPE">>, FormType} | FormFields])].
+    FieldSpecs = lists:map(fun field_spec/1, FormFields),
+    [form_helper:form(#{fields => FieldSpecs, ns => FormType})].
 
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Name, Value) || {Name, Value} <- Fields]}.
-
-make_form_field(Name, undefined) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Name}]};
-make_form_field(Name, Value) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
+field_spec({Var, undefined}) -> #{var => Var};
+field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
