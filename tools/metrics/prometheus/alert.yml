@@ -1,0 +1,6 @@
+groups:
+  - name: DemoAlerts
+    rules:
+      - alert: InstanceDown
+        expr: up{job="mongooseim"} < 1
+        for: 5m

@@ -1,0 +1,110 @@
+FROM ubuntu:20.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# required packages
+RUN apt-get update && apt-get install -y \
+    sudo \
+    bash \
+    bash-completion \
+    build-essential \
+    software-properties-common \
+    git \
+    vim \
+    libssl-dev \
+    zlib1g-dev \
+    unixodbc-dev \
+    gnupg \
+    wget \
+    curl \
+    tar \
+    unzip \
+    zip \
+    gzip \
+    rsync \
+    telnet \
+    apt-transport-https && \
+    rm -rf /var/lib/apt/lists/*
+
+# Prepare to build erlang
+RUN apt-get update && apt-get install -y \
+    autoconf m4 libncurses5-dev libssh-dev unixodbc-dev libncurses-dev
+
+# Install tools
+ARG ASDF_VERSION="v0.8.1"
+ARG ERLANG_VERSION="24.1.1"
+ARG REBAR3_VERSION="3.17.0"
+
+# Install asdf
+ENV PATH="${PATH}:/root/.asdf/shims:/root/.asdf/bin"
+RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch $ASDF_VERSION
+
+# Install erlang
+RUN asdf plugin add erlang && \
+    asdf install erlang $ERLANG_VERSION && \
+    asdf global erlang $ERLANG_VERSION
+
+# Install rebar3
+RUN asdf plugin add rebar && \
+    asdf install rebar $REBAR3_VERSION && \
+    asdf global rebar $REBAR3_VERSION
+
+WORKDIR /mim
+
+# Cache dependencies
+COPY rebar.config rebar.lock /mim/
+RUN rebar3 compile
+
+# Build everything else
+COPY . /mim
+RUN ./tools/configure \
+        with-pgsql \
+        with-amqp_client \
+        with-aws \
+        with-elasticsearch \
+        with-templates
+RUN rebar3 compile
+RUN make rel
+
+
+## Final image
+FROM phusion/baseimage:focal-1.0.0-amd64
+
+RUN apt-get update && apt-get install -y \
+    libssl1.1 \
+    iproute2 \
+    netcat \
+    inetutils-ping \
+    telnet \
+    unixodbc \
+    tdsodbc \
+    odbc-postgresql \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VCS_REF_DESC
+ARG VERSION
+LABEL org.label-schema.name='MongooseIM' \
+      org.label-schema.description='MongooseIM is Erlang Solutions robust, scalable and efficient XMPP server, aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant and can utilise the resources of multiple clustered machines.' \
+      org.label-schema.url='https://www.erlang-solutions.com/capabilities/mongooseim/' \
+      org.label-schema.vcs-url='https://github.com/esl/MongooseIM' \
+      org.label-schema.vendor='Erlang Solutions' \
+      org.label-schema.schema-version='1.0' \
+      org.label-schema.build-date=$BUILD_DATE \
+      org.label-schema.vcs-ref=$VCS_REF \
+      org.label-schema.vcs-ref-desc=$VCS_REF_DESC \
+      org.label-schema.version=$VERSION
+
+EXPOSE 4369 4445 5222 5269 5280 5285 8087 8088 9100
+
+COPY --from=builder /mim/_build/prod/rel/mongooseim /usr/lib/mongooseim
+COPY ./tools/metrics/mim/start.sh /start.sh
+VOLUME ["/member", "/var/lib/mongooseim"]
+
+# RUN groupadd -g 997 mongooseim \
+#     && useradd -d /var/lib/mongooseim -u 997 -N -M -g 997 -s /sbin/nologin mongooseim \
+#     && chown -R mongooseim:mongooseim /usr/lib/mongooseim
+
+ENTRYPOINT ["/start.sh"]
