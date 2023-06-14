@@ -9,10 +9,13 @@
 
 all() ->
     [{group, disco_with_caps},
+     {group, disco_with_caps_and_extra_features},
      {group, disco_with_extra_features}].
 
 groups() ->
     G = [{disco_with_caps, [parallel], basic_test_cases() ++ caps_test_cases()},
+         {disco_with_caps_and_extra_features, [parallel],
+          basic_test_cases() ++ caps_test_cases() ++ extra_feature_test_cases()},
          {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -195,6 +198,9 @@ user_can_query_server_info(Config) ->
 required_modules(disco_with_caps) ->
     [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
      {mod_disco, default_mod_config(mod_disco)}];
+required_modules(disco_with_caps_and_extra_features) ->
+    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+     {mod_disco, mod_config(mod_disco, extra_disco_opts())}];
 required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].
 
