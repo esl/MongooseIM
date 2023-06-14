@@ -5,6 +5,35 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+%% Form creation
+
+form(Spec) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
+                    {<<"type">>, maps:get(type, Spec, <<"submit">>)}],
+           children = lists:flatmap(fun(Item) -> form_children(Item, Spec) end, [ns, fields])
+          }.
+
+form_children(ns, #{ns := NS}) ->
+    [form_type_field(NS)];
+form_children(fields, #{fields := Fields}) ->
+    [form_field(Field) || Field <- Fields];
+form_children(_, #{}) ->
+    [].
+
+form_type_field(NS) when is_binary(NS) ->
+    form_field(#{var => <<"FORM_TYPE">>, type => <<"hidden">>, values => [NS]}).
+
+form_field(M) when is_map(M) ->
+    Values = [form_field_value(Value) || Value <- maps:get(values, M, [])],
+    Attrs = [{atom_to_binary(K), V} || {K, V} <- maps:to_list(M), K =/= values],
+    #xmlel{name = <<"field">>, attrs = Attrs, children = Values}.
+
+form_field_value(Value) ->
+    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
+
+%% Form manipulation
+
 remove_forms(El) ->
     modify_forms(El, fun(_) -> [] end).
 
