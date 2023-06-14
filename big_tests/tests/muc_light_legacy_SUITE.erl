@@ -623,21 +623,11 @@ stanza_config_set(Room, ConfigChanges) ->
     IQ = escalus_stanza:iq_set(?NS_MUC_OWNER, [form_x_el(ConfigChanges)]),
     escalus_stanza:to(IQ, room_bin_jid(Room)).
 
--spec form_x_el(Fields :: [xmlel()]) -> xmlel().
+-spec form_x_el(Fields :: [map()]) -> xmlel().
 form_x_el(Fields) ->
-    #xmlel{
-       name = <<"x">>,
-       attrs = [{<<"xmlns">>, <<"jabber:x:data">>}, {<<"type">>, <<"submit">>}],
-       children = [form_field(<<"FORM_TYPE">>, ?NS_MUC_ROOMCONFIG, <<"hidden">>)
-                   | [form_field(K, V, <<"text-single">>) || {K, V} <- Fields ]]
-      }.
-
--spec form_field(Var :: binary(), Value :: binary(), Type :: binary()) -> xmlel().
-form_field(Var, Value, Type) ->
-    #xmlel{ name  = <<"field">>,
-            attrs = [{<<"type">>, Type}, {<<"var">>, Var}],
-            children  = [#xmlel{name = <<"value">>,
-                                children = [#xmlcdata{content = Value}] }] }.
+    FieldSpecs = [#{var => Var, values => [Value], type => <<"text-single">>}
+                  || {Var, Value} <- Fields],
+    form_helper:form(#{ns => ?NS_MUC_ROOMCONFIG, fields => FieldSpecs}).
 
 -spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
 stanza_aff_set(Room, AffUsers) ->
