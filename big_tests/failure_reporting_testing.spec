@@ -9,4 +9,4 @@
 %%   https://erlang.org/doc/man/ct_hooks.html
 {ct_hooks, [ct_test_hook, ct_test_hook]}.
 
-% {ct_hooks, [ct_groups_summary_hook, ct_markdown_errors_hook]}.
+{ct_hooks, [ct_groups_summary_hook, ct_markdown_errors_hook]}.

@@ -8,12 +8,12 @@
 -export([id/1]).
 -export([init/2]).
 -export([post_init_per_suite/4,
-         post_init_per_group/4,
-         post_init_per_testcase/4]).
+         post_init_per_group/5,
+         post_init_per_testcase/5]).
 -export([post_end_per_suite/4,
-         post_end_per_group/4,
-         post_end_per_testcase/4]).
--record(state, { file, summary_file, truncated_counter_file, suite, limit }).
+         post_end_per_group/5,
+         post_end_per_testcase/5]).
+-record(state, { file, summary_file, truncated_counter_file, limit }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -32,26 +32,26 @@ init(_Id, _Opts) ->
 
 post_init_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, init_per_suite, Return, Config, State),
-    {Return, State2#state{suite = SuiteName}}.
+    {Return, State2}.
 
-post_init_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_init_per_group(SuiteName, _GroupName, Config, Return, State) ->
     State2 = handle_return(SuiteName, init_per_group, Return, Config, State),
-    {Return, State2#state{}}.
+    {Return, State2}.
 
-post_init_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+post_init_per_testcase(SuiteName, TC, Config, Return, State) ->
     State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
 post_end_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, end_per_suite, Return, Config, State),
-    {Return, State2#state{suite = ''}}.
+    {Return, State2}.
 
-post_end_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_end_per_group(SuiteName, _GroupName, Config, Return, State) ->
     State2 = handle_return(SuiteName, end_per_group, Return, Config, State),
-    {Return, State2#state{}}.
+    {Return, State2}.
 
 %% @doc Called after each test case.
-post_end_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+post_end_per_testcase(SuiteName, TC, Config, Return, State) ->
     State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
@@ -145,7 +145,11 @@ to_error_message(Return) ->
             Return;
         {fail, _} ->
             Return;
+        {failed, _} -> %% a special case for the crash in end_per_testcase
+            Return;
         {error, _} ->
+            Return;
+        {skip, {failed, _}} -> %% a special case for the crash in init_per_testcase
             Return;
         {skip, _} ->
             ok;
