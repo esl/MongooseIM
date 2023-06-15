@@ -25,7 +25,7 @@
 
 -module(mod_disco).
 -author('alexey@process-one.net').
--xep([{xep, 30}, {version, "2.4"}]).
+-xep([{xep, 30}, {version, "2.5rc3"}]).
 -xep([{xep, 157}, {version, "1.0"}]).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
