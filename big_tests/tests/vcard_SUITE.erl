@@ -1009,7 +1009,6 @@ prepare_vcards(Config) ->
                         prepare_vcard(ModVcardBackend, JID, Fields)
                 end
         end, AllVCards),
-    wait_for_riak(),
     Config.
 
 get_backend(Config) ->
@@ -1540,11 +1539,3 @@ get_utf8_city() ->
 
 secondary_domain() ->
     ct:get_config({hosts, mim, secondary_domain}).
-
-wait_for_riak() ->
-    case mam_helper:is_riak_enabled(host_type()) of
-        true ->
-            timer:sleep(timer:seconds(3)); %give some time to Yokozuna to index vcards
-        false ->
-            ok
-    end.

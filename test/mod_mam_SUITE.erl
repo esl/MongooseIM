@@ -13,7 +13,6 @@ all() -> [
           disables_sync_writer_on_async_writer,
           disables_sync_muc_writer_on_async_writer,
           produces_valid_configurations,
-          handles_riak_config,
           handles_cassandra_config,
           example_muc_only_no_pref_good_performance,
           example_pm_only_good_performance
@@ -80,19 +79,6 @@ produces_valid_configurations(_Config) ->
     check_equal_opts(mod_mam_mnesia_prefs, #{muc => true}, Deps),
     check_equal_opts(mod_mam_rdbms_prefs, #{pm => true}, Deps),
     check_equal_opts(mod_mam_muc_rdbms_arch_async, AsyncOpts, Deps).
-
-handles_riak_config(_Config) ->
-    PM = config([modules, mod_mam, pm], #{user_prefs_store => mnesia}),
-    MUC = default_config([modules, mod_mam, muc]),
-    Deps = deps(#{backend => riak,
-                  db_message_format => some_format,
-                  pm => config([modules, mod_mam, pm], PM),
-                  muc => config([modules, mod_mam, muc], MUC)}),
-    ?assert(lists:keymember(mod_mam_pm, 1, Deps)),
-    ?assert(lists:keymember(mod_mam_muc, 1, Deps)),
-    check_equal_opts(mod_mam_riak_timed_arch_yz,
-                     #{pm => true, muc => true, db_message_format => some_format}, Deps),
-    check_equal_opts(mod_mam_mnesia_prefs, #{pm => true}, Deps).
 
 handles_cassandra_config(_Config) ->
     PM = config([modules, mod_mam, pm], #{user_prefs_store => cassandra,

@@ -177,8 +177,8 @@ init_per_group(admin_last_not_configured, Config) ->
 configure_last(Config) ->
     HostType = domain_helper:host_type(),
     SecHostType = domain_helper:secondary_host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    SecBackend = mongoose_helper:get_backend_mnesia_rdbms_riak(SecHostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
+    SecBackend = mongoose_helper:get_backend_mnesia_rdbms(SecHostType),
     dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
     dynamic_modules:ensure_modules(SecHostType, required_modules(SecBackend)),
     Config.
@@ -225,10 +225,6 @@ end_per_testcase(C, Config) when C =:= admin_remove_old_users_domain;
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-required_modules(riak) ->
-    [{mod_last, #{backend => riak,
-                  iqdisc => one_queue,
-                  riak => #{bucket_type => <<"last">>}}}];
 required_modules(Backend) ->
     [{mod_last, #{backend => Backend,
                   iqdisc => one_queue}}].

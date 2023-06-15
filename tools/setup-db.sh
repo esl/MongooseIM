@@ -19,11 +19,6 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${TOOLS}/ssl
 
-function riak_solr_is_up
-{
-    $DOCKER exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
-}
-
 function setup_db(){
     db=${1:-none}
     echo "Setting up db: $db"
@@ -103,54 +98,6 @@ function setup_db(){
             --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
         mkdir -p ${PGSQL_ODBC_CERT_DIR}
         cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
-
-    elif [ "$db" = 'riak' ]; then
-        NAME=$(db_name riak)
-        # Expose for setup_riak script
-        export RIAK_PORT=${RIAK_PORT:-8098}
-        RIAK_PB_PORT=${RIAK_PB_PORT:-8087}
-        echo "Configuring Riak with SSL"
-        $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
-        RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
-        RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
-        RIAK_SETUP=$(cat32 tools/setup_riak.escript)
-        RIAK_MAM_SEARCH_SCHEMA=$(cat32 tools/mam_search_schema.xml)
-        RIAK_VCARD_SEARCH_SCHEMA=$(cat32 tools/vcard_search_schema.xml)
-        RIAK_SETUP_SH=$(cat32 tools/db_configs/riak/setup-riak.sh)
-        MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
-        MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
-        CACERT=$(cat32 tools/ssl/ca/cacert.pem)
-        IMAGE="michalwski/docker-riak:1.0.6"
-        $DOCKER run -d --name=$NAME \
-            -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 -p 8999:8999 -p 8093:8093 \
-            -e DOCKER_RIAK_BACKEND=memory \
-            -e DOCKER_RIAK_CLUSTER_SIZE=1 \
-            -e SCHEMA_READY_PORT=8999 \
-            -e OLD_ENTRYPOINT="/setup-riak.sh && /sbin/my_init --skip-startup-files" \
-            -e ENV_FILE_ADV_CFG_PATH="/etc/riak/advanced.config" \
-            -e ENV_FILE_ADV_CFG_DATA="$RIAK_ADV_CFG" \
-            -e ENV_FILE_SSL_CFG_PATH="/riak.conf.ssl" \
-            -e ENV_FILE_SSL_CFG_DATA="$RIAK_SSL_CFG" \
-            -e ENV_FILE_CERT_PATH="/etc/riak/cert.pem" \
-            -e ENV_FILE_CERT_DATA="$MIM_CERT" \
-            -e ENV_FILE_KEY_PATH="/etc/riak/key.pem" \
-            -e ENV_FILE_KEY_DATA="$MIM_KEY" \
-            -e ENV_FILE_CACERT_PATH="/etc/riak/ca/cacertfile.pem" \
-            -e ENV_FILE_CACERT_DATA="$CACERT" \
-            -e ENV_FILE_SETUP_PATH="/setup_riak.escript" \
-            -e ENV_FILE_SETUP_DATA="$RIAK_SETUP" \
-            -e ENV_FILE_MAM_SCHEMA_PATH="/mam_search_schema.xml" \
-            -e ENV_FILE_MAM_SCHEMA_DATA="$RIAK_MAM_SEARCH_SCHEMA" \
-            -e ENV_FILE_VCARD_SCHEMA_PATH="/vcard_search_schema.xml" \
-            -e ENV_FILE_VCARD_SCHEMA_DATA="$RIAK_VCARD_SEARCH_SCHEMA" \
-            -e ENV_FILE_SETUP_SH_PATH="/setup-riak.sh" \
-            -e ENV_FILE_SETUP_SH_DATA="$RIAK_SETUP_SH" \
-            -e ENV_FILE_SETUP_SH_MODE=755 \
-            -e BASE32DEC="$PYTHON3_BASE32_DEC" \
-            --health-cmd='riak-admin status' \
-            --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
-        echo "Wait for solr"
-        tools/circle-wait-for-solr.sh
 
     elif [ "$db" = 'cassandra' ]; then
         NAME=$(db_name cassandra)

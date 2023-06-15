@@ -152,12 +152,9 @@ Enables backward-compatible session establishement IQs. See https://www.rfc-edit
 
 ### `listen.c2s.allowed_auth_methods`
 
-* **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
+* **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"http"`, `"pki"`, `"dummy"`
 * **Default:** not set
 * **Example:** `allowed_auth_methods = ["internal"]`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 A subset of enabled methods to login with for this listener.
 This option allows to enable only some backends.

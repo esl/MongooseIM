@@ -20,7 +20,7 @@
 -export([ensure_started/0,
          start/2, start/3, start/4, start/5,
          stop/0, stop/1, stop/2, stop/3,
-         get_worker/1, get_worker/2, get_worker/3,
+         get_worker/2, get_worker/3,
          call/2, call/3, call/4, call/5,
          send_request/2, send_request/3, send_request/4, send_request/5,
          cast/2, cast/3, cast/4, cast/5,
@@ -43,7 +43,7 @@
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
 
--type pool_type() :: redis | riak | http | rdbms | cassandra | elastic | generic
+-type pool_type() :: redis | http | rdbms | cassandra | elastic | generic
                      | rabbit | ldap.
 
 %% Config scope
@@ -230,10 +230,6 @@ stop(PoolType, HostType, Tag) ->
 is_configured(PoolType) ->
     Pools = mongoose_config:get_opt(outgoing_pools),
     lists:any(fun(#{type := Type}) -> Type =:= PoolType end, Pools).
-
--spec get_worker(pool_type()) -> worker_result().
-get_worker(PoolType) ->
-    get_worker(PoolType, global).
 
 -spec get_worker(pool_type(), host_type_or_global()) -> worker_result().
 get_worker(PoolType, HostType) ->

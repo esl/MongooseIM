@@ -29,7 +29,6 @@ all() ->
     [
      get_pools_returns_pool_names,
      stats_passes_through_to_wpool_stats,
-     a_global_riak_pool_is_started,
      two_distinct_redis_pools_are_started,
      generic_pools_are_started_for_all_vhosts,
      host_specific_pools_are_preserved,
@@ -38,7 +37,6 @@ all() ->
      request_behaves_as_gen_server_send_request,
      dead_pool_is_restarted,
      dead_pool_is_stopped_before_restarted,
-     riak_pool_cant_be_started_with_available_worker_strategy,
      redis_pool_cant_be_started_with_available_worker_strategy,
      cassandra_prepare_opts
     ].
@@ -96,19 +94,6 @@ stats_passes_through_to_wpool_stats(_Config) ->
     Ref = make_ref(),
     meck:expect(wpool, stats, fun(_Name) -> Ref end),
     ?assertEqual(Ref, mongoose_wpool:stats(generic, global, z)).
-
-a_global_riak_pool_is_started(_Config) ->
-    PoolName = mongoose_wpool:make_pool_name(riak, global, default),
-    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
-    Pool = #{type => riak, scope => global, tag => default,
-             opts => #{workers => 12},
-             conn_opts => #{address => "localhost", port => 1805}},
-    [{ok, PoolName}] = mongoose_wpool:start_configured_pools([Pool]),
-
-    MgrPid = whereis(mongoose_wpool_mgr:name(riak)),
-    [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(MgrPid),
-    ?assertEqual(12, proplists:get_value(workers, CallArgs)),
-    ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)).
 
 filter_calls_to_start_sup_pool(Pid) ->
     H = meck_history:get_history(Pid, mongoose_wpool),
@@ -256,13 +241,8 @@ dead_pool_is_stopped_before_restarted(_C) ->
 
 %% --- available_worker strategy is banned for some backends --
 
-riak_pool_cant_be_started_with_available_worker_strategy(_Config) ->
-    pool_cant_be_started_with_available_worker_strategy(riak).
-
 redis_pool_cant_be_started_with_available_worker_strategy(_Config) ->
-    pool_cant_be_started_with_available_worker_strategy(redis).
-
-pool_cant_be_started_with_available_worker_strategy(Type) ->
+    Type = redis,
     Host = global,
     Tag = default,
     PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),

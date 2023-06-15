@@ -10,12 +10,8 @@ MongooseIM is compatible with MAM 0.4-0.6.
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
-* Riak KV (deprecated) (NoSQL)
 * Cassandra (NoSQL)
 * ElasticSearch (NoSQL)
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 `mod_mam` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
@@ -54,7 +50,7 @@ If this happens, the client will receive only messages that contain words specif
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
 For now `rdbms` backend has very limited support for this feature, while `cassandra` does not support it at all.
-`riak` (deprecated) and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
+`elasticsearch` backend, on the other hand, should provide you with the best results when it comes to text filtering.
 
 `mod_mam_rdbms_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).
@@ -68,12 +64,9 @@ Also note that the default separator for the search query is `AND` (which roughl
 ## Options
 
 ### `modules.mod_mam.backend`
-* **Syntax:** string, one of `"rdbms"`, `"riak"`, `"cassandra"` and `"elasticsearch"`
+* **Syntax:** string, one of `"rdbms"`, `"cassandra"` and `"elasticsearch"`
 * **Default:** `"rdbms"`
-* **Example:** `backend = "riak"`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
+* **Example:** `backend = "elasticsearch"`
 
 Database backend to use.
 
@@ -282,7 +275,7 @@ The possible values are:
 * **Example:** `modules.mod_mam.full_text_search = false`
 
 Enables full text search in message archive (see *Full Text Search* paragraph).
-Please note that the full text search is currently only implemented for `"rdbms"` and `"riak(deprecated)"` backends.
+Please note that the full text search is currently only implemented for `"rdbms"` backend.
 Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
@@ -304,33 +297,6 @@ Archiving chat markers can be enabled by setting `archive_chat_markers` option t
 `is_archivable_message` callback module is set to `mod_mam_utils` or isn't set at all.
 
 When performing full text search chat markers are treated as if they had empty message body.
-
-### Riak backend
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-The Riak KV backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.
-Archive querying is done using Riak KV 2.0 [search mechanism](http://docs.basho.com/riak/2.1.1/dev/using/search/) called Yokozuna.
-Your instance of Riak KV must be configured with Yokozuna enabled.
-
-This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
-
-#### Riak-specific options
-
-#### `modules.mod_mam.riak.bucket_type`
-* **Syntax:** non-empty string
-* **Default:** `"mam_yz"`
-* **Example:** `modules.mod_mam.riak.bucket_type = "mam_yz"`
-
-Riak bucket type.
-
-#### `modules.mod_mam.riak.search_index`
-* **Syntax:** non-empty string
-* **Default:** `"mam"`
-* **Example:** `modules.mod_mam.riak.search_index = "mam"`
-
-Riak index name.
 
 ### Cassandra backend
 
@@ -394,7 +360,7 @@ Sets the internal MAM jid encoder/decoder module for RDBMS.
 #### `modules.mod_mam.db_message_format`
 
 * **Syntax:** string, one of `"mam_message_xml"`, `"mam_message_eterm"`, `"mam_message_compressed_eterm"` or a module implementing `mam_message` behaviour
-* **Default:** `"mam_message_compressed_eterm"` for RDBMS, `"mam_message_xml"` for Riak and Cassandra
+* **Default:** `"mam_message_compressed_eterm"` for RDBMS, `"mam_message_xml"` for Cassandra
 * **Example:** `modules.mod_mam.db_message_format = "mam_message_compressed_eterm"`
 
 Sets the internal MAM message encoder/decoder module.

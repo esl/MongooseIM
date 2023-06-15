@@ -28,12 +28,6 @@ function wait_for_db {
             ./tools/wait-for-it.sh -p 6379
         ;;
 
-        riak)
-            ./tools/wait-for-it.sh -p 8098
-            ./tools/wait-for-it.sh -p 8087
-            ./tools/wait-for-it.sh -p 8999 # SCHEMA_READY_PORT
-        ;;
-
         ldap)
             ./tools/wait-for-it.sh -p 636 # On Circle CI
         ;;

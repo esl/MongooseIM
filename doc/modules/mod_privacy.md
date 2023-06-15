@@ -6,42 +6,15 @@ This extension allows user to block IQs, messages, presences, or all, based on J
 ## Options
 
 ### `modules.mod_privacy.backend`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`.
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`.
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-### Riak-specific options
-
-#### `modules.mod_privacy.riak.defaults_bucket_type`
-* **Syntax:** string.
-* **Default:** `"privacy_defaults"`
-* **Example:** `riak.defaults_bucket_type = "privacy_defaults"`
-
-Riak bucket type for information about default list name.
-
-#### `modules.mod_privacy.riak.names_bucket_type`
-* **Syntax:** string.
-* **Default:** `"privacy_lists_names"`
-* **Example:** `riak.names_bucket_type = "privacy_lists_names"`
-
-Riak bucket type for information about privacy list names.
-
-#### `modules.mod_privacy.riak.bucket_type`
-* **Syntax:** string.
-* **Default:** `"privacy_lists"`
-* **Example:** `riak.bucket_type = "privacy_lists"`
-
-Riak bucket type for privacy lists.
 
 ## Example Configuration
 
 ```toml
 [modules.mod_privacy]
-  backend = "riak"
-  riak.defaults_bucket_type = "privacy_defaults"
+  backend = "rdbms"
 ```
 
 ## Metrics

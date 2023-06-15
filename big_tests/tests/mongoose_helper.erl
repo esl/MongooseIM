@@ -6,7 +6,7 @@
 %% API
 
 -export([is_rdbms_enabled/1,
-         get_backend_mnesia_rdbms_riak/1,
+         get_backend_mnesia_rdbms/1,
          backend_for_module/2,
          mnesia_or_rdbms_backend/0,
          get_backend_name/2]).
@@ -70,11 +70,10 @@ mnesia_or_rdbms_backend() ->
         false -> mnesia
     end.
 
-get_backend_mnesia_rdbms_riak(HostType) ->
-    case {is_rdbms_enabled(HostType), mam_helper:is_riak_enabled(HostType)} of
-        {false, false} -> mnesia;
-        {true, false} -> rdbms;
-        {false, true} -> riak
+get_backend_mnesia_rdbms(HostType) ->
+    case is_rdbms_enabled(HostType) of
+        false -> mnesia;
+        true -> rdbms
     end.
 
 backend_for_module(Module, Backend) ->
@@ -184,28 +183,20 @@ generic_count_per_host_type(HostType, Module) ->
 generic_count_backend(mod_smart_markers_rdbms) -> count_rdbms(<<"smart_markers">>);
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
 generic_count_backend(mod_offline_rdbms) -> count_rdbms(<<"offline_message">>);
-generic_count_backend(mod_offline_riak) -> count_riak(<<"offline">>);
 generic_count_backend(mod_last_mnesia) -> count_wildpattern(last_activity);
 generic_count_backend(mod_last_rdbms) -> count_rdbms(<<"last">>);
-generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
 generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
 generic_count_backend(mod_privacy_rdbms) -> count_rdbms(<<"privacy_list">>);
-generic_count_backend(mod_privacy_riak) -> count_riak(<<"privacy_lists">>);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_rdbms) -> count_rdbms(<<"private_storage">>);
 generic_count_backend(mod_private_mysql) -> count_rdbms(<<"private_storage">>);
-generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_rdbms) -> count_rdbms(<<"vcard">>);
-generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
     D = ct:get_config({hosts, mim, domain}),
     %% number of vcards in ldap is the same as number of users
     rpc(mim(), ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
-generic_count_backend(mod_roster_riak) ->
-    count_riak(<<"rosters">>),
-    count_riak(<<"roster_versions">>);
 generic_count_backend(mod_roster_rdbms) -> count_rdbms(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
@@ -223,11 +214,6 @@ count_to_integer(N) when is_binary(N) ->
     list_to_integer(binary_to_list(N));
 count_to_integer(N) when is_integer(N)->
     N.
-
-count_riak(BucketType) ->
-    {ok, Buckets} = rpc(mim(), mongoose_riak, list_buckets, [BucketType]),
-    BucketKeys = [rpc(mim(), mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
-    length(lists:flatten(BucketKeys)).
 
 kick_everyone() ->
     [rpc(mim(), mongoose_c2s, stop, [Pid, normal]) || Pid <- get_session_pids()],

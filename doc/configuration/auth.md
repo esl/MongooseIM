@@ -7,12 +7,9 @@ The following methods are supported:
 * [`anonymous`](../authentication-methods/anonymous.md) - allows anonymous connections,
 * [`ldap`](../authentication-methods/ldap.md) - checks the user credentials in LDAP,
 * [`jwt`](../authentication-methods/jwt.md) - authenticates the users with JSON Web Tokens,
-* [`riak (deprecated)`](../authentication-methods/riak.md) - stores the user accounts in a Riak database,
 * [`http`](../authentication-methods/http.md) - uses an external HTTP service to authenticate the user,
 * [`pki`](../authentication-methods/pki.md) - uses the certificate provided by the user to authenticate them,
 * [`dummy`](../authentication-methods/dummy.md) - no authentication, only for development and testing.
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 To allow the users to connect, you need to choose the authentication method from the list above and enable it by adding a corresponding section. For example, the default configuration file has the `[auth.internal]` section, which enables the `internal` method, using the internal Mnesia database to store users and their passwords. However, for production systems other methods like `rdbms` are recommended, as using an external database offers easier maintenance, flexibility, scalability and configurability in a typical setup. Some methods have more complex setup procedures and have their own specific options - the method names above are links to their descriptions. There are some general authentication options as well, which are described below.
 
@@ -24,12 +21,9 @@ To allow the users to connect, you need to choose the authentication method from
 The options listed here affect more than one configuration method.
 
 ### `auth.methods`
-* **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
+* **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"http"`, `"pki"`, `"dummy"`
 * **Default:** not set
 * **Example:** `methods = ["internal", "anonymous"]`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 It is possible to enable more than one method - they are queried one by one in the alphabetical order until one of them succeeds or there are no more methods. You can change the default order by using this option. Make sure that all methods from the list have their corresponding sections included in the `auth` section, e.g.
 
@@ -70,7 +64,6 @@ The table below shows the supported SASL mechanisms (columns) for each authentic
 | anonymous         |   x   |   x    |     x      |     x     |          |
 | ldap              |   x   |        |            |           |    x     |
 | jwt               |   x   |        |            |           |          |
-| riak (deprecated) |   x   |   x    |     x      |           |          |
 | http              |   x   |   x    |     x      |           |          |
 | pki               |       |        |            |           |    x     |
 | dummy             |   x   |        |            |           |          |
@@ -90,7 +83,7 @@ This option allows you to list the enabled ones in the order of preference (they
 
 ## Password-related options
 
-These options are common to the `http`, `rdbms`, `internal` and `riak` (deprecated) methods.
+These options are common to the `http`, `rdbms` and `internal` methods.
 
 ### `auth.password.format`
 * **Syntax:** string, one of: `"plain"`, `"scram"`
@@ -161,5 +154,4 @@ See the links below for options related to the particular methods:
 * [External method options](../authentication-methods/external.md#configuration-options)
 * [LDAP method options](../authentication-methods/ldap.md#configuration-options)
 * [JWT method options](../authentication-methods/jwt.md#configuration-options)
-* [Riak (deprecated) method options](../authentication-methods/riak.md#configuration-options)
 * [HTTP method options](../authentication-methods/http.md#configuration-options)

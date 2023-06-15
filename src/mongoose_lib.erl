@@ -46,7 +46,6 @@ log_if_backend_error(V, Module, Line, Args) ->
         ok -> ok;
         {atomic, _} -> ok;
         {updated, _} -> ok; % rdbms
-        L when is_list(L) -> ok; % riak
         {error, E} ->
             ?LOG_ERROR(#{what => backend_error,
                          text => <<"Error calling backend module">>,

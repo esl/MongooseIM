@@ -56,7 +56,6 @@
 -export([
     normalize_search_text/1,
     normalize_search_text/2,
-    packet_to_search_body/3,
     packet_to_search_body/2,
     has_full_text_search/2
 ]).
@@ -728,13 +727,6 @@ normalize_search_text(Text, WordSeparator) ->
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
     Re2 = re:replace(Re1, "\s+", unicode:characters_to_list(WordSeparator), ReOpts),
     unicode:characters_to_binary(Re2).
-
--spec packet_to_search_body(Module :: mod_mam_pm | mod_mam_muc,
-                            HostType :: mongooseim:host_type(),
-                            Packet :: exml:element()) -> binary().
-packet_to_search_body(Module, HostType, Packet) ->
-    SearchEnabled = has_full_text_search(Module, HostType),
-    packet_to_search_body(SearchEnabled, Packet).
 
 -spec packet_to_search_body(Enabled :: boolean(),
                             Packet :: exml:element()) -> binary().

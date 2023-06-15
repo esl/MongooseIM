@@ -116,24 +116,20 @@ groups() ->
                              ]},
      {retrieve_personal_data_mam, [], [
                                        {group, retrieve_personal_data_mam_rdbms},
-                                       {group, retrieve_personal_data_mam_riak},
                                        {group, retrieve_personal_data_mam_cassandra},
                                        {group, retrieve_personal_data_mam_elasticsearch}
                                       ]},
      {retrieve_personal_data_mam_rdbms, [], all_mam_testcases()},
-     {retrieve_personal_data_mam_riak, [], all_mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], all_mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
      {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]},
      {remove_personal_data_mam, [], [
                                      {group, remove_personal_data_mam_rdbms},
-                                     {group, remove_personal_data_mam_riak},
                                      {group, remove_personal_data_mam_cassandra},
                                      {group, remove_personal_data_mam_elasticsearch}
                                     ]},
      {remove_personal_data_mam_rdbms, [], mam_removal_testcases()},
-     {remove_personal_data_mam_riak, [], mam_removal_testcases()},
      {remove_personal_data_mam_cassandra, [], mam_removal_testcases()},
      {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()},
      {remove_personal_data_pubsub, [], [
@@ -199,9 +195,6 @@ init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_pubsub;
                                 GN =:= remove_personal_data_pubsub ->
     [{group, GN} | Config];
-init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_riak;
-                                GN =:= remove_personal_data_mam_riak ->
-    try_backend_for_mam(Config, riak);
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_cassandra;
                                 GN =:= remove_personal_data_mam_cassandra->
     try_backend_for_mam(Config, cassandra);
@@ -228,7 +221,6 @@ try_backend_for_mam(Config, Backend) ->
     end.
 
 is_backend_enabled(rdbms)         -> mongoose_helper:is_rdbms_enabled(host_type());
-is_backend_enabled(riak)          -> mam_helper:is_riak_enabled(host_type());
 is_backend_enabled(cassandra)     -> mam_helper:is_cassandra_enabled(host_type());
 is_backend_enabled(elasticsearch) -> mam_helper:is_elasticsearch_enabled(host_type()).
 
@@ -385,7 +377,6 @@ mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
 
 pick_enabled_backend() ->
     BackendsList = [
-        {mam_helper:is_riak_enabled(host_type()), riak},
         {mongoose_helper:is_rdbms_enabled(host_type()), rdbms}
     ],
     proplists:get_value(true, BackendsList, mnesia).
@@ -394,9 +385,6 @@ roster_required_modules() ->
     Backend = pick_enabled_backend(),
     [{mod_roster, roster_backend_opts(Backend)}].
 
-roster_backend_opts(riak) ->
-    RiakDefaults = config_parser_helper:default_config([modules, mod_roster, riak]),
-    mod_config(mod_roster, #{backend => riak, riak => RiakDefaults});
 roster_backend_opts(Backend) ->
     mod_config(mod_roster, #{backend => Backend}).
 
@@ -404,17 +392,12 @@ vcard_required_modules() ->
     Backend = pick_enabled_backend(),
     [{mod_vcard, mod_config(mod_vcard, vcard_backend_opts(Backend))}].
 
-vcard_backend_opts(riak) ->
-    #{backend => riak, riak => #{bucket_type => <<"vcard">>,
-                                 search_index => <<"vcard">>}};
 vcard_backend_opts(Backend) ->
     #{backend => Backend}.
 
 offline_required_modules() ->
     [{mod_offline, mod_offline_config(pick_enabled_backend())}].
 
-mod_offline_config(riak) ->
-    config_parser_helper:mod_config(mod_offline, #{backend => riak, riak => #{bucket_type => <<"offline">>}});
 mod_offline_config(Backend) ->
     config_parser_helper:mod_config(mod_offline, #{backend => Backend}).
 
@@ -447,8 +430,6 @@ offline_started() ->
 private_required_modules() ->
     [{mod_private, create_private_config(pick_enabled_backend())}].
 
-create_private_config(riak) ->
-    mod_config(mod_private, #{backend => riak, riak => #{bucket_type => <<"private">>}});
 create_private_config(Backend) ->
     mod_config(mod_private, #{backend => Backend}).
 

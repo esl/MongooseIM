@@ -36,8 +36,6 @@ case "$PRESET" in
     export REL_CONFIG="with-mysql with-redis with-amqp_client" ;;
   pgsql_mnesia)
     export REL_CONFIG="with-pgsql" ;;
-  riak_mnesia)
-    export REL_CONFIG="with-riak" ;;
   ldap_mnesia)
     export REL_CONFIG="with-none" ;;
   elasticsearch_and_cassandra_mnesia)

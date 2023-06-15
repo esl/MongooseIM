@@ -27,14 +27,11 @@ Domain of the vCard User Directory, used for searching.
 Enables/disables the domain set in the previous option. `false` makes searching for users impossible.
 
 ### `modules.mod_vcard.backend`
-* **Syntax:** string, one of `"ldap"`, `"rdbms"`, `"riak"`, `"mnesia"`
+* **Syntax:** string, one of `"ldap"`, `"rdbms"`, `"mnesia"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
 vCard storage backend.
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
 !!! Warning 
     LDAP backend is read-only.
@@ -92,25 +89,6 @@ A default operator used for search query items.
 * **Example:** `binary_search_fields = ["User", "Full Name"]`
 
 An array of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
-
-### Riak-specific options
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-#### `modules.mod_vcard.riak.bucket_type`
-* **Syntax:** string
-* **Default:** `"vcard"`
-* **Example:** `bucket_type = "vcard"`
-
-Riak bucket type.
-
-#### `modules.mod_vcard.riak.search_index`
-* **Syntax:** string
-* **Default:** `"vcard"`
-* **Example:** `search_index = "vcard"`
-
-Riak index name.
 
 ## Example Configuration
 

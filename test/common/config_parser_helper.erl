@@ -335,17 +335,7 @@ options("outgoing_pools") ->
                          }
           },
          #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}},
-         #{type => riak, scope => global, tag => default,
-           opts => #{strategy => next_worker, workers => 20},
-           conn_opts => #{address => "127.0.0.1",
-                          credentials => #{user => "username", password => "pass"},
-                          port => 8087,
-                          tls => #{cacertfile => "priv/ca.pem",
-                                   certfile => "priv/cert.pem",
-                                   keyfile => "priv/dc1.pem"}
-                         }
-          }
+           opts => #{workers => 10}, conn_opts => #{}}
         ])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -400,9 +390,7 @@ all_modules() ->
                        no_stanzaid_element => true}),
       mod_caps => default_mod_config(mod_caps),
       mod_mam_cache_user => (default_config([modules, mod_mam, cache]))#{muc => true, pm => true},
-      mod_offline =>
-           mod_config(mod_offline, #{backend => riak,
-                                     riak => #{bucket_type => <<"offline">>}}),
+      mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_ping =>
           mod_config(mod_ping, #{ping_interval => 60000,
                                  ping_req_timeout => 32000,
@@ -694,9 +682,8 @@ extra_auth() ->
                 local_filter => {equal, {"accountStatus", ["enabled"]}},
                 pool_tag => default,
                 uids => [<<"uid">>, {<<"uid2">>, <<"%u">>}]},
-      methods => [anonymous, external, http, jwt, ldap, rdbms, riak],
-      rdbms => #{users_number_estimate => true},
-      riak => #{bucket_type => <<"user_bucket">>}}.
+      methods => [anonymous, external, http, jwt, ldap, rdbms],
+      rdbms => #{users_number_estimate => true}}.
 
 default_auth() ->
     #{methods => [],
@@ -1158,10 +1145,6 @@ default_config([modules, mod_global_distrib, bounce]) ->
       max_retries => 4};
 default_config([modules, mod_http_upload, s3]) ->
     #{add_acl => false};
-default_config([modules, mod_privacy, riak]) ->
-    #{defaults_bucket_type => <<"privacy_defaults">>,
-      names_bucket_type => <<"privacy_lists_names">>,
-      bucket_type => <<"privacy_lists">>};
 default_config([modules, mod_mam, pm]) ->
     #{archive_groupchats => false, same_mam_id_for_peers => false};
 default_config([modules, mod_mam, muc]) ->
@@ -1172,13 +1155,9 @@ default_config([modules, mod_mam, cache]) ->
 default_config([modules, mod_mam, async_writer]) ->
     #{batch_size => 30, enabled => true, flush_interval => 2000,
       pool_size => 4 * erlang:system_info(schedulers_online)};
-default_config([modules, mod_mam, riak]) ->
-    #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
 default_config([modules, mod_muc_light, cache_affs]) ->
     #{module => internal, strategy => fifo,
       time_to_live => 2, number_of_segments => 3};
-default_config([modules, mod_roster, riak]) ->
-    #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>};
 default_config([modules, mod_stream_management, stale_h]) ->
     #{enabled => false,
       repeat_after => 1800,

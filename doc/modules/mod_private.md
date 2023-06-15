@@ -13,27 +13,11 @@ Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_private.backend`
-* **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`.
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`.
 * **Default:** "mnesia"
 * **Example:** `backend = "mnesia"`
 
 Database backend to use.
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-**CAUTION:**  Riak KV backend doesn't support transactions (rollbacks), so please avoid inserting
-more than one value in a single set request, otherwise you may end up with partially saved data.
-Backend returns the first error.
-
-### Riak-specific options
-
-#### `modules.mod_privacy.riak.bucket_type`
-* **Syntax:** string
-* **Default:** `"private"`
-* **Example:** `bucket_type = "private"`
-
-Riak bucket type.
 
 ## Example Configuration
 ```toml
