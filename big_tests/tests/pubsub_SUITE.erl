@@ -6,117 +6,12 @@
 
 -module(pubsub_SUITE).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
+-compile([export_all, nowarn_export_all]).
+
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([suite/0, all/0, groups/0]).
--export([init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
-
--export([
-         discover_features_test/1,
-         discover_service_features_test/1,
-         discover_sm_features_test/1,
-         discover_nodes_test/1,
-         create_delete_node_test/1,
-         subscribe_unsubscribe_test/1,
-         subscribe_options_test/1,
-         subscribe_options_deliver_option_test/1,
-         subscribe_options_separate_request_test/1,
-         publish_test/1,
-         publish_with_max_items_test/1,
-         publish_with_existing_id_test/1,
-         notify_test/1,
-         request_all_items_test/1,
-         request_particular_item_test/1,
-         retract_test/1,
-         retract_when_user_goes_offline_test/1,
-         purge_all_items_test/1,
-         publish_only_retract_items_scope_test/1
-        ]).
-
--export([
-         max_subscriptions_test/1
-        ]).
-
--export([
-         retrieve_configuration_test/1,
-         set_configuration_test/1,
-         notify_config_test/1,
-         disable_notifications_test/1,
-         disable_payload_test/1,
-         disable_persist_items_test/1,
-         notify_only_available_users_test/1,
-         notify_unavailable_user_test/1,
-         send_last_published_item_test/1,
-         send_last_published_item_no_items_test/1
-        ]).
-
--export([
-         get_affiliations_test/1,
-         add_publisher_and_member_test/1,
-         swap_owners_test/1,
-         deny_no_owner_test/1
-        ]).
-
--export([
-         retrieve_user_subscriptions_test/1,
-         retrieve_node_subscriptions_test/1,
-         modify_node_subscriptions_test/1,
-         process_subscription_requests_test/1,
-         retrieve_pending_subscription_requests_test/1
-        ]).
-
--export([
-         create_delete_collection_test/1,
-         subscribe_unsubscribe_collection_test/1,
-         collection_delete_makes_leaf_parentless/1,
-         notify_collection_test/1,
-         notify_collection_leaf_and_item_test/1,
-         notify_collection_bare_jid_test/1,
-         notify_collection_and_leaf_test/1,
-         notify_collection_and_leaf_same_user_test/1,
-         notify_collections_with_same_leaf_test/1,
-         notify_nested_collections_test/1,
-         retrieve_subscriptions_collection_test/1,
-         discover_top_level_nodes_test/1,
-         discover_child_nodes_test/1,
-         request_all_items_leaf_test/1
-        ]).
-
--export([
-         disable_notifications_leaf_test/1,
-         disable_payload_leaf_test/1,
-         disable_persist_items_leaf_test/1
-        ]).
-
--export([
-         debug_get_items_test/1,
-         debug_get_item_test/1
-        ]).
-
--export([
-         can_create_node_with_existing_parent_path/1,
-         cant_create_node_with_missing_parent_path/1,
-         disco_node_children_by_path_prefix/1,
-         deleting_parent_path_deletes_children/1
-        ]).
-
-%% Disabled tests - broken support in mod_pubsub
--export([
-         disable_payload_and_persist_test/1,
-         disable_delivery_test/1
-        ]).
-
--export([
-         get_item_with_publisher_option_test/1,
-         receive_item_notification_with_publisher_option_test/1
-        ]).
 -import(pubsub_tools, [pubsub_node/0,
                        domain/0,
                        node_addr/0,
@@ -154,19 +49,17 @@ group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:=
 group_is_compatible(_, _) -> true.
 
 base_groups() ->
-    G = [{basic, [parallel], basic_tests()},
-         {service_config, [parallel], service_config_tests()},
-         {node_config, [parallel], node_config_tests()},
-         {node_affiliations, [parallel], node_affiliations_tests()},
-         {manage_subscriptions, [parallel], manage_subscriptions_tests()},
-         {collection, [sequence], collection_tests()},
-         {collection_config, [parallel], collection_config_tests()},
-         {debug_calls, [parallel], debug_calls_tests()},
-         {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
-         {hometree_specific, [sequence], hometree_specific_tests()},
-         {last_item_cache, [parallel], last_item_cache_tests()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{basic, [parallel], basic_tests()},
+     {service_config, [parallel], service_config_tests()},
+     {node_config, [parallel], node_config_tests()},
+     {node_affiliations, [parallel], node_affiliations_tests()},
+     {manage_subscriptions, [parallel], manage_subscriptions_tests()},
+     {collection, [sequence], collection_tests()},
+     {collection_config, [parallel], collection_config_tests()},
+     {debug_calls, [parallel], debug_calls_tests()},
+     {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
+     {hometree_specific, [sequence], hometree_specific_tests()},
+     {last_item_cache, [parallel], last_item_cache_tests()}].
 
 basic_tests() ->
     [
@@ -175,6 +68,7 @@ basic_tests() ->
      discover_sm_features_test,
      discover_nodes_test,
      create_delete_node_test,
+     create_node_errors_test,
      subscribe_unsubscribe_test,
      subscribe_options_test,
      subscribe_options_deliver_option_test,
@@ -198,8 +92,10 @@ service_config_tests() ->
 
 node_config_tests() ->
     [
+     retrieve_default_configuration_test,
      retrieve_configuration_test,
      set_configuration_test,
+     set_configuration_errors_test,
      notify_config_test,
      disable_notifications_test,
      disable_payload_test,
@@ -223,7 +119,8 @@ manage_subscriptions_tests() ->
      retrieve_node_subscriptions_test,
      modify_node_subscriptions_test,
      process_subscription_requests_test,
-     retrieve_pending_subscription_requests_test
+     retrieve_pending_subscription_requests_test,
+     retrieve_pending_subscription_requests_errors_test
     ].
 
 collection_tests() ->
@@ -407,6 +304,31 @@ create_delete_node_test(Config) ->
 
               %% Request:  8.4.1 Ex.155 owner deletes a node
               %% Response:       Ex.157 success
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+create_node_errors_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              GoodOpts = [{<<"pubsub#notify_config">>, <<"1">>}],
+              BadOpts = [{<<"pubsub#notify_config">>, <<"7">>}],
+
+              %% Invalid forms
+              pubsub_tools:create_node(Alice, Node,
+                                       [{modify_request, fun form_helper:remove_form_types/1},
+                                        {expected_error_type, <<"modify">>},
+                                        {config, GoodOpts}]),
+              pubsub_tools:create_node(Alice, Node,
+                                       [{expected_error_type, <<"modify">>},
+                                        {config, BadOpts}]),
+
+              %% Empty configuration element should be accepted
+              pubsub_tools:create_node(Alice, Node,
+                                       [{modify_request, fun form_helper:remove_forms/1},
+                                        {config, GoodOpts}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
@@ -765,6 +687,16 @@ max_subscriptions_test(Config) ->
 %% Node configuration
 %%--------------------------------------------------------------------
 
+retrieve_default_configuration_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              NodeAddr = node_addr(),
+              pubsub_tools:get_default_configuration(Alice, NodeAddr,
+                                                     [{expected_result, default_config()}])
+      end).
+
 retrieve_configuration_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -791,6 +723,38 @@ set_configuration_test(Config) ->
               pubsub_tools:set_configuration(Alice, Node, ValidNodeConfig,
                                              [{response_timeout, 10000}]),
               pubsub_tools:get_configuration(Alice, Node, [{expected_result, ValidNodeConfig}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+set_configuration_errors_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              GoodOpts = [{<<"pubsub#notify_config">>, <<"1">>}],
+              BadOpts = [{<<"pubsub#notify_config">>, <<"7">>}],
+
+              %% Missing <configure> element
+              pubsub_tools:set_configuration(Alice, Node, [], [{expected_error_type, <<"modify">>}]),
+
+              %% Missing data form
+              pubsub_tools:set_configuration(Alice, Node, GoodOpts,
+                                             [{modify_request, fun form_helper:remove_forms/1},
+                                              {expected_error_type, <<"modify">>}]),
+
+              %% Invalid forms
+              pubsub_tools:set_configuration(Alice, Node, GoodOpts,
+                                             [{modify_request, fun form_helper:remove_form_types/1},
+                                              {expected_error_type, <<"modify">>}]),
+              pubsub_tools:set_configuration(Alice, Node, GoodOpts,
+                                             [{modify_request, fun form_helper:remove_form_ns/1},
+                                              {expected_error_type, <<"modify">>}]),
+              pubsub_tools:set_configuration(Alice, Node, BadOpts,
+                                             [{expected_error_type, <<"modify">>}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1184,6 +1148,23 @@ retrieve_pending_subscription_requests_test(Config) ->
               pubsub_tools:receive_subscription_requests(Alice, [Bob, Kate], Node, []),
               IQRes = escalus:wait_for_stanza(Alice),
               escalus:assert(is_iq_result, [Request], IQRes),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+retrieve_pending_subscription_requests_errors_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Node = pubsub_node(),
+              NodeConfig = [{<<"pubsub#access_model">>, <<"authorize">>}],
+              pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
+
+              %% Invalid form
+              pubsub_tools:get_pending_subscriptions(
+                Alice, Node, [{modify_request, fun form_helper:remove_form_types/1},
+                              {expected_error_type, <<"modify">>}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1935,6 +1916,27 @@ node_config_for_test() ->
      % Not supported yet: {<<"pubsub#children">>, undef},
      % Covered by collection tests: {<<"pubsub#collection">>, <<"text-multi">>}
     ].
+
+default_config() ->
+    [{<<"pubsub#deliver_payloads">>, <<"1">>},
+     {<<"pubsub#deliver_notifications">>, <<"1">>},
+     {<<"pubsub#notify_config">>, <<"0">>},
+     {<<"pubsub#notify_delete">>, <<"0">>},
+     {<<"pubsub#notify_retract">>, <<"0">>},
+     {<<"pubsub#persist_items">>, <<"1">>},
+     {<<"pubsub#title">>, <<>>},
+     {<<"pubsub#max_items">>, <<"10">>},
+     {<<"pubsub#subscribe">>, <<"1">>},
+     {<<"pubsub#access_model">>, <<"open">>},
+     {<<"pubsub#roster_groups_allowed">>, []},
+     {<<"pubsub#publish_model">>, <<"publishers">>},
+     {<<"pubsub#purge_offline">>, <<"0">>},
+     {<<"pubsub#notification_type">>, <<"headline">>},
+     {<<"pubsub#max_payload_size">>, <<"60000">>},
+     {<<"pubsub#send_last_published_item">>, <<"never">>},
+     {<<"pubsub#presence_based_delivery">>, <<"0">>},
+     {<<"pubsub#type">>, <<>>},
+     {<<"pubsub#collection">>, []}].
 
 verify_item_retract({NodeAddr, NodeName}, ItemId, Stanza) ->
     escalus:assert(is_message, Stanza),

@@ -145,7 +145,6 @@ publish_fails_with_no_options(Config) ->
             pubsub_tools:create_node(Alice, Node, [{type, <<"push">>}]),
 
             ContentFields = [
-                {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
                 {<<"message-count">>, <<"1">>},
                 {<<"last-message-sender">>, <<"senderId">>},
                 {<<"last-message-body">>, <<"message body">>}
@@ -154,7 +153,7 @@ publish_fails_with_no_options(Config) ->
             Item =
                 #xmlel{name = <<"notification">>,
                        attrs = [{<<"xmlns">>, ?NS_PUSH}],
-                       children = [push_helper:make_form(ContentFields)]},
+                       children = push_helper:maybe_form(ContentFields, ?PUSH_FORM_TYPE)},
 
             Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
             escalus:send(Alice, Publish),
@@ -353,15 +352,13 @@ setup_pubsub(User) ->
 %% ----------------------------------
 
 publish_iq(Client, Node, Content, Options) ->
-    ContentFields = [{<<"FORM_TYPE">>, ?PUSH_FORM_TYPE}] ++ Content,
-    OptionFileds = [{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ Options,
-
     Item =
         #xmlel{name = <<"notification">>,
                attrs = [{<<"xmlns">>, ?NS_PUSH}],
-               children = [push_helper:make_form(ContentFields)]},
+               children = push_helper:maybe_form(Content, ?PUSH_FORM_TYPE)},
     OptionsEl =
-        #xmlel{name = <<"publish-options">>, children = [push_helper:make_form(OptionFileds)]},
+        #xmlel{name = <<"publish-options">>,
+               children = push_helper:maybe_form(Options, ?NS_PUBSUB_PUB_OPTIONS)},
 
     Publish = escalus_pubsub_stanza:publish(Client, <<"itemid">>, Item, <<"id">>, Node),
     #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,

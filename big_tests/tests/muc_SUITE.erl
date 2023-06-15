@@ -46,8 +46,6 @@
          has_features/2,
          disco_service_story/1,
          story_with_room/4,
-         stanza_form/2,
-         form_field/1,
          change_nick_form_iq/1,
          set_nick/2
          ]).
@@ -152,6 +150,7 @@ groups() ->
                                   moderator_voice_unauthorized,
                                   moderator_voice_list,
                                   moderator_voice_approval,
+                                  moderator_voice_approval_errors,
                                   moderator_voice_forbidden,
                                   moderator_voice_not_occupant,
                                   moderator_voice_nonick
@@ -249,6 +248,7 @@ groups() ->
                               config_denial,
                               config_cancel,
                               configure,
+                              configure_errors,
                               configure_logging,
                               %% fails, see testcase
                               configure_anonymous,
@@ -290,7 +290,9 @@ register_cases() ->
      user_submits_registration_form_twice,
      user_changes_nick,
      user_unregisters_nick,
-     user_unregisters_nick_twice].
+     user_unregisters_nick_twice,
+     user_cancels_registration,
+     user_registration_errors].
 
 rsm_cases() ->
       [pagination_first5,
@@ -966,13 +968,41 @@ moderator_voice_approval(ConfigIn) ->
         true = is_message_form(Form),
 
         Appr = stanza_voice_request_approval(?config(room, Config),
-            escalus_utils:get_short_jid(Bob), <<"bob">>),
+            escalus_utils:get_short_jid(Bob), <<"bob">>, true),
         escalus:send(Alice, Appr),
 
         %% Bob should get his new presence
         Pres = escalus:wait_for_stanza(Bob),
         true = is_presence_with_role(Pres, <<"participant">>)
 
+    end).
+
+moderator_voice_approval_errors(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    story_with_room(ConfigIn, moderator_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        Req = stanza_voice_request_approval(?config(room, Config),
+                                            escalus_utils:get_short_jid(Bob), <<"bob">>, true),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                       escalus:send_and_wait(Alice, form_helper:remove_form_types(Req))),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                       escalus:send_and_wait(Alice, form_helper:remove_form_ns(Req))),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                       escalus:send_and_wait(Alice, form_helper:remove_forms(Req))),
+
+        %% 'false' approval also results in an error
+        Req2 = stanza_voice_request_approval(?config(room, Config),
+                                             escalus_utils:get_short_jid(Bob), <<"bob">>, false),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                       escalus:send_and_wait(Alice, Req2))
     end).
 
 moderator_voice_forbidden(ConfigIn) ->
@@ -989,7 +1019,7 @@ moderator_voice_forbidden(ConfigIn) ->
 
         %% Bob tries to send request approval
         Appr = stanza_voice_request_approval(?config(room, Config),
-            escalus_utils:get_short_jid(Bob), <<"bob">>),
+            escalus_utils:get_short_jid(Bob), <<"bob">>, true),
         escalus:send(Bob, Appr),
 
         %% Bob should get an error
@@ -1002,7 +1032,7 @@ moderator_voice_not_occupant(ConfigIn) ->
     story_with_room(ConfigIn, moderator_room_opts(), UserSpecs, fun(Config, Alice, Bob) ->
         %% Alice tries to send request approval while she isn't in the room
         Appr = stanza_voice_request_approval(?config(room, Config),
-            escalus_utils:get_short_jid(Bob), <<"bob">>),
+            escalus_utils:get_short_jid(Bob), <<"bob">>, true),
         escalus:send(Alice, Appr),
 
         %% Alice should get an error
@@ -1491,8 +1521,9 @@ admin_member_list_allowed(ConfigIn) ->
         %% Kate can't get member list
         check_memberlist(Kate, no, Config),
         %% setup room - allow getmemberlist for moderator
-        Form = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_getmemberlist">>, [<<"moderator">>], <<"list-multi">>}]),
+        Fields = [#{var => <<"muc#roomconfig_getmemberlist">>, values => [<<"moderator">>],
+                    type => <<"list-multi">>}],
+        Form = stanza_configuration_form(?config(room, Config), Fields),
         escalus:send_iq_and_wait_for_result(Alice, Form),
         %% memberlist
         %% Alice - yes
@@ -1509,8 +1540,9 @@ admin_member_list_allowed(ConfigIn) ->
         %% Kate - no
         check_rolelist(Bob, yes, Config),
         %% setup room - allow getmemberlist for participant
-        Form1 = stanza_configuration_form(?config(room, Config), [
-             {<<"muc#roomconfig_getmemberlist">>, [<<"participant">>], <<"list-multi">>}]),
+        Fields1 = [#{var => <<"muc#roomconfig_getmemberlist">>, values => [<<"participant">>],
+                     type => <<"list-multi">>}],
+        Form1 = stanza_configuration_form(?config(room, Config), Fields1),
         escalus:send_iq_and_wait_for_result(Alice, Form1),
         %% memberlist
         %% Alice - yes
@@ -1539,8 +1571,9 @@ admin_member_list_allowed(ConfigIn) ->
         %% Kate - no
         check_rolelist(Kate, no, Config),
         %% setup room - allow getmemberlist for visitor
-        Form2 = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_getmemberlist">>, [<<"visitor">>], <<"list-multi">>}]),
+        Fields2 = [#{var => <<"muc#roomconfig_getmemberlist">>, values => [<<"visitor">>],
+                     type => <<"list-multi">>}],
+        Form2 = stanza_configuration_form(?config(room, Config), Fields2),
         escalus:send_iq_and_wait_for_result(Alice, Form2),
         %% member list
         %% Alice - yes
@@ -2711,6 +2744,31 @@ user_unregisters_nick_twice(Config) ->
         ?assert_equal(<<>>, get_nick(Alice))
     end).
 
+user_cancels_registration(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              Form = form_helper:form(#{type => <<"cancel">>}),
+              SetIQ = escalus_stanza:iq_set(?NS_INBAND_REGISTER, [Form]),
+              Req = escalus_stanza:to(SetIQ, muc_helper:muc_host()),
+              escalus:send_iq_and_wait_for_result(Alice, Req)
+      end).
+
+user_registration_errors(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              Nick = fresh_nick_name(<<"thirdwitch">>),
+              Req = change_nick_form_iq(Nick),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_types(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_ns(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_forms(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_fields(Req, <<"nick">>)))
+      end).
 
 %%--------------------------------------------------------------------
 %% Registration in a room
@@ -3132,9 +3190,11 @@ reserved_room_unacceptable(Config) ->
         true = is_form(S),
 
         %% Configure room to be password protected, with empty secret
-        Form = stanza_configuration_form(RoomName, [
-            {<<"muc#roomconfig_passwordprotectedroom">>, <<"1">>, <<"boolean">>},
-            {<<"muc#roomconfig_roomsecret">>, <<>>, <<"text-single">>}]),
+        Fields = [#{var => <<"muc#roomconfig_passwordprotectedroom">>, values => [<<"1">>],
+                    type => <<"boolean">>},
+                  #{var => <<"muc#roomconfig_roomsecret">>, values => [<<>>],
+                    type => <<"text-single">>}],
+        Form = stanza_configuration_form(RoomName, Fields),
         escalus:send(Alice, Form),
 
         R = escalus:wait_for_stanza(Alice),
@@ -3158,10 +3218,10 @@ reserved_room_configuration(Config) ->
         true = is_form(S),
 
         %% Configure room to be moderated, public and persistent
-        Form = stanza_configuration_form(RoomName, [
-            {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
-            {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
-            {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
+        Fields = [#{var => <<"muc#roomconfig_publicroom">>, values => [<<"1">>], type => <<"boolean">>},
+                  #{var => <<"muc#roomconfig_moderatedroom">>, values => [<<"1">>], type => <<"boolean">>},
+                  #{var => <<"muc#roomconfig_persistentroom">>, values => [<<"1">>], type => <<"boolean">>}],
+        Form = stanza_configuration_form(RoomName, Fields),
         Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from, [room_address(RoomName)], Result),
 
@@ -3233,10 +3293,10 @@ configure(ConfigIn) ->
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
 
         %% Configure room to be moderated, public and persistent
-        Form = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
-            {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
-            {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
+        Fields = [#{var => <<"muc#roomconfig_publicroom">>, values => [<<"1">>], type => <<"boolean">>},
+                  #{var => <<"muc#roomconfig_moderatedroom">>, values => [<<"1">>], type => <<"boolean">>},
+                  #{var => <<"muc#roomconfig_persistentroom">>, values => [<<"1">>], type => <<"boolean">>}],
+        Form = stanza_configuration_form(?config(room, Config), Fields),
         Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
@@ -3248,6 +3308,21 @@ configure(ConfigIn) ->
         has_feature(Stanza, <<"muc_moderated">>),
         has_feature(Stanza, <<"muc_public">>)
         end).
+
+configure_errors(ConfigIn) ->
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}],
+    story_with_room(
+      ConfigIn, RoomOpts, UserSpecs,
+      fun(Config, Alice) ->
+              Req = stanza_configuration_form(?config(room, Config), []),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_types(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_ns(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_forms(Req)))
+      end).
 
 %%  Example 171
 %%  This test needs enabled mod_muc_log module and {access_log, muc_create} in options
@@ -3271,9 +3346,10 @@ configure_logging(ConfigIn) ->
         true = is_form(Res),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
 
-         %% Configure room with logging enabled
-        Form = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_enablelogging">>, <<"1">>, <<"boolean">>}]),
+        %% Configure room with logging enabled
+        Fields = [#{var => <<"muc#roomconfig_enablelogging">>, values => [<<"1">>],
+                    type => <<"boolean">>}],
+        Form = stanza_configuration_form(?config(room, Config), Fields),
         Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
@@ -3301,8 +3377,8 @@ configure_logging(ConfigIn) ->
         assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Kate)),
 
         %% Disable logging
-        Form2 = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_enablelogging">>, <<"0">>, <<"boolean">>}]),
+        Fields2 = [#{var => <<"muc#roomconfig_enablelogging">>, values => [<<"0">>], type => <<"boolean">>}],
+        Form2 = stanza_configuration_form(?config(room, Config), Fields2),
         Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
@@ -3337,8 +3413,9 @@ configure_anonymous(ConfigIn) ->
 
 
         %% Configure room as non-anonymous
-        Form = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_whois">>, <<"anyone">>, <<"list-single">>}]),
+        Fields = [#{var => <<"muc#roomconfig_whois">>, values => [<<"anyone">>],
+                    type => <<"list-single">>}],
+        Form = stanza_configuration_form(?config(room, Config), Fields),
         Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
@@ -3358,8 +3435,9 @@ configure_anonymous(ConfigIn) ->
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3),
 
         %% Configure room as semi-anonymous
-        Form2 = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_whois">>, <<"moderators">>, <<"list-single">>}]),
+        Fields2 = [#{var => <<"muc#roomconfig_whois">>, values => [<<"moderators">>],
+                     type => <<"list-single">>}],
+        Form2 = stanza_configuration_form(?config(room, Config), Fields2),
         Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
@@ -4319,7 +4397,7 @@ opt_to_room_config({Name, Value}) when is_atom(Value) ->
     NameBin = atom_to_binary(Name, utf8),
     OptionName = <<"muc#roomconfig_", NameBin/binary>>,
     BinValue = boolean_to_binary(Value),
-    {OptionName, BinValue, <<"boolean">>};
+    #{var => OptionName, values => [BinValue], type => <<"boolean">>};
 opt_to_room_config(_) -> [].
 
 boolean_to_binary(true) -> <<"1">>;
@@ -4511,7 +4589,7 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
              count = Count}.
 
 create_already_registered_room(Config) ->
-    Room = <<"testroom2">>,
+    Room = fresh_room_name(),
     Host = muc_host(),
     %% Start a room
     [Alice | _] = ?config(escalus_users, Config),
@@ -4525,8 +4603,8 @@ create_already_registered_room(Config) ->
     ?assert_equal(?FAKEPID, Pid).
 
 check_presence_route_to_offline_room(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        Room = <<"testroom3">>,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Room = fresh_room_name(),
         %% Send a presence to a nonexistent room
         escalus:send(Alice, stanza_groupchat_enter_room_no_nick(Room)),
 
@@ -4535,8 +4613,8 @@ check_presence_route_to_offline_room(Config) ->
     end).
 
 check_message_route_to_offline_room(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        Room = <<"testroom4">>,
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Room = fresh_room_name(),
         Host = muc_host(),
         ok = rpc(mim(), mod_muc, store_room, [host_type(), Host, Room, []]),
 
@@ -4840,46 +4918,33 @@ stanza_join_room_many_x_elements(Room, Nick) ->
                          }, Room, Nick).
 
 stanza_voice_request_form(Room) ->
-    Payload = [ form_field({<<"muc#role">>, <<"participant">>, <<"text-single">>}) ],
-    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
+    Fields = [#{var => <<"muc#role">>, values => [<<"participant">>], type => <<"text-single">>}],
+    stanza_message_to_room(Room, [form_helper:form(#{fields => Fields, ns => ?NS_MUC_REQUEST})]).
 
-stanza_voice_request_approval(Room, JID, Nick) ->
-    Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
-        {<<"muc#jid">>, JID, <<"jid-single">>},
-        {<<"muc#roomnick">>, Nick, <<"text-single">>},
-        {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
-    Payload = [ form_field(El) || El <- Items],
-    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
+stanza_voice_request_approval(Room, JID, Nick, Approved) ->
+    Fields = [#{var => <<"muc#role">>, values => [<<"participant">>], type => <<"text-single">>},
+              #{var => <<"muc#jid">>, values => [JID], type => <<"jid-single">>},
+              #{var => <<"muc#roomnick">>, values => [Nick], type => <<"text-single">>},
+              #{var => <<"muc#request_allow">>, values => [atom_to_binary(Approved)],
+                type => <<"boolean">>}],
+    stanza_message_to_room(Room, [form_helper:form(#{fields => Fields, ns => ?NS_MUC_REQUEST})]).
 
 stanza_voice_request_approval_nonick(Room, JID) ->
-    Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
-        {<<"muc#jid">>, JID, <<"jid-single">>},
-        {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
-    Payload = [ form_field(El) || El <- Items],
-    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
+    Fields = [#{var => <<"muc#role">>, values => [<<"participant">>], type => <<"text-single">>},
+              #{var => <<"muc#jid">>, values => [JID], type => <<"jid-single">>},
+              #{var => <<"muc#request_allow">>, values => [<<"true">>], type => <<"boolean">>}],
+    stanza_message_to_room(Room, [form_helper:form(#{fields => Fields, ns => ?NS_MUC_REQUEST})]).
 
-stanza_configuration_form(Room, Params) ->
-    DefaultParams = [],
-    FinalParams = lists:foldl(
-        fun({Key,_Val,_Type},Acc) ->
-            lists:keydelete(Key,1,Acc)
-        end,
-        DefaultParams, Params) ++ Params,
-    Payload = [ form_field(FieldData) || FieldData <- FinalParams ],
-    stanza_to_room(escalus_stanza:iq_set(
-          ?NS_MUC_OWNER, [stanza_form(Payload, ?NS_MUC_ROOMCONFIG)]), Room).
+stanza_configuration_form(Room, Fields) ->
+    Form = form_helper:form(#{fields => Fields, ns => ?NS_MUC_ROOMCONFIG}),
+    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, [Form]), Room).
 
 stanza_cancel(Room) ->
-    Payload = [#xmlel{
-        name = <<"x">>,
-        attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"cancel">>}]
-    }],
-    stanza_to_room(escalus_stanza:iq_set(
-          ?NS_MUC_OWNER, Payload), Room).
+    Payload = [form_helper:form(#{type => <<"cancel">>})],
+    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
 
 stanza_instant_room(Room) ->
-    X = #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
-                                             {<<"type">>, <<"submit">>}]},
+    X = form_helper:form(#{}),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, [X]), Room).
 
 stanza_configuration_form_request(Room) ->

@@ -27,7 +27,6 @@
 -author('alexey@process-one.net').
 -behaviour(gen_fsm_compat).
 
-
 %% External exports
 -export([start_link/1,
          start_new/11,
@@ -150,14 +149,6 @@
 
 -define(MAX_USERS_DEFAULT_LIST,
         [5, 10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000]).
-
-%-define(DBGFSM, true).
-
--ifdef(DBGFSM).
--define(FSMOPTS, [{debug, [trace]}]).
--else.
--define(FSMOPTS, []).
--endif.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -3202,10 +3193,10 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
                 {{error, Msg}, _} ->
                     {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
                 _ ->
-                    {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form contents">>)}
+                    {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
             end;
-        Items ->
-            process_admin_items_set(From, Items, Lang, StateData)
+        _ ->
+            {error, mongoose_xmpp_errors:bad_request()}
     end;
 process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
     case exml_query:path(SubEl, [{element, <<"item">>}, {attr, <<"affiliation">>}]) of
@@ -3708,7 +3699,6 @@ make_opts(StateData) ->
      {subject_author, StateData#state.subject_author}
     ].
 
-
 -spec destroy_room(exml:element(), state()) -> {result, [], stop}.
 destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
@@ -3902,15 +3892,15 @@ disco_item(User=#user{nick=Nick}, RoomJID) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
--spec check_voice_approval(From :: jid:jid(), Els :: [exml:element()],
+-spec check_voice_approval(From :: jid:jid(), El :: exml:element(),
         Lang :: ejabberd:lang(), StateData :: state()
         ) -> {form, BRole :: binary()}
            | {role, BRole :: binary(), RoomNick :: mod_muc:nick()}
            | {error, any()}
            | ok.
-check_voice_approval(From, [XEl], Lang, StateData) ->
-    case mongoose_data_forms:parse_form(XEl) of
-        #{kvs := #{<<"muc#role">> := [BRole]} = KVs} ->
+check_voice_approval(From, XEl, Lang, StateData) ->
+    case mongoose_data_forms:find_and_parse_form(XEl) of
+        #{type := <<"submit">>, kvs := #{<<"muc#role">> := [BRole]} = KVs} ->
             case {get_role(From, StateData) =:= moderator,
                   maps:find(<<"muc#request_allow">>, KVs),
                   maps:find(<<"muc#roomnick">>, KVs)} of
@@ -3931,7 +3921,7 @@ check_voice_approval(From, [XEl], Lang, StateData) ->
         {error, Msg} ->
             {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
         _ ->
-            {error, mongoose_xmpp_errors:bad_request(Lang, <<"MUC Role was not provided">>)}
+            {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form">>)}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4285,7 +4275,7 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
     Invite = xml:get_path_s(Packet, [{elem, <<"x">>}, {elem, <<"invite">>}]),
     case Invite of
         <<>> ->
-            AppType = check_voice_approval(From, Els, Lang, StateData),
+            AppType = check_voice_approval(From, Packet, Lang, StateData),
             route_voice_approval(AppType, From, Packet, Lang, StateData);
         _ ->
             InType = check_invitation(From, Els, Lang, StateData),

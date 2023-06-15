@@ -1,53 +1,10 @@
 -module(muc_light_legacy_SUITE).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--export([
-         disco_service/1,
-         disco_features/1,
-         disco_features_with_mam/1,
-         disco_info/1,
-         disco_info_with_mam/1,
-         disco_rooms/1,
-         disco_rooms_rsm/1,
-         unauthorized_stanza/1
-        ]).
--export([
-         send_message/1,
-         change_subject/1,
-         all_can_configure/1,
-         set_config_deny/1,
-         get_room_config/1,
-         get_room_occupants/1,
-         leave_room/1,
-         change_other_aff_deny/1
-        ]).
--export([
-         create_room/1,
-         create_room_with_equal_occupants/1,
-         create_existing_room_deny/1,
-         destroy_room/1,
-         set_config/1,
-         assorted_config_doesnt_lead_to_duplication/1,
-         remove_and_add_users/1,
-         explicit_owner_change/1,
-         implicit_owner_change/1,
-         edge_case_owner_change/1
-        ]).
--export([
-         manage_blocklist/1,
-         block_room/1,
-         block_user/1,
-         blocking_disabled/1
-        ]).
-
--export([all/0, groups/0, suite/0,
-         init_per_suite/1, end_per_suite/1,
-         init_per_group/2, end_per_group/2,
-         init_per_testcase/2, end_per_testcase/2]).
+-compile([export_all, nowarn_export_all]).
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
@@ -119,6 +76,7 @@ groups() ->
                               create_existing_room_deny,
                               destroy_room,
                               set_config,
+                              set_config_errors,
                               assorted_config_doesnt_lead_to_duplication,
                               remove_and_add_users,
                               explicit_owner_change,
@@ -443,6 +401,20 @@ set_config(Config) ->
             foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigChange))
         end).
 
+set_config_errors(Config) ->
+    escalus:story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
+              Req = stanza_config_set(?ROOM, ConfigChange),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_types(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_form_ns(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Alice, form_helper:remove_forms(Req)))
+      end).
+
 assorted_config_doesnt_lead_to_duplication(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"subject">>, <<"Elixirs">>},
@@ -651,21 +623,11 @@ stanza_config_set(Room, ConfigChanges) ->
     IQ = escalus_stanza:iq_set(?NS_MUC_OWNER, [form_x_el(ConfigChanges)]),
     escalus_stanza:to(IQ, room_bin_jid(Room)).
 
--spec form_x_el(Fields :: [xmlel()]) -> xmlel().
+-spec form_x_el(Fields :: [map()]) -> xmlel().
 form_x_el(Fields) ->
-    #xmlel{
-       name = <<"x">>,
-       attrs = [{<<"xmlns">>, <<"jabber:x:data">>}, {<<"type">>, <<"submit">>}],
-       children = [form_field(<<"FORM_TYPE">>, ?NS_MUC_ROOMCONFIG, <<"hidden">>)
-                   | [form_field(K, V, <<"text-single">>) || {K, V} <- Fields ]]
-      }.
-
--spec form_field(Var :: binary(), Value :: binary(), Type :: binary()) -> xmlel().
-form_field(Var, Value, Type) ->
-    #xmlel{ name  = <<"field">>,
-            attrs = [{<<"type">>, Type}, {<<"var">>, Var}],
-            children  = [#xmlel{name = <<"value">>,
-                                children = [#xmlcdata{content = Value}] }] }.
+    FieldSpecs = [#{var => Var, values => [Value], type => <<"text-single">>}
+                  || {Var, Value} <- Fields],
+    form_helper:form(#{ns => ?NS_MUC_ROOMCONFIG, fields => FieldSpecs}).
 
 -spec stanza_aff_set(Room :: binary(), AffUsers :: ct_aff_users()) -> xmlel().
 stanza_aff_set(Room, AffUsers) ->
