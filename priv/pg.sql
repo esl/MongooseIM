@@ -509,5 +509,7 @@ CREATE TABLE discovery_nodes (
     node_name varchar(250),
     cluster_name varchar(250),
     updated_timestamp BIGINT NOT NULL, -- in microseconds
+    node_id INT UNSIGNED,
     PRIMARY KEY (cluster_name, node_name)
 );
+CREATE UNIQUE INDEX i_discovery_nodes_nodeid ON discovery_nodes USING BTREE(cluster_name, node_id);

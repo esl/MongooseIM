@@ -110,7 +110,8 @@ db_init() ->
         disabled ->
             ok;
         _ ->
-            db_init_mnesia()
+            db_init_mnesia(),
+            mongoose_short_number_node_id_mnesia:init()
     end.
 
 db_init_mnesia() ->

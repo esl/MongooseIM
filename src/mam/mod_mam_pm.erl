@@ -23,7 +23,7 @@
 %%%
 %%% <ul>
 %%% <li>date (using `timestamp()');</li>
-%%% <li>node number (using {@link service_node_id}).</li>
+%%% <li>node number (using {@link mongoose_short_number_node_id}).</li>
 %%% </ul>
 %%% @end
 %%%-------------------------------------------------------------------

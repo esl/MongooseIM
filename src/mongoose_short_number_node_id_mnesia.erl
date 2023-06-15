@@ -1,12 +1,11 @@
--module(service_node_id_mnesia).
--behaviour(service_node_id_backend).
+-module(mongoose_short_number_node_id_mnesia).
 
--export([init/1]).
+-export([init/0]).
 
 -record(node, {name :: atom(),
-               id :: service_node_id:nodeid() }).
+               id :: mongoose_short_number_node_id:node_id() }).
 
-init(_Opts) ->
+init() ->
     mnesia:create_table(node,
         [{ram_copies, [node()]}, {type, set},
          {attributes, record_info(fields, node)}]),
@@ -14,7 +13,8 @@ init(_Opts) ->
     mnesia:add_table_index(node, id),
     register_node(node()),
     [#node{id = Id}] = mnesia:dirty_read(node, node()),
-    {ok, Id}.
+    mongoose_short_number_node_id:set_node_id(Id),
+    ok.
 
 -spec register_node(atom()) -> ok.
 register_node(NodeName) ->
@@ -27,10 +27,10 @@ register_node(NodeName) ->
         end),
     ok.
 
--spec next_node_id() -> service_node_id:nodeid().
+-spec next_node_id() -> mongoose_short_number_node_id:node_id().
 next_node_id() ->
     max_node_id() + 1.
 
--spec max_node_id() -> service_node_id:nodeid().
+-spec max_node_id() -> mongoose_short_number_node_id:node_id().
 max_node_id() ->
     mnesia:foldl(fun(#node{id=Id}, Max) -> max(Id, Max) end, 0, node).
