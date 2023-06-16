@@ -9,8 +9,8 @@
          get_shared_secret/1]).
 
 -record(s2s, {
-          fromto :: ejabberd_s2s:fromto(),
-          pid :: pid()
+          fromto :: ejabberd_s2s:fromto() | '_',
+          pid :: pid() | '$1'
          }).
 
 -record(s2s_secret, {host_type, source, secret}).

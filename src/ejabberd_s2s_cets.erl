@@ -8,13 +8,6 @@
 -export([register_secret/3,
          get_shared_secret/1]).
 
--record(s2s, {
-          fromto :: ejabberd_s2s:fromto(),
-          pid :: pid()
-         }).
-
--record(s2s_secret, {host_type, source, secret}).
-
 -include("mongoose_logger.hrl").
 
 -define(TABLE, cets_s2s_session).
@@ -52,9 +45,6 @@ node_cleanup(Node) ->
     R = {KeyPattern},
     Guard = {'==', {node, '$1'}, Node},
     ets:select_delete(?TABLE, [{R, [Guard], [true]}]).
-
-s2s_to_pids(List) ->
-    [Pid || #s2s{pid = Pid} <- List].
 
 %% Secrets
 register_secret(HostType, Source, Secret) ->
