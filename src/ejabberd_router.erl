@@ -337,15 +337,13 @@ init([]) ->
     update_tables(),
 
     %% add distributed service_component routes
-    mnesia:create_table(external_component,
+    mongoose_lib:create_mnesia_table(external_component,
                         [{attributes, record_info(fields, external_component)},
                          {local_content, true}]),
-    mnesia:add_table_copy(external_component, node(), ram_copies),
-    mnesia:create_table(external_component_global,
+    mongoose_lib:create_mnesia_table(external_component_global,
                         [{attributes, record_info(fields, external_component)},
-                         {type, bag},
+                         {type, bag}, {ram_copies, [node()]},
                          {record_name, external_component}]),
-    mnesia:add_table_copy(external_component_global, node(), ram_copies),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
     gen_hook:add_handlers(hooks()),
 

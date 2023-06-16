@@ -24,6 +24,8 @@
 
 -export([is_exported/3]).
 
+-export([create_mnesia_table/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -230,3 +232,32 @@ cancel_and_flush_timer(TimerRef) ->
 is_exported(Module, Function, Arity) ->
     code:ensure_loaded(Module),
     erlang:function_exported(Module, Function, Arity).
+
+%% ------------------------------------------------------------------
+%% mnesia
+%% ------------------------------------------------------------------
+
+-spec create_mnesia_table(atom(), list()) -> ok | exists.
+create_mnesia_table(Table, Opts) ->
+    Res = mnesia:create_table(Table, Opts),
+    check_create_table_result(Table, Opts, Res).
+
+check_create_table_result(_Table, _Opts, {atomic, ok}) ->
+    ok;
+check_create_table_result(Table, Opts, {aborted, {already_exists, Table}}) ->
+    maybe_add_copies(Table, Opts, disc_copies),
+    maybe_add_copies(Table, Opts, disc_only_copies),
+    maybe_add_copies(Table, Opts, ram_copies),
+    exists;
+check_create_table_result(Table, Opts, Res) ->
+    ?LOG_CRITICAL(#{what => mnesia_create_table_failed,
+                    table => Table, create_opts => Opts, reason => Res}),
+    error({mnesia_create_table_failed, Table, Res}).
+
+maybe_add_copies(Table, Opts, Type) ->
+    case proplists:get_value(Type, Opts) of
+        [_|_] ->
+            mnesia:add_table_copy(Table, node(), Type);
+        _ ->
+            ok
+    end.

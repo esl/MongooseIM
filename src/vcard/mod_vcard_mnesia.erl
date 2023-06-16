@@ -93,19 +93,14 @@ search_reported_fields(_HostType, _LServer, Lang) ->
 
 prepare_db() ->
     create_tables(),
-    set_indexes(),
-    add_table_copies().
+    set_indexes().
 
 create_tables() ->
-    mnesia:create_table(vcard, [{disc_only_copies, [node()]},
+    mongoose_lib:create_mnesia_table(vcard, [{disc_only_copies, [node()]},
                                 {attributes, record_info(fields, vcard)}]),
-    mnesia:create_table(vcard_search,
+    mongoose_lib:create_mnesia_table(vcard_search,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, vcard_search)}]).
-
-add_table_copies() ->
-    mnesia:add_table_copy(vcard, node(), disc_only_copies),
-    mnesia:add_table_copy(vcard_search, node(), disc_copies).
 
 set_indexes() ->
     mnesia:add_table_index(vcard_search, luser),

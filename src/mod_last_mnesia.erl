@@ -29,7 +29,7 @@
 
 -spec init(host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(last_activity,
+    mongoose_lib:create_mnesia_table(last_activity,
                         [{disc_copies, [node()]},
                          {attributes,
                           record_info(fields, last_activity)}]),

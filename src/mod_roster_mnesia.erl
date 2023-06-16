@@ -30,10 +30,10 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(roster,
+    mongoose_lib:create_mnesia_table(roster,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, roster)}]),
-    mnesia:create_table(roster_version,
+    mongoose_lib:create_mnesia_table(roster_version,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, roster_version)}]),
     mnesia:add_table_index(roster, us),

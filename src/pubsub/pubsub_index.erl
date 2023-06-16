@@ -35,7 +35,7 @@
 -export([init/0, new/1]).
 
 init() ->
-    mnesia:create_table(pubsub_index,
+    mongoose_lib:create_mnesia_table(pubsub_index,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, pubsub_index)}]).
 

@@ -75,13 +75,12 @@ make_and_set_new_cluster_id() ->
 %% Internal functions
 %% ====================================================================
 init_mnesia_cache() ->
-    mnesia:create_table(mongoose_cluster_id,
+    mongoose_lib:create_mnesia_table(mongoose_cluster_id,
                         [{type, set},
                          {record_name, mongoose_cluster_id},
                          {attributes, record_info(fields, mongoose_cluster_id)},
                          {ram_copies, [node()]}
-                        ]),
-    mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies).
+                        ]).
 
 -spec maybe_prepare_queries(mongoose_backend()) -> ok.
 maybe_prepare_queries(mnesia) -> ok;

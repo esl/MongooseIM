@@ -27,10 +27,10 @@
          sid :: ejabberd_sm:sid() }).
 
 init(HostType, #{stale_h := StaleOpts}) ->
-    mnesia:create_table(sm_session, [{ram_copies, [node()]},
-                                     {attributes, record_info(fields, sm_session)}]),
+    mongoose_lib:create_mnesia_table(sm_session,
+                                     [{ram_copies, [node()]},
+                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
-    mnesia:add_table_copy(sm_session, node(), ram_copies),
     maybe_init_stale_h(HostType, StaleOpts),
     ok.
 
@@ -39,10 +39,9 @@ stop(HostType) ->
 
 maybe_init_stale_h(HostType, StaleOpts = #{enabled := true}) ->
     ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
-    mnesia:create_table(stream_mgmt_stale_h,
+    mongoose_lib:create_mnesia_table(stream_mgmt_stale_h,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, stream_mgmt_stale_h)}]),
-    mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
     start_cleaner(HostType, StaleOpts);
 maybe_init_stale_h(_, _) -> ok.
 

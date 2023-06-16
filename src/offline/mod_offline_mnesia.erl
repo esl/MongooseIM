@@ -42,11 +42,9 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(offline_msg,
-                        [{disc_only_copies, [node()]},
-                         {type, bag},
+    mongoose_lib:create_mnesia_table(offline_msg,
+                        [{disc_only_copies, [node()]}, {type, bag},
                          {attributes, record_info(fields, offline_msg)}]),
-    mnesia:add_table_copy(offline_msg, node(), disc_only_copies),
     upgrade_table(),
     ok.
 

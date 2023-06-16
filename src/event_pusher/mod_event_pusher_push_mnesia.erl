@@ -43,11 +43,9 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(push_subscription,
-                        [{disc_copies, [node()]},
-                         {type, bag},
+    mongoose_lib:create_mnesia_table(push_subscription,
+                        [{disc_copies, [node()]}, {type, bag},
                          {attributes, record_info(fields, push_subscription)}]),
-    mnesia:add_table_copy(push_subscription, node(), disc_copies),
     ok.
 
 -spec enable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),

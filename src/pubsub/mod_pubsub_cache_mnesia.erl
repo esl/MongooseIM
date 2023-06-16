@@ -16,7 +16,8 @@
 
 -spec start(jid:lserver()) -> ok.
 start(_) ->
-    create_table().
+    create_table(),
+    ok.
 
 -spec stop() -> ok.
 stop() ->
@@ -63,17 +64,10 @@ delete_last_item(_ServerHost, Nidx) ->
 
 %% ------------------------ Helpers ----------------------------
 
--spec create_table() -> ok | {error, Reason :: term()}.
 create_table() ->
-    QueryResult = mnesia:create_table(
+    mongoose_lib:create_mnesia_table(
         pubsub_last_item,
         [
             {ram_copies, [node()]},
             {attributes, record_info(fields, pubsub_last_item)}
-        ]),
-        mnesia:add_table_copy(pubsub_last_item, node(), ram_copies),
-        process_query_result(QueryResult).
-
-process_query_result({atomic, ok}) -> ok;
-process_query_result({aborted, {already_exists, pubsub_last_item}}) -> ok;
-process_query_result({aborted, Reason}) -> {error, Reason}.
+        ]).

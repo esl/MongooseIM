@@ -11,11 +11,9 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(key,
-                        [{ram_copies, [node()]},
-                         {type, set},
+    mongoose_lib:create_mnesia_table(key,
+                        [{ram_copies, [node()]}, {type, set},
                          {attributes, record_info(fields, key)}]),
-    mnesia:add_table_copy(key, node(), ram_copies),
     ok.
 
 -spec init_ram_key(ProposedKey) -> Result when

@@ -90,30 +90,26 @@
 %% ------------------------ Backend start/stop ------------------------
 
 init(_HostType, _Opts) ->
-    mnesia:create_table(pubsub_state,
+    mongoose_lib:create_mnesia_table(pubsub_state,
                         [{disc_copies, [node()]},
                          {type, ordered_set},
                          {attributes, record_info(fields, pubsub_state)}]),
-    mnesia:add_table_copy(pubsub_state, node(), disc_copies),
-    mnesia:create_table(pubsub_item,
+    mongoose_lib:create_mnesia_table(pubsub_item,
                         [{disc_only_copies, [node()]},
                          {attributes, record_info(fields, pubsub_item)}]),
-    mnesia:add_table_copy(pubsub_item, node(), disc_only_copies),
-    mnesia:create_table(pubsub_node,
+    mongoose_lib:create_mnesia_table(pubsub_node,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, pubsub_node)}]),
     mnesia:add_table_index(pubsub_node, id),
-    mnesia:create_table(pubsub_subscription,
+    mongoose_lib:create_mnesia_table(pubsub_subscription,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, pubsub_subscription)},
                          {type, set}]),
-    mnesia:add_table_copy(pubsub_subscription, node(), disc_copies),
-    CreateSubnodeTableResult = mnesia:create_table(pubsub_subnode,
+    Res = mongoose_lib:create_mnesia_table(pubsub_subnode,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, pubsub_subnode)},
                          {type, bag}]),
-    mnesia:add_table_copy(pubsub_subnode, node(), disc_copies),
-    maybe_fill_subnode_table(CreateSubnodeTableResult),
+    maybe_fill_subnode_table(Res),
     pubsub_index:init(),
     ok.
 
@@ -122,13 +118,13 @@ stop() ->
     ok.
 
 %% If pubsub_subnode table was missing, than fill it with data
-maybe_fill_subnode_table({atomic, ok}) ->
+maybe_fill_subnode_table(ok) ->
     F = fun(#pubsub_node{} = Node, Acc) ->
                 set_subnodes(Node, []),
                 Acc
         end,
     mnesia:transaction(fun() -> mnesia:foldl(F, ok, pubsub_node) end);
-maybe_fill_subnode_table(_Other) ->
+maybe_fill_subnode_table(exists) ->
     ok.
 
 %% ------------------------ Fun execution ------------------------
