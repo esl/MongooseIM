@@ -40,6 +40,19 @@
 %%%
 
 start(normal, _Args) ->
+    try
+        do_start()
+    catch Class:Reason:StackTrace ->
+        %% Log a stacktrace because while proc_lib:crash_report/4 would report a crash reason,
+        %% it would not report the stacktrace
+        ?LOG_CRITICAL(#{what => app_failed_to_start,
+                        class => Class, reason => Reason, stacktrace => StackTrace}),
+        erlang:raise(Class, Reason, StackTrace)
+    end;
+start(_, _) ->
+    {error, badarg}.
+
+do_start() ->
     mongoose_fips:notify(),
     write_pid_file(),
     update_status_file(starting),
@@ -73,9 +86,7 @@ start(normal, _Args) ->
     ejabberd_admin:start(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
-    Sup;
-start(_, _) ->
-    {error, badarg}.
+    Sup.
 
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
