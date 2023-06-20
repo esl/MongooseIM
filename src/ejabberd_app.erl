@@ -63,10 +63,10 @@ do_start() ->
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
+    db_init(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
-    db_init(),
 
     {ok, _} = Sup = ejabberd_sup:start_link(),
 
@@ -126,14 +126,19 @@ db_init() ->
     end.
 
 db_init_mnesia() ->
+    %% Mnesia could still be running if mongooseim application restarts
+    %% (for example, in tests). So, stop it if needed.
+    %% Though, when a node is just starting, mnesia is not running.
+    mnesia:stop(), %% It should be inside of stop/1 function, but it would cause a deadlock
+    no = mnesia:system_info(is_running),
     case mnesia:system_info(extra_db_nodes) of
         [] ->
-            mnesia:create_schema([node()]),
-            application:start(mnesia, permanent);
+            mongoose_lib:create_mnesia_schema();
         _ ->
-            application:start(mnesia)
+            ok
     end,
-    mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
+    mnesia:start(),
+    mongoose_lib:wait_for_mnesia_tables().
 
 -spec broadcast_c2s_shutdown_listeners() -> ok.
 broadcast_c2s_shutdown_listeners() ->
