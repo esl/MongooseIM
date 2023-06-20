@@ -243,7 +243,7 @@ is_exported(Module, Function, Arity) ->
 create_mnesia_table(Table, Opts) ->
     case mnesia:system_info(is_running) of
         no ->
-            check_create_table_result(Table, Opts, mnesia_not_running);
+            report_mnesia_table_error(Table, Opts, mnesia_not_running);
         yes ->
             Res = mnesia:create_table(Table, Opts),
             check_create_table_result(Table, Opts, Res)
@@ -257,6 +257,9 @@ check_create_table_result(Table, Opts, {aborted, {already_exists, Table}}) ->
     maybe_add_copies(Table, Opts, ram_copies),
     exists;
 check_create_table_result(Table, Opts, Res) ->
+    report_mnesia_table_error(Table, Opts, Res).
+
+report_mnesia_table_error(Table, Opts, Res) ->
     ?LOG_CRITICAL(#{what => mnesia_create_table_failed,
                     table => Table, create_opts => Opts, reason => Res,
                     schema_nodes => catch mnesia:table_info(schema, disc_copies)}),
