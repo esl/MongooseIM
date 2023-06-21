@@ -25,7 +25,7 @@
 
 -module(adhoc).
 -author('henoch@dtek.chalmers.se').
--xep([{xep, 50}, {version, "1.2"}]).
+-xep([{xep, 50}, {version, "1.3"}]).
 -export([parse_request/1,
          produce_response/2,
          produce_response/4,
@@ -126,16 +126,29 @@ ensure_correct_session_id(_) ->
 -spec maybe_actions_element([binary()], binary()) -> [exml:element()].
 maybe_actions_element([], _DefaultAction) ->
     [];
-maybe_actions_element(Actions, DefaultAction) ->
-    ActionsElAttrs = case DefaultAction of
-        <<"">> -> [];
-        _ -> [{<<"execute">>, DefaultAction}]
-    end,
+maybe_actions_element(Actions, <<>>) ->
+    % If the "execute" attribute is absent, it defaults to "next".
+    AllActions = ensure_default_action_present(Actions, <<"next">>),
     [#xmlel{
         name = <<"actions">>,
-        attrs = ActionsElAttrs,
-        children = [#xmlel{name = Action} || Action <- Actions]
+        children = [#xmlel{name = Action} || Action <- AllActions]
+    }];
+maybe_actions_element(Actions, DefaultAction) ->
+    % A form which has an <actions/> element and an "execute" attribute
+    % which evaluates to an action which is not allowed is invalid.
+    AllActions = ensure_default_action_present(Actions, DefaultAction),
+    [#xmlel{
+        name = <<"actions">>,
+        attrs = [{<<"execute">>, DefaultAction}],
+        children = [#xmlel{name = Action} || Action <- AllActions]
     }].
+
+-spec ensure_default_action_present([binary()], binary()) -> [exml:element()].
+ensure_default_action_present(Actions, DefaultAction) ->
+    case lists:member(Actions, DefaultAction) of
+        true -> Actions;
+        false -> [DefaultAction | Actions]
+    end.
 
 -spec note_to_xmlel({binary(), iodata()}) -> exml:element().
 note_to_xmlel({Type, Text}) ->
