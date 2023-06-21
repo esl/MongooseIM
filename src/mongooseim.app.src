@@ -28,7 +28,6 @@
                   idna,
                   kernel,
                   lasse,
-                  mnesia,
                   observer_cli,
                   pa,
                   public_key,
@@ -54,6 +53,7 @@
                   segmented_cache,
                   cets
                  ]},
+  {included_applications, [mnesia]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 
