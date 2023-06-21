@@ -105,33 +105,42 @@ produce_response(#adhoc_response{lang = _Lang,
                                  actions = Actions,
                                  notes = Notes,
                                  elements = Elements}) ->
-    SessionID = if is_binary(ProvidedSessionID), ProvidedSessionID /= <<"">> ->
-                        ProvidedSessionID;
-                   true ->
-                        USec = os:system_time(microsecond),
-                        TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"},
-                                                                    {unit, microsecond}]),
-                        list_to_binary(TS)
-                end,
-    ActionsEls = case Actions of
-                     [] ->
-                         [];
-                     _ ->
-                         ActionsElAttrs = case DefaultAction of
-                                              <<"">> -> [];
-                                              _ -> [{<<"execute">>, DefaultAction}]
-                                          end,
-                         [#xmlel{name = <<"actions">>, attrs = ActionsElAttrs,
-                                 children = [#xmlel{name = Action} || Action <- Actions]}]
-                 end,
-    NotesEls = lists:map(fun({Type, Text}) ->
-                                 #xmlel{name = <<"note">>,
-                                        attrs = [{<<"type">>, Type}],
-                                        children = [#xmlcdata{content = Text}]}
-                         end, Notes),
+    SessionID = ensure_correct_session_id(ProvidedSessionID),
+    ActionsEls = maybe_actions_element(Actions, DefaultAction),
+    NotesEls = lists:map(fun note_to_xmlel/1, Notes),
     #xmlel{name = <<"command">>,
            attrs = [{<<"xmlns">>, ?NS_COMMANDS},
                     {<<"sessionid">>, SessionID},
                     {<<"node">>, Node},
                     {<<"status">>, list_to_binary(atom_to_list(Status))}],
            children = ActionsEls ++ NotesEls ++ Elements}.
+
+-spec ensure_correct_session_id(binary()) -> binary().
+ensure_correct_session_id(SessionID) when is_binary(SessionID), SessionID /= <<"">> ->
+    SessionID;
+ensure_correct_session_id(_) -> 
+    USec = os:system_time(microsecond),
+    TS = calendar:system_time_to_rfc3339(USec, [{offset, "Z"}, {unit, microsecond}]),
+    list_to_binary(TS).
+
+-spec maybe_actions_element([binary()], binary()) -> [exml:element()].
+maybe_actions_element([], _DefaultAction) ->
+    [];
+maybe_actions_element(Actions, DefaultAction) ->
+    ActionsElAttrs = case DefaultAction of
+        <<"">> -> [];
+        _ -> [{<<"execute">>, DefaultAction}]
+    end,
+    [#xmlel{
+        name = <<"actions">>,
+        attrs = ActionsElAttrs,
+        children = [#xmlel{name = Action} || Action <- Actions]
+    }].
+
+-spec note_to_xmlel({binary(), iodata()}) -> exml:element().
+note_to_xmlel({Type, Text}) ->
+    #xmlel{
+        name = <<"note">>,
+        attrs = [{<<"type">>, Type}],
+        children = [#xmlcdata{content = Text}]
+    }.
