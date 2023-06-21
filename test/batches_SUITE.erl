@@ -43,7 +43,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    meck:new(telemetry, [stub_all, no_link]),
+    application:ensure_all_started(telemetry),
     meck:new(mongoose_metrics, [stub_all, no_link]),
     Config.
 
