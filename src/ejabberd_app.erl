@@ -120,7 +120,7 @@ db_init() ->
             ok;
         _ ->
             db_init_mnesia(),
-            mongoose_short_number_node_id_mnesia:init()
+            mongoose_node_num_mnesia:init()
     end.
 
 db_init_mnesia() ->

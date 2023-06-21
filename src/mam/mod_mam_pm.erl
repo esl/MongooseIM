@@ -23,7 +23,7 @@
 %%%
 %%% <ul>
 %%% <li>date (using `timestamp()');</li>
-%%% <li>node number (using {@link ejabberd_node_id}).</li>
+%%% <li>node number (using {@link mongoose_node_num}).</li>
 %%% </ul>
 %%% @end
 %%%-------------------------------------------------------------------
