@@ -23,6 +23,7 @@
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
          update/3,
+         update/4,
          ensure_metric/3,
          ensure_subscribed_metric/3,
          get_metric_value/1,
@@ -122,11 +123,27 @@ ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
                   {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
                    [workers | ?INET_STATS]}).
 
+% mongoose_metrics:new(HostType, [xmpp, stanzas, sent], counter)
+% mongoose_metrics:update(HostType, [xmpp, stanzas, sent], 1, #{host_type => HostType, domain => Host})
+
 -spec update(HostType :: mongooseim:host_type_or_global(), Name :: term() | list(),
              Change :: term()) -> any().
-update(HostType, Name, Change) when is_list(Name) ->
-    exometer:update(name_by_all_metrics_are_global(HostType, Name), Change);
 update(HostType, Name, Change) ->
+    update(HostType, Name, Change, #{}).
+
+-spec update(HostType :: mongooseim:host_type_or_global(),
+             Name :: term() | list(),
+             Change :: term(),
+             Metadata :: map()) -> any().
+update(HostType, Name, Change, _Metadata) ->
+    case metrics_backend() of
+        graphite -> do_update_exometer(HostType, Name, Change);
+        prometheus -> error(not_implemented)
+    end.
+
+do_update_exometer(HostType, Name, Change) when is_list(Name) ->
+    exometer:update(name_by_all_metrics_are_global(HostType, Name), Change);
+do_update_exometer(HostType, Name, Change) ->
     update(HostType, [Name], Change).
 
 -spec ensure_metric(mongooseim:host_type_or_global(), metric_name(), metric_type()) ->
@@ -209,6 +226,14 @@ remove_all_metrics() ->
 %% Internal functions
 %% ---------------------------------------------------------------------
 
+-spec metrics_backend() -> graphite | prometheus.
+metrics_backend() ->
+    mongoose_config:get_opt(metrics_backend).
+
+-spec all_metrics_are_global() -> boolean().
+all_metrics_are_global() ->
+    mongoose_config:get_opt(all_metrics_are_global).
+
 prepare_prefixes() ->
     Prebuilt = maps:from_list([begin
                                    Prefix = make_host_type_prefix(HT),
@@ -217,10 +242,6 @@ prepare_prefixes() ->
     Prefixes = maps:from_list([ {HT, make_host_type_prefix(HT)}
                                 || HT <- ?ALL_HOST_TYPES ]),
     persistent_term:put(?PREFIXES, maps:merge(Prebuilt, Prefixes)).
-
--spec all_metrics_are_global() -> boolean().
-all_metrics_are_global() ->
-    mongoose_config:get_opt(all_metrics_are_global).
 
 get_host_type_prefix(global) ->
     global;

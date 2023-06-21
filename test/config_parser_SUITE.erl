@@ -73,6 +73,7 @@ groups() ->
                             registration_timeout,
                             language,
                             all_metrics_are_global,
+                            metrics_backend,
                             sm_backend,
                             max_fsm_queue,
                             http_server_name,
@@ -373,6 +374,11 @@ all_metrics_are_global(_Config) ->
     ?cfg(all_metrics_are_global, false, #{}), % default
     ?cfg(all_metrics_are_global, true, #{<<"general">> => #{<<"all_metrics_are_global">> => true}}),
     ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
+
+metrics_backend(_Config) ->
+    ?cfg(metrics_backend, graphite, #{}), % default
+    ?cfg(metrics_backend, prometheus, #{<<"general">> => #{<<"metrics_backend">> => <<"prometheus">>}}),
+    ?err(#{<<"general">> => #{<<"metrics_backend">> => <<"invalid_backend">>}}).
 
 sm_backend(_Config) ->
     ?cfg(sm_backend, mnesia, #{}), % default
