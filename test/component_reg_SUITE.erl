@@ -40,7 +40,7 @@ opts() ->
 
 registering(_C) ->
     Dom = <<"aaa.bbb.com">>,
-    ejabberd_router:register_component(Dom, mongoose_packet_handler:new(?MODULE)),
+    ok = ejabberd_router:register_component(Dom, mongoose_packet_handler:new(?MODULE)),
     Lookup = ejabberd_router:lookup_component(Dom),
     ?assertMatch([#external_component{}], Lookup),
     ejabberd_router:unregister_component(Dom),

@@ -181,9 +181,8 @@ register_components(Domains, Node, Handler) ->
                           Handler :: mongoose_packet_handler:t(),
                           AreHidden :: boolean()) -> ok | {error, any()}.
 register_components(Domains, Node, Handler, AreHidden) ->
-    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
-            [do_register_component(LDomain, Handler, Node, AreHidden) || LDomain <- LDomains],
+            [do_register_component(Domain, Handler, Node, AreHidden) || Domain <- Domains],
             ok
     end,
     case mnesia:transaction(F) of
@@ -214,80 +213,77 @@ register_component(Domain, Node, Handler) ->
 register_component(Domain, Node, Handler, IsHidden) ->
     register_components([Domain], Node, Handler, IsHidden).
 
-do_register_component({error, Domain}, _Handler, _Node, _IsHidden) ->
-    error({invalid_domain, Domain});
-do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
-    case check_component(LDomain, Node) of
-        ok ->
-            ComponentGlobal = #external_component{domain = LDomain, handler = Handler,
-                                                  node = Node, is_hidden = IsHidden},
-            mnesia:write(external_component_global, ComponentGlobal, write),
-            NDomain = {LDomain, Node},
-            Component = #external_component{domain = NDomain, handler = Handler,
-                                            node = Node, is_hidden = IsHidden},
-            mnesia:write(Component),
-            mongoose_hooks:register_subhost(LDomain, IsHidden);
-        _ -> mnesia:abort(route_already_exists)
+do_register_component(Domain, Handler, Node, IsHidden) ->
+    LDomain = nameprep_bang(Domain),
+    assert_new_component(LDomain, Node),
+    ComponentGlobal = #external_component{domain = LDomain, handler = Handler,
+                                          node = Node, is_hidden = IsHidden},
+    mnesia:write(external_component_global, ComponentGlobal, write),
+    NDomain = {LDomain, Node},
+    Component = #external_component{domain = NDomain, handler = Handler,
+                                    node = Node, is_hidden = IsHidden},
+    mnesia:write(Component),
+    mongoose_hooks:register_subhost(LDomain, IsHidden).
+
+assert_new_component(LDomain, Node) ->
+    case has_component(LDomain, Node) of
+        true ->
+            error({route_already_exists, LDomain});
+        false ->
+            ok
     end.
 
-%% @doc Check if the component/route is already registered somewhere; ok means it is not, so we are
-%% ok to proceed, anything else means the domain/node pair is already serviced.
-%% true and false are there because that's how orelse works.
--spec check_component(binary(), Node :: node()) -> ok | error.
-check_component(LDomain, Node) ->
-    case check_dynamic_domains(LDomain)
-        orelse check_component_route(LDomain)
-        orelse check_component_local(LDomain, Node)
-        orelse check_component_global(LDomain, Node) of
-        true -> error;
-        false -> ok
-    end.
+%% @doc Check if the component/route is already registered somewhere.
+-spec has_component(domain(), Node :: node()) -> boolean().
+has_component(LDomain, Node) ->
+    has_dynamic_domains(LDomain)
+        orelse has_component_route(LDomain)
+        orelse has_component_local(LDomain, Node)
+        orelse has_component_global(LDomain, Node).
 
-check_dynamic_domains(LDomain)->
+has_dynamic_domains(LDomain) ->
     {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
 
 %% check that route for this domain is not already registered
-check_component_route(LDomain) ->
+has_component_route(LDomain) ->
     no_route =/= mongoose_router:lookup_route(LDomain).
 
 %% check that there is no local component for domain:node pair
-check_component_local(LDomain, Node) ->
+has_component_local(LDomain, Node) ->
     NDomain = {LDomain, Node},
     [] =/= mnesia:read(external_component, NDomain).
 
 %% check that there is no component registered globally for this node
-check_component_global(LDomain, Node) ->
+has_component_global(LDomain, Node) ->
     undefined =/= get_global_component(LDomain, Node).
 
 %% Find a component registered globally for this node (internal use)
-get_global_component([], _) ->
+get_global_component(LDomain, Node) ->
+    filter_global_component(mnesia:read(external_component_global, LDomain), Node).
+
+filter_global_component([], _) ->
     undefined;
-get_global_component([Comp|Tail], Node) ->
+filter_global_component([Comp|Tail], Node) ->
     case Comp of
         #external_component{node = Node} ->
             Comp;
         _ ->
-            get_global_component(Tail, Node)
-    end;
-get_global_component(LDomain, Node) ->
-    get_global_component(mnesia:read(external_component_global, LDomain), Node).
-
+            filter_global_component(Tail, Node)
+    end.
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
 unregister_components(Domains) ->
     unregister_components(Domains, node()).
 -spec unregister_components([Domains :: domain()], Node :: node()) -> {atomic, ok}.
 unregister_components(Domains, Node) ->
-    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
-            [do_unregister_component(LDomain, Node) || LDomain <- LDomains],
+            [do_unregister_component(Domain, Node) || Domain <- Domains],
             ok
     end,
     {atomic, ok} = mnesia:transaction(F).
 
-do_unregister_component({error, Domain}, _Node) ->
-    error({invalid_domain, Domain});
-do_unregister_component({LDomain, _}, Node) ->
+do_unregister_component(Domain, Node) ->
+    LDomain = nameprep_bang(Domain),
     case get_global_component(LDomain, Node) of
         undefined ->
             ok;
@@ -437,3 +433,12 @@ routes_cleanup_on_nodedown(Acc, #{node := Node}, _) ->
                                         #external_component{node = Node, _ = '_'}),
     [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
     {ok, maps:put(?MODULE, ok, Acc)}.
+
+-spec nameprep_bang(domain()) -> jid:lserver().
+nameprep_bang(Domain) when is_binary(Domain) ->
+    case jid:nameprep(Domain) of
+        error ->
+            error({invalid_domain, Domain});
+        LDomain ->
+            LDomain
+    end.
