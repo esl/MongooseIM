@@ -5,6 +5,10 @@
 
 -include_lib("kernel/include/logger.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -type opts() :: #{cluster_name => binary(), node_name_to_insert => binary()}.
 -type state() :: opts().
 
@@ -82,3 +86,12 @@ next_free_num([H | T = [E | _]]) when ((H + 1) =:= E) ->
     next_free_num(T);
 next_free_num([H | _]) ->
     H + 1.
+
+-ifdef(TEST).
+
+jid_to_opt_binary_test_() ->
+    [?_assertEqual(0, next_free_num([])),
+     ?_assertEqual(3, next_free_num([1, 2, 5])),
+     ?_assertEqual(3, next_free_num([1, 2]))].
+
+-endif.
