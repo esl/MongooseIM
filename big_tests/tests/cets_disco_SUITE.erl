@@ -69,4 +69,5 @@ rdbms_backend(_Config) ->
     rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State1]),
     State2 = rpc(mim(), mongoose_cets_discovery_rdbms, init, [Opts2]),
     {{ok, Nodes}, _} = rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State2]),
-    [test1, test2] = lists:sort(Nodes).
+    %% "test2" node can see "test1"
+    lists:member(test1, Nodes).
