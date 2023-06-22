@@ -29,6 +29,7 @@ end_per_testcase(_Case, Config) ->
     Config.
 
 init_per_suite(C) ->
+    mnesia:start(),
     C.
 
 end_per_suite(_C) ->

@@ -28,6 +28,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    mnesia:start(), %% TODO Remove this call when possible (We still need it for s2s)
     {ok, _} = application:ensure_all_started(jid),
     Config.
 
@@ -203,6 +204,7 @@ do_start_slave_node() ->
             {init_timeout, 10}, %% in seconds
             {startup_timeout, 10}], %% in seconds
     {ok, SlaveNode} = ct_slave:start(slave_name(), Opts),
+    rpc:call(SlaveNode, mnesia, start, []), %% TODO remove this call when possible
     {ok, CWD} = file:get_cwd(),
     ok = rpc:call(SlaveNode, file, set_cwd, [CWD]),
     %% Tell the remote node where to find the SUITE code
