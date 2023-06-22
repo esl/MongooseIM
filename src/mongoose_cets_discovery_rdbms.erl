@@ -48,9 +48,9 @@ prepare() ->
     T = discovery_nodes,
     mongoose_rdbms:prepare(cets_disco_select, T, [cluster_name], select()),
     mongoose_rdbms:prepare(cets_disco_insert_new, T,
-                           [cluster_name, node_name, node_num, timestamp], insert_new()),
+                           [cluster_name, node_name, node_num, updated_timestamp], insert_new()),
     mongoose_rdbms:prepare(cets_disco_update_existing, T,
-                           [timestamp, cluster_name, node_name], update_existing()).
+                           [updated_timestamp, cluster_name, node_name], update_existing()).
 
 select() ->
     <<"SELECT node_name, node_num FROM discovery_nodes WHERE cluster_name = ?">>.
@@ -59,14 +59,14 @@ select(ClusterName) ->
     mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]).
 
 insert_new() ->
-    <<"INSERT INTO discovery_nodes (cluster_name, node_name, node_num, timestamp)"
+    <<"INSERT INTO discovery_nodes (cluster_name, node_name, node_num, updated_timestamp)"
       " VALUES (?, ?, ?, ?)">>.
 
 insert_new(ClusterName, Node, Timestamp, Num) ->
     mongoose_rdbms:execute(global, cets_disco_insert_new, [ClusterName, Node, Num, Timestamp]).
 
 update_existing() ->
-    <<"UPDATE discovery_nodes SET timestamp = ? WHERE cluster_name = ? AND node_name = ?">>.
+    <<"UPDATE discovery_nodes SET updated_timestamp = ? WHERE cluster_name = ? AND node_name = ?">>.
 
 update_existing(ClusterName, Node, Timestamp) ->
     mongoose_rdbms:execute(global, cets_disco_update_existing, [Timestamp, ClusterName, Node]).
