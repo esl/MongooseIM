@@ -216,9 +216,6 @@ register_component(Domain, Node, Handler, IsHidden) ->
 do_register_component(Domain, Handler, Node, IsHidden) ->
     LDomain = nameprep_bang(Domain),
     assert_new_component(LDomain, Node),
-    ComponentGlobal = #external_component{domain = LDomain, handler = Handler,
-                                          node = Node, is_hidden = IsHidden},
-    mnesia:write(external_component_global, ComponentGlobal, write),
     Component = #external_component{domain = LDomain, handler = Handler,
                                     node = Node, is_hidden = IsHidden},
     mnesia:write(Component),
@@ -236,38 +233,32 @@ assert_new_component(LDomain, Node) ->
 -spec has_component(domain(), Node :: node()) -> boolean().
 has_component(LDomain, Node) ->
     has_dynamic_domains(LDomain)
-        orelse has_component_route(LDomain)
-        orelse has_component_local(LDomain, Node)
-        orelse has_component_global(LDomain, Node).
+        orelse has_domain_route(LDomain)
+        orelse has_component_registered(LDomain, Node).
 
 has_dynamic_domains(LDomain) ->
     {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
 
 %% check that route for this domain is not already registered
-has_component_route(LDomain) ->
+has_domain_route(LDomain) ->
     no_route =/= mongoose_router:lookup_route(LDomain).
 
-%% check that there is no local component for domain:node pair
-has_component_local(LDomain, Node) ->
-    NDomain = {LDomain, Node},
-    [] =/= mnesia:read(external_component, NDomain).
-
 %% check that there is no component registered globally for this node
-has_component_global(LDomain, Node) ->
-    undefined =/= get_global_component(LDomain, Node).
+has_component_registered(LDomain, Node) ->
+    no_route =/= get_component(LDomain, Node).
 
 %% Find a component registered globally for this node (internal use)
-get_global_component(LDomain, Node) ->
-    filter_global_component(mnesia:read(external_component_global, LDomain), Node).
+get_component(LDomain, Node) ->
+    filter_component(mnesia:read(external_component, LDomain), Node).
 
-filter_global_component([], _) ->
-    undefined;
-filter_global_component([Comp|Tail], Node) ->
+filter_component([], _) ->
+    no_route;
+filter_component([Comp|Tail], Node) ->
     case Comp of
         #external_component{node = Node} ->
             Comp;
         _ ->
-            filter_global_component(Tail, Node)
+            filter_component(Tail, Node)
     end.
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
@@ -283,13 +274,12 @@ unregister_components(Domains, Node) ->
 
 do_unregister_component(Domain, Node) ->
     LDomain = nameprep_bang(Domain),
-    case get_global_component(LDomain, Node) of
+    case get_component(LDomain, Node) of %% lookup first to remove from a bag
         undefined ->
             ok;
         Comp ->
-            ok = mnesia:delete_object(external_component_global, Comp, write)
+            ok = mnesia:delete_object(external_component, Comp, write)
     end,
-    ok = mnesia:delete({external_component, LDomain}),
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
 
@@ -305,20 +295,22 @@ unregister_component(Domain, Node) ->
 %% the choice is yours.
 -spec lookup_component(Domain :: jid:lserver()) -> [external_component()].
 lookup_component(Domain) ->
-    mnesia:dirty_read(external_component_global, Domain).
+    mnesia:dirty_read(external_component, Domain).
 
 %% @doc Returns a list of components registered for this domain at the given node.
 %% (must be only one, or nothing)
 -spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
-    mnesia:dirty_read(external_component, Domain).
+    mnesia:dirty_select(external_component,
+                        [{#external_component{domain = Domain, node = Node, _ = '_'},
+                          [], ['$_']}]).
 
 -spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
 dirty_get_all_components(all) ->
-    mnesia:dirty_all_keys(external_component_global);
+    mnesia:dirty_all_keys(external_component);
 dirty_get_all_components(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
-    mnesia:dirty_select(external_component_global, [MatchNonHidden]).
+    mnesia:dirty_select(external_component, [MatchNonHidden]).
 
 -spec is_component_dirty(jid:lserver()) -> boolean().
 is_component_dirty(Domain) ->
@@ -330,15 +322,10 @@ is_component_dirty(Domain) ->
 
 init([]) ->
     update_tables(),
-
     %% add distributed service_component routes
     mongoose_lib:create_mnesia_table(external_component,
                         [{attributes, record_info(fields, external_component)},
-                         {local_content, true}]),
-    mongoose_lib:create_mnesia_table(external_component_global,
-                        [{attributes, record_info(fields, external_component)},
-                         {type, bag}, {ram_copies, [node()]},
-                         {record_name, external_component}]),
+                         {type, bag}, {ram_copies, [node()]}]),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
     gen_hook:add_handlers(hooks()),
 
@@ -412,25 +399,13 @@ update_tables() ->
             ok;
         {'EXIT', _} ->
             ok
-    end,
-    case catch mnesia:table_info(external_component_global, attributes) of
-        [domain, handler, node] ->
-            UpdateFun = fun({external_component, Domain, Handler, Node}) ->
-                                {external_component, Domain, Handler, Node, false}
-                        end,
-            mnesia:transform_table(external_component_global, UpdateFun,
-                                   [domain, handler, node, is_hidden]);
-        [domain, handler, node, is_hidden] ->
-            ok;
-        {'EXIT', _} ->
-            ok
     end.
 
 -spec routes_cleanup_on_nodedown(map(), map(), map()) -> {ok, map()}.
 routes_cleanup_on_nodedown(Acc, #{node := Node}, _) ->
-    Entries = mnesia:dirty_match_object(external_component_global,
+    Entries = mnesia:dirty_match_object(external_component,
                                         #external_component{node = Node, _ = '_'}),
-    [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
+    [mnesia:dirty_delete_object(external_component, Entry) || Entry <- Entries],
     {ok, maps:put(?MODULE, ok, Acc)}.
 
 -spec nameprep_bang(domain()) -> jid:lserver().
