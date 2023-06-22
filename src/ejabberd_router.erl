@@ -219,8 +219,7 @@ do_register_component(Domain, Handler, Node, IsHidden) ->
     ComponentGlobal = #external_component{domain = LDomain, handler = Handler,
                                           node = Node, is_hidden = IsHidden},
     mnesia:write(external_component_global, ComponentGlobal, write),
-    NDomain = {LDomain, Node},
-    Component = #external_component{domain = NDomain, handler = Handler,
+    Component = #external_component{domain = LDomain, handler = Handler,
                                     node = Node, is_hidden = IsHidden},
     mnesia:write(Component),
     mongoose_hooks:register_subhost(LDomain, IsHidden).
@@ -290,7 +289,7 @@ do_unregister_component(Domain, Node) ->
         Comp ->
             ok = mnesia:delete_object(external_component_global, Comp, write)
     end,
-    ok = mnesia:delete({external_component, {LDomain, Node}}),
+    ok = mnesia:delete({external_component, LDomain}),
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
 
@@ -312,7 +311,7 @@ lookup_component(Domain) ->
 %% (must be only one, or nothing)
 -spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
-    mnesia:dirty_read(external_component, {Domain, Node}).
+    mnesia:dirty_read(external_component, Domain).
 
 -spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
 dirty_get_all_components(all) ->
