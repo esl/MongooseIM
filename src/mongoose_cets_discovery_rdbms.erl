@@ -9,19 +9,19 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type opts() :: #{cluster_name => binary(), node_name_to_insert => binary()}.
+-type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => term()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    Opts.
+    Opts#{last_query_info => #{}}.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     try
-        {Num, Nodes} = try_register(ClusterName, Node),
+        {Num, Nodes, Info} = try_register(ClusterName, Node),
         mongoose_node_num:set_node_num(Num),
-        {{ok, Nodes}, State}
+        {{ok, Nodes}, State#{last_query_info => Info}}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
@@ -33,10 +33,10 @@ try_register(ClusterName, Node) ->
     {selected, Rows} = select(ClusterName),
     Pairs = [{binary_to_atom(NodeBin), Num} || {NodeBin, Num} <- Rows],
     {Nodes, Nums} = lists:unzip(Pairs),
-    Inserted = lists:member(Node, Nodes),
+    AlreadyRegistered = lists:member(Node, Nodes),
     Timestamp = timestamp(),
     NodeNum =
-        case Inserted of
+        case AlreadyRegistered of
             true ->
                  update_existing(ClusterName, Node, Timestamp),
                  {value, {_, Num}} = lists:keysearch(Node, 1, Pairs),
@@ -46,7 +46,8 @@ try_register(ClusterName, Node) ->
                  insert_new(ClusterName, Node, Timestamp, Num),
                  Num
         end,
-    {NodeNum, Nodes}.
+    Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp, node_num => Num},
+    {NodeNum, Nodes, Info}.
 
 prepare() ->
     T = discovery_nodes,

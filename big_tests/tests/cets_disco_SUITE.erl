@@ -68,6 +68,9 @@ rdbms_backend(_Config) ->
     State1 = rpc(mim(), mongoose_cets_discovery_rdbms, init, [Opts1]),
     rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State1]),
     State2 = rpc(mim(), mongoose_cets_discovery_rdbms, init, [Opts2]),
-    {{ok, Nodes}, _} = rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State2]),
+    {{ok, Nodes}, State2_2} = rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State2]),
     %% "test2" node can see "test1"
-    lists:member(test1, Nodes).
+    true = lists:member(test1, Nodes),
+    {{ok, _}, State2_3} = rpc(mim(), mongoose_cets_discovery_rdbms, get_nodes, [State2_2]),
+    %% Check that we follow the right code branch
+    #{last_query_info := #{already_registered := true}} = State2_3.
