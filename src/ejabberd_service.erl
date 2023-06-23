@@ -71,7 +71,8 @@
                 hidden_components = false :: boolean(),
                 conflict_behaviour :: conflict_behaviour(),
                 access,
-                check_from
+                check_from,
+                components = [] :: ejabberd_router:external_component()
               }).
 -type state() :: #state{}.
 
@@ -450,9 +451,9 @@ try_register_routes(StateData) ->
 
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
-        ok ->
+        {ok, Components} ->
             send_element(StateData, #xmlel{name = <<"handshake">>}),
-            {next_state, stream_established, StateData};
+            {next_state, stream_established, StateData#state{components = Components}};
         {error, Reason} ->
             RoutesInfo = lookup_routes(StateData),
             ConflictBehaviour = StateData#state.conflict_behaviour,
@@ -508,9 +509,8 @@ register_routes(StateData = #state{hidden_components = AreHidden}) ->
     ejabberd_router:register_components(Routes, node(), Handler, AreHidden).
 
 -spec unregister_routes(state()) -> any().
-unregister_routes(StateData) ->
-    Routes = get_routes(StateData),
-    ejabberd_router:unregister_components(Routes).
+unregister_routes(#state{components = Components}) ->
+    ejabberd_router:unregister_components(Components).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = mongoose_config:get_opt(hosts),

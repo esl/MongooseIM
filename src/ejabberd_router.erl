@@ -35,7 +35,7 @@
          has_component/1,
          dirty_get_all_components/1,
          register_components/4,
-         unregister_components/2,
+         unregister_components/1,
          lookup_component/1,
          lookup_component/2
         ]).
@@ -62,6 +62,8 @@
 -type external_component() :: #external_component{domain :: domain(),
                                                   handler :: mongoose_packet_handler:t(),
                                                   is_hidden :: boolean()}.
+
+-export_type([external_component/0]).
 
 % Not simple boolean() because is probably going to support third value in the future: only_hidden.
 % Besides, it increases readability.
@@ -153,17 +155,19 @@ route_error_reply(From, To, Acc, Error) ->
     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Error),
     route_error(From, To, Acc1, ErrorReply).
 
+%% -----------------------------------------------------------------------------
+%% Components
+
 -spec register_components([Domain :: domain()],
                           Node :: node(),
                           Handler :: mongoose_packet_handler:t(),
-                          AreHidden :: boolean()) -> ok | {error, any()}.
+                          AreHidden :: boolean()) -> {ok, [external_component()]} | {error, any()}.
 register_components(Domains, Node, Handler, AreHidden) ->
     F = fun() ->
-            [do_register_component(Domain, Handler, Node, AreHidden) || Domain <- Domains],
-            ok
+            [do_register_component(Domain, Handler, Node, AreHidden) || Domain <- Domains]
     end,
     case mnesia:transaction(F) of
-        {atomic, ok}      -> ok;
+        {atomic, Components} -> {ok, Components};
         {aborted, Reason} -> {error, Reason}
     end.
 
@@ -173,7 +177,22 @@ do_register_component(Domain, Handler, Node, IsHidden) ->
     Component = #external_component{domain = LDomain, handler = Handler,
                                     node = Node, is_hidden = IsHidden},
     mnesia:write(Component),
-    mongoose_hooks:register_subhost(LDomain, IsHidden).
+    mongoose_hooks:register_subhost(LDomain, IsHidden),
+    Component.
+
+-spec unregister_components(Components :: [external_component()]) -> ok.
+unregister_components(Components) ->
+    F = fun() ->
+            [do_unregister_component(Component) || Component <- Components],
+            ok
+    end,
+    {atomic, ok} = mnesia:transaction(F),
+    ok.
+
+do_unregister_component(Component = #external_component{domain = LDomain}) ->
+    ok = mnesia:delete_object(external_component, Component, write),
+    mongoose_hooks:unregister_subhost(LDomain),
+    ok.
 
 assert_new_component(LDomain, Node) ->
     case has_component(LDomain, Node) of
@@ -182,6 +201,11 @@ assert_new_component(LDomain, Node) ->
         false ->
             ok
     end.
+
+%% Returns true if any component route is registered for the domain.
+-spec has_component(jid:lserver()) -> boolean().
+has_component(Domain) ->
+    [] =/= lookup_component(Domain).
 
 %% @doc Check if the component/route is already registered somewhere.
 -spec has_component(domain(), Node :: node()) -> boolean().
@@ -215,26 +239,6 @@ filter_component([Comp|Tail], Node) ->
             filter_component(Tail, Node)
     end.
 
--spec unregister_components([Domains :: domain()], Node :: node()) -> ok.
-unregister_components(Domains, Node) ->
-    F = fun() ->
-            [do_unregister_component(Domain, Node) || Domain <- Domains],
-            ok
-    end,
-    {atomic, ok} = mnesia:transaction(F),
-    ok.
-
-do_unregister_component(Domain, Node) ->
-    LDomain = nameprep_bang(Domain),
-    case get_component(LDomain, Node) of %% lookup first to remove from a bag
-        undefined ->
-            ok;
-        Comp ->
-            ok = mnesia:delete_object(external_component, Comp, write)
-    end,
-    mongoose_hooks:unregister_subhost(LDomain),
-    ok.
-
 %% @doc Returns a list of components registered for this domain by any node,
 %% the choice is yours.
 -spec lookup_component(Domain :: jid:lserver()) -> [external_component()].
@@ -254,10 +258,6 @@ dirty_get_all_components(all) ->
 dirty_get_all_components(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_select(external_component, [MatchNonHidden]).
-
--spec has_component(jid:lserver()) -> boolean().
-has_component(Domain) ->
-    [] =/= lookup_component(Domain).
 
 %%====================================================================
 %% gen_server callbacks
