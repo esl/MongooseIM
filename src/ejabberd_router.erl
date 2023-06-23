@@ -32,7 +32,7 @@
          route/4,
          route_error/4,
          route_error_reply/4,
-         is_component_dirty/1,
+         has_component/1,
          dirty_get_all_components/1,
          register_components/2,
          register_components/3,
@@ -49,7 +49,7 @@
         ]).
 
 -export([start_link/0]).
--export([routes_cleanup_on_nodedown/3]).
+-export([node_cleanup/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -261,16 +261,18 @@ filter_component([Comp|Tail], Node) ->
             filter_component(Tail, Node)
     end.
 
--spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
+-spec unregister_components([Domains :: domain()]) -> ok.
 unregister_components(Domains) ->
     unregister_components(Domains, node()).
--spec unregister_components([Domains :: domain()], Node :: node()) -> {atomic, ok}.
+
+-spec unregister_components([Domains :: domain()], Node :: node()) -> ok.
 unregister_components(Domains, Node) ->
     F = fun() ->
             [do_unregister_component(Domain, Node) || Domain <- Domains],
             ok
     end,
-    {atomic, ok} = mnesia:transaction(F).
+    {atomic, ok} = mnesia:transaction(F),
+    ok.
 
 do_unregister_component(Domain, Node) ->
     LDomain = nameprep_bang(Domain),
@@ -283,11 +285,11 @@ do_unregister_component(Domain, Node) ->
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
 
--spec unregister_component(Domain :: domain()) -> {atomic, ok}.
+-spec unregister_component(Domain :: domain()) -> ok.
 unregister_component(Domain) ->
     unregister_components([Domain]).
 
--spec unregister_component(Domain :: domain(), Node :: node()) -> {atomic, ok}.
+-spec unregister_component(Domain :: domain(), Node :: node()) -> ok.
 unregister_component(Domain, Node) ->
     unregister_components([Domain], Node).
 
@@ -301,9 +303,8 @@ lookup_component(Domain) ->
 %% (must be only one, or nothing)
 -spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
-    mnesia:dirty_select(external_component,
-                        [{#external_component{domain = Domain, node = Node, _ = '_'},
-                          [], ['$_']}]).
+    mnesia:dirty_match_object(external_component,
+                              #external_component{domain = Domain, node = Node, _ = '_'}).
 
 -spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
 dirty_get_all_components(all) ->
@@ -312,8 +313,8 @@ dirty_get_all_components(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_select(external_component, [MatchNonHidden]).
 
--spec is_component_dirty(jid:lserver()) -> boolean().
-is_component_dirty(Domain) ->
+-spec has_component(jid:lserver()) -> boolean().
+has_component(Domain) ->
     [] =/= lookup_component(Domain).
 
 %%====================================================================
@@ -353,7 +354,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 -spec hooks() -> [gen_hook:hook_tuple()].
 hooks() ->
-    [{node_cleanup, global, fun ?MODULE:routes_cleanup_on_nodedown/3, #{}, 90}].
+    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 90}].
 
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
@@ -401,8 +402,8 @@ update_tables() ->
             ok
     end.
 
--spec routes_cleanup_on_nodedown(map(), map(), map()) -> {ok, map()}.
-routes_cleanup_on_nodedown(Acc, #{node := Node}, _) ->
+-spec node_cleanup(map(), map(), map()) -> {ok, map()}.
+node_cleanup(Acc, #{node := Node}, _) ->
     Entries = mnesia:dirty_match_object(external_component,
                                         #external_component{node = Node, _ = '_'}),
     [mnesia:dirty_delete_object(external_component, Entry) || Entry <- Entries],

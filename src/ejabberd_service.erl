@@ -474,7 +474,8 @@ routes_info_to_pids(RoutesInfo) ->
         mongoose_packet_handler:module(H) =:= ?MODULE].
 
 handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
-    Pids = routes_info_to_pids(RoutesInfo),
+    %% see lookup_routes
+    Pids = lists:usort(routes_info_to_pids(RoutesInfo)),
     Results = lists:map(fun stop_process/1, Pids),
     AllOk = lists:all(fun(Result) -> Result =:= ok end, Results),
     case AllOk of
@@ -497,6 +498,7 @@ do_disconnect_on_conflict(StateData) ->
 
 lookup_routes(StateData) ->
     Routes = get_routes(StateData),
+    %% Lookup for all pids for the route (both local and global)
     [{Route, ejabberd_router:lookup_component(Route)} || Route <- Routes].
 
 -spec register_routes(state()) -> any().

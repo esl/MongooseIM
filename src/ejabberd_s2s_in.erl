@@ -313,7 +313,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
             %% domain is handled by this server:
             case {ejabberd_s2s:allow_host(LTo, LFrom),
                   mongoose_router:is_registered_route(LTo)
-                  orelse ejabberd_router:is_component_dirty(LTo)} of
+                  orelse ejabberd_router:has_component(LTo)} of
                 {true, true} ->
                     ejabberd_s2s_out:terminate_if_waiting_delay(LTo, LFrom),
                     ejabberd_s2s_out:start(LTo, LFrom,
@@ -434,7 +434,7 @@ is_s2s_authenticated(_, _, #state{authenticated = false}) ->
     false;
 is_s2s_authenticated(LFrom, LTo, #state{auth_domain = LFrom}) ->
     mongoose_router:is_registered_route(LTo)
-    orelse ejabberd_router:is_component_dirty(LTo);
+    orelse ejabberd_router:has_component(LTo);
 is_s2s_authenticated(_, _, _) ->
     false.
 
