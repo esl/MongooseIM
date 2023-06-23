@@ -34,18 +34,10 @@
          route_error_reply/4,
          has_component/1,
          dirty_get_all_components/1,
-         register_components/2,
-         register_components/3,
          register_components/4,
-         register_component/2,
-         register_component/3,
-         register_component/4,
+         unregister_components/2,
          lookup_component/1,
-         lookup_component/2,
-         unregister_component/1,
-         unregister_component/2,
-         unregister_components/1,
-         unregister_components/2
+         lookup_component/2
         ]).
 
 -export([start_link/0]).
@@ -57,10 +49,7 @@
 %% debug exports for tests
 -export([update_tables/0]).
 
--ignore_xref([register_component/2, register_component/3, register_component/4,
-              register_components/2, register_components/3, route_error/4, start_link/0,
-              unregister_component/1, unregister_component/2, unregister_components/2,
-              unregister_routes/1, update_tables/0]).
+-ignore_xref([route_error/4, start_link/0, update_tables/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -164,18 +153,6 @@ route_error_reply(From, To, Acc, Error) ->
     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Error),
     route_error(From, To, Acc1, ErrorReply).
 
-
--spec register_components([Domain :: domain()],
-                          Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
-register_components(Domains, Handler) ->
-    register_components(Domains, node(), Handler).
-
--spec register_components([Domain :: domain()],
-                          Node :: node(),
-                          Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
-register_components(Domains, Node, Handler) ->
-    register_components(Domains, Node, Handler, false).
-
 -spec register_components([Domain :: domain()],
                           Node :: node(),
                           Handler :: mongoose_packet_handler:t(),
@@ -189,29 +166,6 @@ register_components(Domains, Node, Handler, AreHidden) ->
         {atomic, ok}      -> ok;
         {aborted, Reason} -> {error, Reason}
     end.
-
-%% @doc
-%% components are registered in two places: external_components table as local components
-%% and external_components_global as globals. Registration should be done by register_component/1
-%% or register_components/1, which registers them for current node; the arity 2 funcs are
-%% here for testing.
--spec register_component(Domain :: domain(),
-                         Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
-register_component(Domain, Handler) ->
-    register_component(Domain, node(), Handler).
-
--spec register_component(Domain :: domain(),
-                         Node :: node(),
-                         Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
-register_component(Domain, Node, Handler) ->
-    register_component(Domain, Node, Handler, false).
-
--spec register_component(Domain :: domain(),
-                         Node :: node(),
-                         Handler :: mongoose_packet_handler:t(),
-                         IsHidden :: boolean()) -> ok | {error, any()}.
-register_component(Domain, Node, Handler, IsHidden) ->
-    register_components([Domain], Node, Handler, IsHidden).
 
 do_register_component(Domain, Handler, Node, IsHidden) ->
     LDomain = nameprep_bang(Domain),
@@ -261,10 +215,6 @@ filter_component([Comp|Tail], Node) ->
             filter_component(Tail, Node)
     end.
 
--spec unregister_components([Domains :: domain()]) -> ok.
-unregister_components(Domains) ->
-    unregister_components(Domains, node()).
-
 -spec unregister_components([Domains :: domain()], Node :: node()) -> ok.
 unregister_components(Domains, Node) ->
     F = fun() ->
@@ -284,14 +234,6 @@ do_unregister_component(Domain, Node) ->
     end,
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
-
--spec unregister_component(Domain :: domain()) -> ok.
-unregister_component(Domain) ->
-    unregister_components([Domain]).
-
--spec unregister_component(Domain :: domain(), Node :: node()) -> ok.
-unregister_component(Domain, Node) ->
-    unregister_components([Domain], Node).
 
 %% @doc Returns a list of components registered for this domain by any node,
 %% the choice is yours.
