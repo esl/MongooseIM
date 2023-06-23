@@ -107,6 +107,9 @@ stop(_State) ->
     ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),
+    %% We cannot stop other applications inside of the stop callback
+    %% (because we would deadlock the application controller process).
+    %% That is why we call mnesia:stop() inside of db_init_mnesia() instead.
     %%ejabberd_debug:stop(),
     ok.
 
@@ -124,6 +127,7 @@ db_init() ->
     end.
 
 db_init_mnesia() ->
+    %% Mnesia should not be running at this point, unless it is started by tests.
     %% Ensure Mnesia is stopped
     mnesia:stop(),
     case mnesia:system_info(extra_db_nodes) of
