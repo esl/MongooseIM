@@ -28,7 +28,8 @@ get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) -
             {{error, Reason}, State}
     end.
 
-try_register(ClusterName, Node) ->
+try_register(ClusterName, NodeBin) when is_binary(NodeBin), is_binary(ClusterName) ->
+    Node = binary_to_atom(NodeBin),
     prepare(),
     {selected, Rows} = select(ClusterName),
     Pairs = [{binary_to_atom(NodeBin), Num} || {NodeBin, Num} <- Rows],
@@ -38,15 +39,19 @@ try_register(ClusterName, Node) ->
     NodeNum =
         case AlreadyRegistered of
             true ->
-                 update_existing(ClusterName, Node, Timestamp),
+                 update_existing(ClusterName, NodeBin, Timestamp),
                  {value, {_, Num}} = lists:keysearch(Node, 1, Pairs),
                  Num;
             false ->
                  Num = next_free_num(lists:usort(Nums)),
-                 insert_new(ClusterName, Node, Timestamp, Num),
+                 %% Could fail with duplicate node_num reason.
+                 %% In this case just wait for the next get_nodes call.
+                 insert_new(ClusterName, NodeBin, Timestamp, Num),
                  Num
         end,
-    Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp, node_num => Num},
+    %% This could be used for debugging
+    Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp,
+             node_num => Num, last_rows => Rows},
     {NodeNum, Nodes, Info}.
 
 prepare() ->
