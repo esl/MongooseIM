@@ -31,45 +31,19 @@
 -export([route/3,
          route/4,
          route_error/4,
-         route_error_reply/4,
-         has_component/1,
-         dirty_get_all_components/1,
-         register_components/4,
-         unregister_components/1,
-         lookup_component/1,
-         lookup_component/2
-        ]).
+         route_error_reply/4]).
 
 -export([start_link/0]).
--export([node_cleanup/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-%% debug exports for tests
--export([update_tables/0]).
-
--ignore_xref([route_error/4, start_link/0, update_tables/0]).
+-ignore_xref([route_error/4, start_link/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("external_component.hrl").
 
 -record(state, {}).
-
--type domain() :: binary().
-
--type external_component() :: #external_component{domain :: domain(),
-                                                  handler :: mongoose_packet_handler:t(),
-                                                  is_hidden :: boolean()}.
-
--export_type([external_component/0]).
-
-% Not simple boolean() because is probably going to support third value in the future: only_hidden.
-% Besides, it increases readability.
--type return_hidden() :: only_public | all.
-
--export_type([return_hidden/0]).
 
 %%====================================================================
 %% API
@@ -155,123 +129,13 @@ route_error_reply(From, To, Acc, Error) ->
     {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Error),
     route_error(From, To, Acc1, ErrorReply).
 
-%% -----------------------------------------------------------------------------
-%% Components
-
--spec register_components([Domain :: domain()],
-                          Node :: node(),
-                          Handler :: mongoose_packet_handler:t(),
-                          AreHidden :: boolean()) -> {ok, [external_component()]} | {error, any()}.
-register_components(Domains, Node, Handler, AreHidden) ->
-    F = fun() ->
-            [do_register_component(Domain, Handler, Node, AreHidden) || Domain <- Domains]
-    end,
-    case mnesia:transaction(F) of
-        {atomic, Components} -> {ok, Components};
-        {aborted, Reason} -> {error, Reason}
-    end.
-
-do_register_component(Domain, Handler, Node, IsHidden) ->
-    LDomain = nameprep_bang(Domain),
-    assert_new_component(LDomain, Node),
-    Component = #external_component{domain = LDomain, handler = Handler,
-                                    node = Node, is_hidden = IsHidden},
-    mnesia:write(Component),
-    mongoose_hooks:register_subhost(LDomain, IsHidden),
-    Component.
-
--spec unregister_components(Components :: [external_component()]) -> ok.
-unregister_components(Components) ->
-    F = fun() ->
-            [do_unregister_component(Component) || Component <- Components],
-            ok
-    end,
-    {atomic, ok} = mnesia:transaction(F),
-    ok.
-
-do_unregister_component(Component = #external_component{domain = LDomain}) ->
-    ok = mnesia:delete_object(external_component, Component, write),
-    mongoose_hooks:unregister_subhost(LDomain),
-    ok.
-
-assert_new_component(LDomain, Node) ->
-    case has_component(LDomain, Node) of
-        true ->
-            error({route_already_exists, LDomain});
-        false ->
-            ok
-    end.
-
-%% Returns true if any component route is registered for the domain.
--spec has_component(jid:lserver()) -> boolean().
-has_component(Domain) ->
-    [] =/= lookup_component(Domain).
-
-%% @doc Check if the component/route is already registered somewhere.
--spec has_component(domain(), Node :: node()) -> boolean().
-has_component(LDomain, Node) ->
-    has_dynamic_domains(LDomain)
-        orelse has_domain_route(LDomain)
-        orelse has_component_registered(LDomain, Node).
-
-has_dynamic_domains(LDomain) ->
-    {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
-
-%% check that route for this domain is not already registered
-has_domain_route(LDomain) ->
-    no_route =/= mongoose_router:lookup_route(LDomain).
-
-%% check that there is no component registered globally for this node
-has_component_registered(LDomain, Node) ->
-    no_route =/= get_component(LDomain, Node).
-
-%% Find a component registered globally for this node (internal use)
-get_component(LDomain, Node) ->
-    filter_component(mnesia:read(external_component, LDomain), Node).
-
-filter_component([], _) ->
-    no_route;
-filter_component([Comp|Tail], Node) ->
-    case Comp of
-        #external_component{node = Node} ->
-            Comp;
-        _ ->
-            filter_component(Tail, Node)
-    end.
-
-%% @doc Returns a list of components registered for this domain by any node,
-%% the choice is yours.
--spec lookup_component(Domain :: jid:lserver()) -> [external_component()].
-lookup_component(Domain) ->
-    mnesia:dirty_read(external_component, Domain).
-
-%% @doc Returns a list of components registered for this domain at the given node.
-%% (must be only one, or nothing)
--spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
-lookup_component(Domain, Node) ->
-    mnesia:dirty_match_object(external_component,
-                              #external_component{domain = Domain, node = Node, _ = '_'}).
-
--spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
-dirty_get_all_components(all) ->
-    mnesia:dirty_all_keys(external_component);
-dirty_get_all_components(only_public) ->
-    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
-    mnesia:dirty_select(external_component, [MatchNonHidden]).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
 init([]) ->
-    update_tables(),
-    %% add distributed service_component routes
-    mongoose_lib:create_mnesia_table(external_component,
-                        [{attributes, record_info(fields, external_component)},
-                         {type, bag}, {ram_copies, [node()]}]),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
-    gen_hook:add_handlers(hooks()),
-
+    mongoose_component:start(),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->
@@ -285,7 +149,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    gen_hook:delete_handlers(hooks()),
+    mongoose_component:stop(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -294,9 +158,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec hooks() -> [gen_hook:hook_tuple()].
-hooks() ->
-    [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 90}].
 
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
@@ -332,30 +193,4 @@ route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
                            router_module => M, acc => Acc0,
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             mongoose_acc:append(router, result, {error, {M, Reason}}, Acc0)
-    end.
-
-update_tables() ->
-    case catch mnesia:table_info(external_component, attributes) of
-        [domain, handler, node] ->
-            mnesia:delete_table(external_component);
-        [domain, handler, node, is_hidden] ->
-            ok;
-        {'EXIT', _} ->
-            ok
-    end.
-
--spec node_cleanup(map(), map(), map()) -> {ok, map()}.
-node_cleanup(Acc, #{node := Node}, _) ->
-    Entries = mnesia:dirty_match_object(external_component,
-                                        #external_component{node = Node, _ = '_'}),
-    [mnesia:dirty_delete_object(external_component, Entry) || Entry <- Entries],
-    {ok, maps:put(?MODULE, ok, Acc)}.
-
--spec nameprep_bang(domain()) -> jid:lserver().
-nameprep_bang(Domain) when is_binary(Domain) ->
-    case jid:nameprep(Domain) of
-        error ->
-            error({invalid_domain, Domain});
-        LDomain ->
-            LDomain
     end.

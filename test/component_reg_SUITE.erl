@@ -40,11 +40,11 @@ opts() ->
 
 registering(_C) ->
     Dom = <<"aaa.bbb.com">>,
-    {ok, Comps} = ejabberd_router:register_components([Dom], node(), mongoose_packet_handler:new(?MODULE), false),
-    Lookup = ejabberd_router:lookup_component(Dom),
+    {ok, Comps} = mongoose_component:register_components([Dom], node(), mongoose_packet_handler:new(?MODULE), false),
+    Lookup = mongoose_component:lookup_component(Dom),
     ?assertMatch([#external_component{}], Lookup),
-    ejabberd_router:unregister_components(Comps),
-    ?assertMatch([], ejabberd_router:lookup_component(Dom)),
+    mongoose_component:unregister_components(Comps),
+    ?assertMatch([], mongoose_component:lookup_component(Dom)),
     ok.
 
 registering_with_local(_C) ->
@@ -53,37 +53,37 @@ registering_with_local(_C) ->
     ThisNode = node(),
     AnotherNode = 'another@nohost',
     Handler = mongoose_packet_handler:new(?MODULE), %% This handler is only for testing!
-    {ok, Comps} = ejabberd_router:register_components([Dom], node(), Handler, false),
+    {ok, Comps} = mongoose_component:register_components([Dom], node(), Handler, false),
     %% we can find it globally
-    ?assertMatch([#external_component{node = ThisNode}], ejabberd_router:lookup_component(Dom)),
+    ?assertMatch([#external_component{node = ThisNode}], mongoose_component:lookup_component(Dom)),
     %% and for this node
     ?assertMatch([#external_component{node = ThisNode}],
-                 ejabberd_router:lookup_component(Dom, ThisNode)),
+                 mongoose_component:lookup_component(Dom, ThisNode)),
     %% but not for another node
-    ?assertMatch([], ejabberd_router:lookup_component(Dom, AnotherNode)),
+    ?assertMatch([], mongoose_component:lookup_component(Dom, AnotherNode)),
     %% once we unregister it is not available
-    ejabberd_router:unregister_components(Comps),
-    ?assertMatch([], ejabberd_router:lookup_component(Dom)),
-    ?assertMatch([], ejabberd_router:lookup_component(Dom, ThisNode)),
-    ?assertMatch([], ejabberd_router:lookup_component(Dom, AnotherNode)),
+    mongoose_component:unregister_components(Comps),
+    ?assertMatch([], mongoose_component:lookup_component(Dom)),
+    ?assertMatch([], mongoose_component:lookup_component(Dom, ThisNode)),
+    ?assertMatch([], mongoose_component:lookup_component(Dom, AnotherNode)),
     %% we can register from both nodes
-    {ok, Comps2} = ejabberd_router:register_components([Dom], ThisNode, Handler, false),
+    {ok, Comps2} = mongoose_component:register_components([Dom], ThisNode, Handler, false),
     %% passing node here is only for testing
-    {ok, _Comps3} = ejabberd_router:register_components([Dom], AnotherNode, Handler, false),
+    {ok, _Comps3} = mongoose_component:register_components([Dom], AnotherNode, Handler, false),
     %% both are reachable locally
     ?assertMatch([#external_component{node = ThisNode}],
-                 ejabberd_router:lookup_component(Dom, ThisNode)),
+                 mongoose_component:lookup_component(Dom, ThisNode)),
     ?assertMatch([#external_component{node = AnotherNode}],
-                 ejabberd_router:lookup_component(Dom, AnotherNode)),
+                 mongoose_component:lookup_component(Dom, AnotherNode)),
     %% if we try global lookup we get two handlers
-    ?assertMatch([_, _], ejabberd_router:lookup_component(Dom)),
+    ?assertMatch([_, _], mongoose_component:lookup_component(Dom)),
     %% we unregister one and the result is:
-    ejabberd_router:unregister_components(Comps2),
-    ?assertMatch([], ejabberd_router:lookup_component(Dom, ThisNode)),
+    mongoose_component:unregister_components(Comps2),
+    ?assertMatch([], mongoose_component:lookup_component(Dom, ThisNode)),
     ?assertMatch([#external_component{node = AnotherNode}],
-                 ejabberd_router:lookup_component(Dom)),
+                 mongoose_component:lookup_component(Dom)),
     ?assertMatch([#external_component{node = AnotherNode}],
-                 ejabberd_router:lookup_component(Dom, AnotherNode)),
+                 mongoose_component:lookup_component(Dom, AnotherNode)),
     ok.
 
 process_packet(_From, _To, _Packet, _Extra) ->

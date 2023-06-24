@@ -72,7 +72,7 @@
                 conflict_behaviour :: conflict_behaviour(),
                 access,
                 check_from,
-                components = [] :: ejabberd_router:external_component()
+                components = [] :: mongoose_component:external_component()
               }).
 -type state() :: #state{}.
 
@@ -500,17 +500,17 @@ do_disconnect_on_conflict(StateData) ->
 lookup_routes(StateData) ->
     Routes = get_routes(StateData),
     %% Lookup for all pids for the route (both local and global)
-    [{Route, ejabberd_router:lookup_component(Route)} || Route <- Routes].
+    [{Route, mongoose_component:lookup_component(Route)} || Route <- Routes].
 
 -spec register_routes(state()) -> any().
 register_routes(StateData = #state{hidden_components = AreHidden}) ->
     Routes = get_routes(StateData),
     Handler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
-    ejabberd_router:register_components(Routes, node(), Handler, AreHidden).
+    mongoose_component:register_components(Routes, node(), Handler, AreHidden).
 
 -spec unregister_routes(state()) -> any().
 unregister_routes(#state{components = Components}) ->
-    ejabberd_router:unregister_components(Components).
+    mongoose_component:unregister_components(Components).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = mongoose_config:get_opt(hosts),
