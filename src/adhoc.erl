@@ -116,7 +116,7 @@ produce_response(#adhoc_response{lang = _Lang,
            children = ActionsEls ++ NotesEls ++ Elements}.
 
 -spec ensure_correct_session_id(binary()) -> binary().
-ensure_correct_session_id(SessionID) when is_binary(SessionID), SessionID /= <<"">> ->
+ensure_correct_session_id(SessionID) when is_binary(SessionID), SessionID /= <<>> ->
     SessionID;
 ensure_correct_session_id(_) -> 
     USec = os:system_time(microsecond),
@@ -143,9 +143,9 @@ maybe_actions_element(Actions, DefaultAction) ->
         children = [#xmlel{name = Action} || Action <- AllActions]
     }].
 
--spec ensure_default_action_present([binary()], binary()) -> [exml:element()].
+-spec ensure_default_action_present([binary()], binary()) -> [binary()].
 ensure_default_action_present(Actions, DefaultAction) ->
-    case lists:member(Actions, DefaultAction) of
+    case lists:member(DefaultAction, Actions) of
         true -> Actions;
         false -> [DefaultAction | Actions]
     end.
