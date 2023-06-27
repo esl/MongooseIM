@@ -951,6 +951,7 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: elasticsearch_and_cassandra_25
+          spec: mam.spec
           executor: otp_25_elasticsearch_cassandra
           context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia
