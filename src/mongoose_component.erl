@@ -10,9 +10,6 @@
 -export([start/0, stop/0]).
 -export([node_cleanup/3]).
 
-%% debug exports for tests
--export([update_tables/0]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("external_component.hrl").
@@ -36,11 +33,8 @@
 %%====================================================================
 
 start() ->
-    update_tables(),
-    %% add distributed service_component routes
-    mongoose_lib:create_mnesia_table(external_component,
-                        [{attributes, record_info(fields, external_component)},
-                         {type, bag}, {ram_copies, [node()]}]),
+    Backend = mongoose_config:get_opt(component_backend),
+    mongoose_component_backend:init(#{backend => Backend}),
     gen_hook:delete_handlers(hooks()).
 
 stop() ->
@@ -55,43 +49,69 @@ hooks() ->
                           Handler :: mongoose_packet_handler:t(),
                           AreHidden :: boolean()) -> {ok, [external_component()]} | {error, any()}.
 register_components(Domains, Node, Handler, AreHidden) ->
-    F = fun() ->
-            [do_register_component(Domain, Handler, Node, AreHidden) || Domain <- Domains]
-    end,
-    case mnesia:transaction(F) of
-        {atomic, Components} -> {ok, Components};
-        {aborted, Reason} -> {error, Reason}
+    try
+        register_components_unsafe(Domains, Node, Handler, AreHidden)
+    catch Class:Reason:Stacktrace ->
+        ?LOG_ERROR(#{what => component_register_failed,
+                     class => Class, reason => Reason, stacktrace => Stacktrace}),
+        {error, Reason}
     end.
 
-do_register_component(Domain, Handler, Node, IsHidden) ->
-    LDomain = nameprep_bang(Domain),
-    assert_new_component(LDomain, Node),
-    Component = #external_component{domain = LDomain, handler = Handler,
-                                    node = Node, is_hidden = IsHidden},
-    mnesia:write(Component),
-    mongoose_hooks:register_subhost(LDomain, IsHidden),
-    Component.
+register_components_unsafe(Domains, Node, Handler, AreHidden) ->
+    LDomains = prepare_ldomains(Domains),
+    Components = make_components(LDomains, Node, Handler, AreHidden),
+    assert_can_register_components(Components),
+    register_components(Components),
+    %% We do it outside of Mnesia transaction
+    lists:foreach(fun run_register_hook/1, Components),
+    {ok, Components}.
 
--spec unregister_components(Components :: [external_component()]) -> ok.
-unregister_components(Components) ->
+register_components(Components) ->
     F = fun() ->
-            [do_unregister_component(Component) || Component <- Components],
-            ok
-    end,
-    {atomic, ok} = mnesia:transaction(F),
+            lists:foreach(fun mnesia:write/1, Components)
+        end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        {aborted, Reason} -> error({mnesia_aborted_write, Reason})
+    end.
+
+make_components(LDomains, Node, Handler, AreHidden) ->
+    [make_record_component(LDomain, Handler, Node, IsHidden) || LDomain <- LDomains].
+
+make_record_component(LDomain, Handler, Node, IsHidden) ->
+    #external_component{domain = LDomain, handler = Handler,
+                        node = Node, is_hidden = IsHidden}.
+
+run_register_hook(#external_component{domain = LDomain, is_hidden = IsHidden}) ->
+    mongoose_hooks:register_subhost(LDomain, IsHidden),
     ok.
 
-do_unregister_component(Component = #external_component{domain = LDomain}) ->
-    ok = mnesia:delete_object(external_component, Component, write),
+run_unregister_hook(#external_component{domain = LDomain}) ->
     mongoose_hooks:unregister_subhost(LDomain),
     ok.
 
-assert_new_component(LDomain, Node) ->
-    case can_register(LDomain, Node) of
-        true ->
-            error({route_already_exists, LDomain});
-        false ->
-            ok
+-spec unregister_components(Components :: [external_component()]) -> ok.
+unregister_components(Components) ->
+    lists:foreach(fun run_unregister_hook/1, Components),
+    F = fun() ->
+            lists:foreach(fun do_unregister_component/1, Components)
+        end,
+    {atomic, ok} = mnesia:transaction(F),
+    ok.
+
+do_unregister_component(Component) ->
+    ok = mnesia:delete_object(external_component, Component, write).
+
+assert_can_register_components(Components) ->
+    Checks = lists:map(fun is_already_registered/1, Components),
+    Zip = lists:zip(Components, Checks),
+    ConfictDomains =
+        [LDomain || {#external_component{domain = LDomain}, true} <- Zip],
+    case ConfictDomains of
+        [] ->
+            ok;
+         _ ->
+            error({routes_already_exist, ConfictDomains})
     end.
 
 %% Returns true if any component route is registered for the domain.
@@ -100,8 +120,8 @@ has_component(Domain) ->
     [] =/= lookup_component(Domain).
 
 %% @doc Check if the component/route is already registered somewhere.
--spec can_register(domain(), Node :: node()) -> boolean().
-can_register(LDomain, Node) ->
+-spec is_already_registered(external_component()) -> boolean().
+is_already_registered(#external_component{domain = LDomain, node = Node}) ->
     has_dynamic_domains(LDomain)
         orelse has_domain_route(LDomain)
         orelse has_component_registered(LDomain, Node).
@@ -163,16 +183,16 @@ update_tables() ->
 
 -spec node_cleanup(map(), map(), map()) -> {ok, map()}.
 node_cleanup(Acc, #{node := Node}, _) ->
-    Entries = mnesia:dirty_match_object(external_component,
-                                        #external_component{node = Node, _ = '_'}),
-    [mnesia:dirty_delete_object(external_component, Entry) || Entry <- Entries],
+    mongoose_component_backend:node_cleanup(Node),
     {ok, maps:put(?MODULE, ok, Acc)}.
 
--spec nameprep_bang(domain()) -> jid:lserver().
-nameprep_bang(Domain) when is_binary(Domain) ->
-    case jid:nameprep(Domain) of
-        error ->
-            error({invalid_domain, Domain});
-        LDomain ->
-            LDomain
+prepare_ldomains(Domains) ->
+    LDomains = [jid:nameprep(Domain) || Domain <- Domains],
+    Zip = lists:zip(Domains, LDomains),
+    InvalidDomains = [Domain || {Domain, error} <- Zip],
+    case InvalidDomains of
+        [] ->
+            LDomains;
+         _ ->
+            error({invalid_domains, InvalidDomains})
     end.

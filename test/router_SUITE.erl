@@ -11,8 +11,7 @@
 
 all() ->
     [
-     {group, routing},
-     {group, schema}
+     {group, routing}
     ].
 
 groups() ->
@@ -20,11 +19,7 @@ groups() ->
      {routing, [], [
                     basic_routing,
                     do_not_reroute_errors
-                   ]},
-     {schema, [], [
-                   update_tables_hidden_components,
-                   update_tables_hidden_components_idempotent
-                  ]}
+                   ]}
     ].
 
 init_per_suite(C) ->
@@ -45,23 +40,14 @@ init_per_group(routing, Config) ->
     mongoose_config:set_opt(routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
-    Config;
-init_per_group(schema, Config) ->
-    remove_component_tables(),
     Config.
 
 end_per_group(routing, _Config) ->
-    mongoose_config:unset_opt(routing_modules);
-end_per_group(schema, _Config) ->
-    ok.
+    mongoose_config:unset_opt(routing_modules).
 
 init_per_testcase(_CaseName, Config) ->
     Config.
 
-end_per_testcase(HiddenComponent, _Config)
-  when HiddenComponent == update_tables_hidden_components;
-       HiddenComponent == update_tables_hidden_components_idempotent ->
-    remove_component_tables();
 end_per_testcase(_CaseName, _Config) ->
     ok.
 
@@ -107,26 +93,6 @@ do_not_reroute_errors(_) ->
     meck:expect(xmpp_router_a, route, fun resend_as_error/4),
     ejabberd_router:route(From, To, Acc, Stanza),
     ok.
-
-update_tables_hidden_components(_C) ->
-    %% Tables as of b076e4a62a8b21188245f13c42f9cfd93e06e6b7
-    create_component_tables([domain, handler, node]),
-
-    ejabberd_router:update_tables(),
-
-    %% Local table is removed and the distributed one has a new list of attributes
-    false = lists:member(external_component, mnesia:system_info(tables)),
-    [domain, handler, node, is_hidden] = mnesia:table_info(external_component_global, attributes).
-
-update_tables_hidden_components_idempotent(_C) ->
-    AttrsWithHidden = [domain, handler, node, is_hidden],
-    create_component_tables(AttrsWithHidden),
-
-    ejabberd_router:update_tables(),
-
-    %% Local table is not removed and the attribute list of the distributed one is not changed
-    true = lists:member(external_component, mnesia:system_info(tables)),
-    AttrsWithHidden = mnesia:table_info(external_component_global, attributes).
 
 %% ---------------------------------------------------------------
 %% Helpers
@@ -198,21 +164,6 @@ verify(L) ->
         ?assertEqual(L, []),
         ct:pal("all messages routed correctly")
     end.
-
-create_component_tables(AttrList) ->
-    {atomic, ok} =
-    mnesia:create_table(external_component,
-                        [{attributes, AttrList},
-                         {local_content, true}]),
-    {atomic, ok} =
-    mnesia:create_table(external_component_global,
-                        [{attributes, AttrList},
-                         {type, bag},
-                         {record_name, external_component}]).
-
-remove_component_tables() ->
-    mnesia:delete_table(external_component),
-    mnesia:delete_table(external_component_global).
 
 resend_as_error(From0, To0, Acc0, Packet0) ->
     {Acc1, Packet1} = jlib:make_error_reply(Acc0, Packet0, #xmlel{}),
