@@ -11,7 +11,7 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mongoose_lib:create_mnesia_table(key,
+    mongoose_mnesia:create_table(key,
                         [{ram_copies, [node()]}, {type, set},
                          {attributes, record_info(fields, key)}]),
     ok.

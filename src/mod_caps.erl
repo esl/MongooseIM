@@ -378,7 +378,7 @@ init_db(mnesia) ->
         _ ->
             mnesia:delete_table(caps_features)
     end,
-    mongoose_lib:create_mnesia_table(caps_features,
+    mongoose_mnesia:create_table(caps_features,
                         [{disc_only_copies, [node()]},
                          {local_content, true},
                          {attributes,

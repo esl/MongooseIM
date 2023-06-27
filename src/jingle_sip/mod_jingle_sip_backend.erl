@@ -51,7 +51,7 @@
                              meta}).
 
 init(_Host, _Opts) ->
-    mongoose_lib:create_mnesia_table(jingle_sip_session,
+    mongoose_mnesia:create_table(jingle_sip_session,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, jingle_sip_session)}]).
 

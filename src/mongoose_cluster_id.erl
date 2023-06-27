@@ -75,7 +75,7 @@ make_and_set_new_cluster_id() ->
 %% Internal functions
 %% ====================================================================
 init_mnesia_cache() ->
-    mongoose_lib:create_mnesia_table(mongoose_cluster_id,
+    mongoose_mnesia:create_table(mongoose_cluster_id,
                         [{type, set},
                          {record_name, mongoose_cluster_id},
                          {attributes, record_info(fields, mongoose_cluster_id)},

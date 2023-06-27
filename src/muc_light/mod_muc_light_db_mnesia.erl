@@ -248,14 +248,14 @@ force_clear() ->
 
 -spec init_tables() -> ok.
 init_tables() ->
-    mongoose_lib:create_mnesia_table(muc_light_room,
+    mongoose_mnesia:create_table(muc_light_room,
                  [{disc_copies, [node()]},
                   {attributes, record_info(fields, muc_light_room)}]),
-    mongoose_lib:create_mnesia_table(muc_light_user_room,
+    mongoose_mnesia:create_table(muc_light_user_room,
                  [{disc_copies, [node()]},
                   {attributes, record_info(fields, muc_light_user_room)},
                   {type, bag}]),
-    mongoose_lib:create_mnesia_table(muc_light_blocking,
+    mongoose_mnesia:create_table(muc_light_blocking,
                  [{disc_copies, [node()]},
                   {attributes, record_info(fields, muc_light_blocking)},
                   {type, bag}]),

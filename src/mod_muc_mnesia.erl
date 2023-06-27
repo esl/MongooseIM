@@ -42,10 +42,10 @@
 -include("mod_muc.hrl").
 
 init(_HostType, _Opts) ->
-    mongoose_lib:create_mnesia_table(muc_room,
+    mongoose_mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, muc_room)}]),
-    mongoose_lib:create_mnesia_table(muc_registered,
+    mongoose_mnesia:create_table(muc_registered,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, muc_registered)}]),
     mnesia:add_table_index(muc_registered, nick),

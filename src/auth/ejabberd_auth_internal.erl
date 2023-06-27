@@ -79,12 +79,12 @@
 
 -spec start(HostType :: mongooseim:host_type()) -> ok.
 start(HostType) ->
-    mongoose_lib:create_mnesia_table(passwd, [{disc_copies, [node()]},
+    mongoose_mnesia:create_table(passwd, [{disc_copies, [node()]},
                                  {attributes, record_info(fields, passwd)},
                                  {storage_properties,
                                   [{ets, [{read_concurrency, true}]}]}
                                   ]),
-    mongoose_lib:create_mnesia_table(reg_users_counter,
+    mongoose_mnesia:create_table(reg_users_counter,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, reg_users_counter)}]),
     update_reg_users_counter_table(HostType),

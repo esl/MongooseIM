@@ -449,7 +449,7 @@ get_nick(HostType, MucHost, From) ->
 -spec init({host_type(), map()}) -> {ok, state()}.
 init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
-    mongoose_lib:create_mnesia_table(muc_online_room,
+    mongoose_mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, muc_online_room)}]),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),

@@ -25,7 +25,7 @@ init(_) ->
 init_pids() ->
     Opts = [{ram_copies, [node()]}, {type, bag},
             {attributes, record_info(fields, s2s)}],
-    mongoose_lib:create_mnesia_table(s2s, Opts).
+    mongoose_mnesia:create_table(s2s, Opts).
 
 dirty_read_s2s_list_pids(FromTo) ->
     {ok, s2s_to_pids(mnesia:dirty_read(s2s, FromTo))}.
@@ -78,7 +78,7 @@ s2s_to_pids(List) ->
 %% Secrets
 init_secrets() ->
     Opts = [{ram_copies, [node()]}, {attributes, record_info(fields, s2s_secret)}],
-    mongoose_lib:create_mnesia_table(s2s_secret, Opts).
+    mongoose_mnesia:create_table(s2s_secret, Opts).
 
 register_secret(HostType, Source, Secret) ->
     Rec = #s2s_secret{host_type = HostType, source = Source, secret = Secret},

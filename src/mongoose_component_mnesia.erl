@@ -7,7 +7,7 @@
 init(_) ->
     update_tables(),
     %% add distributed service_component routes
-    mongoose_lib:create_mnesia_table(external_component,
+    mongoose_mnesia:create_table(external_component,
                         [{attributes, record_info(fields, external_component)},
                          {type, bag}, {ram_copies, [node()]}]),
 

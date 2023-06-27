@@ -43,7 +43,7 @@
 -record(private_storage, {usns, xml}).
 
 init(_HostType, _Opts) ->
-    mongoose_lib:create_mnesia_table(private_storage,
+    mongoose_mnesia:create_table(private_storage,
                         [{disc_only_copies, [node()]},
                          {attributes, record_info(fields, private_storage)}]),
     ok.

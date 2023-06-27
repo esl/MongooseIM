@@ -96,9 +96,9 @@ prepare_db() ->
     set_indexes().
 
 create_tables() ->
-    mongoose_lib:create_mnesia_table(vcard, [{disc_only_copies, [node()]},
+    mongoose_mnesia:create_table(vcard, [{disc_only_copies, [node()]},
                                 {attributes, record_info(fields, vcard)}]),
-    mongoose_lib:create_mnesia_table(vcard_search,
+    mongoose_mnesia:create_table(vcard_search,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, vcard_search)}]).
 

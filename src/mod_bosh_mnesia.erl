@@ -14,7 +14,7 @@
 
 -spec start() -> ok.
 start() ->
-    mongoose_lib:create_mnesia_table(bosh_session,
+    mongoose_mnesia:create_table(bosh_session,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, bosh_session)}]),
     ok.

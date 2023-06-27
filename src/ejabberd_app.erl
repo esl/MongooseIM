@@ -133,12 +133,12 @@ db_init_mnesia() ->
     no = mnesia:system_info(is_running),
     case mnesia:system_info(extra_db_nodes) of
         [] ->
-            mongoose_lib:create_mnesia_schema();
+            mongoose_mnesia:create_schema();
         _ ->
             ok
     end,
     mnesia:start(),
-    mongoose_lib:wait_for_mnesia_tables().
+    mongoose_mnesia:wait_for_tables().
 
 -spec broadcast_c2s_shutdown_listeners() -> ok.
 broadcast_c2s_shutdown_listeners() ->

@@ -46,7 +46,7 @@
 -include("mod_privacy.hrl").
 
 init(_HostType, _Opts) ->
-    mongoose_lib:create_mnesia_table(privacy,
+    mongoose_mnesia:create_table(privacy,
         [{disc_copies, [node()]}, {attributes, record_info(fields, privacy)}]),
     ok.
 

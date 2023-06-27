@@ -65,7 +65,7 @@ delete_last_item(_ServerHost, Nidx) ->
 %% ------------------------ Helpers ----------------------------
 
 create_table() ->
-    mongoose_lib:create_mnesia_table(
+    mongoose_mnesia:create_table(
         pubsub_last_item,
         [
             {ram_copies, [node()]},

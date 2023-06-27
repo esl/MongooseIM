@@ -43,7 +43,7 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mongoose_lib:create_mnesia_table(push_subscription,
+    mongoose_mnesia:create_table(push_subscription,
                         [{disc_copies, [node()]}, {type, bag},
                          {attributes, record_info(fields, push_subscription)}]),
     ok.

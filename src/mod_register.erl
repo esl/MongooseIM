@@ -51,7 +51,7 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    mongoose_lib:create_mnesia_table(mod_register_ip,
+    mongoose_mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
                          {local_content, true},
                          {attributes, [key, value]}]),

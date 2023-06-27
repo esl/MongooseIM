@@ -26,7 +26,7 @@
 
 -spec init(map()) -> any().
 init(_Opts) ->
-    mongoose_lib:create_mnesia_table(session,
+    mongoose_mnesia:create_table(session,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, session)}]),
     mnesia:add_table_index(session, usr),

@@ -6,7 +6,7 @@
                id :: mongoose_short_number_node_id:node_id() }).
 
 init() ->
-    mongoose_lib:create_mnesia_table(node,
+    mongoose_mnesia:create_table(node,
         [{ram_copies, [node()]}, {type, set},
          {attributes, record_info(fields, node)}]),
     mnesia:add_table_index(node, id),
