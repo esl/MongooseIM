@@ -124,7 +124,7 @@ produce_response_full(_C) ->
 produce_response_no_session_id(_C) ->
     % given
     AdhocResponse = #adhoc_response{
-        session_id = <<"">>
+        session_id = <<>>
     },
     % when
     #xmlel{
@@ -134,7 +134,7 @@ produce_response_no_session_id(_C) ->
     % then
     SessionID = proplists:get_value(<<"sessionid">>, Attrs),
     ?assert(is_binary(SessionID)),
-    ?assertNotEqual(<<"">>, SessionID).
+    ?assertNotEqual(<<>>, SessionID).
 
 produce_response_no_actions(_C) ->
     % given
