@@ -9,7 +9,7 @@ init(_) ->
     %% add distributed service_component routes
     mongoose_mnesia:create_table(external_component,
                         [{attributes, record_info(fields, external_component)},
-                         {type, bag}, {ram_copies, [node()]}]),
+                         {type, bag}, {ram_copies, [node()]}]).
 
 update_tables() ->
     case catch mnesia:table_info(external_component, attributes) of

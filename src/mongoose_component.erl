@@ -76,7 +76,7 @@ register_components(Components) ->
     end.
 
 make_components(LDomains, Node, Handler, AreHidden) ->
-    [make_record_component(LDomain, Handler, Node, IsHidden) || LDomain <- LDomains].
+    [make_record_component(LDomain, Handler, Node, AreHidden) || LDomain <- LDomains].
 
 make_record_component(LDomain, Handler, Node, IsHidden) ->
     #external_component{domain = LDomain, handler = Handler,
