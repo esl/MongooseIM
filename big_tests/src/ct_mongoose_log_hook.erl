@@ -1,4 +1,7 @@
-%%% @doc Copy mongooseim.log into CT reports
+%%% @doc This hook copies mongooseim.log into an html file (with labels),
+%%% and inserts links into test case specific html report files. note that
+%%% a temporary html file is created for each link in log_private directory,
+%%% for more information see comments for add_log_link_to_line/5 function.
 -module(ct_mongoose_log_hook).
 
 %% @doc Add the following line in your *.spec file to
@@ -220,13 +223,6 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
     file:write(Writer, Message),
     State#state{current_line_num=CurrentLineNum2}.
 
-add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
-    Label = "L" ++ integer_to_list(LogLine),
-    Heading = "View log from node " ++ atom_to_list(Node) ++ ExtraDescription,
-    %% We need to invent something unique enough here :)
-    LinkName = atom_to_list(Node) ++ "_" ++ integer_to_list(LogLine) ++ ".html",
-    add_log_link(Heading, PrivDir, LinkName, UrlFile, Label).
-
 %% Function `escalus_ct:add_log_link(Heading, URL, Type).'
 %% allows to add simple links.
 %%
@@ -240,7 +236,11 @@ add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
 %% `LinkName' - filename where to write our redirect code inside log_private
 %% `UrlFile' - destination URL to redirect to
 %% `Label' - position in the document
-add_log_link(Heading, PrivDir, LinkName, UrlFile, Label) ->
+add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
+    Label = "L" ++ integer_to_list(LogLine),
+    Heading = "View log from node " ++ atom_to_list(Node) ++ ExtraDescription,
+    %% We need to invent something unique enough here :)
+    LinkName = atom_to_list(Node) ++ "_" ++ integer_to_list(LogLine) ++ ".html",
     URL = UrlFile ++ "#" ++ Label,
     RedirectCode = "<meta http-equiv='refresh' content='0; url=../" ++ URL ++ "' />",
     WhereToWrite = filename:join(PrivDir, LinkName),
