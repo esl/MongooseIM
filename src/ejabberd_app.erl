@@ -118,12 +118,12 @@ stop(_State) ->
 %%% Internal functions
 %%%
 db_init() ->
-    case mongoose_config:get_opt([internal_databases, mnesia], disabled) of
-        disabled ->
-            ok;
-        _ ->
+    case mongoose_config:lookup_opt([internal_databases, mnesia]) of
+        {ok, _} ->
             db_init_mnesia(),
-            mongoose_node_num_mnesia:init()
+            mongoose_node_num_mnesia:init();
+        {error, _} ->
+            ok
     end.
 
 db_init_mnesia() ->
