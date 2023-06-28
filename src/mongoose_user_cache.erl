@@ -79,15 +79,17 @@ do_start_new_cache(HostType, Module, Opts) ->
 
 create_metrics(HostType, Module, CacheName) ->
     telemetry:attach(CacheName,
-                     [CacheName, request],
+                     [segmented_cache, CacheName, request, stop],
                      fun ?MODULE:handle_telemetry_event/4,
                      #{host_type => HostType, cache_name => CacheName, module => Module}),
     mongoose_metrics:ensure_metric(HostType, [Module, hit], counter),
     mongoose_metrics:ensure_metric(HostType, [Module, miss], counter),
     mongoose_metrics:ensure_metric(HostType, [Module, latency], histogram).
 
-handle_telemetry_event([CacheName, request], #{hit := Hit, time := Latency},
-                       _, #{host_type := HostType, cache_name := CacheName, module := Module}) ->
+handle_telemetry_event([segmented_cache, CacheName, request, stop],
+                       #{duration := Latency},
+                       #{hit := Hit},
+                       #{host_type := HostType, cache_name := CacheName, module := Module}) ->
     case Hit of
         true -> mongoose_metrics:update(HostType, [Module, hit], 1);
         false -> mongoose_metrics:update(HostType, [Module, miss], 1)
