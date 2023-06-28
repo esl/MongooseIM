@@ -42,7 +42,7 @@
          remove_info/3,
          get_user_resources/1,
          set_presence/6,
-         unset_presence/5,
+         unset_presence/6,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
          get_node_sessions_number/0,
@@ -286,16 +286,17 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
     mongoose_hooks:set_presence_hook(Acc, JID, Presence).
 
 
--spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
+-spec unset_presence(Acc, SID, JID, Status, Info, Reason) -> Acc1 when
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Status :: binary(),
-      Info :: info().
-unset_presence(Acc, SID, JID, Status, Info) ->
+      Info :: info(),
+      Reason :: term().
+unset_presence(Acc, SID, JID, Status, Info, Reason) ->
     set_session(SID, JID, undefined, Info),
-    mongoose_hooks:unset_presence_hook(Acc, JID, Status).
+    mongoose_hooks:unset_presence_hook(Acc, JID, Status, Reason).
 
 
 -spec get_session_pid(JID) -> none | pid() when

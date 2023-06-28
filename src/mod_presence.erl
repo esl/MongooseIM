@@ -128,7 +128,7 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
     presence_broadcast(Acc1, Presences#presences_state.pres_a),
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
-    mongoose_hooks:unset_presence_hook(Acc1, Jid, Status),
+    mongoose_hooks:unset_presence_hook(Acc1, Jid, Status, Reason),
     {ok, Acc}.
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
@@ -404,7 +404,7 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     Sid = mongoose_c2s:get_sid(StateData),
     Jid = mongoose_c2s:get_jid(StateData),
     Info = mongoose_c2s:get_info(StateData),
-    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, Info),
+    Acc1 = ejabberd_sm:unset_presence(Acc, Sid, Jid, Status, Info, presence_unavailable),
     presence_broadcast(Acc1, Presences#presences_state.pres_a),
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
     NewPresences = Presences#presences_state{pres_last = undefined,

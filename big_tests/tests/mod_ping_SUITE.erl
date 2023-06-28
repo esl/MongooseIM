@@ -242,6 +242,8 @@ server_ping_pong(ConfigIn) ->
                 wait_for_pong_hooks(5)
         end).
 
+%% Server sends a ping request to us.
+%% But we do not respond.
 server_ping_pang(ConfigIn) ->
     HostType = domain_helper:host_type(mim),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
@@ -252,12 +254,14 @@ server_ping_pang(ConfigIn) ->
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
+                TimeoutAction = ?config(timeout_action, Config),
+                maybe_start_hook_monitor(TimeoutAction, HostType),
                 wait_for_ping_req(Alice),
                 %% do not resp to ping req
                 ct:sleep(ping_req_timeout() + timer:seconds(1)/2),
-                TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice),
-                escalus_client:kill_connection(Config, Alice)
+                escalus_client:kill_connection(Config, Alice),
+                check_presence_unset_reason(TimeoutAction, Alice)
         end).
 
 wait_ping_interval(Ration) ->
@@ -268,6 +272,21 @@ check_connection(kill, Client) ->
     false = escalus_connection:is_connected(Client);
 check_connection(_, Client) ->
     true = escalus_connection:is_connected(Client).
+
+maybe_start_hook_monitor(kill, HostType) ->
+    hook_helper:start(distributed_helper:mim(), unset_presence_hook, HostType, 60);
+maybe_start_hook_monitor(_, _) ->
+    skip.
+
+check_presence_unset_reason(kill, Client) ->
+    receive
+        {hook_called, #{params := #{reason := {shutdown, {shutdown, ping_timeout}}}}} ->
+            ok
+        after 5000 ->
+            ct:fail({check_presence_unset_reason_timeout, hook_helper:receive_all()})
+    end;
+check_presence_unset_reason(_, _Client) ->
+    skip.
 
 wait_for_ping_req(Alice) ->
     PingReq = escalus_client:wait_for_stanza(Alice, timer:seconds(10)),

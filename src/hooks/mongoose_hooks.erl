@@ -57,7 +57,7 @@
          sm_filter_offline_message/4,
          sm_register_connection_hook/4,
          sm_remove_connection_hook/5,
-         unset_presence_hook/3,
+         unset_presence_hook/4,
          xmpp_bounce_message/1]).
 
 -export([roster_get/2,
@@ -635,13 +635,14 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(sm_remove_connection_hook, HostType, Acc, Params).
 
--spec unset_presence_hook(Acc, JID, Status) -> Result when
+-spec unset_presence_hook(Acc, JID, Status, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     JID:: jid:jid(),
     Status :: binary(),
+    Reason :: term(),
     Result :: mongoose_acc:t().
-unset_presence_hook(Acc, JID, Status) ->
-    Params = #{jid => JID, status => Status},
+unset_presence_hook(Acc, JID, Status, Reason) ->
+    Params = #{jid => JID, status => Status, reason => Reason},
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(unset_presence_hook, HostType, Acc, Params).
 
