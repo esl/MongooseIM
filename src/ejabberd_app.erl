@@ -136,7 +136,7 @@ db_init_mnesia() ->
         _ ->
             ok
     end,
-    mnesia:start(),
+    application:start(mnesia, permanent),
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 
 -spec broadcast_c2s_shutdown_listeners() -> ok.
