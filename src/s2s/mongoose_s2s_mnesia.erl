@@ -1,4 +1,6 @@
 -module(mongoose_s2s_mnesia).
+-behaviour(mongoose_s2s_backend).
+
 -export([init/1,
          dirty_read_s2s_list_pids/1,
          try_register/3,
