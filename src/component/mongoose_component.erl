@@ -44,7 +44,7 @@ stop() ->
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 90}].
 
--spec register_components([Domain :: domain()],
+-spec register_components(Domain :: [domain()],
                           Node :: node(),
                           Handler :: mongoose_packet_handler:t(),
                           AreHidden :: boolean()) -> {ok, [external_component()]} | {error, any()}.

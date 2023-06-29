@@ -72,7 +72,7 @@
                 conflict_behaviour :: conflict_behaviour(),
                 access,
                 check_from,
-                components = [] :: mongoose_component:external_component()
+                components = [] :: [mongoose_component:external_component()]
               }).
 -type state() :: #state{}.
 
