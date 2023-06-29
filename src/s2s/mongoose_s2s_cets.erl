@@ -1,4 +1,4 @@
--module(ejabberd_s2s_cets).
+-module(mongoose_s2s_cets).
 -export([init/1,
          dirty_read_s2s_list_pids/1,
          try_register/3,
@@ -26,7 +26,7 @@ dirty_read_s2s_list_pids(FromTo) ->
     {ok, Pids}.
 
 try_register(Pid, ShouldWriteF, FromTo) ->
-    L = dirty_read_s2s_list_pids(FromTo),
+    {ok, L} = dirty_read_s2s_list_pids(FromTo),
     case ShouldWriteF(L) of
         true ->
             cets:insert(?TABLE, {{FromTo, Pid}}),

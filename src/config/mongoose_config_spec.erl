@@ -175,7 +175,7 @@ general() ->
                                                     validate = {module, mongoose_component},
                                                     wrap = global_config},
                  <<"s2s_backend">> => #option{type = atom,
-                                              validate = {module, ejabberd_s2s},
+                                              validate = {module, mongoose_s2s},
                                               wrap = global_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,

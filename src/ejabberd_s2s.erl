@@ -352,7 +352,7 @@ max_s2s_connections_number_per_node({From, To}) ->
 
 -spec needed_connections_number([pid()], pos_integer(), pos_integer()) -> integer().
 needed_connections_number(Ls, MaxS2SConnectionsNumber,
-                          MaxS2SConnectionsNumberPerNode) ->
+                          MaxS2SConnectionsNumberPerNode) when is_list(Ls) ->
     LocalLs = [L || L <- Ls, node(L) == node()],
     lists:min([MaxS2SConnectionsNumber - length(Ls),
                MaxS2SConnectionsNumberPerNode - length(LocalLs)]).
@@ -361,7 +361,7 @@ should_write_f(FromTo) ->
     MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
     MaxS2SConnectionsNumberPerNode =
         max_s2s_connections_number_per_node(FromTo),
-    fun(L) ->
+    fun(L) when is_list(L) ->
         NeededConnections = needed_connections_number(
                                   L, MaxS2SConnectionsNumber,
                                   MaxS2SConnectionsNumberPerNode),
@@ -534,12 +534,12 @@ lookup_certfile(HostType) ->
 
 db_init() ->
     Backend = mongoose_config:get_opt(s2s_backend),
-    ejabberd_s2s_backend:init(#{backend => Backend}).
+    mongoose_s2s_backend:init(#{backend => Backend}).
 
 -spec dirty_read_s2s_list_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
 dirty_read_s2s_list_pids(FromTo) ->
     try
-        ejabberd_s2s_backend:dirty_read_s2s_list_pids(FromTo)
+        mongoose_s2s_backend:dirty_read_s2s_list_pids(FromTo)
     catch Class:Reason:Stacktrace ->
         ?LOG_ERROR(#{what => s2s_dirty_read_s2s_list_failed,
                      from_to => FromTo,
@@ -551,18 +551,18 @@ dirty_read_s2s_list_pids(FromTo) ->
 %% Returns true if the connection is registered
 -spec call_try_register(Pid :: pid(), ShouldWriteF :: fun(), FromTo :: fromto()) -> boolean().
 call_try_register(Pid, ShouldWriteF, FromTo) ->
-    ejabberd_s2s_backend:try_register(Pid, ShouldWriteF, FromTo).
+    mongoose_s2s_backend:try_register(Pid, ShouldWriteF, FromTo).
 
 call_node_cleanup(Node) ->
-    ejabberd_s2s_backend:node_cleanup(Node).
+    mongoose_s2s_backend:node_cleanup(Node).
 
 call_remove_connection(FromTo, Pid) ->
-    ejabberd_s2s_backend:remove_connection(FromTo, Pid).
+    mongoose_s2s_backend:remove_connection(FromTo, Pid).
 
 -spec get_shared_secret(mongooseim:host_type()) -> {ok, {secret_source(), base16_secret()}} | {error, not_found}.
 get_shared_secret(HostType) ->
-    ejabberd_s2s_backend:get_shared_secret(HostType).
+    mongoose_s2s_backend:get_shared_secret(HostType).
 
 -spec register_secret(mongooseim:host_type(), ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()) -> ok.
 register_secret(HostType, Source, Secret) ->
-    ejabberd_s2s_backend:register_secret(HostType, Source, Secret).
+    mongoose_s2s_backend:register_secret(HostType, Source, Secret).

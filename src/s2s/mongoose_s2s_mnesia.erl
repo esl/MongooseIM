@@ -1,4 +1,4 @@
--module(ejabberd_s2s_mnesia).
+-module(mongoose_s2s_mnesia).
 -export([init/1,
          dirty_read_s2s_list_pids/1,
          try_register/3,

@@ -1,4 +1,4 @@
--module(ejabberd_s2s_backend).
+-module(mongoose_s2s_backend).
 
 -callback init(map()) ->
     any().
@@ -16,7 +16,7 @@
 
 -ignore_xref([behaviour_info/1]).
 
--define(MAIN_MODULE, ejabberd_s2s).
+-define(MAIN_MODULE, mongoose_s2s).
 
 -spec init(map()) -> any().
 init(Opts) ->
