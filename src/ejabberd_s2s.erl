@@ -41,7 +41,6 @@
          try_register/1,
          remove_connection/2,
          find_connection/2,
-         dirty_get_connections/0,
          allow_host/2,
          domain_utf8_to_ascii/1,
          timeout/0,
@@ -58,7 +57,7 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
--ignore_xref([dirty_get_connections/0, get_info_s2s_connections/1, have_connection/1,
+-ignore_xref([get_info_s2s_connections/1, have_connection/1,
               incoming_s2s_number/0, outgoing_s2s_number/0, start_link/0]).
 
 -include("mongoose.hrl").
@@ -69,19 +68,12 @@
 -define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 1).
 
 -type fromto() :: {'global' | jid:server(), jid:server()}.
--record(s2s, {
-          fromto,
-          pid
-         }).
--type s2s() :: #s2s{
-                  fromto :: fromto(),
-                  pid :: pid()
-                 }.
--record(s2s_shared, {
-                     host_type :: mongooseim:host_type(),
-                     secret :: binary()
-                    }).
 -record(state, {}).
+
+-type secret_source() :: config | random.
+-type base16_secret() :: binary().
+
+-export_type([fromto/0, secret_source/0, base16_secret/0]).
 
 %%====================================================================
 %% API
@@ -89,7 +81,7 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link() -> ignore | {error, _} | {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -99,65 +91,44 @@ filter(From, To, Acc, Packet) ->
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
--spec remove_connection(_, pid()) -> 'ok' | {'aborted', _} | {'atomic', _}.
+-spec remove_connection(_, pid()) -> ok.
 remove_connection(FromTo, Pid) ->
-    case catch mnesia:dirty_match_object(s2s, #s2s{fromto = FromTo,
-                                                   pid = Pid}) of
-        [#s2s{pid = Pid}] ->
-            F = fun() ->
-                        mnesia:delete_object(#s2s{fromto = FromTo,
-                                                  pid = Pid})
-                end,
-            mnesia:transaction(F);
-        _ ->
-            ok
-    end.
+    try
+        call_remove_connection(FromTo, Pid)
+    catch Class:Reason:Stacktrace ->
+        ?LOG_ERROR(#{what => s2s_remove_connection_failed,
+                     from_to => FromTo, s2s_pid => Pid,
+                     class => Class, reason => Reason,
+                     stacktrace => Stacktrace})
+    end,
+    ok.
 
 have_connection(FromTo) ->
-    case catch mnesia:dirty_read(s2s, FromTo) of
-        [_] ->
-            true;
-        _ ->
-            false
-    end.
+    get_connections_pids(FromTo) =/= [].
 
--spec get_connections_pids(_) -> ['undefined' | pid()].
+-spec get_connections_pids(_) -> [pid()].
 get_connections_pids(FromTo) ->
-    case catch mnesia:dirty_read(s2s, FromTo) of
-        L when is_list(L) ->
-            [Connection#s2s.pid || Connection <- L];
-        _ ->
+    case dirty_read_s2s_list_pids(FromTo) of
+        {ok, L} when is_list(L) ->
+            L;
+        {error, _} ->
             []
     end.
 
 -spec try_register(fromto()) -> boolean().
 try_register(FromTo) ->
-    MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
-    MaxS2SConnectionsNumberPerNode =
-        max_s2s_connections_number_per_node(FromTo),
-    F = fun() ->
-                L = mnesia:read({s2s, FromTo}),
-                NeededConnections = needed_connections_number(
-                                      L, MaxS2SConnectionsNumber,
-                                      MaxS2SConnectionsNumberPerNode),
-                case NeededConnections > 0 of
-                    true ->
-                        mnesia:write(#s2s{fromto = FromTo,
-                                          pid = self()}),
-                        true;
-                    false ->
-                        false
-                end
-        end,
-    case mnesia:transaction(F) of
-        {atomic, Res} ->
-            Res;
-        _ ->
+    ShouldWriteF = should_write_f(FromTo),
+    Pid = self(),
+    case call_try_register(Pid, ShouldWriteF, FromTo) of
+        true ->
+            true;
+        false ->
+            {FromServer, ToServer} = FromTo,
+            ?LOG_ERROR(#{what => s2s_register_failed,
+                         from_server => FromServer,
+                         to_server => ToServer}),
             false
     end.
-
-dirty_get_connections() ->
-    mnesia:dirty_all_keys(s2s).
 
 %%====================================================================
 %% Hooks callbacks
@@ -165,23 +136,13 @@ dirty_get_connections() ->
 
 -spec node_cleanup(map(), map(), map()) -> {ok, map()}.
 node_cleanup(Acc, #{node := Node}, _) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       s2s,
-                       [{#s2s{pid = '$1', _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    Res = mnesia:async_dirty(F),
+    Res = call_node_cleanup(Node),
     {ok, maps:put(?MODULE, Res, Acc)}.
 
 -spec key(mongooseim:host_type(), {jid:lserver(), jid:lserver()}, binary()) ->
     binary().
 key(HostType, {From, To}, StreamID) ->
-    Secret = get_shared_secret(HostType),
+    {ok, {_, Secret}} = get_shared_secret(HostType),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
@@ -190,75 +151,30 @@ key(HostType, {From, To}, StreamID) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([]) ->
-    mnesia:create_table(s2s, [{ram_copies, [node()]}, {type, bag},
-                              {attributes, record_info(fields, s2s)}]),
-    mnesia:add_table_copy(s2s, node(), ram_copies),
-    mnesia:create_table(s2s_shared, [{ram_copies, [node()]},
-                                     {attributes, record_info(fields, s2s_shared)}]),
-    mnesia:add_table_copy(s2s_shared, node(), ram_copies),
-    {atomic, ok} = set_shared_secret(),
+    db_init(),
+    set_shared_secret(),
     ejabberd_commands:register_commands(commands()),
     gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, {error, unexpected_call}, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     gen_hook:delete_handlers(hooks()),
     ejabberd_commands:unregister_commands(commands()),
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -277,7 +193,7 @@ hooks() ->
 do_route(From, To, Acc, Packet) ->
     ?LOG_DEBUG(#{what => s2s_route, acc => Acc}),
     case find_connection(From, To) of
-        {atomic, Pid} when is_pid(Pid) ->
+        {ok, Pid} when is_pid(Pid) ->
             ?LOG_DEBUG(#{what => s2s_found_connection,
                          text => <<"Send packet to s2s connection">>,
                          s2s_pid => Pid, acc => Acc}),
@@ -289,7 +205,7 @@ do_route(From, To, Acc, Packet) ->
             Acc1 = mongoose_hooks:s2s_send_packet(Acc, From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
             {done, Acc1};
-        {aborted, _Reason} ->
+        {error, _Reason} ->
             case mongoose_acc:stanza_type(Acc) of
                 <<"error">> ->
                     {done, Acc};
@@ -305,8 +221,13 @@ do_route(From, To, Acc, Packet) ->
     end.
 
 -spec find_connection(From :: jid:jid(),
-                      To :: jid:jid()) -> {'aborted', _} | {'atomic', _}.
+                      To :: jid:jid()) -> {ok, pid()} | {error, Reason :: term()}.
 find_connection(From, To) ->
+    find_connection(From, To, 3).
+
+find_connection(_From, _To, 0) ->
+    {error, retries_failed};
+find_connection(From, To, Retries) ->
     #jid{lserver = MyServer} = From,
     #jid{lserver = Server} = To,
     FromTo = {MyServer, Server},
@@ -314,43 +235,30 @@ find_connection(From, To) ->
     MaxS2SConnectionsNumberPerNode =
         max_s2s_connections_number_per_node(FromTo),
     ?LOG_DEBUG(#{what => s2s_find_connection, from_server => MyServer, to_server => Server}),
-    case catch mnesia:dirty_read(s2s, FromTo) of
-        {'EXIT', Reason} ->
-            {aborted, Reason};
-        [] ->
+    case dirty_read_s2s_list_pids(FromTo) of
+        {error, Reason} ->
+            {error, Reason};
+        {ok, []} ->
+            %% TODO too complex, and could cause issues on bursts.
+            %% What would happen if connection is denied?
+            %% Start a pool instead maybe?
+            %% When do we close the connection?
+
             %% We try to establish all the connections if the host is not a
             %% service and if the s2s host is not blacklisted or
             %% is in whitelist:
             maybe_open_several_connections(From, To, MyServer, Server, FromTo,
                                            MaxS2SConnectionsNumber,
-                                           MaxS2SConnectionsNumberPerNode);
-        L when is_list(L) ->
-            maybe_open_missing_connections(From, MyServer, Server, FromTo,
+                                           MaxS2SConnectionsNumberPerNode, Retries);
+        {ok, L} when is_list(L) ->
+            maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
                                            MaxS2SConnectionsNumber,
-                                           MaxS2SConnectionsNumberPerNode, L)
-    end.
-
-maybe_open_missing_connections(From, MyServer, Server, FromTo,
-                               MaxS2SConnectionsNumber,
-                               MaxS2SConnectionsNumberPerNode, L) ->
-    NeededConnections = needed_connections_number(
-                          L, MaxS2SConnectionsNumber,
-                          MaxS2SConnectionsNumberPerNode),
-    case NeededConnections > 0 of
-        true ->
-            %% We establish the missing connections for this pair.
-            open_several_connections(
-              NeededConnections, MyServer,
-              Server, From, FromTo,
-              MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
-        false ->
-            %% We choose a connexion from the pool of opened ones.
-            {atomic, choose_connection(From, L)}
+                                           MaxS2SConnectionsNumberPerNode, L, Retries)
     end.
 
 maybe_open_several_connections(From, To, MyServer, Server, FromTo,
                                MaxS2SConnectionsNumber,
-                               MaxS2SConnectionsNumberPerNode) ->
+                               MaxS2SConnectionsNumberPerNode, Retries) ->
     %% We try to establish all the connections if the host is not a
     %% service and if the s2s host is not blacklisted or
     %% is in whitelist:
@@ -360,18 +268,31 @@ maybe_open_several_connections(From, To, MyServer, Server, FromTo,
                                   [], MaxS2SConnectionsNumber,
                                   MaxS2SConnectionsNumberPerNode),
             open_several_connections(
-              NeededConnections, MyServer,
-              Server, From, FromTo,
-              MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
+                NeededConnections, MyServer, Server, FromTo),
+            find_connection(From, To, Retries - 1);
         false ->
-            {aborted, error}
+            {error, not_allowed}
     end.
 
--spec choose_connection(From :: jid:jid(),
-                        Connections :: [s2s()]) -> any().
-choose_connection(From, Connections) ->
-    choose_pid(From, [C#s2s.pid || C <- Connections]).
+maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
+                               MaxS2SConnectionsNumber,
+                               MaxS2SConnectionsNumberPerNode, L, Retries) ->
+    NeededConnections = needed_connections_number(
+                          L, MaxS2SConnectionsNumber,
+                          MaxS2SConnectionsNumberPerNode),
+    case NeededConnections > 0 of
+        true ->
+            %% We establish the missing connections for this pair.
+            open_several_connections(
+              NeededConnections, MyServer,
+              Server, FromTo),
+            find_connection(From, To, Retries - 1);
+        false ->
+            %% We choose a connexion from the pool of opened ones.
+            {ok, choose_pid(From, L)}
+    end.
 
+%% Prefers the local connection (i.e. not on the remote node)
 -spec choose_pid(From :: jid:jid(), Pids :: [pid()]) -> pid().
 choose_pid(From, Pids) ->
     Pids1 = case [P || P <- Pids, node(P) == node()] of
@@ -385,57 +306,33 @@ choose_pid(From, Pids) ->
     Pid.
 
 -spec open_several_connections(N :: pos_integer(), MyServer :: jid:server(),
-    Server :: jid:server(), From :: jid:jid(), FromTo :: fromto(),
-    MaxS2S :: pos_integer(), MaxS2SPerNode :: pos_integer())
-      -> {'aborted', _} | {'atomic', _}.
-open_several_connections(N, MyServer, Server, From, FromTo,
-                         MaxS2SConnectionsNumber,
-                         MaxS2SConnectionsNumberPerNode) ->
-    ConnectionsResult =
-        [new_connection(MyServer, Server, From, FromTo,
-                        MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode)
-         || _N <- lists:seq(1, N)],
-    case [PID || {atomic, PID} <- ConnectionsResult] of
-        [] ->
-            hd(ConnectionsResult);
-        PIDs ->
-            {atomic, choose_pid(From, PIDs)}
-    end.
+    Server :: jid:server(), FromTo :: fromto()) -> ok.
+open_several_connections(N, MyServer, Server, FromTo) ->
+    ShouldWriteF = should_write_f(FromTo),
+    [new_connection(MyServer, Server, FromTo, ShouldWriteF)
+     || _N <- lists:seq(1, N)],
+    ok.
 
 -spec new_connection(MyServer :: jid:server(), Server :: jid:server(),
-    From :: jid:jid(), FromTo :: fromto(), MaxS2S :: pos_integer(),
-    MaxS2SPerNode :: pos_integer()) -> {'aborted', _} | {'atomic', _}.
-new_connection(MyServer, Server, From, FromTo = {FromServer, ToServer},
-               MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode) ->
-    {ok, Pid} = ejabberd_s2s_out:start(
-                  MyServer, Server, new),
-    F = fun() ->
-                L = mnesia:read({s2s, FromTo}),
-                NeededConnections = needed_connections_number(
-                                      L, MaxS2SConnectionsNumber,
-                                      MaxS2SConnectionsNumberPerNode),
-                case NeededConnections > 0 of
-                    true ->
-                        mnesia:write(#s2s{fromto = FromTo,
-                                          pid = Pid}),
-                        ?LOG_INFO(#{what => s2s_new_connection,
-                                    text => <<"New s2s connection started">>,
-                                    from_server => FromServer,
-                                    to_server => ToServer,
-                                    s2s_pid => Pid}),
-                        Pid;
-                    false ->
-                        choose_connection(From, L)
-                end
-        end,
-    TRes = mnesia:transaction(F),
-    case TRes of
-        {atomic, Pid} ->
+                     FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
+new_connection(MyServer, Server, FromTo, ShouldWriteF) ->
+    {ok, Pid} = ejabberd_s2s_out:start(MyServer, Server, new),
+    case call_try_register(Pid, ShouldWriteF, FromTo) of
+        true ->
+            log_new_connection_result(Pid, FromTo),
             ejabberd_s2s_out:start_connection(Pid);
-        _ ->
+        false ->
             ejabberd_s2s_out:stop_connection(Pid)
     end,
-    TRes.
+    ok.
+
+log_new_connection_result(Pid, FromTo) ->
+    {FromServer, ToServer} = FromTo,
+    ?LOG_INFO(#{what => s2s_new_connection,
+                text => <<"New s2s connection started">>,
+                from_server => FromServer,
+                to_server => ToServer,
+                s2s_pid => Pid}).
 
 -spec max_s2s_connections_number(fromto()) -> pos_integer().
 max_s2s_connections_number({From, To}) ->
@@ -453,12 +350,23 @@ max_s2s_connections_number_per_node({From, To}) ->
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE
     end.
 
--spec needed_connections_number([any()], pos_integer(), pos_integer()) -> integer().
+-spec needed_connections_number([pid()], pos_integer(), pos_integer()) -> integer().
 needed_connections_number(Ls, MaxS2SConnectionsNumber,
                           MaxS2SConnectionsNumberPerNode) ->
-    LocalLs = [L || L <- Ls, node(L#s2s.pid) == node()],
+    LocalLs = [L || L <- Ls, node(L) == node()],
     lists:min([MaxS2SConnectionsNumber - length(Ls),
                MaxS2SConnectionsNumberPerNode - length(LocalLs)]).
+
+should_write_f(FromTo) ->
+    MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
+    MaxS2SConnectionsNumberPerNode =
+        max_s2s_connections_number_per_node(FromTo),
+    fun(L) ->
+        NeededConnections = needed_connections_number(
+                                  L, MaxS2SConnectionsNumber,
+                                  MaxS2SConnectionsNumberPerNode),
+        NeededConnections > 0
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: is_service(From, To) -> true | false
@@ -571,12 +479,12 @@ get_s2s_info(Connections, Type)->
 complete_s2s_info([], _, Result)->
     Result;
 complete_s2s_info([Connection|T], Type, Result)->
-    {_, PID, _, _}=Connection,
+    {_, PID, _, _} = Connection,
     State = get_s2s_state(PID),
     complete_s2s_info(T, Type, [State|Result]).
 
 -spec get_s2s_state(connstate()) -> [{atom(), any()}, ...].
-get_s2s_state(S2sPid)->
+get_s2s_state(S2sPid) ->
     Infos = case gen_fsm_compat:sync_send_all_state_event(S2sPid, get_state_infos) of
                 {state_infos, Is} -> [{status, open} | Is];
                 {noproc, _} -> [{status, closed}]; %% Connection closed
@@ -584,27 +492,33 @@ get_s2s_state(S2sPid)->
             end,
     [{s2s_pid, S2sPid} | Infos].
 
--spec get_shared_secret(mongooseim:host_type()) -> binary().
-get_shared_secret(HostType) ->
-    [#s2s_shared{secret = Secret}] = ets:lookup(s2s_shared, HostType),
-    Secret.
-
--spec set_shared_secret() -> {atomic, ok} | {aborted, term()}.
+-spec set_shared_secret() -> ok.
 set_shared_secret() ->
-    mnesia:transaction(fun() ->
-                               [set_shared_secret_t(HostType) || HostType <- ?ALL_HOST_TYPES],
-                               ok
-                       end).
+    [set_shared_secret(HostType) || HostType <- ?ALL_HOST_TYPES],
+    ok.
 
--spec set_shared_secret_t(mongooseim:host_type()) -> ok.
-set_shared_secret_t(HostType) ->
-    Secret = case mongoose_config:lookup_opt([{s2s, HostType}, shared]) of
-                 {ok, SecretFromConfig} ->
-                     SecretFromConfig;
-                 {error, not_found} ->
-                     base16:encode(crypto:strong_rand_bytes(10))
-             end,
-    mnesia:write(#s2s_shared{host_type = HostType, secret = Secret}).
+set_shared_secret(HostType) ->
+    {Source, Secret} = get_shared_secret_from_config_or_make_new(HostType),
+    case get_shared_secret(HostType) of
+        {error, not_found} ->
+            %% Write secret for the first time
+            register_secret(HostType, Source, Secret);
+        {ok, {_, OldSecret}} when OldSecret =:= Secret ->
+            skip_same;
+        {ok, _} when Source =:= config ->
+            ?LOG_INFO(#{what => overwrite_secret_from_config}),
+            register_secret(HostType, Source, Secret);
+        {ok, _} ->
+            ok
+    end.
+
+get_shared_secret_from_config_or_make_new(HostType) ->
+    case mongoose_config:lookup_opt([{s2s, HostType}, shared]) of
+        {ok, SecretFromConfig} ->
+            {config, SecretFromConfig};
+        {error, not_found} ->
+            {random, base16:encode(crypto:strong_rand_bytes(10))}
+    end.
 
 -spec lookup_certfile(mongooseim:host_type()) -> {ok, string()} | {error, not_found}.
 lookup_certfile(HostType) ->
@@ -614,3 +528,41 @@ lookup_certfile(HostType) ->
         {error, not_found} ->
             mongoose_config:lookup_opt([{s2s, HostType}, certfile])
     end.
+
+
+%% Backend logic below:
+
+db_init() ->
+    Backend = mongoose_config:get_opt(s2s_backend),
+    ejabberd_s2s_backend:init(#{backend => Backend}).
+
+-spec dirty_read_s2s_list_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
+dirty_read_s2s_list_pids(FromTo) ->
+    try
+        ejabberd_s2s_backend:dirty_read_s2s_list_pids(FromTo)
+    catch Class:Reason:Stacktrace ->
+        ?LOG_ERROR(#{what => s2s_dirty_read_s2s_list_failed,
+                     from_to => FromTo,
+                     class => Class, reason => Reason,
+                     stacktrace => Stacktrace}),
+         {error, Reason}
+    end.
+
+%% Returns true if the connection is registered
+-spec call_try_register(Pid :: pid(), ShouldWriteF :: fun(), FromTo :: fromto()) -> boolean().
+call_try_register(Pid, ShouldWriteF, FromTo) ->
+    ejabberd_s2s_backend:try_register(Pid, ShouldWriteF, FromTo).
+
+call_node_cleanup(Node) ->
+    ejabberd_s2s_backend:node_cleanup(Node).
+
+call_remove_connection(FromTo, Pid) ->
+    ejabberd_s2s_backend:remove_connection(FromTo, Pid).
+
+-spec get_shared_secret(mongooseim:host_type()) -> {ok, {secret_source(), base16_secret()}} | {error, not_found}.
+get_shared_secret(HostType) ->
+    ejabberd_s2s_backend:get_shared_secret(HostType).
+
+-spec register_secret(mongooseim:host_type(), ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()) -> ok.
+register_secret(HostType, Source, Secret) ->
+    ejabberd_s2s_backend:register_secret(HostType, Source, Secret).
