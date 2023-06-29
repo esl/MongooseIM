@@ -190,6 +190,7 @@ minimal_config_opts() ->
      {services, #{}},
      {sm_backend, mnesia},
      {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
