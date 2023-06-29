@@ -108,6 +108,7 @@ opts() ->
     [{hosts, [?HOST]},
      {host_types, []},
      {all_metrics_are_global, false},
+     {s2s_backend, mnesia},
      {{modules, ?HOST}, #{}}].
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
