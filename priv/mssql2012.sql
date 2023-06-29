@@ -757,5 +757,7 @@ CREATE TABLE discovery_nodes (
     node_name varchar(250),
     cluster_name varchar(250),
     updated_timestamp BIGINT NOT NULL, -- in microseconds
+    node_num INT NOT NULL,
     PRIMARY KEY (cluster_name, node_name)
 );
+CREATE UNIQUE INDEX i_discovery_nodes_node_num ON discovery_nodes(cluster_name, node_num);

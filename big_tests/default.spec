@@ -117,6 +117,7 @@
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", tcp_listener_SUITE}.
 {suites, "tests", cets_disco_SUITE}.
+{suites, "tests", start_node_id_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.

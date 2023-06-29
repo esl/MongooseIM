@@ -32,6 +32,7 @@ all() ->
     ].
 
 init_per_suite(Config) ->
+    mim_ct_sup:start_link(ejabberd_sup),
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),

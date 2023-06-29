@@ -179,9 +179,9 @@ get_or_generate_mam_id(Acc) ->
 
 -spec generate_message_id(integer()) -> integer().
 generate_message_id(CandidateStamp) ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
+    NodeNum = mongoose_node_num:node_num(),
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
-    encode_compact_uuid(UniqueStamp, NodeId).
+    encode_compact_uuid(UniqueStamp, NodeNum).
 
 %% @doc Create a message ID (UID).
 %%
@@ -189,17 +189,17 @@ generate_message_id(CandidateStamp) ->
 %% It puts node id as a last byte.
 %% The maximum date, that can be encoded is `{{4253, 5, 31}, {22, 20, 37}}'.
 -spec encode_compact_uuid(integer(), integer()) -> integer().
-encode_compact_uuid(Microseconds, NodeId)
-    when is_integer(Microseconds), is_integer(NodeId) ->
-    (Microseconds bsl 8) + NodeId.
+encode_compact_uuid(Microseconds, NodeNum)
+    when is_integer(Microseconds), is_integer(NodeNum) ->
+    (Microseconds bsl 8) + NodeNum.
 
 
 %% @doc Extract date and node id from a message id.
 -spec decode_compact_uuid(integer()) -> {integer(), byte()}.
 decode_compact_uuid(Id) ->
     Microseconds = Id bsr 8,
-    NodeId = Id band 255,
-    {Microseconds, NodeId}.
+    NodeNum = Id band 255,
+    {Microseconds, NodeNum}.
 
 
 %% @doc Encode a message ID to pass it to the user.

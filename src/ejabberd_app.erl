@@ -40,18 +40,30 @@
 %%%
 
 start(normal, _Args) ->
+    try
+        do_start()
+    catch Class:Reason:StackTrace ->
+        %% Log a stacktrace because while proc_lib:crash_report/4 would report a crash reason,
+        %% it would not report the stacktrace
+        ?LOG_CRITICAL(#{what => app_failed_to_start,
+                        class => Class, reason => Reason, stacktrace => StackTrace}),
+        erlang:raise(Class, Reason, StackTrace)
+    end;
+start(_, _) ->
+    {error, badarg}.
+
+do_start() ->
     mongoose_fips:notify(),
     write_pid_file(),
     update_status_file(starting),
-    db_init(),
     application:start(cache_tab),
 
     mongoose_graphql:init(),
     translate:start(),
-    ejabberd_node_id:start(),
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
+    db_init(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
@@ -72,9 +84,7 @@ start(normal, _Args) ->
     ejabberd_admin:start(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
-    Sup;
-start(_, _) ->
-    {error, badarg}.
+    Sup.
 
 %% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
@@ -97,6 +107,9 @@ stop(_State) ->
     ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),
+    %% We cannot stop other applications inside of the stop callback
+    %% (because we would deadlock the application controller process).
+    %% That is why we call mnesia:stop() inside of db_init_mnesia() instead.
     %%ejabberd_debug:stop(),
     ok.
 
@@ -105,14 +118,25 @@ stop(_State) ->
 %%% Internal functions
 %%%
 db_init() ->
+    case mongoose_config:lookup_opt([internal_databases, mnesia]) of
+        {ok, _} ->
+            db_init_mnesia(),
+            mongoose_node_num_mnesia:init();
+        {error, _} ->
+            ok
+    end.
+
+db_init_mnesia() ->
+    %% Mnesia should not be running at this point, unless it is started by tests.
+    %% Ensure Mnesia is stopped
+    mnesia:stop(),
     case mnesia:system_info(extra_db_nodes) of
         [] ->
-            application:stop(mnesia),
-            mnesia:create_schema([node()]),
-            application:start(mnesia, permanent);
+            mnesia:create_schema([node()]);
         _ ->
             ok
     end,
+    application:start(mnesia, permanent),
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 
 -spec broadcast_c2s_shutdown_listeners() -> ok.
