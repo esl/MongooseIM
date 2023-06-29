@@ -58,7 +58,7 @@
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
--type return_hidden() :: ejabberd_router:return_hidden().
+-type return_hidden() :: mongoose_component:return_hidden().
 -type server_info() :: #{name := binary(), urls := [binary()], modules => module()}.
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -291,7 +291,7 @@ get_external_components(Domain, ReturnHidden) ->
     lists:filter(
       fun(Component) ->
               check_if_host_is_the_shortest_suffix_for_route(Component, Domain, StaticDomains)
-      end, ejabberd_router:dirty_get_all_components(ReturnHidden)).
+      end, mongoose_component:dirty_get_all_components(ReturnHidden)).
 
 -spec check_if_host_is_the_shortest_suffix_for_route(
         Route :: jid:lserver(), Host :: jid:lserver(), VHosts :: [jid:lserver()]) -> boolean().
