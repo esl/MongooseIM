@@ -16,7 +16,8 @@ start_link() ->
 
 -spec start_child(supervisor:child_spec()) -> ok.
 start_child(ChildSpec) ->
-    {ok, _Pid} = supervisor:start_child(?MODULE, ChildSpec),
+    Res = supervisor:start_child(?MODULE, ChildSpec),
+    check_start_child_result(Res, ChildSpec),
     ok.
 
 %% Supervisor callbacks
@@ -26,3 +27,5 @@ init([]) ->
     {ok, {#{strategy => one_for_one,
             intensity => 10,
             period => 1}, []}}.
+
+check_start_child_result({ok, _Pid}, _ChildSpec) -> ok.
