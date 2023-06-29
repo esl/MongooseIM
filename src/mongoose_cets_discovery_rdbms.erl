@@ -34,7 +34,7 @@ try_register(ClusterName, NodeBin) when is_binary(NodeBin), is_binary(ClusterNam
     Node = binary_to_atom(NodeBin),
     prepare(),
     {selected, Rows} = select(ClusterName),
-    Pairs = [{binary_to_atom(NodeBin), Num} || {NodeBin, Num} <- Rows],
+    Pairs = [{binary_to_atom(DbNodeBin), Num} || {DbNodeBin, Num} <- Rows],
     {Nodes, Nums} = lists:unzip(Pairs),
     AlreadyRegistered = lists:member(Node, Nodes),
     Timestamp = timestamp(),
