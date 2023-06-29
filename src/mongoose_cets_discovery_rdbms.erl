@@ -19,9 +19,11 @@ init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     try
-        {Num, Nodes, Info} = try_register(ClusterName, Node),
-        mongoose_node_num:set_node_num(Num),
-        {{ok, Nodes}, State#{last_query_info => Info}}
+        try_register(ClusterName, Node)
+    of
+        {Num, Nodes, Info} ->
+            mongoose_node_num:set_node_num(Num),
+            {{ok, Nodes}, State#{last_query_info => Info}}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
