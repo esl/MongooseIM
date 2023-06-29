@@ -9,7 +9,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => term()}.
+-type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => map()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().

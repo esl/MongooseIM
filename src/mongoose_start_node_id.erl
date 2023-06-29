@@ -1,4 +1,4 @@
-%% Generates an unique ID on the node start.
+%% Generates a unique ID on the node start.
 %% Registers the ID on all other nodes.
 %% Used in ejabberd_local to find to which node to route IQ responses.
 -module(mongoose_start_node_id).
