@@ -20,12 +20,11 @@ init(_) ->
     mnesia:add_table_copy(external_component, node(), ram_copies).
 
 update_tables() ->
-    case catch mnesia:table_info(external_component, attributes) of
-        [domain, handler, node] ->
+    %% delete old schema
+    case catch mnesia:table_info(external_componenst, local_content) of
+        true ->
             mnesia:delete_table(external_component);
-        [domain, handler, node, is_hidden] ->
-            ok;
-        {'EXIT', _} ->
+        _ ->
             ok
     end.
 
