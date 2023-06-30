@@ -36,6 +36,7 @@ end_per_suite(_C) ->
 
 opts() ->
     [{all_metrics_are_global, false},
+     {component_backend, mnesia},
      {routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]}].
 
 registering(_C) ->
