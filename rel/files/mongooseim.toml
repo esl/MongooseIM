@@ -246,6 +246,9 @@
 {{{mod_vcard}}}
 {{/mod_vcard}}
 [modules.mod_bosh]
+  {{#bosh_backend}}
+  backend = {{{bosh_backend}}}
+  {{/bosh_backend}}
 
 [modules.mod_carboncopy]
 

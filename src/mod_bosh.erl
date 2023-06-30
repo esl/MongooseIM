@@ -341,10 +341,10 @@ maybe_start_session_on_known_host(HostType, Req, Body, Opts) ->
     try
         maybe_start_session_on_known_host_unsafe(HostType, Req, Body, Opts)
     catch
-        error:Reason ->
+        error:Reason:Stacktrace ->
             %% It's here because something catch-y was here before
             ?LOG_ERROR(#{what => bosh_stop, issue => undefined_condition,
-                         reason => Reason}),
+                         reason => Reason, stacktrace => Stacktrace}),
             Req1 = terminal_condition(<<"undefined-condition">>, [], Req),
             {false, Req1}
     end.
@@ -373,9 +373,13 @@ start_session(HostType, Peer, PeerCert, Body, Opts) ->
 store_session(Sid, Socket) ->
     mod_bosh_backend:create_session(#bosh_session{sid = Sid, socket = Socket}).
 
+%% MUST be unique and unpredictable
+%% https://xmpp.org/extensions/xep-0124.html#security-sidrid
+%% Also, CETS requires to use node as a part of the key
+%% (but if the key is always random CETS is happy with that too)
 -spec make_sid() -> binary().
 make_sid() ->
-    mongoose_bin:encode_crypto(term_to_binary(make_ref())).
+    base16:encode(crypto:strong_rand_bytes(20)).
 
 %%--------------------------------------------------------------------
 %% HTTP errors
