@@ -918,15 +918,17 @@ start_new_room(HostType, ServerHost, MucHost, Access, Room,
 
 register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid) ->
     case register_room(HostType, MucHost, Room, Pid) of
-        {_, ok} ->
+        ok ->
             {ok, Pid};
-        {_, {exists, OldPid}} ->
+        {exists, OldPid} ->
             mod_muc_room:stop(Pid),
-            {ok, OldPid}
+            {ok, OldPid};
+        {error, Reason} ->
+            error({failed_to_register, MucHost, Room, Pid, Reason})
     end.
 
 -spec register_room(HostType :: host_type(), jid:server(), room(),
-                    pid()) -> {'aborted', _} | {'atomic', _}.
+                    pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
     F = fun() ->
             case mnesia:read(muc_online_room,  {Room, MucHost}, write) of
@@ -938,8 +940,12 @@ register_room(HostType, MucHost, Room, Pid) ->
                     {exists, R#muc_online_room.pid}
             end
         end,
-    mnesia:transaction(F).
+    simple_transaction_result(mnesia:transaction(F)).
 
+simple_transaction_result({atomic, Res}) ->
+    Res;
+simple_transaction_result({aborted, Reason}) ->
+    {error, Reason}.
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
