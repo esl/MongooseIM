@@ -163,9 +163,9 @@ init([]) ->
            Hooks,
            Cleaner,
            SMBackendSupervisor,
-           Router,
            OutgoingPoolsSupervisor
            ] ++ cets_specs() ++ [
+           Router,
            S2S,
            Local,
            ReceiverSupervisor,
