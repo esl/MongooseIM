@@ -82,6 +82,7 @@ opts() ->
     [{hosts, [host_type()]},
      {host_types, []},
      {all_metrics_are_global, false},
+     {component_backend, mnesia},
      {{modules, host_type()}, #{mod_muc_light => default_mod_config(mod_muc_light)}}].
 
 %% ------------------------------------------------------------------
