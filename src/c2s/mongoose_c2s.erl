@@ -962,7 +962,7 @@ sm_unset_reason(_) ->
 
 %% @doc This is the termination point - from here stanza is sent to the user
 -spec do_send_element(data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
-do_send_element(StateData = #c2s_data{host_type = <<>>}, El, Acc) ->
+do_send_element(StateData = #c2s_data{host_type = undefined}, El, Acc) ->
     send_xml(StateData, El),
     Acc;
 do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
