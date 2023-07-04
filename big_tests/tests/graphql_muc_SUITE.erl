@@ -1874,7 +1874,9 @@ assert_is_message_correct(RoomJID, SenderNick, Type, Text, ReceivedMessage) ->
 
 enter_room(RoomJID, User, Nick) ->
     JID = jid:to_binary(jid:replace_resource(RoomJID, Nick)),
-    Pres = escalus_stanza:to(escalus_stanza:presence(<<"available">>, []), JID),
+    Pres = escalus_stanza:to(escalus_stanza:presence(<<"available">>,
+        [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        JID),
     escalus:send(User, Pres),
     escalus:wait_for_stanza(User).
 

@@ -1266,7 +1266,7 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     {ok, Acc}.
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(), 
+    Acc :: mongoose_acc:t(),
     Params :: #{room := jid:jid()},
     Extra :: gen_hook:extra().
 acc_room_affiliations(Acc, #{room := Room}, _) ->

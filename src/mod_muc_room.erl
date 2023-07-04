@@ -1173,8 +1173,14 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     %ejabberd_route(From, To, Packet),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
     StateData;
-handle_new_user(From, Nick, Packet, StateData, _Attrs) ->
-    add_new_user(From, Nick, Packet, StateData).
+handle_new_user(From, Nick, Packet, StateData, Attrs) ->
+    Response = kick_stanza_for_old_protocol(Attrs),
+    case exml_query:path(Packet, [{element, <<"x">>}]) of
+        undefined ->
+            ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response);
+        _ ->
+            add_new_user(From, Nick, Packet, StateData)
+    end.
 
 
 -spec is_user_online(jid:simple_jid() | jid:jid(), state()) -> boolean().
@@ -2331,7 +2337,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
               end,
     Packet = xml:append_subtags(
                Presence,
-               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
@@ -3792,6 +3798,7 @@ identity(Name) ->
 -spec room_features(config()) -> [mongoose_disco:feature()].
 room_features(Config) ->
     [?NS_MUC,
+     ?NS_MUC_STABLE_ID,
      config_opt_to_feature((Config#config.public),
                            <<"muc_public">>, <<"muc_hidden">>),
      config_opt_to_feature((Config#config.persistent),
@@ -4477,10 +4484,11 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From, jid = ToJID}, StateData) ->
+    Packet1 = maybe_add_x_element(Packet),
     {ok, #user{nick = FromNick}} = maps:find(jid:to_lower(From),
         StateData#state.users),
     ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet),
+        jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet1),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery,
                                         allow_pm = true,
@@ -4545,7 +4553,7 @@ make_voice_approval_form(From, Nick, Role) ->
     Instructions = <<"To approve this request"
                      " for voice, select the &quot;Grant voice to this person?&quot; checkbox"
                      " and click OK. To skip this request, click the cancel button.">>,
-    Fields = [#{var => <<"muc#role">>, type => <<"text-single">>,
+    Fields = [#{var => <<"muc#role">>, type => <<"list-single">>,
                 label => <<"Request role">>, values => [Role]},
               #{var => <<"muc#jid">>, type => <<"jid-single">>,
                 label => <<"User ID">>, values => [jid:to_binary(From)]},
@@ -4588,3 +4596,28 @@ get_opt(#state{host_type = HostType}, Opt) ->
 
 read_hibernate_timeout(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout).
+
+maybe_add_x_element(Msg) ->
+    {xmlel, Type, InfoXML, Children} = Msg,
+    case lists:member({xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}, Children) of
+        true -> Msg;
+        false ->
+            NewChildren = lists:append(Children,
+                                       [{xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}]),
+            {xmlel, Type, InfoXML, NewChildren}
+    end.
+
+kick_stanza_for_old_protocol(Attrs) ->
+    % here!
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    ErrText = <<"You are not in the room.">>,
+    ErrText2 = translate:translate(Lang, ErrText),
+    Response = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"unavailable">>}]},
+    ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
+    ItemEls = [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = ErrText2}]}],
+    Status = [status_code(110), status_code(307), status_code(333)],
+    xml:append_subtags(
+        Response,
+        [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
+                children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
+                                   children = ItemEls} | Status]}]).
