@@ -24,7 +24,6 @@
 -export([
 	 test_minio_upload_without_content_type/1,
 	 test_minio_upload_with_content_type/1,
-
 	 http_upload_item_discovery/1,
 	 http_upload_feature_discovery/1,
 	 advertises_max_file_size/1,
@@ -33,6 +32,7 @@
 	 rejects_disco_set_iq/1,
 	 rejects_feature_discovery_with_node/1,
 	 get_url_ends_with_filename/1,
+	 get_url_ends_with_filename_with_unicode_characters/1,
 	 urls_contain_s3_hostname/1,
 	 rejects_empty_filename/1,
 	 rejects_negative_filesize/1,
@@ -64,6 +64,7 @@ groups() ->
                                rejects_disco_set_iq,
                                rejects_feature_discovery_with_node,
                                get_url_ends_with_filename,
+                               get_url_ends_with_filename_with_unicode_characters,
                                urls_contain_s3_hostname,
                                rejects_empty_filename,
                                rejects_negative_filesize,
@@ -229,6 +230,17 @@ get_url_ends_with_filename(Config) ->
               Request = create_slot_request_stanza(ServJID, Filename, 123, undefined),
               Result = escalus:send_and_wait(Bob, Request),
               escalus:assert(fun path_ends_with/3, [<<"get">>, Filename], Result)
+      end).
+
+get_url_ends_with_filename_with_unicode_characters(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              Filename = unicode:characters_to_binary("très cool.jpg"),
+              Request = create_slot_request_stanza(ServJID, Filename, 123, undefined),
+              Result = escalus:send_and_wait(Bob, Request),
+              escalus:assert(fun path_ends_with/3, [<<"get">>, <<"tr%C3%A8s%20cool.jpg">>], Result)
       end).
 
 urls_contain_s3_hostname(Config) ->
