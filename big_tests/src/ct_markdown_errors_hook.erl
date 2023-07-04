@@ -76,23 +76,15 @@ handle_return_unsafe(SuiteName, Place, Return, Config, State) ->
             exec_limited_number_of_times(F, State)
     end.
 
-exec_limited_number_of_times(_F, State=#state{limit=0, file=_File,
-                                             truncated_counter_file = TrFile}) ->
-    %% Log truncated, increment counter
-    TrCounter = old_truncated_counter_value(TrFile),
-    file:write_file(TrFile, integer_to_binary(TrCounter+1)),
-    State;
-exec_limited_number_of_times(F, State=#state{limit=Limit}) ->
+exec_limited_number_of_times(F, State=#state{limit=Limit}) when Limit > 0->
     F(),
+    State#state{limit=Limit-1};
+exec_limited_number_of_times(_F, State=#state{truncated_counter_file = TrFile,
+                                              limit=Limit, file=_File})->
+    %% Log truncated, increment counter
+    TrCounter = (-1 * Limit),
+    file:write_file(TrFile, integer_to_binary(TrCounter+1)),
     State#state{limit=Limit-1}.
-
-old_truncated_counter_value(TrFile) ->
-    case file:read_file(TrFile) of
-        {ok, Bin} ->
-            binary_to_integer(Bin);
-        _ ->
-            0
-    end.
 
 log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
     SummaryText = make_summary_text(SuiteName, GroupName, Place),
@@ -100,7 +92,6 @@ log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
     ok.
 
 log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File, summary_file = _SummaryFile}) ->
-    _MaybeLogLink = make_log_link(Config),
     LogLink = make_log_link(Config),
     %% Spoler syntax
     %% https://github.com/dear-github/dear-github/issues/166

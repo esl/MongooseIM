@@ -87,8 +87,7 @@ start_tracing() ->
         {ok, _Pid} ->
             dbg:p(all, call),
             % dbg:tp(?MODULE, []),
-            % dbg:tpl(ct_markdown_errors_hook, cx),
-            dbg:tp(ct_groups_summary_hook, cx),
+            dbg:tp(ct_markdown_errors_hook, cx),
             ok;
         {error, already_started} ->
             ok

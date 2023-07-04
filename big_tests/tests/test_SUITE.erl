@@ -6,19 +6,19 @@
 -define(ERROR(E), (error(E))).
 % -define(ERROR(E), (exit(E))).
 
-all() -> [{group, passing_repeating_group_with_autoskip}].
-    % [{group, test_group},
-    %  {group, skipped_test_group},
-    %  {group, failing_test_group_1},
-    %  {group, failing_test_group_2},
-    %  {group, nested_test_group},
-    %  {group, deeply_nested_test_group},
-    %  {group, failing_nested_test_group_1},
-    %  {group, failing_nested_test_group_2},
-    %  {group, failing_repeating_group},
-    %  {group, passing_repeating_group},
-    %  {group, passing_repeating_group_with_autoskip}
-    %  | test_cases() ].
+all() ->
+    [{group, test_group},
+     {group, skipped_test_group},
+     {group, failing_test_group_1},
+     {group, failing_test_group_2},
+     {group, nested_test_group},
+     {group, deeply_nested_test_group},
+     {group, failing_nested_test_group_1},
+     {group, failing_nested_test_group_2},
+     {group, failing_repeating_group},
+     {group, passing_repeating_group},
+     {group, passing_repeating_group_with_autoskip}
+     | test_cases() ].
 
 groups() ->
     [{test_group, [], test_cases()},

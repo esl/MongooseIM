@@ -17,6 +17,9 @@
 %%% and an overall resulting all_groups.summary file.
 {ct_hooks, [ct_groups_summary_hook]}.
 
+%%% this hook generates /tmp/ct_summary, /tmp/ct_markdown
+%%% and /tmp/ct_markdown_truncated. these files are required
+%%% for GH and GA4 CI reporting.
 {ct_hooks, [ct_markdown_errors_hook]}.
 
 %%% this hook prints execution summary in the end of
