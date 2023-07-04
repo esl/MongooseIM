@@ -14,6 +14,10 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-record(group_status, {status = ok :: ok | failed,
+                       n_failed = 0 :: pos_integer(),
+                       failed = [] :: list()}).
+
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
     "ct_results_summary_hook_001".
@@ -64,41 +68,59 @@ update_group_status(GroupName, Config, State) ->
     case lists:keyfind(tc_group_properties, 1, Config) of
         false -> State;
         {tc_group_properties, Properties} ->
-            case proplists:is_defined(repeat_until_all_ok, Properties) of
-                false -> State;
-                true ->
-                    GroupNameWPath = group_name_with_path(GroupName, Config),
-                    GroupResult = ?config(tc_group_result, Config),
-                    case proplists:get_value(failed, GroupResult, []) of
-                        [] ->
-                            %% If there are no failed cases, then the only skipped cases present
-                            %% in the group result are user-skipped cases.
-                            %% In this case we do not want to fail the whole group.
-                            do_update_group_status(ok, GroupNameWPath, 0, State);
-                        Failed ->
-                            %% If there are failed cases, it doesn't matter if the skipped cases
-                            %% are user-skipped or auto-skipped (which might depend on `sequence`
-                            %% group property being enabled or not) - we fail in either case.
-                            %% TODO: Report to the respective GitHub PR
-                            ct:pal("Failed in this group: ~p", [Failed]),
-                            do_update_group_status(failed, GroupNameWPath, length(Failed), State)
-                    end
-            end
+            GroupNameWPath = group_name_with_path(GroupName, Config),
+            GroupResult = ?config(tc_group_result, Config),
+            Failed = proplists:get_value(failed, GroupResult, []),
+            Status = case Failed of
+                         [] ->
+                             %% If there are no failed cases, then the only skipped cases present
+                             %% in the group result are user-skipped cases.
+                             %% In this case we do not want to fail the whole group.
+                             ok;
+                         _ ->
+                             %% If there are failed cases, it doesn't matter if the skipped cases
+                             %% are user-skipped or auto-skipped (which might depend on `sequence`
+                             %% group property being enabled or not) - we fail in either case.
+                             failed
+                     end,
+            RepeatFlag = proplists:is_defined(repeat_until_all_ok, Properties),
+            do_update_group_status(RepeatFlag, Status, GroupNameWPath, Failed, State)
     end.
 
 
-do_update_group_status(Status, GroupNameWPath, NFailed, #{current_suite := CurrentSuite} = State) ->
+do_update_group_status(RepeatFlag, Status, GroupNameWPath, Failed,
+                       #{current_suite := CurrentSuite} = State) ->
     SuiteState = maps:get(CurrentSuite, State),
+    NewGroupStatus = #group_status{status = Status, n_failed = length(Failed),
+                                   failed = Failed},
     NewSuiteState = case maps:get(GroupNameWPath, SuiteState, undefined) of
+                        undefined when RepeatFlag =:= true ->
+                            %% repeat_until_all_ok flag works like a counter.
+                            %% it decreases with every subsequent run, and it
+                            %% is not set at all on the last attempt. so we
+                            %% want add a new group status info only if flag
+                            %% is set. otherwise, we want to update the status
+                            %% only if group is already stored.
+                            SuiteState#{GroupNameWPath => NewGroupStatus};
                         undefined ->
-                            SuiteState#{GroupNameWPath => group_status(Status, NFailed)};
-                        {_PrevStatus, {n_failed, NFailedAcc}} ->
-                            SuiteState#{GroupNameWPath => group_status(Status, NFailed + NFailedAcc)}
+                            SuiteState;
+                        PrevGroupStatus ->
+                            SuiteState#{GroupNameWPath := merge_group_status(PrevGroupStatus,
+                                                                             NewGroupStatus)}
                     end,
     State#{CurrentSuite := NewSuiteState}.
 
-group_status(Status, NFailed) ->
-    {Status, {n_failed, NFailed}}.
+merge_group_status(#group_status{failed = PrevFailed,
+                                 n_failed = PrevNFailed} = _PrevGroupStatus,
+                   #group_status{status = NewStatus, failed = NewFailed,
+                                 n_failed = NewNFailed} = _NewGroupStatus) ->
+    MergedFailed = lists:umerge(lists:usort(PrevFailed),lists:usort(NewFailed)),
+    %% we need to count the number of fails, not the number of failed test cases
+    %% (i.e. length(MergedFailed)). that's because we compare it with the number
+    %% of failed test cases reported in suite.summary files, for more details see
+    %% summarise-ct-results script.
+    MergedNFailed = PrevNFailed + NewNFailed,
+    #group_status{status = NewStatus, n_failed = MergedNFailed, failed = MergedFailed}.
 
 
 group_name_with_path(GroupName, Config) ->
@@ -131,13 +153,12 @@ write_groups_summary(Config, #{total_ok := TOK, total_failed := TFailed,
            total_failed := TFailed + Failed,
            total_eventually_ok_tests := TEvOK + FailedTests}.
 
-acc_groups_summary(_GroupName, {ok, {n_failed, NFailedTests}},
+acc_groups_summary(_GroupName, #group_status{status = ok, n_failed = NFailedTests},
                    {OkGroupsAcc, FailedGroupsAcc, EventuallyOkAcc}) ->
-    {OkGroupsAcc + 1, FailedGroupsAcc,
-     %% The group was repeated, but it eventually passed, so the tests must finally be ok.
-     EventuallyOkAcc + NFailedTests};
-acc_groups_summary(_GroupName, {__, {n_failed, _NFailedTests}},
+    %% Either the group has passed succesfully on the first run,
+    %% or it was repeated, and eventually passed, so the tests must finally be ok.
+    {OkGroupsAcc + 1, FailedGroupsAcc, EventuallyOkAcc + NFailedTests};
+acc_groups_summary(_GroupName, #group_status{status = failed, n_failed = NFailedTests},
                    {OkGroupsAcc, FailedGroupsAcc, EventuallyOkAcc}) ->
-    {OkGroupsAcc, FailedGroupsAcc + 1,
-     %% The group never succeeded, the failed tests are NOT eventually ok.
-     EventuallyOkAcc}.
+    %% The group never succeeded, the failed tests are NOT eventually ok.
+    {OkGroupsAcc, FailedGroupsAcc + 1, EventuallyOkAcc}.
