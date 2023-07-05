@@ -35,7 +35,6 @@
 -export([start_link/0,
          filter/4,
          route/4,
-         have_connection/1,
          key/3,
          get_connections_pids/1,
          try_register/1,
@@ -57,7 +56,7 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
--ignore_xref([get_info_s2s_connections/1, have_connection/1,
+-ignore_xref([get_info_s2s_connections/1,
               incoming_s2s_number/0, outgoing_s2s_number/0, start_link/0]).
 
 -include("mongoose.hrl").
@@ -102,9 +101,6 @@ remove_connection(FromTo, Pid) ->
                      stacktrace => Stacktrace})
     end,
     ok.
-
-have_connection(FromTo) ->
-    get_connections_pids(FromTo) =/= [].
 
 -spec get_connections_pids(_) -> [pid()].
 get_connections_pids(FromTo) ->
