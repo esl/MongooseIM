@@ -1,4 +1,4 @@
-%%% @doc Common Test Example Common Test Hook module.
+%%% @doc this hook performs server purity check after every suite
 -module(ct_mongoose_hook).
 
 %% @doc Add the following line in your *.spec file
@@ -30,20 +30,15 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
--record(state, {print_group, print_case}).
-
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
     "ct_mongoose_hook_001".
 
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
-init(_Id, Opts) ->
-    Unfolded = proplists:unfold(Opts),
-    PrintGroup = proplists:get_value(print_group, Unfolded, false),
-    PrintCase = proplists:get_value(print_case, Unfolded, false),
+init(_Id, _Opts) ->
     domain_helper:insert_configured_domains(),
-    {ok, #state{print_group = PrintGroup, print_case = PrintCase }}.
+    {ok, #{}}.
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
@@ -52,7 +47,6 @@ pre_init_per_suite(Suite,Config,State) ->
                  _ -> undefined
              end,
     NewConfig = [{preset, Preset} | Config],
-    maybe_print_on_server(true, "SUITE", Suite, "starting"),
     {NewConfig, State}.
 
 %% @doc Called after init_per_suite.
@@ -65,13 +59,11 @@ pre_end_per_suite(_Suite,Config,State) ->
 
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite, Config, Return, State) ->
-    maybe_print_on_server(true, "SUITE", Suite, "finished"),
     check_server_purity(Suite, Config),
     {Return, State}.
 
 %% @doc Called before each init_per_group.
 pre_init_per_group(Group,Config,State) ->
-    maybe_print_on_server(State#state.print_group, "GROUP", Group, "starting"),
     {Config, State}.
 
 %% @doc Called after each init_per_group.
@@ -84,17 +76,14 @@ pre_end_per_group(_Group,Config,State) ->
 
 %% @doc Called after each end_per_group.
 post_end_per_group(Group,_Config,Return,State) ->
-    maybe_print_on_server(State#state.print_group, "GROUP", Group, "finished"),
     {Return, State}.
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State) ->
-    maybe_print_on_server(State#state.print_case, "TEST CASE", TC, "starting"),
     {Config, State}.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC,_Config,Return,State) ->
-    maybe_print_on_server(State#state.print_case, "TEST CASE", TC, "finished"),
     {Return, State}.
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
@@ -111,11 +100,6 @@ on_tc_skip(_TC, _Reason, State) ->
 terminate(_State) ->
     domain_helper:delete_configured_domains(),
     ok.
-
-maybe_print_on_server(false, _, _, _) ->
-    ok;
-maybe_print_on_server(true, Event, EventName, EvenType) ->
-    rpc(mim(), logger, warning, ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
 
 check_server_purity(Suite, Config) ->
     case escalus_server:name(Config) of

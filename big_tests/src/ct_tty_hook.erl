@@ -26,7 +26,7 @@
 -export([on_tc_skip/3]).
 
 -export([terminate/1]).
--record(state, { total, suite_total, ts, tcs, data, print_group, print_case }).
+-record(state, { total, suite_total, ts, tcs, data }).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -37,12 +37,8 @@ id(_Opts) ->
 
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
-init(_Id, Opts) ->
-    Unfolded = proplists:unfold(Opts),
-    PrintGroup = proplists:get_value(print_group, Unfolded, false),
-    PrintCase = proplists:get_value(print_case, Unfolded, false),
-    {ok, #state{ total = 0, data = [],
-                 print_group = PrintGroup, print_case = PrintCase }}.
+init(_Id, _Opts) ->
+    {ok, #state{ total = 0, data = []}}.
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(_Suite, Config, State) ->
@@ -64,7 +60,6 @@ post_end_per_suite(Suite,_Config,Return,State) ->
 
 %% @doc Called before each init_per_group.
 pre_init_per_group(Group,Config,State) ->
-    print_group_enter(Group, State, "Starting"),
     {Config, State}.
 
 %% @doc Called after each init_per_group.
@@ -77,13 +72,11 @@ pre_end_per_group(_Group,Config,State) ->
 
 %% @doc Called after each end_per_group.
 post_end_per_group(Group,_Config,Return,State) ->
-    print_group_enter(Group, State, "Finished"),
     {Return, State}.
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State = #state{suite_total = Total})
       when is_integer(Total) ->
-    print_case_enter(TC, State, "Starting"),
     {Config, State#state{ ts = os:timestamp(), total = Total + 1 } };
 pre_init_per_testcase(_TC, Config, State) ->
     {Config, State}.
@@ -94,7 +87,6 @@ post_end_per_testcase(TC, _Config, Return, State) ->
     %%% this fails when running in parallel:
     %%% timer:now_diff(os:timestamp(), State#state.ts),
     TCInfo = {testcase, TC, Return, ParallelTestDiffOverride},
-    print_case_enter(TC, State, "Finished"),
     {Return, State#state{ts = undefined, tcs = [TCInfo | State#state.tcs]}}.
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
@@ -136,21 +128,11 @@ print_suite_ok(Name, OkCount) ->
     io:format("~n====== Suite OK: ~p (All ~p tests passed)~n",
            [Name, OkCount]).
 print_suite_failed(Name, OkCount, FailCount, Cases) ->
-    ct:pal("~n====== Suite FAILED: ~p (~p of ~p tests failed)~n",
-           [Name, FailCount, OkCount+FailCount]),
+    ct:print("~n====== Suite FAILED: ~p (~p of ~p tests failed)~n",
+             [Name, FailCount, OkCount+FailCount]),
     lists:foreach(fun maybe_print_test_case/1, Cases).
 
 maybe_print_test_case({testcase, _Name,ok,_})              -> ok;
 maybe_print_test_case({testcase, Name,{error, Content},_}) ->
-    io:format("~n====== Test name: ~p", [Name]),
-    io:format("~n====== Reason:    ~p~n", [Content]).
-
-print_group_enter(Group, #state{print_group = true}, Msg) ->
-    rpc(mim(), logger, warning, ["====== ~s GROUP ~p", [Msg, Group]]);
-print_group_enter(_Group, _State, _Msg) ->
-    ok.
-
-print_case_enter(Group, #state{print_case = true}, Msg) ->
-    rpc(mim(), logger, warning, ["====== ~s CASE ~p", [Msg, Group]]);
-print_case_enter(_Group, _State, _Msg) ->
-    ok.
+    ct:print("~n====== Test name: ~p", [Name]),
+    ct:print("~n====== Reason:    ~p~n", [Content]).
