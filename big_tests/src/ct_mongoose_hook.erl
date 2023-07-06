@@ -46,7 +46,8 @@ pre_init_per_suite(Suite,Config,State) ->
                  {ok, Value} -> Value;
                  _ -> undefined
              end,
-    NewConfig = [{preset, Preset} | Config],
+    DataDir = path_helper:data_dir(Suite, Config),
+    NewConfig = [{preset, Preset}, {mim_data_dir, DataDir} | Config],
     {NewConfig, State}.
 
 %% @doc Called after init_per_suite.
