@@ -343,11 +343,13 @@ stream_established({xmlstreamelement, El}, StateData) ->
             handle_routing_result(Res, El, StateData),
             {next_state, stream_established, StateData#state{timer = Timer}}
     end;
+%% An event from ejabberd_s2s_out
 stream_established({valid, FromTo}, StateData) ->
     send_element(StateData, db_result_xml(FromTo, <<"valid">>)),
     Cons = maps:put(FromTo, established, StateData#state.connections),
     NSD = StateData#state{connections = Cons},
     {next_state, stream_established, NSD};
+%% An event from ejabberd_s2s_out
 stream_established({invalid, FromTo}, StateData) ->
     send_element(StateData, db_result_xml(FromTo, <<"invalid">>)),
     Cons = maps:remove(FromTo, StateData#state.connections),

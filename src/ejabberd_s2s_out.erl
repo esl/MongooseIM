@@ -79,7 +79,8 @@
                 myname, server, queue,
                 host_type               :: mongooseim:host_type(),
                 delay_to_retry = undefined_delay,
-                new = false             :: boolean(),
+                %% is_registered
+                is_registered = false   :: boolean(),
                 verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
                 timer                   :: reference()
               }).
@@ -190,7 +191,7 @@ init([{From, Server} = FromTo, Type]) ->
                   {true, true}
           end,
     UseV10 = TLS,
-    {New, Verify} = case Type of
+    {IsRegistered, Verify} = case Type of
                         new ->
                             {true, false};
                         {verify, Pid, Key, SID} ->
@@ -207,7 +208,7 @@ init([{From, Server} = FromTo, Type]) ->
                              myname = From,
                              host_type = HostType,
                              server = Server,
-                             new = New,
+                             is_registered = IsRegistered,
                              verify = Verify,
                              timer = Timer}}.
 
@@ -219,14 +220,14 @@ init([{From, Server} = FromTo, Type]) ->
 %%----------------------------------------------------------------------
 -spec open_socket(_, state()) -> fsm_return().
 open_socket(init, StateData = #state{host_type = HostType}) ->
-    log_s2s_out(StateData#state.new,
+    log_s2s_out(StateData#state.is_registered,
                 StateData#state.myname,
                 StateData#state.server,
                 StateData#state.tls),
     ?LOG_DEBUG(#{what => s2s_open_socket,
                  myname => StateData#state.myname,
                  server => StateData#state.server,
-                 new => StateData#state.new,
+                 is_registered => StateData#state.is_registered,
                  verify => StateData#state.verify}),
     AddrList = get_addr_list(HostType, StateData#state.server),
     case lists:foldl(fun(_, {ok, Socket}) ->
@@ -694,7 +695,7 @@ terminate(Reason, StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_closed, text => <<"ejabberd_s2s_out terminated">>,
                  reason => Reason, state_name => StateName,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    case StateData#state.new of
+    case StateData#state.is_registered of
         false ->
             ok;
         true ->
@@ -814,42 +815,32 @@ bounce_messages(Error) ->
 
 -spec send_db_request(state()) -> fsm_return().
 send_db_request(StateData) ->
-    Server = StateData#state.server,
-    New = case StateData#state.new of
+    IsRegistered = case StateData#state.is_registered of
               false ->
-                  ejabberd_s2s:try_register(
-                         {StateData#state.myname, Server});
+                  ejabberd_s2s:try_register(StateData#state.from_to);
               true ->
                   true
           end,
-    NewStateData = StateData#state{new = New},
+    NewStateData = StateData#state{is_registered = IsRegistered},
     try
-        case New of
+        case IsRegistered of
             false ->
+                %% Still not registered in the s2s table as an outgoing connection
                 ok;
             true ->
                 Key1 = ejabberd_s2s:key(
                          StateData#state.host_type,
-                         {StateData#state.myname, Server},
+                         StateData#state.from_to,
                          StateData#state.remote_streamid),
                 %% Initiating Server Sends Dialback Key
                 %% https://xmpp.org/extensions/xep-0220.html#example-1
-                send_element(StateData,
-                             #xmlel{name = <<"db:result">>,
-                                    attrs = [{<<"from">>, StateData#state.myname},
-                                             {<<"to">>, Server}],
-                                    children = [#xmlcdata{content = Key1}]})
+                send_element(StateData, db_result_xml(StateData#state.from_to, Key1))
         end,
         case StateData#state.verify of
             false ->
                 ok;
             {_Pid, Key2, SID} ->
-                send_element(StateData,
-                             #xmlel{name = <<"db:verify">>,
-                                    attrs = [{<<"from">>, StateData#state.myname},
-                                             {<<"to">>, StateData#state.server},
-                                             {<<"id">>, SID}],
-                                    children = [#xmlcdata{content = Key2}]})
+                send_element(StateData, db_verify_xml(StateData#state.from_to, Key2, SID))
         end,
         {next_state, wait_for_validation, NewStateData, ?FSMTIMEOUT*6}
     catch
@@ -878,6 +869,21 @@ is_verify_res(#xmlel{name = Name,
      xml:get_attr_s(<<"type">>, Attrs)};
 is_verify_res(_) ->
     false.
+
+-spec db_result_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
+db_result_xml({LocalServer, RemoteServer}, Key) ->
+    #xmlel{name = <<"db:result">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer}],
+           children = [#xmlcdata{content = Key}]}.
+
+-spec db_verify_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+db_verify_xml({LocalServer, RemoteServer}, Key, Id) ->
+    #xmlel{name = <<"db:result">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"id">>, Id}],
+           children = [#xmlcdata{content = Key}]}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1157,8 +1163,7 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
                 myname => StateData#state.myname, server => StateData#state.server}),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
-handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when
-    New /= false ->
+handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_registered = true}}) ->
     send_element(StateData,
                  #xmlel{name = <<"auth">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL},

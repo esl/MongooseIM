@@ -67,7 +67,7 @@
 
 %% Pair of hosts {FromServer(), ToServer()}.
 %% Used in a lot of API and backend functions.
--type fromto() :: {jid:server(), jid:server()}.
+-type fromto() :: {jid:lserver(), jid:lserver()}.
 
 %% Pids for ejabberd_s2s_out servers
 -type s2s_pids() :: [pid()].
