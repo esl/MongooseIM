@@ -10,14 +10,7 @@
 -export([init/2]).
 
 -export([pre_init_per_suite/3]).
--export([post_init_per_suite/4]).
--export([pre_end_per_suite/3]).
 -export([post_end_per_suite/4]).
-
--export([pre_init_per_group/3]).
--export([post_init_per_group/4]).
--export([pre_end_per_group/3]).
--export([post_end_per_group/4]).
 
 -export([pre_init_per_testcase/3]).
 -export([post_end_per_testcase/4]).
@@ -26,6 +19,7 @@
 -export([on_tc_skip/3]).
 
 -export([terminate/1]).
+
 -record(state, { total, suite_total, ts, tcs, data }).
 
 -import(distributed_helper, [mim/0,
@@ -44,35 +38,11 @@ init(_Id, _Opts) ->
 pre_init_per_suite(_Suite, Config, State) ->
     {Config, State#state{ suite_total = 0, tcs = [] }}.
 
-%% @doc Called after init_per_suite.
-post_init_per_suite(_Suite,_Config,Return,State) ->
-    {Return, State}.
-
-%% @doc Called before end_per_suite.
-pre_end_per_suite(_Suite,Config,State) ->
-    {Config, State}.
-
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite,_Config,Return,State) ->
     Data = {suites, Suite, State#state.suite_total, lists:reverse(State#state.tcs)},
     {Return, State#state{ data = [Data | State#state.data] ,
                           total = State#state.total + State#state.suite_total } }.
-
-%% @doc Called before each init_per_group.
-pre_init_per_group(Group,Config,State) ->
-    {Config, State}.
-
-%% @doc Called after each init_per_group.
-post_init_per_group(_Group,_Config,Return,State) ->
-    {Return, State}.
-
-%% @doc Called after each end_per_group.
-pre_end_per_group(_Group,Config,State) ->
-    {Config, State}.
-
-%% @doc Called after each end_per_group.
-post_end_per_group(Group,_Config,Return,State) ->
-    {Return, State}.
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State = #state{suite_total = Total})
@@ -118,7 +88,7 @@ aggregate_results(Cases) ->
     Fails = [ C || {testcase, _, {error, _}, _} = C <- Cases ],
     {length(Oks), length(Fails)}.
 
-print_suite({suites, Name,_, TestCases}) ->
+print_suite({suites, Name, _, TestCases}) ->
     case aggregate_results(TestCases) of
         {Oks, 0} -> print_suite_ok(Name, Oks);
         {Oks, Fails} -> print_suite_failed(Name,Oks,Fails,TestCases)

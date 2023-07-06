@@ -13,22 +13,14 @@
 -export([init/2]).
 
 -export([pre_init_per_suite/3]).
--export([post_init_per_suite/4]).
 -export([pre_end_per_suite/3]).
--export([post_end_per_suite/4]).
 
 -export([pre_init_per_group/3]).
--export([post_init_per_group/4]).
 -export([pre_end_per_group/3]).
--export([post_end_per_group/4]).
 
 -export([pre_init_per_testcase/3]).
 -export([post_end_per_testcase/4]).
 
--export([on_tc_fail/3]).
--export([on_tc_skip/3]).
-
--export([terminate/1]).
 -record(state, { node, cookie, reader, writer,
                  current_line_num, out_file, url_file, group, suite,
                  priv_dir }).
@@ -49,33 +41,17 @@ init(_Id, [Node0, Cookie0]) ->
 pre_init_per_suite(Suite,Config,State) ->
     {Config, State#state{group=no_group, suite=Suite}}.
 
-%% @doc Called after init_per_suite.
-post_init_per_suite(_Suite,_Config,Return,State) ->
-    {Return, State}.
-
 %% @doc Called before end_per_suite.
 pre_end_per_suite(_Suite,Config,State) ->
     {Config, State#state{suite=no_suite}}.
-
-%% @doc Called after end_per_suite.
-post_end_per_suite(_Suite,_Config,Return,State) ->
-    {Return, State}.
 
 %% @doc Called before each init_per_group.
 pre_init_per_group(Group,Config,State) ->
     {Config, State#state{group=Group}}.
 
-%% @doc Called after each init_per_group.
-post_init_per_group(_Group,_Config,Return,State) ->
-    {Return, State}.
-
 %% @doc Called after each end_per_group.
 pre_end_per_group(_Group,Config,State) ->
     {Config, State#state{group=no_group}}.
-
-%% @doc Called after each end_per_group.
-post_end_per_group(_Group,_Config,Return,State) ->
-    {Return, State}.
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State=#state{}) ->
@@ -92,21 +68,6 @@ post_end_per_testcase(TC,_Config,Return,State) ->
     State2 = post_insert_line_numbers_into_report(State, TC),
     test_server:timetrap_cancel(Dog),
     {Return, State2 }.
-
-%% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
-%% post_end_per_group and post_end_per_testcase if the suite, group or test case failed.
-on_tc_fail(_TC, _Reason, State) ->
-    State.
-
-%% @doc Called when a test case is skipped by either user action
-%% or due to an init function failing.
-on_tc_skip(_TC, _Reason, State) ->
-    State.
-
-%% @doc Called when the scope of the CTH is done
-terminate(_State) ->
-    ok.
-
 
 % --------------------------------------------
 
