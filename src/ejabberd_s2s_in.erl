@@ -207,10 +207,13 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                            cert_error => CertError}),
             Res = stream_start_error(StateData,
                                      mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
+            %% Why would we close outgoing connections if the incoming connection fails auth?
+            %% That incoming connection could be from a hacker, and it would result in kicking
+            %% our outgoing connections.
             %% FIXME: why do we want stop just one of the connections here?                         
-            {ok, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
-                                                     jid:make(<<>>, RemoteServer, <<>>)),
-            ejabberd_s2s_out:stop_connection(Pid),
+%           {ok, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
+%                                                    jid:make(<<>>, RemoteServer, <<>>)),
+%           ejabberd_s2s_out:stop_connection(Pid),
             Res;
         _ ->
             send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),

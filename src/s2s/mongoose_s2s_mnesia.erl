@@ -59,8 +59,14 @@ remove_connection(FromTo, Pid) ->
     F = fun() ->
                 mnesia:delete_object(Rec)
         end,
-    {atomic, _} = mnesia:transaction(F),
-    ok.
+    case mnesia:transaction(F) of
+        {atomic, _} ->
+            ok;
+        Other ->
+            ?LOG_ERROR(#{what => s2s_remove_connection,
+                         from_to => FromTo, reason => Other}),
+            ok
+    end.
 
 node_cleanup(Node) ->
     F = fun() ->

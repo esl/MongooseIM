@@ -63,8 +63,8 @@
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 
--define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER, 1).
--define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 1).
+-define(DEFAULT_MAX_S2S_CONNECTIONS, 1).
+-define(DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE, 1).
 
 -type fromto() :: {'global' | jid:server(), jid:server()}.
 -record(state, {}).
@@ -90,18 +90,6 @@ filter(From, To, Acc, Packet) ->
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
--spec remove_connection(_, pid()) -> ok.
-remove_connection(FromTo, Pid) ->
-    try
-        call_remove_connection(FromTo, Pid)
-    catch Class:Reason:Stacktrace ->
-        ?LOG_ERROR(#{what => s2s_remove_connection_failed,
-                     from_to => FromTo, s2s_pid => Pid,
-                     class => Class, reason => Reason,
-                     stacktrace => Stacktrace})
-    end,
-    ok.
-
 -spec try_register(fromto()) -> boolean().
 try_register(FromTo) ->
     ShouldWriteF = should_write_f(FromTo),
@@ -110,10 +98,7 @@ try_register(FromTo) ->
         true ->
             true;
         false ->
-            {FromServer, ToServer} = FromTo,
-            ?LOG_ERROR(#{what => s2s_register_failed,
-                         from_server => FromServer,
-                         to_server => ToServer}),
+            ?LOG_ERROR(#{what => s2s_register_failed, from_to => FromTo}),
             false
     end.
 
@@ -126,8 +111,7 @@ node_cleanup(Acc, #{node := Node}, _) ->
     Res = call_node_cleanup(Node),
     {ok, maps:put(?MODULE, Res, Acc)}.
 
--spec key(mongooseim:host_type(), {jid:lserver(), jid:lserver()}, binary()) ->
-    binary().
+-spec key(mongooseim:host_type(), fromto(), binary()) -> binary().
 key(HostType, {From, To}, StreamID) ->
     {ok, {_, Secret}} = get_shared_secret(HostType),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
@@ -218,10 +202,9 @@ find_connection(From, To, Retries) ->
     #jid{lserver = MyServer} = From,
     #jid{lserver = Server} = To,
     FromTo = {MyServer, Server},
-    MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
-    MaxS2SConnectionsNumberPerNode =
-        max_s2s_connections_number_per_node(FromTo),
-    ?LOG_DEBUG(#{what => s2s_find_connection, from_server => MyServer, to_server => Server}),
+    MaxConnections = max_s2s_connections(FromTo),
+    MaxConnectionsPerNode = max_s2s_connections_per_node(FromTo),
+    ?LOG_DEBUG(#{what => s2s_find_connection, from_to => FromTo}),
     case get_s2s_out_pids(FromTo) of
         [] ->
             %% TODO too complex, and could cause issues on bursts.
@@ -233,12 +216,12 @@ find_connection(From, To, Retries) ->
             %% service and if the s2s host is not blacklisted or
             %% is in whitelist:
             maybe_open_several_connections(From, To, FromTo,
-                                           MaxS2SConnectionsNumber,
-                                           MaxS2SConnectionsNumberPerNode, Retries);
+                                           MaxConnections,
+                                           MaxConnectionsPerNode, Retries);
         L when is_list(L) ->
             maybe_open_missing_connections(From, To, FromTo,
-                                           MaxS2SConnectionsNumber,
-                                           MaxS2SConnectionsNumberPerNode, L, Retries)
+                                           MaxConnections,
+                                           MaxConnectionsPerNode, L, Retries)
     end.
 
 %% Checks:
@@ -249,14 +232,12 @@ is_s2s_allowed_for_host({FromServer, ToServer} = FromTo) ->
     not is_service(FromTo) andalso allow_host(FromServer, ToServer).
 
 maybe_open_several_connections(From, To, FromTo,
-                               MaxS2SConnectionsNumber,
-                               MaxS2SConnectionsNumberPerNode, Retries) ->
+                               MaxConnections, MaxConnectionsPerNode, Retries) ->
     %% We try to establish all the connections 
     case is_s2s_allowed_for_host(FromTo) of
         true ->
             NeededConnections = needed_connections_number(
-                                  [], MaxS2SConnectionsNumber,
-                                  MaxS2SConnectionsNumberPerNode),
+                                  [], MaxConnections, MaxConnectionsPerNode),
             open_several_connections(NeededConnections, FromTo),
             find_connection(From, To, Retries - 1);
         false ->
@@ -264,11 +245,9 @@ maybe_open_several_connections(From, To, FromTo,
     end.
 
 maybe_open_missing_connections(From, To, FromTo,
-                               MaxS2SConnectionsNumber,
-                               MaxS2SConnectionsNumberPerNode, L, Retries) ->
+                               MaxConnections, MaxConnectionsPerNode, L, Retries) ->
     NeededConnections = needed_connections_number(
-                          L, MaxS2SConnectionsNumber,
-                          MaxS2SConnectionsNumberPerNode),
+                          L, MaxConnections, MaxConnectionsPerNode),
     case NeededConnections > 0 of
         true ->
             %% We establish the missing connections for this pair.
@@ -295,62 +274,54 @@ choose_pid(From, Pids) ->
 -spec open_several_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
 open_several_connections(N, FromTo) ->
     ShouldWriteF = should_write_f(FromTo),
-    [new_connection(FromTo, ShouldWriteF)
-     || _N <- lists:seq(1, N)],
+    [new_connection(FromTo, ShouldWriteF) || _N <- lists:seq(1, N)],
     ok.
 
 -spec new_connection(FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
 new_connection(FromTo, ShouldWriteF) ->
+    %% Serialize opening of connections
     {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
     case call_try_register(Pid, ShouldWriteF, FromTo) of
         true ->
-            log_new_connection_result(Pid, FromTo),
+            ?LOG_INFO(#{what => s2s_new_connection,
+                        text => <<"New s2s connection started">>,
+                        from_to => FromTo, s2s_pid => Pid}),
             ejabberd_s2s_out:start_connection(Pid);
         false ->
             ejabberd_s2s_out:stop_connection(Pid)
     end,
     ok.
 
-log_new_connection_result(Pid, FromTo) ->
-    {FromServer, ToServer} = FromTo,
-    ?LOG_INFO(#{what => s2s_new_connection,
-                text => <<"New s2s connection started">>,
-                from_server => FromServer,
-                to_server => ToServer,
-                s2s_pid => Pid}).
+-spec max_s2s_connections(fromto()) -> pos_integer().
+max_s2s_connections(FromTo) ->
+    match_integer_acl_rule(FromTo, max_s2s_connections,
+                           ?DEFAULT_MAX_S2S_CONNECTIONS).
 
--spec max_s2s_connections_number(fromto()) -> pos_integer().
-max_s2s_connections_number({From, To}) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(From),
-    case acl:match_rule(HostType, max_s2s_connections, jid:make(<<"">>, To, <<"">>)) of
-        Max when is_integer(Max) -> Max;
-        _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER
-    end.
+-spec max_s2s_connections_per_node(fromto()) -> pos_integer().
+max_s2s_connections_per_node(FromTo) ->
+    match_integer_acl_rule(FromTo, max_s2s_connections_per_node,
+                           ?DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE).
 
--spec max_s2s_connections_number_per_node(fromto()) -> pos_integer().
-max_s2s_connections_number_per_node({From, To}) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(From),
-    case acl:match_rule(HostType, max_s2s_connections_per_node, jid:make(<<"">>, To, <<"">>)) of
-        Max when is_integer(Max) -> Max;
-        _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE
+-spec match_integer_acl_rule(fromto(), atom(), integer()) -> term().
+match_integer_acl_rule({FromServer, ToServer}, Rule, Default) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(FromServer),
+    ToServerJid = jid:make(<<>>, ToServer, <<>>),
+    case acl:match_rule(HostType, Rule, ToServerJid) of
+        Int when is_integer(Int) -> Int;
+        _ -> Default
     end.
 
 -spec needed_connections_number([pid()], pos_integer(), pos_integer()) -> integer().
-needed_connections_number(Ls, MaxS2SConnectionsNumber,
-                          MaxS2SConnectionsNumberPerNode) when is_list(Ls) ->
+needed_connections_number(Ls, MaxConnections, MaxConnectionsPerNode) when is_list(Ls) ->
     LocalLs = [L || L <- Ls, node(L) == node()],
-    lists:min([MaxS2SConnectionsNumber - length(Ls),
-               MaxS2SConnectionsNumberPerNode - length(LocalLs)]).
+    lists:min([MaxConnections - length(Ls),
+               MaxConnectionsPerNode - length(LocalLs)]).
 
 should_write_f(FromTo) ->
-    MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
-    MaxS2SConnectionsNumberPerNode =
-        max_s2s_connections_number_per_node(FromTo),
+    MaxConnections = max_s2s_connections(FromTo),
+    MaxConnectionsPerNode = max_s2s_connections_per_node(FromTo),
     fun(L) when is_list(L) ->
-        NeededConnections = needed_connections_number(
-                                  L, MaxS2SConnectionsNumber,
-                                  MaxS2SConnectionsNumberPerNode),
-        NeededConnections > 0
+        needed_connections_number(L, MaxConnections, MaxConnectionsPerNode) > 0
     end.
 
 %%--------------------------------------------------------------------
@@ -532,7 +503,8 @@ call_try_register(Pid, ShouldWriteF, FromTo) ->
 call_node_cleanup(Node) ->
     mongoose_s2s_backend:node_cleanup(Node).
 
-call_remove_connection(FromTo, Pid) ->
+-spec remove_connection(fromto(), pid()) -> ok.
+remove_connection(FromTo, Pid) ->
     mongoose_s2s_backend:remove_connection(FromTo, Pid).
 
 -spec get_shared_secret(mongooseim:host_type()) -> {ok, {secret_source(), base16_secret()}} | {error, not_found}.
