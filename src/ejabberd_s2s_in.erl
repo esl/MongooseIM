@@ -316,7 +316,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                   orelse mongoose_component:has_component(LTo)} of
                 {true, true} ->
                     ejabberd_s2s_out:terminate_if_waiting_delay(LTo, LFrom),
-                    ejabberd_s2s_out:start(LTo, LFrom,
+                    ejabberd_s2s_out:start({LTo, LFrom}, %% From and To are switched
                                            {verify, self(),
                                             Key, StateData#state.streamid}),
                     Conns = dict:store({LFrom, LTo}, wait_for_verification,

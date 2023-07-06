@@ -31,8 +31,8 @@
 -xep([{xep, 220}, {version, "1.1.1"}]).
 
 %% External exports
--export([start/3,
-         start_link/3,
+-export([start/2,
+         start_link/2,
          start_connection/1,
          terminate_if_waiting_delay/2,
          stop_connection/1]).
@@ -56,7 +56,7 @@
          code_change/4]).
 
 -ignore_xref([open_socket/2, print_state/1,
-              reopen_socket/2, start_link/3, stream_established/2,
+              reopen_socket/2, start_link/2, stream_established/2,
               wait_before_retry/2, wait_for_auth_result/2,
               wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
               wait_for_stream/2, wait_for_validation/2]).
@@ -110,9 +110,6 @@
 -define(FSMOPTS, []).
 -endif.
 
--define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_out_sup,
-                                                 [From, Host, Type])).
-
 -define(FSMTIMEOUT, 30000).
 
 %% We do not block on send anymore.
@@ -147,14 +144,14 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_, _, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(From, Host, Type) ->
-    ?SUPERVISOR_START.
+-spec start(ejabberd_s2s:fromto(), _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
+start(FromTo, Type) ->
+    supervisor:start_child(ejabberd_s2s_out_sup, [FromTo, Type]).
 
 
--spec start_link(_, _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(From, Host, Type) ->
-    p1_fsm:start_link(ejabberd_s2s_out, [From, Host, Type],
+-spec start_link(ejabberd_s2s:fromto(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+start_link(FromTo, Type) ->
+    p1_fsm:start_link(ejabberd_s2s_out, [FromTo, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
 
 
@@ -176,8 +173,8 @@ stop_connection(Pid) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([any(), ...]) -> {'ok', 'open_socket', state()}.
-init([From, Server, Type]) ->
+-spec init(list()) -> {'ok', 'open_socket', state()}.
+init([{From, Server} = _FromTo, Type]) ->
     process_flag(trap_exit, true),
     ?LOG_DEBUG(#{what => s2s_out_started,
                  text => <<"New outgoing s2s connection">>,

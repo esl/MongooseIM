@@ -232,34 +232,38 @@ find_connection(From, To, Retries) ->
             %% We try to establish all the connections if the host is not a
             %% service and if the s2s host is not blacklisted or
             %% is in whitelist:
-            maybe_open_several_connections(From, To, MyServer, Server, FromTo,
+            maybe_open_several_connections(From, To, FromTo,
                                            MaxS2SConnectionsNumber,
                                            MaxS2SConnectionsNumberPerNode, Retries);
         L when is_list(L) ->
-            maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
+            maybe_open_missing_connections(From, To, FromTo,
                                            MaxS2SConnectionsNumber,
                                            MaxS2SConnectionsNumberPerNode, L, Retries)
     end.
 
-maybe_open_several_connections(From, To, MyServer, Server, FromTo,
+%% Checks:
+%% - if the host is not a service
+%% - and if the s2s host is not blacklisted or is in whitelist
+-spec is_s2s_allowed_for_host(fromto()) -> boolean().
+is_s2s_allowed_for_host({FromServer, ToServer} = FromTo) ->
+    not is_service(FromTo) andalso allow_host(FromServer, ToServer).
+
+maybe_open_several_connections(From, To, FromTo,
                                MaxS2SConnectionsNumber,
                                MaxS2SConnectionsNumberPerNode, Retries) ->
-    %% We try to establish all the connections if the host is not a
-    %% service and if the s2s host is not blacklisted or
-    %% is in whitelist:
-    case not is_service(From, To) andalso allow_host(MyServer, Server) of
+    %% We try to establish all the connections 
+    case is_s2s_allowed_for_host(FromTo) of
         true ->
             NeededConnections = needed_connections_number(
                                   [], MaxS2SConnectionsNumber,
                                   MaxS2SConnectionsNumberPerNode),
-            open_several_connections(
-                NeededConnections, MyServer, Server, FromTo),
+            open_several_connections(NeededConnections, FromTo),
             find_connection(From, To, Retries - 1);
         false ->
             {error, not_allowed}
     end.
 
-maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
+maybe_open_missing_connections(From, To, FromTo,
                                MaxS2SConnectionsNumber,
                                MaxS2SConnectionsNumberPerNode, L, Retries) ->
     NeededConnections = needed_connections_number(
@@ -268,9 +272,7 @@ maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
     case NeededConnections > 0 of
         true ->
             %% We establish the missing connections for this pair.
-            open_several_connections(
-              NeededConnections, MyServer,
-              Server, FromTo),
+            open_several_connections(NeededConnections, FromTo),
             find_connection(From, To, Retries - 1);
         false ->
             %% We choose a connexion from the pool of opened ones.
@@ -290,18 +292,16 @@ choose_pid(From, Pids) ->
     ?LOG_DEBUG(#{what => s2s_choose_pid, from => From, s2s_pid => Pid}),
     Pid.
 
--spec open_several_connections(N :: pos_integer(), MyServer :: jid:server(),
-    Server :: jid:server(), FromTo :: fromto()) -> ok.
-open_several_connections(N, MyServer, Server, FromTo) ->
+-spec open_several_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
+open_several_connections(N, FromTo) ->
     ShouldWriteF = should_write_f(FromTo),
-    [new_connection(MyServer, Server, FromTo, ShouldWriteF)
+    [new_connection(FromTo, ShouldWriteF)
      || _N <- lists:seq(1, N)],
     ok.
 
--spec new_connection(MyServer :: jid:server(), Server :: jid:server(),
-                     FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
-new_connection(MyServer, Server, FromTo, ShouldWriteF) ->
-    {ok, Pid} = ejabberd_s2s_out:start(MyServer, Server, new),
+-spec new_connection(FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
+new_connection(FromTo, ShouldWriteF) ->
+    {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
     case call_try_register(Pid, ShouldWriteF, FromTo) of
         true ->
             log_new_connection_result(Pid, FromTo),
@@ -354,20 +354,18 @@ should_write_f(FromTo) ->
     end.
 
 %%--------------------------------------------------------------------
-%% Function: is_service(From, To) -> true | false
 %% Description: Return true if the destination must be considered as a
 %% service.
 %% --------------------------------------------------------------------
--spec is_service(jid:jid(), jid:jid()) -> boolean().
-is_service(From, To) ->
-    LFromDomain = From#jid.lserver,
-    case mongoose_config:lookup_opt({route_subdomains, LFromDomain}) of
+-spec is_service(fromto()) -> boolean().
+is_service({FromServer, ToServer} = _FromTo) ->
+    case mongoose_config:lookup_opt({route_subdomains, FromServer}) of
         {ok, s2s} -> % bypass RFC 3920 10.3
             false;
         {error, not_found} ->
             Hosts = ?MYHOSTS,
             P = fun(ParentDomain) -> lists:member(ParentDomain, Hosts) end,
-            lists:any(P, parent_domains(To#jid.lserver))
+            lists:any(P, parent_domains(ToServer))
     end.
 
 -spec parent_domains(binary()) -> [binary(), ...].
