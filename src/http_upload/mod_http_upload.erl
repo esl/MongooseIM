@@ -19,7 +19,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--xep([{xep, 363}, {version, "0.3.0"}]).
+-xep([{xep, 363}, {version, "1.1.0"}]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
