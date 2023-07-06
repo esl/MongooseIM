@@ -1,7 +1,7 @@
 -module(mongoose_s2s_backend).
 
 -callback init(map()) -> any().
--callback dirty_read_s2s_list_pids(ejabberd_s2s:fromto()) ->
+-callback get_s2s_out_pids(ejabberd_s2s:fromto()) ->
     {ok, [pid()]} | {error, Reason :: term()}.
 -callback try_register(Pid :: pid(),
                        ShouldWriteF :: fun(),
@@ -15,7 +15,7 @@
     {ok, {ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()}} | {error, not_found}.
 
 -export([init/1,
-         dirty_read_s2s_list_pids/1,
+         get_s2s_out_pids/1,
          try_register/3,
          remove_connection/2,
          node_cleanup/1]).
@@ -33,11 +33,12 @@ init(Opts) ->
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec dirty_read_s2s_list_pids(ejabberd_s2s:fromto()) ->
+-spec get_s2s_out_pids(ejabberd_s2s:fromto()) ->
     {ok, [pid()]} | {error, Reason :: term()}.
-dirty_read_s2s_list_pids(FromTo) ->
+get_s2s_out_pids(FromTo) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [FromTo]).
 
+%% Register ejabberd_s2s_out connection
 -spec try_register(Pid :: pid(),
                    ShouldWriteF :: fun(),
                    FromTo :: ejabberd_s2s:fromto()) -> boolean().

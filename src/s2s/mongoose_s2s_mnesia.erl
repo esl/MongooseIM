@@ -2,7 +2,7 @@
 -behaviour(mongoose_s2s_backend).
 
 -export([init/1,
-         dirty_read_s2s_list_pids/1,
+         get_s2s_out_pids/1,
          try_register/3,
          remove_connection/2,
          node_cleanup/1]).
@@ -30,7 +30,7 @@ init_pids() ->
     mnesia:create_table(s2s, Opts),
     mnesia:add_table_copy(s2s, node(), ram_copies).
 
-dirty_read_s2s_list_pids(FromTo) ->
+get_s2s_out_pids(FromTo) ->
     {ok, s2s_to_pids(mnesia:dirty_read(s2s, FromTo))}.
 
 try_register(Pid, ShouldWriteF, FromTo) ->

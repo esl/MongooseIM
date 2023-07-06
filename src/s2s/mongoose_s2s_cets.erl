@@ -2,7 +2,7 @@
 -behaviour(mongoose_s2s_backend).
 
 -export([init/1,
-         dirty_read_s2s_list_pids/1,
+         get_s2s_out_pids/1,
          try_register/3,
          remove_connection/2,
          node_cleanup/1]).
@@ -22,13 +22,13 @@ init(_) ->
     cets_discovery:add_table(mongoose_cets_discovery, ?SECRET_TABLE).
 
 %% Pid lists
-dirty_read_s2s_list_pids(FromTo) ->
+get_s2s_out_pids(FromTo) ->
     R = {{FromTo, '$1'}},
     Pids = ets:select(?TABLE, [{R, [], ['$1']}]),
     {ok, Pids}.
 
 try_register(Pid, ShouldWriteF, FromTo) ->
-    {ok, L} = dirty_read_s2s_list_pids(FromTo),
+    {ok, L} = get_s2s_out_pids(FromTo),
     case ShouldWriteF(L) of
         true ->
             cets:insert(?TABLE, {{FromTo, Pid}}),

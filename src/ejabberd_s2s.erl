@@ -104,7 +104,7 @@ remove_connection(FromTo, Pid) ->
 
 -spec get_connections_pids(_) -> [pid()].
 get_connections_pids(FromTo) ->
-    case dirty_read_s2s_list_pids(FromTo) of
+    case get_s2s_out_pids(FromTo) of
         {ok, L} when is_list(L) ->
             L;
         {error, _} ->
@@ -231,7 +231,7 @@ find_connection(From, To, Retries) ->
     MaxS2SConnectionsNumberPerNode =
         max_s2s_connections_number_per_node(FromTo),
     ?LOG_DEBUG(#{what => s2s_find_connection, from_server => MyServer, to_server => Server}),
-    case dirty_read_s2s_list_pids(FromTo) of
+    case get_s2s_out_pids(FromTo) of
         {error, Reason} ->
             {error, Reason};
         {ok, []} ->
@@ -532,10 +532,11 @@ db_init() ->
     Backend = mongoose_config:get_opt(s2s_backend),
     mongoose_s2s_backend:init(#{backend => Backend}).
 
--spec dirty_read_s2s_list_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
-dirty_read_s2s_list_pids(FromTo) ->
+%% Get ejabberd_s2s_out pids
+-spec get_s2s_out_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
+get_s2s_out_pids(FromTo) ->
     try
-        mongoose_s2s_backend:dirty_read_s2s_list_pids(FromTo)
+        mongoose_s2s_backend:get_s2s_out_pids(FromTo)
     catch Class:Reason:Stacktrace ->
         ?LOG_ERROR(#{what => s2s_dirty_read_s2s_list_failed,
                      from_to => FromTo,
