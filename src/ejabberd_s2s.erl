@@ -39,8 +39,7 @@
          get_s2s_out_pids/1,
          try_register/1,
          remove_connection/2,
-         find_connection/2,
-         allow_host/2,
+         allow_host/1,
          domain_utf8_to_ascii/1,
          timeout/0,
          lookup_certfile/1
@@ -66,13 +65,19 @@
 -define(DEFAULT_MAX_S2S_CONNECTIONS, 1).
 -define(DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE, 1).
 
--type fromto() :: {'global' | jid:server(), jid:server()}.
+%% Pair of hosts {FromServer(), ToServer()}.
+%% Used in a lot of API and backend functions.
+-type fromto() :: {jid:server(), jid:server()}.
+
+%% Pids for ejabberd_s2s_out servers
+-type s2s_pids() :: [pid()].
+
 -record(state, {}).
 
 -type secret_source() :: config | random.
 -type base16_secret() :: binary().
 
--export_type([fromto/0, secret_source/0, base16_secret/0]).
+-export_type([fromto/0, s2s_pids/0, secret_source/0, base16_secret/0]).
 
 %%====================================================================
 %% API
@@ -191,85 +196,54 @@ do_route(From, To, Acc, Packet) ->
             end
     end.
 
--spec find_connection(From :: jid:jid(),
-                      To :: jid:jid()) -> {ok, pid()} | {error, Reason :: term()}.
+-spec make_from_to(From :: jid:jid(), To :: jid:jid()) ->  fromto().
+make_from_to(#jid{lserver = FromServer}, #jid{lserver = ToServer}) ->
+    {FromServer, ToServer}.
+
+-spec find_connection(From :: jid:jid(), To :: jid:jid()) ->
+        {ok, pid()} | {error, not_allowed}.
 find_connection(From, To) ->
-    find_connection(From, To, 3).
-
-find_connection(_From, _To, 0) ->
-    {error, retries_failed};
-find_connection(From, To, Retries) ->
-    #jid{lserver = MyServer} = From,
-    #jid{lserver = Server} = To,
-    FromTo = {MyServer, Server},
-    MaxConnections = max_s2s_connections(FromTo),
-    MaxConnectionsPerNode = max_s2s_connections_per_node(FromTo),
+    FromTo = make_from_to(From, To),
     ?LOG_DEBUG(#{what => s2s_find_connection, from_to => FromTo}),
-    case get_s2s_out_pids(FromTo) of
+    OldCons = get_s2s_out_pids(FromTo),
+    NewCons = ensure_enough_connections(FromTo, OldCons),
+    case NewCons of
         [] ->
-            %% TODO too complex, and could cause issues on bursts.
-            %% What would happen if connection is denied?
-            %% Start a pool instead maybe?
-            %% When do we close the connection?
-
-            %% We try to establish all the connections if the host is not a
-            %% service and if the s2s host is not blacklisted or
-            %% is in whitelist:
-            maybe_open_several_connections(From, To, FromTo,
-                                           MaxConnections,
-                                           MaxConnectionsPerNode, Retries);
-        L when is_list(L) ->
-            maybe_open_missing_connections(From, To, FromTo,
-                                           MaxConnections,
-                                           MaxConnectionsPerNode, L, Retries)
+            {error, not_allowed};
+        _ ->
+            {ok, choose_pid(From, NewCons)}
     end.
 
-%% Checks:
-%% - if the host is not a service
-%% - and if the s2s host is not blacklisted or is in whitelist
--spec is_s2s_allowed_for_host(fromto()) -> boolean().
-is_s2s_allowed_for_host({FromServer, ToServer} = FromTo) ->
-    not is_service(FromTo) andalso allow_host(FromServer, ToServer).
-
-maybe_open_several_connections(From, To, FromTo,
-                               MaxConnections, MaxConnectionsPerNode, Retries) ->
-    %% We try to establish all the connections 
-    case is_s2s_allowed_for_host(FromTo) of
-        true ->
-            NeededConnections = needed_connections_number(
-                                  [], MaxConnections, MaxConnectionsPerNode),
+%% Opens more connections if needed and allowed.
+ensure_enough_connections(FromTo, OldCons) ->
+    NeededConnections = needed_connections_number_if_allowed(FromTo, OldCons),
+    case NeededConnections of
+        0 ->
+            OldCons;
+        _ ->
             open_several_connections(NeededConnections, FromTo),
-            find_connection(From, To, Retries - 1);
-        false ->
-            {error, not_allowed}
-    end.
-
-maybe_open_missing_connections(From, To, FromTo,
-                               MaxConnections, MaxConnectionsPerNode, L, Retries) ->
-    NeededConnections = needed_connections_number(
-                          L, MaxConnections, MaxConnectionsPerNode),
-    case NeededConnections > 0 of
-        true ->
-            %% We establish the missing connections for this pair.
-            open_several_connections(NeededConnections, FromTo),
-            find_connection(From, To, Retries - 1);
-        false ->
-            %% We choose a connexion from the pool of opened ones.
-            {ok, choose_pid(From, L)}
+            %% Query for s2s pids one more time
+            get_s2s_out_pids(FromTo)
     end.
 
 %% Prefers the local connection (i.e. not on the remote node)
--spec choose_pid(From :: jid:jid(), Pids :: [pid()]) -> pid().
-choose_pid(From, Pids) ->
-    Pids1 = case [P || P <- Pids, node(P) == node()] of
+-spec choose_pid(From :: jid:jid(), Pids :: s2s_pids()) -> pid().
+choose_pid(From, [_|_] = Pids) ->
+    Pids1 = case filter_local_pids(Pids) of
                 [] -> Pids;
-                Ps -> Ps
+                FilteredPids -> FilteredPids
             end,
     % Use sticky connections based on the JID of the sender
     % (without the resource to ensure that a muc room always uses the same connection)
     Pid = lists:nth(erlang:phash2(jid:to_bare(From), length(Pids1)) + 1, Pids1),
     ?LOG_DEBUG(#{what => s2s_choose_pid, from => From, s2s_pid => Pid}),
     Pid.
+
+%% Returns only pids from the current node.
+-spec filter_local_pids(s2s_pids()) -> s2s_pids().
+filter_local_pids(Pids) ->
+    Node = node(),
+    [Pid || Pid <- Pids, node(Pid) == Node].
 
 -spec open_several_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
 open_several_connections(N, FromTo) ->
@@ -311,17 +285,34 @@ match_integer_acl_rule({FromServer, ToServer}, Rule, Default) ->
         _ -> Default
     end.
 
--spec needed_connections_number([pid()], pos_integer(), pos_integer()) -> integer().
-needed_connections_number(Ls, MaxConnections, MaxConnectionsPerNode) when is_list(Ls) ->
-    LocalLs = [L || L <- Ls, node(L) == node()],
-    lists:min([MaxConnections - length(Ls),
-               MaxConnectionsPerNode - length(LocalLs)]).
+needed_connections_number_if_allowed(FromTo, OldCons) ->
+    case is_s2s_allowed_for_host(FromTo, OldCons) of
+        true ->
+            needed_extra_connections_number(FromTo, OldCons);
+        false ->
+            0
+    end.
 
-should_write_f(FromTo) ->
+%% Checks:
+%% - if the host is not a service
+%% - and if the s2s host is not blacklisted or is in whitelist
+-spec is_s2s_allowed_for_host(fromto(), _OldConnections :: s2s_pids()) -> boolean().
+is_s2s_allowed_for_host(_FromTo, [_|_]) ->
+    true; %% Has outgoing connections established, skip the check
+is_s2s_allowed_for_host(FromTo, []) ->
+    not is_service(FromTo) andalso allow_host(FromTo).
+
+-spec needed_extra_connections_number(fromto(), s2s_pids()) -> non_neg_integer().
+needed_extra_connections_number(FromTo, Connections) ->
     MaxConnections = max_s2s_connections(FromTo),
     MaxConnectionsPerNode = max_s2s_connections_per_node(FromTo),
-    fun(L) when is_list(L) ->
-        needed_connections_number(L, MaxConnections, MaxConnectionsPerNode) > 0
+    LocalPids = filter_local_pids(Connections),
+    lists:min([MaxConnections - length(Connections),
+               MaxConnectionsPerNode - length(LocalPids)]).
+
+should_write_f(FromTo) ->
+    fun(Connections) when is_list(Connections) ->
+        needed_extra_connections_number(FromTo, Connections) > 0
     end.
 
 %%--------------------------------------------------------------------
@@ -392,19 +383,20 @@ commands() ->
     ].
 
 %% Check if host is in blacklist or white list
-allow_host(MyServer, S2SHost) ->
-    case mongoose_domain_api:get_host_type(MyServer) of
+-spec allow_host(fromto()) -> boolean().
+allow_host({FromServer, ToServer}) ->
+    case mongoose_domain_api:get_host_type(FromServer) of
         {error, not_found} ->
             false;
         {ok, HostType} ->
-            case mongoose_config:lookup_opt([{s2s, HostType}, host_policy, S2SHost]) of
+            case mongoose_config:lookup_opt([{s2s, HostType}, host_policy, ToServer]) of
                 {ok, allow} ->
                     true;
                 {ok, deny} ->
                     false;
                 {error, not_found} ->
                     mongoose_config:get_opt([{s2s, HostType}, default_policy]) =:= allow
-                        andalso mongoose_hooks:s2s_allow_host(MyServer, S2SHost) =:= allow
+                        andalso mongoose_hooks:s2s_allow_host(FromServer, ToServer) =:= allow
             end
     end.
 
@@ -491,7 +483,7 @@ db_init() ->
     mongoose_s2s_backend:init(#{backend => Backend}).
 
 %% Get ejabberd_s2s_out pids
--spec get_s2s_out_pids(FromTo :: fromto()) -> [pid()].
+-spec get_s2s_out_pids(FromTo :: fromto()) -> s2s_pids().
 get_s2s_out_pids(FromTo) ->
     mongoose_s2s_backend:get_s2s_out_pids(FromTo).
 

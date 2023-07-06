@@ -34,7 +34,7 @@
 -export([start/2,
          start_link/2,
          start_connection/1,
-         terminate_if_waiting_delay/2,
+         terminate_if_waiting_delay/1,
          stop_connection/1]).
 
 %% p1_fsm callbacks (same as gen_fsm)
@@ -75,6 +75,7 @@
                 authenticated = false   :: boolean(),
                 db_enabled = true       :: boolean(),
                 try_auth = true         :: boolean(),
+                from_to                 :: ejabberd_s2s:fromto(),
                 myname, server, queue,
                 host_type               :: mongooseim:host_type(),
                 delay_to_retry = undefined_delay,
@@ -174,7 +175,7 @@ stop_connection(Pid) ->
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
 -spec init(list()) -> {'ok', 'open_socket', state()}.
-init([{From, Server} = _FromTo, Type]) ->
+init([{From, Server} = FromTo, Type]) ->
     process_flag(trap_exit, true),
     ?LOG_DEBUG(#{what => s2s_out_started,
                  text => <<"New outgoing s2s connection">>,
@@ -202,6 +203,7 @@ init([{From, Server} = _FromTo, Type]) ->
                              tls_required = TLSRequired,
                              tls_options = tls_options(HostType),
                              queue = queue:new(),
+                             from_to = FromTo,
                              myname = From,
                              host_type = HostType,
                              server = Server,
@@ -359,7 +361,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     {next_state, NextState, StateData,
                      get_timeout_interval(NextState)};
                 {Pid, _Key, _SID} ->
-                    send_event(Type, Pid, StateData),
+                    send_event_to_s2s_in(Type, Pid, StateData),
                     NextState = wait_for_validation,
                     {next_state, NextState, StateData,
                      get_timeout_interval(NextState)}
@@ -549,7 +551,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    send_event(VType, VPid, StateData);
+                    send_event_to_s2s_in(VType, VPid, StateData);
                 _ ->
                     ok
             end;
@@ -1057,8 +1059,8 @@ get_max_retry_delay(HostType) ->
 
 
 %% @doc Terminate s2s_out connections that are in state wait_before_retry
-terminate_if_waiting_delay(From, To) ->
-    FromTo = {From, To},
+-spec terminate_if_waiting_delay(ejabberd_s2s:fromto()) -> ok.
+terminate_if_waiting_delay(FromTo) ->
     Pids = ejabberd_s2s:get_s2s_out_pids(FromTo),
     lists:foreach(
       fun(Pid) ->
@@ -1102,11 +1104,11 @@ get_predefined_port(HostType, _Addr) -> outgoing_s2s_port(HostType).
 addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 
-send_event(<<"valid">>, Pid, StateData) ->
-    Event = {valid, StateData#state.server, StateData#state.myname},
+send_event_to_s2s_in(<<"valid">>, Pid, StateData) ->
+    Event = {valid, StateData#state.from_to},
     p1_fsm:send_event(Pid, Event);
-send_event(_, Pid, StateData) ->
-    Event = {invalid, StateData#state.server, StateData#state.myname},
+send_event_to_s2s_in(_, Pid, StateData) ->
+    Event = {invalid, StateData#state.from_to},
     p1_fsm:send_event(Pid, Event).
 
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->

@@ -65,7 +65,7 @@
                 host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
                 auth_domain             :: binary() | undefined,
-                connections = dict:new(),
+                connections = #{}       :: map(),
                 timer                   :: reference()
               }).
 -type state() :: #state{}.
@@ -205,16 +205,12 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                            remote_server => RemoteServer,
                            reason => cert_error,
                            cert_error => CertError}),
-            Res = stream_start_error(StateData,
-                                     mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
-            %% Why would we close outgoing connections if the incoming connection fails auth?
-            %% That incoming connection could be from a hacker, and it would result in kicking
-            %% our outgoing connections.
-            %% FIXME: why do we want stop just one of the connections here?                         
-%           {ok, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
-%                                                    jid:make(<<>>, RemoteServer, <<>>)),
-%           ejabberd_s2s_out:stop_connection(Pid),
-            Res;
+            stream_start_error(StateData,
+                               mongoose_xmpp_errors:policy_violation(?MYLANG, CertError));
+            %% We were stopping ejabberd_s2s_out connection in the older version of the code
+            %% from this location. But stopping outgoing connections just because a non-verified
+            %% incoming connection fails is an abuse risk (a hacker could connect with an invalid
+            %% certificate, it should not cause stopping ejabberd_s2s_out connections).
         _ ->
             send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
             send_element(StateData,
@@ -306,29 +302,24 @@ tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
-    case is_key_packet(El) of
-        {key, To, From, Id, Key} ->
+    case parse_key_packet(El) of
+        %% We use LocalServer and RemoteServer instead of From and To to avoid confusion
+        {db_result, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_get_key,
-                         to => To, from => From, message_id => Id, key => Key}),
-            LTo = jid:nameprep(To),
-            LFrom = jid:nameprep(From),
+                         from_to => FromTo, message_id => Id, key => Key}),
             %% Checks if the from domain is allowed and if the to
             %% domain is handled by this server:
-            case {ejabberd_s2s:allow_host(LTo, LFrom),
-                  mongoose_router:is_registered_route(LTo)
-                  orelse mongoose_component:has_component(LTo)} of
+            case {ejabberd_s2s:allow_host(FromTo), is_local_host_known(FromTo)} of
                 {true, true} ->
-                    ejabberd_s2s_out:terminate_if_waiting_delay(LTo, LFrom),
-                    ejabberd_s2s_out:start({LTo, LFrom}, %% From and To are switched
-                                           {verify, self(),
-                                            Key, StateData#state.streamid}),
-                    Conns = dict:store({LFrom, LTo}, wait_for_verification,
-                                        StateData#state.connections),
-                    change_shaper(StateData, LTo, jid:make(<<>>, LFrom, <<>>)),
+                    ejabberd_s2s_out:terminate_if_waiting_delay(FromTo),
+                    StartType = {verify, self(), Key, StateData#state.streamid},
+                    ejabberd_s2s_out:start(FromTo, StartType),
+                    Conns = maps:put(FromTo, wait_for_verification,
+                                     StateData#state.connections),
+                    change_shaper(StateData, FromTo),
                     {next_state,
                      stream_established,
-                     StateData#state{connections = Conns,
-                                     timer = Timer}};
+                     StateData#state{connections = Conns, timer = Timer}};
                 {_, false} ->
                     send_element(StateData, mongoose_xmpp_errors:host_unknown()),
                     ?LOG_WARNING(#{what => s2s_in_key_from_uknown_host}),
@@ -338,61 +329,29 @@ stream_established({xmlstreamelement, El}, StateData) ->
                     ?LOG_WARNING(#{what => s2s_in_key_with_invalid_from}),
                     {stop, normal, StateData}
             end;
-        {verify, To, From, Id, Key} ->
+        {db_verify, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_verify_key,
-                         to => To, from => From, message_id => Id, key => Key}),
-            LTo = jid:nameprep(To),
-            LFrom = jid:nameprep(From),
-            Type = case ejabberd_s2s:key(StateData#state.host_type, {LTo, LFrom}, Id) of
+                         from_to => FromTo, message_id => Id, key => Key}),
+            Type = case ejabberd_s2s:key(StateData#state.host_type, FromTo, Id) of
                        Key -> <<"valid">>;
                        _ -> <<"invalid">>
                    end,
-            %% XEP-0185: Dialback Key Generation and Validation
-            %% DB means dial-back
-            send_element(StateData,
-                         #xmlel{name = <<"db:verify">>,
-                                attrs = [{<<"from">>, To},
-                                         {<<"to">>, From},
-                                         {<<"id">>, Id},
-                                         {<<"type">>, Type}]}),
+            send_element(StateData, db_verify_xml(FromTo, Id, Type)),
             {next_state, stream_established, StateData#state{timer = Timer}};
-        _ ->
-            NewEl = jlib:remove_attr(<<"xmlns">>, El),
-            #xmlel{attrs = Attrs} = NewEl,
-            FromS = xml:get_attr_s(<<"from">>, Attrs),
-            From = jid:from_binary(FromS),
-            ToS = xml:get_attr_s(<<"to">>, Attrs),
-            To = jid:from_binary(ToS),
-            case {From, To} of
-                {error, _} -> ok;
-                {_, error} -> ok;
-                _ -> route_incoming_stanza(From, To, NewEl, StateData)
-            end,
+        false ->
+            Res = parse_and_route_incoming_stanza(El, StateData),
+            handle_routing_result(Res, El, StateData),
             {next_state, stream_established, StateData#state{timer = Timer}}
     end;
-stream_established({valid, From, To}, StateData) ->
-    send_element(StateData,
-                 #xmlel{name = <<"db:result">>,
-                        attrs = [{<<"from">>, To},
-                                 {<<"to">>, From},
-                                 {<<"type">>, <<"valid">>}]}),
-    LFrom = jid:nameprep(From),
-    LTo = jid:nameprep(To),
-    NSD = StateData#state{
-            connections = dict:store({LFrom, LTo}, established,
-                                      StateData#state.connections)},
+stream_established({valid, FromTo}, StateData) ->
+    send_element(StateData, db_result_xml(FromTo, <<"valid">>)),
+    Cons = maps:put(FromTo, established, StateData#state.connections),
+    NSD = StateData#state{connections = Cons},
     {next_state, stream_established, NSD};
-stream_established({invalid, From, To}, StateData) ->
-    send_element(StateData,
-                 #xmlel{name = <<"db:result">>,
-                        attrs = [{<<"from">>, To},
-                                 {<<"to">>, From},
-                                 {<<"type">>, <<"invalid">>}]}),
-    LFrom = jid:nameprep(From),
-    LTo = jid:nameprep(To),
-    NSD = StateData#state{
-            connections = dict:erase({LFrom, LTo},
-                                      StateData#state.connections)},
+stream_established({invalid, FromTo}, StateData) ->
+    send_element(StateData, db_result_xml(FromTo, <<"invalid">>)),
+    Cons = maps:remove(FromTo, StateData#state.connections),
+    NSD = StateData#state{connections = Cons},
     {next_state, stream_established, NSD};
 stream_established({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
@@ -407,84 +366,77 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid:jid(),
-                            To :: jid:jid(),
-                            El :: exml:element(),
-                            StateData :: state()) ->
-    mongoose_acc:t() | error.
-route_incoming_stanza(From, To, El, StateData) ->
-    LFromS = From#jid.lserver,
-    LToS = To#jid.lserver,
-    #xmlel{name = Name} = El,
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => LToS,
-                              element => El,
-                              from_jid => From,
-                              to_jid => To }),
-    case is_s2s_authenticated(LFromS, LToS, StateData) of
-        true ->
-            route_stanza(Name, Acc);
-        false ->
-            case is_s2s_connected(LFromS, LToS, StateData) of
-                true ->
-                    route_stanza(Name, Acc);
-                false ->
-                    error
-            end
-    end.
+handle_routing_result(ok, _El, _StateData) ->
+    ok;
+handle_routing_result({error, Reason}, El, _StateData) ->
+    ?LOG_WARNING(#{what => s2s_in_route_failed, reason => Reason, element => El}).
 
-is_s2s_authenticated(_, _, #state{authenticated = false}) ->
-    false;
-is_s2s_authenticated(LFrom, LTo, #state{auth_domain = LFrom}) ->
-    mongoose_router:is_registered_route(LTo)
-    orelse mongoose_component:has_component(LTo);
-is_s2s_authenticated(_, _, _) ->
-    false.
-
-is_s2s_connected(LFrom, LTo, StateData) ->
-    case dict:find({LFrom, LTo}, StateData#state.connections) of
-        {ok, established} ->
-            true;
+parse_and_route_incoming_stanza(El, StateData) ->
+    NewEl = jlib:remove_attr(<<"xmlns">>, El),
+    RemoteJid = jid:from_binary(exml_query:attr(El, <<"from">>, <<>>)),
+    LocalJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
+    case {RemoteJid, LocalJid, is_valid_stanza(NewEl)} of
+        {#jid{}, #jid{}, true} ->
+            route_incoming_stanza(RemoteJid, LocalJid, NewEl, StateData);
         _ ->
-            false
+            {error, invalid_stanza}
     end.
 
--spec route_stanza(binary(), mongoose_acc:t()) -> mongoose_acc:t().
-route_stanza(<<"iq">>, Acc) ->
-    route_stanza(Acc);
-route_stanza(<<"message">>, Acc) ->
-    route_stanza(Acc);
-route_stanza(<<"presence">>, Acc) ->
-    route_stanza(Acc);
-route_stanza(_, _Acc) ->
-    error.
+-spec route_incoming_stanza(RemoteJid :: jid:jid(),
+                            LocalJid :: jid:jid(),
+                            El :: exml:element(),
+                            StateData :: state()) -> ok | {error, term()}.
+route_incoming_stanza(RemoteJid, LocalJid, El, StateData) ->
+    LRemoteServer = RemoteJid#jid.lserver,
+    LLocalServer = LocalJid#jid.lserver,
+    FromTo = {LLocalServer, LRemoteServer},
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LLocalServer,
+                              element => El,
+                              from_jid => RemoteJid,
+                              to_jid => LocalJid }),
+    case is_s2s_authenticated_or_connected(FromTo, StateData) of
+        true ->
+            route_stanza(Acc);
+        false ->
+            {error, not_allowed}
+    end.
 
--spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
+is_s2s_authenticated_or_connected(FromTo, StateData) ->
+    is_s2s_authenticated(FromTo, StateData) orelse
+        is_s2s_connected(FromTo, StateData).
+
+-spec is_s2s_authenticated(ejabberd_s2s:fromto(), #state{}) -> boolean().
+is_s2s_authenticated(_FromTo, #state{authenticated = false}) ->
+    false;
+is_s2s_authenticated(FromTo, State) ->
+    same_auth_domain(FromTo, State) andalso is_local_host_known(FromTo).
+
+-spec same_auth_domain(ejabberd_s2s:fromto(), #state{}) -> boolean().
+same_auth_domain({_, LRemoteServer}, #state{auth_domain = AuthDomain}) ->
+    LRemoteServer =:= AuthDomain.
+
+-spec is_s2s_connected(ejabberd_s2s:fromto(), #state{}) -> boolean().
+is_s2s_connected(FromTo, StateData) ->
+    {ok, established} =:= maps:find(FromTo, StateData#state.connections).
+
+-spec is_valid_stanza(exml:element()) -> boolean().
+is_valid_stanza(#xmlel{name = Name}) ->
+    is_valid_stanza_name(Name).
+
+is_valid_stanza_name(<<"iq">>) -> true;
+is_valid_stanza_name(<<"message">>) -> true;
+is_valid_stanza_name(<<"presence">>) -> true;
+is_valid_stanza_name(_) -> false.
+
+-spec route_stanza(mongoose_acc:t()) -> ok.
 route_stanza(Acc) ->
     From = mongoose_acc:from_jid(Acc),
     To = mongoose_acc:to_jid(Acc),
     Acc1 = mongoose_hooks:s2s_receive_packet(Acc),
-    ejabberd_router:route(From, To, Acc1).
+    ejabberd_router:route(From, To, Acc1),
+    ok.
 
-%%----------------------------------------------------------------------
-%% Func: StateName/3
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%%----------------------------------------------------------------------
-%state_name(Event, From, StateData) ->
-%    Reply = ok,
-%    {reply, Reply, state_name, StateData}.
-
-%%----------------------------------------------------------------------
-%% Func: handle_event/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%%----------------------------------------------------------------------
 handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
@@ -503,8 +455,8 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
                       [StateData#state.auth_domain];
                   false ->
                       Connections = StateData#state.connections,
-                      [D || {{D, _}, established} <-
-                          dict:to_list(Connections)]
+                      [LRemoteServer || {{_, LRemoteServer}, established} <-
+                          maps:to_list(Connections)]
               end,
     Infos = [
              {direction, in},
@@ -579,11 +531,13 @@ send_element(StateData, El) ->
 stream_features(HostType, Domain) ->
     mongoose_hooks:s2s_stream_features(HostType, Domain).
 
--spec change_shaper(state(), jid:lserver(), jid:jid()) -> any().
-change_shaper(StateData, Host, JID) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(Host),
+-spec change_shaper(state(), ejabberd_s2s:fromto()) -> ok.
+change_shaper(StateData, {LLocalServer, LRemoteServer}) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(LLocalServer),
+    JID = jid:make(<<>>, LRemoteServer, <<>>),
     Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
-    mongoose_transport:change_shaper(StateData#state.socket, Shaper).
+    mongoose_transport:change_shaper(StateData#state.socket, Shaper),
+    ok.
 
 
 -spec new_id() -> binary().
@@ -601,26 +555,37 @@ cancel_timer(Timer) ->
             ok
     end.
 
+%% XEP-0185: Dialback Key Generation and Validation
+%% DB means dial-back
+-spec db_verify_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+db_verify_xml({LocalServer, RemoteServer}, Id, Type) ->
+    #xmlel{name = <<"db:verify">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"id">>, Id},
+                    {<<"type">>, Type}]}.
 
--spec is_key_packet(exml:element()) -> 'false' | {'key', _, _, _, binary()}
-                                  | {'verify', _, _, _, binary()}.
-is_key_packet(#xmlel{name = Name, attrs = Attrs,
-                     children = Els}) when Name == <<"db:result">> ->
-    {key,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_cdata(Els)};
-is_key_packet(#xmlel{name = Name, attrs = Attrs,
-                     children = Els}) when Name == <<"db:verify">> ->
-    {verify,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_cdata(Els)};
-is_key_packet(_) ->
+-spec db_result_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
+db_result_xml({LocalServer, RemoteServer}, Type) ->
+    #xmlel{name = <<"db:result">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"type">>, Type}]}.
+
+-spec parse_key_packet(exml:element()) -> false
+    | {db_result | db_verify, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
+parse_key_packet(El = #xmlel{name = <<"db:result">>}) ->
+    parsed_key_packet(db_result, El);
+parse_key_packet(El = #xmlel{name = <<"db:verify">>}) ->
+    parsed_key_packet(db_verify, El);
+parse_key_packet(_) ->
     false.
 
+parsed_key_packet(Type, El) ->
+    FromTo = parse_from_to(El),
+    Id = exml_query:attr(El, <<"id">>, <<>>),
+    Key = exml_query:cdata(El),
+    {Type, FromTo, Id, Key}.
 
 -spec match_domain(binary(), binary()) -> boolean().
 match_domain(Domain, Domain) ->
@@ -728,3 +693,16 @@ get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
     [#xmlel{name = <<"starttls">>,
             attrs = [{<<"xmlns">>, ?NS_TLS}],
             children = [#xmlel{name = <<"required">>}]}].
+
+is_local_host_known({LLocalServer, _}) ->
+    mongoose_router:is_registered_route(LLocalServer)
+        orelse mongoose_component:has_component(LLocalServer).
+
+-spec parse_from_to(exml:element()) -> ejabberd_s2s:fromto().
+parse_from_to(El) ->
+    RemoteJid = jid:from_binary(exml_query:attr(El, <<"from">>, <<>>)),
+    LocalJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
+    #jid{luser = <<>>, lresource = <<>>, lserver = LRemoteServer} = RemoteJid,
+    #jid{luser = <<>>, lresource = <<>>, lserver = LLocalServer} = LocalJid,
+    %% We use fromto() as seen by ejabberd_s2s_out and ejabberd_s2s
+    {LLocalServer, LRemoteServer}.
