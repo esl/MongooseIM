@@ -24,11 +24,10 @@ init(_) ->
 %% Pid lists
 get_s2s_out_pids(FromTo) ->
     R = {{FromTo, '$1'}},
-    Pids = ets:select(?TABLE, [{R, [], ['$1']}]),
-    {ok, Pids}.
+    ets:select(?TABLE, [{R, [], ['$1']}]).
 
 try_register(Pid, ShouldWriteF, FromTo) ->
-    {ok, L} = get_s2s_out_pids(FromTo),
+    L = get_s2s_out_pids(FromTo),
     case ShouldWriteF(L) of
         true ->
             cets:insert(?TABLE, {{FromTo, Pid}}),

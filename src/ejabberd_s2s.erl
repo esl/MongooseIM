@@ -36,7 +36,7 @@
          filter/4,
          route/4,
          key/3,
-         get_connections_pids/1,
+         get_s2s_out_pids/1,
          try_register/1,
          remove_connection/2,
          find_connection/2,
@@ -101,15 +101,6 @@ remove_connection(FromTo, Pid) ->
                      stacktrace => Stacktrace})
     end,
     ok.
-
--spec get_connections_pids(_) -> [pid()].
-get_connections_pids(FromTo) ->
-    case get_s2s_out_pids(FromTo) of
-        {ok, L} when is_list(L) ->
-            L;
-        {error, _} ->
-            []
-    end.
 
 -spec try_register(fromto()) -> boolean().
 try_register(FromTo) ->
@@ -232,9 +223,7 @@ find_connection(From, To, Retries) ->
         max_s2s_connections_number_per_node(FromTo),
     ?LOG_DEBUG(#{what => s2s_find_connection, from_server => MyServer, to_server => Server}),
     case get_s2s_out_pids(FromTo) of
-        {error, Reason} ->
-            {error, Reason};
-        {ok, []} ->
+        [] ->
             %% TODO too complex, and could cause issues on bursts.
             %% What would happen if connection is denied?
             %% Start a pool instead maybe?
@@ -246,7 +235,7 @@ find_connection(From, To, Retries) ->
             maybe_open_several_connections(From, To, MyServer, Server, FromTo,
                                            MaxS2SConnectionsNumber,
                                            MaxS2SConnectionsNumberPerNode, Retries);
-        {ok, L} when is_list(L) ->
+        L when is_list(L) ->
             maybe_open_missing_connections(From, To, MyServer, Server, FromTo,
                                            MaxS2SConnectionsNumber,
                                            MaxS2SConnectionsNumberPerNode, L, Retries)
@@ -533,17 +522,9 @@ db_init() ->
     mongoose_s2s_backend:init(#{backend => Backend}).
 
 %% Get ejabberd_s2s_out pids
--spec get_s2s_out_pids(FromTo :: fromto()) -> {ok, [pid()]} | {error, Reason :: term()}.
+-spec get_s2s_out_pids(FromTo :: fromto()) -> [pid()].
 get_s2s_out_pids(FromTo) ->
-    try
-        mongoose_s2s_backend:get_s2s_out_pids(FromTo)
-    catch Class:Reason:Stacktrace ->
-        ?LOG_ERROR(#{what => s2s_dirty_read_s2s_list_failed,
-                     from_to => FromTo,
-                     class => Class, reason => Reason,
-                     stacktrace => Stacktrace}),
-         {error, Reason}
-    end.
+    mongoose_s2s_backend:get_s2s_out_pids(FromTo).
 
 %% Returns true if the connection is registered
 -spec call_try_register(Pid :: pid(), ShouldWriteF :: fun(), FromTo :: fromto()) -> boolean().

@@ -31,11 +31,11 @@ init_pids() ->
     mnesia:add_table_copy(s2s, node(), ram_copies).
 
 get_s2s_out_pids(FromTo) ->
-    {ok, s2s_to_pids(mnesia:dirty_read(s2s, FromTo))}.
+    s2s_to_pids(mnesia:dirty_read(s2s, FromTo)).
 
 try_register(Pid, ShouldWriteF, FromTo) ->
     F = fun() ->
-                L = s2s_to_pids(mnesia:read({s2s, FromTo})),
+                L = get_s2s_out_pids(FromTo),
                 case ShouldWriteF(L) of
                     true ->
                         mnesia:write(#s2s{fromto = FromTo, pid = Pid}),

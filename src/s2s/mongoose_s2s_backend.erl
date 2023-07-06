@@ -1,8 +1,7 @@
 -module(mongoose_s2s_backend).
 
 -callback init(map()) -> any().
--callback get_s2s_out_pids(ejabberd_s2s:fromto()) ->
-    {ok, [pid()]} | {error, Reason :: term()}.
+-callback get_s2s_out_pids(ejabberd_s2s:fromto()) -> [pid()].
 -callback try_register(Pid :: pid(),
                        ShouldWriteF :: fun(),
                        FromTo :: ejabberd_s2s:fromto()) -> boolean().
@@ -33,8 +32,7 @@ init(Opts) ->
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_s2s_out_pids(ejabberd_s2s:fromto()) ->
-    {ok, [pid()]} | {error, Reason :: term()}.
+-spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> [pid()].
 get_s2s_out_pids(FromTo) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [FromTo]).
 

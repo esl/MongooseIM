@@ -1062,7 +1062,7 @@ get_max_retry_delay(HostType) ->
 %% @doc Terminate s2s_out connections that are in state wait_before_retry
 terminate_if_waiting_delay(From, To) ->
     FromTo = {From, To},
-    Pids = ejabberd_s2s:get_connections_pids(FromTo),
+    Pids = ejabberd_s2s:get_s2s_out_pids(FromTo),
     lists:foreach(
       fun(Pid) ->
               Pid ! terminate_if_waiting_before_retry

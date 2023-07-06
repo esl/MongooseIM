@@ -187,9 +187,9 @@ s2s(_Config) ->
     FromTo = {?HOST, <<"foreign">>},
     ejabberd_s2s:try_register(FromTo),
     Self = self(),
-    [Self] = ejabberd_s2s:get_connections_pids(FromTo),
+    [Self] = ejabberd_s2s:get_s2s_out_pids(FromTo),
     mongoose_hooks:node_cleanup(node()),
-    [] = ejabberd_s2s:get_connections_pids(FromTo).
+    [] = ejabberd_s2s:get_s2s_out_pids(FromTo).
 
 bosh(_Config) ->
     {started, ok} = start(?HOST, mod_bosh),
