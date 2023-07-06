@@ -16,7 +16,6 @@
 -export([post_end_per_testcase/4]).
 
 -export([on_tc_fail/3]).
--export([on_tc_skip/3]).
 
 -export([terminate/1]).
 
@@ -66,15 +65,6 @@ post_end_per_testcase(TC, _Config, Return, State) ->
 on_tc_fail(TC, Reason, State) ->
     ct:print("~p~n~p", [TC, Reason]),
     State.
-
-%% @doc Called when a test case is skipped by either user action
-%% or due to an init function failing.
-on_tc_skip(_TC, Reason, State) ->
-    case Reason of
-        %% Just quit if files were not build correctly
-        {tc_user_skip, "Make failed"} -> erlang:halt(1);
-        _                             -> State
-    end.
 
 %% @doc Called when the scope of the CTH is done
 terminate(State) ->

@@ -10,7 +10,9 @@
          pre_init_per_suite/3,
          post_end_per_suite/4,
          post_end_per_group/4,
+         on_tc_skip/3,
          terminate/1]).
+
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -50,6 +52,15 @@ post_end_per_group(GroupName, Config, Return, State) ->
     State1 = update_group_status(GroupName, Config, State),
     ct:log("NewState: ~p", [State1]),
     {Return, State1}.
+
+%% @doc Called when a test case is skipped by either user action
+%% or due to an init function failing.
+on_tc_skip(_TC, Reason, State) ->
+    case Reason of
+        %% Just quit if files were not build correctly
+        {tc_user_skip, "Make failed"} -> erlang:halt(1);
+        _                             -> State
+    end.
 
 terminate(#{total_ok := OK, total_eventually_ok_tests := TotalEventuallyOK,
             total_failed := TotalFailed} = State) ->
