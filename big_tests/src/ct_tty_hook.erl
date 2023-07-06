@@ -21,6 +21,7 @@
 -export([terminate/1]).
 
 -record(state, { total, suite_total, ts, tcs, data }).
+-record(suite, { name, total, tcs }).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -40,7 +41,8 @@ pre_init_per_suite(_Suite, Config, State) ->
 
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite,_Config,Return,State) ->
-    Data = {suites, Suite, State#state.suite_total, lists:reverse(State#state.tcs)},
+    Data = #suite{ name = Suite, total = State#state.suite_total,
+                   tcs = lists:reverse(State#state.tcs) },
     {Return, State#state{ data = [Data | State#state.data] ,
                           total = State#state.total + State#state.suite_total } }.
 
@@ -88,7 +90,7 @@ aggregate_results(Cases) ->
     Fails = [ C || {testcase, _, {error, _}, _} = C <- Cases ],
     {length(Oks), length(Fails)}.
 
-print_suite({suites, Name, _, TestCases}) ->
+print_suite(#suite{name=Name, tcs = TestCases}) ->
     case aggregate_results(TestCases) of
         {Oks, 0} -> print_suite_ok(Name, Oks);
         {Oks, Fails} -> print_suite_failed(Name,Oks,Fails,TestCases)
