@@ -3,7 +3,7 @@
 
 -export([init/1,
          get_s2s_out_pids/1,
-         try_register/3,
+         try_register/2,
          remove_connection/2,
          node_cleanup/1]).
 
@@ -33,10 +33,10 @@ init_pids() ->
 get_s2s_out_pids(FromTo) ->
     s2s_to_pids(mnesia:dirty_read(s2s, FromTo)).
 
-try_register(Pid, ShouldWriteF, FromTo) ->
+try_register(Pid, FromTo) ->
     F = fun() ->
-                L = get_s2s_out_pids(FromTo),
-                case ShouldWriteF(L) of
+                Pids = get_s2s_out_pids(FromTo),
+                case mongoose_s2s_lib:need_more_connections(FromTo, Pids) of
                     true ->
                         mnesia:write(#s2s{fromto = FromTo, pid = Pid}),
                         true;

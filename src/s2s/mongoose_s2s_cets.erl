@@ -3,7 +3,7 @@
 
 -export([init/1,
          get_s2s_out_pids/1,
-         try_register/3,
+         try_register/2,
          remove_connection/2,
          node_cleanup/1]).
 
@@ -26,9 +26,9 @@ get_s2s_out_pids(FromTo) ->
     R = {{FromTo, '$1'}},
     ets:select(?TABLE, [{R, [], ['$1']}]).
 
-try_register(Pid, ShouldWriteF, FromTo) ->
-    L = get_s2s_out_pids(FromTo),
-    case ShouldWriteF(L) of
+try_register(Pid, FromTo) ->
+    Pids = get_s2s_out_pids(FromTo),
+    case mongoose_s2s_lib:need_more_connections(FromTo, Pids) of
         true ->
             cets:insert(?TABLE, {{FromTo, Pid}}),
             true;

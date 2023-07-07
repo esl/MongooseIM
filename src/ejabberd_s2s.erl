@@ -38,12 +38,7 @@
          key/3,
          get_s2s_out_pids/1,
          try_register/1,
-         remove_connection/2,
-         allow_host/1,
-         domain_utf8_to_ascii/1,
-         timeout/0,
-         lookup_certfile/1
-        ]).
+         remove_connection/2]).
 
 %% Hooks callbacks
 -export([node_cleanup/3]).
@@ -56,10 +51,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_commands.hrl").
-
--define(DEFAULT_MAX_S2S_CONNECTIONS, 1).
--define(DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE, 1).
 
 %% Pair of hosts {FromServer, ToServer}.
 %% FromServer is the local server.
@@ -79,9 +70,8 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+
+%% Starts the server
 -spec start_link() -> ignore | {error, _} | {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -92,11 +82,11 @@ filter(From, To, Acc, Packet) ->
 route(From, To, Acc, Packet) ->
     do_route(From, To, Acc, Packet).
 
--spec try_register(fromto()) -> boolean().
+%% Called by ejabberd_s2s_out process.
+-spec try_register(fromto()) -> IsRegistered :: boolean().
 try_register(FromTo) ->
-    ShouldWriteF = should_write_f(FromTo),
     Pid = self(),
-    IsRegistered = call_try_register(Pid, ShouldWriteF, FromTo),
+    IsRegistered = call_try_register(Pid, FromTo),
     case IsRegistered of
         false ->
             %% This usually happens when a ejabberd_s2s_out connection is established during dialback
@@ -133,7 +123,7 @@ node_cleanup(Acc, #{node := Node}, _) ->
 init([]) ->
     internal_database_init(),
     set_shared_secret(),
-    ejabberd_commands:register_commands(commands()),
+    ejabberd_commands:register_commands(mongoose_s2s_lib:commands()),
     gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 
@@ -151,7 +141,7 @@ handle_info(Msg, State) ->
 
 terminate(_Reason, _State) ->
     gen_hook:delete_handlers(hooks()),
-    ejabberd_commands:unregister_commands(commands()),
+    ejabberd_commands:unregister_commands(mongoose_s2s_lib:commands()),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -195,199 +185,63 @@ do_route(From, To, Acc, Packet) ->
             end
     end.
 
--spec make_from_to(From :: jid:jid(), To :: jid:jid()) ->  fromto().
-make_from_to(#jid{lserver = FromServer}, #jid{lserver = ToServer}) ->
-    {FromServer, ToServer}.
+-spec send_element(pid(), mongoose_acc:t(), exml:element()) -> ok.
+send_element(Pid, Acc, El) ->
+    Pid ! {send_element, Acc, El},
+    ok.
 
 -spec find_connection(From :: jid:jid(), To :: jid:jid()) ->
         {ok, pid()} | {error, not_allowed}.
 find_connection(From, To) ->
-    FromTo = make_from_to(From, To),
+    FromTo = mongoose_s2s_lib:make_from_to(From, To),
     ?LOG_DEBUG(#{what => s2s_find_connection, from_to => FromTo}),
     OldCons = get_s2s_out_pids(FromTo),
     NewCons = ensure_enough_connections(FromTo, OldCons),
     case NewCons of
         [] ->
             {error, not_allowed};
-        _ ->
-            {ok, choose_pid(From, NewCons)}
+        [_|_] ->
+            {ok, mongoose_s2s_lib:choose_pid(From, NewCons)}
     end.
 
 %% Opens more connections if needed and allowed.
+%% Returns an updated list of connections.
+-spec ensure_enough_connections(fromto(), s2s_pids()) -> s2s_pids().
 ensure_enough_connections(FromTo, OldCons) ->
-    NeededConnections = needed_connections_number_if_allowed(FromTo, OldCons),
+    NeededConnections = mongoose_s2s_lib:needed_extra_connections_number_if_allowed(FromTo, OldCons),
     case NeededConnections of
         0 ->
             OldCons;
         _ ->
-            open_several_connections(NeededConnections, FromTo),
+            open_new_connections(NeededConnections, FromTo),
             %% Query for s2s pids one more time
             get_s2s_out_pids(FromTo)
     end.
 
-%% Prefers the local connection (i.e. not on the remote node)
--spec choose_pid(From :: jid:jid(), Pids :: s2s_pids()) -> pid().
-choose_pid(From, [_|_] = Pids) ->
-    Pids1 = case filter_local_pids(Pids) of
-                [] -> Pids;
-                FilteredPids -> FilteredPids
-            end,
-    % Use sticky connections based on the JID of the sender
-    % (without the resource to ensure that a muc room always uses the same connection)
-    Pid = lists:nth(erlang:phash2(jid:to_bare(From), length(Pids1)) + 1, Pids1),
-    ?LOG_DEBUG(#{what => s2s_choose_pid, from => From, s2s_pid => Pid}),
-    Pid.
-
-%% Returns only pids from the current node.
--spec filter_local_pids(s2s_pids()) -> s2s_pids().
-filter_local_pids(Pids) ->
-    Node = node(),
-    [Pid || Pid <- Pids, node(Pid) == Node].
-
--spec open_several_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
-open_several_connections(N, FromTo) ->
-    ShouldWriteF = should_write_f(FromTo),
-    [new_connection(FromTo, ShouldWriteF) || _N <- lists:seq(1, N)],
+-spec open_new_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
+open_new_connections(N, FromTo) ->
+    [open_new_connection(FromTo) || _N <- lists:seq(1, N)],
     ok.
 
--spec new_connection(FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
-new_connection(FromTo, ShouldWriteF) ->
+-spec open_new_connection(FromTo :: fromto()) -> ok.
+open_new_connection(FromTo) ->
+    %% Start a process, but do not connect to the server yet.
     {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
-    case call_try_register(Pid, ShouldWriteF, FromTo) of
-        true ->
-            ?LOG_INFO(#{what => s2s_new_connection,
-                        text => <<"New s2s connection started">>,
-                        from_to => FromTo, s2s_pid => Pid}),
-            ejabberd_s2s_out:start_connection(Pid);
-        false ->
-            ejabberd_s2s_out:stop_connection(Pid)
-    end,
+    %% Try to write the Pid into Mnesia/CETS
+    IsRegistered = call_try_register(Pid, FromTo),
+    %% If successful, create an actual network connection
+    %% If not successful, remove the process
+    maybe_start_connection(Pid, FromTo, IsRegistered),
     ok.
 
--spec max_s2s_connections(fromto()) -> pos_integer().
-max_s2s_connections(FromTo) ->
-    match_integer_acl_rule(FromTo, max_s2s_connections,
-                           ?DEFAULT_MAX_S2S_CONNECTIONS).
-
--spec max_s2s_connections_per_node(fromto()) -> pos_integer().
-max_s2s_connections_per_node(FromTo) ->
-    match_integer_acl_rule(FromTo, max_s2s_connections_per_node,
-                           ?DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE).
-
--spec match_integer_acl_rule(fromto(), atom(), integer()) -> term().
-match_integer_acl_rule({FromServer, ToServer}, Rule, Default) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(FromServer),
-    ToServerJid = jid:make(<<>>, ToServer, <<>>),
-    case acl:match_rule(HostType, Rule, ToServerJid) of
-        Int when is_integer(Int) -> Int;
-        _ -> Default
-    end.
-
-needed_connections_number_if_allowed(FromTo, OldCons) ->
-    case is_s2s_allowed_for_host(FromTo, OldCons) of
-        true ->
-            needed_extra_connections_number(FromTo, OldCons);
-        false ->
-            0
-    end.
-
-%% Checks:
-%% - if the host is not a service
-%% - and if the s2s host is not blacklisted or is in whitelist
--spec is_s2s_allowed_for_host(fromto(), _OldConnections :: s2s_pids()) -> boolean().
-is_s2s_allowed_for_host(_FromTo, [_|_]) ->
-    true; %% Has outgoing connections established, skip the check
-is_s2s_allowed_for_host(FromTo, []) ->
-    not is_service(FromTo) andalso allow_host(FromTo).
-
--spec needed_extra_connections_number(fromto(), s2s_pids()) -> non_neg_integer().
-needed_extra_connections_number(FromTo, Connections) ->
-    MaxConnections = max_s2s_connections(FromTo),
-    MaxConnectionsPerNode = max_s2s_connections_per_node(FromTo),
-    LocalPids = filter_local_pids(Connections),
-    lists:min([MaxConnections - length(Connections),
-               MaxConnectionsPerNode - length(LocalPids)]).
-
-should_write_f(FromTo) ->
-    fun(Connections) when is_list(Connections) ->
-        needed_extra_connections_number(FromTo, Connections) > 0
-    end.
-
-%% Returns true if the destination must be considered as a service.
--spec is_service(fromto()) -> boolean().
-is_service({FromServer, ToServer} = _FromTo) ->
-    case mongoose_config:lookup_opt({route_subdomains, FromServer}) of
-        {ok, s2s} -> % bypass RFC 3920 10.3
-            false;
-        {error, not_found} ->
-            Hosts = ?MYHOSTS,
-            P = fun(ParentDomain) -> lists:member(ParentDomain, Hosts) end,
-            lists:any(P, parent_domains(ToServer))
-    end.
-
--spec parent_domains(jid:lserver()) -> [jid:lserver()].
-parent_domains(Domain) ->
-    parent_domains(Domain, [Domain]).
-
-parent_domains(<<>>, Acc) ->
-    lists:reverse(Acc);
-parent_domains(<<$., Rest/binary>>, Acc) ->
-    parent_domains(Rest, [Rest | Acc]);
-parent_domains(<<_, Rest/binary>>, Acc) ->
-    parent_domains(Rest, Acc).
-
--spec send_element(pid(), mongoose_acc:t(), exml:element()) ->
-    {'send_element', mongoose_acc:t(), exml:element()}.
-send_element(Pid, Acc, El) ->
-    Pid ! {send_element, Acc, El}.
-
-timeout() ->
-    600000.
-
-%% Converts a UTF-8 domain to ASCII (IDNA)
--spec domain_utf8_to_ascii(binary() | string()) -> binary() | false.
-domain_utf8_to_ascii(Domain) ->
-    case catch idna:utf8_to_ascii(Domain) of
-        {'EXIT', _} ->
-            false;
-        AsciiDomain ->
-            list_to_binary(AsciiDomain)
-    end.
-
--spec commands() -> [ejabberd_commands:cmd()].
-commands() ->
-    [
-     #ejabberd_commands{name = incoming_s2s_number,
-                       tags = [stats, s2s],
-                       desc = "Number of incoming s2s connections on the node",
-                       module = stats_api, function = incoming_s2s_number,
-                       args = [],
-                       result = {s2s_incoming, integer}},
-     #ejabberd_commands{name = outgoing_s2s_number,
-                       tags = [stats, s2s],
-                       desc = "Number of outgoing s2s connections on the node",
-                       module = stats_api, function = outgoing_s2s_number,
-                       args = [],
-                       result = {s2s_outgoing, integer}}
-    ].
-
-%% Check if host is in blacklist or white list
--spec allow_host(fromto()) -> boolean().
-allow_host({FromServer, ToServer}) ->
-    case mongoose_domain_api:get_host_type(FromServer) of
-        {error, not_found} ->
-            false;
-        {ok, HostType} ->
-            case mongoose_config:lookup_opt([{s2s, HostType}, host_policy, ToServer]) of
-                {ok, allow} ->
-                    true;
-                {ok, deny} ->
-                    false;
-                {error, not_found} ->
-                    mongoose_config:get_opt([{s2s, HostType}, default_policy]) =:= allow
-                        andalso mongoose_hooks:s2s_allow_host(FromServer, ToServer) =:= allow
-            end
-    end.
+-spec maybe_start_connection(Pid :: pid(), FromTo :: fromto(), IsRegistered :: boolean()) -> ok.
+maybe_start_connection(Pid, FromTo, true) ->
+    ?LOG_INFO(#{what => s2s_new_connection,
+                text => <<"New s2s connection started">>,
+                from_to => FromTo, s2s_pid => Pid}),
+    ejabberd_s2s_out:start_connection(Pid);
+maybe_start_connection(Pid, _FromTo, false) ->
+    ejabberd_s2s_out:stop_connection(Pid).
 
 -spec set_shared_secret() -> ok.
 set_shared_secret() ->
@@ -395,46 +249,12 @@ set_shared_secret() ->
     ok.
 
 set_shared_secret(HostType) ->
-    %% register_secret is replicated across all nodes.
-    %% So, when starting a node with updated secret in the config,
-    %% we would replace stored secret on all nodes at once.
-    %% There could be a small race condition when dialback key checks would get rejected,
-    %% But there would not be conflicts when some nodes have one secret stored and others - another.
-    case {get_shared_secret(HostType), get_shared_secret_from_config(HostType)} of
-        {{error, not_found}, {ok, Secret}} ->
-            %% Write the secret from the config into Mnesia/CETS for the first time
-            register_secret(HostType, Secret);
-        {{error, not_found}, {error, not_found}} ->
-            %% Write a random secret into Mnesia/CETS for the first time
-            register_secret(HostType, make_random_secret());
-        {{ok, Secret}, {ok, Secret}} ->
-            %% Config matches Mnesia/CETS
-            skip_same;
-        {{ok, _OldSecret}, {ok, NewSecret}} ->
-            ?LOG_INFO(#{what => overwrite_secret_from_config}),
+    case mongoose_s2s_lib:check_shared_secret(HostType, get_shared_secret(HostType)) of
+        {update, NewSecret} ->
             register_secret(HostType, NewSecret);
-        {{ok, _OldSecret}, {error, not_found}} ->
-            %% Keep the secret already stored in Mnesia/CETS
-            keep_existing
+        ok ->
+            ok
     end.
-
--spec get_shared_secret_from_config(mongooseim:host_type()) -> {ok, base16_secret()} | {error, not_found}.
-get_shared_secret_from_config(HostType) ->
-    mongoose_config:lookup_opt([{s2s, HostType}, shared]).
-
--spec make_random_secret() -> base16_secret().
-make_random_secret() ->
-    base16:encode(crypto:strong_rand_bytes(10)).
-
--spec lookup_certfile(mongooseim:host_type()) -> {ok, string()} | {error, not_found}.
-lookup_certfile(HostType) ->
-    case mongoose_config:lookup_opt({domain_certfile, HostType}) of
-        {ok, CertFile} ->
-            CertFile;
-        {error, not_found} ->
-            mongoose_config:lookup_opt([{s2s, HostType}, certfile])
-    end.
-
 
 %% Backend logic below:
 
@@ -448,9 +268,9 @@ get_s2s_out_pids(FromTo) ->
     mongoose_s2s_backend:get_s2s_out_pids(FromTo).
 
 %% Returns true if the connection is registered
--spec call_try_register(Pid :: pid(), ShouldWriteF :: fun(), FromTo :: fromto()) -> boolean().
-call_try_register(Pid, ShouldWriteF, FromTo) ->
-    mongoose_s2s_backend:try_register(Pid, ShouldWriteF, FromTo).
+-spec call_try_register(Pid :: pid(), FromTo :: fromto()) -> boolean().
+call_try_register(Pid, FromTo) ->
+    mongoose_s2s_backend:try_register(Pid, FromTo).
 
 call_node_cleanup(Node) ->
     mongoose_s2s_backend:node_cleanup(Node).

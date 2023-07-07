@@ -3,7 +3,6 @@
 -callback init(map()) -> any().
 -callback get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
 -callback try_register(Pid :: pid(),
-                       ShouldWriteF :: fun(),
                        FromTo :: ejabberd_s2s:fromto()) -> boolean().
 -callback remove_connection(FromTo :: ejabberd_s2s:fromto(), Pid :: pid()) -> ok.
 -callback node_cleanup(Node :: node()) -> term().
@@ -14,7 +13,7 @@
 
 -export([init/1,
          get_s2s_out_pids/1,
-         try_register/3,
+         try_register/2,
          remove_connection/2,
          node_cleanup/1]).
 
@@ -37,10 +36,9 @@ get_s2s_out_pids(FromTo) ->
 
 %% Register ejabberd_s2s_out connection
 -spec try_register(Pid :: pid(),
-                   ShouldWriteF :: fun(),
                    FromTo :: ejabberd_s2s:fromto()) -> boolean().
-try_register(Pid, ShouldWriteF, FromTo) ->
-    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Pid, ShouldWriteF, FromTo]).
+try_register(Pid, FromTo) ->
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Pid, FromTo]).
 
 -spec remove_connection(FromTo :: ejabberd_s2s:fromto(), Pid :: pid()) -> ok.
 remove_connection(FromTo, Pid) ->

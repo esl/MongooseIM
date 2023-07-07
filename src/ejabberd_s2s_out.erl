@@ -34,8 +34,8 @@
 -export([start/2,
          start_link/2,
          start_connection/1,
-         terminate_if_waiting_delay/1,
-         stop_connection/1]).
+         stop_connection/1,
+         terminate_if_waiting_delay/1]).
 
 %% p1_fsm callbacks (same as gen_fsm)
 -export([init/1,
@@ -150,16 +150,13 @@
 start(FromTo, Type) ->
     supervisor:start_child(ejabberd_s2s_out_sup, [FromTo, Type]).
 
-
 -spec start_link(ejabberd_s2s:fromto(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(FromTo, Type) ->
     p1_fsm:start_link(ejabberd_s2s_out, [FromTo, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
 
-
 start_connection(Pid) ->
     p1_fsm:send_event(Pid, init).
-
 
 stop_connection(Pid) ->
     p1_fsm:send_event(Pid, closed).
@@ -198,7 +195,7 @@ init([{From, Server} = FromTo, Type]) ->
                             start_connection(self()),
                             {false, {Pid, Key, SID}}
                     end,
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+    Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
@@ -656,7 +653,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
             cancel_timer(StateData#state.timer),
-            Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+            Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
             send_element(StateData, El),
             {next_state, StateName, StateData#state{timer = Timer}};
         %% In this state we bounce all message: We are waiting before
@@ -896,7 +893,7 @@ db_verify_xml({LocalServer, RemoteServer}, Key, Id) ->
 
 -spec lookup_services(mongooseim:host_type(), jid:lserver()) -> [addr()].
 lookup_services(HostType, Server) ->
-    case ejabberd_s2s:domain_utf8_to_ascii(Server) of
+    case mongoose_s2s_lib:domain_utf8_to_ascii(Server) of
         false -> [];
         ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr)
     end.
@@ -1147,7 +1144,7 @@ get_acc_with_new_tls(_, _, Acc) ->
 tls_options(HostType) ->
     Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
     Options = #{verify_mode => peer, ciphers => Ciphers},
-    case ejabberd_s2s:lookup_certfile(HostType) of
+    case mongoose_s2s_lib:lookup_certfile(HostType) of
         {ok, CertFile} -> Options#{certfile => CertFile};
         {error, not_found} -> Options
     end.

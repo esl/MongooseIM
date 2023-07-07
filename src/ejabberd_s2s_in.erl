@@ -130,7 +130,7 @@ init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
     ?LOG_DEBUG(#{what => s2s_in_started,
                  text => <<"New incoming S2S connection">>,
                  socket => Socket}),
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+    Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
             streamid = new_id(),
@@ -293,7 +293,7 @@ wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
 tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}) ->
-    case ejabberd_s2s:lookup_certfile(HostType) of
+    case mongoose_s2s_lib:lookup_certfile(HostType) of
         {ok, CertFile} -> TLSOptions#{certfile => CertFile};
         {error, not_found} -> TLSOptions
     end.
@@ -301,7 +301,7 @@ tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+    Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
     case parse_key_packet(El) of
         %% We use LocalServer and RemoteServer instead of From and To to avoid confusion
         {db_result, FromTo, Id, Key} ->
@@ -309,7 +309,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                          from_to => FromTo, message_id => Id, key => Key}),
             %% Checks if the from domain is allowed and if the to
             %% domain is handled by this server:
-            case {ejabberd_s2s:allow_host(FromTo), is_local_host_known(FromTo)} of
+            case {mongoose_s2s_lib:allow_host(FromTo), is_local_host_known(FromTo)} of
                 {true, true} ->
                     ejabberd_s2s_out:terminate_if_waiting_delay(FromTo),
                     StartType = {verify, self(), Key, StateData#state.streamid},
@@ -647,7 +647,7 @@ check_sasl_tls_certveify(false, _) ->
 check_auth_domain(error, _) ->
     false;
 check_auth_domain(AuthDomain, {ok, Cert}) ->
-    case ejabberd_s2s:domain_utf8_to_ascii(AuthDomain) of
+    case mongoose_s2s_lib:domain_utf8_to_ascii(AuthDomain) of
         false ->
             false;
         PCAuthDomain ->
