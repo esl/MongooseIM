@@ -202,8 +202,9 @@ find_connection(From, To) ->
 ensure_enough_connections(FromTo, OldCons) ->
     NeededConnections =
         mongoose_s2s_lib:needed_extra_connections_number_if_allowed(FromTo, OldCons),
-    case NeededConnections of
-        0 ->
+    %% Could be negative, if we have too many connections
+    case NeededConnections =< 0 of
+        true ->
             OldCons;
         _ ->
             open_new_connections(NeededConnections, FromTo),
