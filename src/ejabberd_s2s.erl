@@ -110,6 +110,13 @@ try_register(FromTo) ->
     end,
     IsRegistered.
 
+-spec key(mongooseim:host_type(), fromto(), binary()) -> binary().
+key(HostType, {From, To}, StreamID) ->
+    {ok, Secret} = get_shared_secret(HostType),
+    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
+    HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
+    base16:encode(HMac).
+
 %%====================================================================
 %% Hooks callbacks
 %%====================================================================
@@ -118,13 +125,6 @@ try_register(FromTo) ->
 node_cleanup(Acc, #{node := Node}, _) ->
     Res = call_node_cleanup(Node),
     {ok, maps:put(?MODULE, Res, Acc)}.
-
--spec key(mongooseim:host_type(), fromto(), binary()) -> binary().
-key(HostType, {From, To}, StreamID) ->
-    {ok, Secret} = get_shared_secret(HostType),
-    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
-    HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
-    base16:encode(HMac).
 
 %%====================================================================
 %% gen_server callbacks
@@ -313,10 +313,7 @@ should_write_f(FromTo) ->
         needed_extra_connections_number(FromTo, Connections) > 0
     end.
 
-%%--------------------------------------------------------------------
-%% Description: Return true if the destination must be considered as a
-%% service.
-%% --------------------------------------------------------------------
+%% Returns true if the destination must be considered as a service.
 -spec is_service(fromto()) -> boolean().
 is_service({FromServer, ToServer} = _FromTo) ->
     case mongoose_config:lookup_opt({route_subdomains, FromServer}) of
@@ -328,11 +325,10 @@ is_service({FromServer, ToServer} = _FromTo) ->
             lists:any(P, parent_domains(ToServer))
     end.
 
--spec parent_domains(binary()) -> [binary(), ...].
+-spec parent_domains(jid:lserver()) -> [jid:lserver()].
 parent_domains(Domain) ->
     parent_domains(Domain, [Domain]).
 
--spec parent_domains(binary(), [binary(), ...]) -> [binary(), ...].
 parent_domains(<<>>, Acc) ->
     lists:reverse(Acc);
 parent_domains(<<$., Rest/binary>>, Acc) ->
@@ -347,10 +343,8 @@ send_element(Pid, Acc, El) ->
 
 timeout() ->
     600000.
-%%--------------------------------------------------------------------
-%% Function: domain_utf8_to_ascii(Domain) -> binary() | false
-%% Description: Converts a UTF-8 domain to ASCII (IDNA)
-%% --------------------------------------------------------------------
+
+%% Converts a UTF-8 domain to ASCII (IDNA)
 -spec domain_utf8_to_ascii(binary() | string()) -> binary() | false.
 domain_utf8_to_ascii(Domain) ->
     case catch idna:utf8_to_ascii(Domain) of
@@ -360,10 +354,7 @@ domain_utf8_to_ascii(Domain) ->
             list_to_binary(AsciiDomain)
     end.
 
-%%%----------------------------------------------------------------------
-%%% ejabberd commands
-
--spec commands() -> [ejabberd_commands:cmd(), ...].
+-spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
     [
      #ejabberd_commands{name = incoming_s2s_number,
