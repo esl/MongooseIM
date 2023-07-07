@@ -309,9 +309,9 @@ stream_established({xmlstreamelement, El}, StateData) ->
         %% Incoming dialback key, we have to verify it using ejabberd_s2s_out before
         %% accepting any incoming stanzas
         %% (we have to receive the `validity_from_s2s_out' event first).
-        {step_1, FromTo, Id, Key} = Parsed ->
+        {step_1, FromTo, StreamID, Key} = Parsed ->
             ?LOG_DEBUG(#{what => s2s_in_get_key,
-                         from_to => FromTo, message_id => Id, key => Key}),
+                         from_to => FromTo, stream_id => StreamID, key => Key}),
             %% Checks if the from domain is allowed and if the to
             %% domain is handled by this server:
             case {mongoose_s2s_lib:allow_host(FromTo), is_local_host_known(FromTo)} of
@@ -339,11 +339,11 @@ stream_established({xmlstreamelement, El}, StateData) ->
             end;
         %% Incoming dialback verification request
         %% We have to check it using secrets and reply if it is valid or not
-        {step_2, FromTo, Id, Key} ->
+        {step_2, FromTo, StreamID, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_verify_key,
-                         from_to => FromTo, message_id => Id, key => Key}),
-            IsValid = Key =:= ejabberd_s2s:key(StateData#state.host_type, FromTo, Id),
-            send_element(StateData, mongoose_s2s_dialback:step_3(FromTo, Id, IsValid)),
+                         from_to => FromTo, stream_id => StreamID, key => Key}),
+            IsValid = Key =:= ejabberd_s2s:key(StateData#state.host_type, FromTo, StreamID),
+            send_element(StateData, mongoose_s2s_dialback:step_3(FromTo, StreamID, IsValid)),
             {next_state, stream_established, StateData#state{timer = Timer}};
         false ->
             Res = parse_and_route_incoming_stanza(El, StateData),

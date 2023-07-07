@@ -328,9 +328,9 @@ wait_for_stream(closed, StateData) ->
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}) ->
     case mongoose_s2s_dialback:parse_validity(El) of
-        {step_3, FromTo, Id, IsValid} ->
+        {step_3, FromTo, StreamID, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
-                         from_to => FromTo, message_id => Id, is_valid => IsValid}),
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid}),
             case StateData#state.verify of
                 false ->
                     %% TODO: Should'nt we close the connection here ?
@@ -339,9 +339,9 @@ wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}
                     ejabberd_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
                     next_state(wait_for_validation, StateData)
             end;
-        {step_4, FromTo, Id, IsValid} ->
+        {step_4, FromTo, StreamID, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
-                         from_to => FromTo, message_id => Id, is_valid => IsValid}),
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid}),
             #state{tls_enabled = Enabled, tls_required = Required} = StateData,
             case IsValid of
                 true when (Enabled==true) or (Required==false) ->
@@ -538,9 +538,9 @@ stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo})
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
     case mongoose_s2s_dialback:parse_validity(El) of
-        {step_3, FromTo, VId, IsValid} ->
+        {step_3, FromTo, StreamID, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
-                         from_to => FromTo, message_id => VId, is_valid => IsValid,
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid,
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
@@ -548,7 +548,7 @@ stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo})
                 _ ->
                     ok
             end;
-        {step_4, _FromTo, _Id, _IsValid} ->
+        {step_4, _FromTo, _StreamID, _IsValid} ->
             ok;
         false ->
             ok
