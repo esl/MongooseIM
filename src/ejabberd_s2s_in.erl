@@ -299,9 +299,11 @@ tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
-    case parse_key_packet(El) of
-        %% We use LocalServer and RemoteServer instead of From and To to avoid confusion
-        {db_result, FromTo, Id, Key} ->
+    case parse_dialback_with_key(El) of
+        %% Incoming dialback key, we have to verify it using ejabberd_s2s_out before
+        %% accepting any incoming stanzas
+        %% (we have to receive an event `{valid, FromTo}' from `ejabberd_s2s_out' process).
+        {dialback_result, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_get_key,
                          from_to => FromTo, message_id => Id, key => Key}),
             %% Checks if the from domain is allowed and if the to
@@ -310,6 +312,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
                 {true, true} ->
                     ejabberd_s2s_out:terminate_if_waiting_delay(FromTo),
                     StartType = {verify, self(), Key, StateData#state.streamid},
+                    %% Could we reuse an existing ejabberd_s2s_out connection
+                    %% instead of making a new one?
                     ejabberd_s2s_out:start(FromTo, StartType),
                     Conns = maps:put(FromTo, wait_for_verification,
                                      StateData#state.connections),
@@ -326,14 +330,16 @@ stream_established({xmlstreamelement, El}, StateData) ->
                     ?LOG_WARNING(#{what => s2s_in_key_with_invalid_from}),
                     {stop, normal, StateData}
             end;
-        {db_verify, FromTo, Id, Key} ->
+        %% Incoming dialback verification request
+        %% We have to check it using secrets and reply if it is valid or not
+        {dialback_verify, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_verify_key,
                          from_to => FromTo, message_id => Id, key => Key}),
             Type = case ejabberd_s2s:key(StateData#state.host_type, FromTo, Id) of
                        Key -> <<"valid">>;
                        _ -> <<"invalid">>
                    end,
-            send_element(StateData, db_verify_xml(FromTo, Id, Type)),
+            send_element(StateData, dialback_verify_type_xml(FromTo, Id, Type)),
             {next_state, stream_established, StateData#state{timer = Timer}};
         false ->
             Res = parse_and_route_incoming_stanza(El, StateData),
@@ -342,13 +348,13 @@ stream_established({xmlstreamelement, El}, StateData) ->
     end;
 %% An event from ejabberd_s2s_out
 stream_established({valid, FromTo}, StateData) ->
-    send_element(StateData, db_result_xml(FromTo, <<"valid">>)),
+    send_element(StateData, dialback_result_type_xml(FromTo, <<"valid">>)),
     Cons = maps:put(FromTo, established, StateData#state.connections),
     NSD = StateData#state{connections = Cons},
     {next_state, stream_established, NSD};
 %% An event from ejabberd_s2s_out
 stream_established({invalid, FromTo}, StateData) ->
-    send_element(StateData, db_result_xml(FromTo, <<"invalid">>)),
+    send_element(StateData, dialback_result_type_xml(FromTo, <<"invalid">>)),
     Cons = maps:remove(FromTo, StateData#state.connections),
     NSD = StateData#state{connections = Cons},
     {next_state, stream_established, NSD};
@@ -417,7 +423,7 @@ same_auth_domain({_, LRemoteServer}, #state{auth_domain = AuthDomain}) ->
 
 -spec is_s2s_connected(ejabberd_s2s:fromto(), #state{}) -> boolean().
 is_s2s_connected(FromTo, StateData) ->
-    {ok, established} =:= maps:find(FromTo, StateData#state.connections).
+    established =:= maps:get(FromTo, StateData#state.connections, false).
 
 -spec is_valid_stanza(exml:element()) -> boolean().
 is_valid_stanza(#xmlel{name = Name}) ->
@@ -557,34 +563,35 @@ cancel_timer(Timer) ->
 %% XEP-0185: Dialback Key Generation and Validation
 %% DB means dial-back
 %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
--spec db_verify_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
-db_verify_xml({LocalServer, RemoteServer}, Id, Type) ->
+-spec dialback_verify_type_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+dialback_verify_type_xml({LocalServer, RemoteServer}, Id, Type) ->
     #xmlel{name = <<"db:verify">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer},
                     {<<"id">>, Id},
                     {<<"type">>, Type}]}.
 
--spec db_result_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
-db_result_xml({LocalServer, RemoteServer}, Type) ->
+-spec dialback_result_type_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
+dialback_result_type_xml({LocalServer, RemoteServer}, Type) ->
     %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
     #xmlel{name = <<"db:result">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer},
                     {<<"type">>, Type}]}.
 
--spec parse_key_packet(exml:element()) -> false
-    | {db_result | db_verify, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
-parse_key_packet(El = #xmlel{name = <<"db:result">>}) ->
+-spec parse_dialback_with_key(exml:element()) -> false
+    | {dialback_result | dialback_verify,
+       FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
+parse_dialback_with_key(El = #xmlel{name = <<"db:result">>}) ->
     %% Initiating Server Sends Dialback Key (Step 1)
-    parsed_key_packet(db_result, El);
-parse_key_packet(El = #xmlel{name = <<"db:verify">>}) ->
+    parsed_dialback_with_key(dialback_result, El);
+parse_dialback_with_key(El = #xmlel{name = <<"db:verify">>}) ->
     %% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
-    parsed_key_packet(db_verify, El);
-parse_key_packet(_) ->
+    parsed_dialback_with_key(dialback_verify, El);
+parse_dialback_with_key(_) ->
     false.
 
-parsed_key_packet(Type, El) ->
+parsed_dialback_with_key(Type, El) ->
     FromTo = parse_from_to(El),
     Id = exml_query:attr(El, <<"id">>, <<>>),
     Key = exml_query:cdata(El),
