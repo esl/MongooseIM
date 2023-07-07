@@ -309,7 +309,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
         %% Incoming dialback key, we have to verify it using ejabberd_s2s_out before
         %% accepting any incoming stanzas
         %% (we have to receive the `validity_from_s2s_out' event first).
-        {step_1, FromTo, Id, Key} ->
+        {step_1, FromTo, Id, Key} = Parsed ->
             ?LOG_DEBUG(#{what => s2s_in_get_key,
                          from_to => FromTo, message_id => Id, key => Key}),
             %% Checks if the from domain is allowed and if the to
@@ -329,11 +329,12 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns, timer = Timer}};
                 {_, false} ->
                     send_element(StateData, mongoose_xmpp_errors:host_unknown()),
-                    ?LOG_WARNING(#{what => s2s_in_key_from_uknown_host}),
+                    ?LOG_WARNING(#{what => s2s_in_key_from_uknown_host, element => El,
+                                   parsed => Parsed, from_to => FromTo}),
                     {stop, normal, StateData};
                 {false, _} ->
                     send_element(StateData, mongoose_xmpp_errors:invalid_from()),
-                    ?LOG_WARNING(#{what => s2s_in_key_with_invalid_from}),
+                    ?LOG_WARNING(#{what => s2s_in_key_with_invalid_from, element => El}),
                     {stop, normal, StateData}
             end;
         %% Incoming dialback verification request
@@ -673,4 +674,13 @@ get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
 
 is_local_host_known({LLocalServer, _}) ->
     mongoose_router:is_registered_route(LLocalServer)
-        orelse mongoose_component:has_component(LLocalServer).
+        orelse mongoose_component:has_component(LLocalServer)
+        orelse is_known_domain(LLocalServer).
+
+is_known_domain(Domain) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, _HostType} ->
+            true;
+        _ ->
+            false
+    end.
