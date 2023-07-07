@@ -55,8 +55,7 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
--ignore_xref([get_info_s2s_connections/1,
-              incoming_s2s_number/0, outgoing_s2s_number/0, start_link/0]).
+-ignore_xref([get_info_s2s_connections/1, start_link/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -100,13 +99,19 @@ route(From, To, Acc, Packet) ->
 try_register(FromTo) ->
     ShouldWriteF = should_write_f(FromTo),
     Pid = self(),
-    case call_try_register(Pid, ShouldWriteF, FromTo) of
-        true ->
-            true;
+    IsRegistered = call_try_register(Pid, ShouldWriteF, FromTo),
+    case IsRegistered of
         false ->
-            ?LOG_ERROR(#{what => s2s_register_failed, from_to => FromTo}),
-            false
-    end.
+            %% This usually happens when a ejabberd_s2s_out connection is established during dialback
+            %% procedure to check the key.
+            %% We still are fine, we just would not use that s2s connection to route
+            %% any stanzas to the remote server.
+            %% Could be a sign of abuse or a bug though, so use logging here.
+            ?LOG_INFO(#{what => s2s_register_failed, from_to => FromTo, pid => self()});
+        _ ->
+            ok
+    end,
+    IsRegistered.
 
 %%====================================================================
 %% Hooks callbacks
@@ -250,7 +255,6 @@ open_several_connections(N, FromTo) ->
 
 -spec new_connection(FromTo :: fromto(), ShouldWriteF :: fun()) -> ok.
 new_connection(FromTo, ShouldWriteF) ->
-    %% Serialize opening of connections
     {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
     case call_try_register(Pid, ShouldWriteF, FromTo) of
         true ->
