@@ -30,9 +30,12 @@ init_pids() ->
     mnesia:create_table(s2s, Opts),
     mnesia:add_table_copy(s2s, node(), ram_copies).
 
+-spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
 get_s2s_out_pids(FromTo) ->
     s2s_to_pids(mnesia:dirty_read(s2s, FromTo)).
 
+-spec try_register(Pid :: pid(),
+                   FromTo :: ejabberd_s2s:fromto()) -> boolean().
 try_register(Pid, FromTo) ->
     F = fun() ->
                 Pids = get_s2s_out_pids(FromTo),
@@ -54,6 +57,7 @@ try_register(Pid, FromTo) ->
             false
     end.
 
+-spec remove_connection(FromTo :: ejabberd_s2s:fromto(), Pid :: pid()) -> ok.
 remove_connection(FromTo, Pid) ->
     Rec = #s2s{fromto = FromTo, pid = Pid},
     F = fun() ->
@@ -68,6 +72,7 @@ remove_connection(FromTo, Pid) ->
             ok
     end.
 
+-spec node_cleanup(Node :: node()) -> ok.
 node_cleanup(Node) ->
     F = fun() ->
                 Es = mnesia:select(
@@ -79,7 +84,8 @@ node_cleanup(Node) ->
                                       mnesia:delete_object(E)
                               end, Es)
         end,
-    mnesia:async_dirty(F).
+    mnesia:async_dirty(F),
+    ok.
 
 s2s_to_pids(List) ->
     [Pid || #s2s{pid = Pid} <- List].
@@ -90,11 +96,15 @@ init_secrets() ->
     mnesia:create_table(s2s_secret, Opts),
     mnesia:add_table_copy(s2s_secret, node(), ram_copies).
 
+-spec register_secret(HostType :: mongooseim:host_type(),
+                      Secret :: ejabberd_s2s:base16_secret()) -> ok.
 register_secret(HostType, Secret) ->
     Rec = #s2s_secret{host_type = HostType, secret = Secret},
     {atomic, _} = mnesia:transaction(fun() -> mnesia:write(Rec) end),
     ok.
 
+-spec get_shared_secret(mongooseim:host_type()) ->
+    {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 get_shared_secret(HostType) ->
     case mnesia:dirty_read(s2s_secret, HostType) of
         [#s2s_secret{secret = Secret}] ->

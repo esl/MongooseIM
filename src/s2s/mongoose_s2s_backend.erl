@@ -30,7 +30,7 @@ init(Opts) ->
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> [pid()].
+-spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
 get_s2s_out_pids(FromTo) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [FromTo]).
 
@@ -44,7 +44,7 @@ try_register(Pid, FromTo) ->
 remove_connection(FromTo, Pid) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [FromTo, Pid]).
 
--spec node_cleanup(Node :: node()) -> term().
+-spec node_cleanup(Node :: node()) -> ok.
 node_cleanup(Node) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Node]).
 
