@@ -559,6 +559,7 @@ cancel_timer(Timer) ->
 
 %% XEP-0185: Dialback Key Generation and Validation
 %% DB means dial-back
+%% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
 -spec db_verify_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
 db_verify_xml({LocalServer, RemoteServer}, Id, Type) ->
     #xmlel{name = <<"db:verify">>,
@@ -569,6 +570,7 @@ db_verify_xml({LocalServer, RemoteServer}, Id, Type) ->
 
 -spec db_result_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
 db_result_xml({LocalServer, RemoteServer}, Type) ->
+    %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
     #xmlel{name = <<"db:result">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer},
@@ -577,8 +579,10 @@ db_result_xml({LocalServer, RemoteServer}, Type) ->
 -spec parse_key_packet(exml:element()) -> false
     | {db_result | db_verify, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
 parse_key_packet(El = #xmlel{name = <<"db:result">>}) ->
+    %% Initiating Server Sends Dialback Key (Step 1)
     parsed_key_packet(db_result, El);
 parse_key_packet(El = #xmlel{name = <<"db:verify">>}) ->
+    %% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
     parsed_key_packet(db_verify, El);
 parse_key_packet(_) ->
     false.

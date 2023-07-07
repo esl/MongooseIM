@@ -330,8 +330,8 @@ wait_for_stream(closed, StateData) ->
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_validation({xmlstreamelement, El}, StateData) ->
-    case is_verify_res(El) of
-        {result, To, From, Id, Type} ->
+    case parse_verify_result(El) of
+        {db_result, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
                          from => From, to => To, message_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
@@ -352,7 +352,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
-        {verify, To, From, Id, Type} ->
+        {db_verify, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
                          from => From, to => To, message_id => Id, type => Type}),
             case StateData#state.verify of
@@ -545,8 +545,8 @@ wait_before_retry(_Event, StateData) ->
 stream_established({xmlstreamelement, El}, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    case is_verify_res(El) of
-        {verify, VTo, VFrom, VId, VType} ->
+    case parse_verify_result(El) of
+        {db_verify, VTo, VFrom, VId, VType} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
                          to => VTo, from => VFrom, message_id => VId, type => VType,
                          myname => StateData#state.myname, server => StateData#state.server}),
@@ -852,24 +852,26 @@ send_db_request(StateData) ->
     end.
 
 
--spec is_verify_res(exml:element()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
-is_verify_res(#xmlel{name = Name,
-                     attrs = Attrs}) when Name == <<"db:result">> ->
-    {result,
+-spec parse_verify_result(exml:element()) -> false
+    | {db_verify | db_result, To :: binary(), From :: binary(), Id :: binary(), Type :: binary()}.
+parse_verify_result(#xmlel{name = <<"db:result">>, attrs = Attrs}) ->
+    %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
+    {db_result,
      xml:get_attr_s(<<"to">>, Attrs),
      xml:get_attr_s(<<"from">>, Attrs),
      xml:get_attr_s(<<"id">>, Attrs),
      xml:get_attr_s(<<"type">>, Attrs)};
-is_verify_res(#xmlel{name = Name,
-                     attrs = Attrs}) when Name == <<"db:verify">> ->
-    {verify,
+parse_verify_result(#xmlel{name = <<"db:verify">>, attrs = Attrs}) ->
+    %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
+    {db_verify,
      xml:get_attr_s(<<"to">>, Attrs),
      xml:get_attr_s(<<"from">>, Attrs),
      xml:get_attr_s(<<"id">>, Attrs),
      xml:get_attr_s(<<"type">>, Attrs)};
-is_verify_res(_) ->
+parse_verify_result(_) ->
     false.
 
+%% Initiating Server Sends Dialback Key (Step 1)
 -spec db_result_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
 db_result_xml({LocalServer, RemoteServer}, Key) ->
     #xmlel{name = <<"db:result">>,
@@ -877,9 +879,10 @@ db_result_xml({LocalServer, RemoteServer}, Key) ->
                     {<<"to">>, RemoteServer}],
            children = [#xmlcdata{content = Key}]}.
 
+%% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
 -spec db_verify_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
 db_verify_xml({LocalServer, RemoteServer}, Key, Id) ->
-    #xmlel{name = <<"db:result">>,
+    #xmlel{name = <<"db:verify">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer},
                     {<<"id">>, Id}],
