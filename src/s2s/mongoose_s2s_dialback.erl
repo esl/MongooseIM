@@ -52,37 +52,36 @@
 %% Initiating server sends dialback key
 %% https://xmpp.org/extensions/xep-0220.html#example-1
 -spec step_1(ejabberd_s2s:fromto(), ejabberd_s2s:s2s_dialback_key()) -> exml:element().
-step_1({LocalServer, RemoteServer}, Key) ->
+step_1(FromTo, Key) ->
     #xmlel{name = <<"db:result">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer}],
+           attrs = fromto_to_attrs(FromTo),
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving server sends verification request to authoritative server (step 2)
 -spec step_2(ejabberd_s2s:fromto(), ejabberd_s2s:s2s_dialback_key(), ejabberd_s2s:stream_id()) -> exml:element().
-step_2({LocalServer, RemoteServer}, Key, StreamID) ->
+step_2(FromTo, Key, StreamID) ->
     #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"id">>, StreamID}],
+           attrs = [{<<"id">>, StreamID} | fromto_to_attrs(FromTo)],
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving server is informed by authoritative server that key is valid or invalid (step 3)
 -spec step_3(ejabberd_s2s:fromto(), ejabberd_s2s:stream_id(), boolean()) -> exml:element().
-step_3({LocalServer, RemoteServer}, StreamID, IsValid) ->
+step_3(FromTo, StreamID, IsValid) ->
     #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"id">>, StreamID},
-                    {<<"type">>, is_valid_to_type(IsValid)}]}.
+           attrs = [{<<"id">>, StreamID},
+                    {<<"type">>, is_valid_to_type(IsValid)}
+                    | fromto_to_attrs(FromTo)]}.
 
 %% Receiving server sends valid or invalid verification result to initiating server (step 4)
 -spec step_4(ejabberd_s2s:fromto(), boolean()) -> exml:element().
-step_4({LocalServer, RemoteServer}, IsValid) ->
+step_4(FromTo, IsValid) ->
     #xmlel{name = <<"db:result">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"type">>, is_valid_to_type(IsValid)}]}.
+           attrs = [{<<"type">>, is_valid_to_type(IsValid)}
+                    | fromto_to_attrs(FromTo)]}.
+
+-spec fromto_to_attrs(ejabberd_s2s:fromto()) -> [{binary(), binary()}].
+fromto_to_attrs({LocalServer, RemoteServer}) ->
+    [{<<"from">>, LocalServer}, {<<"to">>, RemoteServer}].
 
 is_valid_to_type(true)  -> <<"valid">>;
 is_valid_to_type(false) -> <<"invalid">>.
