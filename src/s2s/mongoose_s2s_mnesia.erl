@@ -11,11 +11,14 @@
          get_shared_secret/1]).
 
 -record(s2s, {
-          fromto :: ejabberd_s2s:fromto() | '_',
-          pid :: pid() | '$1'
-         }).
+           fromto :: ejabberd_s2s:fromto() | '_',
+           pid :: pid() | '$1'
+       }).
 
--record(s2s_secret, {host_type, secret}).
+-record(s2s_shared, {
+           host_type :: mongooseim:host_type(),
+           secret :: mongooseim:base16_secret()
+       }).
 
 -include("mongoose_logger.hrl").
 
@@ -92,22 +95,22 @@ s2s_to_pids(List) ->
 
 %% Secrets
 init_secrets() ->
-    Opts = [{ram_copies, [node()]}, {attributes, record_info(fields, s2s_secret)}],
-    mnesia:create_table(s2s_secret, Opts),
-    mnesia:add_table_copy(s2s_secret, node(), ram_copies).
+    Opts = [{ram_copies, [node()]}, {attributes, record_info(fields, s2s_shared)}],
+    mnesia:create_table(s2s_shared, Opts),
+    mnesia:add_table_copy(s2s_shared, node(), ram_copies).
 
 -spec register_secret(HostType :: mongooseim:host_type(),
                       Secret :: ejabberd_s2s:base16_secret()) -> ok.
 register_secret(HostType, Secret) ->
-    Rec = #s2s_secret{host_type = HostType, secret = Secret},
+    Rec = #s2s_shared{host_type = HostType, secret = Secret},
     {atomic, _} = mnesia:transaction(fun() -> mnesia:write(Rec) end),
     ok.
 
 -spec get_shared_secret(mongooseim:host_type()) ->
     {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 get_shared_secret(HostType) ->
-    case mnesia:dirty_read(s2s_secret, HostType) of
-        [#s2s_secret{secret = Secret}] ->
+    case mnesia:dirty_read(s2s_shared, HostType) of
+        [#s2s_shared{secret = Secret}] ->
             {ok, Secret};
         [] ->
             {error, not_found}
