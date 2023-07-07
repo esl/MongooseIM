@@ -672,6 +672,7 @@ get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
             attrs = [{<<"xmlns">>, ?NS_TLS}],
             children = [#xmlel{name = <<"required">>}]}].
 
+-spec is_local_host_known(ejabberd_s2s:fromto()) -> boolean().
 is_local_host_known({LLocalServer, _}) ->
     mongoose_router:is_registered_route(LLocalServer)
         orelse mongoose_component:has_component(LLocalServer)

@@ -203,13 +203,13 @@ ensure_enough_connections(FromTo, OldCons) ->
     NeededConnections =
         mongoose_s2s_lib:needed_extra_connections_number_if_allowed(FromTo, OldCons),
     %% Could be negative, if we have too many connections
-    case NeededConnections =< 0 of
+    case NeededConnections > 0 of
         true ->
-            OldCons;
-        _ ->
             open_new_connections(NeededConnections, FromTo),
             %% Query for s2s pids one more time
-            get_s2s_out_pids(FromTo)
+            get_s2s_out_pids(FromTo);
+        false ->
+            OldCons
     end.
 
 -spec open_new_connections(N :: pos_integer(), FromTo :: fromto()) -> ok.
@@ -223,11 +223,11 @@ open_new_connection(FromTo) ->
     {ok, Pid} = ejabberd_s2s_out:start(FromTo, new),
     %% Try to write the Pid into Mnesia/CETS
     IsRegistered = call_try_register(Pid, FromTo),
-    %% If successful, create an actual network connection
-    %% If not successful, remove the process
     maybe_start_connection(Pid, FromTo, IsRegistered),
     ok.
 
+%% If registration is successful, create an actual network connection.
+%% If not successful, remove the process.
 -spec maybe_start_connection(Pid :: pid(), FromTo :: fromto(), IsRegistered :: boolean()) -> ok.
 maybe_start_connection(Pid, FromTo, true) ->
     ?LOG_INFO(#{what => s2s_new_connection,
@@ -243,6 +243,7 @@ set_shared_secret() ->
     ok.
 
 %% Updates the secret across the cluster if needed
+-spec set_shared_secret(mongooseim:host_type()) -> ok.
 set_shared_secret(HostType) ->
     case mongoose_s2s_lib:check_shared_secret(HostType, get_shared_secret(HostType)) of
         {update, NewSecret} ->
@@ -264,7 +265,7 @@ get_s2s_out_pids(FromTo) ->
     mongoose_s2s_backend:get_s2s_out_pids(FromTo).
 
 %% Returns true if the connection is registered
--spec call_try_register(Pid :: pid(), FromTo :: fromto()) -> boolean().
+-spec call_try_register(Pid :: pid(), FromTo :: fromto()) -> IsRegistered :: boolean().
 call_try_register(Pid, FromTo) ->
     mongoose_s2s_backend:try_register(Pid, FromTo).
 
