@@ -128,7 +128,7 @@ key(HostType, {From, To}, StreamID) ->
 %%====================================================================
 
 init([]) ->
-    db_init(),
+    internal_database_init(),
     set_shared_secret(),
     ejabberd_commands:register_commands(commands()),
     gen_hook:add_handlers(hooks()),
@@ -173,11 +173,7 @@ do_route(From, To, Acc, Packet) ->
             ?LOG_DEBUG(#{what => s2s_found_connection,
                          text => <<"Send packet to s2s connection">>,
                          s2s_pid => Pid, acc => Acc}),
-            #xmlel{attrs = Attrs} = Packet,
-            NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
-                                                  jid:to_binary(To),
-                                                  Attrs),
-            NewPacket = Packet#xmlel{attrs = NewAttrs},
+            NewPacket = jlib:replace_from_to(From, To, Packet),
             Acc1 = mongoose_hooks:s2s_send_packet(Acc, From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
             {done, Acc1};
@@ -478,7 +474,7 @@ lookup_certfile(HostType) ->
 
 %% Backend logic below:
 
-db_init() ->
+internal_database_init() ->
     Backend = mongoose_config:get_opt(s2s_backend),
     mongoose_s2s_backend:init(#{backend => Backend}).
 
