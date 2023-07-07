@@ -73,7 +73,7 @@
                 tls_enabled = false     :: boolean(),
                 tls_options             :: mongoose_tls:options(),
                 authenticated = false   :: boolean(),
-                db_enabled = true       :: boolean(),
+                dialback_enabled = true :: boolean(),
                 try_auth = true         :: boolean(),
                 from_to                 :: ejabberd_s2s:fromto(),
                 myname, server, queue,
@@ -292,23 +292,23 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
           xml:get_attr_s(<<"xmlns:db">>, Attrs),
           xml:get_attr_s(<<"version">>, Attrs) == <<"1.0">>} of
         {<<"jabber:server">>, <<"jabber:server:dialback">>, false} ->
-            send_db_request(StateData);
+            send_dialback_request(StateData);
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
         StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData, ?FSMTIMEOUT};
         %% Clause added to handle Tigase's workaround for an old ejabberd bug:
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
         not StateData#state.use_v10 ->
-            send_db_request(StateData);
+            send_dialback_request(StateData);
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
-            {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
+            {next_state, wait_for_features, StateData#state{dialback_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
             send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             ?LOG_INFO(#{what => s2s_out_closing,
                         text => <<"Closing s2s connection: (invalid namespace)">>,
                         namespace_provided => NSProvided,
                         namespace_expected => <<"jabber:server">>,
-                        xmlnsdb_provided => DB,
+                        xmlnsdialback_provided => DB,
                         all_attributes => Attrs,
                         myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, StateData}
@@ -328,7 +328,7 @@ wait_for_stream(closed, StateData) ->
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_validation({xmlstreamelement, El}, StateData) ->
     case parse_dialback_with_type(El) of
-        {db_result, To, From, Id, Type} ->
+        {dialback_result, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
                          from => From, to => To, message_id => Id, type => Type}),
             case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
@@ -349,7 +349,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
-        {db_verify, To, From, Id, Type} ->
+        {dialback_verify, To, From, Id, Type} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
                          from => From, to => To, message_id => Id, type => Type}),
             case StateData#state.verify of
@@ -541,7 +541,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
     case parse_dialback_with_type(El) of
-        {db_verify, VTo, VFrom, VId, VType} ->
+        {dialback_verify, VTo, VFrom, VId, VType} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
                          to => VTo, from => VFrom, message_id => VId, type => VType,
                          myname => StateData#state.myname, server => StateData#state.server}),
@@ -614,7 +614,7 @@ handle_sync_event(get_state_infos, _From, StateName, StateData) ->
              {tls_enabled, StateData#state.tls_enabled},
              {tls_options, StateData#state.tls_options},
              {authenticated, StateData#state.authenticated},
-             {db_enabled, StateData#state.db_enabled},
+             {dialback_enabled, StateData#state.dialback_enabled},
              {try_auth, StateData#state.try_auth},
              {myname, StateData#state.myname},
              {server, StateData#state.server},
@@ -808,8 +808,8 @@ bounce_messages(Error) ->
     end.
 
 
--spec send_db_request(state()) -> fsm_return().
-send_db_request(StateData) ->
+-spec send_dialback_request(state()) -> fsm_return().
+send_dialback_request(StateData) ->
     IsRegistered = case StateData#state.is_registered of
               false ->
                   ejabberd_s2s:try_register(StateData#state.from_to);
@@ -829,18 +829,18 @@ send_db_request(StateData) ->
                          StateData#state.remote_streamid),
                 %% Initiating Server Sends Dialback Key
                 %% https://xmpp.org/extensions/xep-0220.html#example-1
-                send_element(StateData, db_result_key_xml(StateData#state.from_to, Key1))
+                send_element(StateData, dialback_result_key_xml(StateData#state.from_to, Key1))
         end,
         case StateData#state.verify of
             false ->
                 ok;
             {_Pid, Key2, SID} ->
-                send_element(StateData, db_verify_key_xml(StateData#state.from_to, Key2, SID))
+                send_element(StateData, dialback_verify_key_xml(StateData#state.from_to, Key2, SID))
         end,
         {next_state, wait_for_validation, NewStateData, ?FSMTIMEOUT*6}
     catch
         Class:Reason:Stacktrace ->
-            ?LOG_ERROR(#{what => s2s_out_send_db_request_failed,
+            ?LOG_ERROR(#{what => s2s_out_send_dialback_request_failed,
                          class => Class, reason => Reason, stacktrace => Stacktrace,
                          myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, NewStateData}
@@ -850,17 +850,17 @@ send_db_request(StateData) ->
 %% Parse dialback verification result.
 %% Verification result is stored in the `type' attribute and could be `valid' or `invalid'.
 -spec parse_dialback_with_type(exml:element()) -> false
-    | {db_verify | db_result, To :: binary(), From :: binary(), Id :: binary(), Type :: binary()}.
+    | {dialback_verify | dialback_result, To :: binary(), From :: binary(), Id :: binary(), Type :: binary()}.
 parse_dialback_with_type(#xmlel{name = <<"db:result">>, attrs = Attrs}) ->
     %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
-    {db_result,
+    {dialback_result,
      xml:get_attr_s(<<"to">>, Attrs),
      xml:get_attr_s(<<"from">>, Attrs),
      xml:get_attr_s(<<"id">>, Attrs),
      xml:get_attr_s(<<"type">>, Attrs)};
 parse_dialback_with_type(#xmlel{name = <<"db:verify">>, attrs = Attrs}) ->
     %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
-    {db_verify,
+    {dialback_verify,
      xml:get_attr_s(<<"to">>, Attrs),
      xml:get_attr_s(<<"from">>, Attrs),
      xml:get_attr_s(<<"id">>, Attrs),
@@ -869,16 +869,16 @@ parse_dialback_with_type(_) ->
     false.
 
 %% Initiating Server Sends Dialback Key (Step 1)
--spec db_result_key_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
-db_result_key_xml({LocalServer, RemoteServer}, Key) ->
+-spec dialback_result_key_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
+dialback_result_key_xml({LocalServer, RemoteServer}, Key) ->
     #xmlel{name = <<"db:result">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer}],
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
--spec db_verify_key_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
-db_verify_key_xml({LocalServer, RemoteServer}, Key, Id) ->
+-spec dialback_verify_key_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+dialback_verify_key_xml({LocalServer, RemoteServer}, Key, Id) ->
     #xmlel{name = <<"db:verify">>,
            attrs = [{<<"from">>, LocalServer},
                     {<<"to">>, RemoteServer},
@@ -1186,8 +1186,8 @@ handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
-handle_parsed_features({_, _, _, StateData = #state{db_enabled = true}}) ->
-    send_db_request(StateData);
+handle_parsed_features({_, _, _, StateData = #state{dialback_enabled = true}}) ->
+    send_dialback_request(StateData);
 handle_parsed_features({_, _, _, StateData}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
