@@ -1,60 +1,78 @@
 %%% @doc This hook copies mongooseim.log into an html file (with labels),
-%%% and inserts links into test case specific html report files. note that
+%%% and inserts links into test case specific html report files. Note that
 %%% a temporary html file is created for each link in log_private directory,
 %%% for more information see comments for add_log_link_to_line/5 function.
+%%%
+%%% Hook options must be in proplist format:
+%%%   * host - atom, one of the hosts provided in the common test config file.
+%%%            Optional parameter, default value: 'mim'
+%%%   * log  - list of atoms (suite, group or testcase).
+%%%            Optional parameter, default value: [suite]
+%%%
+%%% examples of the *.spec file configuration:
+%%%   * {ct_hooks, [ct_mongoose_log_hook]}.
+%%%   * {ct_hooks, [{ct_mongoose_log_hook,[{host, mim2}]}]}.
+%%%   * {ct_hooks, [{ct_mongoose_log_hook,[{host, mim3}, {log, [suite, group]}]}]}.
+%%%   * {ct_hooks, [{ct_mongoose_log_hook,[{host, fed}, {log, [testcase]}]}]}.
+%%%   * {ct_hooks, [{ct_mongoose_log_hook,[{host, reg}, {log, []}]}]}.
+%%%
 -module(ct_mongoose_log_hook).
 
-%% @doc Add the following line in your *.spec file to
-%% copy mongooseim.log into CT reports:
-%% {ct_hooks, [ct_mongoose_log_hook]}.
 
 %% Callbacks
 -export([id/1]).
 -export([init/2]).
+-export([terminate/1]).
 
 -export([pre_init_per_suite/3]).
--export([pre_end_per_suite/3]).
+-export([post_end_per_suite/4]).
 
 -export([pre_init_per_group/3]).
--export([pre_end_per_group/3]).
+-export([post_end_per_group/4]).
 
 -export([pre_init_per_testcase/3]).
 -export([post_end_per_testcase/4]).
 
--record(state, { node, cookie, reader, writer,
+-record(state, { node_name, reader, writer,
                  current_line_num, out_file, url_file, group, suite,
-                 priv_dir }).
+                 priv_dir, log_flags = [] }).
 -include_lib("exml/include/exml.hrl").
 
 %% @doc Return a unique id for this CTH.
-id([Node, _Cookie]) ->
-    "ct_mongoose_log_hook_" ++ atom_to_list(Node).
+id(Opts) ->
+    Host = proplists:get_value(host, Opts, mim),
+    "ct_mongoose_log_hook_" ++ atom_to_list(Host).
 
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
-init(_Id, [Node0, Cookie0]) ->
-    Node = ct:get_config(Node0),
-    Cookie = ct:get_config(Cookie0),
-    {ok, #state{ node=Node, cookie=Cookie }}.
+init(_Id, Opts) ->
+    Node = connect_mim_node(Opts),
+    LogFlags = proplists:get_value(log, Opts, [suite]),
+    {ok, #state{ node_name=Node, log_flags=LogFlags }}.
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
+    maybe_print_log_on_mim_node(suite, starting, Suite, State),
     {Config, State#state{group=no_group, suite=Suite}}.
 
 %% @doc Called before end_per_suite.
-pre_end_per_suite(_Suite,Config,State) ->
-    {Config, State#state{suite=no_suite}}.
+post_end_per_suite(Suite,_Config,Return,State) ->
+    maybe_print_log_on_mim_node(suite, finishing, Suite, State),
+    {Return, State#state{suite=no_suite}}.
 
 %% @doc Called before each init_per_group.
 pre_init_per_group(Group,Config,State) ->
+    maybe_print_log_on_mim_node(group, starting, Group, State),
     {Config, State#state{group=Group}}.
 
 %% @doc Called after each end_per_group.
-pre_end_per_group(_Group,Config,State) ->
-    {Config, State#state{group=no_group}}.
+post_end_per_group(Group,_Config,Return,State) ->
+    maybe_print_log_on_mim_node(group, finishing, Group, State),
+    {Return, State#state{group=no_group}}.
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State=#state{}) ->
+    maybe_print_log_on_mim_node(testcase, starting, TC, State),
     Dog = test_server:timetrap(test_server:seconds(10)),
     State2 = keep_priv_dir(Config, State),
     State3 = ensure_initialized(Config, State2),
@@ -67,13 +85,16 @@ post_end_per_testcase(TC,_Config,Return,State) ->
     Dog = test_server:timetrap(test_server:seconds(10)),
     State2 = post_insert_line_numbers_into_report(State, TC),
     test_server:timetrap_cancel(Dog),
+    maybe_print_log_on_mim_node(testcase, finishing, TC, State),
     {Return, State2 }.
+
+%% @doc Called when the scope of the CTH is done
+terminate(State) ->
+    insert_line_numbers_into_report(State).
 
 % --------------------------------------------
 
-spawn_log_reader(Node, Cookie) ->
-    %% Set cookie permanently
-    erlang:set_cookie(Node, Cookie),
+spawn_log_reader(Node) ->
     AbsName = rpc:call(Node, filename, absname, ["log/mongooseim.log.1"], 5000),
     case is_list(AbsName) of
         true ->
@@ -126,7 +147,7 @@ make_link_name(Line) when is_integer(Line) ->
 make_content(CurrentLineNum, Line) ->
     << (list_to_binary(integer_to_list(CurrentLineNum)))/binary, " ", Line/binary>>.
 
-ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undefined}) ->
+ensure_initialized(Config, State=#state{node_name=Node, out_file=undefined}) ->
     RunDir = path_helper:ct_run_dir(Config),
     File = atom_to_list(Node) ++ ".log.html",
     %% On disk
@@ -134,7 +155,7 @@ ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undef
     %% In browser
     UrlFile = ct_logs:uri(filename:join(path_helper:ct_run_dir_in_browser(Config), File)),
     try
-        {ok, Reader} = spawn_log_reader(Node, Cookie),
+        {ok, Reader} = spawn_log_reader(Node),
         %% self() process is temporary
         {ok, Writer} = open_out_file(OutFile),
         file:write(Writer, "<pre>"),
@@ -159,7 +180,7 @@ keep_priv_dir(Config, State) ->
 
 pre_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
-pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
+pre_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
                                              priv_dir=PrivDir, group=Group, suite=Suite}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
@@ -172,7 +193,7 @@ pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, write
 
 post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
-post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
+post_insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
                                              group=Group, suite=Suite, priv_dir=PrivDir}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
@@ -182,6 +203,11 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
         "<font color=gray>DONE suite=~p group=~p testcase=~p</font>~n",
         [Suite, Group, TC]),
     file:write(Writer, Message),
+    State#state{current_line_num=CurrentLineNum2}.
+
+insert_line_numbers_into_report(State=#state{node_name=Node, reader=Reader, writer=Writer,
+                                             current_line_num=CurrentLineNum}) ->
+    CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     State#state{current_line_num=CurrentLineNum2}.
 
 %% Function `escalus_ct:add_log_link(Heading, URL, Type).'
@@ -261,3 +287,31 @@ compare_host_names(Node1, Node2) ->
 node_to_host(Node) when is_atom(Node) ->
     [_Name, Host] = string:tokens(atom_to_list(Node), "@"),
     list_to_atom(Host).
+
+connect_mim_node(HookOpts) ->
+    Host = proplists:get_value(host, HookOpts, mim),
+    Node = ct:get_config({hosts, Host, node}),
+    Cookie = ct:get_config(ejabberd_cookie),
+    %% Set cookie permanently
+    erlang:set_cookie(Node, Cookie),
+    %% this log message lands at misc_io.log.html file
+    ct:pal("connecting to the '~p' node (cookie: '~p')", [Node, Cookie]),
+    %% crash if cannot connect to the node
+    true = net_kernel:connect_node(Node),
+    Node.
+
+maybe_print_log_on_mim_node(Type, Event, Name, #state{log_flags = LogFlags, node_name = Node}) ->
+    ValidEvents = [starting, finishing],
+    ValidTypes = [suite, group, testcase],
+    case {lists:member(Type, LogFlags),
+          lists:member(Event, ValidEvents),
+          lists:member(Type, ValidTypes)} of
+        {_, _, false} ->
+            ct:pal("Invalid logging type: ~p", [Type]);
+        {_, false, _} ->
+            ct:pal("Invalid logging event: ~p", [Event]);
+        {true, _, _} ->
+            rpc:call(Node, logger, warning, ["====== ~p ~p ~p", [Event, Name, Type]]);
+        _ ->
+            ok
+    end.

@@ -124,7 +124,8 @@
 %% * ensure preset & mim_data_dir values are passed to ct Config
 %% * check server's purity after SUITE
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
-            ct_markdown_errors_hook,
-            {ct_mongoose_log_hook, [ejabberd_node, ejabberd_cookie]},
-            {ct_mongoose_log_hook, [ejabberd2_node, ejabberd_cookie]}
-           ]}.
+            ct_markdown_errors_hook, ct_mongoose_log_hook]}.
+
+%% since test-runner.sh can be executed with the --one-node option,
+%% log collection is enabled by default for host mim1 only.
+% {ct_hooks, [{ct_mongoose_log_hook,[{host, mim2}, {log, []}]}]}.
