@@ -34,6 +34,7 @@
 %% External exports
 -export([start/2,
          start_link/2,
+         send_validity_from_s2s_out/3,
          match_domain/2]).
 
 %% gen_fsm callbacks
@@ -110,6 +111,11 @@ start_link(Socket, Opts) ->
 -spec start_listener(options()) -> ok.
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
+
+-spec send_validity_from_s2s_out(pid(), boolean(), ejabberd_s2s:fromto()) -> ok.
+send_validity_from_s2s_out(Pid, IsValid, FromTo) when is_boolean(IsValid) ->
+    Event = {validity_from_s2s_out, IsValid, FromTo},
+    p1_fsm:send_event(Pid, Event).
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm

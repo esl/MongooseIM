@@ -326,7 +326,7 @@ wait_for_stream(closed, StateData) ->
 
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_validation({xmlstreamelement, El}, StateData) ->
+wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}) ->
     case mongoose_s2s_dialback:parse_validity(El) of
         {step_3, FromTo, Id, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_receive_verify,
@@ -336,7 +336,7 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                     %% TODO: Should'nt we close the connection here ?
                     next_state(wait_for_validation, StateData);
                 {Pid, _Key, _SID} ->
-                    send_event_to_s2s_in(IsValid, Pid, StateData),
+                    ejabberd_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
                     next_state(wait_for_validation, StateData)
             end;
         {step_4, FromTo, Id, IsValid} ->
@@ -534,7 +534,7 @@ wait_before_retry(_Event, StateData) ->
     {next_state, wait_before_retry, StateData, ?FSMTIMEOUT}.
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
-stream_established({xmlstreamelement, El}, StateData) ->
+stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo}) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
     case mongoose_s2s_dialback:parse_validity(El) of
@@ -544,11 +544,13 @@ stream_established({xmlstreamelement, El}, StateData) ->
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    send_event_to_s2s_in(IsValid, VPid, StateData);
+                    ejabberd_s2s_in:send_validity_from_s2s_out(VPid, IsValid, FromTo);
                 _ ->
                     ok
             end;
-        _ ->
+        {step_4, _FromTo, _Id, _IsValid} ->
+            ok;
+        false ->
             ok
     end,
     {next_state, stream_established, StateData};
@@ -1069,10 +1071,6 @@ get_predefined_port(HostType, _Addr) -> outgoing_s2s_port(HostType).
 
 addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
-
-send_event_to_s2s_in(IsValid, Pid, StateData) when is_boolean(IsValid) ->
-    Event = {validity_from_s2s_out, IsValid, StateData#state.from_to},
-    p1_fsm:send_event(Pid, Event).
 
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =
