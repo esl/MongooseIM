@@ -8,10 +8,9 @@
 -callback remove_connection(FromTo :: ejabberd_s2s:fromto(), Pid :: pid()) -> ok.
 -callback node_cleanup(Node :: node()) -> term().
 -callback register_secret(HostType :: mongooseim:host_type(),
-                          Source :: ejabberd_s2s:secret_source(),
                           Secret :: ejabberd_s2s:base16_secret()) -> ok.
 -callback get_shared_secret(mongooseim:host_type()) ->
-    {ok, {ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()}} | {error, not_found}.
+    {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 
 -export([init/1,
          get_s2s_out_pids/1,
@@ -19,7 +18,7 @@
          remove_connection/2,
          node_cleanup/1]).
 
--export([register_secret/3,
+-export([register_secret/2,
          get_shared_secret/1]).
 
 -ignore_xref([behaviour_info/1]).
@@ -52,12 +51,11 @@ node_cleanup(Node) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [Node]).
 
 -spec register_secret(HostType :: mongooseim:host_type(),
-                      Source :: ejabberd_s2s:secret_source(),
                       Secret :: ejabberd_s2s:base16_secret()) -> ok.
-register_secret(HostType, Source, Secret) ->
-    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType, Source, Secret]).
+register_secret(HostType, Secret) ->
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType, Secret]).
 
 -spec get_shared_secret(mongooseim:host_type()) ->
-    {ok, {ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()}} | {error, not_found}.
+    {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 get_shared_secret(HostType) ->
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType]).

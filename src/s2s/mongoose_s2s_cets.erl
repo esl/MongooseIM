@@ -7,7 +7,7 @@
          remove_connection/2,
          node_cleanup/1]).
 
--export([register_secret/3,
+-export([register_secret/2,
          get_shared_secret/1]).
 
 -include("mongoose_logger.hrl").
@@ -48,14 +48,14 @@ node_cleanup(Node) ->
     ets:select_delete(?TABLE, [{R, [Guard], [true]}]).
 
 %% Secrets
-register_secret(HostType, Source, Secret) ->
-    cets:insert(?SECRET_TABLE, {HostType, Source, Secret}),
+register_secret(HostType, Secret) ->
+    cets:insert(?SECRET_TABLE, {HostType, Secret}),
     ok.
 
 get_shared_secret(HostType) ->
     case ets:lookup(?SECRET_TABLE, HostType) of
-        [{_HostType, Source, Secret}] ->
-            {ok, {Source, Secret}};
+        [{_HostType, Secret}] ->
+            {ok, Secret};
         [] ->
             {error, not_found}
     end.

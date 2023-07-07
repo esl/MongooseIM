@@ -65,7 +65,9 @@
 -define(DEFAULT_MAX_S2S_CONNECTIONS, 1).
 -define(DEFAULT_MAX_S2S_CONNECTIONS_PER_NODE, 1).
 
-%% Pair of hosts {FromServer(), ToServer()}.
+%% Pair of hosts {FromServer, ToServer}.
+%% FromServer is the local server.
+%% ToServer is the remote server.
 %% Used in a lot of API and backend functions.
 -type fromto() :: {jid:lserver(), jid:lserver()}.
 
@@ -74,10 +76,9 @@
 
 -record(state, {}).
 
--type secret_source() :: config | random.
 -type base16_secret() :: binary().
 
--export_type([fromto/0, s2s_pids/0, secret_source/0, base16_secret/0]).
+-export_type([fromto/0, s2s_pids/0, base16_secret/0]).
 
 %%====================================================================
 %% API
@@ -118,7 +119,7 @@ node_cleanup(Acc, #{node := Node}, _) ->
 
 -spec key(mongooseim:host_type(), fromto(), binary()) -> binary().
 key(HostType, {From, To}, StreamID) ->
-    {ok, {_, Secret}} = get_shared_secret(HostType),
+    {ok, Secret} = get_shared_secret(HostType),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
@@ -440,27 +441,36 @@ set_shared_secret() ->
     ok.
 
 set_shared_secret(HostType) ->
-    {Source, Secret} = get_shared_secret_from_config_or_make_new(HostType),
-    case get_shared_secret(HostType) of
-        {error, not_found} ->
-            %% Write secret for the first time
-            register_secret(HostType, Source, Secret);
-        {ok, {_, OldSecret}} when OldSecret =:= Secret ->
+    %% register_secret is replicated across all nodes.
+    %% So, when starting a node with updated secret in the config,
+    %% we would replace stored secret on all nodes at once.
+    %% There could be a small race condition when dialback key checks would get rejected,
+    %% But there would not be conflicts when some nodes have one secret stored and others - another.
+    case {get_shared_secret(HostType), get_shared_secret_from_config(HostType)} of
+        {{error, not_found}, {ok, Secret}} ->
+            %% Write the secret from the config into Mnesia/CETS for the first time
+            register_secret(HostType, Secret);
+        {{error, not_found}, {error, not_found}} ->
+            %% Write a random secret into Mnesia/CETS for the first time
+            register_secret(HostType, make_random_secret());
+        {{ok, Secret}, {ok, Secret}} ->
+            %% Config matches Mnesia/CETS
             skip_same;
-        {ok, _} when Source =:= config ->
+        {{ok, _OldSecret}, {ok, NewSecret}} ->
             ?LOG_INFO(#{what => overwrite_secret_from_config}),
-            register_secret(HostType, Source, Secret);
-        {ok, _} ->
-            ok
+            register_secret(HostType, NewSecret);
+        {{ok, _OldSecret}, {error, not_found}} ->
+            %% Keep the secret already stored in Mnesia/CETS
+            keep_existing
     end.
 
-get_shared_secret_from_config_or_make_new(HostType) ->
-    case mongoose_config:lookup_opt([{s2s, HostType}, shared]) of
-        {ok, SecretFromConfig} ->
-            {config, SecretFromConfig};
-        {error, not_found} ->
-            {random, base16:encode(crypto:strong_rand_bytes(10))}
-    end.
+-spec get_shared_secret_from_config(mongooseim:host_type()) -> {ok, base16_secret()} | {error, not_found}.
+get_shared_secret_from_config(HostType) ->
+    mongoose_config:lookup_opt([{s2s, HostType}, shared]).
+
+-spec make_random_secret() -> base16_secret().
+make_random_secret() ->
+    base16:encode(crypto:strong_rand_bytes(10)).
 
 -spec lookup_certfile(mongooseim:host_type()) -> {ok, string()} | {error, not_found}.
 lookup_certfile(HostType) ->
@@ -495,10 +505,10 @@ call_node_cleanup(Node) ->
 remove_connection(FromTo, Pid) ->
     mongoose_s2s_backend:remove_connection(FromTo, Pid).
 
--spec get_shared_secret(mongooseim:host_type()) -> {ok, {secret_source(), base16_secret()}} | {error, not_found}.
+-spec get_shared_secret(mongooseim:host_type()) -> {ok, base16_secret()} | {error, not_found}.
 get_shared_secret(HostType) ->
     mongoose_s2s_backend:get_shared_secret(HostType).
 
--spec register_secret(mongooseim:host_type(), ejabberd_s2s:secret_source(), ejabberd_s2s:base16_secret()) -> ok.
-register_secret(HostType, Source, Secret) ->
-    mongoose_s2s_backend:register_secret(HostType, Source, Secret).
+-spec register_secret(mongooseim:host_type(), ejabberd_s2s:base16_secret()) -> ok.
+register_secret(HostType, Secret) ->
+    mongoose_s2s_backend:register_secret(HostType, Secret).

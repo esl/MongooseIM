@@ -7,7 +7,7 @@
          remove_connection/2,
          node_cleanup/1]).
 
--export([register_secret/3,
+-export([register_secret/2,
          get_shared_secret/1]).
 
 -record(s2s, {
@@ -15,7 +15,7 @@
           pid :: pid() | '$1'
          }).
 
--record(s2s_secret, {host_type, source, secret}).
+-record(s2s_secret, {host_type, secret}).
 
 -include("mongoose_logger.hrl").
 
@@ -90,15 +90,15 @@ init_secrets() ->
     mnesia:create_table(s2s_secret, Opts),
     mnesia:add_table_copy(s2s_secret, node(), ram_copies).
 
-register_secret(HostType, Source, Secret) ->
-    Rec = #s2s_secret{host_type = HostType, source = Source, secret = Secret},
+register_secret(HostType, Secret) ->
+    Rec = #s2s_secret{host_type = HostType, secret = Secret},
     {atomic, _} = mnesia:transaction(fun() -> mnesia:write(Rec) end),
     ok.
 
 get_shared_secret(HostType) ->
     case mnesia:dirty_read(s2s_secret, HostType) of
-        [#s2s_secret{source = Source, secret = Secret}] ->
-            {ok, {Source, Secret}};
+        [#s2s_secret{secret = Secret}] ->
+            {ok, Secret};
         [] ->
             {error, not_found}
     end.
