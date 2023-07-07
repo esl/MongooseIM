@@ -324,15 +324,21 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
     ?LOG_INFO(ls(#{what => muc_room_started,
                    creator_jid => jid:to_binary(Creator)}, State)),
     add_to_log(room_existence, created, State2),
+    State3 = case proplists:get_value(subject, DefRoomOpts, none) of
+        none ->
+            State2;
+        _ ->
+            set_opts([{subject_timestamp, get_current_timestamp()}], State2)
+    end,
     case proplists:get_value(instant, DefRoomOpts, false) of
         true ->
             %% Instant room -- groupchat 1.0 request
-            add_to_log(room_existence, started, State2),
-            save_persistent_room_state(State2),
-            {ok, normal_state, State2, State2#state.hibernate_timeout};
+            add_to_log(room_existence, started, State3),
+            save_persistent_room_state(State3),
+            {ok, normal_state, State3, State3#state.hibernate_timeout};
         false ->
             %% Locked room waiting for configuration -- MUC request
-            {ok, initial_state, State2}
+            {ok, initial_state, State3}
     end.
 
 %% @doc A room is restored
@@ -952,7 +958,8 @@ change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
             case can_change_subject(Role, StateData) of
                 true ->
                     NSD = StateData#state{subject = Subject,
-                                          subject_author = FromNick},
+                                          subject_author = FromNick,
+                                          subject_timestamp = get_current_timestamp()},
                     save_persistent_room_state(NSD),
                     {NSD, true};
                 _ ->
@@ -1174,9 +1181,9 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
     StateData;
 handle_new_user(From, Nick, Packet, StateData, Attrs) ->
-    Response = kick_stanza_for_old_protocol(Attrs),
     case exml_query:path(Packet, [{element, <<"x">>}]) of
         undefined ->
+            Response = kick_stanza_for_old_protocol(Attrs),
             ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response);
         _ ->
             add_new_user(From, Nick, Packet, StateData)
@@ -2619,22 +2626,24 @@ send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
                     children = [#xmlel{name = <<"subject">>},
-                               #xmlel{name = <<"body">>}]},
+                                #xmlel{name = <<"body">>}]},
     ejabberd_router:route(
         StateData#state.jid,
         JID,
         Packet);
 send_subject(JID, _Lang, StateData) ->
     Subject = StateData#state.subject,
+    TimeStamp = StateData#state.subject_timestamp,
+    RoomJID = StateData#state.jid,
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
                     children = [#xmlel{name = <<"subject">>,
                                        children = [#xmlcdata{content = Subject}]},
-                               #xmlel{name = <<"body">>}]},
-    ejabberd_router:route(
-        StateData#state.jid,
-        JID,
-        Packet).
+                                #xmlel{name = <<"delay">>,
+                                       attrs = [{<<"xmlns">>, ?NS_DELAY},
+                                                {<<"from">>, jid:to_binary(RoomJID)},
+                                                {<<"stamp">>, TimeStamp}]}]},
+    ejabberd_router:route(RoomJID, JID, Packet).
 
 
 -spec check_subject(exml:element()) -> 'false' | binary().
@@ -3667,6 +3676,8 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{subject = Val};
         subject_author ->
             SD#state{subject_author = Val};
+        subject_timestamp ->
+            SD#state{subject_timestamp = Val};
         _ ->
             SD
        end,
@@ -4594,6 +4605,11 @@ ls(LogMap, State) ->
 get_opt(#state{host_type = HostType}, Opt) ->
     gen_mod:get_module_opt(HostType, mod_muc, Opt).
 
+get_current_timestamp() ->
+    SystemTime = os:system_time(second),
+    TimeStamp = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
+    list_to_binary(TimeStamp).
+
 read_hibernate_timeout(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout).
 
@@ -4608,7 +4624,6 @@ maybe_add_x_element(Msg) ->
     end.
 
 kick_stanza_for_old_protocol(Attrs) ->
-    % here!
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     ErrText = <<"You are not in the room.">>,
     ErrText2 = translate:translate(Lang, ErrText),

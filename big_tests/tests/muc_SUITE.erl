@@ -2495,8 +2495,12 @@ subject(ConfigIn) ->
     story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus:wait_for_stanza(Bob),
-        Subject = exml_query:path(escalus:wait_for_stanza(Bob), [{element, <<"subject">>}, cdata]),
-        Subject == ?SUBJECT
+        Stanza = escalus:wait_for_stanza(Bob),
+        Subject = exml_query:path(Stanza, [{element, <<"subject">>}, cdata]),
+        Subject == ?SUBJECT,
+        TimeStamp = exml_query:path(Stanza, [{element, <<"delay">>}, {attr, <<"stamp">>}]),
+        SystemTime = calendar:rfc3339_to_system_time(binary_to_list(TimeStamp), [{unit, second}]),
+        true = is_integer(SystemTime)
     end).
 
 %Example 43
