@@ -10,6 +10,9 @@
 -export([register_secret/2,
          get_shared_secret/1]).
 
+%% Internal usage (export so the callback would survive multiple code reloads)
+-export([handle_secret_conflict/2]).
+
 -include("mongoose_logger.hrl").
 
 -define(TABLE, cets_s2s_session).
@@ -17,9 +20,24 @@
 
 init(_) ->
     cets:start(?TABLE, #{}),
-    cets:start(?SECRET_TABLE, #{}),
+    %% Non-random, non-node-specific keys
+    %% This means that default merging would not work
+    cets:start(?SECRET_TABLE, #{handle_conflict => fun ?MODULE:handle_secret_conflict/2}),
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE),
     cets_discovery:add_table(mongoose_cets_discovery, ?SECRET_TABLE).
+
+%% Store the most recent value:
+%% - first element of the tuple is the same and it is the key.
+%% - second element is a timestamp, so comparing tuples works.
+%% Even if we choose the wrong record - nothing bad would happen
+%% (we still need to choose one).
+%% Choosing the record with the highest timestamp is just a logical behaviour
+%% (it also matches the logic of mongoose_s2s_lib:check_shared_secret/2, where updated secret
+%% in the config is updated across all nodes in the cluster).
+handle_secret_conflict(Rec1, Rec2) when Rec1 > Rec2 ->
+    Rec1;
+handle_secret_conflict(_Rec1, Rec2) ->
+    Rec2.
 
 %% Pid lists
 -spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
@@ -57,14 +75,18 @@ node_cleanup(Node) ->
 -spec register_secret(HostType :: mongooseim:host_type(),
                       Secret :: ejabberd_s2s:base16_secret()) -> ok.
 register_secret(HostType, Secret) ->
-    cets:insert(?SECRET_TABLE, {HostType, Secret}),
+    %% We store timestamp so we could use it when merging two tables when clustering.
+    %% Secrets is a very small table and get_shared_secret is called rarely,
+    %% so having an extra field is not a problem.
+    TS = erlang:system_time(microsecond),
+    cets:insert(?SECRET_TABLE, {HostType, TS, Secret}),
     ok.
 
 -spec get_shared_secret(mongooseim:host_type()) ->
     {ok, ejabberd_s2s:base16_secret()} | {error, not_found}.
 get_shared_secret(HostType) ->
     case ets:lookup(?SECRET_TABLE, HostType) of
-        [{_HostType, Secret}] ->
+        [{_HostType, _TS, Secret}] ->
             {ok, Secret};
         [] ->
             {error, not_found}
