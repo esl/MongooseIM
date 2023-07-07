@@ -160,7 +160,7 @@ connections_info(Config) ->
     ok.
 
 get_s2s_connections(RPCSpec, Domain, Type)->
-    AllS2SConnections = ?dh:rpc(RPCSpec, ejabberd_s2s, get_info_s2s_connections, [Type]),
+    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_info_s2s_connections, [Type]),
     % ct:pal("Node = ~p, ConnectionType = ~p~nAllS2SConnections(~p): ~p",
     %        [maps:get(node, RPCSpec), Type, length(AllS2SConnections), AllS2SConnections]),
     DomainS2SConnections = 

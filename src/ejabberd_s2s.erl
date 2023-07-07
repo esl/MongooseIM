@@ -52,10 +52,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-%% ejabberd API
--export([get_info_s2s_connections/1]).
-
--ignore_xref([get_info_s2s_connections/1, start_link/0]).
+-ignore_xref([start_link/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -400,44 +397,6 @@ allow_host({FromServer, ToServer}) ->
                         andalso mongoose_hooks:s2s_allow_host(FromServer, ToServer) =:= allow
             end
     end.
-
-%% @doc Get information about S2S connections of the specified type.
--spec get_info_s2s_connections('in' | 'out') -> [[{atom(), any()}, ...]].
-get_info_s2s_connections(Type) ->
-    ChildType = case Type of
-                    in -> ejabberd_s2s_in_sup;
-                    out -> ejabberd_s2s_out_sup
-                end,
-    Connections = supervisor:which_children(ChildType),
-    get_s2s_info(Connections, Type).
-
--type connstate() :: 'restarting' | 'undefined' | pid().
--type conn() :: { any(), connstate(), 'supervisor' | 'worker', 'dynamic' | [_] }.
--spec get_s2s_info(Connections :: [conn()],
-                  Type :: 'in' | 'out'
-                  ) -> [[{any(), any()}, ...]]. % list of lists
-get_s2s_info(Connections, Type)->
-    complete_s2s_info(Connections, Type, []).
-
--spec complete_s2s_info(Connections :: [conn()],
-                        Type :: 'in' | 'out',
-                        Result :: [[{any(), any()}, ...]] % list of lists
-                        ) -> [[{any(), any()}, ...]]. % list of lists
-complete_s2s_info([], _, Result)->
-    Result;
-complete_s2s_info([Connection|T], Type, Result)->
-    {_, PID, _, _} = Connection,
-    State = get_s2s_state(PID),
-    complete_s2s_info(T, Type, [State|Result]).
-
--spec get_s2s_state(connstate()) -> [{atom(), any()}, ...].
-get_s2s_state(S2sPid) ->
-    Infos = case gen_fsm_compat:sync_send_all_state_event(S2sPid, get_state_infos) of
-                {state_infos, Is} -> [{status, open} | Is];
-                {noproc, _} -> [{status, closed}]; %% Connection closed
-                {badrpc, _} -> [{status, error}]
-            end,
-    [{s2s_pid, S2sPid} | Infos].
 
 -spec set_shared_secret() -> ok.
 set_shared_secret() ->
