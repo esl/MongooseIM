@@ -1,6 +1,6 @@
 -module(mongoose_s2s_backend).
 
--callback init(map()) -> any().
+-callback init(map()) -> ok.
 -callback get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
 -callback try_register(Pid :: pid(),
                        FromTo :: ejabberd_s2s:fromto()) -> boolean().
@@ -24,7 +24,7 @@
 
 -define(MAIN_MODULE, mongoose_s2s).
 
--spec init(map()) -> any().
+-spec init(map()) -> ok.
 init(Opts) ->
     Args = [Opts],
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),

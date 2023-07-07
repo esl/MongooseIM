@@ -18,13 +18,15 @@
 -define(TABLE, cets_s2s_session).
 -define(SECRET_TABLE, cets_s2s_secret).
 
+-spec init(map()) -> ok.
 init(_) ->
     cets:start(?TABLE, #{}),
     %% Non-random, non-node-specific keys
     %% This means that default merging would not work
     cets:start(?SECRET_TABLE, #{handle_conflict => fun ?MODULE:handle_secret_conflict/2}),
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE),
-    cets_discovery:add_table(mongoose_cets_discovery, ?SECRET_TABLE).
+    cets_discovery:add_table(mongoose_cets_discovery, ?SECRET_TABLE),
+    ok.
 
 %% Store the most recent value:
 %% - first element of the tuple is the same and it is the key.

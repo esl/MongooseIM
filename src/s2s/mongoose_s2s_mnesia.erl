@@ -22,9 +22,11 @@
 
 -include("mongoose_logger.hrl").
 
+-spec init(map()) -> ok.
 init(_) ->
     init_pids(),
-    init_secrets().
+    init_secrets(),
+    ok.
 
 %% Pid lists
 init_pids() ->

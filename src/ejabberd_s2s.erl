@@ -31,13 +31,13 @@
 -behaviour(gen_server).
 -behaviour(xmpp_router).
 
-%% API
+%% API functions
 -export([start_link/0,
          filter/4,
          route/4,
          key/3,
-         get_s2s_out_pids/1,
          try_register/1,
+         get_s2s_out_pids/1,
          remove_connection/2]).
 
 %% Hooks callbacks
@@ -67,9 +67,7 @@
 
 -export_type([fromto/0, s2s_pids/0, base16_secret/0]).
 
-%%====================================================================
-%% API
-%%====================================================================
+%% API functions
 
 %% Starts the server
 -spec start_link() -> ignore | {error, _} | {ok, pid()}.
@@ -107,18 +105,14 @@ key(HostType, {From, To}, StreamID) ->
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
 
-%%====================================================================
 %% Hooks callbacks
-%%====================================================================
 
 -spec node_cleanup(map(), map(), map()) -> {ok, map()}.
 node_cleanup(Acc, #{node := Node}, _) ->
     Res = call_node_cleanup(Node),
     {ok, maps:put(?MODULE, Res, Acc)}.
 
-%%====================================================================
 %% gen_server callbacks
-%%====================================================================
 
 init([]) ->
     internal_database_init(),
@@ -147,9 +141,7 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-%%--------------------------------------------------------------------
 %%% Internal functions
-%%--------------------------------------------------------------------
 -spec hooks() -> [gen_hook:hook_tuple()].
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
@@ -208,7 +200,8 @@ find_connection(From, To) ->
 %% Returns an updated list of connections.
 -spec ensure_enough_connections(fromto(), s2s_pids()) -> s2s_pids().
 ensure_enough_connections(FromTo, OldCons) ->
-    NeededConnections = mongoose_s2s_lib:needed_extra_connections_number_if_allowed(FromTo, OldCons),
+    NeededConnections =
+        mongoose_s2s_lib:needed_extra_connections_number_if_allowed(FromTo, OldCons),
     case NeededConnections of
         0 ->
             OldCons;
@@ -248,6 +241,7 @@ set_shared_secret() ->
     [set_shared_secret(HostType) || HostType <- ?ALL_HOST_TYPES],
     ok.
 
+%% Updates the secret across the cluster if needed
 set_shared_secret(HostType) ->
     case mongoose_s2s_lib:check_shared_secret(HostType, get_shared_secret(HostType)) of
         {update, NewSecret} ->
@@ -256,8 +250,9 @@ set_shared_secret(HostType) ->
             ok
     end.
 
-%% Backend logic below:
+%% Backend logic functions
 
+-spec internal_database_init() -> ok.
 internal_database_init() ->
     Backend = mongoose_config:get_opt(s2s_backend),
     mongoose_s2s_backend:init(#{backend => Backend}).
@@ -272,6 +267,7 @@ get_s2s_out_pids(FromTo) ->
 call_try_register(Pid, FromTo) ->
     mongoose_s2s_backend:try_register(Pid, FromTo).
 
+-spec call_try_register(Node :: node()) -> ok.
 call_node_cleanup(Node) ->
     mongoose_s2s_backend:node_cleanup(Node).
 
