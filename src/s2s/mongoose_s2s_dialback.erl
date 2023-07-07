@@ -1,0 +1,131 @@
+%% Steps for S2S Dialback.
+%% Diagram from https://xmpp.org/extensions/xep-0220.html#intro-howitworks
+%%
+%% Initiating                 Receiving
+%%   Server                    Server
+%% -----------               ---------
+%%     |                          |
+%%     |  [if necessary,          |
+%%     |   perform DNS lookup     |
+%%     |   on Target Domain,      |
+%%     |   open TCP connection,   |
+%%     |   and establish stream]  |
+%%     | -----------------------> |
+%%     |                          |                   Authoritative
+%%     |   send dialback key      |                       Server
+%%     | -------(STEP 1)--------> |                   -------------
+%%     |                          |                          |
+%%     |                          |  [if necessary,          |
+%%     |                          |   perform DNS lookup,    |
+%%     |                          |   on Sender Domain,      |
+%%     |                          |   open TCP connection,   |
+%%     |                          |   and establish stream]  |
+%%     |                          | -----------------------> |
+%%     |                          |                          |
+%%     |                          |   send verify request    |
+%%     |                          | -------(STEP 2)--------> |
+%%     |                          |                          |
+%%     |                          |   send verify response   |
+%%     |                          | <------(STEP 3)--------- |
+%%     |                          |
+%%     |  report dialback result  |
+%%     | <-------(STEP 4)-------- |
+%%     |                          |
+
+%% Because db:result and db:verify tags are confusing, use step numbers.
+%% (db:result should've been named db:key).
+
+-module(mongoose_s2s_dialback).
+-export([step_1/2,
+         step_2/3,
+         step_3/3,
+         step_4/2]).
+
+-export([parse_key/1,
+         parse_validity/1]).
+
+-include("mongoose.hrl").
+-include("jlib.hrl").
+
+%% Initiating server sends dialback key
+%% https://xmpp.org/extensions/xep-0220.html#example-1
+-spec step_1(ejabberd_s2s:fromto(), binary()) -> exml:element().
+step_1({LocalServer, RemoteServer}, Key) ->
+    #xmlel{name = <<"db:result">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer}],
+           children = [#xmlcdata{content = Key}]}.
+
+%% Receiving server sends verification request to authoritative server (step 2)
+-spec step_2(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+step_2({LocalServer, RemoteServer}, Key, Id) ->
+    #xmlel{name = <<"db:verify">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"id">>, Id}],
+           children = [#xmlcdata{content = Key}]}.
+
+%% Receiving server is informed by authoritative server that key is valid or invalid (step 3)
+-spec step_3(ejabberd_s2s:fromto(), binary(), boolean()) -> exml:element().
+step_3({LocalServer, RemoteServer}, Id, IsValid) ->
+    #xmlel{name = <<"db:verify">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"id">>, Id},
+                    {<<"type">>, is_valid_to_type(IsValid)}]}.
+
+%% Receiving server sends valid or invalid verification result to initiating server (step 4)
+-spec step_4(ejabberd_s2s:fromto(), boolean()) -> exml:element().
+step_4({LocalServer, RemoteServer}, IsValid) ->
+    #xmlel{name = <<"db:result">>,
+           attrs = [{<<"from">>, LocalServer},
+                    {<<"to">>, RemoteServer},
+                    {<<"type">>, is_valid_to_type(IsValid)}]}.
+
+is_valid_to_type(true)  -> <<"valid">>;
+is_valid_to_type(false) -> <<"invalid">>.
+
+-spec parse_key(exml:element()) -> false
+    | {step_1 | step_2, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
+parse_key(El = #xmlel{name = <<"db:result">>}) ->
+    %% Initiating Server Sends Dialback Key (Step 1)
+    parse_key(step_1, El);
+parse_key(El = #xmlel{name = <<"db:verify">>}) ->
+    %% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
+    parse_key(step_2, El);
+parse_key(_) ->
+    false.
+
+parse_key(Step, El) ->
+    FromTo = parse_from_to(El),
+    Id = exml_query:attr(El, <<"id">>, <<>>),
+    Key = exml_query:cdata(El),
+    {Step, FromTo, Id, Key}.
+
+%% Parse dialback verification result.
+%% Verification result is stored in the `type' attribute and could be `valid' or `invalid'.
+-spec parse_validity(exml:element()) -> false
+    | {step_3 | step_4, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), IsValid :: boolean()}.
+parse_validity(El = #xmlel{name = <<"db:verify">>}) ->
+    %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
+    parse_validity(step_3, El);
+parse_validity(El = #xmlel{name = <<"db:result">>}) ->
+    %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
+    parse_validity(step_4, El);
+parse_validity(_) ->
+    false.
+
+parse_validity(Step, El) ->
+    FromTo = parse_from_to(El),
+    Id = exml_query:attr(El, <<"id">>, <<>>),
+    IsValid = exml_query:attr(El, <<"type">>) =:= <<"valid">>,
+    {Step, FromTo, Id, IsValid}.
+
+-spec parse_from_to(exml:element()) -> ejabberd_s2s:fromto().
+parse_from_to(El) ->
+    RemoteJid = jid:from_binary(exml_query:attr(El, <<"from">>, <<>>)),
+    LocalJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
+    #jid{luser = <<>>, lresource = <<>>, lserver = LRemoteServer} = RemoteJid,
+    #jid{luser = <<>>, lresource = <<>>, lserver = LLocalServer} = LocalJid,
+    %% We use fromto() as seen by ejabberd_s2s_out and ejabberd_s2s
+    {LLocalServer, LRemoteServer}.

@@ -308,7 +308,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
                         text => <<"Closing s2s connection: (invalid namespace)">>,
                         namespace_provided => NSProvided,
                         namespace_expected => <<"jabber:server">>,
-                        xmlnsdialback_provided => DB,
+                        xmlns_dialback_provided => DB,
                         all_attributes => Attrs,
                         myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, StateData}
@@ -327,14 +327,25 @@ wait_for_stream(closed, StateData) ->
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_validation({xmlstreamelement, El}, StateData) ->
-    case parse_dialback_with_type(El) of
-        {dialback_result, To, From, Id, Type} ->
+    case mongoose_s2s_dialback:parse_validity(El) of
+        {step_3, FromTo, Id, IsValid} ->
+            ?LOG_DEBUG(#{what => s2s_receive_verify,
+                         from_to => FromTo, message_id => Id, is_valid => IsValid}),
+            case StateData#state.verify of
+                false ->
+                    %% TODO: Should'nt we close the connection here ?
+                    next_state(wait_for_validation, StateData);
+                {Pid, _Key, _SID} ->
+                    send_event_to_s2s_in(IsValid, Pid, StateData),
+                    next_state(wait_for_validation, StateData)
+            end;
+        {step_4, FromTo, Id, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
-                         from => From, to => To, message_id => Id, type => Type}),
-            case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
-                {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
-                    %% Initiating Server Receives Valid Verification Result from Receiving Server (Step 4)
-                    %% https://xmpp.org/extensions/xep-0220.html#example-2
+                         from_to => FromTo, message_id => Id, is_valid => IsValid}),
+            #state{tls_enabled = Enabled, tls_required = Required} = StateData,
+            case IsValid of
+                true when (Enabled==true) or (Required==false) ->
+                    %% Initiating server receives valid verification result from receiving server (Step 4)
                     send_queue(StateData, StateData#state.queue),
                     ?LOG_INFO(#{what => s2s_out_connected,
                                 text => <<"New outgoing s2s connection established">>,
@@ -342,28 +353,14 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                                 myname => StateData#state.myname, server => StateData#state.server}),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
-                {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
+                true when (Enabled==false) and (Required==true) ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, tls_required_but_unavailable, El, StateData);
                 _ ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
-        {dialback_verify, To, From, Id, Type} ->
-            ?LOG_DEBUG(#{what => s2s_receive_verify,
-                         from => From, to => To, message_id => Id, type => Type}),
-            case StateData#state.verify of
-                false ->
-                    %% TODO: Should'nt we close the connection here ?
-                    {next_state, wait_for_validation, StateData,
-                     get_timeout_interval(NextState)};
-                {Pid, _Key, _SID} ->
-                    send_event_to_s2s_in(Type, Pid, StateData),
-                    {next_state, wait_for_validation, StateData,
-                     get_timeout_interval(NextState)}
-
-            end;
-        _ ->
+        false ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
@@ -540,14 +537,14 @@ wait_before_retry(_Event, StateData) ->
 stream_established({xmlstreamelement, El}, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    case parse_dialback_with_type(El) of
-        {dialback_verify, VTo, VFrom, VId, VType} ->
+    case mongoose_s2s_dialback:parse_validity(El) of
+        {step_3, FromTo, VId, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
-                         to => VTo, from => VFrom, message_id => VId, type => VType,
+                         from_to => FromTo, message_id => VId, is_valid => IsValid,
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    send_event_to_s2s_in(VType, VPid, StateData);
+                    send_event_to_s2s_in(IsValid, VPid, StateData);
                 _ ->
                     ok
             end;
@@ -587,7 +584,7 @@ stream_established(closed, StateData) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_event(_Event, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)}.
+    next_state(StateName, StateData).
 
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -661,8 +658,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
             {next_state, StateName, StateData};
         _ ->
             Q = queue:in({Acc, El}, StateData#state.queue),
-            {next_state, StateName, StateData#state{queue = Q},
-             get_timeout_interval(StateName)}
+            next_state(StateName, StateData#state{queue = Q})
     end;
 handle_info({timeout, Timer, _}, wait_before_retry,
             #state{timer = Timer} = StateData) ->
@@ -677,9 +673,9 @@ handle_info({timeout, Timer, _}, StateName,
 handle_info(terminate_if_waiting_before_retry, wait_before_retry, StateData) ->
     ?CLOSE_GENERIC(wait_before_retry, terminate_if_waiting_before_retry, StateData);
 handle_info(terminate_if_waiting_before_retry, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)};
+    next_state(StateName, StateData);
 handle_info(_, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)}.
+    next_state(StateName, StateData).
 
 %%----------------------------------------------------------------------
 %% Func: terminate/3
@@ -827,15 +823,15 @@ send_dialback_request(StateData) ->
                          StateData#state.host_type,
                          StateData#state.from_to,
                          StateData#state.remote_streamid),
-                %% Initiating Server Sends Dialback Key
-                %% https://xmpp.org/extensions/xep-0220.html#example-1
-                send_element(StateData, dialback_result_key_xml(StateData#state.from_to, Key1))
+                %% Initiating server sends dialback key
+                send_element(StateData, mongoose_s2s_dialback:step_1(StateData#state.from_to, Key1))
         end,
         case StateData#state.verify of
             false ->
                 ok;
             {_Pid, Key2, SID} ->
-                send_element(StateData, dialback_verify_key_xml(StateData#state.from_to, Key2, SID))
+                %% Receiving server sends verification request
+                send_element(StateData, mongoose_s2s_dialback:step_2(StateData#state.from_to, Key2, SID))
         end,
         {next_state, wait_for_validation, NewStateData, ?FSMTIMEOUT*6}
     catch
@@ -845,46 +841,6 @@ send_dialback_request(StateData) ->
                          myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, NewStateData}
     end.
-
-
-%% Parse dialback verification result.
-%% Verification result is stored in the `type' attribute and could be `valid' or `invalid'.
--spec parse_dialback_with_type(exml:element()) -> false
-    | {dialback_verify | dialback_result, To :: binary(), From :: binary(), Id :: binary(), Type :: binary()}.
-parse_dialback_with_type(#xmlel{name = <<"db:result">>, attrs = Attrs}) ->
-    %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
-    {dialback_result,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_attr_s(<<"type">>, Attrs)};
-parse_dialback_with_type(#xmlel{name = <<"db:verify">>, attrs = Attrs}) ->
-    %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
-    {dialback_verify,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_attr_s(<<"type">>, Attrs)};
-parse_dialback_with_type(_) ->
-    false.
-
-%% Initiating Server Sends Dialback Key (Step 1)
--spec dialback_result_key_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
-dialback_result_key_xml({LocalServer, RemoteServer}, Key) ->
-    #xmlel{name = <<"db:result">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer}],
-           children = [#xmlcdata{content = Key}]}.
-
-%% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
--spec dialback_verify_key_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
-dialback_verify_key_xml({LocalServer, RemoteServer}, Key, Id) ->
-    #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"id">>, Id}],
-           children = [#xmlcdata{content = Key}]}.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SRV support
@@ -1015,6 +971,10 @@ log_s2s_out(_, Myname, Server, Tls) ->
                 text => <<"Trying to open s2s connection">>,
                 myname => Myname, server => Server, tls => Tls}).
 
+next_state(StateName, StateData) ->
+    {next_state, StateName, StateData,
+     get_timeout_interval(StateName)}.
+
 %% @doc Calculate timeout depending on which state we are in:
 %% Can return integer > 0 | infinity
 -spec get_timeout_interval(statename()) -> 'infinity' | non_neg_integer().
@@ -1110,11 +1070,8 @@ get_predefined_port(HostType, _Addr) -> outgoing_s2s_port(HostType).
 addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 
-send_event_to_s2s_in(<<"valid">>, Pid, StateData) ->
-    Event = {valid, StateData#state.from_to},
-    p1_fsm:send_event(Pid, Event);
-send_event_to_s2s_in(_, Pid, StateData) ->
-    Event = {invalid, StateData#state.from_to},
+send_event_to_s2s_in(IsValid, Pid, StateData) when is_boolean(IsValid) ->
+    Event = {validity_from_s2s_out, IsValid, StateData#state.from_to},
     p1_fsm:send_event(Pid, Event).
 
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->

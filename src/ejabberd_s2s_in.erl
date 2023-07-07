@@ -299,11 +299,11 @@ tls_options_with_certfile(#state{host_type = HostType, tls_options = TLSOptions}
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
-    case parse_dialback_with_key(El) of
+    case mongoose_s2s_dialback:parse_key(El) of
         %% Incoming dialback key, we have to verify it using ejabberd_s2s_out before
         %% accepting any incoming stanzas
-        %% (we have to receive an event `{valid, FromTo}' from `ejabberd_s2s_out' process).
-        {dialback_result, FromTo, Id, Key} ->
+        %% (we have to receive the `validity_from_s2s_out' event first).
+        {step_1, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_get_key,
                          from_to => FromTo, message_id => Id, key => Key}),
             %% Checks if the from domain is allowed and if the to
@@ -332,32 +332,19 @@ stream_established({xmlstreamelement, El}, StateData) ->
             end;
         %% Incoming dialback verification request
         %% We have to check it using secrets and reply if it is valid or not
-        {dialback_verify, FromTo, Id, Key} ->
+        {step_2, FromTo, Id, Key} ->
             ?LOG_DEBUG(#{what => s2s_in_verify_key,
                          from_to => FromTo, message_id => Id, key => Key}),
-            Type = case ejabberd_s2s:key(StateData#state.host_type, FromTo, Id) of
-                       Key -> <<"valid">>;
-                       _ -> <<"invalid">>
-                   end,
-            send_element(StateData, dialback_verify_type_xml(FromTo, Id, Type)),
+            IsValid = Key =:= ejabberd_s2s:key(StateData#state.host_type, FromTo, Id),
+            send_element(StateData, mongoose_s2s_dialback:step_3(FromTo, Id, IsValid)),
             {next_state, stream_established, StateData#state{timer = Timer}};
         false ->
             Res = parse_and_route_incoming_stanza(El, StateData),
             handle_routing_result(Res, El, StateData),
             {next_state, stream_established, StateData#state{timer = Timer}}
     end;
-%% An event from ejabberd_s2s_out
-stream_established({valid, FromTo}, StateData) ->
-    send_element(StateData, dialback_result_type_xml(FromTo, <<"valid">>)),
-    Cons = maps:put(FromTo, established, StateData#state.connections),
-    NSD = StateData#state{connections = Cons},
-    {next_state, stream_established, NSD};
-%% An event from ejabberd_s2s_out
-stream_established({invalid, FromTo}, StateData) ->
-    send_element(StateData, dialback_result_type_xml(FromTo, <<"invalid">>)),
-    Cons = maps:remove(FromTo, StateData#state.connections),
-    NSD = StateData#state{connections = Cons},
-    {next_state, stream_established, NSD};
+stream_established({validity_from_s2s_out, IsValid, FromTo}, StateData) ->
+    handle_validity_from_s2s_out(IsValid, FromTo, StateData);
 stream_established({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
@@ -370,6 +357,17 @@ stream_established(timeout, StateData) ->
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
+
+-spec handle_validity_from_s2s_out(boolean(), ejabberd_s2s:fromto(), #state{}) ->
+    {next_state, stream_established, #state{}}.
+handle_validity_from_s2s_out(IsValid, FromTo, StateData) ->
+    send_element(StateData, mongoose_s2s_dialback:step_4(FromTo, IsValid)),
+    {next_state, stream_established, update_connections(IsValid, FromTo, StateData)}.
+
+update_connections(true, FromTo, StateData = #state{connections = Cons}) ->
+    StateData#state{connections = maps:put(FromTo, established, Cons)};
+update_connections(false, FromTo, StateData = #state{connections = Cons}) ->
+    StateData#state{connections = maps:remove(FromTo, Cons)}.
 
 handle_routing_result(ok, _El, _StateData) ->
     ok;
@@ -560,43 +558,6 @@ cancel_timer(Timer) ->
             ok
     end.
 
-%% XEP-0185: Dialback Key Generation and Validation
-%% DB means dial-back
-%% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
--spec dialback_verify_type_xml(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
-dialback_verify_type_xml({LocalServer, RemoteServer}, Id, Type) ->
-    #xmlel{name = <<"db:verify">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"id">>, Id},
-                    {<<"type">>, Type}]}.
-
--spec dialback_result_type_xml(ejabberd_s2s:fromto(), binary()) -> exml:element().
-dialback_result_type_xml({LocalServer, RemoteServer}, Type) ->
-    %% Receiving Server Sends Valid or Invalid Verification Result to Initiating Server (Step 4)
-    #xmlel{name = <<"db:result">>,
-           attrs = [{<<"from">>, LocalServer},
-                    {<<"to">>, RemoteServer},
-                    {<<"type">>, Type}]}.
-
--spec parse_dialback_with_key(exml:element()) -> false
-    | {dialback_result | dialback_verify,
-       FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
-parse_dialback_with_key(El = #xmlel{name = <<"db:result">>}) ->
-    %% Initiating Server Sends Dialback Key (Step 1)
-    parsed_dialback_with_key(dialback_result, El);
-parse_dialback_with_key(El = #xmlel{name = <<"db:verify">>}) ->
-    %% Receiving Server Sends Verification Request to Authoritative Server (Step 2)
-    parsed_dialback_with_key(dialback_verify, El);
-parse_dialback_with_key(_) ->
-    false.
-
-parsed_dialback_with_key(Type, El) ->
-    FromTo = parse_from_to(El),
-    Id = exml_query:attr(El, <<"id">>, <<>>),
-    Key = exml_query:cdata(El),
-    {Type, FromTo, Id, Key}.
-
 -spec match_domain(binary(), binary()) -> boolean().
 match_domain(Domain, Domain) ->
     true;
@@ -707,12 +668,3 @@ get_tls_xmlel(#state{tls_enabled = false, tls_required = true}) ->
 is_local_host_known({LLocalServer, _}) ->
     mongoose_router:is_registered_route(LLocalServer)
         orelse mongoose_component:has_component(LLocalServer).
-
--spec parse_from_to(exml:element()) -> ejabberd_s2s:fromto().
-parse_from_to(El) ->
-    RemoteJid = jid:from_binary(exml_query:attr(El, <<"from">>, <<>>)),
-    LocalJid = jid:from_binary(exml_query:attr(El, <<"to">>, <<>>)),
-    #jid{luser = <<>>, lresource = <<>>, lserver = LRemoteServer} = RemoteJid,
-    #jid{luser = <<>>, lresource = <<>>, lserver = LLocalServer} = LocalJid,
-    %% We use fromto() as seen by ejabberd_s2s_out and ejabberd_s2s
-    {LLocalServer, LRemoteServer}.

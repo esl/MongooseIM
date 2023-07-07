@@ -17,7 +17,7 @@
 
 -record(s2s_shared, {
            host_type :: mongooseim:host_type(),
-           secret :: mongooseim:base16_secret()
+           secret :: ejabberd_s2s:base16_secret()
        }).
 
 -include("mongoose_logger.hrl").

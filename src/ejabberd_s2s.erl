@@ -267,7 +267,7 @@ get_s2s_out_pids(FromTo) ->
 call_try_register(Pid, FromTo) ->
     mongoose_s2s_backend:try_register(Pid, FromTo).
 
--spec call_try_register(Node :: node()) -> ok.
+-spec call_node_cleanup(Node :: node()) -> ok.
 call_node_cleanup(Node) ->
     mongoose_s2s_backend:node_cleanup(Node).
 
