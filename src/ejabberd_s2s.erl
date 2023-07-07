@@ -283,6 +283,6 @@ remove_connection(FromTo, Pid) ->
 get_shared_secret(HostType) ->
     mongoose_s2s_backend:get_shared_secret(HostType).
 
--spec register_secret(mongooseim:host_type(), ejabberd_s2s:base16_secret()) -> ok.
+-spec register_secret(mongooseim:host_type(), base16_secret()) -> ok.
 register_secret(HostType, Secret) ->
     mongoose_s2s_backend:register_secret(HostType, Secret).

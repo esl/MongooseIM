@@ -83,9 +83,6 @@
 -define(FSMOPTS, []).
 -endif.
 
--define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_in_sup,
-                                                 [Socket, Opts])).
-
 -define(STREAM_HEADER(Version),
         (<<"<?xml version='1.0'?>"
          "<stream:stream "
@@ -104,7 +101,7 @@
 -spec start(socket(), options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(Socket, Opts) ->
-    ?SUPERVISOR_START.
+    supervisor:start_child(ejabberd_s2s_in_sup, [Socket, Opts]).
 
 -spec start_link(socket(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(Socket, Opts) ->
