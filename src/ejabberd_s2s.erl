@@ -64,8 +64,10 @@
 -record(state, {}).
 
 -type base16_secret() :: binary().
+-type stream_id() :: binary().
+-type s2s_dialback_key() :: binary().
 
--export_type([fromto/0, s2s_pids/0, base16_secret/0]).
+-export_type([fromto/0, s2s_pids/0, base16_secret/0, stream_id/0, s2s_dialback_key/0]).
 
 %% API functions
 
@@ -98,12 +100,10 @@ try_register(FromTo) ->
     end,
     IsRegistered.
 
--spec key(mongooseim:host_type(), fromto(), binary()) -> binary().
-key(HostType, {From, To}, StreamID) ->
+-spec key(mongooseim:host_type(), fromto(), stream_id()) -> s2s_dialback_key().
+key(HostType, FromTo, StreamID) ->
     {ok, Secret} = get_shared_secret(HostType),
-    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
-    HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
-    base16:encode(HMac).
+    mongoose_s2s_dialback:make_key(FromTo, StreamID, Secret).
 
 %% Hooks callbacks
 

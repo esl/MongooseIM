@@ -44,12 +44,14 @@
 -export([parse_key/1,
          parse_validity/1]).
 
+-export([make_key/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 %% Initiating server sends dialback key
 %% https://xmpp.org/extensions/xep-0220.html#example-1
--spec step_1(ejabberd_s2s:fromto(), binary()) -> exml:element().
+-spec step_1(ejabberd_s2s:fromto(), ejabberd_s2s:s2s_dialback_key()) -> exml:element().
 step_1({LocalServer, RemoteServer}, Key) ->
     #xmlel{name = <<"db:result">>,
            attrs = [{<<"from">>, LocalServer},
@@ -57,7 +59,7 @@ step_1({LocalServer, RemoteServer}, Key) ->
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving server sends verification request to authoritative server (step 2)
--spec step_2(ejabberd_s2s:fromto(), binary(), binary()) -> exml:element().
+-spec step_2(ejabberd_s2s:fromto(), ejabberd_s2s:s2s_dialback_key(), ejabberd_s2s:stream_id()) -> exml:element().
 step_2({LocalServer, RemoteServer}, Key, Id) ->
     #xmlel{name = <<"db:verify">>,
            attrs = [{<<"from">>, LocalServer},
@@ -66,7 +68,7 @@ step_2({LocalServer, RemoteServer}, Key, Id) ->
            children = [#xmlcdata{content = Key}]}.
 
 %% Receiving server is informed by authoritative server that key is valid or invalid (step 3)
--spec step_3(ejabberd_s2s:fromto(), binary(), boolean()) -> exml:element().
+-spec step_3(ejabberd_s2s:fromto(), ejabberd_s2s:stream_id(), boolean()) -> exml:element().
 step_3({LocalServer, RemoteServer}, Id, IsValid) ->
     #xmlel{name = <<"db:verify">>,
            attrs = [{<<"from">>, LocalServer},
@@ -86,7 +88,10 @@ is_valid_to_type(true)  -> <<"valid">>;
 is_valid_to_type(false) -> <<"invalid">>.
 
 -spec parse_key(exml:element()) -> false
-    | {step_1 | step_2, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), Key :: binary()}.
+    | {Step :: step_1 | step_2,
+       FromTo :: ejabberd_s2s:fromto(),
+       Id :: ejabberd_s2s:stream_id(),
+       Key :: ejabberd_s2s:s2s_dialback_key()}.
 parse_key(El = #xmlel{name = <<"db:result">>}) ->
     %% Initiating Server Sends Dialback Key (Step 1)
     parse_key(step_1, El);
@@ -105,7 +110,10 @@ parse_key(Step, El) ->
 %% Parse dialback verification result.
 %% Verification result is stored in the `type' attribute and could be `valid' or `invalid'.
 -spec parse_validity(exml:element()) -> false
-    | {step_3 | step_4, FromTo :: ejabberd_s2s:fromto(), Id :: binary(), IsValid :: boolean()}.
+    | {Step :: step_3 | step_4,
+       FromTo :: ejabberd_s2s:fromto(),
+       Id :: ejabberd_s2s:stream_id(),
+       IsValid :: boolean()}.
 parse_validity(El = #xmlel{name = <<"db:verify">>}) ->
     %% Receiving Server is Informed by Authoritative Server that Key is Valid or Invalid (Step 3)
     parse_validity(step_3, El);
@@ -129,3 +137,10 @@ parse_from_to(El) ->
     #jid{luser = <<>>, lresource = <<>>, lserver = LLocalServer} = LocalJid,
     %% We use fromto() as seen by ejabberd_s2s_out and ejabberd_s2s
     {LLocalServer, LRemoteServer}.
+
+-spec make_key(fromto(), ejabberd_s2s:stream_id(), ejabberd_s2s:base16_secret()) ->
+    ejabberd_s2s:s2s_dialback_key().
+make_key({From, To}, StreamID, Secret) ->
+    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
+    HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
+    base16:encode(HMac).
