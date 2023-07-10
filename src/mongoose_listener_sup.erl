@@ -8,6 +8,8 @@
 
 -ignore_xref([start_link/0, init/1]).
 
+-include("mongoose_logger.hrl").
+
 %% API
 
 -spec start_link() -> {ok, pid()}.
@@ -16,8 +18,8 @@ start_link() ->
 
 -spec start_child(supervisor:child_spec()) -> ok.
 start_child(ChildSpec) ->
-    Res = supervisor:start_child(?MODULE, ChildSpec),
-    check_start_child_result(Res, ChildSpec),
+    %% Use ejabberd_sup function for extra logging on errors
+    ejabberd_sup:start_child(?MODULE, ChildSpec),
     ok.
 
 %% Supervisor callbacks
@@ -27,5 +29,3 @@ init([]) ->
     {ok, {#{strategy => one_for_one,
             intensity => 10,
             period => 1}, []}}.
-
-check_start_child_result({ok, _Pid}, _ChildSpec) -> ok.
