@@ -13,7 +13,7 @@ If you want to use BOSH, you must enable it both in the `listen` section of
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
-Backend to use for storing BOSH connections. Currently only `"mnesia"` is supported.
+Backend to use for storing BOSH connections. `"cets"`, `"mnesia"` are supported.
 
 ### `modules.mod_bosh.inactivity`
  * **Syntax:** positive integer or the string `"infinity"`
