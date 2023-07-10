@@ -18,7 +18,6 @@
 %% Types
 %%----------------------------------------------------------------------
 
--type t() :: any().
 -type send_xml_input() :: {xmlstreamelement, exml:element()}
                           | jlib:xmlstreamstart()
                           | jlib:xmlstreamend().
@@ -34,7 +33,7 @@
                      channel => connection_type(),
                      atom() => any()}.
 
--export_type([t/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
+-export_type([socket_data/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
 
 -type socket_module() :: gen_tcp | mongoose_tls.
 -type socket() :: gen_tcp:socket() | mongoose_tls:socket().
@@ -286,7 +285,8 @@ handle_info({Tag, _TCPSocket, Data},
         {ok, TLSData} ->
             NewState = process_data(TLSData, State),
             {noreply, NewState, hibernate_or_timeout(NewState)};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => transport_tls_recv_error, socket => Socket, reason => Reason}),
             {stop, normal, State}
     end;
 handle_info({Tag, _Socket}, State) when Tag == tcp_closed; Tag == ssl_closed ->

@@ -54,18 +54,18 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--record(state, {socket,
-                streamid                :: binary(),
-                shaper,
+-record(state, {socket                  :: mongoose_transport:socket_data(),
+                streamid                :: ejabberd_s2s:stream_id(),
+                shaper                  :: shaper:shaper(),
                 tls = false             :: boolean(),
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_cert_verify = false :: boolean(),
                 tls_options             :: mongoose_tls:options(),
-                server                  :: jid:server() | undefined,
+                server                  :: jid:lserver() | undefined,
                 host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
-                auth_domain             :: binary() | undefined,
+                auth_domain             :: jid:lserver() | undefined,
                 connections = #{}       :: map(),
                 timer                   :: reference()
               }).
@@ -150,14 +150,15 @@ init([Socket, #{shaper := Shaper, tls := TLSOpts}]) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
+wait_for_stream({xmlstreamstart, _Name, Attrs} = Event, StateData) ->
     case maps:from_list(Attrs) of
         AttrMap = #{<<"xmlns">> := <<"jabber:server">>, <<"to">> := Server} ->
             case StateData#state.server of
                 undefined ->
                     case mongoose_domain_api:get_host_type(Server) of
                         {error, not_found} ->
-                            stream_start_error(StateData, mongoose_xmpp_errors:host_unknown());
+                            Info = #{location => ?LOCATION, last_event => Event},
+                            stream_start_error(StateData, Info, mongoose_xmpp_errors:host_unknown());
                         {ok, HostType} ->
                             UseTLS = mongoose_config:get_opt([{s2s, HostType}, use_starttls]),
                             {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
@@ -171,17 +172,22 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     start_stream(AttrMap, StateData);
                 _Other ->
                     Msg = <<"The 'to' attribute differs from the originally provided one">>,
-                    stream_start_error(StateData, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
+                    Info = #{location => ?LOCATION, last_event => Event,
+                             expected_server => StateData#state.server, provided_server => Server},
+                    stream_start_error(StateData, Info, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
             end;
         #{<<"xmlns">> := <<"jabber:server">>} ->
             Msg = <<"The 'to' attribute is missing">>,
-            stream_start_error(StateData, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
+            Info = #{location => ?LOCATION, last_event => Event},
+            stream_start_error(StateData, Info, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
         _ ->
-            stream_start_error(StateData, mongoose_xmpp_errors:invalid_namespace())
+            Info = #{location => ?LOCATION, last_event => Event},
+            stream_start_error(StateData, Info, mongoose_xmpp_errors:invalid_namespace())
     end;
-wait_for_stream({xmlstreamerror, _}, StateData) ->
-    ?LOG_WARNING(#{what => s2s_in_wait_for_stream_error}),
-    stream_start_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
+wait_for_stream({xmlstreamerror, _} = Event, StateData) ->
+    Info = #{location => ?LOCATION, last_event => Event,
+             reason => s2s_in_wait_for_stream_error},
+    stream_start_error(StateData, Info, mongoose_xmpp_errors:xml_not_well_formed());
 wait_for_stream(timeout, StateData) ->
     ?LOG_WARNING(#{what => s2s_in_wait_for_stream_timeout}),
     {stop, normal, StateData};
@@ -189,7 +195,7 @@ wait_for_stream(closed, StateData) ->
     ?LOG_WARNING(#{what => s2s_in_wait_for_stream_closed}),
     {stop, normal, StateData}.
 
-start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
+start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer} = Event,
              StateData = #state{tls = true, authenticated = false, server = Server,
                                 host_type = HostType}) ->
     SASL = case StateData#state.tls_enabled of
@@ -208,7 +214,8 @@ start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
                            remote_server => RemoteServer,
                            reason => cert_error,
                            cert_error => CertError}),
-            stream_start_error(StateData,
+            Info = #{location => ?LOCATION, last_event => Event, reason => error_cert_verif},
+            stream_start_error(StateData, Info,
                                mongoose_xmpp_errors:policy_violation(?MYLANG, CertError));
             %% We were stopping ejabberd_s2s_out connection in the older version of the code
             %% from this location. But stopping outgoing connections just because a non-verified
@@ -230,14 +237,15 @@ start_stream(#{<<"version">> := <<"1.0">>},
 start_stream(#{<<"xmlns:db">> := <<"jabber:server:dialback">>}, StateData) ->
     send_text(StateData, ?STREAM_HEADER(<<>>)),
     {next_state, stream_established, StateData};
-start_stream(_, StateData) ->
-    stream_start_error(StateData, mongoose_xmpp_errors:invalid_xml()).
+start_stream(Event, StateData) ->
+    Info = #{location => ?LOCATION, last_event => Event},
+    stream_start_error(StateData, Info, mongoose_xmpp_errors:invalid_xml()).
 
-stream_start_error(StateData, Error) ->
+stream_start_error(StateData, Info, Error) ->
     send_text(StateData, ?STREAM_HEADER(<<>>)),
     send_element(StateData, Error),
     send_text(StateData, ?STREAM_TRAILER),
-    ?LOG_WARNING(#{what => s2s_in_stream_start_error}),
+    ?LOG_WARNING(Info#{what => s2s_in_stream_start_error, element => Error}),
     {stop, normal, StateData}.
 
 -spec wait_for_feature_request(ejabberd:xml_stream_item(), state()

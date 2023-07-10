@@ -703,7 +703,7 @@ terminate(Reason, StateName, StateData) ->
             ok;
         false ->
             ?LOG_WARNING(#{what => s2s_terminate_non_empty,
-                           state_name => StateName,
+                           state_name => StateName, reason => Reason,
                            queue => lists:sublist(queue:to_list(StateData#state.queue), 10),
                            authenticated => StateData#state.authenticated})
     end,
