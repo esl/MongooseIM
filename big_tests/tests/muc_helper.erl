@@ -52,14 +52,15 @@ foreach_recipient(Users, VerifyFun) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
 
-load_muc() ->
-    load_muc(domain_helper:host_type()).
+load_muc(Config) ->
+    load_muc(Config, domain_helper:host_type()).
 
-load_muc(HostType) ->
+load_muc(Config, HostType) ->
     Backend = muc_backend(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
     Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
+             online_backend => muc_online_backend(Config),
              hibernate_timeout => 2000,
              hibernated_room_check_interval => 1000,
              hibernated_room_timeout => 2000,
@@ -85,6 +86,9 @@ muc_host_pattern() ->
 
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
+
+muc_online_backend(Config) ->
+    ct_helper:get_preset_var(Config, muc_backend, mnesia).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),

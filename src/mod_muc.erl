@@ -161,6 +161,7 @@ start_link(HostType, Opts) ->
 
 -spec start(host_type(), _) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
+    mongoose_muc_online_backend:start(HostType, Opts),
     ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
@@ -196,6 +197,8 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
+                 <<"online_backend">> => #option{type = atom,
+                                                 validate = {module, mongoose_muc_online}},
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -247,6 +250,7 @@ config_spec() ->
 
 defaults() ->
     #{<<"backend">> => mnesia,
+      <<"online_backend">> => mnesia,
       <<"host">> => default_host(),
       <<"access">> => all,
       <<"access_create">> => all,
@@ -363,11 +367,7 @@ stop_gen_server(HostType) ->
 %%    So the message sending must be catched
 -spec room_destroyed(host_type(), jid:server(), room(), pid()) -> 'ok'.
 room_destroyed(HostType, MucHost, Room, Pid) ->
-    Obj = #muc_online_room{name_host = {Room, MucHost},
-                           host_type = HostType, pid = Pid},
-    F = fun() -> mnesia:delete_object(Obj) end,
-    {atomic, ok} = mnesia:transaction(F),
-    ok.
+    mongoose_muc_online_backend:room_destroyed(HostType, MucHost, Room, Pid).
 
 %% @doc Create a room.
 %% If Opts = default, the default room options are used.
