@@ -36,10 +36,10 @@
 start() ->
     Backend = mongoose_config:get_opt(component_backend),
     mongoose_component_backend:init(#{backend => Backend}),
-    gen_hook:delete_handlers(hooks()).
+    gen_hook:add_handlers(hooks()).
 
 stop() ->
-    gen_hook:add_handlers(hooks()).
+    gen_hook:delete_handlers(hooks()).
 
 -spec hooks() -> [gen_hook:hook_tuple()].
 hooks() ->

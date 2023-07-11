@@ -25,7 +25,7 @@ register_components(Components) ->
     ok.
 
 unregister_components(Components) ->
-    cets:delete_object_many(?TABLE, Components),
+    cets:delete_objects(?TABLE, Components),
     ok.
 
 lookup_component(Domain) ->

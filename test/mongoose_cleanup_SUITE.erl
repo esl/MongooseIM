@@ -3,15 +3,18 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("mongoose.hrl").
 
--export([all/0,
+-export([all/0, groups/0,
          init_per_suite/1, end_per_suite/1,
+         init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
 -export([cleaner_runs_hook_on_nodedown/1, notify_self_hook/3]).
 -export([auth_anonymous/1,
          last/1,
          stream_management/1,
          s2s/1,
-         bosh/1
+         bosh/1,
+         component/1,
+         component_from_other_node_remains/1
         ]).
 
 -define(HOST, <<"localhost">>).
@@ -28,11 +31,18 @@ all() ->
      last,
      stream_management,
      s2s,
-     bosh
+     bosh,
+     [{group, Group} || {Group, _, _} <- groups()]
     ].
 
+groups() ->
+    [{component_cets, [], component_cases()},
+     {component_mnesia, [], component_cases()}].
+
+component_cases() ->
+    [component, component_from_other_node_remains].
+
 init_per_suite(Config) ->
-    mim_ct_sup:start_link(ejabberd_sup),
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
@@ -47,15 +57,52 @@ end_per_suite(Config) ->
     mnesia:delete_schema([node()]),
     Config.
 
+init_per_group(component_mnesia, Config) ->
+    mongoose_config:set_opt(component_backend, mnesia),
+    Config;
+init_per_group(component_cets, Config) ->
+    mongoose_config:set_opt(component_backend, cets),
+    DiscoOpts = #{name => mongoose_cets_discovery, disco_file => "does_not_exist.txt"},
+    {ok, _Pid} = cets_discovery:start(DiscoOpts),
+    Config.
+
+end_per_group(component_cets, _Config) ->
+    exit(whereis(mongoose_cets_discovery), kill);
+end_per_group(_Group, _Config) ->
+    ok.
+
 init_per_testcase(TestCase, Config) ->
+    mim_ct_sup:start_link(ejabberd_sup),
     {ok, _HooksServer} = gen_hook:start_link(),
     setup_meck(meck_mods(TestCase)),
+    start_component(TestCase),
     Config.
 
 end_per_testcase(TestCase, _Config) ->
+    stop_component(TestCase),
     mongoose_modules:stop(),
     mongoose_config:set_opt({modules, ?HOST}, #{}),
     unload_meck(meck_mods(TestCase)).
+
+start_component(TestCase) ->
+    case needs_component(TestCase) of
+        true ->
+            mongoose_router:start(),
+            mongoose_component:start();
+        false ->
+            ok
+    end.
+
+stop_component(TestCase) ->
+    case needs_component(TestCase) of
+        true ->
+            mongoose_component:stop();
+        false ->
+            ok
+    end.
+
+needs_component(TestCase) ->
+    lists:member(TestCase, component_cases()).
 
 opts() ->
     [{hosts, [?HOST]},
@@ -65,6 +112,7 @@ opts() ->
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
 meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
+meck_mods(component) -> [exometer];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 
 %% -----------------------------------------------------
@@ -151,6 +199,27 @@ bosh(_Config) ->
     {ok, Self} = mod_bosh:get_session_socket(SID),
     mongoose_hooks:node_cleanup(node()),
     {error, _} = mod_bosh:get_session_socket(SID),
+    ok.
+
+component(_Config) ->
+    Handler = fun() -> ok end,
+    Domain = <<"cool.localhost">>,
+    Node = some_node,
+    {ok, _} = mongoose_component:register_components([Domain], Node, Handler, false),
+    true = mongoose_component:has_component(Domain),
+    #{mongoose_component := ok} = mongoose_hooks:node_cleanup(Node),
+    [] = mongoose_component:dirty_get_all_components(all),
+    false = mongoose_component:has_component(Domain),
+    ok.
+
+component_from_other_node_remains(_Config) ->
+    Handler = fun() -> ok end,
+    Domain = <<"cool.localhost">>,
+    {ok, Comps} = mongoose_component:register_components([Domain], other_node, Handler, false),
+    true = mongoose_component:has_component(Domain),
+    #{mongoose_component := ok} = mongoose_hooks:node_cleanup(some_node),
+    true = mongoose_component:has_component(Domain),
+    mongoose_component:unregister_components(Comps),
     ok.
 
 %% -----------------------------------------------------
