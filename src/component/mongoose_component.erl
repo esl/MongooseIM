@@ -18,6 +18,7 @@
 
 -type external_component() :: #external_component{domain :: domain(),
                                                   handler :: mongoose_packet_handler:t(),
+                                                  node :: node(),
                                                   is_hidden :: boolean()}.
 
 -export_type([external_component/0]).
@@ -90,16 +91,17 @@ unregister_components(Components) ->
     mongoose_component_backend:unregister_components(Components).
 
 assert_can_register_components(Components) ->
-    Checks = lists:map(fun is_already_registered/1, Components),
-    Zip = lists:zip(Components, Checks),
-    ConfictDomains =
-        [LDomain || {#external_component{domain = LDomain}, true} <- Zip],
-    case ConfictDomains of
+    ConflictComponents = lists:filter(fun is_already_registered/1, Components),
+    ConflictDomains = records_to_domains(ConflictComponents),
+    case ConflictDomains of
         [] ->
             ok;
          _ ->
-            error({routes_already_exist, ConfictDomains})
+            error({routes_already_exist, ConflictDomains})
     end.
+
+records_to_domains(Components) ->
+    [LDomain || #external_component{domain = LDomain} <- Components].
 
 %% Returns true if any component route is registered for the domain.
 -spec has_component(jid:lserver()) -> boolean().
