@@ -304,11 +304,15 @@ commands:
               if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
   report_failed_test_cases_to_ga4:
     steps:
-      - run:
-          name: Report failed test cases
-          when: always
-          command: |
-              tools/gh-report-failing-testcases-to-ga4.sh
+      - when:
+          condition:
+            equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Report failed test cases to GA4
+                when: always
+                command: |
+                  tools/gh-report-failing-testcases-to-ga4.sh
   publish_github_comment:
     steps:
       - run:
