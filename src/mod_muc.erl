@@ -119,11 +119,6 @@
     pid       :: pid()
 }.
 
--type muc_registered() :: #muc_registered{
-                             us_host    :: jid:literal_jid(),
-                             nick       :: nick()
-                            }.
-
 -type room_event_data() :: #{
                   from_nick := nick(),
                   from_jid := jid:jid(),
@@ -146,7 +141,7 @@
 
 -type state() :: #muc_state{}.
 
--export_type([muc_room/0, muc_registered/0]).
+-export_type([muc_room/0]).
 
 -define(PROCNAME, ejabberd_mod_muc).
 
