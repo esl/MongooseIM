@@ -4,7 +4,11 @@
 
 -include_lib("mod_muc.hrl").
 
-start(HostType, Opts) ->
+start(_HostType, _Opts) ->
+    mnesia:create_table(muc_online_room,
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, muc_online_room)}]),
+    mnesia:add_table_copy(muc_online_room, node(), ram_copies),
     ok.
 
 %% Race condition is possible between register and room_destroyed
