@@ -302,6 +302,17 @@ commands:
           command: |
               tools/circleci-prepare-log-dir.sh
               if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+  report_failed_test_cases_to_ga4:
+    steps:
+      - when:
+          condition:
+            equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Report failed test cases to GA4
+                when: always
+                command: |
+                  tools/gh-report-failing-testcases-to-ga4.sh
   publish_github_comment:
     steps:
       - run:
@@ -630,6 +641,7 @@ jobs:
             tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
       - upload_results_to_aws
       - publish_github_comment
+      - report_failed_test_cases_to_ga4
 
   dialyzer:
     executor: << parameters.executor >>
@@ -943,6 +955,7 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: elasticsearch_and_cassandra_25
+          spec: mam.spec
           executor: otp_25_elasticsearch_cassandra
           context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia

@@ -14,7 +14,6 @@
 -export([post_end_per_suite/4,
          post_end_per_group/4,
          post_end_per_testcase/4]).
--record(state, { }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -23,7 +22,7 @@ id(_Opts) ->
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
 init(_Id, _Opts) ->
-    {ok, #state{  }}.
+    {ok, #{ }}.
 
 post_init_per_suite(_SuiteName, _Config, Return, State) ->
     handle_return(Return, false),

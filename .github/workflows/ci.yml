@@ -14,6 +14,9 @@ env:
   AWS_DEFAULT_REGION: "${{ secrets.AWS_DEFAULT_REGION }}"
   AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
   AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+  # required for tools/gh-report-failing-testcases-to-ga4.sh script
+  GA4_API_SECRET: "${{ secrets.GA4_API_SECRET }}"
+  GA4_MEASUREMENT_API: "${{ secrets.GA4_MEASUREMENT_API }}"
 
 jobs:
   small_tests:
@@ -80,6 +83,9 @@ jobs:
       - name: upload common test results on failure
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
+      - name: upload big_tests results to GA4
+        if: github.ref_name == 'master'
+        run: tools/gh-report-failing-testcases-to-ga4.sh
 
   dynamic_domains_big_tests:
     name: dynamic domains ${{matrix.preset}} on OTP ${{matrix.otp}}
@@ -105,6 +111,9 @@ jobs:
       - name: upload common test results on failure
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
+      - name: upload big_tests results to GA4
+        if: github.ref_name == 'master'
+        run: tools/gh-report-failing-testcases-to-ga4.sh
 
   coveralls_webhook:
     needs: [big_tests, small_tests, dynamic_domains_big_tests]
@@ -163,10 +172,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg: [centos_7, debian_stretch]
+        pkg: [centos_7, ubuntu_xenial]
     runs-on: ubuntu-22.04
     env:
-      ESL_ERLANG_PKG_VER: "25.0.1-1"
+      ESL_ERLANG_PKG_VER: "25.0.3-1"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v3

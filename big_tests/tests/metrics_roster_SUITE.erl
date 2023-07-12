@@ -295,7 +295,9 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     Acc = mongoose_helper:new_mongoose_acc(Server),
-    rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]).
+    Extra = #{host_type => domain_helper:host_type()},
+    Params = #{jid => jid:make_bare(Username, Server)},
+    rpc(mim(), mod_roster, remove_user, [Acc, Params, Extra]).
 
 mongoose_metrics(ConfigIn, Metrics) ->
     Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
