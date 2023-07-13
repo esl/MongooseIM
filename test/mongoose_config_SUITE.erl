@@ -189,6 +189,7 @@ minimal_config_opts() ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},

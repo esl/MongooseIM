@@ -11,6 +11,9 @@
   {{#sm_backend}}
   sm_backend = {{{sm_backend}}}
   {{/sm_backend}}
+  {{#component_backend}}
+  component_backend = {{{component_backend}}}
+  {{/component_backend}}
   max_fsm_queue = 1000
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}

@@ -21,7 +21,7 @@ filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
 
 route(From, To, Acc0, Packet) ->
     LDstDomain = To#jid.lserver,
-    case ejabberd_router:lookup_component(LDstDomain, node()) of
+    case mongoose_component:lookup_component(LDstDomain, node()) of
         [] ->
             {From, To, Acc0, Packet};
         [#external_component{handler = Handler}] ->

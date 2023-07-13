@@ -71,7 +71,8 @@
                 hidden_components = false :: boolean(),
                 conflict_behaviour :: conflict_behaviour(),
                 access,
-                check_from
+                check_from,
+                components = [] :: [mongoose_component:external_component()]
               }).
 -type state() :: #state{}.
 
@@ -450,9 +451,9 @@ try_register_routes(StateData) ->
 
 try_register_routes(StateData, Retries) ->
     case register_routes(StateData) of
-        ok ->
+        {ok, Components} ->
             send_element(StateData, #xmlel{name = <<"handshake">>}),
-            {next_state, stream_established, StateData};
+            {next_state, stream_established, StateData#state{components = Components}};
         {error, Reason} ->
             RoutesInfo = lookup_routes(StateData),
             ConflictBehaviour = StateData#state.conflict_behaviour,
@@ -474,7 +475,8 @@ routes_info_to_pids(RoutesInfo) ->
         mongoose_packet_handler:module(H) =:= ?MODULE].
 
 handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
-    Pids = routes_info_to_pids(RoutesInfo),
+    %% see lookup_routes
+    Pids = lists:usort(routes_info_to_pids(RoutesInfo)),
     Results = lists:map(fun stop_process/1, Pids),
     AllOk = lists:all(fun(Result) -> Result =:= ok end, Results),
     case AllOk of
@@ -497,18 +499,18 @@ do_disconnect_on_conflict(StateData) ->
 
 lookup_routes(StateData) ->
     Routes = get_routes(StateData),
-    [{Route, ejabberd_router:lookup_component(Route)} || Route <- Routes].
+    %% Lookup for all pids for the route (both local and global)
+    [{Route, mongoose_component:lookup_component(Route)} || Route <- Routes].
 
 -spec register_routes(state()) -> any().
 register_routes(StateData = #state{hidden_components = AreHidden}) ->
     Routes = get_routes(StateData),
     Handler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
-    ejabberd_router:register_components(Routes, node(), Handler, AreHidden).
+    mongoose_component:register_components(Routes, node(), Handler, AreHidden).
 
 -spec unregister_routes(state()) -> any().
-unregister_routes(StateData) ->
-    Routes = get_routes(StateData),
-    ejabberd_router:unregister_components(Routes).
+unregister_routes(#state{components = Components}) ->
+    mongoose_component:unregister_components(Components).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = mongoose_config:get_opt(hosts),
