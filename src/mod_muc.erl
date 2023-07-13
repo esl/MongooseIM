@@ -25,7 +25,7 @@
 
 -module(mod_muc).
 -author('alexey@process-one.net').
--xep([{xep, 45}, {version, "1.25"}]).
+-xep([{xep, 45}, {version, "1.34.5"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
