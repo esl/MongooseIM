@@ -108,7 +108,8 @@ all() -> [
           {group, hibernation},
           {group, room_registration_race_condition},
           {group, register},
-          {group, register_over_s2s}
+          {group, register_over_s2s},
+          {group, service}
         ].
 
 groups() ->
@@ -286,7 +287,8 @@ groups() ->
                                                  check_message_route_to_offline_room
                                                 ]},
          {register, [parallel], register_cases()},
-         {register_over_s2s, [parallel], register_cases()}
+         {register_over_s2s, [parallel], register_cases()},
+         {service, [], [service_shutdown_kick]}
     ].
 
 register_cases() ->
@@ -3996,6 +3998,46 @@ destroy_unauthorized(ConfigIn) ->
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
     end).
 
+%% Example 207
+service_shutdown_kick(ConfigIn) ->
+    escalus:fresh_story(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        %% Create a room
+        Host = muc_host(),
+        RoomName = fresh_room_name(),
+        Presence = stanza_muc_enter_room(RoomName, <<"alice-the-owner">>),
+
+        escalus:send(Alice, Presence),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
+
+        %% Participants join a room
+        escalus:send(Bob, stanza_muc_enter_room(RoomName, <<"bob">>)),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanzas(Bob, 3),
+
+        escalus:send(Kate, stanza_muc_enter_room(RoomName, <<"kate">>)),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+        escalus:wait_for_stanzas(Kate, 4),
+
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Kate),
+
+        %% Simulate shutdown
+        RoomJID = mongoose_helper:make_jid(RoomName, Host, <<>>),
+        rpc(mim(), mod_muc_room, delete_room, [RoomJID, none]),
+
+        %% Check if the participants received stanzas with the appropriate status codes
+        escalus:wait_for_stanza(Bob),
+        BobStanza = escalus:wait_for_stanza(Bob),
+        has_status_codes(BobStanza, [<<"332">>]),
+
+        escalus:wait_for_stanza(Kate),
+        KateStanza = escalus:wait_for_stanza(Kate),
+        has_status_codes(KateStanza, [<<"332">>])
+    end).
 %%--------------------------------------------------------------------
 %% RSM (a partial list of rooms)
 %%--------------------------------------------------------------------
