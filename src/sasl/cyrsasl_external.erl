@@ -20,7 +20,7 @@
 %%%=============================================================================
 -module(cyrsasl_external).
 
--xep([{xep, 178}, {version, "1.1"}, {status, partial}]).
+-xep([{xep, 178}, {version, "1.2"}, {status, partial}]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
