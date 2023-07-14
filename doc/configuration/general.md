@@ -199,7 +199,7 @@ Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned i
 * **Example:** `max_fsm_queue = 5000`
 
 When specified, will terminate certain processes (e.g. client handlers) that have more messages accumulated in the queue than the specified limit, to prevent resource exhaustion.
-This option is set for C2S, outgoing S2S and component connections and can be overridden for particular `s2s` or `service` listeners in their configurations. **Use with caution!**
+This option is set for outgoing S2S and component connections and can be overridden for a particular `service` listener in its configuration. **Use with caution!**
 
 ### `general.domain_certfile`
 * **Syntax:** array of TOML tables with the following mandatory content:
