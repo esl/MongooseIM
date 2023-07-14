@@ -3201,7 +3201,7 @@ disco_info_locked_room(Config) ->
                      Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), RoomName)),
 
         %% THEN receives MUC features
-        Namespaces = [?NS_MUC, ?NS_MUC_STABLE_ID,<<"muc_public">>, <<"muc_temporary">>,
+        Namespaces = [?NS_MUC, ?NS_MUC_STABLE_ID, <<"muc_public">>, <<"muc_temporary">>,
                       <<"muc_open">>, <<"muc_semianonymous">>, <<"muc_moderated">>,
                       <<"muc_unsecured">>],
         has_features(Stanza, Namespaces)
@@ -4862,22 +4862,22 @@ print(Element) ->
 %Basic MUC protocol
 stanza_groupchat_enter_room(Room, Nick) ->
     stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        escalus_stanza:presence(<<"available">>,
+                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
         Room, Nick).
 
 
 stanza_groupchat_enter_room_no_nick(Room) ->
     stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        escalus_stanza:presence(<<"available">>,
+                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
         Room).
 
 stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
     stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
-                                             children=[#xmlel{name = <<"password">>, children = [#xmlcdata{content=[Password]}]} ]}]),
+        escalus_stanza:presence(<<"available">>,
+                                [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
+                                            children = [#xmlel{name = <<"password">>, children = [#xmlcdata{content=[Password]}]} ]}]),
         Room, Nick).
 
 stanza_change_nick(Room, NewNick) ->
@@ -4914,9 +4914,9 @@ stanza_private_muc_message(To, Msg) ->
         #xmlel{name = <<"message">>,
             attrs = [{<<"to">>, To}, {<<"type">>, <<"chat">>}],
             children = [#xmlel{name = <<"body">>,
-                                children = [#xmlcdata{content = Msg}]},
+                               children = [#xmlcdata{content = Msg}]},
                         #xmlel{name = <<"x">>,
-                                attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}]}]}.
+                               attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}]}]}.
 
 stanza_change_availability(NewStatus, Room, Nick) ->
     stanza_to_room(
