@@ -25,7 +25,7 @@
 
 -module(mod_muc).
 -author('alexey@process-one.net').
--xep([{xep, 45}, {version, "1.25"}]).
+-xep([{xep, 45}, {version, "1.34.5"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -1266,7 +1266,7 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     {ok, Acc}.
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(), 
+    Acc :: mongoose_acc:t(),
     Params :: #{room := jid:jid()},
     Extra :: gen_hook:extra().
 acc_room_affiliations(Acc, #{room := Room}, _) ->

@@ -324,15 +324,21 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
     ?LOG_INFO(ls(#{what => muc_room_started,
                    creator_jid => jid:to_binary(Creator)}, State)),
     add_to_log(room_existence, created, State2),
+    State3 = case proplists:get_value(subject, DefRoomOpts, none) of
+        none ->
+            State2;
+        _ ->
+            set_opts([{subject_timestamp, get_current_timestamp()}], State2)
+    end,
     case proplists:get_value(instant, DefRoomOpts, false) of
         true ->
             %% Instant room -- groupchat 1.0 request
-            add_to_log(room_existence, started, State2),
-            save_persistent_room_state(State2),
-            {ok, normal_state, State2, State2#state.hibernate_timeout};
+            add_to_log(room_existence, started, State3),
+            save_persistent_room_state(State3),
+            {ok, normal_state, State3, State3#state.hibernate_timeout};
         false ->
             %% Locked room waiting for configuration -- MUC request
-            {ok, initial_state, State2}
+            {ok, initial_state, State3}
     end.
 
 %% @doc A room is restored
@@ -952,7 +958,8 @@ change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
             case can_change_subject(Role, StateData) of
                 true ->
                     NSD = StateData#state{subject = Subject,
-                                          subject_author = FromNick},
+                                          subject_author = FromNick,
+                                          subject_timestamp = get_current_timestamp()},
                     save_persistent_room_state(NSD),
                     {NSD, true};
                 _ ->
@@ -1173,8 +1180,14 @@ handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     %ejabberd_route(From, To, Packet),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
     StateData;
-handle_new_user(From, Nick, Packet, StateData, _Attrs) ->
-    add_new_user(From, Nick, Packet, StateData).
+handle_new_user(From, Nick, Packet, StateData, Attrs) ->
+    case exml_query:path(Packet, [{element, <<"x">>}]) of
+        undefined ->
+            Response = kick_stanza_for_old_protocol(Attrs),
+            ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Response);
+        _ ->
+            add_new_user(From, Nick, Packet, StateData)
+    end.
 
 
 -spec is_user_online(jid:simple_jid() | jid:jid(), state()) -> boolean().
@@ -2331,7 +2344,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
               end,
     Packet = xml:append_subtags(
                Presence,
-               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+               [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
                        children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                           children = ItemEls} | Status2]}]),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
@@ -2613,22 +2626,24 @@ send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
                     children = [#xmlel{name = <<"subject">>},
-                               #xmlel{name = <<"body">>}]},
+                                #xmlel{name = <<"body">>}]},
     ejabberd_router:route(
         StateData#state.jid,
         JID,
         Packet);
 send_subject(JID, _Lang, StateData) ->
     Subject = StateData#state.subject,
+    TimeStamp = StateData#state.subject_timestamp,
+    RoomJID = StateData#state.jid,
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
                     children = [#xmlel{name = <<"subject">>,
                                        children = [#xmlcdata{content = Subject}]},
-                               #xmlel{name = <<"body">>}]},
-    ejabberd_router:route(
-        StateData#state.jid,
-        JID,
-        Packet).
+                                #xmlel{name = <<"delay">>,
+                                       attrs = [{<<"xmlns">>, ?NS_DELAY},
+                                                {<<"from">>, jid:to_binary(RoomJID)},
+                                                {<<"stamp">>, TimeStamp}]}]},
+    ejabberd_router:route(RoomJID, JID, Packet).
 
 
 -spec check_subject(exml:element()) -> 'false' | binary().
@@ -3661,6 +3676,8 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{subject = Val};
         subject_author ->
             SD#state{subject_author = Val};
+        subject_timestamp ->
+            SD#state{subject_timestamp = Val};
         _ ->
             SD
        end,
@@ -3792,6 +3809,7 @@ identity(Name) ->
 -spec room_features(config()) -> [mongoose_disco:feature()].
 room_features(Config) ->
     [?NS_MUC,
+     ?NS_MUC_STABLE_ID,
      config_opt_to_feature((Config#config.public),
                            <<"muc_public">>, <<"muc_hidden">>),
      config_opt_to_feature((Config#config.persistent),
@@ -4477,10 +4495,11 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From, jid = ToJID}, StateData) ->
+    Packet1 = maybe_add_x_element(Packet),
     {ok, #user{nick = FromNick}} = maps:find(jid:to_lower(From),
         StateData#state.users),
     ejabberd_router:route(
-        jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet),
+        jid:replace_resource(StateData#state.jid, FromNick), ToJID, Packet1),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery,
                                         allow_pm = true,
@@ -4545,7 +4564,7 @@ make_voice_approval_form(From, Nick, Role) ->
     Instructions = <<"To approve this request"
                      " for voice, select the &quot;Grant voice to this person?&quot; checkbox"
                      " and click OK. To skip this request, click the cancel button.">>,
-    Fields = [#{var => <<"muc#role">>, type => <<"text-single">>,
+    Fields = [#{var => <<"muc#role">>, type => <<"list-single">>,
                 label => <<"Request role">>, values => [Role]},
               #{var => <<"muc#jid">>, type => <<"jid-single">>,
                 label => <<"User ID">>, values => [jid:to_binary(From)]},
@@ -4586,5 +4605,34 @@ ls(LogMap, State) ->
 get_opt(#state{host_type = HostType}, Opt) ->
     gen_mod:get_module_opt(HostType, mod_muc, Opt).
 
+get_current_timestamp() ->
+    SystemTime = os:system_time(second),
+    TimeStamp = calendar:system_time_to_rfc3339(SystemTime, [{offset, "Z"}]),
+    list_to_binary(TimeStamp).
+
 read_hibernate_timeout(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout).
+
+maybe_add_x_element(Msg) ->
+    {xmlel, Type, InfoXML, Children} = Msg,
+    case lists:member({xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}, Children) of
+        true -> Msg;
+        false ->
+            NewChildren = lists:append(Children,
+                                       [{xmlel, <<"x">>, [{<<"xmlns">>, ?NS_MUC_USER}], []}]),
+            {xmlel, Type, InfoXML, NewChildren}
+    end.
+
+kick_stanza_for_old_protocol(Attrs) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    ErrText = <<"You are not in the room.">>,
+    ErrText2 = translate:translate(Lang, ErrText),
+    Response = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"unavailable">>}]},
+    ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
+    ItemEls = [#xmlel{name = <<"reason">>, children = [#xmlcdata{content = ErrText2}]}],
+    Status = [status_code(110), status_code(307), status_code(333)],
+    xml:append_subtags(
+        Response,
+        [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}],
+                children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
+                                   children = ItemEls} | Status]}]).
