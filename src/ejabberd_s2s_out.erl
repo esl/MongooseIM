@@ -27,6 +27,9 @@
 -author('alexey@process-one.net').
 -behaviour(p1_fsm).
 
+% TODO this should be in a separate module after feature/cets is merged
+-xep([{xep, 220}, {version, "1.1.1"}]).
+
 %% External exports
 -export([start/3,
          start_link/3,
