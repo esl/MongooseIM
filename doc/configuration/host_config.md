@@ -38,6 +38,7 @@ The following options are allowed:
 
 * [`route_subdomains`](general.md#generalroute_subdomains)
 * [`replaced_wait_timeout`](general.md#generalreplaced_wait_timeout)
+* [`max_users_per_domain`](general.md#generalmax_users_per_domain)
 
 #### Example
 

@@ -194,7 +194,10 @@ general() ->
                                                     wrap = global_config},
                  <<"domain_certfile">> => #list{items = domain_cert(),
                                                 format_items = map,
-                                                wrap = global_config}
+                                                wrap = global_config},
+                 <<"max_users_per_domain">> => #option{type = int_or_infinity,
+                                                          validate = positive,
+                                                          wrap = host_config}
                 },
        wrap = none,
        format_items = list
@@ -212,7 +215,8 @@ general_defaults() ->
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
-      <<"hide_service_name">> => false}.
+      <<"hide_service_name">> => false,
+      <<"max_users_per_domain">> => infinity}.
 
 ctl_access_rule() ->
     #section{

@@ -82,7 +82,8 @@ groups() ->
                             routing_modules,
                             replaced_wait_timeout,
                             hide_service_name,
-                            domain_certfile]},
+                            domain_certfile,
+                            max_users_per_domain]},
      {listen, [parallel], [listen_duplicate,
                            listen_c2s,
                            listen_c2s_fast_tls,
@@ -442,6 +443,12 @@ domain_certfile(_Config) ->
     [?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}})
      || K <- maps:keys(DomCert)],
     ?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
+
+max_users_per_domain(_Config) ->
+    ?cfg({max_users_per_domain, ?HOST}, infinity, #{}), % global default
+    ?cfgh(max_users_per_domain, 1000, #{<<"general">> =>
+                                           #{<<"max_users_per_domain">> => 1000}}),
+    ?errh(#{<<"general">> => #{<<"max_users_per_domain">> => 0}}).
 
 %% tests: listen
 
@@ -3071,7 +3078,7 @@ create_files(Config) ->
 
 ensure_copied(From, To) ->
     case file:copy(From, To) of
-        {ok,_} ->
+        {ok, _} ->
             ok;
         Other ->
             error(#{what => ensure_copied_failed, from => From, to => To,
