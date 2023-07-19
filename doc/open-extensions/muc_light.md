@@ -1,10 +1,10 @@
 ## 1. Introduction
 
-Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP. 
-It distinguishes between the affiliation list and the occupant list, where the latter is based on presences routed to the room from the client resource. 
-While perfectly sufficient for desktop applications and relatively stable network connection, it does not exactly meet the challenges the mobile world it is facing. 
-Modern mobile applications do not rely on presence information, as it can frequently change. The expected user experience not only differs from the IRC model, but also uses only a small subset of XEP-0045 features. 
-The service described in this specification attempts to provide a complete solution for all common use cases of mobile groupchats.
+Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP.
+It distinguishes between the affiliation list and the occupant list, where the latter is based on presences routed to the room from the client resource.
+While perfectly sufficient for desktop applications and relatively stable network connection, it does not exactly meet the challenges the mobile world it is facing.
+Modern mobile applications do not rely on presence information, as it can frequently change. The expected user experience not only differs from the IRC model, but also uses only a small subset of XEP-0045 features.
+The service described in this specification attempts to provide a complete solution for all common use cases of mobile group chats.
 
 ## 2. Requirements
 
@@ -1293,13 +1293,14 @@ It occurs in the following cases:
 
 ## 8. Implementation Notes
 
-### 8.1. XEP-0045 mappings
+### 8.1. XEP-0045 mappings a.k.a. legacy mode
 
 Some client-side developers might choose to use existing XEP-0045 Multi-User Chat implementations
 to interface with the new MUC Light.
 There may be various reasons to do so: using a familiar protocol,
 avoiding additional implementation, quick prototyping etc.
 This section provides suggestions of mappings between XEP-0045 stanzas and the new ones described in this document.
+These mappings are ONLY available to use in the legacy mode, which allows using a subset of classic MUC stanzas but comes with the drawback that some of the functions are limited.
 
 Operations not described here SHOULD remain unmodified.
 

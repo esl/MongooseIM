@@ -74,10 +74,9 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
 
 do_publish_item(ServerHost, PublishOptions,
                 [#xmlel{name = <<"notification">>} | _] = Notifications) ->
-    case catch parse_form(PublishOptions) of
+    case parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
-            NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
-            NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
+            NotificationForms = [parse_form(El) || El <- Notifications],
             Result = mongoose_hooks:push_notifications(ServerHost, ok,
                                                        NotificationForms, OptionMap),
             handle_push_hook_result(Result);
@@ -110,25 +109,15 @@ is_allowed_to_publish(PublishModel, Affiliation) ->
               or (Affiliation == publisher)
               or (Affiliation == publish_only)).
 
-
--spec parse_form(undefined | exml:element()) -> invalid_form | #{atom() => binary()}.
+-spec parse_form(undefined | exml:element()) -> invalid_form | #{binary() => binary()}.
 parse_form(undefined) ->
     #{};
-parse_form(Form) ->
-    IsForm = ?NS_XDATA == exml_query:attr(Form, <<"xmlns">>),
-    IsSubmit = <<"submit">> == exml_query:attr(Form, <<"type">>, <<"submit">>),
-
-    FieldsXML = exml_query:subelements(Form, <<"field">>),
-    Fields = [{exml_query:attr(Field, <<"var">>),
-               exml_query:path(Field, [{element, <<"value">>}, cdata])} || Field <- FieldsXML],
-    {_, CustomFields} = lists:partition(
-        fun({Name, _}) ->
-            Name == <<"FORM_TYPE">>
-        end, Fields),
-
-    case IsForm andalso IsSubmit of
-        true ->
-            maps:from_list(CustomFields);
-        false ->
+parse_form(Parent) ->
+    case mongoose_data_forms:find_and_parse_form(Parent) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            maps:filtermap(fun(_, [V]) -> {true, V};
+                              (_, _) -> false
+                           end, KVs);
+        _ ->
             invalid_form
     end.

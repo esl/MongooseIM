@@ -138,14 +138,12 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = get, sub_el = _QueryEl, id =
 decode_iq(From, IQ = #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = ID }) ->
     case exml_query:subelement(QueryEl, <<"destroy">>) of
         undefined ->
-            try parse_config(exml_query:paths(QueryEl, [{element, <<"x">>},
-                                                        {element, <<"field">>}])) of
+            case parse_config_form(QueryEl) of
                 {ok, RawConfig} ->
-                    {ok, {set, #config{ id = ID, raw_config = RawConfig }}}
-            catch Class:Reason:Stacktrace ->
+                    {ok, {set, #config{ id = ID, raw_config = RawConfig }}};
+                {error, Reason} ->
                     ?LOG_WARNING(#{what => muc_parse_config_failed,
-                                   from_jid => jid:to_binary(From), iq => IQ,
-                                   class => Class, reason => Reason, stacktrace => Stacktrace}),
+                                   from_jid => jid:to_binary(From), iq => IQ, reason => Reason}),
                     {error, bad_request}
             end;
         _ ->
@@ -191,19 +189,15 @@ decode_iq(_From, #iq{} = IQ) ->
 
 %% ------------------ Parsers ------------------
 
--spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:binary_kv()}.
-parse_config(Els) ->
-    parse_config(Els, []).
-
--spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:binary_kv()) ->
-    {ok, mod_muc_light_room_config:binary_kv()}.
-parse_config([], ConfigAcc) ->
-    {ok, ConfigAcc};
-parse_config([Field | REls], ConfigAcc) ->
-    case {exml_query:attr(Field, <<"var">>),
-          exml_query:path(Field, [{element, <<"value">>}, cdata])} of
-        {<<"FORM_TYPE">>, _} -> parse_config(REls, ConfigAcc);
-        ConfigKV -> parse_config(REls, [ConfigKV | ConfigAcc])
+-spec parse_config_form(exml:element()) -> {ok, [{binary(), binary()}]} | {error, binary()}.
+parse_config_form(QueryEl) ->
+    case mongoose_data_forms:find_and_parse_form(QueryEl) of
+        #{type := <<"submit">>, kvs := KVs} ->
+            {ok, [{K, V} || {K, [V]} <- maps:to_list(KVs)]};
+        #{} ->
+            {error, <<"Invalid form type">>};
+        {error, Msg} ->
+            {error, Msg}
     end.
 
 -spec parse_aff_users(Els :: [jlib:xmlch()]) -> {ok, aff_users()}.
@@ -267,15 +261,11 @@ encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
                  || {{RoomU, RoomS}, RoomName, _RoomVersion} <- Rooms ],
     {iq_reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
-    ConfigEls = [ jlib:form_field({K, <<"text-single">>, V, K})
-                  || {K, V} <- Config#config.raw_config ],
-    XEl = #xmlel{ name = <<"x">>,
-                  attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
-                  children = [
-                              kv_to_el(<<"title">>, <<"Configuration form for the room">>),
-                              jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>,
-                                               <<"http://jabber.org/protocol/muc#roomconfig">>})
-                              | ConfigEls] },
+    Fields = [#{var => K, type => <<"text-single">>, values => [V]}
+              || {K, V} <- Config#config.raw_config],
+    XEl = mongoose_data_forms:form(#{title => <<"Configuration form for the room">>,
+                                     ns => <<"http://jabber.org/protocol/muc#roomconfig">>,
+                                     fields => Fields}),
     {iq_reply, ?NS_MUC_OWNER, [XEl], Config#config.id};
 encode_meta({get, #affiliations{} = Affs}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     AffEls = [ aff_user_to_item(AffUser) || AffUser <- Affs#affiliations.aff_users ],
@@ -385,10 +375,6 @@ blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
                      {<<"action">>, action2b(Action)},
                      {<<"order">>, <<"1">>}
                     ] }.
-
--spec kv_to_el(binary(), binary()) -> exml:element().
-kv_to_el(Key, Value) ->
-    #xmlel{ name = Key, children = [#xmlcdata{ content = Value }] }.
 
 -spec envelope(XMLNS :: binary(), Children :: [jlib:xmlch()]) -> [jlib:xmlch()].
 envelope(XMLNS, Children) ->

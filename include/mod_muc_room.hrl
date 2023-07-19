@@ -82,6 +82,7 @@
                 history,
                 subject = <<>>,
                 subject_author = <<>>,
+                subject_timestamp = <<>>,
                 just_created = false     :: boolean(),
                 activity = treap:empty() :: treap:treap(),
                 room_shaper              :: shaper:shaper(),

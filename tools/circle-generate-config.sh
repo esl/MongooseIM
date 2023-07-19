@@ -21,13 +21,6 @@ MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 LDAP_SCHEMA=$(cat32 tools/db_configs/ldap/init_entries.ldif)
 LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
-RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
-RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
-RIAK_SETUP=$(cat32 tools/setup_riak.escript)
-RIAK_MAM_SEARCH_SCHEMA=$(cat32 tools/mam_search_schema.xml)
-RIAK_VCARD_SEARCH_SCHEMA=$(cat32 tools/vcard_search_schema.xml)
-RIAK_SETUP_SH=$(cat32 tools/db_configs/riak/setup-riak.sh)
-
 CASSA_PROXY_CNF=$(cat32 tools/db_configs/cassandra/proxy/zazkia-routes.json)
 CASSA_ENTRY=$(cat32 tools/db_configs/cassandra/docker_entry.sh)
 CASSA_MIM_CQL_ENTRY=$(cat32 priv/cassandra.cql)
@@ -57,12 +50,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
     -e "s/__LDAP_VERSION__/${LDAP_VERSION}/" \
-    -e "s/__RIAK_SSL_CFG__/${RIAK_SSL_CFG}/" \
-    -e "s/__RIAK_ADV_CFG__/${RIAK_ADV_CFG}/" \
-    -e "s/__RIAK_SETUP__/${RIAK_SETUP}/" \
-    -e "s/__RIAK_SETUP_SH__/${RIAK_SETUP_SH}/" \
-    -e "s/__RIAK_MAM_SEARCH_SCHEMA__/${RIAK_MAM_SEARCH_SCHEMA}/" \
-    -e "s/__RIAK_VCARD_SEARCH_SCHEMA__/${RIAK_VCARD_SEARCH_SCHEMA}/" \
     -e "s/__CASSA_PROXY_CNF__/${CASSA_PROXY_CNF}/" \
     -e "s/__CASSA_ENTRY__/${CASSA_ENTRY}/" \
     -e "s/__CASSA_MIM_SQL__/${CASSA_MIM_CQL_ENTRY}/" \

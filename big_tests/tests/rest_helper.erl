@@ -300,9 +300,6 @@ to_list(V) when is_list(V) ->
 maybe_enable_mam(rdbms, HostType, Config) ->
     dynamic_modules:ensure_modules(HostType, required_mam_modules(rdbms)),
     [{mam_backend, rdbms} | Config];
-maybe_enable_mam(riak, HostType, Config) ->
-    dynamic_modules:ensure_modules(HostType, required_mam_modules(riak)),
-    [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
 

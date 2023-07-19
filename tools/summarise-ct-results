@@ -50,10 +50,16 @@ verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
         OkGroups =< 0 ->
             erlang:halt(100405);
         AutoSkipped > 0 ->
+            %% this can give false negative result for eventually passing
+            %% groups with 'sequence' and 'repeat_until_all_ok' flags, but
+            %% at least it's not false positive result.
             io:format("Failing the test due to auto skipped cases~n"),
             erlang:halt(AutoSkipped);
-        FailedGroups + FailedTests - EventuallyOkTests > 0 ->
+        FailedGroups > 0 ->
             io:format("Failing the test due to failed rerun groups~n"),
+            erlang:halt(FailedGroups);
+        FailedTests > EventuallyOkTests ->
+            io:format("Failing the test due to failed test cases~n"),
             erlang:halt(FailedGroups + FailedTests - EventuallyOkTests);
         true ->
             erlang:halt(0)

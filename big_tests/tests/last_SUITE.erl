@@ -45,7 +45,7 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
     escalus:init_per_suite([{backend, Backend} | Config1]).
 
@@ -190,10 +190,6 @@ answer_last_activity(IQ = #xmlel{name = <<"iq">>}) ->
                                        {<<"seconds">>, <<"0">>}]}
                       ]}.
 
-required_modules(riak) ->
-    [{mod_last, #{backend => riak,
-                  iqdisc => one_queue,
-                  riak => #{bucket_type => <<"last">>}}}];
 required_modules(Backend) ->
     [{mod_last, #{backend => Backend,
                   iqdisc => one_queue}}].

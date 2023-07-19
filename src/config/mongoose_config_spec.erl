@@ -20,7 +20,6 @@
          process_auth/1,
          process_pool/2,
          process_ldap_connection/1,
-         process_riak_tls/1,
          process_iqdisc/1,
          process_acl_condition/1,
          process_s2s_host_policy/1,
@@ -459,7 +458,7 @@ internal_database_mnesia() ->
 %% path: outgoing_pools
 outgoing_pools() ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
-                 <<"rabbit">>, <<"rdbms">>, <<"redis">>, <<"riak">>],
+                 <<"rabbit">>, <<"rdbms">>, <<"redis">>],
     Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
                              validate_keys = non_empty,
                              wrap = none,
@@ -634,19 +633,6 @@ outgoing_pool_connection(<<"redis">>) ->
                     <<"port">> => 6379,
                     <<"database">> => 0,
                     <<"password">> => ""}
-      };
-outgoing_pool_connection(<<"riak">>) ->
-    TLSExtra = #section{required = [<<"cacertfile">>],
-                        process = fun ?MODULE:process_riak_tls/1},
-    TLSSection = mongoose_config_utils:merge_sections(tls([client], [just_tls]), TLSExtra),
-    #section{
-       items = #{<<"address">> => #option{type = string,
-                                          validate = non_empty},
-                 <<"port">> => #option{type = integer,
-                                       validate = port},
-                 <<"credentials">> => riak_credentials(),
-                 <<"tls">> => TLSSection},
-       required = [<<"address">>, <<"port">>]
       }.
 
 cassandra_server() ->
@@ -666,16 +652,6 @@ cassandra_auth_plain() ->
                  <<"password">> => #option{type = binary}},
        required = all
       }.
-
-%% path: outgoing_pools.riak.*.connection.credentials
-riak_credentials() ->
-    #section{
-       items = #{<<"user">> => #option{type = string,
-                                       validate = non_empty},
-                 <<"password">> => #option{type = string,
-                                           validate = non_empty}},
-       required = all
-    }.
 
 %% path: outgoing_pools.rdbms.*.connection.tls
 sql_tls() ->
@@ -1092,7 +1068,7 @@ process_auth(Opts) ->
     Opts#{methods => MethodsFromSections}.
 
 all_auth_methods() ->
-    [anonymous, dummy, external, http, internal, jwt, ldap, pki, rdbms, riak].
+    [anonymous, dummy, external, http, internal, jwt, ldap, pki, rdbms].
 
 check_auth_method(Method, Opts) ->
     case maps:is_key(Method, Opts) of
@@ -1119,12 +1095,6 @@ pool_scope(global, none) -> global.
 process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;
 process_ldap_connection(ConnOpts = #{tls := _}) -> ConnOpts#{port => 636};
 process_ldap_connection(ConnOpts) -> ConnOpts#{port => 389}.
-
-process_riak_tls(#{verify_mode := none}) ->
-    error(#{what => invalid_tls_verify_mode,
-            text => <<"Riak does not support TLS connections without certificate verification">>});
-process_riak_tls(Opts) ->
-    Opts.
 
 b2a(B) -> binary_to_atom(B, utf8).
 

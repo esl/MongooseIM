@@ -43,14 +43,6 @@ Persistent Data:
  Never loose your data.
  Use MySQL, MariaDB, PostgreSQL, or MS SQL Server.
 
-* Riak KV (deprecated) - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
- It offers high availability and fault tolerance which is exactly what you need for your distributed MongooseIM architecture.
- Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-
 * Cassandra - Only for MAM (Message Archive Management).
 
 * ElasticSearch - Only for MAM (Message Archive Management).
@@ -228,98 +220,6 @@ Configure the `outgoing_pools.rdbms` section as follows:
 ```
 
 ## NoSQL
-
-### Riak KV (deprecated)
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-Riak KV, for Key-Value, is technically supported by MongooseIM for versions upper than Riak KV 2.0. Erlang Solutions commercially supports Riak KV.
-
-**Can be used for:**
-
-* users (credentials)
-* vcards
-* roster
-* private storage
-* privacy/block lists
-* last activity
-* mam (message archive management)
-
-**Setup**
-
-We are using the Riak data types, so the minimal supported version is 2.0.
-To be able to store above persistent date one have to run the following command:
-
-```bash
-RIAK_HOST="http://localhost:8098"
-
-curl -XPUT $RIAK_HOST/search/schema/vcard \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/vcard_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/vcard \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"vcard"}'
-
-#MAM
-curl -XPUT $RIAK_HOST/search/schema/mam \
-    -H 'Content-Type:application/xml' \
-    --data-binary @tools/mam_search_schema.xml
-
-curl -XPUT $RIAK_HOST/search/index/mam \
-    -H 'Content-Type: application/json' \
-    -d '{"schema":"mam"}'
-
-# user base
-riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
-riak-admin bucket-type activate users
-
-# rosters
-riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
-riak-admin bucket-type activate rosters
-riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-riak-admin bucket-type activate roster_versions
-
-# private storage
-riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-riak-admin bucket-type activate private
-
-# vCard
-
-riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
-riak-admin bucket-type activate vcard
-
-riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
-riak-admin bucket-type activate mam_yz
-
-# Last activity
-riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-riak-admin bucket-type activate last
-
-# Offline messages
-
-riak-admin bucket-type create offline '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-riak-admin bucket-type activate offline
-
-# Privacy/blocking lists
-
-riak-admin bucket-type create privacy_defaults '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-riak-admin bucket-type activate privacy_defaults
-
-riak-admin bucket-type create privacy_lists_names '{"props":{"datatype":"set"}}'
-riak-admin bucket-type activate privacy_lists_names
-
-riak-admin bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
-riak-admin bucket-type activate privacy_lists
-
-```
-
-This will create bucket types, search schemas and indexes required for storing the above persitent data and it will activate them.
-
-You should also configure Riak in the `mongooseim.toml` file.
-Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options)
-and [Riak options](outgoing-connections.md#riak-options) for more information.
 
 ### Cassandra
 

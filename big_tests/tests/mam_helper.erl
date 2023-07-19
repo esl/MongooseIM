@@ -36,7 +36,6 @@
          backend/0,
          rpc_apply/3,
          get_prop/2,
-         is_riak_enabled/1,
          is_cassandra_enabled/0,
          is_cassandra_enabled/1,
          is_elasticsearch_enabled/1,
@@ -126,8 +125,6 @@ config_opts(ExtraOpts) ->
 
 set_opts(defaults, Opts) ->
     mod_config(mod_mam, Opts);
-set_opts(backend, #{backend := riak} = Opts) ->
-    Opts#{riak => config([modules, mod_mam, riak], maps:get(riak, Opts, #{}))};
 set_opts(pm, #{pm := PMExtra} = Opts) ->
     Opts#{pm := config([modules, mod_mam, pm], PMExtra)};
 set_opts(muc, #{muc := MUCExtra} = Opts) ->
@@ -324,17 +321,16 @@ stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) -
            maybe_rsm_elem(RSM)])
     }]).
 
-
+form_x(undefined, undefined, undefined, undefined, undefined) ->
+    undefined;
 form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
-           children = skip_undefined([
-                form_field(<<"start">>, BStart),
-                form_field(<<"end">>, BEnd),
-                form_field(<<"with">>, BWithJID),
-                form_field(<<"full-text-search">>, TextSearch)]
-                ++ form_extra_fields(RSM)
-                ++ form_border_fields(RSM))}.
+    Fields = skip_undefined([form_field(<<"start">>, BStart),
+                             form_field(<<"end">>, BEnd),
+                             form_field(<<"with">>, BWithJID),
+                             form_field(<<"full-text-search">>, TextSearch)]
+                            ++ form_extra_fields(RSM)
+                            ++ form_border_fields(RSM)),
+    form_helper:form(#{fields => Fields}).
 
 form_extra_fields(undefined) ->
     [];
@@ -353,9 +349,7 @@ form_border_fields(#rsm_in{
 form_field(_VarName, undefined) ->
     undefined;
 form_field(VarName, VarValue) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, VarName}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = VarValue}]}]}.
+    #{var => VarName, values => [VarValue]}.
 
 form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
@@ -1044,9 +1038,9 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     mongoose_helper:make_jid(U, S, R).
 
--spec backend() -> rdbms | riak | cassandra | disabled.
+-spec backend() -> rdbms | cassandra | disabled.
 backend() ->
-    Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
+    Funs = [fun maybe_rdbms/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).
 
 determine_backend(_, []) ->
@@ -1067,14 +1061,6 @@ maybe_rdbms(Host) ->
             false
     end.
 
-maybe_riak(Host) ->
-    case is_riak_enabled(Host) of
-        true ->
-            riak;
-        _ ->
-            false
-    end.
-
 maybe_cassandra(Host) ->
     case is_cassandra_enabled(Host) of
         true ->
@@ -1084,17 +1070,9 @@ maybe_cassandra(Host) ->
     end.
 
 is_mam_possible(Host) ->
-    mongoose_helper:is_rdbms_enabled(Host) orelse is_riak_enabled(Host) orelse
-    is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
-
-%% TODO create mongoose_riak:get_status() for cleaner checks, same for cassandra and elasticsearch
-is_riak_enabled(_Host) ->
-    case catch rpc(mim(), mongoose_riak, list_buckets, [<<"default">>]) of
-        {ok, _} ->
-            true;
-        _ ->
-            false
-    end.
+    mongoose_helper:is_rdbms_enabled(Host) orelse
+    is_cassandra_enabled(Host) orelse
+    is_elasticsearch_enabled(Host).
 
 is_cassandra_enabled(_) ->
     is_cassandra_enabled().

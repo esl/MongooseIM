@@ -8,12 +8,12 @@
 -export([id/1]).
 -export([init/2]).
 -export([post_init_per_suite/4,
-         post_init_per_group/4,
-         post_init_per_testcase/4]).
+         post_init_per_group/5,
+         post_init_per_testcase/5]).
 -export([post_end_per_suite/4,
-         post_end_per_group/4,
-         post_end_per_testcase/4]).
--record(state, { file, summary_file, truncated_counter_file, suite, limit }).
+         post_end_per_group/5,
+         post_end_per_testcase/5]).
+-record(state, { file, summary_file, truncated_counter_file, limit }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -32,26 +32,26 @@ init(_Id, _Opts) ->
 
 post_init_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, init_per_suite, Return, Config, State),
-    {Return, State2#state{suite = SuiteName}}.
+    {Return, State2}.
 
-post_init_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_init_per_group(SuiteName, _GroupName, Config, Return, State) ->
     State2 = handle_return(SuiteName, init_per_group, Return, Config, State),
-    {Return, State2#state{}}.
+    {Return, State2}.
 
-post_init_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+post_init_per_testcase(SuiteName, TC, Config, Return, State) ->
     State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
 post_end_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, end_per_suite, Return, Config, State),
-    {Return, State2#state{suite = ''}}.
+    {Return, State2}.
 
-post_end_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_end_per_group(SuiteName, _GroupName, Config, Return, State) ->
     State2 = handle_return(SuiteName, end_per_group, Return, Config, State),
-    {Return, State2#state{}}.
+    {Return, State2}.
 
 %% @doc Called after each test case.
-post_end_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+post_end_per_testcase(SuiteName, TC, Config, Return, State) ->
     State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
@@ -76,23 +76,15 @@ handle_return_unsafe(SuiteName, Place, Return, Config, State) ->
             exec_limited_number_of_times(F, State)
     end.
 
-exec_limited_number_of_times(_F, State=#state{limit=0, file=_File,
-                                             truncated_counter_file = TrFile}) ->
-    %% Log truncated, increment counter
-    TrCounter = old_truncated_counter_value(TrFile),
-    file:write_file(TrFile, integer_to_binary(TrCounter+1)),
-    State;
-exec_limited_number_of_times(F, State=#state{limit=Limit}) ->
+exec_limited_number_of_times(F, State=#state{limit=Limit}) when Limit > 0->
     F(),
+    State#state{limit=Limit-1};
+exec_limited_number_of_times(_F, State=#state{truncated_counter_file = TrFile,
+                                              limit=Limit, file=_File})->
+    %% Log truncated, increment counter
+    TrCounter = (-1 * Limit),
+    file:write_file(TrFile, integer_to_binary(TrCounter+1)),
     State#state{limit=Limit-1}.
-
-old_truncated_counter_value(TrFile) ->
-    case file:read_file(TrFile) of
-        {ok, Bin} ->
-            binary_to_integer(Bin);
-        _ ->
-            0
-    end.
 
 log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
     SummaryText = make_summary_text(SuiteName, GroupName, Place),
@@ -100,7 +92,6 @@ log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
     ok.
 
 log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File, summary_file = _SummaryFile}) ->
-    _MaybeLogLink = make_log_link(Config),
     LogLink = make_log_link(Config),
     %% Spoler syntax
     %% https://github.com/dear-github/dear-github/issues/166
@@ -145,7 +136,11 @@ to_error_message(Return) ->
             Return;
         {fail, _} ->
             Return;
+        {failed, _} -> %% a special case for the crash in end_per_testcase
+            Return;
         {error, _} ->
+            Return;
+        {skip, {failed, _}} -> %% a special case for the crash in init_per_testcase
             Return;
         {skip, _} ->
             ok;

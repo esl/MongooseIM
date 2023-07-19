@@ -535,9 +535,7 @@ declination(Sender, Recipient) ->
     iq(<<"set">>, Sender, Recipient, [data_submission()]).
 
 data_submission() ->
-    query(?NS_MUC_OWNER, [#xmlel{name = <<"x">>,
-                                 attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                          {<<"type">>, <<"submit">>}]}]).
+    query(?NS_MUC_OWNER, [mongoose_data_forms:form(#{type => <<"submit">>})]).
 
 address_attributes(Sender, Recipient) ->
     [{<<"from">>, jid:to_binary(Sender)},

@@ -29,7 +29,7 @@
 
 -author('henoch@dtek.chalmers.se').
 
--xep([{xep, 115}, {version, "1.5"}]).
+-xep([{xep, 115}, {version, "1.6.0"}]).
 
 -behaviour(gen_server).
 -behaviour(gen_mod).
@@ -595,43 +595,18 @@ concat_identities(Els) ->
                              Els)).
 
 concat_info(Els) ->
-    lists:sort(lists:flatmap(fun (#xmlel{name = <<"x">>,
-                                         attrs = Attrs, children = Fields}) ->
-                                     case {xml:get_attr_s(<<"xmlns">>, Attrs),
-                                           xml:get_attr_s(<<"type">>, Attrs)}
-                                     of
-                                         {?NS_XDATA, <<"result">>} ->
-                                             [concat_xdata_fields(Fields)];
-                                         _ -> []
-                                     end;
-                                 (_) -> []
+    lists:sort(lists:flatmap(fun(El) ->
+                                     concat_xdata_fields(mongoose_data_forms:parse_form(El))
                              end,
                              Els)).
 
-concat_xdata_fields(Fields) ->
-    {FormType, Res} =
-    lists:foldl(fun(#xmlel{name = <<"field">>, children = Els} = FieldEl,
-                    {FormType0, VarFields} = Acc) ->
-                        case exml_query:attr(FieldEl, <<"var">>, <<"">>) of
-                            <<"">> -> Acc;
-                            <<"FORM_TYPE">> ->
-                                {exml_query:path(FieldEl, [{element, <<"value">>}, cdata]),
-                                 VarFields};
-                            Var ->
-                                NewField = [[Var, $<], extract_values_sorted_cdatas(Els)],
-                                {FormType0, [NewField | VarFields]}
-                        end;
-                   (_, Acc) -> Acc
-                end,
-                {<<"">>, []}, Fields),
-    [FormType, $<, lists:sort(Res)].
-
-extract_values_sorted_cdatas(Els) ->
-    lists:sort(lists:flatmap(fun extract_value_cdata/1, Els)).
-
-extract_value_cdata(#xmlel{name = <<"value">>} = ValueEl) ->
-    [[exml_query:cdata(ValueEl), $<]];
-extract_value_cdata(_) ->
+concat_xdata_fields(#{type := <<"result">>, kvs := KVs, ns := NS}) ->
+    Res = maps:fold(fun(Var, Values, VarFields) ->
+                            NewField = [[V, $<] || V <- [Var | lists:sort(Values)]],
+                            [NewField | VarFields]
+                    end, [], KVs),
+    [[NS, $<, lists:sort(Res)]];
+concat_xdata_fields(_) ->
     [].
 
 gb_trees_fold(F, Acc, Tree) ->

@@ -5,7 +5,7 @@
 # Fails if this script runs for too long with the reason "Killed by timeout".
 #
 # Usage example:
-# ./tools/wait_for_healthcheck.sh mongooseim-riak
+# ./tools/wait_for_healthcheck.sh mongooseim-mysql
 # or
 # ./tools/wait_for_healthcheck.sh "$CONTAINER"
 #

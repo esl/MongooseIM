@@ -26,7 +26,7 @@
 
 -module(mod_offline).
 -author('alexey@process-one.net').
--xep([{xep, 160}, {version, "1.0"}]).
+-xep([{xep, 160}, {version, "1.0.1"}]).
 -xep([{xep, 23}, {version, "1.3"}]).
 -xep([{xep, 22}, {version, "1.4"}]).
 -xep([{xep, 85}, {version, "2.1"}]).
@@ -51,7 +51,7 @@
          remove_old_messages/3]).
 
 %% Internal exports
--export([start_link/3, remove_unused_backend_opts/1]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -121,25 +121,13 @@ config_spec() ->
                                                             validate = access_rule},
                   <<"backend">> => #option{type = atom,
                                            validate = {module, mod_offline}},
-                  <<"store_groupchat_messages">> => #option{type = boolean},
-                  <<"riak">> => riak_config_spec()
+                  <<"store_groupchat_messages">> => #option{type = boolean}
                  },
         defaults = #{<<"access_max_user_messages">> => max_user_offline_messages,
                      <<"store_groupchat_messages">> => false,
                      <<"backend">> => mnesia
-                    },
-        process = fun ?MODULE:remove_unused_backend_opts/1}.
-
-riak_config_spec() ->
-    #section{
-        items = #{<<"bucket_type">> => #option{type = binary,
-                                               validate = non_empty}},
-        defaults = #{<<"bucket_type">> => <<"offline">>},
-        include = always}.
-
--spec remove_unused_backend_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
+                    }
+    }.
 
 supported_features() -> [dynamic_domains].
 

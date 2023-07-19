@@ -25,7 +25,7 @@
 
 -module(mod_muc).
 -author('alexey@process-one.net').
--xep([{xep, 45}, {version, "1.25"}]).
+-xep([{xep, 45}, {version, "1.34.5"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -1058,17 +1058,6 @@ get_room_pos({{NameHost, _}, _}, [{{NameHost, _}, _} | _], HeadPosition) ->
 get_room_pos(Desired, [_ | Rooms], HeadPosition) ->
     get_room_pos(Desired, Rooms, HeadPosition + 1).
 
--spec xfield(Type :: binary(), Label :: binary(), Var :: binary(),
-             Val :: binary(), ejabberd:lang()) -> exml:element().
-xfield(Type, Label, Var, Val, Lang) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, Type},
-                     {<<"label">>, translate:translate(Lang, Label)},
-                     {<<"var">>, Var}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Val}]}]}.
-
-
 %% @doc Get a pseudo unique Room Name. The Room Name is generated as a hash of
 %%      the requester JID, the local time and a random salt.
 %%
@@ -1099,18 +1088,15 @@ iq_get_register_info(HostType, MucHost, From, Lang) ->
     ClientReqEl = #xmlel{name = <<"instructions">>,
                          children = [#xmlcdata{content = ClientReqText}]},
     EnterNicknameText = translate:translate(Lang, <<"Enter nickname you want to register">>),
-    EnterNicknameEl = #xmlel{name = <<"instructions">>,
-                             children = [#xmlcdata{content = EnterNicknameText}]},
     TitleText = <<(translate:translate(Lang, <<"Nickname Registration at ">>))/binary,
                   MucHost/binary>>,
-    TitleEl = #xmlel{name = <<"title">>, children = [#xmlcdata{content = TitleText}]},
-    Registered ++
-    [ClientReqEl,
-     #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}],
-            children = [TitleEl,
-                        EnterNicknameEl,
-                        xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
-
+    NickField = #{type => <<"text-single">>,
+                  label => translate:translate(Lang, <<"Nickname">>),
+                  var => <<"nick">>,
+                  values => [Nick]},
+    Registered ++ [ClientReqEl, mongoose_data_forms:form(#{title => TitleText,
+                                                           instructions => EnterNicknameText,
+                                                           fields => [NickField]})].
 
 -spec iq_set_register_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
@@ -1151,43 +1137,31 @@ iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
                               jid:jid(), exml:element(), ejabberd:lang())
             -> {'error', exml:element()} | {'result', []}.
 process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
-    #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
-            case xml:remove_cdata(Els) of
-                [#xmlel{name = <<"x">>} = XEl] ->
-                    process_register(xml:get_tag_attr_s(<<"xmlns">>, XEl),
-                                     xml:get_tag_attr_s(<<"type">>, XEl),
-                                     HostType, MucHost, From, Lang, XEl);
+            case mongoose_data_forms:find_and_parse_form(SubEl) of
+                #{type := <<"cancel">>} ->
+                    {result, []};
+                #{type := <<"submit">>, kvs := KVs} ->
+                    process_register(HostType, MucHost, From, Lang, KVs);
+                {error, Msg} ->
+                    {error, mongoose_xmpp_errors:bad_request(Lang, Msg)};
                 _ ->
-                    {error, mongoose_xmpp_errors:bad_request()}
+                    {error, mongoose_xmpp_errors:bad_request(Lang, <<"Invalid form type">>)}
             end;
         _ ->
             iq_set_unregister_info(HostType, MucHost, From, Lang)
     end.
 
--spec process_register(XMLNS :: binary(), Type :: binary(),
-                       HostType :: host_type(), MucHost :: jid:server(),
-                       From :: jid:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
+-spec process_register(HostType :: host_type(), MucHost :: jid:server(),
+                       From :: jid:jid(), Lang :: ejabberd:lang(),
+                       KVs :: mongoose_data_forms:kv_map()) ->
     {error, exml:element()} | {result, []}.
-process_register(?NS_XDATA, <<"cancel">>, _HostType, _Host, _From, _Lang, _XEl) ->
-    {result, []};
-process_register(?NS_XDATA, <<"submit">>, HostType, MucHost, From, Lang, XEl) ->
-    XData = jlib:parse_xdata_submit(XEl),
-    case XData of
-        invalid ->
-            {error, mongoose_xmpp_errors:bad_request()};
-        _ ->
-            case lists:keysearch(<<"nick">>, 1, XData) of
-                {value, {_, [Nick]}} when Nick /= <<>> ->
-                    iq_set_register_info(HostType, MucHost, From, Nick, Lang);
-                _ ->
-                    ErrText = <<"You must fill in field \"Nickname\" in the form">>,
-                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
-            end
-    end;
-process_register(_, _, _HostType, _MucHost, _From, _Lang, _XEl) ->
-    {error, mongoose_xmpp_errors:bad_request()}.
+process_register(HostType, MucHost, From, Lang, #{<<"nick">> := [Nick]}) ->
+    iq_set_register_info(HostType, MucHost, From, Nick, Lang);
+process_register(_HostType, _MucHost, _From, Lang, #{}) ->
+    ErrText = <<"You must fill in field \"Nickname\" in the form">>,
+    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}.
 
 -spec iq_get_vcard(ejabberd:lang()) -> [exml:element(), ...].
 iq_get_vcard(Lang) ->
@@ -1292,7 +1266,7 @@ can_access_room(_, #{room := Room, user := User}, _) ->
     {ok, Acc}.
 
 -spec acc_room_affiliations(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(), 
+    Acc :: mongoose_acc:t(),
     Params :: #{room := jid:jid()},
     Extra :: gen_hook:extra().
 acc_room_affiliations(Acc, #{room := Room}, _) ->

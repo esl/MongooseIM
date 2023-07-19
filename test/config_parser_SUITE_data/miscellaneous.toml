@@ -28,7 +28,6 @@
 
 [auth]
   http.basic_auth = "admin:admin"
-  riak.bucket_type = "user_bucket"
 
   [auth.anonymous]
     protocol = "sasl_anon"

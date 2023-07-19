@@ -252,9 +252,6 @@ search_some(Config) ->
               Domain = domain(),
               DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN(Config)}],
-              timer:sleep(timer:seconds(1)), %% this is required by Riak 2.0
-                                             %% Search to be sure the vcard is
-                                             %% indexed
               Res = escalus:send_and_wait(Client,
                                 escalus_stanza:search_iq(DirJID,
                                     escalus_stanza:search_fields(Fields))),

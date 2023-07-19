@@ -57,6 +57,7 @@ set_vcard(HostType, User, LServer, VCard, VCardSearch) ->
     mongoose_hooks:vcard_set(HostType, LServer, LUser, VCard),
     ok.
 
+-spec search(mongooseim:host_type(), jid:lserver(), term()) -> [[mongoose_data_forms:field()]].
 search(HostType, LServer, Data) ->
     MatchHead = make_matchhead(LServer, Data),
     R = do_search(HostType, LServer, MatchHead),
@@ -84,6 +85,8 @@ do_search(HostType, LServer, MatchHeadIn) ->
 search_fields(_HostType, _LServer) ->
     mod_vcard:default_search_fields().
 
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), ejabberd:lang()) ->
+          [mongoose_data_forms:field()].
 search_reported_fields(_HostType, _LServer, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
@@ -181,18 +184,17 @@ make_val(ValBin) ->
 
 record_to_item(R) ->
     {User, Server} = R#vcard_search.user,
-    #xmlel{name = <<"item">>,
-           children = [
-                       ?FIELD(<<"jid">>, [User, <<"@">>, Server]),
-                       ?FIELD(<<"fn">>, (R#vcard_search.fn)),
-                       ?FIELD(<<"last">>, (R#vcard_search.family)),
-                       ?FIELD(<<"first">>, (R#vcard_search.given)),
-                       ?FIELD(<<"middle">>, (R#vcard_search.middle)),
-                       ?FIELD(<<"nick">>, (R#vcard_search.nickname)),
-                       ?FIELD(<<"bday">>, (R#vcard_search.bday)),
-                       ?FIELD(<<"ctry">>, (R#vcard_search.ctry)),
-                       ?FIELD(<<"locality">>, (R#vcard_search.locality)),
-                       ?FIELD(<<"email">>, (R#vcard_search.email)),
-                       ?FIELD(<<"orgname">>, (R#vcard_search.orgname)),
-                       ?FIELD(<<"orgunit">>, (R#vcard_search.orgunit))
-                      ]}.
+    [
+     ?FIELD(<<"jid">>, <<User/binary, $@, Server/binary>>),
+     ?FIELD(<<"fn">>, (R#vcard_search.fn)),
+     ?FIELD(<<"last">>, (R#vcard_search.family)),
+     ?FIELD(<<"first">>, (R#vcard_search.given)),
+     ?FIELD(<<"middle">>, (R#vcard_search.middle)),
+     ?FIELD(<<"nick">>, (R#vcard_search.nickname)),
+     ?FIELD(<<"bday">>, (R#vcard_search.bday)),
+     ?FIELD(<<"ctry">>, (R#vcard_search.ctry)),
+     ?FIELD(<<"locality">>, (R#vcard_search.locality)),
+     ?FIELD(<<"email">>, (R#vcard_search.email)),
+     ?FIELD(<<"orgname">>, (R#vcard_search.orgname)),
+     ?FIELD(<<"orgunit">>, (R#vcard_search.orgunit))
+    ].

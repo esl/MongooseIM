@@ -101,9 +101,6 @@ Script examples:
 ./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec
     CI multi-tenancy build job with pgsql_mnesia
 
-./tools/test-runner.sh --db redis riak --preset riak_mnesia
-    CI build job with riak_mnesia
-
 ./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia --skip-stop-nodes -- mam
     Runs mam_SUITE with PostgreSQL without stopping MongooseIM nodes after the test
 
@@ -264,7 +261,6 @@ SRC_TESTSPEC="default.spec"
 DBS_ARRAY=(
     mysql
     pgsql
-    riak
     cassandra
     elasticsearch
     mssql

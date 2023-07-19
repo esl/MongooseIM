@@ -92,8 +92,8 @@ run_small_tests() {
   export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
   make ct
   tools/print-dots.sh stop
-  SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
-  SMALL_SUMMARIES_DIR=$(choose_newest_directory ${SMALL_SUMMARIES_DIRS})
+  SMALL_SUMMARIES_DIRS=( ${BASE}/_build/test/logs/ct_run* )
+  SMALL_SUMMARIES_DIR=$(choose_newest_directory "${SMALL_SUMMARIES_DIRS[@]}")
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
@@ -163,7 +163,8 @@ run_test_preset() {
 print_running_nodes() {
     echo "Running nodes:"
     # Expand wildcard into a bash array
-    EPMDS=( "${BASE}"/_build/mim1/rel/mongooseim/erts-*/bin/epmd )
+    # if there's no mim1 build, fallback to epmd
+    EPMDS=( "${BASE}"/_build/mim1/rel/mongooseim/erts-*/bin/epmd epmd )
     # Missing index expands into ${EPMDS[0]}
     "$EPMDS" -names
 }
@@ -228,7 +229,8 @@ run_tests() {
   echo
   echo "All tests done."
 
-  grep "fail_ci_build=true" ${BASE}/_build/mim*/rel/mongooseim/log/mongooseim.log.1
+  local log_files=( $( compgen -G "${BASE}/_build/mim"*"/rel/mongooseim/log/mongooseim.log.1" ) )
+  [ 0 -ne "${#log_files[@]}" ] && grep -F "fail_ci_build=true" "${log_files[@]}"
   # If phrase found than exit with code 1
   test $? -eq 1
   LOG_STATUS=$?
@@ -282,7 +284,7 @@ build_pkg () {
   local esl_erlang_pkg_vsn=$2
   local project_root=$(git rev-parse --show-toplevel)
 
-  if [[ $platform == centos* ]]; then
+  if [[ $platform == centos* ]] || [[ $platform == rockylinux* ]] || [[ $platform == almalinux* ]]; then
       local dockerfile_name="Dockerfile_rpm"
   elif [[ $platform == debian* ]] || [[ $platform == ubuntu* ]]; then
       local dockerfile_name="Dockerfile_deb"

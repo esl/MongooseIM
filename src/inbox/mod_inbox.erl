@@ -428,38 +428,24 @@ result_set([#{remote_jid := FirstBinJid, timestamp := FirstTS} | _] = List) ->
 -spec build_inbox_form(mongooseim:host_type()) -> exml:element().
 build_inbox_form(HostType) ->
     AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
-    OrderOptions = [
-                    {<<"Ascending by timestamp">>, <<"asc">>},
-                    {<<"Descending by timestamp">>, <<"desc">>}
-                   ],
-    FormFields = [
-                  jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
-                  text_single_form_field(<<"start">>),
-                  text_single_form_field(<<"end">>),
-                  text_single_form_field(<<"hidden_read">>, <<"false">>),
-                  mod_inbox_utils:list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
-                  mod_inbox_utils:list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
-                  jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
-                 ],
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
-           children = FormFields}.
-
--spec text_single_form_field(Var :: binary()) -> exml:element().
-text_single_form_field(Var) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}]}.
-
--spec text_single_form_field(Var :: binary(), DefaultValue :: binary()) -> exml:element().
-text_single_form_field(Var, DefaultValue) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
+    OrderOptions = [{<<"Ascending by timestamp">>, <<"asc">>},
+                    {<<"Descending by timestamp">>, <<"desc">>}],
+    Fields = [#{var => <<"start">>, type => <<"text-single">>},
+              #{var => <<"end">>, type => <<"text-single">>},
+              #{var => <<"hidden_read">>, type => <<"text-single">>, values => [<<"false">>]},
+              #{var => <<"order">>, type => <<"list-single">>, values => [<<"desc">>],
+                options => OrderOptions},
+              #{var => <<"box">>, type => <<"list-single">>, values => [<<"all">>],
+                options => AllBoxes},
+              #{var => <<"archive">>, type => <<"boolean">>, values => [<<"false">>]}],
+    mongoose_data_forms:form(#{ns => ?NS_ESL_INBOX, fields => Fields}).
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
 -spec query_to_params(mongooseim:host_type(), QueryEl :: exml:element()) ->
     get_inbox_params() | {error, atom(), binary()}.
 query_to_params(HostType, QueryEl) ->
-    Form = form_to_params(HostType, exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)),
+    Form = form_to_params(HostType, mongoose_data_forms:find_form(QueryEl)),
     Rsm = create_rsm(HostType, QueryEl),
     build_params(Form, Rsm).
 
@@ -521,9 +507,9 @@ expand_limit(Max) ->
 form_to_params(_, undefined) ->
     #{ order => desc };
 form_to_params(HostType, FormEl) ->
-    ParsedFields = jlib:parse_xdata_fields(exml_query:subelements(FormEl, <<"field">>)),
+    #{kvs := ParsedFields} = mongoose_data_forms:parse_form_fields(FormEl),
     ?LOG_DEBUG(#{what => inbox_parsed_form_fields, parsed_fields => ParsedFields}),
-    fields_to_params(HostType, ParsedFields, #{ order => desc }).
+    fields_to_params(HostType, maps:to_list(ParsedFields), #{ order => desc }).
 
 -spec fields_to_params(mongooseim:host_type(),
                        [{Var :: binary(), Values :: [binary()]}], Acc :: get_inbox_params()) ->
@@ -590,8 +576,6 @@ fields_to_params(HostType, [{<<"box">>, [Value]} | RFields], Acc) ->
             fields_to_params(HostType, RFields, Acc#{ box => Value })
     end;
 
-fields_to_params(HostType, [{<<"FORM_TYPE">>, _} | RFields], Acc) ->
-    fields_to_params(HostType, RFields, Acc);
 fields_to_params(_, [{Invalid, [InvalidFieldVal]} | _], _) ->
     ?LOG_WARNING(#{what => inbox_invalid_form_field, reason => unknown_field,
                    field => Invalid, value => InvalidFieldVal}),

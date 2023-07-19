@@ -178,7 +178,7 @@ stop_pool() ->
 
 set_modules(Config0, ExtraHandlerOpts) ->
     Config = dynamic_modules:save_modules(host_type(), Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(host_type()),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(host_type()),
     ModOffline = create_offline_config(Backend),
     Handler = maps:merge(mod_event_pusher_http_handler(), ExtraHandlerOpts),
     ModOpts = #{http => #{handlers => [Handler]}},
@@ -186,9 +186,6 @@ set_modules(Config0, ExtraHandlerOpts) ->
     Config.
 
 -spec create_offline_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
-create_offline_config(riak) ->
-    [{mod_offline, mod_config(mod_offline, #{backend => riak,
-                                             riak => #{bucket_type => <<"offline">>}})}];
 create_offline_config(Backend) ->
     [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 

@@ -3,6 +3,7 @@ set -e
 
 version=$1
 revision=$2
+otp_version=$3
 
 arch="x86_64"
 package_name_arch="amd64"
@@ -20,4 +21,4 @@ os_version=$VERSION_ID
 package_os_file_name=${os}~${os_version}
 
 mv ~/rpmbuild/RPMS/${arch}/mongooseim-${version}-${revision}.${arch}.rpm \
-    ~/mongooseim_${version}-${revision}~${package_os_file_name}_${package_name_arch}.rpm
+    ~/mongooseim_${version}_${revision}_otp_${otp_version/-1/}~${package_os_file_name}_${package_name_arch}.rpm

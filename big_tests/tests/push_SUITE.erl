@@ -36,7 +36,7 @@ all() ->
     ].
 
 groups() ->
-    G = [
+    [
          {toggling, [parallel], [
                                  enable_should_fail_with_missing_attributes,
                                  enable_should_fail_with_invalid_attributes,
@@ -68,8 +68,7 @@ groups() ->
                                                    muclight_msg_notify_if_user_offline_with_publish_options,
                                                    muclight_msg_notify_stops_after_disabling
                                                   ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 notification_groups() ->
     [

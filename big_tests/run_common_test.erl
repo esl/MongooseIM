@@ -68,6 +68,12 @@ main(RawArgs) ->
                 io:format("Exiting by test cases summary: ~p~n", [ExitStatusByTestCases]),
                 init:stop(ExitStatusByTestCases);
             _ when is_integer(ExitStatusByGroups) ->
+                %% FIXME: This is incorrect assumption, it ignores results of all individual
+                %% tests cases and groups w/o 'repeat_until_all_ok' flag. So we can return
+                %% false positive result here. It's not too critical, because test.sh script
+                %% recalculates return code using summarise-ct-results utility. However, it
+                %% may result in squashing ct output, since execution of run_common_test.erl
+                %% is wrapped using silent_exec.sh tool.
                 io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
                 init:stop(ExitStatusByGroups)
         end

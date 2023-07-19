@@ -95,7 +95,7 @@ get_vcard(HostType, LUser, LServer) ->
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec search(mongooseim:host_type(), jid:lserver(), Data) ->
-    Res :: term() when
+    Res :: [[mongoose_data_forms:field()]] when
     Data :: term().
 search(HostType, LServer, Data) ->
     Args = [HostType, LServer, Data],
@@ -107,7 +107,7 @@ search_fields(HostType, LServer) ->
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec search_reported_fields(mongooseim:host_type(), jid:lserver(), Lang) ->
-    Res :: term() when
+    Res :: [mongoose_data_forms:field()] when
     Lang :: binary().
 search_reported_fields(HostType, LServer, Lang) ->
     Args = [HostType, LServer, Lang],

@@ -152,28 +152,13 @@ config_spec() ->
                  <<"versioning">> => #option{type = boolean},
                  <<"store_current_id">> => #option{type = boolean},
                  <<"backend">> => #option{type = atom,
-                                          validate = {module, mod_roster}},
-                 <<"riak">> => riak_config_spec()
+                                          validate = {module, mod_roster}}
                 },
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"versioning">> => false,
                     <<"store_current_id">> => false,
-                    <<"backend">> => mnesia},
-       process = fun remove_unused_backend_opts/1
+                    <<"backend">> => mnesia}
       }.
-
-riak_config_spec() ->
-    #section{items = #{<<"bucket_type">> => #option{type = binary,
-                                                    validate = non_empty},
-                       <<"version_bucket_type">> => #option{type = binary,
-                                                            validate = non_empty}},
-             include = always,
-             defaults = #{<<"bucket_type">> => <<"rosters">>,
-                          <<"version_bucket_type">> => <<"roster_versions">>}
-    }.
-
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 supported_features() -> [dynamic_domains].
 

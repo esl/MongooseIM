@@ -20,12 +20,9 @@ to disable this error message.
  Access Rule to use for limiting the storage size per user.
  
 ### `modules.mod_offline.backend`
- * **Syntax:** string, one of `mnesia`, `rdbms`, `riak`
+ * **Syntax:** string, one of `mnesia`, `rdbms`
  * **Default:** `"mnesia"`
  * **Example:** `backend = "rdbms"`
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
 
  Storage backend.
 
@@ -38,25 +35,13 @@ to disable this error message.
 !!! Warning
     This option can work only with MUC-light and is not expected to work with MUC.
 
-### Riak-specific options
-
-!!! warning
-    Riak is deprecated and its support will be withdrawn in future versions of MongooseIM.
-
-#### `modules.mod_offline.riak.bucket_type`
- * **Syntax:** non-empty string
- * **Default:** `"offline"`
- * **Example:** `bucket_type = "offline_bucket_type"`
-
-Riak bucket type.
-
 ## Example Configuration
 
 ```toml
 [modules.mod_offline]
   access_max_user_messages = "max_user_offline_messages"
-  backend = "riak"
-  riak.bucket_type = "offline"
+  backend = "rdbms"
+  store_groupchat_messages = true
 ```
 
 ## Metrics

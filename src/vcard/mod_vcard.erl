@@ -213,8 +213,7 @@ config_spec() ->
                                           validate = {module, mod_vcard}},
                  <<"matches">> => #option{type = int_or_infinity,
                                           validate = non_negative},
-                 <<"ldap">> => ldap_section(),
-                 <<"riak">> => riak_config_spec()
+                 <<"ldap">> => ldap_section()
                 },
        defaults = #{<<"iqdisc">> => parallel,
                     <<"host">> => mongoose_subdomain_utils:make_subdomain_pattern("vjud.@HOST@"),
@@ -281,18 +280,6 @@ ldap_search_reported_spec() ->
         process = fun ?MODULE:process_search_reported_spec/1
     }.
 
-riak_config_spec() ->
-    #section{
-        items = #{<<"bucket_type">> => #option{type = binary,
-                                               validate = non_empty},
-                  <<"search_index">> => #option{type = binary,
-                                                validate = non_empty}
-                },
-        include = always,
-        defaults = #{<<"bucket_type">> => <<"vcard">>,
-                     <<"search_index">> => <<"vcard">>}
-    }.
-
 process_map_spec(#{vcard_field := VF, ldap_pattern := LP, ldap_field := LF}) ->
     {VF, LP, [LF]}.
 
@@ -302,11 +289,8 @@ process_search_spec(#{search_field := SF, ldap_field := LF}) ->
 process_search_reported_spec(#{search_field := SF, vcard_field := VF}) ->
     {SF, VF}.
 
-remove_unused_backend_opts(Opts = #{backend := riak}) -> maps:remove(ldap, Opts);
-remove_unused_backend_opts(Opts = #{backend := ldap}) -> maps:remove(riak, Opts);
-remove_unused_backend_opts(Opts) ->
-    M = maps:remove(riak, Opts),
-    maps:remove(ldap, M).
+remove_unused_backend_opts(Opts = #{backend := ldap}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(ldap, Opts).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks for search
@@ -502,8 +486,9 @@ do_route(HostType, LServer, From, To, Acc,
     route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
 do_route(HostType, LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_SEARCH, lang = Lang} = IQ) ->
-    Form = ?FORM(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
-    ResIQ = make_search_form_result_iq(IQ, Form),
+    Instr = search_instructions(Lang),
+    Form = search_form(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
+    ResIQ = make_search_form_result_iq(IQ, [Instr, Form]),
     ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_DISCO_INFO}) ->
@@ -542,43 +527,50 @@ do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err).
 
-make_search_form_result_iq(IQ, Form) ->
+make_search_form_result_iq(IQ, Elements) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"query">>,
                            attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                           children = Form
+                           children = Elements
                           }]}.
 
+search_instructions(Lang) ->
+    Text = translate:translate(Lang, <<"You need an x:data capable client to search">>),
+    #xmlel{name = <<"instructions">>, attrs = [], children = [#xmlcdata{content = Text}]}.
+
+search_form(JID, SearchFields, Lang) ->
+    Title = <<(translate:translate(Lang, <<"Search users in ">>))/binary,
+              (jid:to_binary(JID))/binary>>,
+    Instructions = <<"Fill in fields to search for any matching Jabber User">>,
+    Fields = lists:map(fun ({X, Y}) -> ?TLFIELD(<<"text-single">>, X, Y) end, SearchFields),
+    mongoose_data_forms:form(#{title => Title, instructions => Instructions, fields => Fields}).
+
 route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
-    XDataEl = find_xdata_el(SubEl),
+    XDataEl = mongoose_data_forms:find_form(SubEl),
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
-        false ->
+        undefined ->
             {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
             ejabberd_router:route(To, From, Acc1, Err);
         _ ->
-            XData = jlib:parse_xdata_submit(XDataEl),
-            case XData of
-                invalid ->
-                    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
-                    ejabberd_router:route(To, From, Acc1, Err);
-                _ ->
-                    {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, XData, RSMIn),
+            case mongoose_data_forms:parse_form_fields(XDataEl) of
+                #{type := <<"submit">>, kvs := KVs} ->
+                    {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, KVs, RSMIn),
                     ResIQ = make_search_result_iq(IQ, SearchResult, RSMOutEls),
-                    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ))
+                    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+                _ ->
+                    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
+                    ejabberd_router:route(To, From, Acc1, Err)
             end
     end.
 
 make_search_result_iq(IQ, SearchResult, RSMOutEls) ->
+    Form = mongoose_data_forms:form(SearchResult),
     IQ#iq{
         type = result,
         sub_el = [#xmlel{name = <<"query">>,
                          attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                         children = [#xmlel{name = <<"x">>,
-                                         attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                                  {<<"type">>, <<"result">>}],
-                                         children = SearchResult}
-                                    ] ++ RSMOutEls}
+                         children = [Form | RSMOutEls]}
                  ]}.
 
 iq_get_vcard() ->
@@ -588,20 +580,6 @@ iq_get_vcard() ->
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content = [<<"MongooseIM vCard module">>,
                                              <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}].
-find_xdata_el(#xmlel{children = SubEls}) ->
-    find_xdata_el1(SubEls).
-
-find_xdata_el1([]) ->
-    false;
-find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
-    case xml:get_attr_s(<<"xmlns">>, Attrs) of
-        ?NS_XDATA ->
-            XE;
-        _ ->
-            find_xdata_el1(Els)
-    end;
-find_xdata_el1([_ | Els]) ->
-    find_xdata_el1(Els).
 
 features() ->
     [?NS_DISCO_INFO, ?NS_SEARCH, ?NS_VCARD].
@@ -612,27 +590,25 @@ identity(Lang) ->
       name => translate:translate(Lang, <<"vCard User Search">>)}.
 
 search_result(HostType, LServer, Lang, JID, Data, RSMIn) ->
-    Text = translate:translate(Lang, <<"Search Results for ">>),
-    TitleEl = #xmlel{name = <<"title">>,
-                     children = [#xmlcdata{content = [Text, jid:to_binary(JID)]}]},
+    Title = translate:translate(Lang, <<"Search Results for ", (jid:to_binary(JID))/binary>>),
     ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer, Lang),
-    Results1 = mod_vcard_backend:search(HostType, LServer, Data),
+    Results1 = mod_vcard_backend:search(HostType, LServer, maps:to_list(Data)),
     Results2 = lists:filtermap(
                  fun(Result) ->
                          case search_result_get_jid(Result) of
-                             {ok, ResultJID} ->
+                             [ResultJID] ->
                                  {true, {ResultJID, Result}};
-                             undefined ->
+                             [] ->
                                  false
                          end
                  end,
                  Results1),
     %% mnesia does not guarantee sorting order
     Results3 = lists:sort(Results2),
-    {Results4, RSMOutEls} =
-        apply_rsm_to_search_results(Results3, RSMIn, none),
+    {Results4, RSMOutEls} = apply_rsm_to_search_results(Results3, RSMIn, none),
     Results5 = [Result || {_, Result} <- Results4],
-    {[TitleEl, ReportedFields | Results5], RSMOutEls}.
+    Form = #{type => <<"result">>, title => Title, reported => ReportedFields, items => Results5},
+    {Form, RSMOutEls}.
 
 %% No RSM input, create empty
 apply_rsm_to_search_results(Results, none, RSMOut) ->
@@ -721,15 +697,8 @@ apply_rsm_to_search_results([], _, #rsm_out{} = RSMOut1) ->
     RSMOut2 = RSMOut1#rsm_out{index = undefined},
     {[], jlib:rsm_encode(RSMOut2)}.
 
-search_result_get_jid(#xmlel{name = <<"item">>,
-                             children = Children}) ->
-    Fields = jlib:parse_xdata_fields(Children),
-    case lists:keysearch(<<"jid">>, 1, Fields) of
-        {value, {<<"jid">>, JID}} ->
-            {ok, list_to_binary(JID)};
-        false ->
-            undefined
-    end.
+search_result_get_jid(Fields) ->
+    [JID || #{var := <<"jid">>, values := [JID]} <- Fields].
 
 parse_vcard(LUser, VHost, VCARD) ->
     FN       = xml:get_path_s(VCARD, [{elem, <<"FN">>}, cdata]),
@@ -805,23 +774,22 @@ prepare_index_allow_emoji(FieldName, Value) ->
     prepare_index(FieldName, Sanitized).
 
 
--spec get_default_reported_fields(binary()) -> exml:element().
+-spec get_default_reported_fields(binary()) -> [mongoose_data_forms:field()].
 get_default_reported_fields(Lang) ->
-    #xmlel{name = <<"reported">>,
-           children = [
-                       ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
-                       ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
-                       ?TLFIELD(<<"text-single">>, <<"Name">>, <<"first">>),
-                       ?TLFIELD(<<"text-single">>, <<"Middle Name">>, <<"middle">>),
-                       ?TLFIELD(<<"text-single">>, <<"Family Name">>, <<"last">>),
-                       ?TLFIELD(<<"text-single">>, <<"Nickname">>, <<"nick">>),
-                       ?TLFIELD(<<"text-single">>, <<"Birthday">>, <<"bday">>),
-                       ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
-                       ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
-                       ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
-                       ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
-                       ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
-                      ]}.
+    [
+     ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
+     ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
+     ?TLFIELD(<<"text-single">>, <<"Name">>, <<"first">>),
+     ?TLFIELD(<<"text-single">>, <<"Middle Name">>, <<"middle">>),
+     ?TLFIELD(<<"text-single">>, <<"Family Name">>, <<"last">>),
+     ?TLFIELD(<<"text-single">>, <<"Nickname">>, <<"nick">>),
+     ?TLFIELD(<<"text-single">>, <<"Birthday">>, <<"bday">>),
+     ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
+     ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
+     ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
+     ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
+     ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
+    ].
 
 config_metrics(Host) ->
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).

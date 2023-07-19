@@ -67,13 +67,9 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     escalus:init_per_suite([{backend, Backend} | Config2]).
 
-create_config(riak) ->
-    [{mod_private, #{backend => riak,
-                     iqdisc => one_queue,
-                     riak => #{bucket_type => <<"private">>}}}];
 create_config(Backend) ->
     [{mod_private, #{backend => Backend, iqdisc => one_queue}}].
 
@@ -99,7 +95,7 @@ init_per_group(Group, Config) when Group =:= admin_private_not_configured;
 
 ensure_private_started(Config) ->
     HostType = domain_helper:host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
     ModConfig = create_config(Backend),
     dynamic_modules:ensure_modules(HostType, ModConfig),
     Config.

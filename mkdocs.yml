@@ -29,6 +29,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/esl/MongooseIM
 plugins:
+  - include-markdown
   - search:
       lang: en
 extra_css: [css/custom.css]
@@ -51,6 +52,7 @@ nav:
       - 'High-level Architecture': 'user-guide/High-level-Architecture.md'
   - Tutorials:
       - 'How to Build MongooseIM from source code': 'tutorials/How-to-build.md'
+      - 'How to build and run MongooseIM docker image': 'tutorials/Docker-build.md'
       - 'How to Set up Push Notifications': 'tutorials/push-notifications/Push-notifications.md'
       - 'How to Set up Push Notifications on the client side': 'tutorials/push-notifications/Push-notifications-client-side.md'
       - 'How to Set up MongoosePush': 'tutorials/push-notifications/MongoosePush-setup.md'
@@ -88,7 +90,6 @@ nav:
       - 'Anonymous': 'authentication-methods/anonymous.md'
       - 'LDAP': 'authentication-methods/ldap.md'
       - 'JWT': 'authentication-methods/jwt.md'
-      - 'Riak (deprecated)': 'authentication-methods/riak.md'
       - 'HTTP': 'authentication-methods/http.md'
       - 'PKI': 'authentication-methods/pki.md'
       - 'Dummy': 'authentication-methods/dummy.md'

@@ -66,14 +66,12 @@ all() ->
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
-    G = [{rw, [sequence], rw_tests()},
-         {ro_full, [], ro_full_search_tests()},
-         {ro_limited, [], ro_limited_search_tests()},
-         {params_limited_infinity, [], rw_tests()},
-         {ro_no, [sequence], ro_no_search_tests()},
-         {ldap_only, [], ldap_only_tests()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{rw, [sequence], rw_tests()},
+     {ro_full, [], ro_full_search_tests()},
+     {ro_limited, [], ro_limited_search_tests()},
+     {params_limited_infinity, [], rw_tests()},
+     {ro_no, [sequence], ro_no_search_tests()},
+     {ldap_only, [], ldap_only_tests()}].
 
 rw_tests() ->
     [
@@ -100,7 +98,8 @@ ro_full_search_tests() ->
      search_rsm_count,
      search_rsm_forward,
      search_rsm_backward,
-     search_rsm_pages
+     search_rsm_pages,
+     search_errors
     ].
 
 ro_limited_search_tests() ->
@@ -802,6 +801,22 @@ search_rsm_count(Config) ->
                 end
         end).
 
+search_errors(Config) ->
+    escalus:story(
+      Config, [{alice, 1}],
+      fun(Client) ->
+              DirJID = ?config(directory_jid, Config),
+              Fields = [#xmlel{ name = <<"field">> }],
+              Req = escalus_stanza:search_iq(DirJID, Fields),
+
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Client, form_helper:remove_form_types(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Client, form_helper:remove_form_ns(Req))),
+              escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                             escalus:send_and_wait(Client, form_helper:remove_forms(Req)))
+      end).
+
 get_rsm_count(El) ->
     exml_query:path(El, [{element, <<"query">>},
                          {element, <<"set">>},
@@ -1009,7 +1024,6 @@ prepare_vcards(Config) ->
                         prepare_vcard(ModVcardBackend, JID, Fields)
                 end
         end, AllVCards),
-    wait_for_riak(),
     Config.
 
 get_backend(Config) ->
@@ -1540,11 +1554,3 @@ get_utf8_city() ->
 
 secondary_domain() ->
     ct:get_config({hosts, mim, secondary_domain}).
-
-wait_for_riak() ->
-    case mam_helper:is_riak_enabled(host_type()) of
-        true ->
-            timer:sleep(timer:seconds(3)); %give some time to Yokozuna to index vcards
-        false ->
-            ok
-    end.
