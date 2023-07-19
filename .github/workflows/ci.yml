@@ -84,7 +84,7 @@ jobs:
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
       - name: upload big_tests results to GA4
-        if: github.ref_name == 'master'
+        if: ${{ !cancelled() && github.ref_name == 'master' }}
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
   dynamic_domains_big_tests:
@@ -112,7 +112,7 @@ jobs:
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh big_tests/ct_report
       - name: upload big_tests results to GA4
-        if: github.ref_name == 'master'
+        if: ${{ !cancelled() && github.ref_name == 'master' }}
         run: tools/gh-report-failing-testcases-to-ga4.sh
 
   coveralls_webhook:
