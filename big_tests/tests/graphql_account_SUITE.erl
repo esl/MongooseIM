@@ -49,6 +49,7 @@ admin_account_tests() ->
      admin_check_non_existing_user,
      admin_register_user,
      admin_register_random_user,
+     admin_register_user_non_existing_domain,
      admin_register_user_limit_error,
      admin_remove_non_existing_user,
      admin_remove_existing_user,
@@ -79,6 +80,7 @@ domain_admin_tests() ->
      domain_admin_register_user_no_permission,
      admin_register_random_user,
      domain_admin_register_random_user_no_permission,
+     admin_register_user_limit_error,
      admin_remove_existing_user,
      domain_admin_remove_user_no_permission,
      admin_ban_user,
@@ -360,6 +362,11 @@ admin_register_random_user(Config) ->
 
     ?assertNotEqual(nomatch, binary:match(Msg, <<"successfully registered">>)),
     {ok, _} = rpc(mim(), mongoose_account_api, unregister_user, [Username, Server]).
+
+admin_register_user_non_existing_domain(Config) ->
+    % Try to register a user with a non-existing domain
+    Resp = register_user(<<"unknown">>, <<"alice">>, <<"test_password">>, Config),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Resp), <<"not_allowed">>)).
 
 admin_register_user_limit_error(Config) ->
     Password = <<"password">>,
