@@ -22,7 +22,7 @@
 -include("mongoose_config_spec.hrl").
 
 -xep([{xep, 202}, {version, "2.0"}]).
--xep([{xep, 82}, {version, "1.1"}]).
+-xep([{xep, 82}, {version, "1.1.1"}]).
 
 -spec start(HostType :: mongooseim:host_type(), gen_mod:module_opts()) -> ok | {error, atom()}.
 start(HostType, #{iqdisc := IQDisc}) ->

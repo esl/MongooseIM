@@ -30,7 +30,7 @@
 %%% @end
 %%%----------------------------------------------------------------------------
 -module(mod_offline_chatmarkers).
--xep([{xep, 160}, {version, "1.0"}]).
+-xep([{xep, 160}, {version, "1.0.1"}]).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
