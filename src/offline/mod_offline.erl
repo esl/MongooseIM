@@ -26,7 +26,7 @@
 
 -module(mod_offline).
 -author('alexey@process-one.net').
--xep([{xep, 160}, {version, "1.0"}]).
+-xep([{xep, 160}, {version, "1.0.1"}]).
 -xep([{xep, 23}, {version, "1.3"}]).
 -xep([{xep, 22}, {version, "1.4"}]).
 -xep([{xep, 85}, {version, "2.1"}]).

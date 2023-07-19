@@ -11,7 +11,7 @@
 -behaviour(cowboy_loop).
 
 -xep([{xep, 206}, {version, "1.4"}]).
--xep([{xep, 124}, {version, "1.11"}]).
+-xep([{xep, 124}, {version, "1.11.2"}]).
 
 %% gen_mod callbacks
 -export([start/2,
