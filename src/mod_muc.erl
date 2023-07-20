@@ -446,7 +446,6 @@ get_nick(HostType, MucHost, From) ->
 init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    node_cleanup(HostType, node()),
     #{access := Access,
       access_create := AccessCreate,
       access_admin := AccessAdmin,
