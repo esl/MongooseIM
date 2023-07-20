@@ -18,6 +18,8 @@
 -define(TABLE, cets_s2s_session).
 -define(SECRET_TABLE, cets_s2s_secret).
 
+-type secret_tuple() :: {HostType :: mongooseim:host_type(), TS :: integer(), Secret :: ejabberd_s2s:base16_secret()}.
+
 -spec init(map()) -> ok.
 init(_) ->
     cets:start(?TABLE, #{}),
@@ -28,14 +30,16 @@ init(_) ->
     cets_discovery:add_table(mongoose_cets_discovery, ?SECRET_TABLE),
     ok.
 
-%% Store the most recent value:
-%% - first element of the tuple is the same and it is the key.
-%% - second element is a timestamp, so comparing tuples works.
+%% Chooses the most recent value of two.
 %% Even if we choose the wrong record - nothing bad would happen
 %% (we still need to choose one).
 %% Choosing the record with the highest timestamp is just a logical behaviour
 %% (it also matches the logic of mongoose_s2s_lib:check_shared_secret/2, where updated secret
 %% in the config is updated across all nodes in the cluster).
+%% Example call:
+%% handle_secret_conflict({<<"localhost">>, 1689858975612268, <<"4e48dc4898b23f512059">>},
+%%                        {<<"localhost">>, 1689859177195451, <<"56fdcd3ec63ff8299eb0">>}).
+-spec handle_secret_conflict(secret_tuple(), secret_tuple()) -> secret_tuple().
 handle_secret_conflict(Rec1, Rec2) when Rec1 > Rec2 ->
     Rec1;
 handle_secret_conflict(_Rec1, Rec2) ->
