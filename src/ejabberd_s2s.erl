@@ -26,8 +26,6 @@
 -module(ejabberd_s2s).
 -author('alexey@process-one.net').
 
--xep([{xep, 185}, {version, "1.0"}]).
-
 -behaviour(gen_server).
 -behaviour(xmpp_router).
 

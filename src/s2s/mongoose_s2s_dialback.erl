@@ -46,6 +46,9 @@
 
 -export([make_key/3]).
 
+-xep([{xep, 185}, {version, "1.0"}]).   %% Dialback Key Generation and Validation
+-xep([{xep, 220}, {version, "1.1.1"}]). %% Server Dialback
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

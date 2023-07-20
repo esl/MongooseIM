@@ -61,7 +61,7 @@ groups() ->
 
      {node1_tls_false_node2_tls_required, [], negative()},
      {node1_tls_required_node2_tls_false, [], negative()},
-     {dialback, [], [dialback_key_is_different_on_different_nodes]}].
+     {dialback, [], [dialback_key_is_synchronized_on_different_nodes]}].
 
 essentials() ->
     [simple_message].
@@ -443,7 +443,7 @@ get_main_file_path(Config, File) ->
     filename:join([path_helper:repo_dir(Config),
                    "tools", "ssl", "mongooseim", File]).
 
-dialback_key_is_different_on_different_nodes(_Config) ->
+dialback_key_is_synchronized_on_different_nodes(_Config) ->
     configure_secret_and_restart_s2s(mim),
     configure_secret_and_restart_s2s(mim2),
     Key1 = get_shared_secret(mim),
