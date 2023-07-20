@@ -87,7 +87,11 @@ cleanup_modules(Node) ->
     end.
 
 run_node_cleanup(Node) ->
-    {Elapsed, RetVal} = timer:tc(mongoose_hooks, node_cleanup, [Node]),
+    {Elapsed, RetVal} = timer:tc(fun() ->
+            mongoose_hooks:node_cleanup(Node),
+            [mongoose_hooks:node_cleanup_for_host_type(HostType, Node) || HostType <- ?ALL_HOST_TYPES],
+            ok
+        end),
     ?LOG_NOTICE(#{what => cleaner_done,
                   text => <<"Finished cleaning after dead node">>,
                   duration => erlang:round(Elapsed / 1000),

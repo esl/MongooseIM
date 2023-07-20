@@ -66,7 +66,8 @@
          remove_domain/3,
          acc_room_affiliations/3,
          can_access_identity/3,
-         disco_local_items/3]).
+         disco_local_items/3,
+         node_cleanup_for_host_type/3]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -446,7 +447,6 @@ init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
     node_cleanup(HostType, node()),
-    mnesia:subscribe(system),
     #{access := Access,
       access_create := AccessCreate,
       access_admin := AccessAdmin,
@@ -536,9 +536,6 @@ handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({mnesia_system_event, {mnesia_down, Node}}, #muc_state{host_type = HostType} = State) ->
-    node_cleanup(HostType, Node),
-    {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
             #muc_state{host_type = HostType,
                        hibernated_room_timeout = Timeout} = State)
@@ -1261,6 +1258,14 @@ disco_local_items(Acc = #{host_type := HostType,
 disco_local_items(Acc, _, _) ->
     {ok, Acc}.
 
+-spec node_cleanup_for_host_type(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+node_cleanup_for_host_type(Acc, #{node := Node}, #{host_type := HostType}) ->
+    node_cleanup(HostType, Node),
+    Acc.
+
 online_rooms_number() ->
     lists:sum([online_rooms_number(HostType)
                || HostType <- gen_mod:hosts_with_module(?MODULE)]).
@@ -1324,7 +1329,8 @@ hooks(HostType) ->
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
-     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250}].
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},
+     {node_cleanup_for_host_type, HostType, fun ?MODULE:node_cleanup_for_host_type/3, #{}, 50}].
 
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host).

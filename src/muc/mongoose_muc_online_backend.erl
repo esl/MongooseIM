@@ -18,7 +18,7 @@ start(HostType, Opts = #{online_backend := Backend}) ->
     mongoose_backend:init(HostType, ?MAIN_MODULE, tracked_funs(), #{backend => Backend}),
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType, Opts]).
 
--spec tracked_funs() -> atom().
+-spec tracked_funs() -> [atom()].
 tracked_funs() ->
     [register_room,
      room_destroyed,
