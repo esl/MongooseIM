@@ -7,7 +7,10 @@
          init_per_suite/1, end_per_suite/1,
          init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
--export([cleaner_runs_hook_on_nodedown/1, notify_self_hook/3]).
+-export([cleaner_runs_hook_on_nodedown/1,
+         cleaner_runs_hook_on_nodedown_for_host_type/1,
+         notify_self_hook/3,
+         notify_self_hook_for_host_type/3]).
 -export([auth_anonymous/1,
          last/1,
          stream_management/1,
@@ -27,6 +30,7 @@
 all() ->
     [
      cleaner_runs_hook_on_nodedown,
+     cleaner_runs_hook_on_nodedown_for_host_type,
      auth_anonymous,
      last,
      stream_management,
@@ -126,10 +130,8 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     gen_hook:add_handler(node_cleanup, global,
                          fun ?MODULE:notify_self_hook/3,
                          #{self => self()}, 50),
-
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
-
     receive
         {got_nodedown, FakeNode} -> ok
     after timer:seconds(1) ->
@@ -138,8 +140,26 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     ?assertEqual(false, meck:called(gen_hook, error_running_hook,
                                     ['_', '_', '_', '_', '_'])).
 
+cleaner_runs_hook_on_nodedown_for_host_type(_Config) ->
+    HostType = ?HOST,
+    {ok, Cleaner} = mongoose_cleaner:start_link(),
+    gen_hook:add_handler(node_cleanup_for_host_type, HostType,
+                         fun ?MODULE:notify_self_hook_for_host_type/3,
+                         #{self => self()}, 50),
+    FakeNode = fakename@fakehost,
+    Cleaner ! {nodedown, FakeNode},
+    receive
+        {got_nodedown_for_host_type, FakeNode, HostType} -> ok
+    after timer:seconds(1) ->
+        ct:fail({timeout, got_nodedown})
+    end.
+
 notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     Self ! {got_nodedown, Node},
+    {ok, Acc}.
+
+notify_self_hook_for_host_type(Acc, #{node := Node}, #{self := Self, host_type := HostType}) ->
+    Self ! {got_nodedown_for_host_type, Node, HostType},
     {ok, Acc}.
 
 auth_anonymous(_Config) ->
