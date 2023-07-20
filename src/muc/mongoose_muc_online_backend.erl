@@ -3,7 +3,8 @@
 -export([start/2,
          register_room/4,
          room_destroyed/4,
-         find_room_pid/3]).
+         find_room_pid/3,
+         get_online_rooms/2]).
 
 -define(MAIN_MODULE, mongoose_muc_online).
 
@@ -32,4 +33,8 @@ room_destroyed(HostType, MucHost, Room, Pid) ->
 
 find_room_pid(HostType, MucHost, Room) ->
     Args = [HostType, MucHost, Room],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+get_online_rooms(HostType, MucHost) ->
+    Args = [HostType, MucHost],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

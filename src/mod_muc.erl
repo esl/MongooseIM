@@ -1164,10 +1164,8 @@ broadcast_service_message(MucHost, Msg) ->
 
 -spec get_vh_rooms(muc_host()) -> [muc_online_room()].
 get_vh_rooms(MucHost) ->
-    mnesia:dirty_select(muc_online_room,
-                        [{#muc_online_room{name_host = '$1', _ = '_'},
-                          [{'==', {element, 2, '$1'}, MucHost}],
-                          ['$_']}]).
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
+    mongoose_muc_online_backend:get_online_rooms(HostType, MucHost).
 
 -spec get_persistent_vh_rooms(muc_host()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->

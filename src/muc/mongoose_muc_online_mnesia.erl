@@ -2,7 +2,8 @@
 -export([start/2,
          register_room/4,
          room_destroyed/4,
-         find_room_pid/3]).
+         find_room_pid/3,
+         get_online_rooms/2]).
 
 -include_lib("mod_muc.hrl").
 
@@ -41,10 +42,16 @@ simple_transaction_result({atomic, Res}) ->
 simple_transaction_result({aborted, Reason}) ->
     {error, Reason}.
 
-find_room_pid(HostType, MucHost, Room) ->
+find_room_pid(_HostType, MucHost, Room) ->
     case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
         [R] ->
             {ok, R#muc_online_room.pid};
         [] ->
             {error, not_found}
     end.
+
+get_online_rooms(_HostType, MucHost) ->
+    mnesia:dirty_select(muc_online_room,
+                        [{#muc_online_room{name_host = '$1', _ = '_'},
+                          [{'==', {element, 2, '$1'}, MucHost}],
+                          ['$_']}]).
