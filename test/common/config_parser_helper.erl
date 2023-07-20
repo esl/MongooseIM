@@ -52,12 +52,7 @@ options("host_types") ->
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"some host type">>}, 2000},
      {{replaced_wait_timeout, <<"this is host type">>}, 2000},
-     {{replaced_wait_timeout, <<"yet another host type">>}, 2000},
-     {{max_users_per_domain, <<"another host type">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity},
-     {{max_users_per_domain, <<"some host type">>}, infinity},
-     {{max_users_per_domain, <<"this is host type">>}, infinity},
-     {{max_users_per_domain, <<"yet another host type">>}, infinity}];
+     {{replaced_wait_timeout, <<"yet another host type">>}, 2000}];
 options("miscellaneous") ->
     [{all_metrics_are_global, false},
      {http_server_name, "Apache"},
@@ -104,9 +99,7 @@ options("miscellaneous") ->
      {{replaced_wait_timeout, <<"anonymous.localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{route_subdomains, <<"anonymous.localhost">>}, s2s},
-     {{route_subdomains, <<"localhost">>}, s2s},
-     {{max_users_per_domain, <<"anonymous.localhost">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity}];
+     {{route_subdomains, <<"localhost">>}, s2s}];
 options("modules") ->
     [{all_metrics_are_global, false},
      {default_server_domain, <<"localhost">>},
@@ -130,9 +123,7 @@ options("modules") ->
      {{modules, <<"dummy_host">>}, all_modules()},
      {{modules, <<"localhost">>}, all_modules()},
      {{replaced_wait_timeout, <<"dummy_host">>}, 2000},
-     {{replaced_wait_timeout, <<"localhost">>}, 2000},
-     {{max_users_per_domain, <<"dummy_host">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity}];
+     {{replaced_wait_timeout, <<"localhost">>}, 2000}];
 options("mongooseim-pgsql") ->
     [{all_metrics_are_global, false},
      {default_server_domain, <<"localhost">>},
@@ -289,9 +280,6 @@ options("mongooseim-pgsql") ->
      {{access, <<"anonymous.localhost">>}, pgsql_access()},
      {{access, <<"localhost">>}, pgsql_access()},
      {{access, <<"localhost.bis">>}, pgsql_access()},
-     {{max_users_per_domain, <<"anonymous.localhost">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity},
-     {{max_users_per_domain, <<"localhost.bis">>}, infinity},
      {{acl, global}, #{local => [#{match => current_domain,
                                    user_regexp => <<>>}]}},
      {{acl, <<"anonymous.localhost">>}, #{local => [#{match => current_domain,
@@ -365,10 +353,7 @@ options("outgoing_pools") ->
      {{modules, <<"localhost.bis">>}, #{}},
      {{replaced_wait_timeout, <<"anonymous.localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
-     {{replaced_wait_timeout, <<"localhost.bis">>}, 2000},
-     {{max_users_per_domain, <<"anonymous.localhost">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity},
-     {{max_users_per_domain, <<"localhost.bis">>}, infinity}];
+     {{replaced_wait_timeout, <<"localhost.bis">>}, 2000}];
 options("s2s_only") ->
     [{all_metrics_are_global, false},
      {default_server_domain, <<"localhost">>},
@@ -392,9 +377,7 @@ options("s2s_only") ->
      {{replaced_wait_timeout, <<"dummy_host">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{s2s, <<"dummy_host">>}, custom_s2s()},
-     {{s2s, <<"localhost">>}, custom_s2s()},
-     {{max_users_per_domain, <<"dummy_host">>}, infinity},
-     {{max_users_per_domain, <<"localhost">>}, infinity}].
+     {{s2s, <<"localhost">>}, custom_s2s()}].
 
 all_modules() ->
     #{mod_mam_rdbms_user => #{muc => true, pm => true},
@@ -707,7 +690,8 @@ default_auth() ->
       password => #{format => scram,
                     scram_iterations => 10000},
       sasl_external => [standard],
-      sasl_mechanisms => cyrsasl:default_modules()}.
+      sasl_mechanisms => cyrsasl:default_modules(),
+      max_users_per_domain => infinity}.
 
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},

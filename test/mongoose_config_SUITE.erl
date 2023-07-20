@@ -190,8 +190,7 @@ minimal_config_opts() ->
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
-     {{s2s, <<"localhost">>}, config_parser_helper:default_s2s()},
-     {{max_users_per_domain, <<"localhost">>}, infinity}].
+     {{s2s, <<"localhost">>}, config_parser_helper:default_s2s()}].
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

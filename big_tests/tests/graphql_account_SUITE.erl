@@ -150,9 +150,9 @@ init_per_testcase(admin_check_plain_password_hash = C, Config) ->
 init_per_testcase(admin_register_user_limit_error = C, Config) ->
     Domain = domain_helper:domain(),
     {ok, HostType} = rpc(mim(), mongoose_domain_api, get_domain_host_type, [Domain]),
-    OptKey = {max_users_per_domain, HostType},
+    OptKey = [{auth, HostType}, max_users_per_domain],
     Config1 = mongoose_helper:backup_and_set_config_option(Config, OptKey, 3),
-    Config2 = [{user1, <<"bob">>}, {user2, <<"kate">>}, {user3, <<"john">>} | Config1],
+    Config2 = [{bob, <<"bob">>}, {kate, <<"kate">>}, {john, <<"john">>} | Config1],
     escalus:init_per_testcase(C, Config2);
 init_per_testcase(domain_admin_check_plain_password_hash_no_permission = C, Config) ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
@@ -181,8 +181,9 @@ end_per_testcase(admin_check_plain_password_hash, Config) ->
     escalus:delete_users(Config, escalus:get_users([carol]));
 end_per_testcase(admin_register_user_limit_error = C, Config) ->
     Domain = domain_helper:domain(),
-    rpc(mim(), mongoose_account_api, unregister_user, [proplists:get_value(user1, Config), Domain]),
-    rpc(mim(), mongoose_account_api, unregister_user, [proplists:get_value(user2, Config), Domain]),
+    rpc(mim(), mongoose_account_api, unregister_user, [proplists:get_value(bob, Config), Domain]),
+    rpc(mim(), mongoose_account_api, unregister_user, [proplists:get_value(kate, Config), Domain]),
+    rpc(mim(), mongoose_account_api, unregister_user, [proplists:get_value(john, Config), Domain]),
     mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(domain_admin_check_plain_password_hash_no_permission, Config) ->
@@ -372,15 +373,20 @@ admin_register_user_limit_error(Config) ->
     Password = <<"password">>,
     Domain = domain_helper:domain(),
     Path = [data, account, registerUser, message],
-    list_users(Domain, Config),
-    Resp1 = register_user(Domain, proplists:get_value(user1, Config), Password, Config),
+    Resp1 = register_user(Domain, proplists:get_value(bob, Config), Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp1), <<"successfully registered">>)),
-    Resp2 = register_user(Domain, proplists:get_value(user2, Config), Password, Config),
+    Resp2 = register_user(Domain, proplists:get_value(kate, Config), Password, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp2), <<"successfully registered">>)),
     %% One user was registered in the init_per_group, and two more were registered in this test case
-    %% The next registration should exceed the limit of three
-    Resp3 = register_user(Domain, proplists:get_value(user3, Config), Password, Config),
-    ?assertMatch({_, _}, binary:match(get_err_msg(Resp3), <<"limit has been exceeded">>)).
+    %% There are three registered users at this moment
+    %% The next (fourth) registration should exceed the limit of three
+    JohnNick = proplists:get_value(john, Config),
+    Resp3 = register_user(Domain, JohnNick, Password, Config),
+    ?assertMatch({_, _}, binary:match(get_err_msg(Resp3), <<"limit has been exceeded">>)),
+    %% Make sure the fourth account wasn't created
+    CheckUserPath = [data, account, checkUser],
+    Resp4 = check_user(<<JohnNick/binary, "@", Domain/binary>>, Config),
+    ?assertMatch(#{<<"exist">> := false, <<"message">> := _}, get_ok_value(CheckUserPath, Resp4)).
 
 admin_remove_non_existing_user(Config) ->
     % Non-existing user, non-existing domain

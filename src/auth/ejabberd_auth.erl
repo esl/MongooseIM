@@ -236,11 +236,11 @@ do_try_register_if_does_not_exist(_, JID, Password) ->
                 end
         end,
     Opts = #{default => {error, not_allowed}, metric => try_register},
-    case is_user_limit_per_domain_exceeded(LServer) of
+    case is_user_number_below_limit(LServer) of
         true ->
-            {error, limit_per_domain_exceeded};
+            call_auth_modules_for_domain(LServer, F, Opts);
         false ->
-            call_auth_modules_for_domain(LServer, F, Opts)
+            {error, limit_per_domain_exceeded}
     end.
 
 %% @doc Registered users list do not include anonymous users logged
@@ -584,12 +584,12 @@ fold_auth_modules([AuthModule | AuthModules], F, CurAcc) ->
             Value
     end.
 
-is_user_limit_per_domain_exceeded(Domain) ->
+is_user_number_below_limit(Domain) ->
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
-            Limit = mongoose_config:get_opt({max_users_per_domain, HostType}),
+            Limit = mongoose_config:get_opt([{auth, HostType}, max_users_per_domain]),
             Current = get_vh_registered_users_number(Domain),
-            Current >= Limit;
+            Current < Limit;
         {error, not_found} ->
-            false
+            true
     end.

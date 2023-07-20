@@ -157,13 +157,6 @@ See the section about [redis connection setup](./outgoing-connections.md#redis-s
 
 When a user's session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
 
-### `general.max_users_per_domain`
-* **Syntax:** positive integer or string `"infinity"`, representing maximum amount of users that can be registered in a domain
-* **Default:** `"infinity"`
-* **Example:** `max_users_per_domain = 10000`
-
-Limits the number of users that can be registered for each domain. If the option is configured to the value `"infinity"`, no limit is present.
-
 ## Message routing
 
 The following options influence the way MongooseIM routes incoming messages to their recipients.

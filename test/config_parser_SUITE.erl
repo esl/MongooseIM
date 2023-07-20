@@ -444,12 +444,6 @@ domain_certfile(_Config) ->
      || K <- maps:keys(DomCert)],
     ?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
 
-max_users_per_domain(_Config) ->
-    ?cfg({max_users_per_domain, ?HOST}, infinity, #{}), % global default
-    ?cfgh(max_users_per_domain, 1000, #{<<"general">> =>
-                                           #{<<"max_users_per_domain">> => 1000}}),
-    ?errh(#{<<"general">> => #{<<"max_users_per_domain">> => 0}}).
-
 %% tests: listen
 
 listen_duplicate(_Config) ->
@@ -733,6 +727,12 @@ auth_sasl_mechanisms(_Config) ->
     ?cfgh([auth, sasl_mechanisms], [cyrsasl_external, cyrsasl_scram],
           #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     ?errh(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
+
+max_users_per_domain(_Config) ->
+    ?cfg([{auth, ?HOST}, max_users_per_domain], infinity, #{}), % global default
+    ?cfgh([auth, max_users_per_domain], 1000, #{<<"auth">> =>
+                                                #{<<"max_users_per_domain">> => 1000}}),
+    ?errh(#{<<"auth">> => #{<<"max_users_per_domain">> => 0}}).
 
 auth_allow_multiple_connections(_Config) ->
     ?cfgh([auth, anonymous, allow_multiple_connections], true,

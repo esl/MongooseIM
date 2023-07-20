@@ -194,10 +194,7 @@ general() ->
                                                     wrap = global_config},
                  <<"domain_certfile">> => #list{items = domain_cert(),
                                                 format_items = map,
-                                                wrap = global_config},
-                 <<"max_users_per_domain">> => #option{type = int_or_infinity,
-                                                          validate = positive,
-                                                          wrap = host_config}
+                                                wrap = global_config}
                 },
        wrap = none,
        format_items = list
@@ -215,8 +212,7 @@ general_defaults() ->
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
-      <<"hide_service_name">> => false,
-      <<"max_users_per_domain">> => infinity}.
+      <<"hide_service_name">> => false}.
 
 ctl_access_rule() ->
     #section{
@@ -402,10 +398,13 @@ auth() ->
                       <<"sasl_mechanisms">> =>
                           #list{items = #option{type = atom,
                                                 validate = {module, cyrsasl},
-                                                process = fun ?MODULE:process_sasl_mechanism/1}}
+                                                process = fun ?MODULE:process_sasl_mechanism/1}},
+                      <<"max_users_per_domain">> => #option{type = int_or_infinity,
+                                                            validate = positive}
                      },
        defaults = #{<<"sasl_external">> => [standard],
-                    <<"sasl_mechanisms">> => cyrsasl:default_modules()},
+                    <<"sasl_mechanisms">> => cyrsasl:default_modules(),
+                    <<"max_users_per_domain">> => infinity},
        process = fun ?MODULE:process_auth/1,
        wrap = host_config
       }.
