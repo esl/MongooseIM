@@ -1,6 +1,7 @@
 -module(mongoose_muc_online_backend).
 
 -export([start/2,
+         register_room/4,
          room_destroyed/4]).
 
 -define(MAIN_MODULE, mongoose_muc_online).
@@ -16,7 +17,12 @@ start(HostType, Opts = #{online_backend := Backend}) ->
 
 -spec tracked_funs() -> atom().
 tracked_funs() ->
-    [room_destroyed].
+    [register_room,
+     room_destroyed].
+
+register_room(HostType, MucHost, Room, Pid) ->
+    Args = [HostType, MucHost, Room, Pid],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec room_destroyed(mongooseim:host_type(), jid:server(), mod_muc:room(), pid()) -> ok.
 room_destroyed(HostType, MucHost, Room, Pid) ->

@@ -921,22 +921,7 @@ register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid) ->
 -spec register_room(HostType :: host_type(), jid:server(), room(),
                     pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
-    F = fun() ->
-            case mnesia:read(muc_online_room,  {Room, MucHost}, write) of
-                [] ->
-                    mnesia:write(#muc_online_room{name_host = {Room, MucHost},
-                                                  host_type = HostType,
-                                                  pid = Pid});
-                [R] ->
-                    {exists, R#muc_online_room.pid}
-            end
-        end,
-    simple_transaction_result(mnesia:transaction(F)).
-
-simple_transaction_result({atomic, Res}) ->
-    Res;
-simple_transaction_result({aborted, Reason}) ->
-    {error, Reason}.
+    mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid).
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
