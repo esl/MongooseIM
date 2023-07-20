@@ -49,6 +49,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           flag-name: small_tests on OTP ${{matrix.otp}}
           path-to-lcov: ./lcov.info
+          parallel: true
       - name: upload common test results on failure
         if: ${{ failure() }}
         run: tools/gh-upload-to-s3.sh _build/test/logs test_logs
