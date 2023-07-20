@@ -382,7 +382,8 @@ test_advertised_endpoints_override_endpoints(_Config) ->
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
     mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, true,
-                               #{name => trees_for_connections_present}),
+                               #{name => trees_for_connections_present,
+                                 time_left => timer:seconds(10)}),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
