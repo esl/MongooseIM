@@ -138,14 +138,14 @@ needed_extra_connections_number_if_allowed(FromTo, OldCons) ->
 
 %% Checks:
 %% - if the host is not a service
-%% - and if the s2s host is not blacklisted or is in whitelist
+%% - and host policy (allowlist or denylist)
 -spec is_s2s_allowed_for_host(fromto(), _OldConnections :: s2s_pids()) -> boolean().
 is_s2s_allowed_for_host(_FromTo, [_|_]) ->
     true; %% Has outgoing connections established, skip the check
 is_s2s_allowed_for_host(FromTo, []) ->
     not is_service(FromTo) andalso allow_host(FromTo).
 
-%% Check if host is in blacklist or white list
+%% Checks if the s2s host is not in the denylist or is in the allowlist
 %% Runs a hook
 -spec allow_host(fromto()) -> boolean().
 allow_host({FromServer, ToServer}) ->

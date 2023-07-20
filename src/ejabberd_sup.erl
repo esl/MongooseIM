@@ -178,7 +178,6 @@ init([]) ->
            MucIQ,
            ShaperSup]}}.
 
-
 start_child(ChildSpec) ->
     start_child(ejabberd_sup, ChildSpec).
 
