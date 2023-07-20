@@ -124,7 +124,7 @@ get_new_tcp_metric_value(OldValue) ->
     Validator = fun(NewValue) -> OldValue =/= NewValue end,
     {ok, {ok, [{value, X}]}} = async_helper:wait_until(
       fun() -> mongoose_metrics:get_metric_value(global, tcpPortsUsed) end,
-      true, #{validator => Validator, sleep_time => 30, time_left => 500}
+      Validator, #{sleep_time => 30, time_left => 500}
      ),
     X.
 

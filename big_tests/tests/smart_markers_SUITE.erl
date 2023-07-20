@@ -404,6 +404,7 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                           _ -> [{<<"after">>, After}]
                       end,
         Iq = iq_fetch_marker(MarkedUserBJid ++ MaybeThread ++ MaybeAfter),
+        %% using wait_until to ensure that assertions are eventually passing
         mongoose_helper:wait_until(
           fun() ->
                   escalus:send(MarkingUser, Iq),
@@ -418,7 +419,9 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                   ?assertEqual(Thread, exml_query:attr(Marker, <<"thread">>)),
                   ?assertNotEqual(undefined, exml_query:attr(Marker, <<"id">>)),
                   lists:sort(Markers)
-          end, ok, #{name => fetch_marker, validator => fun(_) -> true end}).
+          end,
+          fun(_) -> true end, %% always positively validate the return value.
+          #{name => fetch_marker}).
 
 verify_marker_fetch_is_empty(MarkingUser, MarkedUser) ->
         MarkedUserBJid = escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser)),
