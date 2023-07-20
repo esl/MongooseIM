@@ -164,14 +164,12 @@ connections_info(Config) ->
     [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
     ok.
 
-get_s2s_connections(RPCSpec, Domain, Type)->
-    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_info_s2s_connections, [Type]),
-    % ct:pal("Node = ~p, ConnectionType = ~p~nAllS2SConnections(~p): ~p",
-    %        [maps:get(node, RPCSpec), Type, length(AllS2SConnections), AllS2SConnections]),
+get_s2s_connections(RPCSpec, Domain, Type) ->
+    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
     DomainS2SConnections = 
         [Connection || Connection <- AllS2SConnections,
-                       Type =/= in orelse [Domain] =:= proplists:get_value(domains, Connection),
-                       Type =/= out orelse Domain =:= proplists:get_value(server, Connection)],
+                       Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
+                       Type =/= out orelse Domain =:= maps:get(server, Connection)],
     ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p",
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
             DomainS2SConnections]),

@@ -1,46 +1,36 @@
-%% Some ugly code only used in tests.
-%% It was originally in ejabberd_s2s, but it was moved out to improve readability.
+%% Get information about S2S connections on this node.
 -module(mongoose_s2s_info).
 
 %% ejabberd API
--export([get_info_s2s_connections/1]).
--ignore_xref([get_info_s2s_connections/1]).
+-export([get_connections/1]).
+-ignore_xref([get_connections/1]).
 
--type connstate() :: 'restarting' | 'undefined' | pid().
--type conn() :: { any(), connstate(), 'supervisor' | 'worker', 'dynamic' | [_] }.
+-include("mongoose_logger.hrl").
+
+-type direction() :: in | out.
+-type supervisor_child_spec() :: { undefined, pid(), worker, [module()] }.
+-type connection_info() :: ejabberd_s2s_in:connection_info() | ejabberd_s2s_out:connection_info().
 
 %% @doc Get information about S2S connections of the specified type.
--spec get_info_s2s_connections('in' | 'out') -> [[{atom(), any()}, ...]].
-get_info_s2s_connections(Type) ->
-    ChildType = case Type of
-                    in -> ejabberd_s2s_in_sup;
-                    out -> ejabberd_s2s_out_sup
-                end,
-    Connections = supervisor:which_children(ChildType),
-    get_s2s_info(Connections, Type).
+-spec get_connections(direction()) -> [connection_info()].
+get_connections(Type) ->
+    Specs = supervisor:which_children(type_to_supervisor(Type)),
+    [Conn || Spec <- Specs, Conn <- get_state_info(child_to_pid(Spec))].
 
--spec get_s2s_info(Connections :: [conn()],
-                  Type :: 'in' | 'out'
-                  ) -> [[{any(), any()}, ...]]. % list of lists
-get_s2s_info(Connections, Type)->
-    complete_s2s_info(Connections, Type, []).
+%% Both supervisors are simple_one_for_one with temporary children processes.
+-spec type_to_supervisor(direction()) -> atom().
+type_to_supervisor(in) -> ejabberd_s2s_in_sup;
+type_to_supervisor(out) -> ejabberd_s2s_out_sup.
 
--spec complete_s2s_info(Connections :: [conn()],
-                        Type :: 'in' | 'out',
-                        Result :: [[{any(), any()}, ...]] % list of lists
-                        ) -> [[{any(), any()}, ...]]. % list of lists
-complete_s2s_info([], _, Result)->
-    Result;
-complete_s2s_info([Connection|T], Type, Result)->
-    {_, PID, _, _} = Connection,
-    State = get_s2s_state(PID),
-    complete_s2s_info(T, Type, [State|Result]).
+-spec child_to_pid(supervisor_child_spec()) -> pid().
+child_to_pid({_, Pid, _, _}) -> Pid.
 
--spec get_s2s_state(connstate()) -> [{atom(), any()}, ...].
-get_s2s_state(S2sPid) ->
-    Infos = case gen_fsm_compat:sync_send_all_state_event(S2sPid, get_state_infos) of
-                {state_infos, Is} -> [{status, open} | Is];
-                {noproc, _} -> [{status, closed}]; %% Connection closed
-                {badrpc, _} -> [{status, error}]
-            end,
-    [{s2s_pid, S2sPid} | Infos].
+-spec get_state_info(pid()) -> [connection_info()].
+get_state_info(Pid) when is_pid(Pid) ->
+    case gen_fsm_compat:sync_send_all_state_event(Pid, get_state_info) of
+        Info when is_map(Info) ->
+            [Info];
+        Other ->
+            ?LOG_ERROR(#{what => s2s_get_state_info_failed, pid => Pid, reason => Other}),
+            []
+    end.

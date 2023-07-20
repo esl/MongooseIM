@@ -48,6 +48,8 @@
          handle_info/3,
          terminate/3]).
 
+-export_type([connection_info/0]).
+
 -ignore_xref([match_domain/2, start/2, start_link/2, stream_established/2,
               wait_for_feature_request/2, wait_for_stream/2]).
 
@@ -70,6 +72,20 @@
                 timer                   :: reference()
               }).
 -type state() :: #state{}.
+
+-type connection_info() ::
+        #{pid => pid(),
+          direction => in,
+          statename => statename(),
+          addr => inet:ip_address(),
+          port => inet:port_number(),
+          streamid => ejabberd_s2s:stream_id(),
+          tls => boolean(),
+          tls_enabled => boolean(),
+          tls_options => mongoose_tls:options(),
+          authenticated => boolean(),
+          shaper => shaper:shaper(),
+          domains => [jid:lserver()]}.
 
 -type statename() :: 'stream_established' | 'wait_for_feature_request'.
 %% FSM handler return value
@@ -458,53 +474,12 @@ route_stanza(Acc) ->
 handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: The associated StateData for this connection
-%%   {reply, Reply, NextStateName, NextStateData}
-%%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
-%%----------------------------------------------------------------------
--spec handle_sync_event(any(), any(), statename(), state()
-                       ) -> {'reply', 'ok' | {'state_infos', [any(), ...]}, atom(), state()}.
-handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {ok, {Addr, Port}} = mongoose_transport:peername(StateData#state.socket),
-    Domains = case StateData#state.authenticated of
-                  true ->
-                      [StateData#state.auth_domain];
-                  false ->
-                      Connections = StateData#state.connections,
-                      [LRemoteServer || {{_, LRemoteServer}, established} <-
-                          maps:to_list(Connections)]
-              end,
-    Infos = [
-             {direction, in},
-             {statename, StateName},
-             {addr, Addr},
-             {port, Port},
-             {streamid, StateData#state.streamid},
-             {tls, StateData#state.tls},
-             {tls_enabled, StateData#state.tls_enabled},
-             {tls_options, StateData#state.tls_options},
-             {authenticated, StateData#state.authenticated},
-             {shaper, StateData#state.shaper},
-             {domains, Domains}
-            ],
-    Reply = {state_infos, Infos},
-    {reply, Reply, StateName, StateData};
-
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%%----------------------------------------------------------------------
+-spec handle_sync_event(any(), any(), statename(), state()) ->
+    {reply, ok | connection_info(), statename(), state()}.
+handle_sync_event(get_state_info, _From, StateName, StateData) ->
+    {reply, handle_get_state_info(StateName, StateData), StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
-    Reply = ok,
-    {reply, Reply, StateName, StateData}.
-
+    {reply, ok, StateName, StateData}.
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
@@ -693,3 +668,27 @@ is_known_domain(Domain) ->
         _ ->
             false
     end.
+
+-spec handle_get_state_info(statename(), state()) -> connection_info().
+handle_get_state_info(StateName, StateData) ->
+    {ok, {Addr, Port}} = mongoose_transport:peername(StateData#state.socket),
+    Domains = case StateData#state.authenticated of
+                  true ->
+                      [StateData#state.auth_domain];
+                  false ->
+                      Connections = StateData#state.connections,
+                      [LRemoteServer || {{_, LRemoteServer}, established} <-
+                          maps:to_list(Connections)]
+              end,
+    #{pid => self(),
+      direction => in,
+      statename => StateName,
+      addr => Addr,
+      port => Port,
+      streamid => StateData#state.streamid,
+      tls => StateData#state.tls,
+      tls_enabled => StateData#state.tls_enabled,
+      tls_options => StateData#state.tls_options,
+      authenticated => StateData#state.authenticated,
+      shaper => StateData#state.shaper,
+      domains => Domains}.

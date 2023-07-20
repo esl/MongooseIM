@@ -55,19 +55,23 @@
          print_state/1,
          code_change/4]).
 
+-export_type([connection_info/0]).
+
 -ignore_xref([open_socket/2, print_state/1,
               reopen_socket/2, start_link/2, stream_established/2,
               wait_before_retry/2, wait_for_auth_result/2,
               wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
               wait_for_stream/2, wait_for_validation/2]).
 
+-type verify_requester() :: false | {S2SIn :: pid(), Key :: ejabberd_s2s:s2s_dialback_key(), SID :: ejabberd_s2s:stream_id()}.
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
-                streamid,
-                remote_streamid = <<>>,
-                use_v10,
+                streamid                :: ejabberd_s2s:stream_id() | undefined,
+                remote_streamid = <<>>  :: ejabberd_s2s:stream_id(),
+                use_v10                 :: boolean(),
                 tls = false             :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_enabled = false     :: boolean(),
@@ -76,15 +80,36 @@
                 dialback_enabled = true :: boolean(),
                 try_auth = true         :: boolean(),
                 from_to                 :: ejabberd_s2s:fromto(),
-                myname, server, queue,
+                myname                  :: jid:lserver(),
+                server                  :: jid:lserver(),
+                queue                   :: element_queue(),
                 host_type               :: mongooseim:host_type(),
-                delay_to_retry = undefined_delay,
-                %% is_registered
+                delay_to_retry = undefined :: undefined | non_neg_integer(),
                 is_registered = false   :: boolean(),
-                verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
+                verify = false          :: verify_requester(),
                 timer                   :: reference()
               }).
 -type state() :: #state{}.
+
+-type connection_info() ::
+    #{pid => pid(),
+      direction => out,
+      statename => statename(),
+      addr => unknown | inet:ip_address(),
+      port => unknown | inet:port_number(),
+      streamid => ejabberd_s2s:stream_id() | undefined,
+      use_v10 => boolean(),
+      tls => boolean(),
+      tls_required => boolean(),
+      tls_enabled => boolean(),
+      tls_options => mongoose_tls:options(),
+      authenticated => boolean(),
+      dialback_enabled => boolean(),
+      try_auth => boolean(),
+      myname => jid:lserver(),
+      server => jid:lserver(),
+      delay_to_retry => undefined | non_neg_integer(),
+      verify => verify_requester()}.
 
 -type element_queue() :: queue:queue(#xmlel{}).
 -type statename() :: open_socket
@@ -588,53 +613,10 @@ stream_established(closed, StateData) ->
 handle_event(_Event, StateName, StateData) ->
     next_state(StateName, StateData).
 
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: The associated StateData for this connection
-%%   {reply, Reply, NextStateName, NextStateData}
-%%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
-%%----------------------------------------------------------------------
-handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {Addr, Port} = try mongoose_transport:peername(StateData#state.socket) of
-                       {ok, {A, P}} ->  {A, P}
-                   catch
-                       _:_ ->
-                           {unknown, unknown}
-                   end,
-    Infos = [
-             {direction, out},
-             {statename, StateName},
-             {addr, Addr},
-             {port, Port},
-             {streamid, StateData#state.streamid},
-             {use_v10, StateData#state.use_v10},
-             {tls, StateData#state.tls},
-             {tls_required, StateData#state.tls_required},
-             {tls_enabled, StateData#state.tls_enabled},
-             {tls_options, StateData#state.tls_options},
-             {authenticated, StateData#state.authenticated},
-             {dialback_enabled, StateData#state.dialback_enabled},
-             {try_auth, StateData#state.try_auth},
-             {myname, StateData#state.myname},
-             {server, StateData#state.server},
-             {delay_to_retry, StateData#state.delay_to_retry},
-             {verify, StateData#state.verify}
-            ],
-    Reply = {state_infos, Infos},
-    {reply, Reply, StateName, StateData};
-
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%%----------------------------------------------------------------------
+handle_sync_event(get_state_info, _From, StateName, StateData) ->
+    {reply, handle_get_state_info(StateName, StateData), StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
-    Reply = ok,
-    {reply, Reply, StateName, StateData, get_timeout_interval(StateName)}.
+    {reply, ok, StateName, StateData, get_timeout_interval(StateName)}.
 
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
@@ -1003,7 +985,7 @@ wait_before_reconnect(StateData) ->
     bounce_messages(E),
     cancel_timer(StateData#state.timer),
     Delay = case StateData#state.delay_to_retry of
-                undefined_delay ->
+                undefined ->
                     %% The initial delay is random between 1 and 15 seconds
                     %% Return a random integer between 1000 and 15000
                     MicroSecs = erlang:system_time(microsecond),
@@ -1150,3 +1132,30 @@ handle_parsed_features({_, _, _, StateData}) ->
     mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.
+
+handle_get_state_info(StateName, StateData) ->
+    {Addr, Port} = get_peername(StateData#state.socket),
+    #{pid => self(),
+      direction => out,
+      statename => StateName,
+      addr => Addr,
+      port => Port,
+      streamid => StateData#state.streamid,
+      use_v10 => StateData#state.use_v10,
+      tls => StateData#state.tls,
+      tls_required => StateData#state.tls_required,
+      tls_enabled => StateData#state.tls_enabled,
+      tls_options => StateData#state.tls_options,
+      authenticated => StateData#state.authenticated,
+      dialback_enabled => StateData#state.dialback_enabled,
+      try_auth => StateData#state.try_auth,
+      myname => StateData#state.myname,
+      server => StateData#state.server,
+      delay_to_retry => StateData#state.delay_to_retry,
+      verify => StateData#state.verify}.
+
+get_peername(undefined) ->
+    {unknown, unknown};
+get_peername(Socket) ->
+    {ok, {Addr, Port}} = mongoose_transport:peername(Socket),
+    {Addr, Port}.
