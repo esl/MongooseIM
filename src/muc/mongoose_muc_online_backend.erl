@@ -2,7 +2,8 @@
 
 -export([start/2,
          register_room/4,
-         room_destroyed/4]).
+         room_destroyed/4,
+         find_room_pid/3]).
 
 -define(MAIN_MODULE, mongoose_muc_online).
 
@@ -27,4 +28,8 @@ register_room(HostType, MucHost, Room, Pid) ->
 -spec room_destroyed(mongooseim:host_type(), jid:server(), mod_muc:room(), pid()) -> ok.
 room_destroyed(HostType, MucHost, Room, Pid) ->
     Args = [HostType, MucHost, Room, Pid],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+find_room_pid(HostType, MucHost, Room) ->
+    Args = [HostType, MucHost, Room],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

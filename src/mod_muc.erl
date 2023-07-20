@@ -646,16 +646,16 @@ route_to_room(_MucHost, <<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
 route_to_room(MucHost, Room, Routed, #muc_state{} = State) ->
-    case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
-        [] ->
+    HostType = State#muc_state.host_type,
+    case find_room_pid(HostType, MucHost, Room) of
+        {error, not_found} ->
             case get_registered_room_or_route_error(MucHost, Room, Routed, State) of
                 {ok, Pid} ->
                     route_to_online_room(Pid, Routed);
                 {route_error, _ErrText} ->
                     ok
             end;
-        [R] ->
-            Pid = R#muc_online_room.pid,
+        {ok, Pid} ->
             route_to_online_room(Pid, Routed)
     end.
 
@@ -924,13 +924,12 @@ register_room(HostType, MucHost, Room, Pid) ->
     mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid).
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
-room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
-    case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
-        [R] ->
-            {ok, R#muc_online_room.pid};
-        [] ->
-            {error, not_found}
-    end.
+room_jid_to_pid(#jid{luser = Room, lserver = MucHost}) ->
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
+    find_room_pid(HostType, MucHost, Room).
+
+find_room_pid(HostType, MucHost, Room) ->
+    mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->

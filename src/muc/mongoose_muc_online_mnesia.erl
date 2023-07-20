@@ -1,7 +1,8 @@
 -module(mongoose_muc_online_mnesia).
 -export([start/2,
          register_room/4,
-         room_destroyed/4]).
+         room_destroyed/4,
+         find_room_pid/3]).
 
 -include_lib("mod_muc.hrl").
 
@@ -35,8 +36,15 @@ room_destroyed(HostType, MucHost, Room, Pid) ->
     {atomic, ok} = mnesia:transaction(F),
     ok.
 
-
 simple_transaction_result({atomic, Res}) ->
     Res;
 simple_transaction_result({aborted, Reason}) ->
     {error, Reason}.
+
+find_room_pid(HostType, MucHost, Room) ->
+    case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
+        [R] ->
+            {ok, R#muc_online_room.pid};
+        [] ->
+            {error, not_found}
+    end.
