@@ -536,8 +536,8 @@ handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
-    clean_table_from_bad_node(Node),
+handle_info({mnesia_system_event, {mnesia_down, Node}}, #muc_state{host_type = HostType} = State) ->
+    clean_table_from_bad_node(Node, HostType),
     {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
             #muc_state{host_type = HostType,
@@ -1176,21 +1176,6 @@ get_persistent_vh_rooms(MucHost) ->
         {error, _} ->
             []
     end.
-
--spec clean_table_from_bad_node(node()) -> any().
-clean_table_from_bad_node(Node) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       muc_online_room,
-                       [{#muc_online_room{pid = '$1', _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
-
 
 -spec clean_table_from_bad_node(node(), host_type()) -> any().
 clean_table_from_bad_node(Node, HostType) ->
