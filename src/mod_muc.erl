@@ -445,7 +445,7 @@ get_nick(HostType, MucHost, From) ->
 init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    clean_table_from_bad_node(node(), HostType),
+    node_cleanup(HostType, node()),
     mnesia:subscribe(system),
     #{access := Access,
       access_create := AccessCreate,
@@ -537,7 +537,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({mnesia_system_event, {mnesia_down, Node}}, #muc_state{host_type = HostType} = State) ->
-    clean_table_from_bad_node(Node, HostType),
+    node_cleanup(HostType, Node),
     {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
             #muc_state{host_type = HostType,
@@ -1177,21 +1177,9 @@ get_persistent_vh_rooms(MucHost) ->
             []
     end.
 
--spec clean_table_from_bad_node(node(), host_type()) -> any().
-clean_table_from_bad_node(Node, HostType) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       muc_online_room,
-                       [{#muc_online_room{pid = '$1',
-                                          host_type = HostType,
-                                          _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
+-spec node_cleanup(host_type(), node()) -> ok.
+node_cleanup(HostType, Node) ->
+    mongoose_muc_online_backend:node_cleanup(HostType, Node).
 
 %%====================================================================
 %% Hooks handlers

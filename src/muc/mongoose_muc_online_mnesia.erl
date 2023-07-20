@@ -3,7 +3,8 @@
          register_room/4,
          room_destroyed/4,
          find_room_pid/3,
-         get_online_rooms/2]).
+         get_online_rooms/2,
+         node_cleanup/2]).
 
 -include_lib("mod_muc.hrl").
 
@@ -55,3 +56,19 @@ get_online_rooms(_HostType, MucHost) ->
                         [{#muc_online_room{name_host = '$1', _ = '_'},
                           [{'==', {element, 2, '$1'}, MucHost}],
                           ['$_']}]).
+
+node_cleanup(HostType, Node) ->
+    F = fun() ->
+                Es = mnesia:select(
+                       muc_online_room,
+                       [{#muc_online_room{pid = '$1',
+                                          host_type = HostType,
+                                          _ = '_'},
+                         [{'==', {node, '$1'}, Node}],
+                         ['$_']}]),
+                lists:foreach(fun(E) ->
+                                      mnesia:delete_object(E)
+                              end, Es)
+        end,
+    mnesia:async_dirty(F),
+    ok.
