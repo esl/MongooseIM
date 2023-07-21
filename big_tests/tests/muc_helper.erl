@@ -87,7 +87,7 @@ muc_host_pattern() ->
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
 
-muc_online_backend(Config) ->
+muc_online_backend(Config) when is_list(Config) ->
     ct_helper:get_preset_var(Config, muc_backend, mnesia).
 
 start_room(Config, User, Room, Nick, Opts) ->

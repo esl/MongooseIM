@@ -280,7 +280,7 @@ maybe_enable_mam() ->
 ensure_muc_started(Config) ->
     SecondaryHostType = domain_helper:secondary_host_type(),
     muc_helper:load_muc(Config),
-    muc_helper:load_muc(SecondaryHostType),
+    muc_helper:load_muc(Config, SecondaryHostType),
     mongoose_helper:ensure_muc_clean().
 
 ensure_muc_stopped() ->

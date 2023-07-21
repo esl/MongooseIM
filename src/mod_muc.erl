@@ -921,8 +921,12 @@ register_room(HostType, MucHost, Room, Pid) ->
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser = Room, lserver = MucHost}) ->
-    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
-    find_room_pid(HostType, MucHost, Room).
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            find_room_pid(HostType, MucHost, Room);
+        _ ->
+            {error, not_found}
+    end.
 
 find_room_pid(HostType, MucHost, Room) ->
     mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
