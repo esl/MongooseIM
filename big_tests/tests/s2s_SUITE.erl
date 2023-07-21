@@ -10,9 +10,11 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% Module aliases
 -define(dh, distributed_helper).
+-import(distributed_helper, [mim/0, rpc_spec/1, rpc/4]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -34,8 +36,9 @@ all() ->
      {group, node1_tls_optional_node2_tls_false},
 
      {group, node1_tls_false_node2_tls_required},
-     {group, node1_tls_required_node2_tls_false}
+     {group, node1_tls_required_node2_tls_false},
 
+     {group, dialback}
     ].
 
 groups() ->
@@ -57,16 +60,15 @@ groups() ->
      {node1_tls_optional_node2_tls_false, [], essentials()},
 
      {node1_tls_false_node2_tls_required, [], negative()},
-     {node1_tls_required_node2_tls_false, [], negative()}].
+     {node1_tls_required_node2_tls_false, [], negative()},
+     {dialback, [], [dialback_key_is_synchronized_on_different_nodes]}].
 
 essentials() ->
     [simple_message].
 
-metrics() -> 
-    [s2s_metrics_testing].
-
 all_tests() ->
-    [connections_info, nonexistent_user, unknown_domain, malformed_jid | essentials()].
+    [connections_info, nonexistent_user, unknown_domain, malformed_jid,
+     dialback_with_wrong_key | essentials()].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -84,7 +86,7 @@ connection_cases() ->
      auth_with_valid_cert_fails_for_other_mechanism_than_external].
 
 suite() ->
-    s2s_helper:suite(escalus:suite()).
+    distributed_helper:require_rpc_nodes([mim, mim2, fed]) ++ escalus:suite().
 
 users() ->
     [alice2, alice, bob].
@@ -103,6 +105,9 @@ end_per_suite(Config) ->
     escalus:delete_users(Config, escalus:get_users(users())),
     escalus:end_per_suite(Config).
 
+init_per_group(dialback, Config) ->
+    %% Tell mnesia that mim and mim2 nodes are clustered
+    distributed_helper:add_node_to_cluster(distributed_helper:mim2(), Config);
 init_per_group(GroupName, Config) ->
     s2s_helper:configure_s2s(GroupName, Config).
 
@@ -159,14 +164,12 @@ connections_info(Config) ->
     [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
     ok.
 
-get_s2s_connections(RPCSpec, Domain, Type)->
-    AllS2SConnections = ?dh:rpc(RPCSpec, ejabberd_s2s, get_info_s2s_connections, [Type]),
-    % ct:pal("Node = ~p, ConnectionType = ~p~nAllS2SConnections(~p): ~p",
-    %        [maps:get(node, RPCSpec), Type, length(AllS2SConnections), AllS2SConnections]),
+get_s2s_connections(RPCSpec, Domain, Type) ->
+    AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
     DomainS2SConnections = 
         [Connection || Connection <- AllS2SConnections,
-                       Type =/= in orelse [Domain] =:= proplists:get_value(domains, Connection),
-                       Type =/= out orelse Domain =:= proplists:get_value(server, Connection)],
+                       Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
+                       Type =/= out orelse Domain =:= maps:get(server, Connection)],
     ct:pal("Node = ~p,  ConnectionType = ~p, Domain = ~s~nDomainS2SConnections(~p): ~p",
            [maps:get(node, RPCSpec), Type, Domain, length(DomainS2SConnections),
             DomainS2SConnections]),
@@ -214,6 +217,23 @@ malformed_jid(Config) ->
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
 
     end).
+
+dialback_with_wrong_key(_Config) ->
+    HostType = domain_helper:host_type(mim),
+    MimDomain = domain_helper:domain(mim),
+    FedDomain = domain_helper:domain(fed),
+    FromTo = {MimDomain, FedDomain},
+    Key = <<"123456">>, %% wrong key
+    StreamId = <<"sdfdsferrr">>,
+    StartType = {verify, self(), Key, StreamId},
+    {ok, _} = rpc(rpc_spec(mim), ejabberd_s2s_out, start, [FromTo, StartType]),
+    receive
+        %% Remote server (fed1) rejected out request
+        {'$gen_event', {validity_from_s2s_out, false, FromTo}} ->
+            ok
+        after 5000 ->
+            ct:fail(timeout)
+    end.
 
 nonascii_addr(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob2, 1}], fun(Alice, Bob) ->
@@ -422,3 +442,29 @@ get_main_key_and_cert_files(Config) ->
 get_main_file_path(Config, File) ->
     filename:join([path_helper:repo_dir(Config),
                    "tools", "ssl", "mongooseim", File]).
+
+dialback_key_is_synchronized_on_different_nodes(_Config) ->
+    configure_secret_and_restart_s2s(mim),
+    configure_secret_and_restart_s2s(mim2),
+    Key1 = get_shared_secret(mim),
+    Key2 = get_shared_secret(mim2),
+    ?assertEqual(Key1, Key2),
+    %% Node 2 is restarted later, so both nodes should have the key.
+    ?assertEqual(Key2, {ok, <<"9e438f25e81cf347100b">>}).
+
+get_shared_secret(NodeKey) ->
+    HostType = domain_helper:host_type(mim),
+    rpc(rpc_spec(NodeKey), mongoose_s2s_backend, get_shared_secret, [HostType]).
+
+set_opt(Spec, Opt, Value) ->
+    rpc(Spec, mongoose_config, set_opt, [Opt, Value]).
+
+configure_secret_and_restart_s2s(NodeKey) ->
+    HostType = domain_helper:host_type(mim),
+    Spec = rpc_spec(NodeKey),
+    set_opt(Spec, [{s2s, HostType}, shared], shared_secret(NodeKey)),
+    ok = rpc(Spec, supervisor, terminate_child, [ejabberd_sup, ejabberd_s2s]),
+    {ok, _} = rpc(Spec, supervisor, restart_child, [ejabberd_sup, ejabberd_s2s]).
+
+shared_secret(mim) -> <<"f623e54a0741269be7dd">>; %% Some random key
+shared_secret(mim2) -> <<"9e438f25e81cf347100b">>.

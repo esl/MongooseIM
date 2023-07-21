@@ -142,7 +142,7 @@ According to RFC 6210, even when a client sends invalid data after opening a con
 These options can be used to configure the way MongooseIM manages user sessions.
 
 ### `general.sm_backend`
-* **Syntax:** string, `"mnesia"` or `"redis"`
+* **Syntax:** string, `"mnesia"`, `"cets"` or `"redis"`
 * **Default:** `"mnesia"`
 * **Example:** `sm_backend = "redis"`
 
@@ -156,6 +156,15 @@ See the section about [redis connection setup](./outgoing-connections.md#redis-s
 * **Example:** `replaced_wait_timeout = 5000`
 
 When a user's session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
+
+## XMPP federation (S2S)
+
+### `general.s2s_backend`
+* **Syntax:** string, `"mnesia"`, `"cets"`
+* **Default:** `"mnesia"`
+* **Example:** `s2s_backend = "cets"`
+
+Backend for replicating the list of outgoing Server to Server (S2S) connections across the nodes of the local MongooseIM cluster.
 
 ## Message routing
 

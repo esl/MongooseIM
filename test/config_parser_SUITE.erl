@@ -76,6 +76,7 @@ groups() ->
                             all_metrics_are_global,
                             sm_backend,
                             component_backend,
+                            s2s_backend,
                             max_fsm_queue,
                             http_server_name,
                             rdbms_server_type,
@@ -389,6 +390,12 @@ component_backend(_Config) ->
     ?cfg(component_backend, mnesia, #{<<"general">> => #{<<"component_backend">> => <<"mnesia">>}}),
     ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>}}),
     ?err(#{<<"general">> => #{<<"component_backend">> => <<"amnesia">>}}).
+
+s2s_backend(_Config) ->
+    ?cfg(s2s_backend, mnesia, #{}), % default
+    ?cfg(s2s_backend, mnesia, #{<<"general">> => #{<<"s2s_backend">> => <<"mnesia">>}}),
+    ?err(#{<<"general">> => #{<<"s2s_backend">> => <<"redis">>}}),
+    ?err(#{<<"general">> => #{<<"s2s_backend">> => <<"amnesia">>}}).
 
 max_fsm_queue(_Config) ->
     ?cfg(max_fsm_queue, 100, #{<<"general">> => #{<<"max_fsm_queue">> => 100}}),

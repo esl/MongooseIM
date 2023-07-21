@@ -29,7 +29,7 @@
 -behaviour(supervisor).
 
 -export([start_link/0, init/1]).
--export([start_child/1, stop_child/1]).
+-export([start_child/1, start_child/2, stop_child/1]).
 
 -include("mongoose_logger.hrl").
 
@@ -179,12 +179,18 @@ init([]) ->
            ShaperSup]}}.
 
 start_child(ChildSpec) ->
-    case supervisor:start_child(ejabberd_sup, ChildSpec) of
+    start_child(ejabberd_sup, ChildSpec).
+
+%% This function handles error results from supervisor:start_child
+%% It does some logging
+start_child(SupName, ChildSpec) ->
+    case supervisor:start_child(SupName, ChildSpec) of
         {ok, Pid} ->
             {ok, Pid};
         Other ->
             Stacktrace = element(2, erlang:process_info(self(), current_stacktrace)),
             ?LOG_ERROR(#{what => start_child_failed, spec => ChildSpec,
+                         supervisor_name => SupName,
                          reason => Other, stacktrace => Stacktrace}),
             erlang:error({start_child_failed, Other, ChildSpec})
     end.

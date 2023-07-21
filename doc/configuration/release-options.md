@@ -197,6 +197,13 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 * **Syntax:** string
 * **Example:** `{sm_backend, "\"redis\""}.`
 
+### s2s_backend
+
+* **Type:** parameter
+* **Option:** [`general.s2s_backend`](general.md#generals2s_backend)
+* **Syntax:** string
+* **Example:** `{s2s_backend, "\"mnesia\""}.`
+
 ### tls_config
 
 * **Type:** block
