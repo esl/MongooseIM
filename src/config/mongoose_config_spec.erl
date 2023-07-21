@@ -398,10 +398,13 @@ auth() ->
                       <<"sasl_mechanisms">> =>
                           #list{items = #option{type = atom,
                                                 validate = {module, cyrsasl},
-                                                process = fun ?MODULE:process_sasl_mechanism/1}}
+                                                process = fun ?MODULE:process_sasl_mechanism/1}},
+                      <<"max_users_per_domain">> => #option{type = int_or_infinity,
+                                                            validate = positive}
                      },
        defaults = #{<<"sasl_external">> => [standard],
-                    <<"sasl_mechanisms">> => cyrsasl:default_modules()},
+                    <<"sasl_mechanisms">> => cyrsasl:default_modules(),
+                    <<"max_users_per_domain">> => infinity},
        process = fun ?MODULE:process_auth/1,
        wrap = host_config
       }.

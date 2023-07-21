@@ -209,7 +209,7 @@ set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
     end.
 
 -spec try_register(jid:jid() | error, binary()) ->
-    ok | {error, exists | not_allowed | invalid_jid | null_password}.
+    ok | {error, exists | not_allowed | invalid_jid | null_password | limit_per_domain_exceeded}.
 try_register(_, <<>>) ->
     {error, null_password};
 try_register(#jid{luser = <<>>}, _) ->
@@ -221,7 +221,7 @@ try_register(JID, Password) ->
     do_try_register_if_does_not_exist(Exists, JID, Password).
 
 -spec do_try_register_if_does_not_exist(boolean(), jid:jid(), binary()) ->
-    ok | {error, exists | not_allowed | invalid_jid | null_password}.
+    ok | {error, exists | not_allowed | invalid_jid | null_password | limit_per_domain_exceeded}.
 do_try_register_if_does_not_exist(true, _, _) ->
     {error, exists};
 do_try_register_if_does_not_exist(_, JID, Password) ->
@@ -236,7 +236,12 @@ do_try_register_if_does_not_exist(_, JID, Password) ->
                 end
         end,
     Opts = #{default => {error, not_allowed}, metric => try_register},
-    call_auth_modules_for_domain(LServer, F, Opts).
+    case is_user_number_below_limit(LServer) of
+        true ->
+            call_auth_modules_for_domain(LServer, F, Opts);
+        false ->
+            {error, limit_per_domain_exceeded}
+    end.
 
 %% @doc Registered users list do not include anonymous users logged
 -spec get_vh_registered_users(Server :: jid:server()) -> [jid:simple_bare_jid()].
@@ -577,4 +582,14 @@ fold_auth_modules([AuthModule | AuthModules], F, CurAcc) ->
             fold_auth_modules(AuthModules, F, NewAcc);
         {stop, Value} ->
             Value
+    end.
+
+is_user_number_below_limit(Domain) ->
+    case mongoose_domain_api:get_domain_host_type(Domain) of
+        {ok, HostType} ->
+            Limit = mongoose_config:get_opt([{auth, HostType}, max_users_per_domain]),
+            Current = get_vh_registered_users_number(Domain),
+            Current < Limit;
+        {error, not_found} ->
+            true
     end.

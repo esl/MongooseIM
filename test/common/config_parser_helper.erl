@@ -690,7 +690,8 @@ default_auth() ->
       password => #{format => scram,
                     scram_iterations => 10000},
       sasl_external => [standard],
-      sasl_mechanisms => cyrsasl:default_modules()}.
+      sasl_mechanisms => cyrsasl:default_modules(),
+      max_users_per_domain => infinity}.
 
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},
