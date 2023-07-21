@@ -905,6 +905,7 @@ default_mod_config(mod_mam_muc_rdbms_arch) ->
       db_jid_format => mam_jid_rfc};
 default_mod_config(mod_muc) ->
     #{backend => mnesia,
+      online_backend => mnesia,
       host => {prefix,<<"conference.">>},
       access => all,
       access_create => all,
