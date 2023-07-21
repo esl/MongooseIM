@@ -683,7 +683,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                        default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
             ServerHost = make_server_host(To, State),
-            Result = start_new_room(HostType, ServerHost, MucHost, Access, Room,
+            Result = start_room(HostType, ServerHost, MucHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts, Acc),
             case Result of
@@ -701,11 +701,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
                     ejabberd_router:route(To, From, Acc1, Err),
-                    {route_error, ErrText};
-                _ ->
-                    %% Unknown error, most likely a room process failed to start.
-                    %% Do not notify user (we can send "internal server error").
-                    erlang:error({start_new_room_failed, Room, Result})
+                    {route_error, ErrText}
             end;
         {error, Reason} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
@@ -872,15 +868,13 @@ check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
             {error, no_matching_acl_rule}
     end.
 
--spec start_new_room(HostType :: host_type(), ServerHost :: jid:lserver(),
+-spec start_room(HostType :: host_type(), ServerHost :: jid:lserver(),
         MucHost :: muc_host(), Access :: access(), room(),
-        HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
+        HistorySize :: undefined | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
-        DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
-            -> {'error', _}
-             | {'ok', 'undefined' | pid()}
-             | {'ok', 'undefined' | pid(), _}.
-start_new_room(HostType, ServerHost, MucHost, Access, Room,
+        DefRoomOpts :: undefined | [any()], Acc :: mongoose_acc:t())
+            -> {error, {failed_to_restore, Reason :: term()}} | {ok, pid()}.
+start_room(HostType, ServerHost, MucHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts, Acc) ->
     case mod_muc_backend:restore_room(HostType, MucHost, Room) of

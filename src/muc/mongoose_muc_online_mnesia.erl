@@ -8,6 +8,7 @@
 
 -include_lib("mod_muc.hrl").
 
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, _Opts) ->
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
@@ -15,6 +16,11 @@ start(_HostType, _Opts) ->
     mnesia:add_table_copy(muc_online_room, node(), ram_copies),
     ok.
 
+-spec register_room(
+        HostType :: mongooseim:host_type(),
+        MucHost :: jid:lserver(),
+        Room :: mod_muc:room(),
+        Pid :: pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
     F = fun() ->
             case mnesia:read(muc_online_room,  {Room, MucHost}, write) of
