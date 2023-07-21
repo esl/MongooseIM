@@ -84,7 +84,7 @@
                 server                  :: jid:lserver(),
                 queue                   :: element_queue(),
                 host_type               :: mongooseim:host_type(),
-                delay_to_retry = undefined :: undefined | non_neg_integer(),
+                delay_to_retry          :: non_neg_integer() | undefined,
                 is_registered = false   :: boolean(),
                 verify = false          :: verify_requester(),
                 timer                   :: reference()
@@ -358,7 +358,9 @@ wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}
                          from_to => FromTo, stream_id => StreamID, is_valid => IsValid}),
             case StateData#state.verify of
                 false ->
-                    %% TODO: Should'nt we close the connection here ?
+                    %% This is unexpected condition.
+                    %% We've received step_3 reply, but there is no matching outgoing connection.
+                    %% We could close the connection here.
                     next_state(wait_for_validation, StateData);
                 {Pid, _Key, _SID} ->
                     ejabberd_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
