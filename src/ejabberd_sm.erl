@@ -134,7 +134,7 @@
 -spec start() -> {ok, pid()}.
 start() ->
     Spec = {?MODULE, {?MODULE, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
-    {ok, _} = ejabberd_sup:start_child(Spec).
+    {ok, _} = mongooseim_sup:start_child(Spec).
 
 -spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->

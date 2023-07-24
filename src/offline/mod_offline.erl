@@ -229,11 +229,11 @@ start_worker(HostType, AccessMaxOfflineMsgs) ->
     {Proc,
      {?MODULE, start_link, [Proc, HostType, AccessMaxOfflineMsgs]},
      permanent, 5000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 stop_worker(HostType) ->
     Proc = srv_name(HostType),
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 start_link(Name, HostType, AccessMaxOfflineMsgs) ->
     gen_server:start_link({local, Name}, ?MODULE, [HostType, AccessMaxOfflineMsgs], []).

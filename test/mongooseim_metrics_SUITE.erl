@@ -36,14 +36,14 @@ init_per_suite(C) ->
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
     {Port, Socket} = carbon_cache_server:start(),
     Sup = spawn(fun() ->
-        mim_ct_sup:start_link(ejabberd_sup),
+        mim_ct_sup:start_link(mongooseim_sup),
         Hooks = {gen_hook,
                  {gen_hook, start_link, []},
                  permanent,
                  brutal_kill,
                  worker,
                  [gen_hook]},
-        supervisor:start_child(ejabberd_sup, Hooks),
+        supervisor:start_child(mongooseim_sup, Hooks),
         receive
             stop ->
                 ok

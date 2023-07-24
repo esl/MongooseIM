@@ -73,7 +73,7 @@ do_start_new_cache(HostType, Module, Opts) ->
     Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [segmented_cache]},
-    {ok, _} = ejabberd_sup:start_child(Spec),
+    {ok, _} = mongooseim_sup:start_child(Spec),
     create_metrics(HostType, Module, CacheName),
     ok.
 
@@ -100,7 +100,7 @@ handle_telemetry_event([segmented_cache, CacheName, request, stop],
 -spec stop_cache(mongooseim:host_type(), module()) -> ok.
 stop_cache(HostType, Module) ->
     case gen_mod:get_module_opt(HostType, Module, module, internal) of
-        internal -> ok = ejabberd_sup:stop_child(cache_name(HostType, Module));
+        internal -> ok = mongooseim_sup:stop_child(cache_name(HostType, Module));
         _ConfiguredModule -> ok
     end.
 

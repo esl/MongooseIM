@@ -67,7 +67,7 @@ init_per_testcase(_CaseName, Config) ->
     set_meck(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     mongoose_domain_api:init(),
-    mim_ct_sup:start_link(ejabberd_sup),
+    mim_ct_sup:start_link(mongooseim_sup),
     gen_hook:start_link(),
     mongoose_modules:start(),
     Config.

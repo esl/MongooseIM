@@ -105,7 +105,7 @@ tcp_socket_supports_proxy_protocol(_C) ->
     end.
 
 listener_started(Opts) ->
-    mim_ct_sup:start_link(ejabberd_sup),
+    mim_ct_sup:start_link(mongooseim_sup),
     mongoose_listener_sup:start_link(),
     mongoose_listener:start_listener(maps:merge(listener_opts(), Opts)).
 

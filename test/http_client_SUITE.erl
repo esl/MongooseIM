@@ -34,7 +34,7 @@ init_per_suite(Config) ->
     Pid = self(),
     spawn(fun() ->
                   register(test_helper, self()),
-                  mim_ct_sup:start_link(ejabberd_sup),
+                  mim_ct_sup:start_link(mongooseim_sup),
                   mongoose_wpool:ensure_started(),
                   Pid ! ready,
                   receive stop -> ok end
@@ -52,7 +52,7 @@ process_request(Req) ->
 
 end_per_suite(_Config) ->
     http_helper:stop(),
-    exit(whereis(ejabberd_sup), shutdown),
+    exit(whereis(mongooseim_sup), shutdown),
     whereis(test_helper) ! stop.
 
 init_per_testcase(TC, Config) ->

@@ -281,7 +281,7 @@ start(Host, Opts) ->
                  transient, 1000, worker, [?MODULE]},
     ensure_metrics(Host),
     start_pool(Host, Opts),
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 start_pool(HostType, #{wpool := WpoolOpts}) ->
     {ok, _} = mongoose_wpool:start(generic, HostType, pubsub_notify, maps:to_list(WpoolOpts)).
@@ -290,7 +290,7 @@ stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     mongoose_wpool:stop(generic, Host, pubsub_notify),
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

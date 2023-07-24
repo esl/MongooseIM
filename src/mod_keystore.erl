@@ -135,7 +135,7 @@ create_keystore_ets() ->
         false ->
             BaseOpts = [named_table, public,
                         {read_concurrency, true}],
-            Opts = maybe_add_heir(whereis(ejabberd_sup), self(), BaseOpts),
+            Opts = maybe_add_heir(whereis(mongooseim_sup), self(), BaseOpts),
             ets:new(keystore, Opts),
             ok
     end.

@@ -75,12 +75,12 @@ start_pool(HostType, PoolId, PoolOpts) ->
                   start => {?MODULE, start_link, [HostType, PoolId, PoolOpts]},
                   restart => transient,
                   type => supervisor},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 -spec stop_pool(mongooseim:host_type(), pool_id()) -> ok.
 stop_pool(HostType, PoolId) ->
     ?LOG_INFO(#{what => async_pool_stopping, host_type => HostType, pool_id => PoolId}),
-    ejabberd_sup:stop_child(sup_name(HostType, PoolId)).
+    mongooseim_sup:stop_child(sup_name(HostType, PoolId)).
 
 -spec pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
 pool_name(HostType, PoolId) ->

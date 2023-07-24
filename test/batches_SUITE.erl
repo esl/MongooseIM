@@ -58,7 +58,7 @@ end_per_group(_, _Config) ->
 
 init_per_testcase(_TestCase, Config) ->
     pg:start_link(mim_scope),
-    mim_ct_sup:start_link(ejabberd_sup),
+    mim_ct_sup:start_link(mongooseim_sup),
     meck:new(gen_mod, [passthrough]),
     Config.
 
@@ -79,23 +79,23 @@ cache_config(Module) ->
 internal_starts_another_cache(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(internal)),
-    L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     ?assertEqual(2, length(L)).
 
 external_does_not_start_another_cache(_) ->
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
-    L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     ?assertEqual(1, length(L)).
 
 internal_stop_does_stop_the_cache(_) ->
     meck:expect(gen_mod, get_module_opt, fun(_, _, module, _) -> internal end),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(internal)),
-    L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     ct:pal("Value ~p~n", [L1]),
     mongoose_user_cache:stop_cache(host_type(), ?mod(2)),
-    L2 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L2 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     ct:pal("Value ~p~n", [L2]),
     ?assertNotEqual(L1, L2).
 
@@ -103,9 +103,9 @@ external_stop_does_nothing(_) ->
     meck:expect(gen_mod, get_module_opt, fun(_, _, module, _) -> ?mod(1) end),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
     mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
-    L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     mongoose_user_cache:stop_cache(host_type(), ?mod(2)),
-    L2 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
+    L2 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(mongooseim_sup)],
     ?assertEqual(L1, L2).
 
 shared_cache_inserts_in_shared_table(_) ->

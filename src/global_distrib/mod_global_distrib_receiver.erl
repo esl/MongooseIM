@@ -66,13 +66,13 @@ start(_HostType, _Opts) ->
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_CLOSED(undefined), spiral),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
-    ejabberd_sup:start_child(Child),
+    mongooseim_sup:start_child(Child),
     start_listeners().
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(_HostType) ->
     stop_listeners(),
-    ejabberd_sup:stop_child(mod_global_distrib_worker_sup).
+    mongooseim_sup:stop_child(mod_global_distrib_worker_sup).
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->

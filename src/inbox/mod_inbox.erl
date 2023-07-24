@@ -175,11 +175,11 @@ start_cleaner(HostType, #{bin_ttl := TTL, bin_clean_after := Interval}) ->
               opts => TTL, interval => Interval},
     MFA = {mongoose_collector, start_link, [Name, WOpts]},
     ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 stop_cleaner(HostType) ->
     Name = gen_mod:get_module_proc(HostType, ?MODULE),
-    ejabberd_sup:stop_child(Name).
+    mongooseim_sup:stop_child(Name).
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ

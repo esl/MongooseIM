@@ -54,7 +54,7 @@
                   segmented_cache
                  ]},
   {env, []},
-  {mod, {ejabberd_app, []}}]}.
+  {mod, {mongooseim_app, []}}]}.
 
 
 %% Local Variables:

@@ -98,11 +98,11 @@ start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  permanent, 1000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

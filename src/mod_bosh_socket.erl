@@ -123,7 +123,7 @@ start_supervisor() ->
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
-    case supervisor:start_child(ejabberd_sup, ChildSpec) of
+    case supervisor:start_child(mongooseim_sup, ChildSpec) of
         {ok, undefined} ->
             {error, undefined};
         {ok, Child} ->

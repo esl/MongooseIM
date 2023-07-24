@@ -147,7 +147,7 @@ start(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -155,7 +155,7 @@ stop(HostType) ->
     stop_iq_handlers(HostType),
     stop_backend(HostType),
     gen_server:call(Proc, stop),
-    ejabberd_sup:stop_child(Proc),
+    mongooseim_sup:stop_child(Proc),
     ok.
 
 supported_features() -> [dynamic_domains].

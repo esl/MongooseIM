@@ -61,11 +61,11 @@ verify_if_configured() ->
 -spec start(mongoose_service:options()) -> {ok, pid()}.
 start(Opts) ->
     Spec = {?MODULE, {?MODULE, start_link, [Opts]}, temporary, brutal_kill, worker, [?MODULE]},
-    {ok, _} = ejabberd_sup:start_child(Spec).
+    {ok, _} = mongooseim_sup:start_child(Spec).
 
 -spec stop() -> ok.
 stop() ->
-    ejabberd_sup:stop_child(?MODULE).
+    mongooseim_sup:stop_child(?MODULE).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

@@ -85,12 +85,12 @@ log_error(_Function, _Error) -> ok.
 start() ->
     ChildSpec = {?MODULE, {?MODULE, start_link, []},
                  permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
+    just_ok(supervisor:start_child(mongooseim_sup, ChildSpec)).
 
 %% required for integration tests
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(mongooseim_sup, ?MODULE),
+    supervisor:delete_child(mongooseim_sup, ?MODULE),
     ok.
 
 -endif.

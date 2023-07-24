@@ -47,11 +47,11 @@ start(_HostType, _Opts) ->
     QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(_HostType) ->
-    ejabberd_sup:stop_child(?MODULE),
+    mongooseim_sup:stop_child(?MODULE),
     ets:delete(?MS_BY_TARGET),
     ets:delete(?MESSAGE_STORE).
 

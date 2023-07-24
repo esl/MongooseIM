@@ -72,7 +72,7 @@ init_per_suite(Config) ->
     % so will supervisor and children and ETS tables
     mim_ct_rest:do(
       fun() ->
-              mim_ct_sup:start_link(ejabberd_sup),
+              mim_ct_sup:start_link(mongooseim_sup),
               mongoose_wpool:ensure_started(),
               % This would be started via outgoing_pools in normal case
               Pool = config([outgoing_pools, http, auth], pool_opts()),

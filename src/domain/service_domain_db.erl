@@ -5,7 +5,7 @@
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
 
-%% Use a separate pg scope, which is started by ejabberd_sup
+%% Use a separate pg scope, which is started by mongooseim_sup
 %% This prevents a bug when a default pg server is not running
 -define(SCOPE, mim_scope).
 -define(GROUP, service_domain_db_group).
@@ -34,17 +34,17 @@ start(Opts) ->
         {?MODULE,
          {?MODULE, start_link, []},
          permanent, infinity, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec),
+    supervisor:start_child(mongooseim_sup, ChildSpec),
     mongoose_domain_db_cleaner:start(Opts),
     ok.
 
 -spec stop() -> ok.
 stop() ->
     mongoose_domain_db_cleaner:stop(),
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
-    supervisor:terminate_child(ejabberd_sup, domain_pg),
-    supervisor:delete_child(ejabberd_sup, domain_pg),
+    supervisor:terminate_child(mongooseim_sup, ?MODULE),
+    supervisor:delete_child(mongooseim_sup, ?MODULE),
+    supervisor:terminate_child(mongooseim_sup, domain_pg),
+    supervisor:delete_child(mongooseim_sup, domain_pg),
     ok.
 
 restart() ->

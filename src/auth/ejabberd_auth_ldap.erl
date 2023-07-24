@@ -90,14 +90,14 @@ start(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType]},
                  transient, 1000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec),
+    mongooseim_sup:start_child(ChildSpec),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(Proc, stop),
-    ejabberd_sup:stop_child(Proc),
+    mongooseim_sup:stop_child(Proc),
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().

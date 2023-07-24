@@ -157,8 +157,8 @@ start_outgoing_conns_sup() ->
       type => supervisor,
       modules => [ConnsSup]
      },
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 stop_outgoing_conns_sup() ->
     ConnsSup = mod_global_distrib_outgoing_conns_sup,
-    ejabberd_sup:stop_child(ConnsSup).
+    mongooseim_sup:stop_child(ConnsSup).

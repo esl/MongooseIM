@@ -112,7 +112,7 @@ create_ets(Names, Type) when is_list(Names) ->
     [create_ets(Name, Type) || Name <- Names];
 create_ets(Name, Type) ->
     Self = self(),
-    Heir = case whereis(ejabberd_sup) of
+    Heir = case whereis(mongooseim_sup) of
                undefined -> {heir, none};
                Self -> {heir, none};
                Pid -> {heir, Pid, testing}

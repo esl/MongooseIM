@@ -58,7 +58,7 @@ init_per_testcase(codec_calls, Config) ->
     {ok, _} = application:ensure_all_started(exometer_core),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
-    mim_ct_sup:start_link(ejabberd_sup),
+    mim_ct_sup:start_link(mongooseim_sup),
     mongoose_modules:start(),
     ets:new(testcalls, [named_table]),
     ets:insert(testcalls, {hooks, 0}),

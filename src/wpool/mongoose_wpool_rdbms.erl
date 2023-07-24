@@ -11,7 +11,7 @@
 init() ->
     case ets:info(prepared_statements) of
         undefined ->
-            Heir = case whereis(ejabberd_sup) of
+            Heir = case whereis(mongooseim_sup) of
                        undefined -> [];
                        Pid -> [{heir, Pid, undefined}]
                    end,

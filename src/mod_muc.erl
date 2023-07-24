@@ -191,7 +191,7 @@ start_server(HostType, Opts) ->
          1000,
          worker,
          [?MODULE]},
-    {ok, _} = ejabberd_sup:start_child(ChildSpec).
+    {ok, _} = mongooseim_sup:start_child(ChildSpec).
 
 assert_server_running(HostType) ->
     true = is_pid(whereis(gen_mod:get_module_proc(HostType, ?PROCNAME))).
@@ -358,7 +358,7 @@ stop_gen_server(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:call(Proc, stop),
     %% Proc can still be alive because of a race condition
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 %% @doc This function is called by a room in three situations:
 %% A) The owner of the room destroyed it
@@ -610,7 +610,7 @@ code_change(_OldVsn, State, _Extra) ->
                                            | {ok, undefined | pid(), _}.
 start_supervisor(HostType) ->
     ChildSpec = sup_spec(HostType),
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 sup_spec(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
@@ -625,7 +625,7 @@ sup_spec(HostType) ->
     when Reason :: not_found | restarting | running | simple_one_for_one.
 stop_supervisor(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 -spec process_packet(Acc :: mongoose_acc:t(),
                      From :: jid:jid(),

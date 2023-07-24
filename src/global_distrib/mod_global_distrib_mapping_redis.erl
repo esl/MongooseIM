@@ -50,12 +50,12 @@ start(#{redis := #{refresh_after := RefreshAfter}}) ->
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
                  permanent, 1000, supervisor, [?MODULE]},
-    ejabberd_sup:start_child(Refresher),
+    mongooseim_sup:start_child(Refresher),
     ok.
 
 -spec stop() -> ok.
 stop() ->
-    lists:foreach(fun(Id) -> ejabberd_sup:stop_child(Id) end,
+    lists:foreach(fun(Id) -> mongooseim_sup:stop_child(Id) end,
                   [?MODULE, mod_global_distrib_redis_refresher]),
     [ets:delete(Tab) || Tab <- [?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]],
     ok.

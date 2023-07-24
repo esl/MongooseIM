@@ -113,14 +113,14 @@ start(Host, Opts) ->
          1000,
          worker,
          [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 -spec stop(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
-    ejabberd_sup:stop_child(Proc).
+    mongooseim_sup:stop_child(Proc).
 
 -spec supported_features() -> [atom()].
 supported_features() ->

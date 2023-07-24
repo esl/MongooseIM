@@ -122,7 +122,7 @@ start_cleaner(HostType, #{repeat_after := Interval, geriatric := TTL}) ->
     MFA = {mongoose_collector, start_link, [Name, WOpts]},
     ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
     %% TODO cleaner should be a service
-    ejabberd_sup:start_child(ChildSpec).
+    mongooseim_sup:start_child(ChildSpec).
 
 clear_table(_HostType, GeriatricAge) ->
     TimeToDie = erlang:monotonic_time(second) - GeriatricAge,
