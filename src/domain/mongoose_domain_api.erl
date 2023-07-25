@@ -4,9 +4,10 @@
 
 -include("mongoose_logger.hrl").
 
--export([init/0,
-         stop/0,
-         get_host_type/1]).
+-ifdef(TEST).
+-export([init/0]).
+-endif.
+-export([stop/0, get_host_type/1]).
 
 %% external domain API for GraphQL or REST handlers
 -export([insert_domain/2,
@@ -66,11 +67,13 @@
 
 -export_type([status/0, remove_domain_acc/0]).
 
+-ifdef(TEST).
 -spec init() -> ok | {error, term()}.
 init() ->
-    mongoose_domain_core:start(),
-    mongoose_subdomain_core:start(),
-    mongoose_lazy_routing:start().
+    mongoose_domain_core:start_link(),
+    mongoose_subdomain_core:start_link(),
+    mongoose_lazy_routing:start_link().
+-endif.
 
 %% Stops gen_servers, that are started from init/0
 %% Does not fail, even if servers are already stopped

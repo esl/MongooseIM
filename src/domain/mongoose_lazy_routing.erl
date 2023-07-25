@@ -43,7 +43,7 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([start_link/0, stop/0, sync/0]).
+-ignore_xref([start_link/0, start/0, stop/0, sync/0]).
 
 -define(IQ_TABLE, mongoose_lazy_routing_iqs).
 -define(ROUTING_TABLE, mongoose_lazy_routing).
@@ -80,12 +80,12 @@ stop() ->
 start() ->
     ChildSpec = {?MODULE, {?MODULE, start_link, []},
                  permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(mongooseim_sup, ChildSpec)).
+    just_ok(supervisor:start_child(mongoose_domain_sup, ChildSpec)).
 
 %% required for integration tests
 stop() ->
-    supervisor:terminate_child(mongooseim_sup, ?MODULE),
-    supervisor:delete_child(mongooseim_sup, ?MODULE),
+    supervisor:terminate_child(mongoose_domain_sup, ?MODULE),
+    supervisor:delete_child(mongoose_domain_sup, ?MODULE),
     ok.
 
 -endif.

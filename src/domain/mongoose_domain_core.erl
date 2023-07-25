@@ -9,7 +9,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -export([start/0, start/2, stop/0]).
--export([start_link/2]).
+-export([start_link/0, start_link/2]).
 -export([get_host_type/1]).
 -export([is_static/1]).
 
@@ -34,7 +34,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--ignore_xref([get_start_args/0, start_link/2, start/2, stop/0]).
+-ignore_xref([get_start_args/0, start_link/0, start_link/2, start/0, start/2, stop/0]).
 
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
@@ -64,15 +64,20 @@ start(Pairs, AllowedHostTypes) ->
         {?MODULE,
          {?MODULE, start_link, [Pairs, AllowedHostTypes]},
          permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(mongooseim_sup, ChildSpec)).
+    just_ok(supervisor:start_child(mongoose_domain_sup, ChildSpec)).
 
 %% required for integration tests
 stop() ->
-    supervisor:terminate_child(mongooseim_sup, ?MODULE),
-    supervisor:delete_child(mongooseim_sup, ?MODULE),
+    supervisor:terminate_child(mongoose_domain_sup, ?MODULE),
+    supervisor:delete_child(mongoose_domain_sup, ?MODULE),
     ok.
 
 -endif.
+
+start_link() ->
+    Pairs = get_static_pairs(),
+    AllowedHostTypes = mongoose_config:get_opt(host_types),
+    start_link(Pairs, AllowedHostTypes).
 
 start_link(Pairs, AllowedHostTypes) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).

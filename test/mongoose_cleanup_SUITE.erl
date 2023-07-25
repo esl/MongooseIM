@@ -36,7 +36,7 @@ init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
-    mongoose_domain_api:init(),
+    spawn(fun() -> mongoose_domain_api:init() end),
     Config.
 
 end_per_suite(Config) ->
