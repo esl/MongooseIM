@@ -27,12 +27,14 @@
 -author('alexey@process-one.net').
 -export([start/0,
          stop/0,
-         get_pid_file/0,
-         get_status_file/0,
-         get_so_path/0,
-         get_bin_path/0]).
+         write_pid_file/0,
+         update_status_file/1,
+         delete_pid_file/0,
+         get_so_path/0]).
 
--ignore_xref([get_bin_path/0, stop/0]).
+-ignore_xref([start/0, stop/0]).
+
+-include("mongoose.hrl").
 
 -type lang() :: binary().
 
@@ -44,15 +46,53 @@
                           | {'xmlstreamerror', _}
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
--export_type([lang/0,
-              xml_stream_item/0
-             ]).
+-export_type([lang/0, xml_stream_item/0]).
 
 start() ->
-    application:ensure_all_started(mongooseim).
+    mongooseim:start().
 
 stop() ->
-    application:stop(mongooseim).
+    mongooseim:stop().
+
+-spec write_pid_file() -> 'ok' | {'error', atom()}.
+write_pid_file() ->
+    case get_pid_file() of
+        false ->
+            ok;
+        PidFilename ->
+            write_pid_file(os:getpid(), PidFilename)
+    end.
+
+-spec write_pid_file(Pid :: string(), PidFilename :: nonempty_string()) ->
+    'ok' | {'error', atom()}.
+write_pid_file(Pid, PidFilename) ->
+    case file:open(PidFilename, [write]) of
+        {ok, Fd} ->
+            io:format(Fd, "~s~n", [Pid]),
+            file:close(Fd);
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => cannot_write_to_pid_file,
+                         pid_file => PidFilename, reason => Reason}),
+            throw({cannot_write_pid_file, PidFilename, Reason})
+    end.
+
+-spec update_status_file(term()) -> 'ok' | {'error', atom()}.
+update_status_file(Status) ->
+    case get_status_file() of
+        false ->
+            ok;
+        StatusFilename ->
+            file:write_file(StatusFilename, atom_to_list(Status))
+    end.
+
+-spec delete_pid_file() -> 'ok' | {'error', atom()}.
+delete_pid_file() ->
+    case get_pid_file() of
+        false ->
+            ok;
+        PidFilename ->
+            file:delete(PidFilename)
+    end.
 
 -spec get_so_path() -> binary() | string().
 get_so_path() ->
@@ -63,20 +103,6 @@ get_so_path() ->
                     ".";
                 Path ->
                     filename:join([Path, "lib"])
-            end;
-        Path ->
-            Path
-    end.
-
--spec get_bin_path() -> binary() | string().
-get_bin_path() ->
-    case os:getenv("EJABBERD_BIN_PATH") of
-        false ->
-            case code:priv_dir(ejabberd) of
-                {error, _} ->
-                    ".";
-                Path ->
-                    filename:join([Path, "bin"])
             end;
         Path ->
             Path
