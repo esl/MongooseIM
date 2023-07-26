@@ -10,25 +10,39 @@
 %%%-------------------------------------------------------------------
 -module(xmpp_router).
 
--callback route(From :: jid:jid(), To :: jid:jid(),
-                Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    {done, mongoose_acc:t()} | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
+-define(ARGS, From :: jid:jid(),
+              To :: jid:jid(),
+              Acc :: mongoose_acc:t(),
+              Packet :: exml:element()).
+-record(router_handler, {
+          filter :: filter_fun(),
+          route :: route_fun()
+         }).
+-type t() :: #router_handler{}.
+-type filter_fun() :: fun((?ARGS) -> drop | filter()).
+-type route_fun() :: fun((?ARGS) -> {done, mongoose_acc:t()} | filter()).
+-type filter() :: {?ARGS}.
+-export_type([filter/0, t/0]).
 
--callback filter(From :: jid:jid(), To :: jid:jid(),
-    Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
+-callback route(?ARGS) -> {done, mongoose_acc:t()} | filter().
+-callback filter(?ARGS) -> drop | filter().
 
-
+-export([expand_routing_modules/1]).
 -export([call_route/5, call_filter/5]).
 
--spec call_route(Module :: module(), From :: jid:jid(),
+-spec call_route(Handler :: t(), From :: jid:jid(),
     To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    {done, mongoose_acc:t()} | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
-call_route(Module, From, To, Acc, Packet) ->
-    Module:route(From, To, Acc, Packet).
+    {done, mongoose_acc:t()} | filter().
+call_route(#router_handler{route = Route}, From, To, Acc, Packet) ->
+    Route(From, To, Acc, Packet).
 
--spec call_filter(Module :: module(), From :: jid:jid(),
-    To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
-call_filter(Module, From, To, Acc, Packet) ->
-    Module:filter(From, To, Acc, Packet).
+-spec call_filter(Handler :: t(), From :: jid:jid(),
+    To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) -> drop | filter().
+call_filter(#router_handler{filter = Filter}, From, To, Acc, Packet) ->
+    Filter(From, To, Acc, Packet).
+
+-spec expand_routing_modules([module()]) -> [t()].
+expand_routing_modules(ModuleList) ->
+    [ #router_handler{filter = fun Module:filter/4,
+                      route = fun Module:route/4}
+      || Module <- ModuleList ].

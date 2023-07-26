@@ -118,7 +118,7 @@ route(From, To, #xmlel{} = Packet) ->
 route(From, To, Acc) ->
     ?LOG_DEBUG(#{what => route, acc => Acc}),
     El = mongoose_acc:element(Acc),
-    RoutingModules = routing_modules_list(),
+    RoutingModules = mongoose_router:routing_modules_list(),
     NewAcc = route(From, To, Acc, El, RoutingModules),
     ?LOG_DEBUG(#{what => routing_result,
                  routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
@@ -137,7 +137,7 @@ route(From, To, Acc, El) ->
                                          to_jid => To,
                                          element => El }, Acc),
     ?LOG_DEBUG(#{what => route, acc => Acc1}),
-    RoutingModules = routing_modules_list(),
+    RoutingModules = mongoose_router:routing_modules_list(),
     NewAcc = route(From, To, Acc1, El, RoutingModules),
     ?LOG_DEBUG(#{what => routing_result,
                  routing_result => mongoose_acc:get(router, result, {drop, undefined}, NewAcc),
@@ -375,14 +375,11 @@ code_change(_OldVsn, State, _Extra) ->
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:routes_cleanup_on_nodedown/3, #{}, 90}].
 
-routing_modules_list() ->
-    mongoose_config:get_opt(routing_modules).
-
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
             Acc    :: mongoose_acc:t(),
             Packet :: exml:element(),
-            [module()]) -> mongoose_acc:t().
+            [xmpp_router:t()]) -> mongoose_acc:t().
 route(_From, _To, Acc, _Packet, []) ->
     ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc}),
     mongoose_metrics:update(global, routingErrors, 1),

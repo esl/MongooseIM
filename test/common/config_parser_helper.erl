@@ -80,7 +80,7 @@ options("miscellaneous") ->
      {rdbms_server_type, mssql},
      {registration_timeout, 600},
      {routing_modules,
-      [mongoose_router_global, mongoose_router_localdomain]},
+      xmpp_router:expand_routing_modules([mongoose_router_global, mongoose_router_localdomain])},
      {services,
       #{service_mongoose_system_metrics => #{initial_report => 20000,
                                              periodic_report => 300000,
