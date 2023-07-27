@@ -186,6 +186,7 @@ general() ->
                                                            wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
+                                                process = fun xmpp_router:expand_routing_modules/1,
                                                 wrap = global_config},
                  <<"replaced_wait_timeout">> => #option{type = integer,
                                                         validate = positive,

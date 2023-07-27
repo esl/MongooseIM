@@ -415,7 +415,8 @@ mongooseimctl_access_commands(_Config) ->
 
 routing_modules(_Config) ->
     ?cfg(routing_modules, mongoose_router:default_routing_modules(), #{}), % default
-    ?cfg(routing_modules, [mongoose_router_global, mongoose_router_localdomain],
+    ?cfg(routing_modules,
+         xmpp_router:expand_routing_modules([mongoose_router_global, mongoose_router_localdomain]),
          #{<<"general">> => #{<<"routing_modules">> => [<<"mongoose_router_global">>,
                                                         <<"mongoose_router_localdomain">>]}}),
     ?err(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}}).

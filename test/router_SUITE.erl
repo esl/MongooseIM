@@ -42,7 +42,8 @@ end_per_suite(_C) ->
     ok.
 
 init_per_group(routing, Config) ->
-    mongoose_config:set_opt(routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]),
+    RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
+    mongoose_config:set_opt(routing_modules, xmpp_router:expand_routing_modules(RoutingModules)),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config;
