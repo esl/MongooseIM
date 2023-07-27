@@ -227,7 +227,7 @@ run_hook([Handler | Ls], Acc, Params, Key) ->
     hook_fn_ret() | safely:exception().
 apply_hook_function(#hook_handler{hook_fn = HookFn, extra = Extra},
                     Acc, Params) ->
-    safely:apply(HookFn, [Acc, Params, Extra]).
+    ?APPLY_SAFELY(HookFn(Acc, Params, Extra)).
 
 error_running_hook(Info, Handler, Acc, Params, Key) ->
     ?LOG_ERROR(Info#{what => hook_failed,

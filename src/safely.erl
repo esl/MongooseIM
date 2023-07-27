@@ -7,12 +7,14 @@
 %% If it is an error, we want the stacktrace, if not, we don't.
 %% For more information, see usage in test/safely_SUITE.erl
 
+-include("mongoose.hrl").
 -include_lib("kernel/include/logger.hrl").
 
+-ifdef(TEST).
 -export([apply/2, apply/3]).
+-endif.
 -export([apply_and_log/3, apply_and_log/4]).
--compile({no_auto_import, [apply/2, apply/3]}).
--ignore_xref([apply/3, apply_and_log/4]).
+-ignore_xref([apply_and_log/4]).
 
 -type error_class() :: error | exit | throw.
 -type error_info() :: #{class => error_class(), reason => term(), stacktrace => [term()]}.
@@ -35,20 +37,15 @@
                 {exception, Info}
         end).
 
--define(MATCH_EXCEPTIONS(F),
-        try F catch
-            error:R:S -> {exception, #{class => error, reason => R, stacktrace => S}};
-            throw:R -> {exception, #{class => throw, reason => R}};
-            exit:R:S -> {exception, #{class => exit, reason => R, stacktrace => S}}
-        end).
-
+-ifdef(TEST).
 -spec apply(fun((...) -> A), [term()]) -> A | exception().
 apply(Function, Args) when is_function(Function), is_list(Args) ->
-    ?MATCH_EXCEPTIONS(erlang:apply(Function, Args)).
+    ?APPLY_SAFELY(erlang:apply(Function, Args)).
 
 -spec apply(atom(), atom(), [term()]) -> term() | exception().
 apply(Module, Function, Args) when is_atom(Function), is_list(Args) ->
-    ?MATCH_EXCEPTIONS(erlang:apply(Module, Function, Args)).
+    ?APPLY_SAFELY(erlang:apply(Module, Function, Args)).
+-endif.
 
 -spec apply_and_log(fun((...) -> A), [term()], map()) -> A | exception().
 apply_and_log(Function, Args, Context)

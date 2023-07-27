@@ -31,6 +31,13 @@
 
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
 
+-define(APPLY_SAFELY(F),
+        try F catch
+            error:R:S -> {exception, #{class => error, reason => R, stacktrace => S}};
+            throw:R -> {exception, #{class => throw, reason => R}};
+            exit:R:S -> {exception, #{class => exit, reason => R, stacktrace => S}}
+        end).
+
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").
