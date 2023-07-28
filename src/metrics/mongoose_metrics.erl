@@ -65,10 +65,7 @@
 init() ->
     prepare_prefixes(),
     create_global_metrics(),
-    lists:foreach(
-        fun(HostType) ->
-            init_predefined_host_type_metrics(HostType)
-        end, ?ALL_HOST_TYPES),
+    lists:foreach(fun init_predefined_host_type_metrics/1, ?ALL_HOST_TYPES),
     init_subscriptions().
 
 create_global_metrics() ->
