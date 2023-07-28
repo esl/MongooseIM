@@ -68,9 +68,6 @@
          {clusterSize,
           {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
            tagged, [value]}},
-         ?PROBE(totalSessionCount, mongoose_metrics_probe_total_sessions),
-         ?PROBE(uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
-         ?PROBE(nodeSessionCount, mongoose_metrics_probe_node_sessions),
          ?PROBE(tcpPortsUsed, mongoose_metrics_probe_tcp),
          ?PROBE(processQueueLengths, mongoose_metrics_probe_queues)
         ]

@@ -21,6 +21,7 @@
 %% API
 -export([init/0,
          create_generic_hook_metric/2,
+         create_probe_metric/3,
          ensure_db_pool_metric/1,
          update/3,
          ensure_metric/3,
@@ -96,6 +97,12 @@ init_subscriptions() ->
 create_generic_hook_metric(HostType, Hook) ->
     UseOrSkip = filter_hook(Hook),
     do_create_generic_hook_metric(HostType, Hook, UseOrSkip).
+
+-spec create_probe_metric(mongooseim:host_type_or_global(), atom(), module()) ->
+    ok | {ok, already_present} | {error, any()}.
+create_probe_metric(HostType, Name, Module) ->
+    {Metric, Spec} = ?PROBE(Name, Module),
+    ensure_metric(HostType, Metric, Spec).
 
 % TODO: change to HostType after mongoose_wpool_rdbms
 ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
