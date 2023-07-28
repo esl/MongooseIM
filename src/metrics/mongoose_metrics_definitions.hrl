@@ -65,11 +65,15 @@
         [{nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
            tagged, [value]}},
-         {clusterSize,
-          {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
-           tagged, [value]}},
          ?PROBE(tcpPortsUsed, mongoose_metrics_probe_tcp),
          ?PROBE(processQueueLengths, mongoose_metrics_probe_queues)
+        ]
+).
+
+-define(MNESIA_COUNTERS,
+        [{clusterSize,
+          {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
+           tagged, [value]}}
         ]
 ).
 

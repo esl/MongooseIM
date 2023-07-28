@@ -20,6 +20,7 @@
 
 %% API
 -export([init/0,
+         init_mongooseim_metrics/0,
          create_generic_hook_metric/2,
          create_probe_metric/3,
          ensure_db_pool_metric/1,
@@ -65,24 +66,16 @@
 -spec init() -> ok.
 init() ->
     prepare_prefixes(),
-    create_global_metrics(),
-    lists:foreach(fun init_predefined_host_type_metrics/1, ?ALL_HOST_TYPES),
+    create_vm_metrics(),
+    create_global_metrics(?GLOBAL_COUNTERS),
+    create_data_metrics(),
+    create_host_type_metrics(),
     init_subscriptions().
 
-create_global_metrics() ->
-    lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
-        FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
-        catch ensure_metric(global, Metric, FunSpecTuple)
-    end, ?VM_STATS),
-    lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end,
-                  ?GLOBAL_COUNTERS),
-    create_data_metrics().
-
--spec init_predefined_host_type_metrics(mongooseim:host_type()) -> ok.
-init_predefined_host_type_metrics(HostType) ->
-    create_metrics(HostType),
-    Hooks = mongoose_metrics_hooks:get_hooks(HostType),
-    gen_hook:add_handlers(Hooks).
+-spec init_mongooseim_metrics() -> ok.
+init_mongooseim_metrics() ->
+    create_host_type_hook_metrics(),
+    create_global_metrics(?MNESIA_COUNTERS).
 
 init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
@@ -397,11 +390,33 @@ filter_hook(mam_muc_flush_messages) -> skip;
 
 filter_hook(_) -> use.
 
--spec create_metrics(mongooseim:host_type()) -> 'ok'.
-create_metrics(HostType) ->
+create_global_metrics(Metrics) ->
+    lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end, Metrics).
+
+create_vm_metrics() ->
+    lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
+                          FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
+                          catch ensure_metric(global, Metric, FunSpecTuple)
+                  end, ?VM_STATS).
+
+-spec create_host_type_metrics() -> ok.
+create_host_type_metrics() ->
+    lists:foreach(fun create_host_type_metrics/1, ?ALL_HOST_TYPES).
+
+-spec create_host_type_metrics(mongooseim:host_type()) -> 'ok'.
+create_host_type_metrics(HostType) ->
     lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS),
     lists:foreach(fun(Name) -> ensure_metric(HostType, Name, histogram) end, ?GENERAL_HISTOGRAMS),
     lists:foreach(fun(Name) -> ensure_metric(HostType, Name, counter) end, ?TOTAL_COUNTERS).
+
+-spec create_host_type_hook_metrics() -> ok.
+create_host_type_hook_metrics() ->
+    lists:foreach(fun create_host_type_hook_metrics/1, ?ALL_HOST_TYPES).
+
+-spec create_host_type_hook_metrics(mongooseim:host_type()) -> 'ok'.
+create_host_type_hook_metrics(HostType) ->
+    Hooks = mongoose_metrics_hooks:get_hooks(HostType),
+    gen_hook:add_handlers(Hooks).
 
 ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(HostType, [Metric], Type, ShortType);
