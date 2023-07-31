@@ -45,17 +45,23 @@ handle_conflict(_Rec1, Rec2) ->
         Room :: mod_muc:room(),
         Pid :: pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
+    register_room(HostType, MucHost, Room, Pid, 3).
+
+register_room(_HostType, _MucHost, _Room, _Pid, 0) ->
+    {error, failed_to_register};
+register_room(HostType, MucHost, Room, Pid, Retries) ->
     Tab = table_name(HostType),
     Rec = {{MucHost, Room}, Pid},
     case find_room_pid(HostType, MucHost, Room) of
-        %% Race condition is possible
-        %% TODO use cets:insert_new/2 once available
-        %% Otherwise cets:insert could overwrite an existing registration
         {ok, OtherPid} ->
             {exists, OtherPid};
         {error, not_found} ->
-            cets:insert(Tab, Rec),
-            ok
+            case cets:insert_new(Tab, Rec) of
+                true ->
+                    ok;
+                false ->
+                     register_room(HostType, MucHost, Room, Pid, Retries - 1)
+            end
     end.
 
 %% Race condition is possible between register and room_destroyed
