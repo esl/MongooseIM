@@ -316,7 +316,7 @@ end_per_testcase(CN, Config) when
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
                                   CN =:= remove_inbox_muc ->
-    muc_helper:unload_muc(Config),
+    muc_helper:unload_muc(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
     escalus_fresh:clean(),
