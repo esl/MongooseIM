@@ -88,7 +88,7 @@ muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
 
 muc_online_backend(Config) when is_list(Config) ->
-    ct_helper:get_preset_var(Config, muc_backend, mnesia).
+    ct_helper:get_preset_var(Config, muc_online_backend, mnesia).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
