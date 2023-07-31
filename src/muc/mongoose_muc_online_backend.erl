@@ -5,7 +5,8 @@
          room_destroyed/4,
          find_room_pid/3,
          get_online_rooms/2,
-         node_cleanup/2]).
+         node_cleanup/2,
+         clear_table/1]).
 
 -define(MAIN_MODULE, mongoose_muc_online).
 
@@ -28,6 +29,8 @@
     [mod_muc:muc_online_room()].
 
 -callback node_cleanup(mongooseim:host_type(), node()) -> ok.
+
+-callback clear_table(mongooseim:host_type()) -> ok.
 
 %% API Functions
 
@@ -72,3 +75,6 @@ get_online_rooms(HostType, MucHost) ->
 node_cleanup(HostType, Node) ->
     Args = [HostType, Node],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+clear_table(HostType) ->
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType]).

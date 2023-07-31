@@ -6,7 +6,8 @@
          room_destroyed/4,
          find_room_pid/3,
          get_online_rooms/2,
-         node_cleanup/2]).
+         node_cleanup/2,
+         clear_table/1]).
 
 -include_lib("mod_muc.hrl").
 
@@ -84,4 +85,10 @@ node_cleanup(HostType, Node) ->
                               end, Es)
         end,
     mnesia:async_dirty(F),
+    ok.
+
+%% Clear table for tests
+-spec clear_table(mongooseim:host_type()) -> ok.
+clear_table(_HostType) ->
+    mnesia:clear_table(muc_online_room),
     ok.

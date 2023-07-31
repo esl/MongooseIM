@@ -6,7 +6,8 @@
          room_destroyed/4,
          find_room_pid/3,
          get_online_rooms/2,
-         node_cleanup/2]).
+         node_cleanup/2,
+         clear_table/1]).
 
 -export([handle_conflict/2]).
 
@@ -100,4 +101,13 @@ node_cleanup(HostType, Node) ->
     Pattern = {'_', '$1'},
     Guard = {'==', {node, '$1'}, Node},
     ets:select_delete(Tab, [{Pattern, [Guard], [true]}]),
+    ok.
+
+%% Clear table for tests
+-spec clear_table(mongooseim:host_type()) -> ok.
+clear_table(HostType) ->
+    Tab = table_name(HostType),
+    ets:match_delete(Tab, '_'),
+    Nodes = cets:other_nodes(Tab),
+    [rpc:call(Node, ets, match_delete, [Tab, '_']) || Node <- Nodes],
     ok.
