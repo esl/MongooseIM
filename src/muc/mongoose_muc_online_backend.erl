@@ -11,6 +11,24 @@
 
 %% Callbacks
 
+-callback start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+
+-callback register_room(
+        HostType :: mongooseim:host_type(),
+        MucHost :: jid:lserver(),
+        Room :: mod_muc:room(),
+        Pid :: pid()) -> ok | {exists, pid()} | {error, term()}.
+
+-callback room_destroyed(mongooseim:host_type(), jid:lserver(), mod_muc:room(), pid()) -> ok.
+
+-callback find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+    {ok, pid()} | {error, not_found}.
+
+-callback get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
+    [mod_muc:muc_online_room()].
+
+-callback node_cleanup(mongooseim:host_type(), node()) -> ok.
+
 %% API Functions
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
@@ -24,23 +42,33 @@ tracked_funs() ->
      room_destroyed,
      get_online_rooms].
 
+-spec register_room(
+        HostType :: mongooseim:host_type(),
+        MucHost :: jid:lserver(),
+        Room :: mod_muc:room(),
+        Pid :: pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
     Args = [HostType, MucHost, Room, Pid],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec room_destroyed(mongooseim:host_type(), jid:server(), mod_muc:room(), pid()) -> ok.
+-spec room_destroyed(mongooseim:host_type(), jid:lserver(), mod_muc:room(), pid()) -> ok.
 room_destroyed(HostType, MucHost, Room, Pid) ->
     Args = [HostType, MucHost, Room, Pid],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
+-spec find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+    {ok, pid()} | {error, not_found}.
 find_room_pid(HostType, MucHost, Room) ->
     Args = [HostType, MucHost, Room],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
+-spec get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
+    [mod_muc:muc_online_room()].
 get_online_rooms(HostType, MucHost) ->
     Args = [HostType, MucHost],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
+-spec node_cleanup(mongooseim:host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
     Args = [HostType, Node],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

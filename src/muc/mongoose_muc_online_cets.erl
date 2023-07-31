@@ -1,4 +1,6 @@
 -module(mongoose_muc_online_cets).
+-behaviour(mongoose_muc_online_backend).
+
 -export([start/2,
          register_room/4,
          room_destroyed/4,
@@ -11,6 +13,8 @@
 -include_lib("mod_muc.hrl").
 
 %% Use MucHost first for prefix select optimization in get_online_rooms
+%% We also don't want to send HostType in muc_online_room.host_type between CETS nodes
+%% or store it
 -type muc_tuple() :: {{MucHost :: jid:lserver(), Room :: mod_muc:room()}, Pid :: pid()}.
 
 table_name(HostType) ->
@@ -56,13 +60,15 @@ register_room(HostType, MucHost, Room, Pid) ->
 
 %% Race condition is possible between register and room_destroyed
 %% (Because register is outside of the room process)
--spec room_destroyed(mongooseim:host_type(), jid:server(), mod_muc:room(), pid()) -> ok.
+-spec room_destroyed(mongooseim:host_type(), jid:lserver(), mod_muc:room(), pid()) -> ok.
 room_destroyed(HostType, MucHost, Room, Pid) ->
     Tab = table_name(HostType),
     Rec = {{MucHost, Room}, Pid},
     cets:delete_object(Tab, Rec),
     ok.
 
+-spec find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+    {ok, pid()} | {error, not_found}.
 find_room_pid(HostType, MucHost, Room) ->
     Tab = table_name(HostType),
     case ets:lookup(Tab, {MucHost, Room}) of
@@ -75,11 +81,14 @@ find_room_pid(HostType, MucHost, Room) ->
 %% This is used by MUC discovery but it is not very scalable.
 %% This function should look like get_online_rooms(HostType, MucHost, AfterRoomName, Limit)
 %% to reduce the load and still have pagination working.
+-spec get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
+    [mod_muc:muc_online_room()].
 get_online_rooms(HostType, MucHost) ->
     Tab = table_name(HostType),
-    [#muc_online_room{name_host = {Room, MucHost}, pid = Pid}
+    [#muc_online_room{name_host = {Room, MucHost}, pid = Pid, host_type = HostType}
      || [Room, Pid] <- ets:match(Tab, {{MucHost, '$1'}, '$2'})].
 
+-spec node_cleanup(mongooseim:host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
     Tab = table_name(HostType),
     Pattern = {'_', '$1'},

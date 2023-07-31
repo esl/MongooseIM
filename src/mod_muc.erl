@@ -119,6 +119,7 @@
     host_type :: host_type(),
     pid       :: pid()
 }.
+-export_type([muc_online_room/0]).
 
 -type room_event_data() :: #{
                   from_nick := nick(),

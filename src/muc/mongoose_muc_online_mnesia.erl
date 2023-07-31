@@ -1,4 +1,6 @@
 -module(mongoose_muc_online_mnesia).
+-behaviour(mongoose_muc_online_backend).
+
 -export([start/2,
          register_room/4,
          room_destroyed/4,
@@ -36,7 +38,7 @@ register_room(HostType, MucHost, Room, Pid) ->
 
 %% Race condition is possible between register and room_destroyed
 %% (Because register is outside of the room process)
--spec room_destroyed(mongooseim:host_type(), jid:server(), mod_muc:room(), pid()) -> ok.
+-spec room_destroyed(mongooseim:host_type(), jid:lserver(), mod_muc:room(), pid()) -> ok.
 room_destroyed(HostType, MucHost, Room, Pid) ->
     Obj = #muc_online_room{name_host = {Room, MucHost},
                            host_type = HostType, pid = Pid},
@@ -49,6 +51,8 @@ simple_transaction_result({atomic, Res}) ->
 simple_transaction_result({aborted, Reason}) ->
     {error, Reason}.
 
+-spec find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+    {ok, pid()} | {error, not_found}.
 find_room_pid(_HostType, MucHost, Room) ->
     case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
         [R] ->
@@ -57,12 +61,15 @@ find_room_pid(_HostType, MucHost, Room) ->
             {error, not_found}
     end.
 
+-spec get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
+    [mod_muc:muc_online_room()].
 get_online_rooms(_HostType, MucHost) ->
     mnesia:dirty_select(muc_online_room,
                         [{#muc_online_room{name_host = '$1', _ = '_'},
                           [{'==', {element, 2, '$1'}, MucHost}],
                           ['$_']}]).
 
+-spec node_cleanup(mongooseim:host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
     F = fun() ->
                 Es = mnesia:select(
