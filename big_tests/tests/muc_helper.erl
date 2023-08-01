@@ -180,15 +180,26 @@ destroy_room(Config) ->
     destroy_room(muc_host(), ?config(room, Config)).
 
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    HostType = domain_helper:host_type(),
     Room1 = jid:nodeprep(Room),
-    case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
-        [{_,_,Pid}|_] ->
+    case rpc(mim(), mongoose_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
+        {ok, Pid} ->
             %% @TODO related to gen_fsm_compat: after migration to gen_statem
             %%       should be replaced to - gen_statem:call(Pid, destroy).
             Pid ! {'$gen_all_state_event', destroy},
+            wait_for_process_down(Pid),
             ok;
-        _ ->
+        {error, not_found} ->
             ok
+    end.
+
+wait_for_process_down(Pid) ->
+    Ref = monitor(process, Pid),
+    receive
+        {'DOWN', Ref, _Type, Pid, _Info} ->
+            ok
+    after 5000 ->
+              ct:fail(wait_for_process_down_failed)
     end.
 
 stanza_muc_enter_room(Room, Nick) ->
