@@ -338,4 +338,4 @@ get_hook_handler(ModName, FunName, Fun) when is_function(Fun, 3) ->
     fun ModName:FunName/3.
 
 get_handlers_for_all_hooks() ->
-    ets:tab2list(gen_hook).
+    maps:to_list(persistent_term:get(gen_hook)).

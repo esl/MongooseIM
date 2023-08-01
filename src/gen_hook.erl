@@ -70,7 +70,6 @@
                        hook_fn :: hook_fn(),
                        extra :: extra()}).
 
--define(TABLE, ?MODULE).
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -135,11 +134,11 @@ delete_handler({HookName, Tag, _, _, _} = HookTuple) ->
                Params :: hook_params()) -> hook_fn_ret().
 run_fold(HookName, Tag, Acc, Params) ->
     Key = hook_key(HookName, Tag),
-    case ets:lookup(?TABLE, Key) of
-        [{_, Ls}] ->
+    case persistent_term:get(?MODULE, #{}) of
+        #{Key := Ls} ->
             mongoose_metrics:increment_generic_hook_metric(Tag, HookName),
             run_hook(Ls, Acc, Params, Key);
-        [] ->
+        _ ->
             {ok, Acc}
     end.
 
@@ -148,46 +147,46 @@ run_fold(HookName, Tag, Acc, Params) ->
 %%%----------------------------------------------------------------------
 
 init([]) ->
-    ets:new(?TABLE, [named_table, {read_concurrency, true}]),
-    {ok, no_state}.
+    State = #{},
+    persistent_term:put(?MODULE, State),
+    {ok, State}.
 
 handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
-    Reply = case ets:lookup(?TABLE, Key) of
-                [{_, Ls}] ->
-                    case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
-                        {value, _} ->
-                            ?LOG_WARNING(#{what => duplicated_handler,
-                                           key => Key, handler => HookHandler}),
-                            ok;
-                        false ->
-                            %% NOTE: sort *only* on the priority,
-                            %% order of other fields is not part of the contract
-                            NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
-                            ets:insert(?TABLE, {Key, NewLs}),
-                            ok
-                    end;
-                [] ->
-                    NewLs = [HookHandler],
-                    ets:insert(?TABLE, {Key, NewLs}),
-                    create_hook_metric(Key),
-                    ok
-            end,
-    {reply, Reply, State};
+    NewState = case maps:get(Key, State, []) of
+                   [] ->
+                       NewLs = [HookHandler],
+                       create_hook_metric(Key),
+                       maps:put(Key, NewLs, State);
+                   Ls ->
+                       case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
+                           {value, _} ->
+                               ?LOG_WARNING(#{what => duplicated_handler,
+                                              key => Key, handler => HookHandler}),
+                               State;
+                           false ->
+                               %% NOTE: sort *only* on the priority,
+                               %% order of other fields is not part of the contract
+                               NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
+                               maps:put(Key, NewLs, State)
+                       end
+               end,
+    persistent_term:put(?MODULE, NewState),
+    {reply, ok, NewState};
 handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
-    Reply = case ets:lookup(?TABLE, Key) of
-                [{_, Ls}] ->
-                    %% NOTE: The straightforward handlers comparison would compare
-                    %% the function objects, which is not well-defined in OTP.
-                    %% So we do a manual comparison on the MFA of the funs,
-                    %% by using `erlang:fun_info/2`
-                    Pred = fun_is_handler_equal_to(HookHandler),
-                    {_, NewLs} = lists:partition(Pred, Ls),
-                    ets:insert(?TABLE, {Key, NewLs}),
-                    ok;
-                [] ->
-                    ok
-            end,
-    {reply, Reply, State};
+    NewState = case maps:get(Key, State, []) of
+                   [] ->
+                       State;
+                   Ls ->
+                       %% NOTE: The straightforward handlers comparison would compare
+                       %% the function objects, which is not well-defined in OTP.
+                       %% So we do a manual comparison on the MFA of the funs,
+                       %% by using `erlang:fun_info/2`
+                       Pred = fun_is_handler_equal_to(HookHandler),
+                       {_, NewLs} = lists:partition(Pred, Ls),
+                       maps:put(Key, NewLs, State)
+               end,
+    persistent_term:put(?MODULE, NewState),
+    {reply, ok, NewState};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, bad_request, State}.
@@ -201,7 +200,7 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
-    ets:delete(?TABLE),
+    persistent_term:erase(?MODULE),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
