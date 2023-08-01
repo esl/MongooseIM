@@ -8,6 +8,9 @@
          node_cleanup/2,
          clear_table/1]).
 
+%% Used in tests
+-ignore_xref([clear_table/1]).
+
 -define(MAIN_MODULE, mongoose_muc_online).
 
 %% Callbacks
