@@ -17,7 +17,9 @@
          s2s/1,
          bosh/1,
          component/1,
-         component_from_other_node_remains/1
+         component_from_other_node_remains/1,
+         muc_room/1,
+         muc_room_from_other_node_remains/1
         ]).
 
 -define(HOST, <<"localhost">>).
@@ -41,10 +43,15 @@ all() ->
 
 groups() ->
     [{component_cets, [], component_cases()},
-     {component_mnesia, [], component_cases()}].
+     {component_mnesia, [], component_cases()},
+     {muc_cets, [], muc_cases()},
+     {muc_mnesia, [], muc_cases()}].
 
 component_cases() ->
     [component, component_from_other_node_remains].
+
+muc_cases() ->
+    [muc_room, muc_room_from_other_node_remains].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -66,20 +73,21 @@ init_per_group(component_mnesia, Config) ->
     Config;
 init_per_group(component_cets, Config) ->
     mongoose_config:set_opt(component_backend, cets),
-    DiscoOpts = #{name => mongoose_cets_discovery, disco_file => "does_not_exist.txt"},
-    {ok, _Pid} = cets_discovery:start(DiscoOpts),
-    Config.
+    start_cets_disco(Config);
+init_per_group(muc_mnesia, Config) ->
+    [{muc_backend, mnesia} | Config];
+init_per_group(muc_cets, Config) ->
+    [{muc_backend, cets} | start_cets_disco(Config)].
 
-end_per_group(component_cets, _Config) ->
-    exit(whereis(mongoose_cets_discovery), kill);
-end_per_group(_Group, _Config) ->
-    ok.
+end_per_group(_Group, Config) ->
+    stop_cets_disco(Config).
 
 init_per_testcase(TestCase, Config) ->
     mim_ct_sup:start_link(ejabberd_sup),
     {ok, _HooksServer} = gen_hook:start_link(),
     setup_meck(meck_mods(TestCase)),
     start_component(TestCase),
+    start_muc_backend(Config),
     Config.
 
 end_per_testcase(TestCase, _Config) ->
@@ -243,6 +251,26 @@ component_from_other_node_remains(_Config) ->
     mongoose_component:unregister_components(Comps),
     ok.
 
+muc_room(_Config) ->
+    HostType = ?HOST,
+    MucHost = <<"muc.localhost">>,
+    Pid = remote_pid(),
+    Node = node(Pid),
+    Room = <<"remote_room">>,
+    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mongoose_muc_online_backend:node_cleanup(HostType, Node),
+    {error, not_found} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+
+muc_room_from_other_node_remains(_Config) ->
+    HostType = ?HOST,
+    MucHost = <<"muc.localhost">>,
+    Pid = self(),
+    RemoteNode = node(remote_pid()),
+    Room = <<"room_on_other_node">>,
+    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mongoose_muc_online_backend:node_cleanup(HostType, RemoteNode),
+    {ok, Pid} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+
 %% -----------------------------------------------------
 %% Internal
 %% -----------------------------------------------------
@@ -304,3 +332,37 @@ start(HostType, Module) ->
 
 start(HostType, Module, Opts) ->
     mongoose_modules:ensure_started(HostType, Module, Opts).
+
+disco_opts() ->
+    #{name => mongoose_cets_discovery, disco_file => "does_not_exist.txt"}.
+
+start_cets_disco(Config) ->
+    {ok, Pid} = cets_discovery:start(disco_opts()),
+    [{cets_disco, Pid} | Config].
+
+stop_cets_disco(Config) ->
+    case proplists:get_value(cets_disco, Config) of
+        Pid when is_pid(Pid) ->
+            exit(Pid, kill);
+        _ ->
+            ok
+    end.
+
+%% Pid 90 on cool_node@localhost
+%% Made using:
+%% erl -name cool_node@localhost
+%% rp(term_to_binary(list_to_pid("<0.90.0>"))).
+remote_pid_binary() ->
+    <<131, 88, 100, 0, 19, 99, 111, 111, 108, 95, 110, 111, 100, 101, 64,
+      108, 111, 99, 97, 108, 104, 111, 115, 116, 0, 0, 0, 90, 0, 0, 0, 0, 100,
+      200, 255, 233>>.
+
+remote_pid() ->
+    binary_to_term(remote_pid_binary()).
+
+start_muc_backend(Config) ->
+    case proplists:get_value(muc_backend, Config) of
+        undefined -> ok;
+        Backend ->
+            mongoose_muc_online_backend:start(?HOST, #{online_backend => Backend})
+    end.
