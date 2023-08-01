@@ -139,6 +139,9 @@ start() ->
 -spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
+    mongoose_metrics:create_probe_metric(global, totalSessionCount, mongoose_metrics_probe_total_sessions),
+    mongoose_metrics:create_probe_metric(global, uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
+    mongoose_metrics:create_probe_metric(global, nodeSessionCount, mongoose_metrics_probe_node_sessions),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 

@@ -43,6 +43,8 @@ start(normal, _Args) ->
     mongoose_fips:notify(),
     write_pid_file(),
     update_status_file(starting),
+    mongoose_config:start(),
+    mongoose_metrics:init(),
     db_init(),
     application:start(cache_tab),
 
@@ -51,7 +53,6 @@ start(normal, _Args) ->
     ejabberd_node_id:start(),
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
-    mongoose_config:start(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
@@ -67,9 +68,9 @@ start(normal, _Args) ->
     mongoose_service:start(),
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
-    mongoose_metrics:init(),
     mongoose_listener:start(),
     ejabberd_admin:start(),
+    mongoose_metrics:init_mongooseim_metrics(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
     Sup;
