@@ -180,7 +180,7 @@ all_mam_testcases() ->
 init_per_suite(Config) ->
     #{node := MimNode} = distributed_helper:mim(),
     Config1 = [{{ejabberd_cwd, MimNode}, get_mim_cwd()} | dynamic_modules:save_modules(host_type(), Config)],
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
@@ -243,7 +243,7 @@ init_per_testcase(CN, Config) when
     Config1;
 init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
                                    CN =:= remove_inbox_muc ->
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     Config0 = init_inbox(CN, Config, muc),
     Config0;
 

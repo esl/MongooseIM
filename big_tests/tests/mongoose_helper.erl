@@ -242,7 +242,8 @@ stop_online_rooms() ->
         false -> ct:fail({ejabberd_mod_muc_sup_not_found, Supervisor, HostType})
     end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
-    rpc(mim(), mnesia, clear_table, [muc_online_room]),
+    %% That's a pretty dirty way
+    rpc(mim(), mongoose_muc_online_backend, clear_table, [HostType]),
     ok.
 
 forget_persistent_rooms() ->

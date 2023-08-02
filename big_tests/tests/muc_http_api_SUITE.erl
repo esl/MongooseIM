@@ -66,7 +66,7 @@ failure_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->

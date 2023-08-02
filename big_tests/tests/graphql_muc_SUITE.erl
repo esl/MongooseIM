@@ -237,20 +237,20 @@ init_per_group(admin_cli, Config) ->
     graphql_helper:init_admin_cli(Config);
 init_per_group(domain_admin_muc, Config) ->
     maybe_enable_mam(),
-    ensure_muc_started(),
+    ensure_muc_started(Config),
     graphql_helper:init_domain_admin_handler(Config);
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config);
 init_per_group(Group, Config) when Group =:= admin_muc_configured;
                                    Group =:= user_muc_configured ->
     disable_mam(),
-    ensure_muc_started(),
+    ensure_muc_started(Config),
     Config;
 init_per_group(Group, Config) when Group =:= admin_muc_and_mam_configured;
                                    Group =:= user_muc_and_mam_configured ->
     case maybe_enable_mam() of
         true ->
-            ensure_muc_started(),
+            ensure_muc_started(Config),
             ensure_muc_light_started(Config);
         false ->
             {skip, "No MAM backend available"}
@@ -277,10 +277,10 @@ maybe_enable_mam() ->
             true
     end.
 
-ensure_muc_started() ->
+ensure_muc_started(Config) ->
     SecondaryHostType = domain_helper:secondary_host_type(),
-    muc_helper:load_muc(),
-    muc_helper:load_muc(SecondaryHostType),
+    muc_helper:load_muc(Config),
+    muc_helper:load_muc(Config, SecondaryHostType),
     mongoose_helper:ensure_muc_clean().
 
 ensure_muc_stopped() ->

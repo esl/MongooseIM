@@ -7,8 +7,3 @@
                           host_type,
                           pid
                          }).
-
--record(muc_registered, {
-          us_host,
-          nick
-         }).

@@ -254,7 +254,7 @@ init_per_testcase(CaseName, Config)
     {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     trigger_rebalance(asia_node, EuropeHost),
     %% Load muc on mim node
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     RegNode = ct:get_config({hosts, reg, node}),
     %% Wait for muc.localhost to become visible from reg node
     wait_for_domain(RegNode, muc_helper:muc_host()),

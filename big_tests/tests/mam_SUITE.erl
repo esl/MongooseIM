@@ -540,7 +540,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     mam_helper:prepare_for_suite(
       increase_limits(
         delete_users([{escalus_user_db, {module, escalus_ejabberd}}
