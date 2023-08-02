@@ -46,7 +46,6 @@ start(normal, _Args) ->
     mongoose_config:start(),
     mongoose_metrics:init(),
     db_init(),
-    application:start(cache_tab),
 
     mongoose_graphql:init(),
     translate:start(),
@@ -98,7 +97,6 @@ stop(_State) ->
     ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),
-    %%ejabberd_debug:stop(),
     ok.
 
 
