@@ -29,10 +29,9 @@
          stop/0,
          get_pid_file/0,
          get_status_file/0,
-         get_so_path/0,
-         get_bin_path/0]).
+         get_so_path/0]).
 
--ignore_xref([get_bin_path/0, stop/0]).
+-ignore_xref([stop/0]).
 
 -type lang() :: binary().
 
@@ -44,9 +43,7 @@
                           | {'xmlstreamerror', _}
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
--export_type([lang/0,
-              xml_stream_item/0
-             ]).
+-export_type([lang/0, xml_stream_item/0]).
 
 start() ->
     application:ensure_all_started(mongooseim).
@@ -63,20 +60,6 @@ get_so_path() ->
                     ".";
                 Path ->
                     filename:join([Path, "lib"])
-            end;
-        Path ->
-            Path
-    end.
-
--spec get_bin_path() -> binary() | string().
-get_bin_path() ->
-    case os:getenv("EJABBERD_BIN_PATH") of
-        false ->
-            case code:priv_dir(ejabberd) of
-                {error, _} ->
-                    ".";
-                Path ->
-                    filename:join([Path, "bin"])
             end;
         Path ->
             Path
