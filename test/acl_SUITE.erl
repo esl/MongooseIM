@@ -35,7 +35,6 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
-    mongoose_domain_api:stop(),
     meck:unload(),
     ok.
 
@@ -303,12 +302,10 @@ given_registered_domains(Config, DomainsList) ->
 register_static_domains(DomainsList) ->
     mongoose_config:set_opt(hosts, DomainsList),
     mongoose_config:set_opt(host_types, []),
-    mongoose_domain_api:stop(),
-    mongoose_domain_api:init().
+    mongoose_domain_sup:start_link().
 
 register_dynamic_domains(DomainsList) ->
     mongoose_config:set_opt(hosts, []),
     mongoose_config:set_opt(host_types, [<<"test type">>, <<"empty type">>]),
-    mongoose_domain_api:stop(),
-    mongoose_domain_api:init(),
+    mongoose_domain_sup:start_link(),
     [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].

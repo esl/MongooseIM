@@ -1110,12 +1110,10 @@ service_disabled(Node) ->
     false = rpc(Node, service_domain_db, enabled, []).
 
 restart_domain_core(Node, Pairs, AllowedHostTypes) ->
-    ok = rpc(Node, mongoose_domain_core, stop, []),
-    ok = rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
+    domain_helper:restart_domain_core(Node, Pairs, AllowedHostTypes).
 
 restart_domain_core(Node) ->
-    ok = rpc(Node, mongoose_domain_core, stop, []),
-    ok = rpc(Node, mongoose_domain_core, start, []).
+    domain_helper:restart_domain_core(Node).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).

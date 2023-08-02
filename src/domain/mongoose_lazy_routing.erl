@@ -19,8 +19,6 @@
 
 -include("mongoose_logger.hrl").
 
-%% start/stop API
--export([start/0, stop/0]).
 -export([start_link/0]).
 -export([sync/0]).
 
@@ -43,7 +41,7 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([start_link/0, stop/0, sync/0]).
+-ignore_xref([start_link/0, sync/0]).
 
 -define(IQ_TABLE, mongoose_lazy_routing_iqs).
 -define(ROUTING_TABLE, mongoose_lazy_routing).
@@ -66,29 +64,6 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
--ifdef(TEST).
-
-%% required for unit tests
-start() ->
-    just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [], [])).
-
-stop() ->
-    gen_server:stop(?MODULE).
-
--else.
-
-start() ->
-    ChildSpec = {?MODULE, {?MODULE, start_link, []},
-                 permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
-
-%% required for integration tests
-stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
-    ok.
-
--endif.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -221,8 +196,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
-just_ok({ok, _}) -> ok;
-just_ok(Other) -> Other.
 
 -spec handle_register_iq_handler_for_domain(HostType :: mongooseim:host_type(),
                                             Namespace :: binary(),

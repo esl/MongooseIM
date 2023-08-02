@@ -57,7 +57,6 @@ start(normal, _Args) ->
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    mongoose_domain_api:init(),
     mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
     %% ejabberd_sm is started separately because it may use one of the outgoing_pools

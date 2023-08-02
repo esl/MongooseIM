@@ -40,16 +40,13 @@ init_per_testcase(TestCase, Config) ->
     %% initial mongoose_subdomain_core conditions:
     %%   - no subdomains configured for any host type
     gen_hook:start_link(),
-    ok = mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_HOST_TYPES),
-    ok = mongoose_subdomain_core:start(),
+    mongoose_domain_sup:start_link(?STATIC_PAIRS, ?ALLOWED_HOST_TYPES),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],
     setup_meck(TestCase),
     Config.
 
 end_per_testcase(_, Config) ->
-    mongoose_domain_core:stop(),
-    mongoose_subdomain_core:stop(),
     meck:unload(),
     Config.
 
