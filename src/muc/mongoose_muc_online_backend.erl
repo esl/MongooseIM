@@ -25,7 +25,7 @@
 
 -callback room_destroyed(mongooseim:host_type(), jid:lserver(), mod_muc:room(), pid()) -> ok.
 
--callback find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+-callback find_room_pid(mongooseim:host_type(), jid:lserver(), mod_muc:room()) ->
     {ok, pid()} | {error, not_found}.
 
 -callback get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
@@ -62,7 +62,7 @@ room_destroyed(HostType, MucHost, Room, Pid) ->
     Args = [HostType, MucHost, Room, Pid],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec find_room_pid(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
+-spec find_room_pid(mongooseim:host_type(), jid:lserver(), mod_muc:room()) ->
     {ok, pid()} | {error, not_found}.
 find_room_pid(HostType, MucHost, Room) ->
     Args = [HostType, MucHost, Room],
