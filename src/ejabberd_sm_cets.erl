@@ -35,20 +35,20 @@ get_sessions(Server) ->
     %% A partially bound key is either a list or a tuple with
     %% a prefix that is fully bound.
     R = {{Server, '_', '_', '_'}, '_', '_'},
-    Xs = ets:select(?TABLE, [{R, [], ['$_']}]),
+    Xs = ets:match_object(?TABLE, R),
     tuples_to_sessions(Xs).
 
 -spec get_sessions(jid:luser(), jid:lserver()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     R = {{Server, User, '_', '_'}, '_', '_'},
-    Xs = ets:select(?TABLE, [{R, [], ['$_']}]),
+    Xs = ets:match_object(?TABLE, R),
     tuples_to_sessions(Xs).
 
 -spec get_sessions(jid:luser(), jid:lserver(), jid:lresource()) ->
     [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     R = {{Server, User, Resource, '_'}, '_', '_'},
-    Xs = ets:select(?TABLE, [{R, [], ['$_']}]),
+    Xs = ets:match_object(?TABLE, R),
     %% TODO these sessions should be deduplicated.
     %% It is possible, that after merging two cets tables we could end up
     %% with sessions from two nodes for the same full jid.
