@@ -25,13 +25,9 @@
 
 -module(ejabberd).
 -author('alexey@process-one.net').
--export([start/0,
-         stop/0,
-         get_pid_file/0,
+-export([get_pid_file/0,
          get_status_file/0,
          get_so_path/0]).
-
--ignore_xref([stop/0]).
 
 -type lang() :: binary().
 
@@ -44,12 +40,6 @@
                           | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 
 -export_type([lang/0, xml_stream_item/0]).
-
-start() ->
-    application:ensure_all_started(mongooseim).
-
-stop() ->
-    application:stop(mongooseim).
 
 -spec get_so_path() -> binary() | string().
 get_so_path() ->
