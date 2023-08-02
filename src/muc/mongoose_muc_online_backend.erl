@@ -66,7 +66,7 @@ room_destroyed(HostType, MucHost, Room, Pid) ->
     {ok, pid()} | {error, not_found}.
 find_room_pid(HostType, MucHost, Room) ->
     Args = [HostType, MucHost, Room],
-    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_online_rooms(mongooseim:host_type(), jid:lserver()) ->
     [mod_muc:muc_online_room()].
@@ -77,7 +77,7 @@ get_online_rooms(HostType, MucHost) ->
 -spec node_cleanup(mongooseim:host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
     Args = [HostType, Node],
-    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 clear_table(HostType) ->
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType]).
