@@ -148,7 +148,7 @@ tcp_start_stop_reload(C) ->
     {ok, Sock2} = gen_tcp:connect("localhost", ChgPort,[{active, false}, {packet, 2}]),
     assert_connected(Sock2, ChgPort),
 
-    ok = ejabberd_helper:stop_ejabberd(),
+    ok = mongooseim:stop(),
     ok.
 
 assert_open(PortNo) ->
