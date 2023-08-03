@@ -8,7 +8,6 @@
 %% required for ets:fun2ms/1 pseudo function
 -include_lib("stdlib/include/ms_transform.hrl").
 
--export([start/0, start/2, stop/0]).
 -export([start_link/2]).
 -export([get_host_type/1]).
 -export([is_static/1]).
@@ -34,45 +33,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--ignore_xref([get_start_args/0, start_link/2, start/2, stop/0]).
+-ignore_xref([get_start_args/0, start_link/2]).
 
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
 
 -type host_type() :: mongooseim:host_type().
 -type domain() :: mongooseim:domain_name().
--type pair() :: {domain(), host_type()}.
-
-start() ->
-    Pairs = get_static_pairs(),
-    AllowedHostTypes = mongoose_config:get_opt(host_types),
-    start(Pairs, AllowedHostTypes).
-
--ifdef(TEST).
-
-%% required for unit tests
-start(Pairs, AllowedHostTypes) ->
-    just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], [])).
-
-stop() ->
-    gen_server:stop(?MODULE).
-
--else.
-
-start(Pairs, AllowedHostTypes) ->
-    ChildSpec =
-        {?MODULE,
-         {?MODULE, start_link, [Pairs, AllowedHostTypes]},
-         permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
-
-%% required for integration tests
-stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
-    ok.
-
--endif.
 
 start_link(Pairs, AllowedHostTypes) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], []).
@@ -182,10 +149,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
-%% Domains should be nameprepped using `jid:nameprep'
--spec get_static_pairs() -> [pair()].
-get_static_pairs() ->
-    [{H, H} || H <- mongoose_config:get_opt(hosts)].
 
 for_each_selected_domain('$end_of_table', _) -> ok;
 for_each_selected_domain({MatchList, Continuation}, Func) ->
@@ -207,9 +170,6 @@ insert_initial_pair(Tab, Domain, HostType) ->
 
 new_object(Domain, HostType, Source) ->
     {Domain, HostType, Source}.
-
-just_ok({ok, _}) -> ok;
-just_ok(Other) -> Other.
 
 insert_host_types(Tab, AllowedHostTypes) ->
     lists:foreach(fun(HostType) ->

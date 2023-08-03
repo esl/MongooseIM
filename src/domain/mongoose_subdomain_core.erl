@@ -4,8 +4,8 @@
 -behaviour(gen_server).
 
 -include("mongoose_logger.hrl").
+
 %% API
--export([start/0, stop/0]).
 -export([start_link/0]).
 
 -export([register_subdomain/3,
@@ -26,7 +26,7 @@
          code_change/3,
          terminate/2]).
 
--ignore_xref([start_link/0, stop/0, sync/0]).
+-ignore_xref([start_link/0, sync/0]).
 
 -ifdef(TEST).
 
@@ -69,30 +69,8 @@
 %% API
 %%--------------------------------------------------------------------
 -ifdef(TEST).
-
-%% required for unit tests
-start() ->
-    just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [], [])).
-
-stop() ->
-    gen_server:stop(?MODULE).
-
 %% this interface is required only to detect errors in unit tests
 log_error(_Function, _Error) -> ok.
-
--else.
-
-start() ->
-    ChildSpec = {?MODULE, {?MODULE, start_link, []},
-                 permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
-
-%% required for integration tests
-stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
-    ok.
-
 -endif.
 
 start_link() ->
@@ -196,8 +174,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
-just_ok({ok, _}) -> ok;
-just_ok(Other) -> Other.
 
 -spec handle_register(host_type(), subdomain_pattern(),
                       mongoose_packet_handler:t(), any()) -> ok.

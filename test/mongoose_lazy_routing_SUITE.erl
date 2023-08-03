@@ -47,12 +47,11 @@ all() ->
      handles_double_iq_handler_registration_deregistration_for_subdomain].
 
 init_per_testcase(_, Config) ->
-    mongoose_lazy_routing:start(),
+    mongoose_lazy_routing:start_link(),
     setup_meck(),
     Config.
 
 end_per_testcase(_, Config) ->
-    mongoose_lazy_routing:stop(),
     meck:unload(),
     Config.
 
