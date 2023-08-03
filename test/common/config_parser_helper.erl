@@ -883,7 +883,7 @@ default_mod_config(mod_inbox) ->
       max_result_limit => infinity};
 default_mod_config(mod_jingle_sip) ->
     #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
-      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => []};
+      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => [], backend => mnesia};
 default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
