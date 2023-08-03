@@ -96,7 +96,9 @@ config_spec() ->
                                               validate = ip_address},
                   <<"transport">> => #option{type = string,
                                              validate = {enum, ["udp", "tcp"]}},
-                  <<"username_to_phone">> => #list{items = username_to_phone_spec()}
+                  <<"username_to_phone">> => #list{items = username_to_phone_spec()},
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, mod_jingle_sip}}
         },
         defaults = #{<<"proxy_host">> => "localhost",
                      <<"proxy_port">> => 5060,
@@ -104,7 +106,8 @@ config_spec() ->
                      <<"local_host">> => "localhost",
                      <<"sdp_origin">> => "127.0.0.1",
                      <<"transport">> => "udp",
-                     <<"username_to_phone">> => []}
+                     <<"username_to_phone">> => [],
+                     <<"backend">> => mnesia}
     }.
 
 username_to_phone_spec() ->
