@@ -38,7 +38,7 @@
 
 -ignore_xref([remove_session/1]).
 
--record(jingle_sip_session, {sid,
+-record(jingle_sip_session, {sid, %% CallID
                              dialog,
                              state,
                              direction,

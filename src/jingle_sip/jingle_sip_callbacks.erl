@@ -176,7 +176,7 @@ sip_bye(Req, _Call) ->
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
-
+    ok = mod_jingle_sip_backend:remove_session(CallID),
     {reply, ok}.
 
 sip_cancel(_InviteReq, Req, _Call) ->
@@ -194,7 +194,7 @@ sip_cancel(_InviteReq, Req, _Call) ->
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
-
+    ok = mod_jingle_sip_backend:remove_session(CallID),
     {reply, ok}.
 
 sip_dialog_update(start, Dialog, Call) ->
@@ -286,6 +286,7 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
+    ok = mod_jingle_sip_backend:remove_session(CallID),
     ok;
 invite_resp_callback(Data) ->
     ?LOG_ERROR(#{what => sip_unknown_response, sip_data => Data}).
