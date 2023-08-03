@@ -1,0 +1,146 @@
+-module(sasl2_SUITE).
+
+-compile([export_all, nowarn_export_all]).
+
+-include_lib("stdlib/include/assert.hrl").
+-include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+
+-define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
+
+%%--------------------------------------------------------------------
+%% Suite configuration
+%%--------------------------------------------------------------------
+
+all() ->
+    [
+     {group, basic}
+    ].
+
+groups() ->
+    [
+     {basic, [parallel],
+      [
+       server_does_not_announce_if_not_tls,
+       server_announces_sasl2_with_some_mechanism,
+       authenticate_stanza_has_invalid_mechanism,
+       user_agent_is_invalid,
+       authenticate_with_plain,
+       authenticate_with_plain_and_user_agent_without_id,
+       authenticate_with_scram_abort,
+       authenticate_with_scram_bad_abort,
+       authenticate_with_scram_bad_response,
+       authenticate_with_scram,
+       authenticate_again_results_in_stream_error
+      ]}
+    ].
+
+%%--------------------------------------------------------------------
+%% Init & teardown
+%%--------------------------------------------------------------------
+
+init_per_suite(Config) ->
+    Config1 = load_sasl_extensible(Config),
+    escalus:init_per_suite(Config1).
+
+end_per_suite(Config) ->
+    escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_suite(Config).
+
+init_per_group(_GroupName, Config) ->
+    Config.
+
+end_per_group(_GroupName, Config) ->
+    Config.
+
+init_per_testcase(Name, Config) ->
+    escalus:init_per_testcase(Name, Config).
+
+end_per_testcase(Name, Config) ->
+    escalus:end_per_testcase(Name, Config).
+
+load_sasl_extensible(Config) ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_modules(HostType, [{mod_sasl2, #{}}]),
+    Config1.
+
+%%--------------------------------------------------------------------
+%% tests
+%%--------------------------------------------------------------------
+
+server_does_not_announce_if_not_tls(Config) ->
+    Steps = [connect_non_tls_user, start_stream_get_features],
+    #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
+    Sasl2 = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2}]),
+    ?assertEqual(undefined, Sasl2).
+
+server_announces_sasl2_with_some_mechanism(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features],
+    #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
+    Sasl2 = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2}]),
+    ?assertNotEqual(undefined, Sasl2),
+    Mechs = exml_query:paths(Sasl2, [{element, <<"mechanism">>}]),
+    ?assertNotEqual([], Mechs).
+
+authenticate_stanza_has_invalid_mechanism(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, send_invalid_authenticate_stanza],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response).
+
+user_agent_is_invalid(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, send_bad_user_agent],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).
+
+authenticate_with_plain(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, plain_authentication, receive_features],
+    auth_with_plain(Steps, Config).
+
+authenticate_with_plain_and_user_agent_without_id(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, plain_auth_user_agent_without_id, receive_features],
+    auth_with_plain(Steps, Config).
+
+auth_with_plain(Steps, Config) ->
+    #{answer := Success, features := Features} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    CData = exml_query:path(Success, [{element, <<"additional-data">>}, cdata], <<>>),
+    ?assert(is_binary(CData) andalso 0 =< byte_size(CData)),
+    Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata], <<>>),
+    ?assertNotEqual(error, jid:from_binary(Identifier)),
+    ?assertMatch(#xmlel{name = <<"stream:features">>}, Features).
+
+authenticate_with_scram_abort(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, scram_step_1, scram_abort],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response),
+    Aborted = exml_query:path(Response, [{element_with_ns, <<"aborted">>, ?NS_SASL}]),
+    ?assertNotEqual(undefined, Aborted).
+
+authenticate_with_scram_bad_abort(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, scram_step_1, scram_bad_abort],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Response).
+
+authenticate_with_scram_bad_response(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features, scram_step_1, scram_bad_ns_response],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Response).
+
+authenticate_with_scram(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features,
+             scram_step_1, scram_step_2, receive_features],
+    #{answer := Success, features := Features} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    CData = exml_query:path(Success, [{element, <<"additional-data">>}, cdata], <<>>),
+    ?assert(is_binary(CData) andalso 0 =< byte_size(CData)),
+    Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata], <<>>),
+    ?assertNotEqual(error, jid:from_binary(Identifier)),
+    ?assertMatch(#xmlel{name = <<"stream:features">>}, Features).
+
+authenticate_again_results_in_stream_error(Config) ->
+    Steps = [connect_tls_user, start_stream_get_features,
+             plain_authentication, receive_features, plain_authentication],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).

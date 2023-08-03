@@ -37,6 +37,11 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
+%% sasl2 handlers
+-export([sasl2_stream_features/2,
+         sasl2_start/3,
+         sasl2_success/3]).
+
 -export([get_pep_recipients/2,
          filter_pep_recipient/3,
          c2s_stream_features/3,
@@ -482,6 +487,33 @@ filter_pep_recipient(C2SData, Feature, To) ->
     Result :: [exml:element()].
 c2s_stream_features(HostType, Params, InitialFeatures) ->
     run_hook_for_host_type(c2s_stream_features, HostType, InitialFeatures, Params).
+
+-spec sasl2_stream_features(C2SData, InitialFeatures) -> Result when
+    C2SData :: mongoose_c2s:data(),
+    InitialFeatures :: [exml:element()],
+    Result :: [exml:element()].
+sasl2_stream_features(C2SData, InitialFeatures) ->
+    Params = #{c2s_data => C2SData},
+    HostType = mongoose_c2s:get_host_type(C2SData),
+    run_hook_for_host_type(sasl2_stream_features, HostType, InitialFeatures, Params).
+
+%% This hook will cache in the accumulator all the requests from sasl2 inlined features
+-spec sasl2_start(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s_hooks:params(),
+    Result :: mongoose_acc:t().
+sasl2_start(HostType, Acc, Params) ->
+    run_hook_for_host_type(sasl2_start, HostType, Acc, Params).
+
+%% If SASL authentication is successful, inline features can be triggered
+-spec sasl2_success(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mongoose_c2s_hooks:params(),
+    Result :: mongoose_acc:t().
+sasl2_success(HostType, Acc, Params) ->
+    run_hook_for_host_type(sasl2_success, HostType, Acc, Params).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),
