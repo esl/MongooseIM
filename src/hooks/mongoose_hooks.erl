@@ -39,7 +39,7 @@
 
 -export([get_pep_recipients/2,
          filter_pep_recipient/3,
-         c2s_stream_features/2,
+         c2s_stream_features/3,
          check_bl_c2s/1,
          forbidden_session_hook/3,
          session_opening_allowed_for_user/2]).
@@ -469,13 +469,14 @@ filter_pep_recipient(C2SData, Feature, To) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
     run_hook_for_host_type(filter_pep_recipient, HostType, true, Params).
 
--spec c2s_stream_features(HostType, LServer) -> Result when
+-spec c2s_stream_features(HostType, LServer, InitialFeatures) -> Result when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
+    InitialFeatures :: [exml:element()],
     Result :: [exml:element()].
-c2s_stream_features(HostType, LServer) ->
+c2s_stream_features(HostType, LServer, InitialFeatures) ->
     Params = #{lserver => LServer},
-    run_hook_for_host_type(c2s_stream_features, HostType, [], Params).
+    run_hook_for_host_type(c2s_stream_features, HostType, InitialFeatures, Params).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),
