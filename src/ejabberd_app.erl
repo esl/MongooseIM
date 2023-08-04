@@ -63,6 +63,7 @@ do_start() ->
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
+    mongoose_metrics:init(),
     db_init(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),

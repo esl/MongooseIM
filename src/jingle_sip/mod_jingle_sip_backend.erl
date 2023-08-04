@@ -2,8 +2,6 @@
 -module(mod_jingle_sip_backend).
 
 -export([init/2]).
--export([remove_session/1]).
--export([init/2]).
 -export([read_session/1]).
 -export([write_new_session/2]).
 -export([update_session/2]).
