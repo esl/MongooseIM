@@ -57,10 +57,11 @@ stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
 determine_features(_, _, #{tls := #{mode := starttls_required}}, false, _StateData) ->
     [starttls_stanza(required)];
 determine_features(HostType, LServer, _, true, StateData) ->
-    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(StateData);
+    InitialFeatures = maybe_sasl_mechanisms(StateData),
+    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures);
 determine_features(HostType, LServer, _, _, StateData) ->
-    [starttls_stanza(optional)
-     | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(StateData)].
+    InitialFeatures = [starttls_stanza(optional) | maybe_sasl_mechanisms(StateData)],
+    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures).
 
 -spec maybe_sasl_mechanisms(mongoose_c2s:data()) -> [exml:element()].
 maybe_sasl_mechanisms(StateData) ->
@@ -103,8 +104,8 @@ stream_features_after_auth(HostType, LServer, #{backwards_compatible_session := 
     stream_features(Features).
 
 hook_enabled_features(HostType, LServer) ->
-    mongoose_hooks:roster_get_versioning_feature(HostType)
-    ++ mongoose_hooks:c2s_stream_features(HostType, LServer).
+    InitialFeatures = mongoose_hooks:roster_get_versioning_feature(HostType),
+    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures).
 
 -spec sasl_success_stanza(binary()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
