@@ -102,7 +102,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
 
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-initiate">>, ContentEls ++ OtherEls),
 
-    ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
+    ok = mod_jingle_sip_session:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
 
     ?LOG_INFO(#{what => sip_invite, text => <<"Got SIP INVITE from NkSIP">>,
                 from_jid => FromBinary, to_jid => ToBinary,
@@ -176,7 +176,7 @@ sip_bye(Req, _Call) ->
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
-    ok = mod_jingle_sip_backend:remove_session(CallID),
+    ok = mod_jingle_sip_session:remove_session(CallID),
     {reply, ok}.
 
 sip_cancel(_InviteReq, Req, _Call) ->
@@ -194,7 +194,7 @@ sip_cancel(_InviteReq, Req, _Call) ->
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
-    ok = mod_jingle_sip_backend:remove_session(CallID),
+    ok = mod_jingle_sip_session:remove_session(CallID),
     {reply, ok}.
 
 sip_dialog_update(start, Dialog, Call) ->
@@ -203,7 +203,7 @@ sip_dialog_update(start, Dialog, Call) ->
     case Transaction#trans.class of
         uas ->
             {ok, CallID} = nksip_dialog:call_id(Dialog),
-            mod_jingle_sip_backend:set_incoming_handle(CallID, DialogHandle);
+            mod_jingle_sip_session:set_incoming_handle(CallID, DialogHandle);
 
         _ ->
             ok
@@ -247,7 +247,7 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
                               element => IQEl,
                               from_jid => FromJID,
                               to_jid => ToJID }),
-    ok = mod_jingle_sip_backend:set_outgoing_accepted(CallID),
+    ok = mod_jingle_sip_session:set_outgoing_accepted(CallID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
 invite_resp_callback({resp, 487, _SIPMsg, _Call}) ->
@@ -286,7 +286,7 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
                               from_jid => FromJID,
                               to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
-    ok = mod_jingle_sip_backend:remove_session(CallID),
+    ok = mod_jingle_sip_session:remove_session(CallID),
     ok;
 invite_resp_callback(Data) ->
     ?LOG_ERROR(#{what => sip_unknown_response, sip_data => Data}).
@@ -304,7 +304,7 @@ send_ringing_session_info(SIPMsg, ErrorCode) ->
                 dialog_id => DialogId, server_id => SrvId,
                 from_jid => FromBinary, to_binary => ToBinary}),
 
-    mod_jingle_sip_backend:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
+    mod_jingle_sip_session:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
 
     RingingEl = #xmlel{name = <<"ringing">>,
                        attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:info:1">>}]},
