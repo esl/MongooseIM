@@ -58,11 +58,9 @@ init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
-    mongoose_domain_api:init(),
     Config.
 
 end_per_suite(Config) ->
-    mongoose_domain_api:stop(),
     [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     mnesia:stop(),
     mnesia:delete_schema([node()]),
@@ -85,6 +83,7 @@ end_per_group(_Group, Config) ->
 init_per_testcase(TestCase, Config) ->
     mim_ct_sup:start_link(ejabberd_sup),
     {ok, _HooksServer} = gen_hook:start_link(),
+    {ok, _DomainSup} = mongoose_domain_sup:start_link(),
     setup_meck(meck_mods(TestCase)),
     start_component(TestCase),
     start_muc_backend(Config),

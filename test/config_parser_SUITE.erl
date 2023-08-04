@@ -85,7 +85,8 @@ groups() ->
                             routing_modules,
                             replaced_wait_timeout,
                             hide_service_name,
-                            domain_certfile]},
+                            domain_certfile,
+                            max_users_per_domain]},
      {listen, [parallel], [listen_duplicate,
                            listen_c2s,
                            listen_c2s_fast_tls,
@@ -431,7 +432,8 @@ mongooseimctl_access_commands(_Config) ->
 
 routing_modules(_Config) ->
     ?cfg(routing_modules, mongoose_router:default_routing_modules(), #{}), % default
-    ?cfg(routing_modules, [mongoose_router_global, mongoose_router_localdomain],
+    ?cfg(routing_modules,
+         xmpp_router:expand_routing_modules([mongoose_router_global, mongoose_router_localdomain]),
          #{<<"general">> => #{<<"routing_modules">> => [<<"mongoose_router_global">>,
                                                         <<"mongoose_router_localdomain">>]}}),
     ?err(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}}).
@@ -743,6 +745,12 @@ auth_sasl_mechanisms(_Config) ->
     ?cfgh([auth, sasl_mechanisms], [cyrsasl_external, cyrsasl_scram],
           #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     ?errh(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
+
+max_users_per_domain(_Config) ->
+    ?cfg([{auth, ?HOST}, max_users_per_domain], infinity, #{}), % global default
+    ?cfgh([auth, max_users_per_domain], 1000, #{<<"auth">> =>
+                                                #{<<"max_users_per_domain">> => 1000}}),
+    ?errh(#{<<"auth">> => #{<<"max_users_per_domain">> => 0}}).
 
 auth_allow_multiple_connections(_Config) ->
     ?cfgh([auth, anonymous, allow_multiple_connections], true,
@@ -3114,7 +3122,7 @@ create_files(Config) ->
 
 ensure_copied(From, To) ->
     case file:copy(From, To) of
-        {ok,_} ->
+        {ok, _} ->
             ok;
         Other ->
             error(#{what => ensure_copied_failed, from => From, to => To,

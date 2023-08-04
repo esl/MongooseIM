@@ -40,12 +40,11 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(_, Config) ->
-    ok = mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_TYPES),
+    {ok, _} = mongoose_domain_core:start_link(?STATIC_PAIRS, ?ALLOWED_TYPES),
     [meck:reset(M) || M <- [mongoose_lazy_routing, mongoose_subdomain_core]],
     Config.
 
 end_per_testcase(_, Config) ->
-    mongoose_domain_core:stop(),
     Config.
 
 can_get_init_arguments(_) ->

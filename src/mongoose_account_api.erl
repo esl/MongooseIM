@@ -19,7 +19,8 @@
          check_password_hash/4,
          import_users/1]).
 
--type register_result() :: {ok | exists | invalid_jid | cannot_register, iolist()}.
+-type register_result() :: {ok | exists | invalid_jid | cannot_register |
+                            limit_per_domain_exceeded, iolist()}.
 
 -type unregister_result() :: {ok | not_allowed | invalid_jid | user_does_not_exist, string()}.
 
@@ -87,6 +88,9 @@ register_user(User, Host, Password) ->
         {error, invalid_jid} ->
             String = io_lib:format("Invalid JID ~s@~s", [User, Host]),
             {invalid_jid, String};
+        {error, limit_per_domain_exceeded} ->
+            String = io_lib:format("User limit has been exceeded for domain ~s", [Host]),
+            {limit_per_domain_exceeded, String};
         {error, Reason} ->
             String =
                 io_lib:format("Can't register user ~s at node ~p: ~p",

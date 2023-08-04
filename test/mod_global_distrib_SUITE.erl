@@ -66,7 +66,7 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(_CaseName, Config) ->
     set_meck(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
-    mongoose_domain_api:init(),
+    mongoose_domain_sup:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
     gen_hook:start_link(),
     mongoose_modules:start(),
@@ -74,7 +74,6 @@ init_per_testcase(_CaseName, Config) ->
 
 end_per_testcase(_CaseName, Config) ->
     mongoose_modules:stop(),
-    mongoose_domain_api:stop(),
     [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     unset_meck(),
     Config.

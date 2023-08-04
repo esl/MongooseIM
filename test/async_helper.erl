@@ -61,13 +61,16 @@ wait_until(Fun, ExpectedValue) ->
     wait_until(Fun, ExpectedValue, #{}).
 
 %% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
+%% if expected value is a function with arity 1, it's treated as a validation function.
+wait_until(Fun, ValidatorFn, Opts0) when is_function(ValidatorFn, 1)->
+    Defaults = #{time_left => timer:seconds(5),
+                 sleep_time => 100},
+    Opts1 = maps:merge(Defaults, Opts0),
+    Opts = Opts1#{validator => ValidatorFn, history => []},
+    do_wait_until(Fun, Opts);
 wait_until(Fun, ExpectedValue, Opts) ->
-    DefValidator = fun(NewValue) -> ExpectedValue =:= NewValue end,
-    Defaults = #{validator => DefValidator,
-                 time_left => timer:seconds(5),
-                 sleep_time => 100,
-                 history => []},
-    do_wait_until(Fun, maps:merge(Defaults, Opts)).
+    ValidatorFn = fun(Value) -> Value =:= ExpectedValue end,
+    wait_until(Fun, ValidatorFn, Opts).
 
 do_wait_until(_Fun, #{
                 time_left := TimeLeft,
@@ -81,8 +84,8 @@ do_wait_until(Fun, #{validator := Validator} = Opts) ->
                    true -> {ok, Value};
                    _ -> wait_and_continue(Fun, Value, Opts)
                end
-    catch Error:Reason ->
-            wait_and_continue(Fun, {Error, Reason}, Opts)
+    catch Error:Reason:Stacktrace ->
+            wait_and_continue(Fun, {Error, Reason, Stacktrace}, Opts)
     end.
 
 wait_and_continue(Fun, FunResult, #{time_left := TimeLeft,

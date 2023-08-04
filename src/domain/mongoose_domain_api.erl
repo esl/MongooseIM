@@ -4,9 +4,7 @@
 
 -include("mongoose_logger.hrl").
 
--export([init/0,
-         stop/0,
-         get_host_type/1]).
+-export([get_host_type/1]).
 
 %% external domain API for GraphQL or REST handlers
 -export([insert_domain/2,
@@ -45,7 +43,6 @@
 
 -ignore_xref([get_all_static/0]).
 -ignore_xref([get_all_dynamic/0]).
--ignore_xref([stop/0]).
 
 -type status() :: enabled | disabled | deleting.
 -type domain() :: jid:lserver().
@@ -65,21 +62,6 @@
 -type get_domain_details_result() :: {ok, domain_info()} | {static | not_found, iodata()}.
 
 -export_type([status/0, remove_domain_acc/0]).
-
--spec init() -> ok | {error, term()}.
-init() ->
-    mongoose_domain_core:start(),
-    mongoose_subdomain_core:start(),
-    mongoose_lazy_routing:start().
-
-%% Stops gen_servers, that are started from init/0
-%% Does not fail, even if servers are already stopped
--spec stop() -> ok.
-stop() ->
-    catch mongoose_domain_core:stop(),
-    catch mongoose_subdomain_core:stop(),
-    catch mongoose_lazy_routing:stop(),
-    ok.
 
 -spec insert_domain(domain(), host_type()) -> insert_result().
 insert_domain(Domain, HostType) ->

@@ -16,16 +16,21 @@ init_per_suite(C) ->
                                                    internal => #{},
                                                    password => #{format => scram,
                                                                  scram_iterations => 10}}),
-    mongoose_domain_core:start([{domain(), host_type()}], []),
     ejabberd_auth_internal:start(host_type()),
     C.
 
 end_per_suite(_C) ->
     ejabberd_auth_internal:stop(host_type()),
-    mongoose_domain_core:stop(),
     mongoose_config:unset_opt({auth, host_type()}),
     mnesia:stop(),
     mnesia:delete_schema([node()]).
+
+init_per_testcase(_TC, Config) ->
+    mongoose_domain_core:start_link([{domain(), host_type()}], []),
+    Config.
+
+end_per_testcase(_TC, _Config) ->
+    ok.
 
 passwords_as_records_are_still_supported(_C) ->
     %% given in mnesia there is a user with password in old scram format

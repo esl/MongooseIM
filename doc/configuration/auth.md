@@ -81,6 +81,16 @@ There are three possible ways of using the `SASL EXTERNAL` mechanism:
 
 This option allows you to list the enabled ones in the order of preference (they are tried until one succeeds or the list is exhausted).
 
+### `auth.max_users_per_domain`
+* **Syntax:** positive integer or string `"infinity"`, representing maximum amount of users that can be registered in a domain
+* **Default:** `"infinity"`
+* **Example:** `max_users_per_domain = 10000`
+
+Limits the number of users that can be registered for each domain. If the option is configured to the value `"infinity"`, no limit is present.
+
+!!! Warning
+    The limit only works for the following authentication methods: `internal`, `rdbms` and `ldap`.
+
 ## Password-related options
 
 These options are common to the `http`, `rdbms` and `internal` methods.

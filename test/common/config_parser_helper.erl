@@ -87,7 +87,7 @@ options("miscellaneous") ->
      {rdbms_server_type, mssql},
      {registration_timeout, 600},
      {routing_modules,
-      [mongoose_router_global, mongoose_router_localdomain]},
+      xmpp_router:expand_routing_modules([mongoose_router_global, mongoose_router_localdomain])},
      {services,
       #{service_mongoose_system_metrics => #{initial_report => 20000,
                                              periodic_report => 300000,
@@ -714,7 +714,8 @@ default_auth() ->
       password => #{format => scram,
                     scram_iterations => 10000},
       sasl_external => [standard],
-      sasl_mechanisms => cyrsasl:default_modules()}.
+      sasl_mechanisms => cyrsasl:default_modules(),
+      max_users_per_domain => infinity}.
 
 pgsql_s2s() ->
     Outgoing = (default_s2s_outgoing())#{port => 5299},

@@ -26,6 +26,12 @@ domain_to_host_type(Node, Domain) ->
     {ok, HostType} = rpc(Node, mongoose_domain_core, get_host_type, [Domain]),
     HostType.
 
+restart_domain_core(Node) ->
+    {ok, _} = rpc(Node, mongoose_domain_sup, restart_core, [[]]).
+
+restart_domain_core(Node, Pairs, AllowedHostTypes) ->
+    {ok, _} = rpc(Node, mongoose_domain_sup, restart_core, [[Pairs, AllowedHostTypes]]).
+
 domain(NodeKey) ->
     get_or_fail({hosts, NodeKey, domain}).
 
