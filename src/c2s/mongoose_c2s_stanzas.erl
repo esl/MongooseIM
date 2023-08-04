@@ -57,19 +57,19 @@ stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
 determine_features(_, _, #{tls := #{mode := starttls_required}}, false, _StateData) ->
     [starttls_stanza(required)];
 determine_features(HostType, LServer, _, true, StateData) ->
-    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType, StateData);
+    mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(StateData);
 determine_features(HostType, LServer, _, _, StateData) ->
     [starttls_stanza(optional)
-     | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(HostType, StateData)].
+     | mongoose_hooks:c2s_stream_features(HostType, LServer) ++ maybe_sasl_mechanisms(StateData)].
 
-maybe_sasl_mechanisms(HostType, StateData) ->
-    case cyrsasl:listmech(HostType) of
+-spec maybe_sasl_mechanisms(mongoose_c2s:data()) -> [exml:element()].
+maybe_sasl_mechanisms(StateData) ->
+    case mongoose_c2s:get_auth_mechs(StateData) of
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
-                    children = [ mechanism(M)
-                                 || M <- Mechanisms, mongoose_c2s:filter_mechanism(StateData, M) ]}]
+                    children = [ mechanism(M) || M <- Mechanisms ]}]
     end.
 
 -spec mechanism(binary()) -> exml:element().
