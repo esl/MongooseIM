@@ -96,9 +96,16 @@ end_per_group(Group, _Config) when Group =:= admin_http;
 end_per_group(_, _Config) ->
     escalus_fresh:clean().
 
+init_per_testcase(set_and_get_loglevel_test = CaseName, Config) ->
+    Config1 = mim_loglevel:save_log_level(Config),
+    escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+
+end_per_testcase(set_and_get_loglevel_test = CaseName, Config) ->
+    mim_loglevel:restore_log_level(Config),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == join_successful
                                    orelse CaseName == join_successful_http
                                    orelse CaseName == join_twice ->
