@@ -194,8 +194,9 @@ required_modules(Config, Scope, Name) ->
                    stopped -> stopped;
                    ExtraOpts -> maps:merge(common_sm_opts(Config), ExtraOpts)
                end,
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
-     {mod_offline, config_parser_helper:mod_config(mod_offline, #{})}].
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})}].
 
 required_sm_opts(group, parallel) ->
     #{ack_freq => never};
