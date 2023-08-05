@@ -37,8 +37,9 @@ suite() ->
 
 init_per_suite(Config) ->
     NewConfig = dynamic_modules:save_modules(host_type(), Config),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     dynamic_modules:ensure_modules(
-      host_type(), [{mod_offline, default_mod_config(mod_offline)},
+      host_type(), [{mod_offline, mod_config(mod_offline, #{backend => Backend})},
                     {mod_csi, mod_config(mod_csi, #{buffer_max => ?CSI_BUFFER_MAX})}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(NewConfig)].
 
