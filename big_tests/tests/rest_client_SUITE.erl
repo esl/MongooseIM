@@ -209,7 +209,8 @@ muc_light_opts(suite) ->
     #{}.
 
 common_muc_light_opts() ->
-    #{rooms_in_rosters => true}.
+    #{rooms_in_rosters => true,
+      backend => mongoose_helper:mnesia_or_rdbms_backend()}.
 
 %% --------------------------------------------------------------------
 %% Test cases
