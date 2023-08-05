@@ -93,9 +93,9 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"backend">> => #option{type = atom,
-                                          validate = {module, mod_private}}},
+                                          validate = {module, mod_private, persistent_db}}},
        defaults = #{<<"iqdisc">> => one_queue,
-                    <<"backend">> => rdbms}
+                    <<"backend">> => auto}
     }.
 
 %% ------------------------------------------------------------------

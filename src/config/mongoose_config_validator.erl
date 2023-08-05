@@ -7,8 +7,11 @@
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
 
+-type backend_type() :: volotile_db | persistent_db.
+
 -type validator() ::
-        any | non_empty | non_negative | positive | module | {module, Prefix :: atom()}
+        any | non_empty | non_negative | positive
+      | module | {module, Prefix :: atom()} | {module, Prefix :: atom(), backend_type()}
       | jid | domain | subdomain_template | url | ip_address | ip_mask | network_address | port
       | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
 
@@ -25,7 +28,9 @@ validate(V, binary, url) -> validate_non_empty_binary(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, binary, subdomain_template) -> validate_subdomain_template(V);
 validate(V, binary, {module, Prefix}) ->
-    validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
+    validate_backend_module(binary_to_atom(V), Prefix, undefined);
+validate(V, binary, {module, Prefix, BackendType}) ->
+    validate_backend_module(binary_to_atom(V), Prefix, BackendType);
 validate(V, binary, jid) -> validate_jid(V);
 validate(V, binary, ldap_filter) -> validate_ldap_filter(V);
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);
@@ -44,7 +49,9 @@ validate(V, string, non_empty) -> validate_non_empty_string(V);
 validate(V, string, dirname) -> validate_dirname(V);
 validate(V, atom, module) -> validate_module(V);
 validate(V, atom, {module, Prefix}) ->
-    validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ atom_to_list(V)));
+    validate_backend_module(V, Prefix, undefined);
+validate(V, atom, {module, Prefix, BackendType}) ->
+    validate_backend_module(V, Prefix, BackendType);
 validate(V, atom, loglevel) -> validate_loglevel(V);
 validate(V, atom, pool_name) -> validate_non_empty_atom(V);
 validate(V, atom, shaper) -> validate_non_empty_atom(V);
@@ -73,6 +80,15 @@ validate_non_empty_binary(Value) when is_binary(Value), Value =/= <<>> -> ok.
 validate_unique_items(Items) ->
     L = sets:size(sets:from_list(Items)),
     L = length(Items).
+
+%% Allow auto modules if backend type is specified
+validate_backend_module(auto, _Prefix, persistent_db) ->
+    true;
+validate_backend_module(auto, _Prefix, volotile_db) ->
+    true;
+validate_backend_module(BackendName, Prefix, _BackendType) ->
+    L = atom_to_list(Prefix) ++ "_" ++ atom_to_list(BackendName),
+    validate_module(list_to_atom(L)).
 
 validate_module(Mod) ->
     case code:ensure_loaded(Mod) of

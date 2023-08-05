@@ -2,6 +2,7 @@
 
 %% API
 -export([init/4,
+         init/5,
          call/4,
          call_tracked/4,
          is_exported/4,
@@ -18,20 +19,40 @@
 -type main_module() :: module().
 -type backend_module() :: module().
 -type host_type_or_global() :: mongooseim:host_type_or_global().
+-type backend_type() :: unknown | volotile_db | persistent_db.
 
 -spec init(HostType :: host_type_or_global(),
            MainModule :: main_module(),
            TrackedFuns :: [function_name()],
            Opts :: map()) -> ok.
 init(HostType, MainModule, TrackedFuns, Opts) ->
+    init(HostType, MainModule, TrackedFuns, Opts, unknown).
+
+-spec init(HostType :: host_type_or_global(),
+           MainModule :: main_module(),
+           TrackedFuns :: [function_name()],
+           Opts :: map(),
+           BackendType :: backend_type()) -> ok.
+init(HostType, MainModule, TrackedFuns, Opts, BackendType) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = maps:get(backend, Opts, mnesia),
-    BackendModule = backend_module(MainModule, Backend),
+    BackendModule = backend_module(MainModule, Backend, BackendType),
     persist_backend_name(HostType, MainModule, Backend, BackendModule),
     ok.
 
-backend_module(Module, Backend) ->
+backend_module(Module, auto, unknown) ->
+    error({module_does_not_support_auto_backends, Module});
+backend_module(Module, auto, BackendType) ->
+    Backend = backend_type_to_default_backend(BackendType),
+    backend_module(Module, Backend, BackendType);
+backend_module(Module, Backend, _BackendType) ->
     list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
+
+-spec backend_type_to_default_backend(backend_type()) -> atom().
+backend_type_to_default_backend(persistent_db) ->
+    mongoose_config:get_opt(default_persistent_db);
+backend_type_to_default_backend(volotile_db) ->
+    mongoose_config:get_opt(default_volotile_db).
 
 call_metric(MainModule, FunName) ->
     [backends, MainModule, calls, FunName].

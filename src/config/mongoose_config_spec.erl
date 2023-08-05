@@ -201,7 +201,13 @@ general() ->
                                                     wrap = global_config},
                  <<"domain_certfile">> => #list{items = domain_cert(),
                                                 format_items = map,
-                                                wrap = global_config}
+                                                wrap = global_config},
+                 <<"default_persistent_db">> => #option{type = atom,
+                                                        validate = {enum, [rdbms, mnesia]},
+                                                        wrap = global_config},
+                 <<"default_volotile_db">> => #option{type = atom,
+                                                      validate = {enum, [cets, mnesia]},
+                                                      wrap = global_config}
                 },
        wrap = none,
        format_items = list
@@ -221,7 +227,9 @@ general_defaults() ->
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
-      <<"hide_service_name">> => false}.
+      <<"hide_service_name">> => false,
+      <<"default_volotile_db">> => mnesia,
+      <<"default_persistent_db">> => mnesia}.
 
 ctl_access_rule() ->
     #section{

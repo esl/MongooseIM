@@ -61,7 +61,7 @@
     Opts :: gen_mod:module_opts().
 init(HostType, Opts) ->
     TrackedFuns = [multi_get_data, multi_set_data],
-    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts, persistent_db),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
