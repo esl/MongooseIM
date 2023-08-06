@@ -7,7 +7,7 @@
 %% If it is an error, we want the stacktrace, if not, we don't.
 %% For more information, see usage in test/safely_SUITE.erl
 
--include("mongoose.hrl").
+-include("safely.hrl").
 -include_lib("kernel/include/logger.hrl").
 
 -ifdef(TEST).
@@ -40,11 +40,11 @@
 -ifdef(TEST).
 -spec apply(fun((...) -> A), [term()]) -> A | exception().
 apply(Function, Args) when is_function(Function), is_list(Args) ->
-    ?APPLY_SAFELY(erlang:apply(Function, Args)).
+    ?SAFELY(erlang:apply(Function, Args)).
 
 -spec apply(atom(), atom(), [term()]) -> term() | exception().
 apply(Module, Function, Args) when is_atom(Function), is_list(Args) ->
-    ?APPLY_SAFELY(erlang:apply(Module, Function, Args)).
+    ?SAFELY(erlang:apply(Module, Function, Args)).
 -endif.
 
 -spec apply_and_log(fun((...) -> A), [term()], map()) -> A | exception().

@@ -23,6 +23,7 @@
 
 -ignore_xref([start_link/0, add_handlers/1, delete_handlers/1]).
 
+-include("safely.hrl").
 -include("mongoose.hrl").
 
 -type hook_name() :: atom().
@@ -227,7 +228,7 @@ run_hook([Handler | Ls], Acc, Params, Key) ->
     hook_fn_ret() | safely:exception().
 apply_hook_function(#hook_handler{hook_fn = HookFn, extra = Extra},
                     Acc, Params) ->
-    ?APPLY_SAFELY(HookFn(Acc, Params, Extra)).
+    ?SAFELY(HookFn(Acc, Params, Extra)).
 
 error_running_hook(Info, Handler, Acc, Params, Key) ->
     ?LOG_ERROR(Info#{what => hook_failed,
