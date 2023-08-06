@@ -188,7 +188,8 @@ should_delete_when_owner_removed() -> true.
 %% Check that the mod_caps module is enabled in that Jabber Host
 %% If not, log a warning message.
 complain_if_modcaps_disabled(ServerHost) ->
-    ?WARNING_MSG_IF(
+    ?LOG_IF(
+       warning,
        not gen_mod:is_loaded(ServerHost, mod_caps),
        "The PEP plugin is enabled in mod_pubsub "
        "of host ~p. This plugin requires mod_caps "

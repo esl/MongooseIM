@@ -12,10 +12,6 @@
 
 -export([get_message_type/1, does_local_user_exist/3]).
 
-%% Private, just for warning
--export([deprecated_logging/1]).
--deprecated({deprecated_logging, 1, eventually}).
-
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
 -export_type([microseconds/0]).
@@ -114,12 +110,6 @@ do_wait_until(Fun, ExpectedValue, Opts) ->
 wait_and_continue(Fun, ExpectedValue, #{time_left := TimeLeft, sleep_time := SleepTime} = Opts) ->
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime}).
-
-
-deprecated_logging(Location) ->
-    Map = #{what => deprecated_logging_macro,
-            text => <<"Deprecated logging macro is used in your code">>},
-    mongoose_deprecations:log(Location, Map, [{log_level, warning}]).
 
 %% ------------------------------------------------------------------
 %% Parse IP
