@@ -99,7 +99,7 @@ priv/ssl/cert.pem priv/ssl/key.pem priv/ssl/cacert.pem: \
 console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS) -s run_common_test init
 
-compile: get-deps deps
+compile: get-deps
 	$(RUN) $(REBAR) compile
 
 get-deps:
@@ -110,8 +110,3 @@ clean:
 	-@rm priv/ssl/*
 	-@rm -rf tests/*.beam > /dev/null 2>&1
 	-@$(REBAR) clean > /dev/null 2>&1
-
-# to compile esip.
-# It should able to find stun.hrl. But searching paths are hardcoded
-deps:
-	ln -fs `pwd`/_build/default/lib deps
