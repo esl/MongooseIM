@@ -25,9 +25,7 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--define(DEFAULT_TOKEN_BYTES, 32).
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
--define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
 %% gen_mod callbacks
 -export([start/2,

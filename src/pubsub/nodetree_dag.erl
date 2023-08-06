@@ -38,7 +38,6 @@
 
 -define(DEFAULT_NODETYPE, leaf).
 -define(DEFAULT_PARENTS, []).
--define(DEFAULT_CHILDREN, []).
 
 init(HostType, Opts) ->
     nodetree_tree:init(HostType, Opts).

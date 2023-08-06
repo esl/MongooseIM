@@ -5,10 +5,6 @@
 
 -compile([export_all, nowarn_export_all]).
 
--define(_eq(E, I), ?_assertEqual(E, I)).
--define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
-
 -define(KEEPALIVE_INTERVAL, 1).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 -define(MAX_INTERVAL, 30).
@@ -84,7 +80,7 @@ end_per_testcase(_, Config) ->
 keepalive_interval(Config) ->
     {ok, Pid} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
     timer:sleep(5500),
-    ?eq(5, query_calls(Config)),
+    ?assertEqual(5, query_calls(Config)),
     true = erlang:exit(Pid, kill),
     ok.
 
@@ -92,7 +88,7 @@ keepalive_exit(Config) ->
     {ok, Pid} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
-    ?eq(3, query_calls(Config)),
+    ?assertEqual(3, query_calls(Config)),
     meck_error(?config(db_type, Config)),
     receive
         {'DOWN', Monitor, process, Pid, {keepalive_failed, _}} ->

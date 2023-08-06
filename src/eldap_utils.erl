@@ -255,32 +255,8 @@ singleton_value(_) ->
 %%----------------------------------------
 
 %%% The tag-number for universal types
--define(N_BOOLEAN, 1).
--define(N_INTEGER, 2).
 -define(N_BIT_STRING, 3).
--define(N_OCTET_STRING, 4).
--define(N_NULL, 5).
--define(N_OBJECT_IDENTIFIER, 6).
--define(N_OBJECT_DESCRIPTOR, 7).
--define(N_EXTERNAL, 8).
--define(N_REAL, 9).
--define(N_ENUMERATED, 10).
--define(N_EMBEDDED_PDV, 11).
--define(N_SEQUENCE, 16).
--define(N_SET, 17).
--define(N_NumericString, 18).
--define(N_PrintableString, 19).
--define(N_TeletexString, 20).
--define(N_VideotexString, 21).
--define(N_IA5String, 22).
--define(N_UTCTime, 23).
--define(N_GeneralizedTime, 24).
--define(N_GraphicString, 25).
--define(N_VisibleString, 26).
--define(N_GeneralString, 27).
--define(N_UniversalString, 28).
--define(N_BMPString, 30).
-
+%-define(N_OCTET_STRING, 4).
 
 -spec decode_octet_string(_, _, list()) -> binary().
 decode_octet_string(Buffer, Range, Tags) ->

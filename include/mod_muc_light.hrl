@@ -6,16 +6,6 @@
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 
--define(DEFAULT_EQUAL_OCCUPANTS, false).
--define(DEFAULT_LEGACY_MODE, false).
--define(DEFAULT_ROOMS_PER_USER, infinity).
--define(DEFAULT_BLOCKING, true).
--define(DEFAULT_ALL_CAN_CONFIGURE, false).
--define(DEFAULT_ALL_CAN_INVITE, false).
--define(DEFAULT_MAX_OCCUPANTS, infinity).
--define(DEFAULT_ROOMS_PER_PAGE, 10).
--define(DEFAULT_ROOMS_IN_ROSTERS, false).
-
 -type aff() :: owner | member | none.
 -type aff_user() :: {jid:simple_bare_jid(), aff()}.
 -type aff_users() :: [aff_user()].

@@ -39,7 +39,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 -define(NS_FRAMING, <<"urn:ietf:params:xml:ns:xmpp-framing">>).
--define(NS_COMPONENT, <<"jabber:component:accept">>).
 
 -record(websocket, {
           pid :: pid(),

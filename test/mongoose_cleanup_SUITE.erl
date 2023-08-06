@@ -15,7 +15,6 @@
         ]).
 
 -define(HOST, <<"localhost">>).
--define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 
 %% -----------------------------------------------------
 %% CT callbacks
