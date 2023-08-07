@@ -4,7 +4,8 @@
          repeat_all_until_all_ok/2,
          repeat_all_until_any_fail/1,
          repeat_all_until_any_fail/2,
-         groups_to_all/1]).
+         groups_to_all/1,
+         end_per_group_result/1]).
 
 -type group_name() :: atom().
 
@@ -114,3 +115,14 @@ is_ct_started() ->
 
 groups_to_all(Groups) ->
     [{group, Name} || {Name, _Opts, _Cases} <- Groups].
+
+%% Allows repeat_until_any_fail to work with nested groups
+%% http://www.cslab.ericsson.net/documentation/doc-5.9.1/lib/common_test-1.6.1/doc/html/write_test_chapter.html
+end_per_group_result(Config) ->
+    Status = proplists:get_value(tc_group_result, Config),
+    case proplists:get_value(failed, Status) of
+        [] ->                                   % no failed cases
+            {return_group_result, ok};
+        _Failed ->                              % one or more failed
+            {return_group_result, failed}
+    end.
