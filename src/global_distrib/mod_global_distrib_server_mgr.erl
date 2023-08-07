@@ -411,6 +411,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 -spec get_endpoints(Server :: jid:lserver()) -> [mod_global_distrib_utils:endpoint()].
 get_endpoints(Server) ->
     EndpointsToResolve = mod_global_distrib_mapping:endpoints(Server),
+    ?LOG_INFO(#{what => gd_get_endpoints, server => Server, endpoints => EndpointsToResolve}),
     mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve).
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],

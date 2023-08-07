@@ -140,7 +140,7 @@ resolve_endpoint({Addr, Port}) ->
                          address => Addr,
                          ipv6_reason => inet:format_error(Reasonv6),
                          ipv4_reason => inet:format_error(Reasonv4)}),
-            error({domain_not_resolved, {Reasonv6, Reasonv4}})
+            error({domain_not_resolved, {Addr, Reasonv6, Reasonv4}})
     end.
 
 

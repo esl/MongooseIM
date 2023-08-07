@@ -1205,11 +1205,14 @@ unmock_inet() ->
 %% which is startered from mod_global_distrib_outgoing_conns_sup:ensure_server_started/1
 %% by mod_global_distrib_hosts_refresher
 out_connection_sups(Node) ->
-    Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+    Children = get_out_con_sups(Node),
     lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
 
 debug_out_connection_sups() ->
-    [{Node, rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup])} || Node <- all_nodes()].
+    [{Node, get_out_con_sups(Node)} || Node <- all_nodes()].
+
+get_out_con_sups(Node) ->
+    rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]).
 
 debug_other_servers() ->
     [{Node, other_servers(Node)} || Node <- all_nodes()].
