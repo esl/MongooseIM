@@ -34,6 +34,9 @@
 %%--------------------------------------------------------------------
 
 all() ->
+    [{group, all2}].
+
+all2() ->
     [
      {group, mod_global_distrib},
      {group, cluster_restart},
@@ -46,7 +49,8 @@ all() ->
     ].
 
 groups() ->
-    [{mod_global_distrib, [],
+    [{all2, [{repeat_until_any_fail, 60}], all2()},
+     {mod_global_distrib, [],
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
@@ -68,7 +72,9 @@ groups() ->
            test_global_disco
           ]},
          {hosts_refresher, [],
-          [test_host_refreshing]},
+          [
+           test_host_refreshing
+          ]},
          {cluster_restart, [],
           [
            test_location_disconnect
@@ -381,7 +387,7 @@ test_advertised_endpoints_override_endpoints(_Config) ->
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, true,
+    mongoose_helper:wait_until(fun() -> servers_without_trees_of_connections() end, [],
                                #{name => trees_for_connections_present,
                                  time_left => timer:seconds(10)}),
     ConnectionSups = out_connection_sups(asia_node),
@@ -1177,11 +1183,9 @@ out_connection_sups(Node) ->
     Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
     lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
 
-trees_for_connections_present() ->
-    AsiaChildren = out_connection_sups(asia_node),
-    Europe1Children = out_connection_sups(europe_node1),
-    Europe2Children = out_connection_sups(europe_node2),
-    lists:all(fun(Host) -> length(Host) > 0 end, [AsiaChildren, Europe1Children, Europe2Children]).
+servers_without_trees_of_connections() ->
+    Servers = [asia_node, europe_node1, europe_node2],
+    [Server || Server <- Servers, out_connection_sups(Server) =:= []].
 
 tree_for_sup_present(Node, ExpectedSup) ->
     Children = out_connection_sups(Node),
@@ -1340,7 +1344,9 @@ custom_loglevels() ->
    %% To debug incoming connections
 %    {mod_global_distrib_receiver, info},
    %% to debug global session set/delete
-     {mod_global_distrib_mapping, debug}
+     {mod_global_distrib_mapping, debug},
+   %% to debug test_host_refreshing failing
+     {mod_global_distrib_hosts_refresher, debug}
     ].
 
 test_hosts() -> [mim, mim2, reg].
