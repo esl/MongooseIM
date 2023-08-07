@@ -170,10 +170,12 @@ init_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= asyn
     Config1 = dynamic_modules:save_modules(HostType, Config),
     Config2 = dynamic_modules:save_modules(SecHostType, Config1),
     InboxOptions = inbox_helper:inbox_opts(GroupName),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    ModOffline = config_parser_helper:mod_config(mod_offline, #{backend => Backend}),
     ok = dynamic_modules:ensure_modules(HostType,
            inbox_helper:inbox_modules(GroupName)
            ++ inbox_helper:muclight_modules()
-           ++ [{mod_offline, config_parser_helper:default_mod_config(mod_offline)}]),
+           ++ [{mod_offline, ModOffline}]),
     ok = dynamic_modules:ensure_modules(SecHostType,
            [{mod_inbox, InboxOptions#{aff_changes := false}}]),
     [{inbox_opts, InboxOptions} | Config2];
