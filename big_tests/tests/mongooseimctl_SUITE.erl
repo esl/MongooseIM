@@ -475,9 +475,10 @@ check_password(Config) ->
     OldValue = get_metric(MetricName),
     {_, 0} = mongooseimctl("check_password", [User, Domain, Pass], Config),
     {_, ErrCode} = mongooseimctl("check_password", [User, Domain, <<Pass/binary, "Bad">>], Config),
+    ValidatorFn = fun(NewValue) -> OldValue =/= NewValue end,
     mongoose_helper:wait_until(
-      fun() -> get_metric(MetricName) end, true,
-      #{validator => fun(NewValue) -> OldValue =/= NewValue end, name => ?FUNCTION_NAME}),
+      fun() -> get_metric(MetricName) end,
+      ValidatorFn, #{name => ?FUNCTION_NAME}),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 get_metric(MetricName) ->

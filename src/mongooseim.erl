@@ -21,10 +21,12 @@
 -export_type([host_type/0, host_type_or_global/0, domain_name/0]).
 
 %% API
--export([start/0]).
+-export([start/0, stop/0]).
 
--ignore_xref([start/0]).
+-ignore_xref([start/0, stop/0]).
 
 start() ->
-    application:start(mongooseim),
-    ejabberd:start().
+    application:ensure_all_started(mongooseim).
+
+stop() ->
+    application:stop(mongooseim).

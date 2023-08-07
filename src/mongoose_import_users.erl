@@ -8,7 +8,8 @@
 -define(REGISTER_WORKERS_NUM, 10).
 
 -type summary() :: #{reason() => [jid:jid() | binary()]}.
--type reason() :: ok | exists | not_allowed | invalid_jid | null_password | bad_csv.
+-type reason() :: ok | exists | not_allowed | invalid_jid | null_password |
+                  limit_per_domain_exceeded | bad_csv.
 
 -export_type([summary/0, reason/0]).
 

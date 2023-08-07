@@ -1,22 +1,11 @@
 -module(ejabberd_helper).
 
--export([start_ejabberd/1,
-         stop_ejabberd/0,
-         use_config_file/2,
+-export([use_config_file/2,
          start_ejabberd_with_config/2,
          copy/2,
          data/2,
          priv/2,
          suite_priv/2]).
-
-
--spec start_ejabberd(any()) -> 'ok' | {error, any()}.
-start_ejabberd(_Config) ->
-    {ok, _} = ejabberd:start().
-
--spec stop_ejabberd() -> 'ok' | {error, any()}.
-stop_ejabberd() ->
-    application:stop(mongooseim).
 
 -spec use_config_file(any(), file:name_all()) -> ok.
 use_config_file(Config, ConfigFile) ->
@@ -31,7 +20,7 @@ use_config_file(Config, ConfigFile) ->
 -spec start_ejabberd_with_config(any(), file:name_all()) -> ok.
 start_ejabberd_with_config(Config, ConfigFile) ->
     use_config_file(Config, ConfigFile),
-    {ok, _} = start_ejabberd(Config).
+    {ok, _} = mongooseim:start().
 
 copy(Src, Dst) ->
     {ok, _} = file:copy(Src, Dst).
@@ -63,4 +52,3 @@ suite_priv(Config, PathSuffix) ->
 
 preserve_trailing_slash($/, Path) -> Path ++ [$/];
 preserve_trailing_slash(__, Path) -> Path.
-

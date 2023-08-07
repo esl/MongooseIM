@@ -2,7 +2,7 @@
 
 -define(TABLE, ?MODULE).
 
--export([start/0, default_routing_modules/0]).
+-export([start/0, routing_modules_list/0, default_routing_modules/0]).
 
 -export([get_all_domains/0, lookup_route/1, is_registered_route/1,
          register_route/2, unregister_route/1]).
@@ -47,9 +47,13 @@ start() ->
     mongoose_metrics:ensure_metric(global, routingErrors, spiral).
 
 default_routing_modules() ->
-    [mongoose_router_global,
-     mongoose_router_localdomain,
-     mongoose_router_external_localnode,
-     mongoose_router_external,
-     mongoose_router_dynamic_domains,
-     ejabberd_s2s].
+    List = [mongoose_router_global,
+            mongoose_router_localdomain,
+            mongoose_router_external_localnode,
+            mongoose_router_external,
+            mongoose_router_dynamic_domains,
+            ejabberd_s2s],
+    xmpp_router:expand_routing_modules(List).
+
+routing_modules_list() ->
+    mongoose_config:get_opt(routing_modules).

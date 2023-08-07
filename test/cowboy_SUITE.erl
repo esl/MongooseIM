@@ -22,9 +22,7 @@
 
 -define(SERVER, "http://localhost:8080").
 
--import(ejabberd_helper, [start_ejabberd/1,
-                          stop_ejabberd/0,
-                          use_config_file/2,
+-import(ejabberd_helper, [use_config_file/2,
                           start_ejabberd_with_config/2]).
 -import(config_parser_helper, [default_config/1]).
 

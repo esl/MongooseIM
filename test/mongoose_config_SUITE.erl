@@ -3,9 +3,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_helper, [start_ejabberd/1,
-                          start_ejabberd_with_config/2,
-                          stop_ejabberd/0,
+-import(ejabberd_helper, [start_ejabberd_with_config/2,
                           use_config_file/2,
                           copy/2,
                           data/2]).
@@ -153,7 +151,7 @@ cluster_load_from_file(Config) ->
     [State, State] = mongoose_config:config_states(),
     check_loaded_config(State),
 
-    ok = stop_ejabberd(),
+    ok = mongooseim:stop(),
     stop_remote_ejabberd(SlaveNode),
     check_removed_config().
 
@@ -243,7 +241,7 @@ start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
     rpc:call(RemoteNode, ejabberd_helper, start_ejabberd_with_config, [C, ConfigFile]).
 
 stop_remote_ejabberd(SlaveNode) ->
-    rpc:call(SlaveNode, ejabberd_helper, stop_ejabberd, []).
+    rpc:call(SlaveNode, mongooseim, stop, []).
 
 code_paths() ->
     [filename:absname(Path) || Path <- code:get_path()].

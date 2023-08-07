@@ -138,7 +138,6 @@ start() ->
 
 -spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
-    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
@@ -443,7 +442,15 @@ init([]) ->
     lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
     ejabberd_commands:register_commands(commands()),
+    %% Create metrics after backend has started, otherwise probe could have null value
+    create_metrics(),
     {ok, #state{}}.
+
+create_metrics() ->
+    mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),
+    mongoose_metrics:create_probe_metric(global, totalSessionCount, mongoose_metrics_probe_total_sessions),
+    mongoose_metrics:create_probe_metric(global, uniqueSessionCount, mongoose_metrics_probe_unique_sessions),
+    mongoose_metrics:create_probe_metric(global, nodeSessionCount, mongoose_metrics_probe_node_sessions).
 
 -spec hooks(binary()) -> [gen_hook:hook_tuple()].
 hooks(HostType) ->

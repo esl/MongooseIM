@@ -63,12 +63,12 @@ do_start() ->
     ejabberd_commands:init(),
     mongoose_graphql_commands:start(),
     mongoose_config:start(),
+    mongoose_metrics:init(),
     db_init(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    mongoose_domain_api:init(),
     mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
     %% ejabberd_sm is started separately because it may use one of the outgoing_pools
@@ -79,9 +79,9 @@ do_start() ->
     mongoose_service:start(),
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
-    mongoose_metrics:init(),
     mongoose_listener:start(),
     ejabberd_admin:start(),
+    mongoose_metrics:init_mongooseim_metrics(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
     Sup.
@@ -110,7 +110,6 @@ stop(_State) ->
     %% We cannot stop other applications inside of the stop callback
     %% (because we would deadlock the application controller process).
     %% That is why we call mnesia:stop() inside of db_init_mnesia() instead.
-    %%ejabberd_debug:stop(),
     ok.
 
 

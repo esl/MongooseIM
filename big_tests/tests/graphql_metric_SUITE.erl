@@ -445,7 +445,12 @@ check_spiral_dict(Dict) ->
     ?assert(is_integer(One)).
 
 values_are_integers(Map, Keys) ->
-    lists:foreach(fun(Key) -> ?assert(is_integer(maps:get(Key, Map))) end, Keys).
+    case lists:all(fun(Key) -> is_integer(maps:get(Key, Map)) end, Keys) of
+        true ->
+            ok;
+        false ->
+            ct:fail({values_are_integers, Keys, Map})
+    end.
 
 metric_host_type() ->
     binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).

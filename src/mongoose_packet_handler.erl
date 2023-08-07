@@ -8,25 +8,21 @@
 -module(mongoose_packet_handler).
 -author('piotr.nosek@erlang-solutions.com').
 
-%%----------------------------------------------------------------------
-%% Types
-%%----------------------------------------------------------------------
-
--record(packet_handler, { module, extra }).
-
--type t() :: #packet_handler{
-                module :: module(),
-                extra :: map()
-               }.
-
+-record(packet_handler, {
+          handler :: process_packet(),
+          extra :: extra()
+         }).
+-type extra() :: map().
+-type t() :: #packet_handler{}.
 -export_type([t/0]).
 
-%%----------------------------------------------------------------------
-%% Callback declarations
-%%----------------------------------------------------------------------
-
--callback process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                         El :: exml:element(), Extra :: map()) -> mongoose_acc:t().
+-define(ARGS, Acc :: mongoose_acc:t(),
+              From :: jid:jid(),
+              To :: jid:jid(),
+              El :: exml:element(),
+              Extra :: extra()).
+-type process_packet() :: fun((?ARGS) -> mongoose_acc:t()).
+-callback process_packet(?ARGS) -> mongoose_acc:t().
 
 %%----------------------------------------------------------------------
 %% API
@@ -36,25 +32,24 @@
 %% Getters
 -export([module/1, extra/1]).
 
--ignore_xref([behaviour_info/1]).
-
 -spec new(Module :: module()) -> t().
 new(Module) ->
     new(Module, #{}).
 
--spec new(Module :: module(), Extra :: map()) -> t().
+-spec new(Module :: module(), Extra :: extra()) -> t().
 new(Module, Extra) when is_atom(Module), is_map(Extra) ->
-    #packet_handler{ module = Module, extra = Extra }.
+    #packet_handler{handler = fun Module:process_packet/5, extra = Extra }.
 
 -spec process(Handler :: t(),
               Acc :: mongoose_acc:t(),
               From ::jid:jid(),
               To ::jid:jid(),
               El :: exml:element()) -> mongoose_acc:t().
-process(#packet_handler{ module = Module, extra = Extra }, Acc, From, To, El) ->
-    Module:process_packet(Acc, From, To, El, Extra).
+process(#packet_handler{handler = ProcessPacket, extra = Extra }, Acc, From, To, El) ->
+    ProcessPacket(Acc, From, To, El, Extra).
 
-module(#packet_handler{ module = Module }) ->
+module(#packet_handler{handler = ProcessPacket }) ->
+    {_, Module} = erlang:fun_info(ProcessPacket, module),
     Module.
 
 extra(#packet_handler{ extra = Extra }) ->

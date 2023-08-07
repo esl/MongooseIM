@@ -14,9 +14,9 @@
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
--export([sync_local/0]).
+-export([sync_local/0, ping/1]).
 
--ignore_xref([start_link/0, sync_local/0,
+-ignore_xref([start_link/0, sync_local/0, ping/1,
               init/1, handle_call/3, handle_cast/2, handle_info/2,
               code_change/3, terminate/2]).
 
@@ -73,9 +73,12 @@ start_link() ->
 enabled() ->
     mongoose_service:is_loaded(?MODULE).
 
+all_members() ->
+    pg:get_members(?SCOPE, ?GROUP).
+
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case pg:get_members(?SCOPE, ?GROUP) of
+    case all_members() of
         [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
             ok;
@@ -83,8 +86,21 @@ force_check_for_updates() ->
             ok
     end.
 
+%% Ensure that all pending check_for_updates messages are received by this node,
+%% even if they are sent by other nodes in the cluster.
+%% We have to do an RPC to ensure there is nothing pending in the distributed communication buffers.
+%% Used in tests.
 sync_local() ->
-    gen_server:call(?MODULE, ping).
+    LocalPid = whereis(?MODULE),
+    true = is_pid(LocalPid),
+    Nodes = [node(Pid) || Pid <- all_members()],
+    %% Ping from all nodes in the cluster
+    [pong = rpc:call(Node, ?MODULE, ping, [LocalPid]) || Node <- Nodes],
+    pong.
+
+-spec ping(pid()) -> pong.
+ping(Pid) ->
+    gen_server:call(Pid, ping).
 
 %% ---------------------------------------------------------------------------
 %% Server callbacks

@@ -149,6 +149,10 @@ init([]) ->
         {mongoose_shaper_sup,
           {mongoose_shaper_sup, start_link, []},
           permanent, infinity, supervisor, [mongoose_shaper_sup]},
+    DomainSup =
+        {mongoose_domain_sup,
+          {mongoose_domain_sup, start_link, []},
+          permanent, infinity, supervisor, [mongoose_domain_sup]},
     PG =
         {pg,
           {pg, start_link, [mim_scope]},
@@ -176,7 +180,8 @@ init([]) ->
            IQSupervisor,
            Listener,
            MucIQ,
-           ShaperSup]}}.
+           ShaperSup,
+           DomainSup]}}.
 
 start_child(ChildSpec) ->
     start_child(ejabberd_sup, ChildSpec).

@@ -270,7 +270,7 @@ get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult, Check) 
     Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
     {ok, Inbox} = mongoose_helper:wait_until(
                     fun() -> Check(do_get_inbox(Client, GetInbox)) end,
-                    ExpectedCount, #{validator => Validator, name => inbox_size}),
+                    Validator, #{name => inbox_size}),
     #{respond_iq := ResIQ} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),
@@ -576,7 +576,7 @@ make_members(Room, Admin, Users) ->
     % gets iq result and affs changes from all users
     escalus:wait_for_stanzas(Admin, 1 + length(Users)),
     % Everybody gets aff changes of everybody
-    lists:foreach(fun(User) -> escalus:wait_for_stanzas(User, length(Users)) end, Users). 
+    lists:foreach(fun(User) -> escalus:wait_for_stanzas(User, length(Users)) end, Users).
 
 % All users enter the room
 enter_room(Room, Users) ->

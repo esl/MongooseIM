@@ -18,7 +18,7 @@
          get_info/1, set_info/2,
          get_mod_state/2, get_listener_opts/1, merge_mod_state/2, remove_mod_state/2,
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
--export([filter_mechanism/2, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
+-export([get_auth_mechs/1, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
 -export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
@@ -260,16 +260,6 @@ close_socket(#c2s_data{socket = Socket}) ->
 activate_socket(#c2s_data{socket = Socket}) ->
     mongoose_c2s_socket:activate(Socket).
 
--spec filter_mechanism(data(), binary()) -> boolean().
-filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
-    mongoose_c2s_socket:is_channel_binding_supported(Socket);
-filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) ->
-    mongoose_c2s_socket:is_channel_binding_supported(Socket);
-filter_mechanism(#c2s_data{socket = Socket, listener_opts = LOpts}, <<"EXTERNAL">>) ->
-    mongoose_c2s_socket:has_peer_cert(Socket, LOpts);
-filter_mechanism(_, _) ->
-    true.
-
 %%%----------------------------------------------------------------------
 %%% error handler helpers
 %%%----------------------------------------------------------------------
@@ -404,8 +394,7 @@ handle_auth_start(StateData, El, SaslState, Retries) ->
 do_handle_auth_start(StateData, El, SaslState, Retries) ->
     Mech = exml_query:attr(El, <<"mechanism">>),
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
-    HostType = StateData#c2s_data.host_type,
-    AuthMech = [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)],
+    AuthMech = get_auth_mechs(StateData),
     SocketData = #{socket => StateData#c2s_data.socket, auth_mech => AuthMech,
                    listener_opts => StateData#c2s_data.listener_opts},
     StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
@@ -1049,6 +1038,20 @@ cast(Pid, EventTag, EventContent) ->
 -spec create_data(#{host_type := mongooseim:host_type(), jid := jid:jid()}) -> data().
 create_data(#{host_type := HostType, jid := Jid}) ->
     #c2s_data{host_type = HostType, jid = Jid}.
+
+-spec get_auth_mechs(data()) -> [cyrsasl:mechanism()].
+get_auth_mechs(#c2s_data{host_type = HostType} = StateData) ->
+    [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)].
+
+-spec filter_mechanism(data(), binary()) -> boolean().
+filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-1-PLUS">>) ->
+    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+filter_mechanism(#c2s_data{socket = Socket}, <<"SCRAM-SHA-", _N:3/binary, "-PLUS">>) ->
+    mongoose_c2s_socket:is_channel_binding_supported(Socket);
+filter_mechanism(#c2s_data{socket = Socket, listener_opts = LOpts}, <<"EXTERNAL">>) ->
+    mongoose_c2s_socket:has_peer_cert(Socket, LOpts);
+filter_mechanism(_, _) ->
+    true.
 
 -spec get_host_type(data()) -> mongooseim:host_type().
 get_host_type(#c2s_data{host_type = HostType}) ->
