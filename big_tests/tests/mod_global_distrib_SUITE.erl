@@ -403,7 +403,12 @@ test_advertised_endpoints_override_endpoints(_Config) ->
 test_host_refreshing(_Config) ->
     mongoose_helper:wait_until(fun() -> nodes_without_trees_of_connections() end, [],
                                #{name => trees_for_connections_present,
-                                 time_left => timer:seconds(10)}),
+                                 time_left => timer:seconds(10),
+                                 on_error => fun() ->
+                                     PingInfo = catch assert_could_ping_managers(),
+                                     OutSups = debug_out_connection_sups(),
+                                     ct:pal("PingInfo ~p~n OutSups ~p~n", [PingInfo, OutSups])
+                                 end}),
     assert_could_ping_managers(),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
@@ -1200,6 +1205,9 @@ unmock_inet() ->
 out_connection_sups(Node) ->
     Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
     lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
+
+debug_out_connection_sups() ->
+    [{Node, rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup])} || Node <- all_nodes()].
 
 all_nodes() ->
     %% mim, mim2, reg1
