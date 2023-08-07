@@ -27,7 +27,12 @@ groups() ->
            dropped_client_doesnt_create_duplicate_carbons,
            prop_forward_received_chat_messages,
            prop_forward_sent_chat_messages,
-           prop_normal_routing_to_bare_jid
+           prop_normal_routing_to_bare_jid,
+           chat_message_is_carbon_copied,
+           normal_message_with_body_is_carbon_copied,
+           normal_message_with_receipt_is_carbon_copied,
+           normal_message_with_csn_is_carbon_copied,
+           normal_message_with_chat_marker_is_carbon_copied
           ]}].
 
 %%%===================================================================
@@ -150,7 +155,7 @@ unavailable_resources_dont_get_carbons(Config) ->
           Body2 = <<"carbonated">>,
           escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, Body2)),
           wait_for_message_with_body(Alice2, Body2),
-          carboncopy_helper:wait_for_carbon_with_body(Alice1, Body2, #{from => Bob, to => Alice2})
+          carboncopy_helper:wait_for_carbon_chat_with_body(Alice1, Body2, #{from => Bob, to => Alice2})
       end).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
@@ -201,6 +206,32 @@ prop_normal_routing_to_bare_jid(Config) ->
                                                                           Msg)
                     end))).
 
+chat_message_is_carbon_copied(Config) ->
+    message_is_carbon_copied(Config, fun escalus_stanza:chat_to/2).
+
+normal_message_with_body_is_carbon_copied(Config) ->
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_body/2).
+
+normal_message_with_receipt_is_carbon_copied(Config) ->
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_receipt/2).
+
+normal_message_with_csn_is_carbon_copied(Config) ->
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_csn/2).
+
+normal_message_with_chat_marker_is_carbon_copied(Config) ->
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_chat_marker/2).
+
+message_is_carbon_copied(Config, StanzaFun) ->
+    escalus:fresh_story(
+        Config, [{alice, 2}, {bob, 1}],
+        fun(Alice1, Alice2, Bob) ->
+            enable_carbons([Alice1, Alice2]),
+            Body = <<"carbonated">>,
+            escalus_client:send(Bob, StanzaFun(Alice2, Body)),
+            AliceReceived = escalus_client:wait_for_stanza(Alice2),
+            escalus:assert(is_message, AliceReceived),
+            carboncopy_helper:wait_for_carbon_message(Alice1, #{from => Bob, to => Alice2})
+        end).
 
 %%
 %% Test scenarios w/assertions
