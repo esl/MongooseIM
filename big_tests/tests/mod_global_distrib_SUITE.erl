@@ -141,6 +141,8 @@ end_per_suite(Config) ->
     rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config).
 
+init_per_group(all2, Config) ->
+    Config;
 init_per_group(start_checks, Config) ->
     NodeName = europe_node1,
     NodeSpec = node_spec(NodeName),
@@ -230,6 +232,8 @@ set_opts(bounce, #{bounce := BounceExtra} = Opts) ->
 set_opts(_, Opts) ->
     Opts.
 
+end_per_group(all2, Config) ->
+    Config;
 end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
@@ -329,9 +333,18 @@ generic_end_per_testcase(CaseName, Config) ->
                   lists:foreach(fun ({mod_global_distrib_hosts_refresher, _, _, _}) ->
                                         skip;
                                     ({Id, _, _, _}) ->
-                                        supervisor:terminate_child(SupRef, Id)
+                                        case supervisor:terminate_child(SupRef, Id) of
+                                            ok -> ok;
+                                            Other ->
+                                                ct:pal("terminate_child_returns ~p~n~p",
+                                                       [Other, OutgoingConns])
+                                        end
                                 end, OutgoingConns),
-                  [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
+%%                   [{'mod_global_distrib_server_sup_localhost.bis',
+%%                        <9252.5754.2>,supervisor,dynamic},
+%%                      {mod_global_distrib_hosts_refresher,<9252.5741.2>,worker,
+%%                        [mod_global_distrib_hosts_refresher]
+                                [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
                     supervisor:which_children(SupRef)
               catch
                   _:{noproc, _} ->
