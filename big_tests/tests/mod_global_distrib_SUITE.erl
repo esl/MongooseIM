@@ -405,9 +405,11 @@ test_host_refreshing(_Config) ->
                                #{name => trees_for_connections_present,
                                  time_left => timer:seconds(10),
                                  on_error => fun() ->
-                                     PingInfo = catch assert_could_ping_managers(),
                                      OutSups = debug_out_connection_sups(),
-                                     ct:pal("PingInfo ~p~n OutSups ~p~n", [PingInfo, OutSups])
+                                     PingInfo = catch assert_could_ping_managers(),
+                                     OtherServers = debug_other_servers(),
+                                     ct:pal("PingInfo ~p~n OutSups ~p~n OtherServers ~p~n",
+                                            [PingInfo, OutSups, OtherServers])
                                  end}),
     assert_could_ping_managers(),
     ConnectionSups = out_connection_sups(asia_node),
@@ -1208,6 +1210,9 @@ out_connection_sups(Node) ->
 
 debug_out_connection_sups() ->
     [{Node, rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup])} || Node <- all_nodes()].
+
+debug_other_servers() ->
+    [{Node, other_servers(Node)} || Node <- all_nodes()].
 
 all_nodes() ->
     %% mim, mim2, reg1
