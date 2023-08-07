@@ -409,7 +409,9 @@ test_host_refreshing(_Config) ->
                                      PingInfo = catch assert_could_ping_managers(),
                                      OtherServers = debug_other_servers(),
                                      ct:pal("PingInfo ~p~n OutSups ~p~n OtherServers ~p~n",
-                                            [PingInfo, OutSups, OtherServers])
+                                            [PingInfo, OutSups, OtherServers]),
+                                     %% Pause before crashing for better time separation in logs
+                                     timer:sleep(3000)
                                  end}),
     assert_could_ping_managers(),
     ConnectionSups = out_connection_sups(asia_node),
