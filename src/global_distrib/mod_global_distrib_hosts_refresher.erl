@@ -34,9 +34,9 @@
 -export([deps/2, start/2, stop/1]).
 
 %% Test & debug API
--export([pause/0, unpause/0]).
+-export([pause/0, unpause/0, other_servers/0]).
 
--ignore_xref([pause/0, start_link/1, unpause/0]).
+-ignore_xref([pause/0, start_link/1, unpause/0, other_servers/0]).
 
 -record(state, {local_host :: binary(),
                 refresh_interval :: pos_integer(),
@@ -142,6 +142,12 @@ refresh(LocalHost) ->
                  hosts => Hosts, local_host => LocalHost}),
     lists:foreach(fun mod_global_distrib_outgoing_conns_sup:ensure_server_started/1,
                   lists:delete(LocalHost, Hosts)).
+
+-spec other_servers() -> [jid:lserver()].
+other_servers() ->
+    Hosts = mod_global_distrib_mapping:hosts(),
+    LocalHost = mod_global_distrib_utils:opt(mod_global_distrib, local_host),
+    lists:delete(LocalHost, Hosts).
 
 schedule_refresh(#state{ refresh_interval = Interval } = State) ->
     TRef = erlang:start_timer(Interval, self(), refresh),

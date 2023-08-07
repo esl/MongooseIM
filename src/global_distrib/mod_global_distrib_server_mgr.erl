@@ -306,8 +306,10 @@ handle_info(Msg, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-terminate(_Reason, _State) ->
+terminate(Reason, State) ->
     %% TODO: Cleanup
+    ?LOG_INFO(ls(#{what => gd_server_mgr_terminate,
+                   reason => Reason}, State)),
     ok.
 
 %%--------------------------------------------------------------------

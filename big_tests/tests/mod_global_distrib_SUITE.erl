@@ -71,10 +71,6 @@ groups() ->
            test_muc_conversation_on_one_host,
            test_global_disco
           ]},
-         {hosts_refresher, [],
-          [
-           test_host_refreshing
-          ]},
          {cluster_restart, [],
           [
            test_location_disconnect
@@ -108,6 +104,10 @@ groups() ->
           [
            test_advertised_endpoints_override_endpoints,
            test_pm_between_users_at_different_locations
+          ]},
+         {hosts_refresher, [],
+          [
+           test_host_refreshing
           ]}
     ].
 
@@ -235,8 +235,7 @@ set_opts(_, Opts) ->
 end_per_group(all2, Config) ->
     Config;
 end_per_group(advertised_endpoints, Config) ->
-    Pids = ?config(meck_handlers, Config),
-    unmock_inet(Pids),
+    unmock_inet(),
     escalus_fresh:clean(),
     end_per_group_generic(Config);
 end_per_group(start_checks, Config) ->
@@ -250,7 +249,8 @@ end_per_group(_, Config) ->
     end_per_group_generic(Config).
 
 end_per_group_generic(Config) ->
-    dynamic_modules:restore_modules(#{timeout => timer:seconds(30)}, Config).
+    dynamic_modules:restore_modules(#{timeout => timer:seconds(30)}, Config),
+    ct_helper:end_per_group_result(Config).
 
 init_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
@@ -389,20 +389,22 @@ unpause_refresher(NodeName, _) ->
 %% Reads Redis to confirm that endpoints (in Redis) are overwritten
 %% with `advertised_endpoints` option value
 test_advertised_endpoints_override_endpoints(_Config) ->
-    Endps = execute_on_each_node(mod_global_distrib_mapping_redis, get_endpoints, [<<"reg1">>]),
+    Results = erpc:multicall(get_nodes(), mod_global_distrib_mapping_redis,
+                             get_endpoints, [<<"reg1">>]),
     true = lists:all(
-             fun(E) ->
+             fun({ok, E}) ->
                      lists:sort(E) =:= lists:sort(advertised_endpoints())
-             end, Endps).
+             end, Results).
 
 %% @doc Verifies that hosts refresher will restart the outgoing connection pool if
 %% it goes down for some reason (crash or domain unavailability).
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    mongoose_helper:wait_until(fun() -> servers_without_trees_of_connections() end, [],
+    mongoose_helper:wait_until(fun() -> nodes_without_trees_of_connections() end, [],
                                #{name => trees_for_connections_present,
                                  time_left => timer:seconds(10)}),
+    assert_could_ping_managers(),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
@@ -1175,35 +1177,63 @@ endpoint_opts(NodeName, ReceiverPort, Config) ->
       resolved_endpoints => [resolved_endpoint(ReceiverPort)],
       advertised_endpoints => AdvertisedEndpoints}.
 
-mock_inet_on_each_node() ->
-    Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),
-    Results = lists:map(fun(Node) -> rpc:block_call(Node, ?MODULE, mock_inet, []) end, Nodes),
-    true = lists:all(fun(Result) -> Result =:= ok end, Results).
+get_nodes() ->
+    lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()).
 
-execute_on_each_node(M, F, A) ->
-    lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
+mock_inet_on_each_node() ->
+    Results = erpc:multicall(get_nodes(), ?MODULE, mock_inet, []),
+    true = lists:all(fun(Result) -> Result =:= {ok, ok} end, Results).
 
 mock_inet() ->
     %% We don't want to mock inet module itself to avoid strange networking issues
-    meck:new(mod_global_distrib_utils, [non_strict, passthrough, unstick]),
+    meck:new(mod_global_distrib_utils, [non_strict, passthrough, unstick, no_link]),
     meck:expect(mod_global_distrib_utils, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
                                                        (_, inet6) -> {error, "No ipv6 address"} end).
 
-unmock_inet(_Pids) ->
-    execute_on_each_node(meck, unload, [mod_global_distrib_utils]).
+unmock_inet() ->
+    erpc:multicall(get_nodes(), meck, unload, [mod_global_distrib_utils]),
+    ok.
 
+%% Returns children of type {mod_global_distrib_server_sup, start_link, [Server]}
+%% which is startered from mod_global_distrib_outgoing_conns_sup:ensure_server_started/1
+%% by mod_global_distrib_hosts_refresher
 out_connection_sups(Node) ->
     Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
     lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
 
-servers_without_trees_of_connections() ->
-    Servers = [asia_node, europe_node1, europe_node2],
-    [Server || Server <- Servers, out_connection_sups(Server) =:= []].
+all_nodes() ->
+    %% mim, mim2, reg1
+    [europe_node1, europe_node2, asia_node].
+
+nodes_without_trees_of_connections() ->
+    %% Check suite() function to find the actual node names
+    [Node || Node <- all_nodes(), not has_matching_connection_number(Node)].
+
+has_matching_connection_number(Node) ->
+    Cons = length(out_connection_sups(Node)),
+    Servers = length(other_servers(Node)),
+    Cons =:= Servers andalso Cons > 0.
 
 tree_for_sup_present(Node, ExpectedSup) ->
     Children = out_connection_sups(Node),
     lists:keyfind(ExpectedSup, 1, Children) =/= false.
 
+assert_could_ping_managers() ->
+    [assert_could_ping_managers(Node) || Node <- all_nodes()],
+    ok.
+
+other_servers(Node) ->
+    rpc(Node, mod_global_distrib_hosts_refresher, other_servers, []).
+    
+assert_could_ping_managers(Node) ->
+    [assert_could_ping(Node, Server) || Server <- other_servers(Node)],
+    ok.
+
+assert_could_ping(Node, Server) ->
+    case rpc(Node, mod_global_distrib_server_mgr, ping_proc, [Server]) of
+        pong -> ok;
+        Other -> ct:fail({assert_could_ping, Node, Server, Other})
+    end.
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 

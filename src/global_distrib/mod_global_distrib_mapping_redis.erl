@@ -125,20 +125,29 @@ get_endpoints_for_nodes(Host, Nodes) ->
 %%--------------------------------------------------------------------
 
 init(RefreshAfter) ->
-    refresh_and_schedule_next("initial_autorefresh", RefreshAfter),
-    {ok, RefreshAfter}.
+    %% Do not crash if redis is unavailable
+    self() ! initial_refresh,
+    {ok, #{refresh_after => RefreshAfter}}.
 
-handle_info(refresh, RefreshAfter) ->
-    refresh_and_schedule_next("autorefresh", RefreshAfter),
-    {noreply, RefreshAfter}.
+handle_info(initial_refresh, State) ->
+    {noreply, refresh_and_schedule_next("initial_refresh", State)};
+handle_info(refresh, State) ->
+    {noreply, refresh_and_schedule_next("autorefresh", State)}.
 
 refresh() ->
     refresh("reason_unknown").
 
-refresh_and_schedule_next(Reason, RefreshAfter) ->
+refresh_and_schedule_next(Reason, State = #{refresh_after := RefreshAfter}) ->
+    cancel_timer(State),
     Reason2 = Reason ++ ",next_refresh_in=" ++ integer_to_list(RefreshAfter),
     refresh(Reason2),
-    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh).
+    TRef = erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
+    State#{timer_ref => TRef}.
+
+cancel_timer(#{timer_ref := TRef}) ->
+    erlang:cancel_timer(TRef);
+cancel_timer(_) ->
+    ok.
 
 -spec refresh(Reason :: string()) -> ok.
 refresh(Reason) ->
