@@ -78,7 +78,7 @@ monitor_loop(Mon, Info, Start) ->
             ok;
         stop ->
             ok
-    after 5000 ->
+    after 1000 ->
         Diff = diff(Start),
         ?LOG_INFO(Info#{what => long_task_progress, time_ms => Diff}),
         monitor_loop(Mon, Info, Start)
