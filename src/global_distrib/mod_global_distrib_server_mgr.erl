@@ -23,7 +23,8 @@
 -export([start_link/2]).
 -export([get_connection/1, ping_proc/1, get_state_info/1]).
 -export([force_refresh/1, close_disabled/1]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_continue/2, handle_call/3, handle_cast/2,
+         handle_info/2, terminate/2, code_change/3]).
 
 %% Debug
 -export([get_enabled_endpoints/1, get_disabled_endpoints/1]).
@@ -139,10 +140,14 @@ init([Server, Supervisor]) ->
                conn_opts = ConnOpts
               },
 
-    self() ! initial_refresh,
-
     ?LOG_INFO(ls(#{what => gd_mgr_started}, State)),
-    {ok, State}.
+    {ok, State, {continue, initial_refresh}}.
+
+handle_continue(initial_refresh, State) ->
+    State2 = refresh_connections(State),
+    schedule_refresh(State2),
+    schedule_gc(State2),
+    {noreply, State2}.
 
 handle_call(get_connection_pool, From, #state{ enabled = [],
                                                pending_gets = PendingGets } = State) ->
@@ -180,12 +185,6 @@ handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
-
-handle_info(initial_refresh, State) ->
-    State2 = refresh_connections(State),
-    schedule_refresh(State2),
-    schedule_gc(State2),
-    {noreply, State2};
 handle_info(refresh, State) ->
     State2 = case State#state.pending_endpoints of
                  [] -> refresh_connections(State);
