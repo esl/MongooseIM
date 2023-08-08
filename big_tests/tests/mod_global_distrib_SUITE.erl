@@ -1409,7 +1409,8 @@ custom_loglevels() ->
    %% to debug global session set/delete
      {mod_global_distrib_mapping, debug},
    %% to debug test_host_refreshing failing
-     {mod_global_distrib_hosts_refresher, debug}
+     {mod_global_distrib_hosts_refresher, debug},
+     {mongoose_long, info}
     ].
 
 test_hosts() -> [mim, mim2, reg].
