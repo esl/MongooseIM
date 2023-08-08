@@ -140,7 +140,7 @@ init([Server, Supervisor]) ->
               },
     ?LOG_INFO(ls(#{what => gd_mgr_starting, conn_opts => ConnOpts}, State)),
 
-    State2 = refresh_connections(State),
+    State2 = mongoose_long:run_tracked(#{call => refresh_in_init}, fun() -> refresh_connections(State) end),
     schedule_refresh(State2),
     schedule_gc(State2),
 
@@ -153,7 +153,7 @@ handle_call(get_connection_pool, From, #state{ enabled = [],
 handle_call(get_connection_pool, _From, #state{ enabled = Enabled } = State) ->
     {reply, {ok, pick_connection_pool(Enabled)}, State};
 handle_call(force_refresh, From, #state{ pending_endpoints_listeners = [] } = State) ->
-    State2 = refresh_connections(State),
+    State2 = mongoose_long:run_tracked(#{call => force_refresh}, fun() -> refresh_connections(State) end),
     case State2#state.pending_endpoints of
         [] -> {reply, ok, State2};
         _ -> {noreply, State2#state{ pending_endpoints_listeners = [From] }}
@@ -185,7 +185,7 @@ handle_cast(Msg, State) ->
 
 handle_info(refresh, State) ->
     State2 = case State#state.pending_endpoints of
-                 [] -> refresh_connections(State);
+                 [] -> mongoose_long:run_tracked(#{call => gd_mgr_refresh}, fun() -> refresh_connections(State) end);
                  _ -> State % May occur if we are in the middle of force_refresh
              end,
     case State#state.pending_endpoints == State2#state.pending_endpoints of
@@ -424,7 +424,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 get_endpoints(Server) ->
     EndpointsToResolve = mod_global_distrib_mapping:endpoints(Server),
     ?LOG_INFO(#{what => gd_get_endpoints, server => Server, endpoints => EndpointsToResolve}),
-    mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve).
+    mongoose_long:run_tracked(#{call => resolve_endpoints}, fun() -> mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve) end).
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
                       OldEnabled :: [endpoint_pid_tuple()]) ->
