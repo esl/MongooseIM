@@ -220,10 +220,23 @@ check_host(Domain) ->
             ok
     end.
 
+get_addrs(Addr) ->
+    %% getaddrs could be pretty slow, so do in parallel and log time
+    F = fun(Ver) ->
+            Info = #{call => gd_getaddrs, address => Addr, version => Ver},
+            F2 = fun() -> ?MODULE:getaddrs(Addr, Ver) end,
+            mongoose_long:run_tracked(Info, F2)
+        end,
+    [V4, V6] = mongoose_lib:pmap(F, [inet, inet6]),
+    {simplify_result(V4), simplify_result(V6)}.
+
+simplify_result({ok, Res}) -> Res;
+simplify_result(Res) -> Res.
+
 -spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
                          {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
 to_ip_tuples(Addr) ->
-    case {?MODULE:getaddrs(Addr, inet6), ?MODULE:getaddrs(Addr, inet)} of
+    case get_addrs(Addr) of
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
         {Addrs, {error, Msg}} ->
