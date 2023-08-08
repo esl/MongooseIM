@@ -139,12 +139,10 @@ init([Server, Supervisor]) ->
                conn_opts = ConnOpts
               },
 
-    State2 = refresh_connections(State),
-    schedule_refresh(State2),
-    schedule_gc(State2),
+    self() ! initial_refresh,
 
-    ?LOG_INFO(ls(#{what => gd_mgr_started}, State2)),
-    {ok, State2}.
+    ?LOG_INFO(ls(#{what => gd_mgr_started}, State)),
+    {ok, State}.
 
 handle_call(get_connection_pool, From, #state{ enabled = [],
                                                pending_gets = PendingGets } = State) ->
@@ -182,6 +180,12 @@ handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
+
+handle_info(initial_refresh, State) ->
+    State2 = refresh_connections(State),
+    schedule_refresh(State2),
+    schedule_gc(State2),
+    {noreply, State2};
 handle_info(refresh, State) ->
     State2 = case State#state.pending_endpoints of
                  [] -> refresh_connections(State);
