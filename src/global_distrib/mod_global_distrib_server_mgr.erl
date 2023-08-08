@@ -457,6 +457,7 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
             case catch mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint,
                                                                 Server, ConnOpts) of
                 {ok, ConnPoolRef, ConnPoolPid} ->
+                    ?LOG_INFO(ls(#{what => gd_mgr_cpool_started, conn_pool_ref => ConnPoolRef, conn_pool_pid => ConnPoolPid}, State)),
                     MonitorRef = monitor(process, ConnPoolPid),
                     EndpointInfo = #endpoint_info{
                                       endpoint = Endpoint,
