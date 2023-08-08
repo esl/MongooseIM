@@ -138,6 +138,7 @@ init([Server, Supervisor]) ->
                gc_interval = GCInterval,
                conn_opts = ConnOpts
               },
+    ?LOG_INFO(ls(#{what => gd_mgr_starting, conn_opts => ConnOpts}, State)),
 
     State2 = refresh_connections(State),
     schedule_refresh(State2),
