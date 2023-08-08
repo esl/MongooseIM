@@ -544,3 +544,12 @@ CREATE TABLE domain_events (
     domain VARCHAR(250) NOT NULL
 );
 CREATE INDEX i_domain_events_domain ON domain_events(domain);
+
+CREATE TABLE discovery_nodes (
+    node_name varchar(250),
+    cluster_name varchar(250),
+    updated_timestamp BIGINT NOT NULL, -- in microseconds
+    node_num INT UNSIGNED NOT NULL,
+    PRIMARY KEY (cluster_name, node_name)
+);
+CREATE UNIQUE INDEX i_discovery_nodes_node_num USING BTREE ON discovery_nodes(cluster_name, node_num);

@@ -52,6 +52,7 @@ all() ->
      {group, listen},
      {group, auth},
      {group, pool},
+     {group, internal_databases},
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
@@ -74,6 +75,8 @@ groups() ->
                             language,
                             all_metrics_are_global,
                             sm_backend,
+                            component_backend,
+                            s2s_backend,
                             max_fsm_queue,
                             http_server_name,
                             rdbms_server_type,
@@ -143,6 +146,7 @@ groups() ->
                          pool_rabbit_connection,
                          pool_ldap,
                          pool_ldap_connection]},
+     {internal_databases, [parallel], [internal_database_cets]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
                                       acl_merge_host_and_global,
@@ -378,8 +382,21 @@ all_metrics_are_global(_Config) ->
 sm_backend(_Config) ->
     ?cfg(sm_backend, mnesia, #{}), % default
     ?cfg(sm_backend, mnesia, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
+    ?cfg(sm_backend, cets, #{<<"general">> => #{<<"sm_backend">> => <<"cets">>}}),
     ?cfg(sm_backend, redis, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
+
+component_backend(_Config) ->
+    ?cfg(component_backend, mnesia, #{}), % default
+    ?cfg(component_backend, mnesia, #{<<"general">> => #{<<"component_backend">> => <<"mnesia">>}}),
+    ?cfg(component_backend, cets, #{<<"general">> => #{<<"component_backend">> => <<"cets">>}}),
+    ?err(#{<<"general">> => #{<<"component_backend">> => <<"amnesia">>}}).
+
+s2s_backend(_Config) ->
+    ?cfg(s2s_backend, mnesia, #{}), % default
+    ?cfg(s2s_backend, mnesia, #{<<"general">> => #{<<"s2s_backend">> => <<"mnesia">>}}),
+    ?err(#{<<"general">> => #{<<"s2s_backend">> => <<"redis">>}}),
+    ?err(#{<<"general">> => #{<<"s2s_backend">> => <<"amnesia">>}}).
 
 max_fsm_queue(_Config) ->
     ?cfg(max_fsm_queue, 100, #{<<"general">> => #{<<"max_fsm_queue">> => 100}}),
@@ -1159,6 +1176,30 @@ test_fast_tls_server(P, T) ->
     ?err(T(#{<<"versions">> => [<<"tlsv1.2">>]})), % option only for just_tls
     ?err(T(#{<<"protocol_options">> => [<<>>]})).
 
+%% tests: internal_databases
+
+internal_database_cets(_Config) ->
+    CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}}},
+    CetsFile = #{<<"internal_databases">> => #{<<"cets">> =>
+        #{<<"backend">> => <<"file">>, <<"node_list_file">> => <<"/dev/null">>}}},
+    %% No internal_databases section means an empty list of databases
+    ?cfg([internal_databases], #{}, #{}), % default
+    %% Empty internal_databases could be configured explicitly
+    ?cfg([internal_databases], #{}, #{<<"internal_databases">> => #{}}),
+
+    ?cfg([internal_databases, cets, backend], file,
+         #{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"file">>}}}),
+    ?cfg([internal_databases, cets, backend], rdbms,
+         #{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
+
+    ?cfg([internal_databases, cets, cluster_name], mongooseim, CetsEnabled),
+    ?cfg([internal_databases, cets, node_list_file], "/dev/null", CetsFile),
+    %% If only mnesia section is defined, CETS section is not included
+    ?cfg([internal_databases], #{mnesia => #{}},
+         #{<<"internal_databases">> => #{<<"mnesia">> => #{}}}),
+    ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"backend">> => <<"mnesia">>}}}),
+    ?err(#{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => 123}}}).
+
 %% tests: shaper, acl, access
 shaper(_Config) ->
     ?cfg([shaper, normal], #{max_rate => 1000},
@@ -1872,6 +1913,7 @@ mod_jingle_sip(_Config) ->
     check_module_defaults(mod_jingle_sip),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
     P = [modules, mod_jingle_sip],
+    ?cfgh(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
     ?cfgh(P ++ [proxy_host], "proxxxy.com",
           T(#{<<"proxy_host">> => <<"proxxxy.com">>})),
     ?cfgh(P ++ [proxy_port], 5601,
@@ -1887,6 +1929,7 @@ mod_jingle_sip(_Config) ->
     ?cfgh(P ++ [username_to_phone], [{<<"2000006168">>, <<"+919177074440">>}],
           T(#{<<"username_to_phone">> => [#{<<"username">> => <<"2000006168">>,
                                             <<"phone">> => <<"+919177074440">>}]})),
+    ?errh(T(#{<<"backend">> => <<"amnesia">>})),
     ?errh(T(#{<<"proxy_host">> => 1})),
     ?errh(T(#{<<"proxy_port">> => 1000000})),
     ?errh(T(#{<<"listen_port">> => -1})),

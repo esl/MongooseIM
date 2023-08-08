@@ -36,7 +36,7 @@ assert_inlist(Pattern, L) ->
     Fl = lists:filter(fun(X) -> case X of Pattern -> true; _ -> false end end, L),
     case Fl of
         [] ->
-            ct:fail(io_lib:format("Fail: ~p not in [~p...]", [Pattern, H]));
+            ct:fail("Fail: ~p not in [~p...]", [Pattern, H]);
         _ ->
             Fl
     end.
@@ -49,13 +49,13 @@ assert_notinlist(Pattern, L) ->
         [] ->
             ok;
         _ ->
-            ct:fail(io_lib:format("Fail: ~p in ~p", [Pattern, L]))
+            ct:fail("Fail: ~p in ~p", [Pattern, L])
     end.
 
 assert_inmaplist([], Map, L, [H|_]) ->
     case L of
         [] ->
-            ct:fail(io_lib:format("Fail: ~p not in [~p...]", [Map, H]));
+            ct:fail("Fail: ~p not in [~p...]", [Map, H]);
         _ ->
             L
     end;
@@ -70,7 +70,7 @@ assert_notinmaplist([], Map, L, [H|_]) ->
         [] ->
             ok;
         _ ->
-            ct:fail(io_lib:format("Fail: ~p in [~p...]", [Map, H]))
+            ct:fail("Fail: ~p in [~p...]", [Map, H])
     end;
 assert_notinmaplist([K|Keys], Map, L, Orig) ->
     V = maps:get(K, Map),

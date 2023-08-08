@@ -90,6 +90,7 @@ root() ->
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
                  <<"outgoing_pools">> => outgoing_pools(),
+                 <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
                  <<"shaper">> => shaper(),
@@ -170,6 +171,12 @@ general() ->
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
                                              wrap = global_config},
+                 <<"component_backend">> => #option{type = atom,
+                                                    validate = {module, mongoose_component},
+                                                    wrap = global_config},
+                 <<"s2s_backend">> => #option{type = atom,
+                                              validate = {module, mongoose_s2s},
+                                              wrap = global_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
                                                 wrap = global_config},
@@ -209,6 +216,8 @@ general_defaults() ->
       <<"language">> => <<"en">>,
       <<"all_metrics_are_global">> => false,
       <<"sm_backend">> => mnesia,
+      <<"component_backend">> => mnesia,
+      <<"s2s_backend">> => mnesia,
       <<"rdbms_server_type">> => generic,
       <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
@@ -427,6 +436,32 @@ auth_password() ->
                     <<"scram_iterations">> => mongoose_scram:iterations()},
        include = always
       }.
+
+%% path: internal_databases
+internal_databases() ->
+    Items = #{<<"cets">> => internal_database_cets(),
+              <<"mnesia">> => internal_database_mnesia()},
+    #section{items = Items,
+             format_items = map,
+             wrap = global_config,
+             include = always}.
+
+%% path: internal_databases.*.*
+internal_database_cets() ->
+    #section{
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {enum, [file, rdbms]}},
+                 <<"cluster_name">> => #option{type = atom, validate = non_empty},
+                 %% Relative to the release directory (or an absolute name)
+                 <<"node_list_file">> => #option{type = string,
+                                                 validate = filename}
+                },
+       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
+      }.
+
+%% path: internal_databases.*.*
+internal_database_mnesia() ->
+    #section{}.
 
 %% path: outgoing_pools
 outgoing_pools() ->

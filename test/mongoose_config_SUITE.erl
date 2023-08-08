@@ -26,6 +26,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    mnesia:start(), %% TODO Remove this call when possible (We still need it for s2s)
     {ok, _} = application:ensure_all_started(jid),
     Config.
 
@@ -175,6 +176,7 @@ minimal_config_opts() ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>]},
+     {internal_databases, #{}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -185,6 +187,8 @@ minimal_config_opts() ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
@@ -200,6 +204,7 @@ do_start_slave_node() ->
             {init_timeout, 10}, %% in seconds
             {startup_timeout, 10}], %% in seconds
     {ok, SlaveNode} = ct_slave:start(slave_name(), Opts),
+    rpc:call(SlaveNode, mnesia, start, []), %% TODO remove this call when possible
     {ok, CWD} = file:get_cwd(),
     ok = rpc:call(SlaveNode, file, set_cwd, [CWD]),
     %% Tell the remote node where to find the SUITE code

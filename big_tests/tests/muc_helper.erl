@@ -52,14 +52,15 @@ foreach_recipient(Users, VerifyFun) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
 
-load_muc() ->
-    load_muc(domain_helper:host_type()).
+load_muc(Config) ->
+    load_muc(Config, domain_helper:host_type()).
 
-load_muc(HostType) ->
+load_muc(Config, HostType) ->
     Backend = muc_backend(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
     Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
+             online_backend => muc_online_backend(Config),
              hibernate_timeout => 2000,
              hibernated_room_check_interval => 1000,
              hibernated_room_timeout => 2000,
@@ -85,6 +86,9 @@ muc_host_pattern() ->
 
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
+
+muc_online_backend(Config) when is_list(Config) ->
+    ct_helper:get_preset_var(Config, muc_online_backend, mnesia).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
@@ -176,15 +180,26 @@ destroy_room(Config) ->
     destroy_room(muc_host(), ?config(room, Config)).
 
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    HostType = domain_helper:host_type(),
     Room1 = jid:nodeprep(Room),
-    case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
-        [{_,_,Pid}|_] ->
+    case rpc(mim(), mongoose_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
+        {ok, Pid} ->
             %% @TODO related to gen_fsm_compat: after migration to gen_statem
             %%       should be replaced to - gen_statem:call(Pid, destroy).
             Pid ! {'$gen_all_state_event', destroy},
+            wait_for_process_down(Pid),
             ok;
-        _ ->
+        {error, not_found} ->
             ok
+    end.
+
+wait_for_process_down(Pid) ->
+    Ref = monitor(process, Pid),
+    receive
+        {'DOWN', Ref, _Type, Pid, _Info} ->
+            ok
+    after 5000 ->
+              ct:fail(wait_for_process_down_failed)
     end.
 
 stanza_muc_enter_room(Room, Nick) ->

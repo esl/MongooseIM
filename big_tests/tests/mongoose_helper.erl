@@ -242,7 +242,8 @@ stop_online_rooms() ->
         false -> ct:fail({ejabberd_mod_muc_sup_not_found, Supervisor, HostType})
     end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
-    rpc(mim(), mnesia, clear_table, [muc_online_room]),
+    %% That's a pretty dirty way
+    rpc(mim(), mongoose_muc_online_backend, clear_table, [HostType]),
     ok.
 
 forget_persistent_rooms() ->
@@ -499,13 +500,8 @@ restart_listener(Spec, Listener) ->
     rpc(Spec, mongoose_listener, start_listener, [Listener]).
 
 should_minio_be_running(Config) ->
-    case proplists:get_value(preset, Config, undefined) of
-        undefined -> false;
-        Preset ->
-            PresetAtom = list_to_existing_atom(Preset),
-            DBs = ct:get_config({presets, toml, PresetAtom, dbs}, []),
-            lists:member(minio, DBs)
-    end.
+    DBs = ct_helper:get_preset_var(Config, dbs, []),
+    lists:member(minio, DBs).
 
 %% It is useful to debug dynamic IQ handler registration
 print_debug_info_for_module(Module) ->

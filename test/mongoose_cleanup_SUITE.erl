@@ -3,15 +3,23 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("mongoose.hrl").
 
--export([all/0,
+-export([all/0, groups/0,
          init_per_suite/1, end_per_suite/1,
+         init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
--export([cleaner_runs_hook_on_nodedown/1, notify_self_hook/3]).
+-export([cleaner_runs_hook_on_nodedown/1,
+         cleaner_runs_hook_on_nodedown_for_host_type/1,
+         notify_self_hook/3,
+         notify_self_hook_for_host_type/3]).
 -export([auth_anonymous/1,
          last/1,
          stream_management/1,
          s2s/1,
-         bosh/1
+         bosh/1,
+         component/1,
+         component_from_other_node_remains/1,
+         muc_room/1,
+         muc_room_from_other_node_remains/1
         ]).
 
 -define(HOST, <<"localhost">>).
@@ -24,12 +32,26 @@
 all() ->
     [
      cleaner_runs_hook_on_nodedown,
+     cleaner_runs_hook_on_nodedown_for_host_type,
      auth_anonymous,
      last,
      stream_management,
      s2s,
-     bosh
+     bosh,
+     [{group, Group} || {Group, _, _} <- groups()]
     ].
+
+groups() ->
+    [{component_cets, [], component_cases()},
+     {component_mnesia, [], component_cases()},
+     {muc_cets, [], muc_cases()},
+     {muc_mnesia, [], muc_cases()}].
+
+component_cases() ->
+    [component, component_from_other_node_remains].
+
+muc_cases() ->
+    [muc_room, muc_room_from_other_node_remains].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -44,25 +66,65 @@ end_per_suite(Config) ->
     mnesia:delete_schema([node()]),
     Config.
 
+init_per_group(component_mnesia, Config) ->
+    mongoose_config:set_opt(component_backend, mnesia),
+    Config;
+init_per_group(component_cets, Config) ->
+    mongoose_config:set_opt(component_backend, cets),
+    start_cets_disco(Config);
+init_per_group(muc_mnesia, Config) ->
+    [{muc_backend, mnesia} | Config];
+init_per_group(muc_cets, Config) ->
+    [{muc_backend, cets} | start_cets_disco(Config)].
+
+end_per_group(_Group, Config) ->
+    stop_cets_disco(Config).
+
 init_per_testcase(TestCase, Config) ->
+    mim_ct_sup:start_link(ejabberd_sup),
     {ok, _HooksServer} = gen_hook:start_link(),
     {ok, _DomainSup} = mongoose_domain_sup:start_link(),
     setup_meck(meck_mods(TestCase)),
+    start_component(TestCase),
+    start_muc_backend(Config),
     Config.
 
 end_per_testcase(TestCase, _Config) ->
+    stop_component(TestCase),
     mongoose_modules:stop(),
     mongoose_config:set_opt({modules, ?HOST}, #{}),
     unload_meck(meck_mods(TestCase)).
+
+start_component(TestCase) ->
+    case needs_component(TestCase) of
+        true ->
+            mongoose_router:start(),
+            mongoose_component:start();
+        false ->
+            ok
+    end.
+
+stop_component(TestCase) ->
+    case needs_component(TestCase) of
+        true ->
+            mongoose_component:stop();
+        false ->
+            ok
+    end.
+
+needs_component(TestCase) ->
+    lists:member(TestCase, component_cases()).
 
 opts() ->
     [{hosts, [?HOST]},
      {host_types, []},
      {all_metrics_are_global, false},
+     {s2s_backend, mnesia},
      {{modules, ?HOST}, #{}}].
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
 meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
+meck_mods(component) -> [exometer];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 
 %% -----------------------------------------------------
@@ -75,10 +137,8 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     gen_hook:add_handler(node_cleanup, global,
                          fun ?MODULE:notify_self_hook/3,
                          #{self => self()}, 50),
-
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
-
     receive
         {got_nodedown, FakeNode} -> ok
     after timer:seconds(1) ->
@@ -87,8 +147,26 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     ?assertEqual(false, meck:called(gen_hook, error_running_hook,
                                     ['_', '_', '_', '_', '_'])).
 
+cleaner_runs_hook_on_nodedown_for_host_type(_Config) ->
+    HostType = ?HOST,
+    {ok, Cleaner} = mongoose_cleaner:start_link(),
+    gen_hook:add_handler(node_cleanup_for_host_type, HostType,
+                         fun ?MODULE:notify_self_hook_for_host_type/3,
+                         #{self => self()}, 50),
+    FakeNode = fakename@fakehost,
+    Cleaner ! {nodedown, FakeNode},
+    receive
+        {got_nodedown_for_host_type, FakeNode, HostType} -> ok
+    after timer:seconds(1) ->
+        ct:fail({timeout, got_nodedown})
+    end.
+
 notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     Self ! {got_nodedown, Node},
+    {ok, Acc}.
+
+notify_self_hook_for_host_type(Acc, #{node := Node}, #{self := Self, host_type := HostType}) ->
+    Self ! {got_nodedown_for_host_type, Node, HostType},
     {ok, Acc}.
 
 auth_anonymous(_Config) ->
@@ -136,9 +214,9 @@ s2s(_Config) ->
     FromTo = {?HOST, <<"foreign">>},
     ejabberd_s2s:try_register(FromTo),
     Self = self(),
-    [Self] = ejabberd_s2s:get_connections_pids(FromTo),
+    [Self] = ejabberd_s2s:get_s2s_out_pids(FromTo),
     mongoose_hooks:node_cleanup(node()),
-    [] = ejabberd_s2s:get_connections_pids(FromTo).
+    [] = ejabberd_s2s:get_s2s_out_pids(FromTo).
 
 bosh(_Config) ->
     {started, ok} = start(?HOST, mod_bosh),
@@ -150,6 +228,47 @@ bosh(_Config) ->
     mongoose_hooks:node_cleanup(node()),
     {error, _} = mod_bosh:get_session_socket(SID),
     ok.
+
+component(_Config) ->
+    Handler = fun() -> ok end,
+    Domain = <<"cool.localhost">>,
+    Node = some_node,
+    {ok, _} = mongoose_component:register_components([Domain], Node, Handler, false),
+    true = mongoose_component:has_component(Domain),
+    #{mongoose_component := ok} = mongoose_hooks:node_cleanup(Node),
+    [] = mongoose_component:dirty_get_all_components(all),
+    false = mongoose_component:has_component(Domain),
+    ok.
+
+component_from_other_node_remains(_Config) ->
+    Handler = fun() -> ok end,
+    Domain = <<"cool.localhost">>,
+    {ok, Comps} = mongoose_component:register_components([Domain], other_node, Handler, false),
+    true = mongoose_component:has_component(Domain),
+    #{mongoose_component := ok} = mongoose_hooks:node_cleanup(some_node),
+    true = mongoose_component:has_component(Domain),
+    mongoose_component:unregister_components(Comps),
+    ok.
+
+muc_room(_Config) ->
+    HostType = ?HOST,
+    MucHost = <<"muc.localhost">>,
+    Pid = remote_pid(),
+    Node = node(Pid),
+    Room = <<"remote_room">>,
+    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mongoose_muc_online_backend:node_cleanup(HostType, Node),
+    {error, not_found} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+
+muc_room_from_other_node_remains(_Config) ->
+    HostType = ?HOST,
+    MucHost = <<"muc.localhost">>,
+    Pid = self(),
+    RemoteNode = node(remote_pid()),
+    Room = <<"room_on_other_node">>,
+    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mongoose_muc_online_backend:node_cleanup(HostType, RemoteNode),
+    {ok, Pid} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 %% -----------------------------------------------------
 %% Internal
@@ -212,3 +331,37 @@ start(HostType, Module) ->
 
 start(HostType, Module, Opts) ->
     mongoose_modules:ensure_started(HostType, Module, Opts).
+
+disco_opts() ->
+    #{name => mongoose_cets_discovery, disco_file => "does_not_exist.txt"}.
+
+start_cets_disco(Config) ->
+    {ok, Pid} = cets_discovery:start(disco_opts()),
+    [{cets_disco, Pid} | Config].
+
+stop_cets_disco(Config) ->
+    case proplists:get_value(cets_disco, Config) of
+        Pid when is_pid(Pid) ->
+            exit(Pid, kill);
+        _ ->
+            ok
+    end.
+
+%% Pid 90 on cool_node@localhost
+%% Made using:
+%% erl -name cool_node@localhost
+%% rp(term_to_binary(list_to_pid("<0.90.0>"))).
+remote_pid_binary() ->
+    <<131, 88, 100, 0, 19, 99, 111, 111, 108, 95, 110, 111, 100, 101, 64,
+      108, 111, 99, 97, 108, 104, 111, 115, 116, 0, 0, 0, 90, 0, 0, 0, 0, 100,
+      200, 255, 233>>.
+
+remote_pid() ->
+    binary_to_term(remote_pid_binary()).
+
+start_muc_backend(Config) ->
+    case proplists:get_value(muc_backend, Config) of
+        undefined -> ok;
+        Backend ->
+            mongoose_muc_online_backend:start(?HOST, #{online_backend => Backend})
+    end.

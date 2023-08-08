@@ -41,6 +41,11 @@
 -include("jlib.hrl").
 -include("mod_muc.hrl").
 
+-record(muc_registered, {
+            us_host    :: {US :: jid:simple_bare_jid(), MucHost :: jid:lserver()} | '$1',
+            nick       :: mod_muc:nick()
+         }).
+
 init(_HostType, _Opts) ->
     mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},

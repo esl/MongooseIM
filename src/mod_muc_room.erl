@@ -154,13 +154,11 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start_new(HostType :: mongooseim:host_type(), Host :: jid:server(), ServerHost :: jid:server(),
+-spec start_new(HostType :: mongooseim:host_type(), Host :: jid:lserver(), ServerHost :: jid:lserver(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Creator :: jid:jid(), Nick :: mod_muc:nick(),
-            DefRoomOpts :: list()) -> {'error', _}
-                                          | {'ok', 'undefined' | pid()}
-                                          | {'ok', 'undefined' | pid(), _}.
+            DefRoomOpts :: list()) -> {ok, pid()}.
 start_new(HostType, Host, ServerHost, Access, Room,
           HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
     Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
@@ -171,12 +169,10 @@ start_new(HostType, Host, ServerHost, Access, Room,
              creator => Creator, nick => Nick, def_opts => DefRoomOpts},
     supervisor:start_child(Supervisor, [Args]).
 
--spec start_restored(HostType :: mongooseim:host_type(), Host :: jid:server(), ServerHost :: jid:server(),
+-spec start_restored(HostType :: mongooseim:host_type(), Host :: jid:lserver(), ServerHost :: jid:lserver(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
-            Opts :: list()) -> {'error', _}
-                                   | {'ok', 'undefined' | pid()}
-                                   | {'ok', 'undefined' | pid(), _}.
+            Opts :: list()) -> {ok, pid()}.
 start_restored(HostType, Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, Opts)
     when is_list(Opts) ->

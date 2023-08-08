@@ -21,6 +21,8 @@ execute(_Ctx, _Obj, <<"metric">>, _Args) ->
     {ok, metric};
 execute(_Ctx, _Obj, <<"mnesia">>, _Args) ->
     {ok, mnesia};
+execute(_Ctx, _Obj, <<"cets">>, _Args) ->
+    {ok, cets};
 execute(_Ctx, _Obj, <<"muc">>, _Args) ->
     {ok, muc};
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->

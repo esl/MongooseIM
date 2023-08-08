@@ -29,8 +29,6 @@
 
 -import(muc_helper,
         [muc_host/0,
-         load_muc/0,
-         unload_muc/0,
          start_room/5,
          generate_rpc_jid/1,
          destroy_room/1,
@@ -318,7 +316,7 @@ rsm_cases() ->
 rsm_cases_with_offline() ->
     [pagination_all_with_offline].
 suite() ->
-    s2s_helper:suite(escalus:suite()).
+    distributed_helper:require_rpc_nodes([mim, fed]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -331,14 +329,14 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
-    load_muc(),
+    muc_helper:load_muc(Config),
     mongoose_helper:ensure_muc_clean(),
     Config3.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
-    unload_muc(),
+    muc_helper:unload_muc(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 

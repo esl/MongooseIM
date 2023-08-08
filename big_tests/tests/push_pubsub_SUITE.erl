@@ -425,7 +425,8 @@ required_modules(APIVersion) ->
     [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, #{
         plugins => [<<"dag">>, <<"push">>],
         nodetree => nodetree_dag,
-        host => subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@")
+        host => subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@"),
+        backend => mongoose_helper:mnesia_or_rdbms_backend()
     })},
      {mod_push_service_mongoosepush,
       config_parser_helper:mod_config(mod_push_service_mongoosepush, #{pool_name => mongoose_push_http,

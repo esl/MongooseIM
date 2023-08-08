@@ -170,10 +170,12 @@ init_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= asyn
     Config1 = dynamic_modules:save_modules(HostType, Config),
     Config2 = dynamic_modules:save_modules(SecHostType, Config1),
     InboxOptions = inbox_helper:inbox_opts(GroupName),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    ModOffline = config_parser_helper:mod_config(mod_offline, #{backend => Backend}),
     ok = dynamic_modules:ensure_modules(HostType,
            inbox_helper:inbox_modules(GroupName)
            ++ inbox_helper:muclight_modules()
-           ++ [{mod_offline, config_parser_helper:default_mod_config(mod_offline)}]),
+           ++ [{mod_offline, ModOffline}]),
     ok = dynamic_modules:ensure_modules(SecHostType,
            [{mod_inbox, InboxOptions#{aff_changes := false}}]),
     [{inbox_opts, InboxOptions} | Config2];
@@ -186,7 +188,7 @@ init_per_group(muclight_config, Config) ->
     Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
     escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 init_per_group(muc, Config) ->
-    muc_helper:load_muc(),
+    muc_helper:load_muc(Config),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
 init_per_group(limit_result, Config) ->
     OptKey = [{modules, domain_helper:host_type()}, mod_inbox, max_result_limit],

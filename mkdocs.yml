@@ -71,6 +71,7 @@ nav:
       - 'Options: General': 'configuration/general.md'
       - 'Options: Listen': 'configuration/listen.md'
       - 'Options: Auth': 'configuration/auth.md'
+      - 'Options: Internal Databases': 'configuration/internal-databases.md'
       - 'Options: Outgoing connections': 'configuration/outgoing-connections.md'
       - 'Options: Services': 'configuration/Services.md'
       - 'Options: Extension Modules': 'configuration/Modules.md'

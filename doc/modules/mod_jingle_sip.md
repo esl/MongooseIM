@@ -102,6 +102,13 @@ MongooseIM packages are built with Jingle/SIP support.
 
 ## Options
 
+### `modules.mod_jingle_sip.backend`
+* **Syntax:** string, `"mnesia"`, `"cets"`
+* **Default:** `"mnesia"`
+* **Example:** `backend = "cets"`
+
+Backend for in-memory data for this module.
+
 ### `modules.mod_jingle_sip.proxy_host`
 * **Syntax:** string
 * **Default:** `"localhost"`

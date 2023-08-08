@@ -96,7 +96,9 @@ config_spec() ->
                                               validate = ip_address},
                   <<"transport">> => #option{type = string,
                                              validate = {enum, ["udp", "tcp"]}},
-                  <<"username_to_phone">> => #list{items = username_to_phone_spec()}
+                  <<"username_to_phone">> => #list{items = username_to_phone_spec()},
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, mod_jingle_sip}}
         },
         defaults = #{<<"proxy_host">> => "localhost",
                      <<"proxy_port">> => 5060,
@@ -104,7 +106,8 @@ config_spec() ->
                      <<"local_host">> => "localhost",
                      <<"sdp_origin">> => "127.0.0.1",
                      <<"transport">> => "udp",
-                     <<"username_to_phone">> => []}
+                     <<"username_to_phone">> => [],
+                     <<"backend">> => mnesia}
     }.
 
 username_to_phone_spec() ->
@@ -206,7 +209,7 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:from_jid(Acc),
     To = mongoose_acc:to_jid(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_session_info(SID, From) of
+    case mod_jingle_sip_session:get_session_info(SID, From) of
         {ok, Session} ->
             maybe_resend_session_initiate(From, To, IQ, Acc, Session);
         _ ->
@@ -247,7 +250,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
                                         %% Internal options
                                         async,
                                         {callback, fun jingle_sip_callbacks:invite_resp_callback/1}]),
-    Result = mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
+    Result = mod_jingle_sip_session:set_outgoing_request(SID, Handle, FromJID, ToJID),
     {_, SrvId, DialogId, _CallId} = nksip_sipmsg:parse_handle(Handle),
     ?LOG_INFO(#{what => sip_session_start,
                 text => <<"Start SIP session with set_outgoing_request call">>,
@@ -258,7 +261,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     LServer = mongoose_acc:lserver(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
+    case mod_jingle_sip_session:get_incoming_request(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, ReqID} ->
             try_to_accept_session(ReqID, Jingle, Acc, LServer, SID);
         _ ->
@@ -273,7 +276,7 @@ translate_to_sip(<<"source-update">> = Name, Jingle, Acc) ->
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
+    case mod_jingle_sip_session:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
             ?LOG_ERROR(#{what => sip_missing_dialog, sid => SID, acc => Acc}),
             {error, item_not_found};
@@ -290,7 +293,7 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     From = mongoose_acc:get(c2s, origin_jid, Acc),
     FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
-    case mod_jingle_sip_backend:get_session_info(SID, From) of
+    case mod_jingle_sip_session:get_session_info(SID, From) of
         {ok, Session} ->
             try_to_terminate_the_session(FromLUS, ToLUS, Session);
         _ ->
@@ -300,7 +303,7 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
 translate_source_change_to_sip(ActionName, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = get_spd(ActionName, Jingle, Acc),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
+    case mod_jingle_sip_session:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
             ?LOG_ERROR(#{what => sip_missing_dialod, sid => SID, acc => Acc}),
             {error, item_not_found};
@@ -342,7 +345,7 @@ try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host),
     case nksip_request_reply({ok, [{body, SDP}, {local_host, LocalHost}]}, ReqID) of
         ok ->
-           ok = mod_jingle_sip_backend:set_incoming_accepted(SID),
+           ok = mod_jingle_sip_session:set_incoming_accepted(SID),
            terminate_session_on_other_devices(SID, Acc),
            ok;
         Other ->

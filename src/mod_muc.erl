@@ -66,7 +66,8 @@
          remove_domain/3,
          acc_room_affiliations/3,
          can_access_identity/3,
-         disco_local_items/3]).
+         disco_local_items/3,
+         node_cleanup_for_host_type/3]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -118,11 +119,7 @@
     host_type :: host_type(),
     pid       :: pid()
 }.
-
--type muc_registered() :: #muc_registered{
-                             us_host    :: jid:literal_jid(),
-                             nick       :: nick()
-                            }.
+-export_type([muc_online_room/0]).
 
 -type room_event_data() :: #{
                   from_nick := nick(),
@@ -146,7 +143,7 @@
 
 -type state() :: #muc_state{}.
 
--export_type([muc_room/0, muc_registered/0]).
+-export_type([muc_room/0]).
 
 -define(PROCNAME, ejabberd_mod_muc).
 
@@ -166,6 +163,7 @@ start_link(HostType, Opts) ->
 
 -spec start(host_type(), _) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
+    mongoose_muc_online_backend:start(HostType, Opts),
     ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
@@ -201,6 +199,8 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
+                 <<"online_backend">> => #option{type = atom,
+                                                 validate = {module, mongoose_muc_online}},
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -252,6 +252,7 @@ config_spec() ->
 
 defaults() ->
     #{<<"backend">> => mnesia,
+      <<"online_backend">> => mnesia,
       <<"host">> => default_host(),
       <<"access">> => all,
       <<"access_create">> => all,
@@ -368,11 +369,7 @@ stop_gen_server(HostType) ->
 %%    So the message sending must be catched
 -spec room_destroyed(host_type(), jid:server(), room(), pid()) -> 'ok'.
 room_destroyed(HostType, MucHost, Room, Pid) ->
-    Obj = #muc_online_room{name_host = {Room, MucHost},
-                           host_type = HostType, pid = Pid},
-    F = fun() -> mnesia:delete_object(Obj) end,
-    {atomic, ok} = mnesia:transaction(F),
-    ok.
+    mongoose_muc_online_backend:room_destroyed(HostType, MucHost, Room, Pid).
 
 %% @doc Create a room.
 %% If Opts = default, the default room options are used.
@@ -449,13 +446,7 @@ get_nick(HostType, MucHost, From) ->
 -spec init({host_type(), map()}) -> {ok, state()}.
 init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
-    mnesia:create_table(muc_online_room,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, muc_online_room)}]),
-    mnesia:add_table_copy(muc_online_room, node(), ram_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    clean_table_from_bad_node(node(), HostType),
-    mnesia:subscribe(system),
     #{access := Access,
       access_create := AccessCreate,
       access_admin := AccessAdmin,
@@ -545,9 +536,6 @@ handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
-    clean_table_from_bad_node(Node),
-    {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
             #muc_state{host_type = HostType,
                        hibernated_room_timeout = Timeout} = State)
@@ -655,16 +643,16 @@ route_to_room(_MucHost, <<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
 route_to_room(MucHost, Room, Routed, #muc_state{} = State) ->
-    case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
-        [] ->
+    HostType = State#muc_state.host_type,
+    case find_room_pid(HostType, MucHost, Room) of
+        {error, not_found} ->
             case get_registered_room_or_route_error(MucHost, Room, Routed, State) of
                 {ok, Pid} ->
                     route_to_online_room(Pid, Routed);
                 {route_error, _ErrText} ->
                     ok
             end;
-        [R] ->
-            Pid = R#muc_online_room.pid,
+        {ok, Pid} ->
             route_to_online_room(Pid, Routed)
     end.
 
@@ -696,7 +684,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                        default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
             ServerHost = make_server_host(To, State),
-            Result = start_new_room(HostType, ServerHost, MucHost, Access, Room,
+            Result = start_room(HostType, ServerHost, MucHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts, Acc),
             case Result of
@@ -714,11 +702,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
                     ejabberd_router:route(To, From, Acc1, Err),
-                    {route_error, ErrText};
-                _ ->
-                    %% Unknown error, most likely a room process failed to start.
-                    %% Do not notify user (we can send "internal server error").
-                    erlang:error({start_new_room_failed, Room, Result})
+                    {route_error, ErrText}
             end;
         {error, Reason} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
@@ -885,15 +869,13 @@ check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
             {error, no_matching_acl_rule}
     end.
 
--spec start_new_room(HostType :: host_type(), ServerHost :: jid:lserver(),
+-spec start_room(HostType :: host_type(), ServerHost :: jid:lserver(),
         MucHost :: muc_host(), Access :: access(), room(),
-        HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
+        HistorySize :: undefined | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
-        DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
-            -> {'error', _}
-             | {'ok', 'undefined' | pid()}
-             | {'ok', 'undefined' | pid(), _}.
-start_new_room(HostType, ServerHost, MucHost, Access, Room,
+        DefRoomOpts :: undefined | [any()], Acc :: mongoose_acc:t())
+            -> {error, {failed_to_restore, Reason :: term()}} | {ok, pid()}.
+start_room(HostType, ServerHost, MucHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts, Acc) ->
     case mod_muc_backend:restore_room(HostType, MucHost, Room) of
@@ -918,37 +900,31 @@ start_new_room(HostType, ServerHost, MucHost, Access, Room,
 
 register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid) ->
     case register_room(HostType, MucHost, Room, Pid) of
-        {_, ok} ->
+        ok ->
             {ok, Pid};
-        {_, {exists, OldPid}} ->
+        {exists, OldPid} ->
             mod_muc_room:stop(Pid),
-            {ok, OldPid}
+            {ok, OldPid};
+        {error, Reason} ->
+            error({failed_to_register, MucHost, Room, Pid, Reason})
     end.
 
 -spec register_room(HostType :: host_type(), jid:server(), room(),
-                    pid()) -> {'aborted', _} | {'atomic', _}.
+                    pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
-    F = fun() ->
-            case mnesia:read(muc_online_room,  {Room, MucHost}, write) of
-                [] ->
-                    mnesia:write(#muc_online_room{name_host = {Room, MucHost},
-                                                  host_type = HostType,
-                                                  pid = Pid});
-                [R] ->
-                    {exists, R#muc_online_room.pid}
-            end
-        end,
-    mnesia:transaction(F).
-
+    mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid).
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
-room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
-    case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
-        [R] ->
-            {ok, R#muc_online_room.pid};
-        [] ->
+room_jid_to_pid(#jid{luser = Room, lserver = MucHost}) ->
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            find_room_pid(HostType, MucHost, Room);
+        _ ->
             {error, not_found}
     end.
+
+find_room_pid(HostType, MucHost, Room) ->
+    mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
@@ -1183,10 +1159,8 @@ broadcast_service_message(MucHost, Msg) ->
 
 -spec get_vh_rooms(muc_host()) -> [muc_online_room()].
 get_vh_rooms(MucHost) ->
-    mnesia:dirty_select(muc_online_room,
-                        [{#muc_online_room{name_host = '$1', _ = '_'},
-                          [{'==', {element, 2, '$1'}, MucHost}],
-                          ['$_']}]).
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
+    mongoose_muc_online_backend:get_online_rooms(HostType, MucHost).
 
 -spec get_persistent_vh_rooms(muc_host()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
@@ -1198,36 +1172,9 @@ get_persistent_vh_rooms(MucHost) ->
             []
     end.
 
--spec clean_table_from_bad_node(node()) -> any().
-clean_table_from_bad_node(Node) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       muc_online_room,
-                       [{#muc_online_room{pid = '$1', _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
-
-
--spec clean_table_from_bad_node(node(), host_type()) -> any().
-clean_table_from_bad_node(Node, HostType) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       muc_online_room,
-                       [{#muc_online_room{pid = '$1',
-                                          host_type = HostType,
-                                          _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
+-spec node_cleanup(host_type(), node()) -> ok.
+node_cleanup(HostType, Node) ->
+    mongoose_muc_online_backend:node_cleanup(HostType, Node).
 
 %%====================================================================
 %% Hooks handlers
@@ -1309,6 +1256,14 @@ disco_local_items(Acc = #{host_type := HostType,
 disco_local_items(Acc, _, _) ->
     {ok, Acc}.
 
+-spec node_cleanup_for_host_type(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: mongoose_disco:item_acc(),
+    Params :: map(),
+    Extra :: gen_hook:extra().
+node_cleanup_for_host_type(Acc, #{node := Node}, #{host_type := HostType}) ->
+    node_cleanup(HostType, Node),
+    Acc.
+
 online_rooms_number() ->
     lists:sum([online_rooms_number(HostType)
                || HostType <- gen_mod:hosts_with_module(?MODULE)]).
@@ -1372,7 +1327,8 @@ hooks(HostType) ->
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {acc_room_affiliations, HostType, fun ?MODULE:acc_room_affiliations/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
-     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250}].
+     {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},
+     {node_cleanup_for_host_type, HostType, fun ?MODULE:node_cleanup_for_host_type/3, #{}, 50}].
 
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host).

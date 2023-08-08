@@ -4,8 +4,7 @@
  [{description, "MongooseIM"},
   {vsn, {cmd, "tools/generate_vsn.sh"}},
   {modules, []},
-  {registered, [
-               ]},
+  {registered, []},
   {applications, [
                   asn1,
                   backoff,
@@ -28,7 +27,6 @@
                   idna,
                   kernel,
                   lasse,
-                  mnesia,
                   observer_cli,
                   pa,
                   public_key,
@@ -53,6 +51,7 @@
                   flatlog,
                   segmented_cache
                  ]},
+  {included_applications, [mnesia, cets]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 

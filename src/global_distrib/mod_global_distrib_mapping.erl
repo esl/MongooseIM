@@ -133,7 +133,7 @@ hosts() ->
 %%--------------------------------------------------------------------
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, Opts = #{cache := CacheOpts}) ->
+start(_HostType, Opts = #{cache := CacheOpts}) ->
     mod_global_distrib_mapping_backend:start(Opts#{backend => redis}),
 
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
@@ -153,7 +153,7 @@ start(HostType, Opts = #{cache := CacheOpts}) ->
                              {max_size, MaxJids}]).
 
 -spec stop(mongooseim:host_type()) -> any().
-stop(HostType) ->
+stop(_HostType) ->
     ets_cache:delete(?JID_TAB),
     ets_cache:delete(?DOMAIN_TAB),
     mod_global_distrib_mapping_backend:stop().

@@ -63,6 +63,7 @@
 {suites, "tests", graphql_gdpr_SUITE}.
 {suites, "tests", graphql_token_SUITE}.
 {suites, "tests", graphql_mnesia_SUITE}.
+{suites, "tests", graphql_cets_SUITE}.
 {suites, "tests", graphql_http_upload_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
 {suites, "tests", graphql_metric_SUITE}.
@@ -157,6 +158,8 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", local_iq_SUITE}.
 {suites, "tests", tcp_listener_SUITE}.
+{suites, "tests", cets_disco_SUITE}.
+{suites, "tests", start_node_id_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 

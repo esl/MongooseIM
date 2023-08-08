@@ -423,23 +423,21 @@ do_unregister_host(Host) ->
 
 make_iq_id() ->
     %% Attach NodeId, so we know to which node to forward the response
-    {ok, NodeId} = ejabberd_node_id:node_id(),
+    BinNodeId = mongoose_start_node_id:node_id(),
     Rand = mongoose_bin:gen_from_crypto(),
-    <<(integer_to_binary(NodeId))/binary, "_", Rand/binary>>.
+    <<BinNodeId/binary, "_", Rand/binary>>.
 
 %% Parses ID, made by make_iq_id function
 -spec parse_iq_id(ID :: binary()) ->
     local_node | {remote_node, node()}
     | {error, {unknown_node_id, term()} | bad_iq_format}.
 parse_iq_id(ID) ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
-    BinNodeId = integer_to_binary(NodeId),
+    BinNodeId = mongoose_start_node_id:node_id(),
     case binary:split(ID, <<"_">>) of
         [BinNodeId, _Rest] ->
             local_node;
         [OtherBinNodeId, _Rest] ->
-            OtherNodeId = binary_to_integer(OtherBinNodeId),
-            case ejabberd_node_id:node_id_to_name(OtherNodeId) of
+            case mongoose_start_node_id:node_id_to_name(OtherBinNodeId) of
                 {ok, NodeName} ->
                     {remote_node, NodeName};
                 {error, Reason} ->

@@ -5,6 +5,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -export([init/2,
+         stop/1,
          register_smid/3,
          unregister_smid/2,
          get_sid/2]).
@@ -32,6 +33,9 @@ init(HostType, #{stale_h := StaleOpts}) ->
     mnesia:add_table_copy(sm_session, node(), ram_copies),
     maybe_init_stale_h(HostType, StaleOpts),
     ok.
+
+stop(HostType) ->
+    stop_cleaner(HostType).
 
 maybe_init_stale_h(HostType, StaleOpts = #{enabled := true}) ->
     ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
@@ -116,13 +120,13 @@ delete_stale_h(_HostType, SMID) ->
 %% stale_h cleaning logic
 
 start_cleaner(HostType, #{repeat_after := Interval, geriatric := TTL}) ->
-    Name = gen_mod:get_module_proc(HostType, stream_management_stale_h),
+    %% TODO cleaner should be a service
     WOpts = #{host_type => HostType, action => fun ?MODULE:clear_table/2,
               opts => TTL, interval => timer:seconds(Interval)},
-    MFA = {mongoose_collector, start_link, [Name, WOpts]},
-    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
-    %% TODO cleaner should be a service
-    ejabberd_sup:start_child(ChildSpec).
+    mongoose_collector:start_common(?MODULE, HostType, WOpts).
+
+stop_cleaner(HostType) ->
+    mongoose_collector:stop_common(?MODULE, HostType).
 
 clear_table(_HostType, GeriatricAge) ->
     TimeToDie = erlang:monotonic_time(second) - GeriatricAge,

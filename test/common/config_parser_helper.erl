@@ -14,6 +14,7 @@ options("host_types") ->
       [<<"this is host type">>, <<"some host type">>,
        <<"another host type">>, <<"yet another host type">>]},
      {hosts, [<<"localhost">>]},
+     {internal_databases, #{}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -26,6 +27,8 @@ options("host_types") ->
                                               #{event_cleaning_interval => 1000,
                                                 event_max_age => 5000})}},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"some host type">>}, default_s2s()},
@@ -62,6 +65,10 @@ options("miscellaneous") ->
      {hide_service_name, true},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"anonymous.localhost">>]},
+     {internal_databases,
+          #{cets =>
+                #{backend => rdbms, cluster_name => mongooseim},
+            mnesia => #{}}},
      {language, <<"en">>},
      {listen,
       [config([listen, http],
@@ -92,6 +99,8 @@ options("miscellaneous") ->
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, custom_auth()},
      {{auth, <<"localhost">>}, custom_auth()},
      {{modules, <<"anonymous.localhost">>}, #{}},
@@ -106,6 +115,7 @@ options("modules") ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
+     {internal_databases, #{mnesia => #{}}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -118,6 +128,8 @@ options("modules") ->
      {{s2s, <<"dummy_host">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, all_modules()},
@@ -131,6 +143,10 @@ options("mongooseim-pgsql") ->
      {host_types, []},
      {hosts,
       [<<"localhost">>, <<"anonymous.localhost">>, <<"localhost.bis">>]},
+     {internal_databases,
+          #{cets =>
+                #{backend => rdbms, cluster_name => mongooseim},
+            mnesia => #{}}},
      {language, <<"en">>},
      {listen,
       [config([listen, c2s],
@@ -251,6 +267,8 @@ options("mongooseim-pgsql") ->
             #{initial_report => 300000,
               periodic_report => 10800000}}},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{allow_multiple_connections => true,
                                        protocol => both},
@@ -299,6 +317,7 @@ options("outgoing_pools") ->
      {host_types, []},
      {hosts,
       [<<"localhost">>, <<"anonymous.localhost">>, <<"localhost.bis">>]},
+     {internal_databases, #{}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -345,6 +364,8 @@ options("outgoing_pools") ->
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"localhost.bis">>}, default_s2s()},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{auth, <<"localhost.bis">>}, default_auth()},
@@ -360,6 +381,7 @@ options("s2s_only") ->
      {hide_service_name, false},
      {host_types, []},
      {hosts, [<<"localhost">>, <<"dummy_host">>]},
+     {internal_databases, #{}},
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
@@ -370,6 +392,8 @@ options("s2s_only") ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
      {sm_backend, mnesia},
+     {component_backend, mnesia},
+     {s2s_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, #{}},
@@ -860,7 +884,7 @@ default_mod_config(mod_inbox) ->
       max_result_limit => infinity};
 default_mod_config(mod_jingle_sip) ->
     #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
-      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => []};
+      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => [], backend => mnesia};
 default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
@@ -882,6 +906,7 @@ default_mod_config(mod_mam_muc_rdbms_arch) ->
       db_jid_format => mam_jid_rfc};
 default_mod_config(mod_muc) ->
     #{backend => mnesia,
+      online_backend => mnesia,
       host => {prefix,<<"conference.">>},
       access => all,
       access_create => all,

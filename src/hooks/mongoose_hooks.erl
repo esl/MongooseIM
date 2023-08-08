@@ -138,9 +138,10 @@
          mod_global_distrib_unknown_recipient/2]).
 
 -export([remove_domain/2,
-         node_cleanup/1]).
+         node_cleanup/1,
+         node_cleanup_for_host_type/2]).
 
--ignore_xref([node_cleanup/1, remove_domain/2]).
+-ignore_xref([remove_domain/2]).
 -ignore_xref([mam_archive_sync/1, mam_muc_archive_sync/1]).
 
 %% Just a map, used by some hooks as a first argument.
@@ -216,6 +217,11 @@ remove_domain(HostType, Domain) ->
 node_cleanup(Node) ->
     Params = #{node => Node},
     run_global_hook(node_cleanup, #{}, Params).
+
+-spec node_cleanup_for_host_type(HostType :: mongooseim:host_type(), Node :: node()) -> Acc :: map().
+node_cleanup_for_host_type(HostType, Node) ->
+    Params = #{node => Node},
+    run_hook_for_host_type(node_cleanup_for_host_type, HostType, #{}, Params).
 
 -spec failed_to_store_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),

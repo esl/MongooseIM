@@ -31,11 +31,11 @@
 -xep([{xep, 220}, {version, "1.1.1"}]).
 
 %% External exports
--export([start/3,
-         start_link/3,
+-export([start/2,
+         start_link/2,
          start_connection/1,
-         terminate_if_waiting_delay/2,
-         stop_connection/1]).
+         stop_connection/1,
+         terminate_if_waiting_delay/1]).
 
 %% p1_fsm callbacks (same as gen_fsm)
 -export([init/1,
@@ -55,34 +55,61 @@
          print_state/1,
          code_change/4]).
 
+-export_type([connection_info/0]).
+
 -ignore_xref([open_socket/2, print_state/1,
-              reopen_socket/2, start_link/3, stream_established/2,
+              reopen_socket/2, start_link/2, stream_established/2,
               wait_before_retry/2, wait_for_auth_result/2,
               wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
               wait_for_stream/2, wait_for_validation/2]).
+
+-type verify_requester() :: false | {S2SIn :: pid(), Key :: ejabberd_s2s:s2s_dialback_key(), SID :: ejabberd_s2s:stream_id()}.
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
-                streamid,
-                remote_streamid = <<>>,
-                use_v10,
+                streamid                :: ejabberd_s2s:stream_id() | undefined,
+                remote_streamid = <<>>  :: ejabberd_s2s:stream_id(),
+                use_v10                 :: boolean(),
                 tls = false             :: boolean(),
                 tls_required = false    :: boolean(),
                 tls_enabled = false     :: boolean(),
                 tls_options             :: mongoose_tls:options(),
                 authenticated = false   :: boolean(),
-                db_enabled = true       :: boolean(),
+                dialback_enabled = true :: boolean(),
                 try_auth = true         :: boolean(),
-                myname, server, queue,
+                from_to                 :: ejabberd_s2s:fromto(),
+                myname                  :: jid:lserver(),
+                server                  :: jid:lserver(),
+                queue                   :: element_queue(),
                 host_type               :: mongooseim:host_type(),
-                delay_to_retry = undefined_delay,
-                new = false             :: boolean(),
-                verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
+                delay_to_retry          :: non_neg_integer() | undefined,
+                is_registered = false   :: boolean(),
+                verify = false          :: verify_requester(),
                 timer                   :: reference()
               }).
 -type state() :: #state{}.
+
+-type connection_info() ::
+    #{pid => pid(),
+      direction => out,
+      statename => statename(),
+      addr => unknown | inet:ip_address(),
+      port => unknown | inet:port_number(),
+      streamid => ejabberd_s2s:stream_id() | undefined,
+      use_v10 => boolean(),
+      tls => boolean(),
+      tls_required => boolean(),
+      tls_enabled => boolean(),
+      tls_options => mongoose_tls:options(),
+      authenticated => boolean(),
+      dialback_enabled => boolean(),
+      try_auth => boolean(),
+      myname => jid:lserver(),
+      server => jid:lserver(),
+      delay_to_retry => undefined | non_neg_integer(),
+      verify => verify_requester()}.
 
 -type element_queue() :: queue:queue(#xmlel{}).
 -type statename() :: open_socket
@@ -109,9 +136,6 @@
 -else.
 -define(FSMOPTS, []).
 -endif.
-
--define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_out_sup,
-                                                 [From, Host, Type])).
 
 -define(FSMTIMEOUT, 30000).
 
@@ -147,20 +171,17 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_, _, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(From, Host, Type) ->
-    ?SUPERVISOR_START.
+-spec start(ejabberd_s2s:fromto(), _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
+start(FromTo, Type) ->
+    supervisor:start_child(ejabberd_s2s_out_sup, [FromTo, Type]).
 
-
--spec start_link(_, _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(From, Host, Type) ->
-    p1_fsm:start_link(ejabberd_s2s_out, [From, Host, Type],
+-spec start_link(ejabberd_s2s:fromto(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+start_link(FromTo, Type) ->
+    p1_fsm:start_link(ejabberd_s2s_out, [FromTo, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
-
 
 start_connection(Pid) ->
     p1_fsm:send_event(Pid, init).
-
 
 stop_connection(Pid) ->
     p1_fsm:send_event(Pid, closed).
@@ -176,8 +197,8 @@ stop_connection(Pid) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([any(), ...]) -> {'ok', 'open_socket', state()}.
-init([From, Server, Type]) ->
+-spec init(list()) -> {'ok', 'open_socket', state()}.
+init([{From, Server} = FromTo, Type]) ->
     process_flag(trap_exit, true),
     ?LOG_DEBUG(#{what => s2s_out_started,
                  text => <<"New outgoing s2s connection">>,
@@ -192,23 +213,24 @@ init([From, Server, Type]) ->
                   {true, true}
           end,
     UseV10 = TLS,
-    {New, Verify} = case Type of
+    {IsRegistered, Verify} = case Type of
                         new ->
                             {true, false};
                         {verify, Pid, Key, SID} ->
                             start_connection(self()),
                             {false, {Pid, Key, SID}}
                     end,
-    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+    Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
                              tls_options = tls_options(HostType),
                              queue = queue:new(),
+                             from_to = FromTo,
                              myname = From,
                              host_type = HostType,
                              server = Server,
-                             new = New,
+                             is_registered = IsRegistered,
                              verify = Verify,
                              timer = Timer}}.
 
@@ -220,14 +242,14 @@ init([From, Server, Type]) ->
 %%----------------------------------------------------------------------
 -spec open_socket(_, state()) -> fsm_return().
 open_socket(init, StateData = #state{host_type = HostType}) ->
-    log_s2s_out(StateData#state.new,
+    log_s2s_out(StateData#state.is_registered,
                 StateData#state.myname,
                 StateData#state.server,
                 StateData#state.tls),
     ?LOG_DEBUG(#{what => s2s_open_socket,
                  myname => StateData#state.myname,
                  server => StateData#state.server,
-                 new => StateData#state.new,
+                 is_registered => StateData#state.is_registered,
                  verify => StateData#state.verify}),
     AddrList = get_addr_list(HostType, StateData#state.server),
     case lists:foldl(fun(_, {ok, Socket}) ->
@@ -295,23 +317,23 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
           xml:get_attr_s(<<"xmlns:db">>, Attrs),
           xml:get_attr_s(<<"version">>, Attrs) == <<"1.0">>} of
         {<<"jabber:server">>, <<"jabber:server:dialback">>, false} ->
-            send_db_request(StateData);
+            send_dialback_request(StateData);
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
         StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData, ?FSMTIMEOUT};
         %% Clause added to handle Tigase's workaround for an old ejabberd bug:
         {<<"jabber:server">>, <<"jabber:server:dialback">>, true} when
         not StateData#state.use_v10 ->
-            send_db_request(StateData);
+            send_dialback_request(StateData);
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
-            {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
+            {next_state, wait_for_features, StateData#state{dialback_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
             send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             ?LOG_INFO(#{what => s2s_out_closing,
                         text => <<"Closing s2s connection: (invalid namespace)">>,
                         namespace_provided => NSProvided,
                         namespace_expected => <<"jabber:server">>,
-                        xmlnsdb_provided => DB,
+                        xmlns_dialback_provided => DB,
                         all_attributes => Attrs,
                         myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, StateData}
@@ -329,13 +351,28 @@ wait_for_stream(closed, StateData) ->
 
 
 -spec wait_for_validation(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_validation({xmlstreamelement, El}, StateData) ->
-    case is_verify_res(El) of
-        {result, To, From, Id, Type} ->
+wait_for_validation({xmlstreamelement, El}, StateData = #state{from_to = FromTo}) ->
+    case mongoose_s2s_dialback:parse_validity(El) of
+        {step_3, FromTo, StreamID, IsValid} ->
+            ?LOG_DEBUG(#{what => s2s_receive_verify,
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid}),
+            case StateData#state.verify of
+                false ->
+                    %% This is unexpected condition.
+                    %% We've received step_3 reply, but there is no matching outgoing connection.
+                    %% We could close the connection here.
+                    next_state(wait_for_validation, StateData);
+                {Pid, _Key, _SID} ->
+                    ejabberd_s2s_in:send_validity_from_s2s_out(Pid, IsValid, FromTo),
+                    next_state(wait_for_validation, StateData)
+            end;
+        {step_4, FromTo, StreamID, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_receive_result,
-                         from => From, to => To, message_id => Id, type => Type}),
-            case {Type, StateData#state.tls_enabled, StateData#state.tls_required} of
-                {<<"valid">>, Enabled, Required} when (Enabled==true) or (Required==false) ->
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid}),
+            #state{tls_enabled = Enabled, tls_required = Required} = StateData,
+            case IsValid of
+                true when (Enabled==true) or (Required==false) ->
+                    %% Initiating server receives valid verification result from receiving server (Step 4)
                     send_queue(StateData, StateData#state.queue),
                     ?LOG_INFO(#{what => s2s_out_connected,
                                 text => <<"New outgoing s2s connection established">>,
@@ -343,30 +380,14 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
                                 myname => StateData#state.myname, server => StateData#state.server}),
                     {next_state, stream_established,
                      StateData#state{queue = queue:new()}};
-                {<<"valid">>, Enabled, Required} when (Enabled==false) and (Required==true) ->
+                true when (Enabled==false) and (Required==true) ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, tls_required_but_unavailable, El, StateData);
                 _ ->
                     %% TODO: bounce packets
                     ?CLOSE_GENERIC(wait_for_validation, invalid_dialback_key, El, StateData)
             end;
-        {verify, To, From, Id, Type} ->
-            ?LOG_DEBUG(#{what => s2s_receive_verify,
-                         from => From, to => To, message_id => Id, type => Type}),
-            case StateData#state.verify of
-                false ->
-                    NextState = wait_for_validation,
-                    %% TODO: Should'nt we close the connection here ?
-                    {next_state, NextState, StateData,
-                     get_timeout_interval(NextState)};
-                {Pid, _Key, _SID} ->
-                    send_event(Type, Pid, StateData),
-                    NextState = wait_for_validation,
-                    {next_state, NextState, StateData,
-                     get_timeout_interval(NextState)}
-
-            end;
-        _ ->
+        false ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
@@ -453,10 +474,10 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
         #xmlel{name = <<"failure">>, attrs = Attrs} ->
             case xml:get_attr_s(<<"xmlns">>, Attrs) of
                 ?NS_SASL ->
-                    ?LOG_INFO(#{what => s2s_auth_failure,
-                                text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
-                                myname => StateData#state.myname,
-                                server => StateData#state.server}),
+                    ?LOG_WARNING(#{what => s2s_auth_failure,
+                                   text => <<"Received failure result in ejabberd_s2s_out. Restarting">>,
+                                   myname => StateData#state.myname,
+                                   server => StateData#state.server}),
                     mongoose_transport:close(StateData#state.socket),
                     {next_state, reopen_socket,
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
@@ -540,21 +561,23 @@ wait_before_retry(_Event, StateData) ->
     {next_state, wait_before_retry, StateData, ?FSMTIMEOUT}.
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
-stream_established({xmlstreamelement, El}, StateData) ->
+stream_established({xmlstreamelement, El}, StateData = #state{from_to = FromTo}) ->
     ?LOG_DEBUG(#{what => s2s_out_stream_established, exml_packet => El,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    case is_verify_res(El) of
-        {verify, VTo, VFrom, VId, VType} ->
+    case mongoose_s2s_dialback:parse_validity(El) of
+        {step_3, FromTo, StreamID, IsValid} ->
             ?LOG_DEBUG(#{what => s2s_recv_verify,
-                         to => VTo, from => VFrom, message_id => VId, type => VType,
+                         from_to => FromTo, stream_id => StreamID, is_valid => IsValid,
                          myname => StateData#state.myname, server => StateData#state.server}),
             case StateData#state.verify of
                 {VPid, _VKey, _SID} ->
-                    send_event(VType, VPid, StateData);
+                    ejabberd_s2s_in:send_validity_from_s2s_out(VPid, IsValid, FromTo);
                 _ ->
                     ok
             end;
-        _ ->
+        {step_4, _FromTo, _StreamID, _IsValid} ->
+            ok;
+        false ->
             ok
     end,
     {next_state, stream_established, StateData};
@@ -590,55 +613,12 @@ stream_established(closed, StateData) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 handle_event(_Event, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)}.
+    next_state(StateName, StateData).
 
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: The associated StateData for this connection
-%%   {reply, Reply, NextStateName, NextStateData}
-%%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
-%%----------------------------------------------------------------------
-handle_sync_event(get_state_infos, _From, StateName, StateData) ->
-    {Addr, Port} = try mongoose_transport:peername(StateData#state.socket) of
-                       {ok, {A, P}} ->  {A, P}
-                   catch
-                       _:_ ->
-                           {unknown, unknown}
-                   end,
-    Infos = [
-             {direction, out},
-             {statename, StateName},
-             {addr, Addr},
-             {port, Port},
-             {streamid, StateData#state.streamid},
-             {use_v10, StateData#state.use_v10},
-             {tls, StateData#state.tls},
-             {tls_required, StateData#state.tls_required},
-             {tls_enabled, StateData#state.tls_enabled},
-             {tls_options, StateData#state.tls_options},
-             {authenticated, StateData#state.authenticated},
-             {db_enabled, StateData#state.db_enabled},
-             {try_auth, StateData#state.try_auth},
-             {myname, StateData#state.myname},
-             {server, StateData#state.server},
-             {delay_to_retry, StateData#state.delay_to_retry},
-             {verify, StateData#state.verify}
-            ],
-    Reply = {state_infos, Infos},
-    {reply, Reply, StateName, StateData};
-
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%%----------------------------------------------------------------------
+handle_sync_event(get_state_info, _From, StateName, StateData) ->
+    {reply, handle_get_state_info(StateName, StateData), StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
-    Reply = ok,
-    {reply, Reply, StateName, StateData, get_timeout_interval(StateName)}.
+    {reply, ok, StateName, StateData, get_timeout_interval(StateName)}.
 
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
@@ -654,7 +634,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
             cancel_timer(StateData#state.timer),
-            Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
+            Timer = erlang:start_timer(mongoose_s2s_lib:timeout(), self(), []),
             send_element(StateData, El),
             {next_state, StateName, StateData#state{timer = Timer}};
         %% In this state we bounce all message: We are waiting before
@@ -664,8 +644,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
             {next_state, StateName, StateData};
         _ ->
             Q = queue:in({Acc, El}, StateData#state.queue),
-            {next_state, StateName, StateData#state{queue = Q},
-             get_timeout_interval(StateName)}
+            next_state(StateName, StateData#state{queue = Q})
     end;
 handle_info({timeout, Timer, _}, wait_before_retry,
             #state{timer = Timer} = StateData) ->
@@ -680,9 +659,9 @@ handle_info({timeout, Timer, _}, StateName,
 handle_info(terminate_if_waiting_before_retry, wait_before_retry, StateData) ->
     ?CLOSE_GENERIC(wait_before_retry, terminate_if_waiting_before_retry, StateData);
 handle_info(terminate_if_waiting_before_retry, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)};
+    next_state(StateName, StateData);
 handle_info(_, StateName, StateData) ->
-    {next_state, StateName, StateData, get_timeout_interval(StateName)}.
+    next_state(StateName, StateData).
 
 %%----------------------------------------------------------------------
 %% Func: terminate/3
@@ -693,7 +672,7 @@ terminate(Reason, StateName, StateData) ->
     ?LOG_DEBUG(#{what => s2s_out_closed, text => <<"ejabberd_s2s_out terminated">>,
                  reason => Reason, state_name => StateName,
                  myname => StateData#state.myname, server => StateData#state.server}),
-    case StateData#state.new of
+    case StateData#state.is_registered of
         false ->
             ok;
         true ->
@@ -703,6 +682,15 @@ terminate(Reason, StateName, StateData) ->
     E = mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"Bounced by s2s">>),
     %% bounce queue manage by process and Erlang message queue
     bounce_queue(StateData#state.queue, E),
+    case queue:is_empty(StateData#state.queue) of
+        true ->
+            ok;
+        false ->
+            ?LOG_WARNING(#{what => s2s_terminate_non_empty,
+                           state_name => StateName, reason => Reason,
+                           queue => lists:sublist(queue:to_list(StateData#state.queue), 10),
+                           authenticated => StateData#state.authenticated})
+    end,
     bounce_messages(E),
     case StateData#state.socket of
         undefined ->
@@ -802,71 +790,43 @@ bounce_messages(Error) ->
     end.
 
 
--spec send_db_request(state()) -> fsm_return().
-send_db_request(StateData) ->
-    Server = StateData#state.server,
-    New = case StateData#state.new of
+-spec send_dialback_request(state()) -> fsm_return().
+send_dialback_request(StateData) ->
+    IsRegistered = case StateData#state.is_registered of
               false ->
-                  ejabberd_s2s:try_register(
-                         {StateData#state.myname, Server});
+                  ejabberd_s2s:try_register(StateData#state.from_to);
               true ->
                   true
           end,
-    NewStateData = StateData#state{new = New},
+    NewStateData = StateData#state{is_registered = IsRegistered},
     try
-        case New of
+        case IsRegistered of
             false ->
+                %% Still not registered in the s2s table as an outgoing connection
                 ok;
             true ->
                 Key1 = ejabberd_s2s:key(
                          StateData#state.host_type,
-                         {StateData#state.myname, Server},
+                         StateData#state.from_to,
                          StateData#state.remote_streamid),
-                send_element(StateData,
-                             #xmlel{name = <<"db:result">>,
-                                    attrs = [{<<"from">>, StateData#state.myname},
-                                             {<<"to">>, Server}],
-                                    children = [#xmlcdata{content = Key1}]})
+                %% Initiating server sends dialback key
+                send_element(StateData, mongoose_s2s_dialback:step_1(StateData#state.from_to, Key1))
         end,
         case StateData#state.verify of
             false ->
                 ok;
             {_Pid, Key2, SID} ->
-                send_element(StateData,
-                             #xmlel{name = <<"db:verify">>,
-                                    attrs = [{<<"from">>, StateData#state.myname},
-                                             {<<"to">>, StateData#state.server},
-                                             {<<"id">>, SID}],
-                                    children = [#xmlcdata{content = Key2}]})
+                %% Receiving server sends verification request
+                send_element(StateData, mongoose_s2s_dialback:step_2(StateData#state.from_to, Key2, SID))
         end,
         {next_state, wait_for_validation, NewStateData, ?FSMTIMEOUT*6}
     catch
         Class:Reason:Stacktrace ->
-            ?LOG_ERROR(#{what => s2s_out_send_db_request_failed,
+            ?LOG_ERROR(#{what => s2s_out_send_dialback_request_failed,
                          class => Class, reason => Reason, stacktrace => Stacktrace,
                          myname => StateData#state.myname, server => StateData#state.server}),
             {stop, normal, NewStateData}
     end.
-
-
--spec is_verify_res(exml:element()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
-is_verify_res(#xmlel{name = Name,
-                     attrs = Attrs}) when Name == <<"db:result">> ->
-    {result,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_attr_s(<<"type">>, Attrs)};
-is_verify_res(#xmlel{name = Name,
-                     attrs = Attrs}) when Name == <<"db:verify">> ->
-    {verify,
-     xml:get_attr_s(<<"to">>, Attrs),
-     xml:get_attr_s(<<"from">>, Attrs),
-     xml:get_attr_s(<<"id">>, Attrs),
-     xml:get_attr_s(<<"type">>, Attrs)};
-is_verify_res(_) ->
-    false.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SRV support
@@ -875,7 +835,7 @@ is_verify_res(_) ->
 
 -spec lookup_services(mongooseim:host_type(), jid:lserver()) -> [addr()].
 lookup_services(HostType, Server) ->
-    case ejabberd_s2s:domain_utf8_to_ascii(Server) of
+    case mongoose_s2s_lib:domain_utf8_to_ascii(Server) of
         false -> [];
         ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr)
     end.
@@ -997,6 +957,10 @@ log_s2s_out(_, Myname, Server, Tls) ->
                 text => <<"Trying to open s2s connection">>,
                 myname => Myname, server => Server, tls => Tls}).
 
+next_state(StateName, StateData) ->
+    {next_state, StateName, StateData,
+     get_timeout_interval(StateName)}.
+
 %% @doc Calculate timeout depending on which state we are in:
 %% Can return integer > 0 | infinity
 -spec get_timeout_interval(statename()) -> 'infinity' | non_neg_integer().
@@ -1023,7 +987,7 @@ wait_before_reconnect(StateData) ->
     bounce_messages(E),
     cancel_timer(StateData#state.timer),
     Delay = case StateData#state.delay_to_retry of
-                undefined_delay ->
+                undefined ->
                     %% The initial delay is random between 1 and 15 seconds
                     %% Return a random integer between 1000 and 15000
                     MicroSecs = erlang:system_time(microsecond),
@@ -1047,9 +1011,9 @@ get_max_retry_delay(HostType) ->
 
 
 %% @doc Terminate s2s_out connections that are in state wait_before_retry
-terminate_if_waiting_delay(From, To) ->
-    FromTo = {From, To},
-    Pids = ejabberd_s2s:get_connections_pids(FromTo),
+-spec terminate_if_waiting_delay(ejabberd_s2s:fromto()) -> ok.
+terminate_if_waiting_delay(FromTo) ->
+    Pids = ejabberd_s2s:get_s2s_out_pids(FromTo),
     lists:foreach(
       fun(Pid) ->
               Pid ! terminate_if_waiting_before_retry
@@ -1092,17 +1056,6 @@ get_predefined_port(HostType, _Addr) -> outgoing_s2s_port(HostType).
 addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 
-send_event(<<"valid">>, Pid, StateData) ->
-    p1_fsm:send_event(
-      Pid, {valid,
-            StateData#state.server,
-            StateData#state.myname});
-send_event(_, Pid, StateData) ->
-    p1_fsm:send_event(
-      Pid, {invalid,
-            StateData#state.server,
-            StateData#state.myname}).
-
 get_acc_with_new_sext(?NS_SASL, Els1, {_SEXT, STLS, STLSReq}) ->
     NewSEXT =
         lists:any(
@@ -1130,7 +1083,7 @@ get_acc_with_new_tls(_, _, Acc) ->
 tls_options(HostType) ->
     Ciphers = mongoose_config:get_opt([{s2s, HostType}, ciphers]),
     Options = #{verify_mode => peer, ciphers => Ciphers},
-    case ejabberd_s2s:lookup_certfile(HostType) of
+    case mongoose_s2s_lib:lookup_certfile(HostType) of
         {ok, CertFile} -> Options#{certfile => CertFile};
         {error, not_found} -> Options
     end.
@@ -1149,8 +1102,7 @@ handle_parsed_features({false, false, _, StateData = #state{authenticated = true
                 myname => StateData#state.myname, server => StateData#state.server}),
     {next_state, stream_established,
      StateData#state{queue = queue:new()}};
-handle_parsed_features({true, _, _, StateData = #state{try_auth = true, new = New}}) when
-    New /= false ->
+handle_parsed_features({true, _, _, StateData = #state{try_auth = true, is_registered = true}}) ->
     send_element(StateData,
                  #xmlel{name = <<"auth">>,
                         attrs = [{<<"xmlns">>, ?NS_SASL},
@@ -1173,8 +1125,8 @@ handle_parsed_features({_, _, true, StateData = #state{tls = false}}) ->
     {next_state, reopen_socket,
      StateData#state{socket = undefined,
                      use_v10 = false}, ?FSMTIMEOUT};
-handle_parsed_features({_, _, _, StateData = #state{db_enabled = true}}) ->
-    send_db_request(StateData);
+handle_parsed_features({_, _, _, StateData = #state{dialback_enabled = true}}) ->
+    send_dialback_request(StateData);
 handle_parsed_features({_, _, _, StateData}) ->
     ?LOG_DEBUG(#{what => s2s_out_restarted,
                  myname => StateData#state.myname, server => StateData#state.server}),
@@ -1182,3 +1134,30 @@ handle_parsed_features({_, _, _, StateData}) ->
     mongoose_transport:close(StateData#state.socket),
     {next_state, reopen_socket, StateData#state{socket = undefined,
                                                 use_v10 = false}, ?FSMTIMEOUT}.
+
+handle_get_state_info(StateName, StateData) ->
+    {Addr, Port} = get_peername(StateData#state.socket),
+    #{pid => self(),
+      direction => out,
+      statename => StateName,
+      addr => Addr,
+      port => Port,
+      streamid => StateData#state.streamid,
+      use_v10 => StateData#state.use_v10,
+      tls => StateData#state.tls,
+      tls_required => StateData#state.tls_required,
+      tls_enabled => StateData#state.tls_enabled,
+      tls_options => StateData#state.tls_options,
+      authenticated => StateData#state.authenticated,
+      dialback_enabled => StateData#state.dialback_enabled,
+      try_auth => StateData#state.try_auth,
+      myname => StateData#state.myname,
+      server => StateData#state.server,
+      delay_to_retry => StateData#state.delay_to_retry,
+      verify => StateData#state.verify}.
+
+get_peername(undefined) ->
+    {unknown, unknown};
+get_peername(Socket) ->
+    {ok, {Addr, Port}} = mongoose_transport:peername(Socket),
+    {Addr, Port}.

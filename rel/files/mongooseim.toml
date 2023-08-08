@@ -11,6 +11,12 @@
   {{#sm_backend}}
   sm_backend = {{{sm_backend}}}
   {{/sm_backend}}
+  {{#component_backend}}
+  component_backend = {{{component_backend}}}
+  {{/component_backend}}
+  {{#s2s_backend}}
+  s2s_backend = {{{s2s_backend}}}
+  {{/s2s_backend}}
   max_fsm_queue = 1000
   {{#http_server_name}}
   http_server_name = {{{http_server_name}}}
@@ -162,6 +168,8 @@
     {{{auth_method_opts}}}{{/auth_method_opts}}
   {{/auth_method}}
 
+{{{internal_databases}}}
+
 {{#outgoing_pools}}
 {{{outgoing_pools}}}
 {{/outgoing_pools}}
@@ -244,6 +252,9 @@
 {{{mod_vcard}}}
 {{/mod_vcard}}
 [modules.mod_bosh]
+  {{#bosh_backend}}
+  backend = {{{bosh_backend}}}
+  {{/bosh_backend}}
 
 [modules.mod_carboncopy]
 

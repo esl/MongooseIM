@@ -465,7 +465,8 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    VCardOpts = config_parser_helper:default_mod_config(mod_vcard),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    VCardOpts = config_parser_helper:mod_config(mod_vcard, #{backend => Backend}),
     [{mod_vcard_opts, VCardOpts} | Config1].
 
 restore_vcard_module(Config) ->

@@ -1,0 +1,35 @@
+-module(mongoose_cets_discovery).
+-export([supervisor_specs/0]).
+
+-include("mongoose_logger.hrl").
+
+supervisor_specs() ->
+    supervisor_specs(mongoose_config:get_opt([internal_databases, cets], disabled)).
+
+supervisor_specs(disabled) ->
+    [];
+supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts) ->
+    DiscoFile =
+        case {DiscoBackend, Opts} of
+            {file, #{node_list_file := NodeFile}} ->
+                NodeFile;
+            {file, _} ->
+                ?LOG_CRITICAL(#{what => node_list_file_option_is_required,
+                                text => <<"Specify internal_databases.cets.node_list_file option">>}),
+                error(node_list_file_option_is_required);
+            _ ->
+                undefined
+        end,
+    DiscoOpts = #{
+        backend_module => disco_backend_to_module(DiscoBackend),
+        cluster_name => atom_to_binary(ClusterName),
+        node_name_to_insert => atom_to_binary(node(), latin1),
+        name => mongoose_cets_discovery, disco_file => DiscoFile},
+    CetsDisco =
+        {cets_discovery,
+          {cets_discovery, start_link, [DiscoOpts]},
+          permanent, infinity, supervisor, [cets_discovery]},
+    [CetsDisco].
+
+disco_backend_to_module(rdbms) -> mongoose_cets_discovery_rdbms;
+disco_backend_to_module(file) -> cets_discovery_file.

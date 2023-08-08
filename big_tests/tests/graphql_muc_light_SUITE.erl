@@ -237,7 +237,7 @@ init_per_group(Group, Config) when Group =:= user_muc_light_with_mam;
                                    Group =:= domain_admin_muc_light_with_mam ->
     case maybe_enable_mam() of
         true ->
-            ensure_muc_started(),
+            ensure_muc_started(Config),
             ensure_muc_light_started(Config);
         false ->
             {skip, "No MAM backend available"}
@@ -281,8 +281,8 @@ ensure_muc_light_stopped(Config) ->
     dynamic_modules:ensure_modules(SecondaryHostType, [{mod_muc_light, stopped}]),
     [{muc_light_host, <<"NON_EXISTING">>} | Config].
 
-ensure_muc_started() ->
-    muc_helper:load_muc(),
+ensure_muc_started(Config) ->
+    muc_helper:load_muc(Config),
     mongoose_helper:ensure_muc_clean().
 
 ensure_muc_stopped() ->

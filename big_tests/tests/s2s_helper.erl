@@ -1,14 +1,10 @@
 -module(s2s_helper).
--export([suite/1]).
 -export([init_s2s/1]).
 -export([end_s2s/1]).
 -export([configure_s2s/2]).
 
--import(distributed_helper, [fed/0, mim/0, rpc_spec/1, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [rpc_spec/1, rpc/4]).
 -import(domain_helper, [host_type/1]).
-
-suite(Config) ->
-    require_rpc_nodes(node_keys()) ++ Config.
 
 init_s2s(Config) ->
     [{{s2s, NodeKey}, get_s2s_opts(NodeKey)} || NodeKey <- node_keys()] ++
