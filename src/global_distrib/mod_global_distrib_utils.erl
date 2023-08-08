@@ -225,8 +225,8 @@ get_addrs_in_parallel(Addr) ->
     %% Also, limit the time it could be running to 5 seconds
     %% (would fail with reason timeout if it takes too long)
     F = fun(Ver) -> ?MODULE:getaddrs(Addr, Ver) end,
-    [V4, V6] = mongoose_lib:pmap(F, [inet, inet6]),
-    {simplify_result(V4), simplify_result(V6)}.
+    [V6, V4] = mongoose_lib:pmap(F, [inet6, inet]),
+    {simplify_result(V6), simplify_result(V4)}.
 
 simplify_result({ok, Res}) -> Res;
 simplify_result(Res) -> Res.
