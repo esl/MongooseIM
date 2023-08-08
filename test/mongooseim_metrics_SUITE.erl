@@ -70,6 +70,7 @@ end_per_suite(C) ->
 init_per_group(Group, C) ->
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(Group)],
     mongoose_metrics:init(),
+    mongoose_metrics:init_mongooseim_metrics(),
     C.
 
 end_per_group(Group, C) ->

@@ -69,13 +69,13 @@ init() ->
     create_vm_metrics(),
     create_global_metrics(?GLOBAL_COUNTERS),
     create_data_metrics(),
-    create_host_type_metrics(),
-    init_subscriptions().
+    create_host_type_metrics().
 
 -spec init_mongooseim_metrics() -> ok.
 init_mongooseim_metrics() ->
     create_host_type_hook_metrics(),
-    create_global_metrics(?MNESIA_COUNTERS).
+    create_global_metrics(?MNESIA_COUNTERS),
+    init_subscriptions().
 
 init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
