@@ -411,7 +411,9 @@ test_host_refreshing(_Config) ->
                                      ct:pal("PingInfo ~p~n OutSups ~p~n OtherServers ~p~n",
                                             [PingInfo, OutSups, OtherServers]),
                                      %% Pause before crashing for better time separation in logs
-                                     timer:sleep(3000)
+                                     timer:sleep(3000),
+                                     OutSups2 = debug_out_connection_sups(),
+                                     ct:pal("OutSups2 ~p~n", [OutSups2])
                                  end}),
     assert_could_ping_managers(),
     ConnectionSups = out_connection_sups(asia_node),
