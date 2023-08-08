@@ -319,11 +319,22 @@ terminate(Reason, State) ->
 -spec do_call(Server :: jid:lserver(), Msg :: any()) -> any().
 do_call(Server, Msg) ->
     MgrName = mod_global_distrib_utils:server_to_mgr_name(Server),
+    Start = erlang:system_time(millisecond),
     try
         gen_server:call(MgrName, Msg)
     catch exit:{timeout,_} = Reason:Stacktrace ->
         catch gen_server:cast(MgrName, {call_timeout, self(), Msg}),
         erlang:raise(exit, Reason, Stacktrace)
+    after
+         End = erlang:system_time(millisecond),
+         Diff = End - Start,
+         case Diff > 100 of
+             true ->
+                 ?LOG_WARNING(#{what => gd_mgr_slow_call, server => Server, msg => Msg,
+                                diff_milliseconds => Diff});
+             false ->
+                 ok
+         end
     end.
 
 -spec schedule_refresh(State :: state()) -> state().
