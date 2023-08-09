@@ -100,6 +100,7 @@ root() ->
                  <<"host_config">> => #list{items = host_config(),
                                             wrap = none}
                 },
+       defaults = #{<<"internal_databases">> => default_internal_databases()},
        required = [<<"general">>],
        process = fun ?MODULE:process_root/1,
        wrap = none,
@@ -443,10 +444,12 @@ internal_databases() ->
               <<"mnesia">> => internal_database_mnesia()},
     #section{items = Items,
              format_items = map,
-             wrap = global_config,
-             include = always}.
+             wrap = global_config}.
 
-%% path: internal_databases.*.*
+default_internal_databases() ->
+    #{mnesia => #{}}.
+
+%% path: internal_databases.cets
 internal_database_cets() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
@@ -459,7 +462,7 @@ internal_database_cets() ->
        defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
       }.
 
-%% path: internal_databases.*.*
+%% path: internal_databases.mnesia
 internal_database_mnesia() ->
     #section{}.
 
