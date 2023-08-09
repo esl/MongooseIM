@@ -11,6 +11,13 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+wait_for_carbon_chat_with_body(Client, Body, #{from := From, to := To}) when is_binary(From) ->
+    escalus:assert(
+        is_forwarded_received_message,
+        [From, escalus_client:full_jid(To), Body],
+        escalus_client:wait_for_stanza(Client)
+    );
+
 wait_for_carbon_chat_with_body(Client, Body, #{from := From, to := To}) ->
     escalus:assert(
         is_forwarded_received_message,

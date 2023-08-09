@@ -12,28 +12,32 @@
 -import(domain_helper, [domain/0]).
 
 all() ->
-    [{group, all}].
+    [{group, one2one},
+     {group, muc}].
 
 groups() ->
-    [{all, [parallel],
-          [discovering_support,
-           enabling_carbons,
-           disabling_carbons,
-           avoiding_carbons,
-           non_enabled_clients_dont_get_sent_carbons,
-           non_enabled_clients_dont_get_received_carbons,
-           enabled_single_resource_doesnt_get_carbons,
-           unavailable_resources_dont_get_carbons,
-           dropped_client_doesnt_create_duplicate_carbons,
-           prop_forward_received_chat_messages,
-           prop_forward_sent_chat_messages,
-           prop_normal_routing_to_bare_jid,
-           chat_message_is_carbon_copied,
-           normal_message_with_body_is_carbon_copied,
-           normal_message_with_receipt_is_carbon_copied,
-           normal_message_with_csn_is_carbon_copied,
-           normal_message_with_chat_marker_is_carbon_copied
-          ]}].
+    [{one2one, [parallel],
+        [discovering_support,
+         enabling_carbons,
+         disabling_carbons,
+         avoiding_carbons,
+         non_enabled_clients_dont_get_sent_carbons,
+         non_enabled_clients_dont_get_received_carbons,
+         enabled_single_resource_doesnt_get_carbons,
+         unavailable_resources_dont_get_carbons,
+         dropped_client_doesnt_create_duplicate_carbons,
+         prop_forward_received_chat_messages,
+         prop_forward_sent_chat_messages,
+         prop_normal_routing_to_bare_jid,
+         chat_message_is_carbon_copied,
+         normal_message_with_body_is_carbon_copied,
+         normal_message_with_receipt_is_carbon_copied,
+         normal_message_with_csn_is_carbon_copied,
+         normal_message_with_chat_marker_is_carbon_copied]},
+     {muc, [parallel],
+        [group_chat_is_not_carbon_copied,
+         local_user_to_muc_participant_is_carbon_copied,
+         muc_participant_to_local_user_is_not_carbon_copied]}].
 
 %%%===================================================================
 %%% Overall setup/teardown
@@ -44,6 +48,18 @@ init_per_suite(C) ->
 end_per_suite(C) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
+
+init_per_group(muc, Config) ->
+    muc_helper:load_muc(Config),
+    Config;
+init_per_group(_GroupName, Config) ->
+    Config.
+
+end_per_group(muc, Config) ->
+    muc_helper:unload_muc(),
+    Config;
+end_per_group(_GroupName, Config) ->
+    Config.
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -232,6 +248,49 @@ message_is_carbon_copied(Config, StanzaFun) ->
             escalus:assert(is_message, AliceReceived),
             carboncopy_helper:wait_for_carbon_message(Alice1, #{from => Bob, to => Alice2})
         end).
+
+group_chat_is_not_carbon_copied(Config) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}],
+        fun(Alice1, Alice2, Bob) ->
+            enable_carbons([Alice1, Alice2]),
+            RoomCfg = muc_helper:start_fresh_room(Config, inbox_helper:extract_user_specs(Bob), <<"some_friendly_name">>, default),
+            muc_helper:enter_room(RoomCfg, [{Alice1, <<"cool_alice">>}, {Bob, <<"cool_bob">>}]),
+
+            Msg = <<"Hi Room!">>,
+            muc_helper:send_to_room(RoomCfg, Bob, Msg),
+            muc_helper:verify_message_received(RoomCfg, [Alice1, Bob], <<"cool_bob">>, Msg),
+            ?assertEqual([], escalus_client:peek_stanzas(Alice2))
+      end).
+
+local_user_to_muc_participant_is_carbon_copied(Config) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}],
+        fun(Alice1, Alice2, Bob) ->
+            enable_carbons([Alice1, Alice2]),
+            RoomCfg = muc_helper:start_fresh_room(Config, inbox_helper:extract_user_specs(Bob), <<"some_friendly_name">>, default),
+            muc_helper:enter_room(RoomCfg, [{Alice1, <<"cool_alice">>}, {Bob, <<"cool_bob">>}]),
+            RoomJid = proplists:get_value(room_jid, RoomCfg),
+            Body = <<"Hello!">>,
+            Stanza = escalus_stanza:chat_to(<<RoomJid/binary, "/cool_alice">>, Body),
+
+            escalus:send(Bob, Stanza),
+            escalus:wait_for_stanza(Alice1),
+            carboncopy_helper:wait_for_carbon_chat_with_body(Alice2, Body, #{from => <<RoomJid/binary, "/cool_bob">>, to => Alice1})
+      end).
+
+muc_participant_to_local_user_is_not_carbon_copied(Config) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}],
+        fun(Alice1, Alice2, Bob) ->
+            enable_carbons([Alice1, Alice2]),
+            RoomCfg = muc_helper:start_fresh_room(Config, inbox_helper:extract_user_specs(Bob), <<"some_friendly_name">>, default),
+            muc_helper:enter_room(RoomCfg, [{Alice1, <<"cool_alice">>}, {Bob, <<"cool_bob">>}]),
+            RoomJid = proplists:get_value(room_jid, RoomCfg),
+            Body = <<"Hello!">>,
+            Stanza = escalus_stanza:chat(<<RoomJid/binary, "/cool_bob">>, Alice1, Body),
+
+            escalus:send(Bob, Stanza),
+            escalus:wait_for_stanza(Alice1),
+            ?assertEqual([], escalus_client:peek_stanzas(Alice2))
+      end).
 
 %%
 %% Test scenarios w/assertions
