@@ -409,6 +409,7 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
     NewPresences = Presences#presences_state{pres_last = undefined,
                                    pres_timestamp = undefined,
+                                   pres_pri = 0,
                                    pres_a = gb_sets:new(),
                                    pres_i = gb_sets:new(),
                                    pres_invis = false},

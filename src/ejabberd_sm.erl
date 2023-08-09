@@ -293,7 +293,8 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Status :: binary(),
       Info :: info().
 unset_presence(Acc, SID, JID, Status, Info) ->
-    set_session(SID, JID, undefined, Info),
+    %% We don't need to write to SM store, because close_session would be called next
+%   set_session(SID, JID, undefined, Info),
     mongoose_hooks:unset_presence_hook(Acc, JID, Status).
 
 
