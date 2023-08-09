@@ -642,13 +642,14 @@ do_route_no_resource(<<"presence">>, From, To, Acc, El) ->
     Type = mongoose_acc:stanza_type(Acc),
     case do_route_no_resource_presence(Type, From, To, Acc, El) of
         true ->
-            PResources = get_user_present_resources(To),
-            lists:foldl(fun({_, R}, A) ->
-                                NewTo = jid:replace_resource(To, R),
+            ResourcesPids = get_user_present_resources_and_pids(To),
+            lists:foldl(fun({Resource, Pid}, Acc1) ->
+                                NewTo = jid:replace_resource(To, Resource),
                                 NewAccParams = #{element => El, from_jid => From, to_jid => NewTo},
-                                A0 = mongoose_acc:update_stanza(NewAccParams, A),
-                                do_route(A0, From, NewTo, El)
-                        end, Acc, PResources);
+                                Acc2 = mongoose_acc:update_stanza(NewAccParams, Acc1),
+                                mongoose_c2s:route(Pid, Acc2),
+                                Acc2
+                        end, Acc, ResourcesPids);
         false ->
             Acc
     end;
@@ -800,6 +801,13 @@ get_user_present_pids(LUser, LServer) ->
     Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [{S#session.priority, element(2, S#session.sid)} ||
      S <- clean_session_list(Ss), is_integer(S#session.priority)].
+
+-spec get_user_present_resources_and_pids(jid:jid()) -> [{Resource :: binary(), pid()}].
+get_user_present_resources_and_pids(#jid{luser = LUser, lserver = LServer}) ->
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
+    [{Resource, Pid} ||
+     #session{usr = {_, _, Resource}, sid = {_, Pid}, priority = Prio}
+         <- clean_session_list(Ss), is_integer(Prio)].
 
 -spec get_user_present_resources(jid:jid()) -> [{priority(), binary()}].
 get_user_present_resources(#jid{luser = LUser, lserver = LServer}) ->
