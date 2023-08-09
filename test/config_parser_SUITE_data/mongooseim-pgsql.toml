@@ -12,9 +12,9 @@
   sm_backend = "mnesia"
   max_fsm_queue = 1000
 
-[internal_databases]
-  [internal_databases.mnesia]
-  [internal_databases.cets]
+[internal_databases.mnesia]
+
+[internal_databases.cets]
 
 [[listen.http]]
   port = 5280

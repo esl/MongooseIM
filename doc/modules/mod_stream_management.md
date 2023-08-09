@@ -7,11 +7,14 @@ the management of the session tables and configuration.
 ## Options
 
 ### `modules.mod_stream_management.backend`
-* **Syntax:** string.
-* **Default:** "mnesia"
+* **Syntax:** string: `"mnesia"` or `"cets"`
+* **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
-Currently, only "mnesia" is supported.
+Backend for in-memory session data stored by this module.
+
+!!! Warning
+    The corresponding [internal database](../configuration/internal-databases.md) has to be enabled.
 
 ### `modules.mod_stream_management.buffer`
 * **Syntax:** boolean

@@ -103,11 +103,14 @@ MongooseIM packages are built with Jingle/SIP support.
 ## Options
 
 ### `modules.mod_jingle_sip.backend`
-* **Syntax:** string, `"mnesia"`, `"cets"`
+* **Syntax:** string: `"mnesia"` or `"cets"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "cets"`
 
 Backend for in-memory data for this module.
+
+!!! Warning
+    The corresponding [internal database](../configuration/internal-databases.md) has to be enabled.
 
 ### `modules.mod_jingle_sip.proxy_host`
 * **Syntax:** string

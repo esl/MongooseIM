@@ -9,11 +9,14 @@ If you want to use BOSH, you must enable it both in the `listen` section of
 ## Options
 
 ### `modules.mod_bosh.backend`
-* **Syntax:** non-empty string
+* **Syntax:** string: `"mnesia"` or `"cets"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "mnesia"`
 
-Backend to use for storing BOSH connections. `"cets"`, `"mnesia"` are supported.
+Backend to use for storing BOSH connections.
+
+!!! Warning
+    The corresponding [internal database](../configuration/internal-databases.md) has to be enabled.
 
 ### `modules.mod_bosh.inactivity`
  * **Syntax:** positive integer or the string `"infinity"`

@@ -5,8 +5,7 @@
   ]
   default_server_domain = "localhost"
 
-[internal_databases]
-  [internal_databases.mnesia]
+[internal_databases.mnesia]
 
 [modules.mod_adhoc]
   iqdisc.type = "one_queue"

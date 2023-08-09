@@ -142,13 +142,16 @@ According to RFC 6210, even when a client sends invalid data after opening a con
 These options can be used to configure the way MongooseIM manages user sessions.
 
 ### `general.sm_backend`
-* **Syntax:** string, `"mnesia"`, `"cets"` or `"redis"`
+* **Syntax:** string: `"mnesia"`, `"cets"` or `"redis"`
 * **Default:** `"mnesia"`
 * **Example:** `sm_backend = "redis"`
 
 Backend for storing user session data. All nodes in a cluster must have access to a complete session database.
 Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend. Requires a redis pool with the `default` tag defined in the `outgoing_pools` section.
 See the section about [redis connection setup](./outgoing-connections.md#redis-specific-options) for more information.
+
+!!! Warning
+    When set to `mnesia` or `cets`, the corresponding [internal database](internal-databases.md) has to be enabled.
 
 ### `general.replaced_wait_timeout`
 * **Syntax:** positive integer, representing time in milliseconds
@@ -160,11 +163,26 @@ When a user's session is replaced (due to a full JID conflict) by a new one, thi
 ## XMPP federation (S2S)
 
 ### `general.s2s_backend`
-* **Syntax:** string, `"mnesia"`, `"cets"`
+* **Syntax:** string: `"mnesia"` or `"cets"`
 * **Default:** `"mnesia"`
 * **Example:** `s2s_backend = "cets"`
 
 Backend for replicating the list of outgoing Server to Server (S2S) connections across the nodes of the local MongooseIM cluster.
+
+!!! Warning
+    The corresponding [internal database](internal-databases.md) has to be enabled.
+
+## External XMPP components
+
+### `general.component_backend`
+* **Syntax:** string: `"mnesia"` or `"cets"`
+* **Default:** `"mnesia"`
+* **Example:** `component_backend = "cets"`
+
+Backend for replicating the list of connected external components across the nodes of the local MongooseIM cluster.
+
+!!! Warning
+    The corresponding [internal database](internal-databases.md) has to be enabled.
 
 ## Message routing
 

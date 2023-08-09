@@ -1182,8 +1182,8 @@ internal_database_cets(_Config) ->
     CetsEnabled = #{<<"internal_databases">> => #{<<"cets">> => #{}}},
     CetsFile = #{<<"internal_databases">> => #{<<"cets">> =>
         #{<<"backend">> => <<"file">>, <<"node_list_file">> => <<"/dev/null">>}}},
-    %% No internal_databases section means an empty list of databases
-    ?cfg([internal_databases], #{}, #{}), % default
+    %% No internal_databases section means only mnesia
+    ?cfg([internal_databases], #{mnesia => #{}}, #{}), % default
     %% Empty internal_databases could be configured explicitly
     ?cfg([internal_databases], #{}, #{<<"internal_databases">> => #{}}),
 
