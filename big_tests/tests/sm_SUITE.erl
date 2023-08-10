@@ -950,7 +950,7 @@ carboncopy_works(Config) ->
         mongoose_helper:enable_carbons([Alice1, Alice]),
         escalus_connection:send(Bob, escalus_stanza:chat_to(Alice1, <<"msg-4">>)),
         sm_helper:wait_for_messages(Alice1, [<<"msg-4">>]),
-        carboncopy_helper:wait_for_carbon_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1})
+        carboncopy_helper:wait_for_carbon_chat_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1})
     end).
 
 carboncopy_works_after_resume(Config) ->
@@ -977,12 +977,12 @@ carboncopy_works_after_resume(Config) ->
         %% Direct send
         escalus_connection:send(Bob, escalus_stanza:chat_to(Alice1, <<"msg-4">>)),
         sm_helper:wait_for_messages(Alice1, [<<"msg-4">>]),
-        carboncopy_helper:wait_for_carbon_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1}),
+        carboncopy_helper:wait_for_carbon_chat_with_body(Alice, <<"msg-4">>, #{from => Bob, to => Alice1}),
         escalus_connection:stop(Alice)
     end).
 
 wait_for_carbon_with_bodies(Client, Texts, Params) ->
-    [carboncopy_helper:wait_for_carbon_with_body(Client, Text, Params) || Text <- Texts].
+    [carboncopy_helper:wait_for_carbon_chat_with_body(Client, Text, Params) || Text <- Texts].
 
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->
     F = fun(_Client) -> ok end,

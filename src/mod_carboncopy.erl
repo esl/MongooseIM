@@ -25,7 +25,7 @@
 %%%----------------------------------------------------------------------
 -module (mod_carboncopy).
 -author ('ecestari@process-one.net').
--xep([{xep, 280}, {version, "0.13.3"}, {legacy_versions, ["0.6"]}]).
+-xep([{xep, 280}, {version, "1.0.1"}, {legacy_versions, ["0.6"]}]).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
@@ -180,7 +180,8 @@ is_chat(Packet) ->
     case exml_query:attr(Packet, <<"type">>, <<"normal">>) of
         <<"normal">> -> contains_body(Packet) orelse
                         contains_receipts(Packet) orelse
-                        contains_csn(Packet);
+                        contains_csn(Packet) orelse
+                        contains_chat_markers(Packet);
         <<"chat">> -> true;
         _ -> false
     end.
@@ -225,6 +226,10 @@ contains_receipts(Packet) ->
 -spec contains_csn(exml:element()) -> boolean().
 contains_csn(Packet) ->
     undefined =/= exml_query:subelement_with_ns(Packet, ?NS_CHATSTATES).
+
+-spec contains_chat_markers(exml:element()) -> boolean().
+contains_chat_markers(Packet) ->
+    undefined =/= exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS).
 
 -spec is_carbon_private(exml:element()) -> boolean().
 is_carbon_private(Packet) ->
