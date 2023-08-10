@@ -74,8 +74,9 @@ cannot_login_with_not_allowed_method(Config) ->
 
 can_login_to_another_listener(Config) ->
     Spec = proplists:get_value(spec, Config),
-    Spec2 = [{port, ct:get_config({hosts, mim, c2s_tls_port})},
-             {password, <<"wrong">>}|Spec],
+    TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
+    Spec2 = [{port, TlsPort}, {ssl, true}, {ssl_opts, [{verify, verify_none}]},
+             {password, <<"wrong">>} | Spec],
     {ok, _, _} = escalus_connection:start(Spec2).
 
 metrics_incremented_on_user_connect(ConfigIn) ->
