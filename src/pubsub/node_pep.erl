@@ -39,8 +39,8 @@
          unsubscribe_node/4, node_to_path/1,
          get_entity_affiliations/2, get_entity_affiliations/3,
          get_entity_subscriptions/2, get_entity_subscriptions/4,
-         should_delete_when_owner_removed/0
-         ]).
+         should_delete_when_owner_removed/0, check_publish_options/2
+        ]).
 
 -ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4]).
 
@@ -91,6 +91,15 @@ features() ->
         <<"retrieve-items">>,
         <<"retrieve-subscriptions">>,
         <<"subscribe">>].
+
+-spec check_publish_options(#{binary() => [binary()]}, #{atom() => binary()}) -> boolean().
+check_publish_options(PublishOptions, NodeOptions) ->
+    F = fun(Key, Value) ->
+            Value =/= maps:get(binary_to_atom(Key), NodeOptions)
+        end,
+    maps:size(maps:filter(F, PublishOptions)) =/= 0;
+check_publish_options(_, _) ->
+    false.
 
 create_node_permission(Host, _ServerHost, _Node, _ParentNode,
                        #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->

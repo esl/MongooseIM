@@ -2269,7 +2269,9 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                     {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
                     {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)},
+                    {PubOptsFeature andalso check_publish_options(Type, PublishOptions, Options),
+                     extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
                 ],
 
                 case lists:keyfind(true, 1, Errors) of
@@ -3681,6 +3683,44 @@ get_option(Options, Var, Def) ->
         _ -> Def
     end.
 
+check_publish_options(Type, PublishOptions, Options) ->
+    ParsedPublishOptions = parse_publish_options(PublishOptions),
+    ConvertedOptions = convert_options(Options),
+    case node_call(Type, check_publish_options, [ParsedPublishOptions, ConvertedOptions]) of
+        {error, _} ->
+            false;
+        {result, Result} ->
+            Result
+    end.
+
+-spec parse_publish_options(undefined | exml:element()) -> invalid_form | #{binary() => binary()}.
+parse_publish_options(undefined) ->
+    #{};
+parse_publish_options(PublishOptions) ->
+    case mongoose_data_forms:find_and_parse_form(PublishOptions) of
+        #{type := <<"submit">>, kvs := KVs, ns := ?NS_PUBSUB_PUB_OPTIONS} ->
+            KVs;
+        _ ->
+            invalid_form
+    end.
+
+convert_options(Options) ->
+    OptionsMap = maps:from_list(Options),
+    maps:map(fun(_, Value) -> convert_option_value(Value) end, OptionsMap).
+
+convert_option_value(true) ->
+    [<<"1">>];
+convert_option_value(false) ->
+    [<<"0">>];
+convert_option_value(Element) when is_atom(Element) ->
+    [atom_to_binary(Element)];
+convert_option_value(Element) when is_integer(Element) ->
+    [integer_to_binary(Element)];
+convert_option_value(List) when is_list(List) ->
+    lists:map(fun(Element) -> atom_to_binary(Element) end, List);
+convert_option_value(Element) ->
+    [Element].
+
 node_options(Host, Type) ->
     ConfiguredOpts = lists:keysort(1, config(serverhost(Host), default_node_config)),
     DefaultOpts = lists:keysort(1, node_plugin_options(Type)),
@@ -4082,7 +4122,6 @@ select_type(ServerHost, Host, Node, Type) ->
         false -> hd(ConfiguredTypes)
     end.
 
-feature(<<"rsm">>) -> ?NS_RSM;
 feature(Feature) -> <<(?NS_PUBSUB)/binary, "#", Feature/binary>>.
 
 features() ->
@@ -4101,6 +4140,7 @@ features() ->
      <<"publisher-affiliation">>,   % RECOMMENDED
      <<"publish-only-affiliation">>,   % OPTIONAL
      <<"retrieve-default">>,
+     <<"rsm">>,   % RECOMMENDED
      <<"shim">>].   % RECOMMENDED
 % see plugin "retrieve-items",   % RECOMMENDED
 % see plugin "retrieve-subscriptions",   % RECOMMENDED

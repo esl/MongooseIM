@@ -127,8 +127,14 @@ publish_fails_with_invalid_item(Config) ->
             Item =
                 #xmlel{name = <<"invalid-item">>,
                        attrs = [{<<"xmlns">>, ?NS_PUSH}]},
+            
+            Options = [
+                {<<"device_id">>, <<"sometoken">>},
+                {<<"service">>, <<"apns">>}
+            ],
 
-            Publish = escalus_pubsub_stanza:publish(Alice, <<"itemid">>, Item, <<"id">>, Node),
+            Publish = escalus_pubsub_stanza:publish_with_options(Alice, <<"itemid">>, Item,
+                                                                 <<"id">>, Node, Options),
             escalus:send(Alice, Publish),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
