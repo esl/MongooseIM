@@ -833,25 +833,24 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
       ReplacedPids :: [pid()].
 check_for_sessions_to_replace(HostType, JID) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
+    Sessions = ejabberd_sm_backend:get_sessions(LUser, LServer),
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
-    ReplacedRedundantSessions = check_existing_resources(HostType, LUser, LServer, LResource),
-    AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions),
+    ReplacedRedundantSessions = check_existing_resources(LResource, Sessions),
+    AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions, Sessions),
     [mongoose_c2s:exit(Pid, <<"Replaced by new connection">>) || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
--spec check_existing_resources(HostType, LUser, LServer, LResource) ->
+-spec check_existing_resources(LResource, Sessions) ->
         ReplacedSessionsPIDs when
-      HostType :: mongooseim:host_type(),
-      LUser :: jid:luser(),
-      LServer :: jid:lserver(),
       LResource :: jid:lresource(),
+      Sessions :: [session()],
       ReplacedSessionsPIDs :: ordsets:ordset(pid()).
-check_existing_resources(_HostType, LUser, LServer, LResource) ->
+check_existing_resources(LResource, Sessions) ->
     %% A connection exist with the same resource. We replace it:
-    Sessions = ejabberd_sm_backend:get_sessions(LUser, LServer, LResource),
-    case [S#session.sid || S <- Sessions] of
+    case [S#session.sid || S = #session{usr = {_, _, R}} <- Sessions, R =:= LResource] of
         [] -> [];
+        [_] -> [];
         SIDs ->
             MaxSID = lists:max(SIDs),
             ordsets:from_list([Pid || {_, Pid} = S <- SIDs, S /= MaxSID])
@@ -860,9 +859,10 @@ check_existing_resources(_HostType, LUser, LServer, LResource) ->
 -spec check_max_sessions(HostType :: mongooseim:host_type(),
                          LUser :: jid:luser(),
                          LServer :: jid:lserver(),
-                         ReplacedPIDs :: [pid()]) ->
+                         ReplacedPIDs :: [pid()],
+                         Sessions :: [session()]) ->
     AllReplacedPIDs :: ordsets:ordset(pid()).
-check_max_sessions(HostType, LUser, LServer, ReplacedPIDs) ->
+check_max_sessions(HostType, LUser, LServer, ReplacedPIDs, Sessions) ->
     %% If the max number of sessions for a given is reached, we replace the
     %% first one
     SIDs = lists:filtermap(
@@ -873,7 +873,7 @@ check_max_sessions(HostType, LUser, LServer, ReplacedPIDs) ->
                         false -> {true, SID}
                     end
                 end,
-                ejabberd_sm_backend:get_sessions(LUser, LServer)),
+                Sessions),
     MaxSessions = get_max_user_sessions(HostType, LUser, LServer),
     case length(SIDs) =< MaxSessions of
         true -> ordsets:to_list(ReplacedPIDs);
