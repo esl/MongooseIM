@@ -223,19 +223,19 @@ prop_normal_routing_to_bare_jid(Config) ->
                     end))).
 
 chat_message_is_carbon_copied(Config) ->
-    message_is_carbon_copied(Config, fun escalus_stanza:chat_to/2).
+    message_is_carbon_copied(Config, fun carboncopy_helper:chat_message_with_body/1).
 
 normal_message_with_body_is_carbon_copied(Config) ->
-    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_body/2).
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_body/1).
 
 normal_message_with_receipt_is_carbon_copied(Config) ->
-    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_receipt/2).
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_receipt/1).
 
 normal_message_with_csn_is_carbon_copied(Config) ->
-    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_csn/2).
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_csn/1).
 
 normal_message_with_chat_marker_is_carbon_copied(Config) ->
-    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_chat_marker/2).
+    message_is_carbon_copied(Config, fun carboncopy_helper:normal_message_with_chat_marker/1).
 
 message_is_carbon_copied(Config, StanzaFun) ->
     escalus:fresh_story(
@@ -243,7 +243,7 @@ message_is_carbon_copied(Config, StanzaFun) ->
         fun(Alice1, Alice2, Bob) ->
             enable_carbons([Alice1, Alice2]),
             Body = <<"carbonated">>,
-            escalus_client:send(Bob, StanzaFun(Alice2, Body)),
+            escalus_client:send(Bob, StanzaFun(#{to => Alice2, body => Body})),
             AliceReceived = escalus_client:wait_for_stanza(Alice2),
             escalus:assert(is_message, AliceReceived),
             carboncopy_helper:wait_for_carbon_message(Alice1, #{from => Bob, to => Alice2})

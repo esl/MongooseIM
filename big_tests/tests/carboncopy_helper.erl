@@ -1,12 +1,5 @@
 -module(carboncopy_helper).
--export([
-    wait_for_carbon_chat_with_body/3,
-    wait_for_carbon_message/2,
-    normal_message_with_body/2,
-    normal_message_with_receipt/2,
-    normal_message_with_csn/2,
-    normal_message_with_chat_marker/2
-]).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -46,10 +39,13 @@ is_message_from_to(From, To, #xmlel{attrs = Attrs} = Stanza) ->
         escalus_compat:bin(From) == proplists:get_value(<<"from">>, Attrs) andalso
         escalus_compat:bin(To) == proplists:get_value(<<"to">>, Attrs).
 
-normal_message_with_body(User, Body) ->
+chat_message_with_body(#{to := User, body := Body}) ->
+    escalus_stanza:chat_to(User, Body).
+
+normal_message_with_body(#{to := User, body := Body}) ->
     escalus_stanza:message(Body, #{type => <<"normal">>, to => User}).
 
-normal_message_with_receipt(User, _Body) ->
+normal_message_with_receipt(#{to := User}) ->
     Msg = #xmlel{
         name = <<"message">>,
         attrs = [
@@ -60,7 +56,7 @@ normal_message_with_receipt(User, _Body) ->
     },
     escalus_stanza:receipt_conf(Msg).
 
-normal_message_with_csn(User, _Body) ->
+normal_message_with_csn(#{to := User}) ->
     #xmlel{
         name = <<"message">>,
         attrs = [
@@ -75,6 +71,6 @@ normal_message_with_csn(User, _Body) ->
         ]
     }.
 
-normal_message_with_chat_marker(User, _Body) ->
+normal_message_with_chat_marker(#{to := User}) ->
     Msg = escalus_stanza:chat_marker(User, <<"received">>, escalus_stanza:id()),
     escalus_stanza:setattr(Msg, <<"type">>, <<"normal">>).
