@@ -134,8 +134,8 @@ delete_handler({HookName, Tag, _, _, _} = HookTuple) ->
                Params :: hook_params()) -> hook_fn_ret().
 run_fold(HookName, Tag, Acc, Params) ->
     Key = hook_key(HookName, Tag),
-    case persistent_term:get(?MODULE, #{}) of
-        #{Key := Ls} ->
+    case persistent_term:get({?MODULE, Key}, []) of
+        [_|_] = Ls ->
             mongoose_metrics:increment_generic_hook_metric(Tag, HookName),
             run_hook(Ls, Acc, Params, Key);
         _ ->
@@ -147,49 +147,52 @@ run_fold(HookName, Tag, Acc, Params) ->
 %%%----------------------------------------------------------------------
 
 init([]) ->
-    State = #{},
-    persistent_term:put(?MODULE, State),
-    {ok, State}.
+    erlang:process_flag(trap_exit, true),
+    {ok, #{}}.
 
 handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
-    NewState = case maps:get(Key, State, []) of
-                   [] ->
-                       NewLs = [HookHandler],
-                       create_hook_metric(Key),
-                       maps:put(Key, NewLs, State);
-                   Ls ->
-                       case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
-                           {value, _} ->
-                               ?LOG_WARNING(#{what => duplicated_handler,
-                                              key => Key, handler => HookHandler}),
-                               State;
-                           false ->
-                               %% NOTE: sort *only* on the priority,
-                               %% order of other fields is not part of the contract
-                               NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
-                               maps:put(Key, NewLs, State)
-                       end
-               end,
-    persistent_term:put(?MODULE, NewState),
+    NewState =
+        case maps:get(Key, State, []) of
+            [] ->
+                NewLs = [HookHandler],
+                create_hook_metric(Key),
+                store_handlers(State, Key, NewLs);
+            Ls ->
+                case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
+                    {value, _} ->
+                        ?LOG_WARNING(#{what => duplicated_handler,
+                                       key => Key, handler => HookHandler}),
+                        State;
+                    false ->
+                        %% NOTE: sort *only* on the priority,
+                        %% order of other fields is not part of the contract
+                        NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
+                        store_handlers(State, Key, NewLs)
+                end
+        end,
     {reply, ok, NewState};
 handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
-    NewState = case maps:get(Key, State, []) of
-                   [] ->
-                       State;
-                   Ls ->
-                       %% NOTE: The straightforward handlers comparison would compare
-                       %% the function objects, which is not well-defined in OTP.
-                       %% So we do a manual comparison on the MFA of the funs,
-                       %% by using `erlang:fun_info/2`
-                       Pred = fun_is_handler_equal_to(HookHandler),
-                       {_, NewLs} = lists:partition(Pred, Ls),
-                       maps:put(Key, NewLs, State)
-               end,
-    persistent_term:put(?MODULE, NewState),
+    NewState =
+        case maps:get(Key, State, []) of
+            [] ->
+                store_handlers(State, Key, []);
+            Ls ->
+                %% NOTE: The straightforward handlers comparison would compare
+                %% the function objects, which is not well-defined in OTP.
+                %% So we do a manual comparison on the MFA of the funs,
+                %% by using `erlang:fun_info/2`
+                Pred = fun_is_handler_equal_to(HookHandler),
+                {_, NewLs} = lists:partition(Pred, Ls),
+                store_handlers(State, Key, NewLs)
+        end,
     {reply, ok, NewState};
 handle_call(Request, From, State) ->
     ?UNEXPECTED_CALL(Request, From),
     {reply, bad_request, State}.
+
+store_handlers(State, Key, NewLs) ->
+    persistent_term:put({?MODULE, Key}, NewLs),
+    maps:put(Key, NewLs, State).
 
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
@@ -199,8 +202,8 @@ handle_info(Info, State) ->
     ?UNEXPECTED_INFO(Info),
     {noreply, State}.
 
-terminate(_Reason, _State) ->
-    persistent_term:erase(?MODULE),
+terminate(_Reason, State) ->
+    [ true = persistent_term:erase({?MODULE, Key}) || Key <- maps:keys(State) ],
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
