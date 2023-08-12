@@ -6,6 +6,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-define(XMPP_VERSION, <<"1.0">>).
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
@@ -95,12 +96,12 @@ handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
     handle_stream_start(StateData, StreamStart, StreamState);
-handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData = #c2s_data{lserver = LServer}) ->
+handle_event(internal, _Unexpected, {wait_for_stream, _}, StateData) ->
     case mongoose_config:get_opt(hide_service_name, false) of
         true ->
             {stop, {shutdown, stream_error}};
         false ->
-            send_header(StateData, LServer, <<"1.0">>, <<>>),
+            send_header(StateData),
             c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed())
     end;
 handle_event(internal, #xmlstreamstart{}, _, StateData) ->
@@ -324,10 +325,10 @@ handle_stream_start(S0, StreamStart, StreamState) ->
           exml_query:attr(StreamStart, <<"xmlns:stream">>, <<>>),
           exml_query:attr(StreamStart, <<"version">>, <<>>),
           mongoose_domain_api:get_domain_host_type(LServer)} of
-        {stream_start, ?NS_STREAM, <<"1.0">>, {ok, HostType}} ->
+        {stream_start, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
             stream_start_features_before_auth(S);
-        {authenticated, ?NS_STREAM, <<"1.0">>, {ok, HostType}} ->
+        {authenticated, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
             stream_start_features_after_auth(S);
         {_, ?NS_STREAM, _Pre1_0, {ok, HostType}} ->
@@ -442,8 +443,8 @@ handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().
 stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                            lang = Lang, listener_opts = LOpts} = S) ->
-    send_header(S, LServer, <<"1.0">>, Lang),
+                                            listener_opts = LOpts} = S) ->
+    send_header(S),
     CredOpts = mongoose_credentials:make_opts(LOpts),
     Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
@@ -453,11 +454,11 @@ stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LSer
 
 -spec stream_start_features_after_auth(data()) -> fsm_res().
 stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                           lang = Lang, listener_opts = LOpts} = S) ->
-    send_header(S, LServer, <<"1.0">>, Lang),
+                                           listener_opts = LOpts} = StateData) ->
+    send_header(StateData),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer, LOpts),
-    send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, S, state_timeout(LOpts)}.
+    send_element_from_server_jid(StateData, StreamFeatures),
+    {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, StateData, state_timeout(LOpts)}.
 
 -spec handle_bind_resource(data(), state(), exml:element(), jlib:iq()) -> fsm_res().
 handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
@@ -831,15 +832,12 @@ element_to_origin_accum(StateData = #c2s_data{sid = SID, jid = Jid}, El) ->
 
 -spec stream_start_error(data(), exml:element()) -> fsm_res().
 stream_start_error(StateData, Error) ->
-    send_header(StateData, ?MYNAME, <<>>, StateData#c2s_data.lang),
+    send_header(StateData),
     c2s_stream_error(StateData, Error).
 
--spec send_header(StateData :: data(),
-                  Server :: jid:lserver(),
-                  Version :: binary(),
-                  Lang :: ejabberd:lang()) -> any().
-send_header(StateData, Server, Version, Lang) ->
-    Header = mongoose_c2s_stanzas:stream_header(Server, Version, Lang, StateData#c2s_data.streamid),
+-spec send_header(StateData :: data()) -> any().
+send_header(StateData = #c2s_data{lserver = LServer, lang = Lang, streamid = StreamId}) ->
+    Header = mongoose_c2s_stanzas:stream_header(LServer, ?XMPP_VERSION, Lang, StreamId),
     send_xml(StateData, Header).
 
 send_trailer(StateData) ->
