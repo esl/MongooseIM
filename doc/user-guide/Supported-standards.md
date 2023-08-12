@@ -36,7 +36,7 @@
 ## Supported XEPs
 
 {%
-   include-markdown "Supported-XEPs.md"
+   include-markdown "./Supported-XEPs.md"
 %}
 
 ## Supported Open Extensions
