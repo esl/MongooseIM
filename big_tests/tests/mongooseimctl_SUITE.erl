@@ -772,7 +772,8 @@ process_rosteritems_list_simple(Config) ->
         {BobName, Domain, _} = get_user_data(bob, Config),
         %% when
         {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
-        _S = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert(is_roster_set, [], escalus:wait_for_stanza(Alice)),
+        escalus_assert:has_no_stanzas(Alice),
         {R, 0} = mongooseimctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ Contact ++ ".*"),
@@ -791,7 +792,8 @@ process_rosteritems_list_nomatch(Config) ->
         {BobName, Domain, _} = get_user_data(bob, Config),
         {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, BobName,
                                                 Domain, "MyBob", "MyGroup", "to"], Config),
-        escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert(is_roster_set, [], escalus:wait_for_stanza(Alice)),
+        escalus_assert:has_no_stanzas(Alice),
         %% when
         {R, 0} = mongooseimctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
@@ -818,7 +820,9 @@ process_rosteritems_list_advanced1(Config) ->
         {_, 0} = add_rosteritem2(AliceName, Domain, MikeName, Domain, Config),
         {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "BestFriend", "MyGroup", "both"], Config),
-        escalus:wait_for_stanzas(Alice, 4),
+        escalus:assert_many([is_roster_set, is_roster_set],
+                            escalus:wait_for_stanzas(Alice, 2)),
+        escalus_assert:has_no_stanzas(Alice),
         %% when
         {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
@@ -849,7 +853,9 @@ process_rosteritems_delete_advanced(Config) ->
                                                 Domain, "DearMike", "MyGroup", "from"], Config),
         {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "Friend", "MyGroup", "from"], Config),
-        escalus:wait_for_stanzas(Alice, 4),
+        escalus:assert_many([is_roster_set, is_roster_set],
+                            escalus:wait_for_stanzas(Alice, 2)),
+        escalus_assert:has_no_stanzas(Alice),
         %% when
         {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
@@ -878,7 +884,9 @@ process_rosteritems_list_advanced2(Config) ->
         {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "KateFromSchool",
                                                 "MyGroup", "from"], Config),
-        escalus:wait_for_stanzas(Alice, 4),
+        escalus:assert_many([is_roster_set, is_roster_set],
+                            escalus:wait_for_stanzas(Alice, 2)),
+        escalus_assert:has_no_stanzas(Alice),
         %% when
         {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
@@ -903,8 +911,8 @@ process_rosteritems_delete_advanced2(Config) ->
         {MikeName, Domain, _} = get_user_data(mike, Config),
         {KateName, Domain, _} = get_user_data(kate, Config),
         ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
-        ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
-        ContactBob= string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
+        ContactKate = string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
+        ContactBob = string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
         ContactsReg = ".ik[ea]@localho+.*:k@loc.*st:(alice)+@.*:no",
         {_, 0} = mongooseimctl("add_rosteritem",
                              [AliceName, Domain, MikeName,
@@ -916,8 +924,12 @@ process_rosteritems_delete_advanced2(Config) ->
                               "MyGroup", "to"], Config),
         {_, 0} = mongooseimctl("add_rosteritem", [BobName, Domain, AliceName,
                                                 Domain, "Girlfriend", "MyGroup", "from"], Config),
-        escalus:wait_for_stanzas(Alice, 4),
-        escalus:wait_for_stanzas(Bob, 2),
+        escalus:assert_many([is_roster_set, is_roster_set, is_presence],
+                            escalus:wait_for_stanzas(Alice, 3)),
+        escalus:assert(is_roster_set, [], escalus:wait_for_stanza(Bob)),
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob),
+
         %% when
         {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsReg],
