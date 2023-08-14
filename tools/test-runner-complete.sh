@@ -123,6 +123,7 @@ _run_all_tests() {
                           --skip-start-nodes \
                           --skip-stop-nodes \
                           --skip-setup-db \
+                          --no-parallel \
                           --tls-dist \
                           --verbose \
                           --help \

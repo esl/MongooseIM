@@ -12,6 +12,12 @@
 # Fail on errors
 set -e
 
+# Switch to the repository directory
+cd "$( dirname "${BASH_SOURCE[0]}" )/.."
+
+source tools/common-vars.sh
+source tools/parallel.sh
+
 USAGE=$(cat <<-END
 This script runs small and big tests for MongooseIM
 
@@ -31,6 +37,7 @@ Options:
 --skip-start-nodes    -- do not start nodes before big tests
 --skip-stop-nodes     -- do not stop nodes after big tests
 --skip-setup-db       -- do not start any databases, the same as "--db --" option
+--no-parallel         -- run most commands in sequence
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 --colors              -- force colors in help and examples commands
@@ -295,6 +302,7 @@ BUILD_MIM=true
 START_NODES=true
 STOP_NODES=true
 TLS_DIST=false
+PARALLEL_ENABLED=true
 
 SELECTED_TESTS=()
 STOP_SCRIPT=false
@@ -416,6 +424,11 @@ case $key in
     --skip-cover)
         shift # past argument
         COVER_ENABLED=false
+    ;;
+
+    --no-parallel)
+        shift # past argument
+        PARALLEL_ENABLED=false
     ;;
 
     --skip-preset)
@@ -641,12 +654,17 @@ echo "    START_NODES=$START_NODES"
 echo "    STOP_NODES=$STOP_NODES"
 echo ""
 
-./tools/build-releases.sh
 
-./tools/build-tests.sh
+init_parallel test_runner
 
-./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
+parallel build-mim ./tools/build-releases.sh
 
-./tools/setup-db.sh
+parallel build-tests ./tools/build-tests.sh
+
+parallel make-spec ./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
+
+parallel false ./tools/setup-db.sh
+
+wait_for_parallel test_runner
 
 ./tools/test.sh
