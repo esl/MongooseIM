@@ -28,6 +28,7 @@
          publish_options_success_test/1,
          publish_options_fail_unknown_option_story/1,
          publish_options_fail_wrong_value_story/1,
+         publish_options_fail_wrong_form/1,
          send_caps_after_login_test/1,
          delayed_receive/1,
          delayed_receive_with_sm/1,
@@ -38,7 +39,8 @@
 
 -export([
          start_caps_clients/2,
-         send_initial_presence_with_caps/2
+         send_initial_presence_with_caps/2,
+         add_config_to_create_node_request/1
         ]).
 
 -import(distributed_helper, [mim/0,
@@ -47,6 +49,8 @@
                              rpc/4]).
 -import(config_parser_helper, [mod_config/2]).
 -import(domain_helper, [domain/0]).
+
+-define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -71,6 +75,7 @@ groups() ->
            publish_options_success_test,
            publish_options_fail_unknown_option_story,
            publish_options_fail_wrong_value_story,
+           publish_options_fail_wrong_form,
            send_caps_after_login_test,
            delayed_receive,
            delayed_receive_with_sm,
@@ -236,8 +241,8 @@ publish_options_success_test(Config) ->
       fun(Alice, Bob) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            NodeConfig = [{<<"pubsub#roster_groups_allowed">>, [<<"friends">>]}],
-            pubsub_tools:create_node(Alice, PepNode, [{config, NodeConfig}]),
+            pubsub_tools:create_node(Alice, PepNode,
+                                     [{modify_request,fun add_config_to_create_node_request/1}]),
             escalus_story:make_all_clients_friends([Alice, Bob]),
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"1">>},
                               {<<"pubsub#notify_config">>, <<"0">>},
@@ -245,7 +250,7 @@ publish_options_success_test(Config) ->
                               {<<"pubsub#purge_offline">>, <<"0">>},
                               {<<"pubsub#notify_retract">>, <<"0">>},
                               {<<"pubsub#persist_items">>, <<"1">>},
-                              {<<"pubsub#roster_groups_allowed">>, <<"friends">>},
+                              {<<"pubsub#roster_groups_allowed">>, [<<"friends">>, <<"enemies">>]},
                               {<<"pubsub#max_items">>, <<"1">>},
                               {<<"pubsub#subscribe">>, <<"1">>},
                               {<<"pubsub#access_model">>, <<"presence">>},
@@ -255,8 +260,7 @@ publish_options_success_test(Config) ->
                               {<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>},
                               {<<"pubsub#deliver_notifications">>, <<"1">>},
                               {<<"pubsub#presence_based_delivery">>, <<"1">>}],
-            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>,
-                                                       {pep, NodeNS}, [], PublishOptions),
+            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
             escalus:assert(is_iq_result, Result)
       end).
 
@@ -269,15 +273,12 @@ publish_options_fail_unknown_option_story(Config) ->
             PepNode = make_pep_node_info(Alice, NodeNS),
             pubsub_tools:create_node(Alice, PepNode, []),
 
-            Options = [{expected_error_type, <<"cancel">>}],
             PublishOptions = [{<<"deliver_payloads">>, <<"1">>}],
-            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
-                                                       Options, PublishOptions),
+            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
             escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
 
             PublishOptions2 = [{<<"pubsub#not_existing_option">>, <<"1">>}],
-            Result2 = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
-                                                        Options, PublishOptions2),
+            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
             escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
       end).
 
@@ -288,21 +289,30 @@ publish_options_fail_wrong_value_story(Config) ->
       fun(Alice) ->
             NodeNS = random_node_ns(),
             PepNode = make_pep_node_info(Alice, NodeNS),
-            NodeConfig = [{<<"pubsub#roster_groups_allowed">>, [<<"friends">>, <<"enemies">>]}],
+            pubsub_tools:create_node(Alice, PepNode,
+                                     [{modify_request,fun add_config_to_create_node_request/1}]),
 
-            pubsub_tools:create_node(Alice, PepNode, [{config, NodeConfig}]),
-            Options = [{expected_error_type, <<"cancel">>}],
             PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"0">>}],
-            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
-                                                       Options, PublishOptions),
+            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions),
             escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
 
-            PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"enemies">>}],
-            Result2 = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
-                                                        Options, PublishOptions2),
+            PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"friends">>}],
+            Result2 = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions2),
             escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
       end).
 
+publish_options_fail_wrong_form(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+            NodeNS = random_node_ns(),
+            PepNode = make_pep_node_info(Alice, NodeNS),
+            pubsub_tools:create_node(Alice, PepNode, []),
+            PublishOptions = [{<<"deliver_payloads">>, <<"0">>}],
+            Result = publish_with_publish_options(Alice, {pep, NodeNS}, <<"item1">>, PublishOptions, <<"WRONG_NS">>),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result)
+      end).
 
 send_caps_after_login_test(Config) ->
     escalus:fresh_story(
@@ -464,6 +474,35 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
+
+add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
+    io:format("~p", [Request]),
+    Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
+    Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
+    ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
+    PubsubEl2 = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [ConfigureEl]},
+    Request#xmlel{children = [PubsubEl2]}.
+ 
+publish_with_publish_options(Client, Node, Content, Options) ->
+    publish_with_publish_options(Client, Node, Content, Options, ?NS_PUBSUB_PUB_OPTIONS).
+
+publish_with_publish_options(Client, Node, Content, Options, FormType) ->
+    OptionsEl = #xmlel{name = <<"publish-options">>,
+                       children = form(Options, FormType)},
+
+    Id = pubsub_tools:id(Client, Node, <<"publish">>),
+    Publish = pubsub_tools:publish_request(Id, Client, Content, Node, Options),
+    #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
+    NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
+    escalus:send(Client, Publish#xmlel{children = [NewPubsubEl]}),
+    escalus:wait_for_stanza(Client).
+
+form(FormFields, FormType) ->
+    FieldSpecs = lists:map(fun field_spec/1, FormFields),
+    [form_helper:form(#{fields => FieldSpecs, ns => FormType})].
+
+field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
+field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
     [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},

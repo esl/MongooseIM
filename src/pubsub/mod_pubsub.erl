@@ -3717,13 +3717,7 @@ convert_option_value(Element) when is_atom(Element) ->
 convert_option_value(Element) when is_integer(Element) ->
     [integer_to_binary(Element)];
 convert_option_value(List) when is_list(List) ->
-    lists:map(
-        fun
-            (Element) when is_atom(Element) -> atom_to_binary(Element);
-            (Element) -> Element
-        end, List);
-convert_option_value(Element) ->
-    [Element].
+    List.
 
 node_options(Host, Type) ->
     ConfiguredOpts = lists:keysort(1, config(serverhost(Host), default_node_config)),

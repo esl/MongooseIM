@@ -92,16 +92,26 @@ features() ->
         <<"retrieve-subscriptions">>,
         <<"subscribe">>].
 
--spec check_publish_options(#{binary() => [binary()]}, #{atom() => binary()}) -> boolean().
+-spec check_publish_options(#{binary() => [binary()]} | invalid_form, #{atom() => binary()}) ->
+    boolean().
+check_publish_options(invalid_form, _) ->
+    true;
 check_publish_options(PublishOptions, NodeOptions) ->
+    io:format("~p\n", [{NodeOptions, PublishOptions}]),
     F = fun(Key, Value) ->
             case string:split(Key, "#") of
                 [<<"pubsub">>, Key2] ->
-                    Value =/= maps:get(binary_to_atom(Key2), NodeOptions, null);
+                    AtomKey = binary_to_atom(Key2),
+                    compare_values(Value, maps:get(AtomKey, NodeOptions, null));
                 _ -> true
             end
         end,
     maps:size(maps:filter(F, PublishOptions)) =/= 0.
+
+compare_values(_, null) ->
+    true;
+compare_values(Value1, Value2) ->
+    lists:sort(Value1) =/= lists:sort(Value2).
 
 create_node_permission(Host, _ServerHost, _Node, _ParentNode,
                        #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->
