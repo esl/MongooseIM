@@ -21,6 +21,8 @@
          publish_item/9, node_to_path/1, should_delete_when_owner_removed/0,
          check_publish_options/2]).
 
+-ignore_xref([check_publish_options/2]).
+
 based_on() ->  node_flat.
 
 init(Host, ServerHost, Opts) ->

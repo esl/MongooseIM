@@ -42,7 +42,7 @@
          should_delete_when_owner_removed/0, check_publish_options/2
         ]).
 
--ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4]).
+-ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4, check_publish_options/2]).
 
 based_on() ->  node_flat.
 
@@ -95,11 +95,13 @@ features() ->
 -spec check_publish_options(#{binary() => [binary()]}, #{atom() => binary()}) -> boolean().
 check_publish_options(PublishOptions, NodeOptions) ->
     F = fun(Key, Value) ->
-            Value =/= maps:get(binary_to_atom(Key), NodeOptions)
+            case string:split(Key, "#") of
+                [<<"pubsub">>, Key2] ->
+                    Value =/= maps:get(binary_to_atom(Key2), NodeOptions, null);
+                _ -> true
+            end
         end,
-    maps:size(maps:filter(F, PublishOptions)) =/= 0;
-check_publish_options(_, _) ->
-    false.
+    maps:size(maps:filter(F, PublishOptions)) =/= 0.
 
 create_node_permission(Host, _ServerHost, _Node, _ParentNode,
                        #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->

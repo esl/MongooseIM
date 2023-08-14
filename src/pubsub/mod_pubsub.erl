@@ -3693,7 +3693,7 @@ check_publish_options(Type, PublishOptions, Options) ->
             Result
     end.
 
--spec parse_publish_options(undefined | exml:element()) -> invalid_form | #{binary() => binary()}.
+-spec parse_publish_options(undefined | exml:element()) -> invalid_form | #{binary() => [binary()]}.
 parse_publish_options(undefined) ->
     #{};
 parse_publish_options(PublishOptions) ->
@@ -3717,7 +3717,11 @@ convert_option_value(Element) when is_atom(Element) ->
 convert_option_value(Element) when is_integer(Element) ->
     [integer_to_binary(Element)];
 convert_option_value(List) when is_list(List) ->
-    lists:map(fun(Element) -> atom_to_binary(Element) end, List);
+    lists:map(
+        fun
+            (Element) when is_atom(Element) -> atom_to_binary(Element);
+            (Element) -> Element
+        end, List);
 convert_option_value(Element) ->
     [Element].
 

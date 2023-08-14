@@ -24,7 +24,10 @@
          disco_sm_items_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
-         publish_options_test/1,
+         auto_create_with_publish_options_test/1,
+         publish_options_success_test/1,
+         publish_options_fail_unknown_option_story/1,
+         publish_options_fail_wrong_value_story/1,
          send_caps_after_login_test/1,
          delayed_receive/1,
          delayed_receive_with_sm/1,
@@ -64,7 +67,10 @@ groups() ->
            disco_sm_items_test,
            pep_caps_test,
            publish_and_notify_test,
-           publish_options_test,
+           auto_create_with_publish_options_test,
+           publish_options_success_test,
+           publish_options_fail_unknown_option_story,
+           publish_options_fail_wrong_value_story,
            send_caps_after_login_test,
            delayed_receive,
            delayed_receive_with_sm,
@@ -206,7 +212,7 @@ publish_and_notify_story(Config, Alice, Bob) ->
     pubsub_tools:receive_item_notification(
       Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []).
 
-publish_options_test(Config) ->
+auto_create_with_publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin
     escalus:fresh_story(
       Config,
@@ -222,6 +228,81 @@ publish_options_test(Config) ->
             NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
             verify_publish_options(NodeConfig, PublishOptions)
       end).
+
+publish_options_success_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+            NodeNS = random_node_ns(),
+            PepNode = make_pep_node_info(Alice, NodeNS),
+            NodeConfig = [{<<"pubsub#roster_groups_allowed">>, [<<"friends">>]}],
+            pubsub_tools:create_node(Alice, PepNode, [{config, NodeConfig}]),
+            escalus_story:make_all_clients_friends([Alice, Bob]),
+            PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"1">>},
+                              {<<"pubsub#notify_config">>, <<"0">>},
+                              {<<"pubsub#notify_delete">>, <<"0">>},
+                              {<<"pubsub#purge_offline">>, <<"0">>},
+                              {<<"pubsub#notify_retract">>, <<"0">>},
+                              {<<"pubsub#persist_items">>, <<"1">>},
+                              {<<"pubsub#roster_groups_allowed">>, <<"friends">>},
+                              {<<"pubsub#max_items">>, <<"1">>},
+                              {<<"pubsub#subscribe">>, <<"1">>},
+                              {<<"pubsub#access_model">>, <<"presence">>},
+                              {<<"pubsub#publish_model">>, <<"publishers">>},
+                              {<<"pubsub#notification_type">>, <<"headline">>},
+                              {<<"pubsub#max_payload_size">>, <<"60000">>},
+                              {<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>},
+                              {<<"pubsub#deliver_notifications">>, <<"1">>},
+                              {<<"pubsub#presence_based_delivery">>, <<"1">>}],
+            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>,
+                                                       {pep, NodeNS}, [], PublishOptions),
+            escalus:assert(is_iq_result, Result)
+      end).
+
+publish_options_fail_unknown_option_story(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+            NodeNS = random_node_ns(),
+            PepNode = make_pep_node_info(Alice, NodeNS),
+            pubsub_tools:create_node(Alice, PepNode, []),
+
+            Options = [{expected_error_type, <<"cancel">>}],
+            PublishOptions = [{<<"deliver_payloads">>, <<"1">>}],
+            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
+                                                       Options, PublishOptions),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+
+            PublishOptions2 = [{<<"pubsub#not_existing_option">>, <<"1">>}],
+            Result2 = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
+                                                        Options, PublishOptions2),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+      end).
+
+publish_options_fail_wrong_value_story(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+            NodeNS = random_node_ns(),
+            PepNode = make_pep_node_info(Alice, NodeNS),
+            NodeConfig = [{<<"pubsub#roster_groups_allowed">>, [<<"friends">>, <<"enemies">>]}],
+
+            pubsub_tools:create_node(Alice, PepNode, [{config, NodeConfig}]),
+            Options = [{expected_error_type, <<"cancel">>}],
+            PublishOptions = [{<<"pubsub#deliver_payloads">>, <<"0">>}],
+            Result = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
+                                                       Options, PublishOptions),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result),
+
+            PublishOptions2 = [{<<"pubsub#roster_groups_allowed">>, <<"enemies">>}],
+            Result2 = pubsub_tools:publish_with_options(Alice, <<"item1">>, {pep, NodeNS},
+                                                        Options, PublishOptions2),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Result2)
+      end).
+
 
 send_caps_after_login_test(Config) ->
     escalus:fresh_story(
