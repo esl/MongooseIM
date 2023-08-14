@@ -443,20 +443,19 @@ handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().
 stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                            listener_opts = LOpts} = S) ->
-    send_header(S),
+                                            listener_opts = LOpts} = StateData) ->
+    send_header(StateData),
     CredOpts = mongoose_credentials:make_opts(LOpts),
     Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts, S),
-    send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout(LOpts)}.
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(StateData),
+    send_element_from_server_jid(StateData, StreamFeatures),
+    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
 
 -spec stream_start_features_after_auth(data()) -> fsm_res().
-stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                           listener_opts = LOpts} = StateData) ->
+stream_start_features_after_auth(#c2s_data{listener_opts = LOpts} = StateData) ->
     send_header(StateData),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer, LOpts),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(StateData),
     send_element_from_server_jid(StateData, StreamFeatures),
     {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, StateData, state_timeout(LOpts)}.
 
@@ -757,8 +756,7 @@ handle_flush(StateData = #c2s_data{host_type = HostType}, C2SState, Acc) ->
 
 -spec maybe_send_element(data(), mongoose_c2s_hooks:result()) -> mongoose_acc:t().
 maybe_send_element(StateData, {ok, Acc}) ->
-    Element = mongoose_acc:element(Acc),
-    do_send_element(StateData, Element, Acc);
+    send(StateData, Acc);
 maybe_send_element(_, {stop, Acc}) ->
     Acc.
 
@@ -808,13 +806,6 @@ handle_state_result(StateData0, C2SState, MaybeAcc,
     [maybe_send_xml(StateData2, MaybeAcc, Send) || Send <- MaybeSocketSend ],
     {next_state, NextFsmState, StateData2, MaybeActions}.
 
--spec maybe_send_xml(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
-maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
-    Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
-    do_send_element(StateData, ToSend, Acc);
-maybe_send_xml(StateData, Acc, ToSend) ->
-    do_send_element(StateData, ToSend, Acc).
-
 %% @doc This function is executed when c2s receives a stanza from the TCP connection.
 -spec element_to_origin_accum(data(), exml:element()) -> mongoose_acc:t().
 element_to_origin_accum(StateData = #c2s_data{sid = SID, jid = Jid}, El) ->
@@ -849,17 +840,6 @@ c2s_stream_error(StateData, Error) ->
     send_element_from_server_jid(StateData, Error),
     send_xml(StateData, ?XML_STREAM_TRAILER),
     {stop, {shutdown, stream_error}, StateData}.
-
--spec send_element_from_server_jid(data(), exml:element()) -> any().
-send_element_from_server_jid(StateData, El) ->
-    Acc = mongoose_acc:new(
-            #{host_type => StateData#c2s_data.host_type,
-              lserver => StateData#c2s_data.lserver,
-              location => ?LOCATION,
-              from_jid => jid:make_noprep(<<>>, StateData#c2s_data.lserver, <<>>),
-              to_jid => StateData#c2s_data.jid,
-              element => El}),
-    do_send_element(StateData, El, Acc).
 
 -spec bounce_messages(data()) -> ok.
 bounce_messages(StateData) ->
@@ -947,12 +927,35 @@ sm_unset_reason(normal) ->
 sm_unset_reason(_) ->
     error.
 
-%% @doc This is the termination point - from here stanza is sent to the user
--spec do_send_element(data(), exml:element(), mongoose_acc:t()) -> mongoose_acc:t().
-do_send_element(StateData = #c2s_data{host_type = undefined}, El, Acc) ->
+%% @doc These are the termination points - from here stanza is sent to the user
+-spec send(data(), mongoose_acc:t()) -> mongoose_acc:t().
+send(StateData, Acc) ->
+    El = mongoose_acc:element(Acc),
+    do_send_element(StateData, Acc, El).
+
+-spec send_element_from_server_jid(data(), exml:element()) -> any().
+send_element_from_server_jid(StateData, El) ->
+    Acc = mongoose_acc:new(
+            #{host_type => StateData#c2s_data.host_type,
+              lserver => StateData#c2s_data.lserver,
+              location => ?LOCATION,
+              from_jid => jid:make_noprep(<<>>, StateData#c2s_data.lserver, <<>>),
+              to_jid => StateData#c2s_data.jid,
+              element => El}),
+    do_send_element(StateData, Acc, El).
+
+-spec maybe_send_xml(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
+maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
+    Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
+    do_send_element(StateData, Acc, ToSend);
+maybe_send_xml(StateData, Acc, ToSend) ->
+    do_send_element(StateData, Acc, ToSend).
+
+-spec do_send_element(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
+do_send_element(StateData = #c2s_data{host_type = undefined}, Acc, El) ->
     send_xml(StateData, El),
     Acc;
-do_send_element(StateData = #c2s_data{host_type = HostType}, #xmlel{} = El, Acc) ->
+do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El) ->
     Res = send_xml(StateData, El),
     Acc1 = mongoose_acc:set(c2s, send_result, Res, Acc),
     mongoose_hooks:xmpp_send_element(HostType, Acc1, El).
