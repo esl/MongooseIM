@@ -8,7 +8,11 @@
 
 set -e
 
+# Switch to the repository directory
+cd "$( dirname "${BASH_SOURCE[0]}" )/.."
+
 source tools/common-vars.sh
+source tools/parallel.sh
 source tools/db-versions.sh
 
 MIM_PRIV_DIR=${BASE}/priv
@@ -18,6 +22,8 @@ MYSQL_DIR=/etc/mysql/conf.d
 PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${TOOLS}/ssl
+
+PARALLEL_ENABLED=${PARALLEL_ENABLED-true}
 
 function setup_db(){
     db=${1:-none}
@@ -269,17 +275,14 @@ function setup_db(){
     fi
 }
 
-# Kill background jobs if the user clicks CTRL-C
-trap "exit" INT TERM ERR
-trap "kill 0" EXIT
+init_parallel setup_db
 
 # The DB env var may contain single value "mysql"
 # or list of values separated with a space "elasticsearch cassandra"
 # in case of list of values all listed database will be set up (or at least tried)
 
 for db in ${DB}; do
-    setup_db $db &
+    parallel "$db" setup_db "$db"
 done
 
-wait
-echo "setup_db done"
+wait_for_parallel setup_db
