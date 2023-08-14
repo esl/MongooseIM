@@ -443,20 +443,19 @@ handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().
 stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                            listener_opts = LOpts} = S) ->
-    send_header(S),
+                                            listener_opts = LOpts} = StateData) ->
+    send_header(StateData),
     CredOpts = mongoose_credentials:make_opts(LOpts),
     Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
     SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(HostType, LServer, LOpts, S),
-    send_element_from_server_jid(S, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, S, state_timeout(LOpts)}.
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(StateData),
+    send_element_from_server_jid(StateData, StreamFeatures),
+    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
 
 -spec stream_start_features_after_auth(data()) -> fsm_res().
-stream_start_features_after_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                           listener_opts = LOpts} = StateData) ->
+stream_start_features_after_auth(#c2s_data{listener_opts = LOpts} = StateData) ->
     send_header(StateData),
-    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(HostType, LServer, LOpts),
+    StreamFeatures = mongoose_c2s_stanzas:stream_features_after_auth(StateData),
     send_element_from_server_jid(StateData, StreamFeatures),
     {next_state, {wait_for_feature_after_auth, ?BIND_RETRIES}, StateData, state_timeout(LOpts)}.
 

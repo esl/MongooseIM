@@ -5,9 +5,9 @@
 
 -export([
          stream_header/4,
-         stream_features_before_auth/4,
+         stream_features_before_auth/1,
          tls_proceed/0,
-         stream_features_after_auth/3,
+         stream_features_after_auth/1,
          sasl_success_stanza/1,
          sasl_failure_stanza/1,
          sasl_challenge_stanza/1,
@@ -36,12 +36,14 @@ stream_header(Server, Version, Lang, StreamId) ->
 stream_features(Features) ->
     #xmlel{name = <<"stream:features">>, children = Features}.
 
--spec stream_features_before_auth(
-        mongooseim:host_type(), jid:lserver(), mongoose_listener:options(), mongoose_c2s:data()) ->
-    exml:element().
-stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
-    IsSSL = mongoose_c2s_socket:is_ssl(mongoose_c2s:get_socket(StateData)),
-    Features = determine_features(HostType, LServer, LOpts, IsSSL, StateData),
+-spec stream_features_before_auth(mongoose_c2s:data()) -> exml:element().
+stream_features_before_auth(StateData) ->
+    HostType = mongoose_c2s:get_host_type(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    Socket = mongoose_c2s:get_socket(StateData),
+    LOpts = mongoose_c2s:get_listener_opts(StateData),
+    IsSSL = mongoose_c2s_socket:is_ssl(Socket),
+    Features = determine_features(StateData, HostType, LServer, LOpts, IsSSL),
     stream_features(Features).
 
 %% From RFC 6120, section 5.3.1:
@@ -54,14 +56,16 @@ stream_features_before_auth(HostType, LServer, LOpts, StateData) ->
 %% receiving entity will likely depend on whether TLS has been negotiated).
 %%
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
-determine_features(_, _, #{tls := #{mode := starttls_required}}, false, _StateData) ->
+determine_features(_, _, _, #{tls := #{mode := starttls_required}}, false) ->
     [starttls_stanza(required)];
-determine_features(HostType, LServer, _, true, StateData) ->
+determine_features(StateData, HostType, LServer, _, true) ->
     InitialFeatures = maybe_sasl_mechanisms(StateData),
-    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures);
-determine_features(HostType, LServer, _, _, StateData) ->
+    StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
+    mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures);
+determine_features(StateData, HostType, LServer, _, _) ->
     InitialFeatures = [starttls_stanza(optional) | maybe_sasl_mechanisms(StateData)],
-    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures).
+    StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
+    mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
 -spec maybe_sasl_mechanisms(mongoose_c2s:data()) -> [exml:element()].
 maybe_sasl_mechanisms(StateData) ->
@@ -88,24 +92,29 @@ tls_proceed() ->
     #xmlel{name = <<"proceed">>,
            attrs = [{<<"xmlns">>, ?NS_TLS}]}.
 
--spec stream_features_after_auth(mongooseim:host_type(), jid:lserver(), mongoose_listener:options()) ->
-    exml:element().
-stream_features_after_auth(HostType, LServer, #{backwards_compatible_session := false}) ->
-    Features = [#xmlel{name = <<"bind">>,
-                       attrs = [{<<"xmlns">>, ?NS_BIND}]}
-                | hook_enabled_features(HostType, LServer)],
-    stream_features(Features);
-stream_features_after_auth(HostType, LServer, #{backwards_compatible_session := true}) ->
-    Features = [#xmlel{name = <<"session">>,
-                       attrs = [{<<"xmlns">>, ?NS_SESSION}]},
-                #xmlel{name = <<"bind">>,
-                       attrs = [{<<"xmlns">>, ?NS_BIND}]}
-                | hook_enabled_features(HostType, LServer)],
-    stream_features(Features).
+-spec stream_features_after_auth(mongoose_c2s:data()) -> exml:element().
+stream_features_after_auth(StateData) ->
+    case mongoose_c2s:get_listener_opts(StateData) of
+        #{backwards_compatible_session := false} ->
+            Features = [#xmlel{name = <<"bind">>,
+                               attrs = [{<<"xmlns">>, ?NS_BIND}]}
+                        | hook_enabled_features(StateData)],
+            stream_features(Features);
+        #{backwards_compatible_session := true} ->
+            Features = [#xmlel{name = <<"session">>,
+                               attrs = [{<<"xmlns">>, ?NS_SESSION}]},
+                        #xmlel{name = <<"bind">>,
+                               attrs = [{<<"xmlns">>, ?NS_BIND}]}
+                        | hook_enabled_features(StateData)],
+            stream_features(Features)
+    end.
 
-hook_enabled_features(HostType, LServer) ->
+hook_enabled_features(StateData) ->
+    HostType = mongoose_c2s:get_host_type(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
     InitialFeatures = mongoose_hooks:roster_get_versioning_feature(HostType),
-    mongoose_hooks:c2s_stream_features(HostType, LServer, InitialFeatures).
+    StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
+    mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
 -spec sasl_success_stanza(binary()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
