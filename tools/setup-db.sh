@@ -269,10 +269,17 @@ function setup_db(){
     fi
 }
 
+# Kill background jobs if the user clicks CTRL-C
+trap "exit" INT TERM ERR
+trap "kill 0" EXIT
+
 # The DB env var may contain single value "mysql"
 # or list of values separated with a space "elasticsearch cassandra"
 # in case of list of values all listed database will be set up (or at least tried)
 
 for db in ${DB}; do
-    setup_db $db
+    setup_db $db &
 done
+
+wait
+echo "setup_db done"
