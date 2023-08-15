@@ -47,7 +47,7 @@
 -behaviour(mongoose_module_metrics).
 -author('christophe.romain@process-one.net').
 
--xep([{xep, 60}, {version, "1.13-1"}]).
+-xep([{xep, 60}, {version, "1.25.0"}]).
 -xep([{xep, 163}, {version, "1.2.2"}]).
 -xep([{xep, 248}, {version, "0.3.0"}]).
 -xep([{xep, 277}, {version, "0.6.5"}]).
@@ -2269,7 +2269,9 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                     {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
                      extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
                     {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)},
+                    {PubOptsFeature andalso check_publish_options(Type, PublishOptions, Options),
+                     extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
                 ],
 
                 case lists:keyfind(true, 1, Errors) of
@@ -3681,6 +3683,48 @@ get_option(Options, Var, Def) ->
         _ -> Def
     end.
 
+-spec check_publish_options(binary(), undefined | exml:element(), mod_pubsub:nodeOptions()) ->
+    boolean().
+check_publish_options(Type, PublishOptions, Options) ->
+    ParsedPublishOptions = parse_publish_options(PublishOptions),
+    ConvertedOptions = convert_options(Options),
+    case node_call(Type, check_publish_options, [ParsedPublishOptions, ConvertedOptions]) of
+        {error, _} ->
+            true;
+        {result, Result} ->
+            Result
+    end.
+
+-spec parse_publish_options(undefined | exml:element()) -> invalid_form | #{binary() => [binary()]}.
+parse_publish_options(undefined) ->
+    #{};
+parse_publish_options(PublishOptions) ->
+    case mongoose_data_forms:find_and_parse_form(PublishOptions) of
+        #{type := <<"submit">>, kvs := KVs, ns := ?NS_PUBSUB_PUB_OPTIONS} ->
+            KVs;
+        _ ->
+            invalid_form
+    end.
+
+-spec convert_options(mod_pubsub:nodeOptions()) -> #{binary() => [binary()]}.
+convert_options(Options) ->
+    ConvertedOptions = lists:map(fun({Key, Value}) ->
+                                     {atom_to_binary(Key), convert_option_value(Value)}
+                                 end, Options),
+    maps:from_list(ConvertedOptions).
+
+-spec convert_option_value(binary() | [binary()] | atom() | non_neg_integer()) -> [binary()].
+convert_option_value(true) ->
+    [<<"1">>];
+convert_option_value(false) ->
+    [<<"0">>];
+convert_option_value(Element) when is_atom(Element) ->
+    [atom_to_binary(Element)];
+convert_option_value(Element) when is_integer(Element) ->
+    [integer_to_binary(Element)];
+convert_option_value(List) when is_list(List) ->
+    List.
+
 node_options(Host, Type) ->
     ConfiguredOpts = lists:keysort(1, config(serverhost(Host), default_node_config)),
     DefaultOpts = lists:keysort(1, node_plugin_options(Type)),
@@ -4082,7 +4126,6 @@ select_type(ServerHost, Host, Node, Type) ->
         false -> hd(ConfiguredTypes)
     end.
 
-feature(<<"rsm">>) -> ?NS_RSM;
 feature(Feature) -> <<(?NS_PUBSUB)/binary, "#", Feature/binary>>.
 
 features() ->
@@ -4101,6 +4144,7 @@ features() ->
      <<"publisher-affiliation">>,   % RECOMMENDED
      <<"publish-only-affiliation">>,   % OPTIONAL
      <<"retrieve-default">>,
+     <<"rsm">>,   % RECOMMENDED
      <<"shim">>].   % RECOMMENDED
 % see plugin "retrieve-items",   % RECOMMENDED
 % see plugin "retrieve-subscriptions",   % RECOMMENDED

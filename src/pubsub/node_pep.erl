@@ -39,10 +39,10 @@
          unsubscribe_node/4, node_to_path/1,
          get_entity_affiliations/2, get_entity_affiliations/3,
          get_entity_subscriptions/2, get_entity_subscriptions/4,
-         should_delete_when_owner_removed/0
-         ]).
+         should_delete_when_owner_removed/0, check_publish_options/2
+        ]).
 
--ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4]).
+-ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4, check_publish_options/2]).
 
 based_on() ->  node_flat.
 
@@ -91,6 +91,26 @@ features() ->
         <<"retrieve-items">>,
         <<"retrieve-subscriptions">>,
         <<"subscribe">>].
+
+-spec check_publish_options(#{binary() => [binary()]} | invalid_form, #{binary() => [binary()]}) ->
+    boolean().
+check_publish_options(invalid_form, _) ->
+    true;
+check_publish_options(PublishOptions, NodeOptions) ->
+    F = fun(Key, Value) ->
+            case string:split(Key, "#") of
+                [<<"pubsub">>, Key2] ->
+                    compare_values(Value, maps:get(Key2, NodeOptions, null));
+                _ -> true
+            end
+        end,
+    maps:size(maps:filter(F, PublishOptions)) =/= 0.
+
+-spec compare_values([binary()], [binary()] | null) -> boolean().
+compare_values(_, null) ->
+    true;
+compare_values(Value1, Value2) ->
+    lists:sort(Value1) =/= lists:sort(Value2).
 
 create_node_permission(Host, _ServerHost, _Node, _ParentNode,
                        #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->
