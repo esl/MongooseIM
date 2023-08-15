@@ -75,6 +75,8 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
+-spec check_publish_options(#{binary() => [binary()]} | invalid_form, #{binary() => [binary()]}) ->
+    boolean().
 check_publish_options(#{<<"device_id">> := _, <<"service">> := _}, _) ->
     false;
 check_publish_options(_, _) ->

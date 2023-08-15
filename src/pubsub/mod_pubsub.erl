@@ -3683,6 +3683,8 @@ get_option(Options, Var, Def) ->
         _ -> Def
     end.
 
+-spec check_publish_options(binary(), undefined | exml:element(), mod_pubsub:nodeOptions()) ->
+    boolean().
 check_publish_options(Type, PublishOptions, Options) ->
     ParsedPublishOptions = parse_publish_options(PublishOptions),
     ConvertedOptions = convert_options(Options),
@@ -3704,10 +3706,14 @@ parse_publish_options(PublishOptions) ->
             invalid_form
     end.
 
+-spec convert_options(mod_pubsub:nodeOptions()) -> #{binary() => [binary()]}.
 convert_options(Options) ->
-    OptionsMap = maps:from_list(Options),
-    maps:map(fun(_, Value) -> convert_option_value(Value) end, OptionsMap).
+    ConvertedOptions = lists:map(fun({Key, Value}) ->
+                                     {atom_to_binary(Key), convert_option_value(Value)}
+                                 end, Options),
+    maps:from_list(ConvertedOptions).
 
+-spec convert_option_value(binary() | [binary()] | atom() | non_neg_integer()) -> [binary()].
 convert_option_value(true) ->
     [<<"1">>];
 convert_option_value(false) ->

@@ -92,22 +92,21 @@ features() ->
         <<"retrieve-subscriptions">>,
         <<"subscribe">>].
 
--spec check_publish_options(#{binary() => [binary()]} | invalid_form, #{atom() => binary()}) ->
+-spec check_publish_options(#{binary() => [binary()]} | invalid_form, #{binary() => [binary()]}) ->
     boolean().
 check_publish_options(invalid_form, _) ->
     true;
 check_publish_options(PublishOptions, NodeOptions) ->
-    io:format("~p\n", [{NodeOptions, PublishOptions}]),
     F = fun(Key, Value) ->
             case string:split(Key, "#") of
                 [<<"pubsub">>, Key2] ->
-                    AtomKey = binary_to_atom(Key2),
-                    compare_values(Value, maps:get(AtomKey, NodeOptions, null));
+                    compare_values(Value, maps:get(Key2, NodeOptions, null));
                 _ -> true
             end
         end,
     maps:size(maps:filter(F, PublishOptions)) =/= 0.
 
+-spec compare_values([binary()], [binary()] | null) -> boolean().
 compare_values(_, null) ->
     true;
 compare_values(Value1, Value2) ->

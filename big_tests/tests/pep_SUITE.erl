@@ -476,7 +476,6 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 
 add_config_to_create_node_request(#xmlel{children = [PubsubEl]} = Request) ->
-    io:format("~p", [Request]),
     Fields = [#{values => [<<"friends">>, <<"enemies">>], var => <<"pubsub#roster_groups_allowed">>}],
     Form = form_helper:form(#{ns => <<"http://jabber.org/protocol/pubsub#node_config">>, fields => Fields}),
     ConfigureEl = #xmlel{name = <<"configure">>, children = [Form]},
