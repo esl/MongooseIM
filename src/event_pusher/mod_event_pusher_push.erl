@@ -14,7 +14,7 @@
 -behavior(gen_mod).
 -behavior(mod_event_pusher).
 -behaviour(mongoose_module_metrics).
--xep([{xep, 357}, {version, "0.2.1"}]).
+-xep([{xep, 357}, {version, "0.4.1"}]).
 
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").

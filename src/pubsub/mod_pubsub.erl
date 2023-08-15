@@ -47,7 +47,7 @@
 -behaviour(mongoose_module_metrics).
 -author('christophe.romain@process-one.net').
 
--xep([{xep, 60}, {version, "1.13-1"}]).
+-xep([{xep, 60}, {version, "1.25.0"}]).
 -xep([{xep, 163}, {version, "1.2.2"}]).
 -xep([{xep, 248}, {version, "0.3.0"}]).
 -xep([{xep, 277}, {version, "0.6.5"}]).
@@ -3688,7 +3688,7 @@ check_publish_options(Type, PublishOptions, Options) ->
     ConvertedOptions = convert_options(Options),
     case node_call(Type, check_publish_options, [ParsedPublishOptions, ConvertedOptions]) of
         {error, _} ->
-            false;
+            true;
         {result, Result} ->
             Result
     end.
