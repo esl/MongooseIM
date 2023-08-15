@@ -1,10 +1,11 @@
 -module(mongoose_c2s_stanzas).
 
--include_lib("exml/include/exml_stream.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 
 -export([
-         stream_header/4,
+         stream_header/1,
          stream_features_before_auth/1,
          tls_proceed/0,
          stream_features_after_auth/1,
@@ -15,22 +16,18 @@
          successful_session_establishment/1
         ]).
 
--spec stream_header(binary(), binary(), binary(), binary()) -> exml_stream:start().
-stream_header(Server, Version, Lang, StreamId) ->
+-spec stream_header(mongoose_c2s:data()) -> exml_stream:start().
+stream_header(StateData) ->
+    Lang = mongoose_c2s:get_lang(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    StreamId = mongoose_c2s:get_stream_id(StateData),
     Attrs = [{<<"xmlns">>, ?NS_CLIENT},
              {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
              {<<"id">>, StreamId},
-             {<<"from">>, Server}],
-    Attrs1 = case Version of
-                 <<>> -> Attrs;
-                 _ -> [{<<"version">>, Version} | Attrs]
-             end,
-    Attrs2 = case Lang of
-                 <<>> -> Attrs1;
-                 _ -> [{<<"xml:lang">>, Lang} | Attrs1]
-             end,
-    #xmlstreamstart{name = <<"stream:stream">>,
-                    attrs = Attrs2}.
+             {<<"from">>, LServer},
+             {<<"version">>, ?XMPP_VERSION},
+             {<<"xml:lang">>, Lang}],
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec stream_features([exml:element() | exml:cdata()]) -> exml:element().
 stream_features(Features) ->

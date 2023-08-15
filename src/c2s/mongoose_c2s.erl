@@ -6,7 +6,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--define(XMPP_VERSION, <<"1.0">>).
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
@@ -829,8 +828,8 @@ stream_start_error(StateData, Error) ->
     c2s_stream_error(StateData, Error).
 
 -spec send_header(StateData :: data()) -> any().
-send_header(StateData = #c2s_data{lserver = LServer, lang = Lang, streamid = StreamId}) ->
-    Header = mongoose_c2s_stanzas:stream_header(LServer, ?XMPP_VERSION, Lang, StreamId),
+send_header(StateData) ->
+    Header = mongoose_c2s_stanzas:stream_header(StateData),
     send_xml(StateData, Header).
 
 send_trailer(StateData) ->
