@@ -717,12 +717,16 @@ clean_archives(Config) ->
         false ->
             ok
     end,
+    %% Wait until messages are flushed before removing them
+    wait_for_parallel_writer(Config),
     [ok = delete_archive(S, U) || {S, U} <- SUs],
     %% Wait for archive to be empty
     [wait_for_archive_size(S, U, 0) || {S, U} <- SUs],
     Config.
 
 destroy_room(Config) ->
+    %% Wait until messages are flushed before removing them
+    wait_for_parallel_writer(Config),
     clean_room_archive(Config),
     muc_helper:destroy_room(Config).
 
