@@ -10,9 +10,8 @@ all() ->
     ].
 
 
-end_per_testcase(_, C) ->
-    mongoose_config:unset_opt(language),
-    C.
+end_per_testcase(_, _C) ->
+    mongoose_config:erase_opts().
 
 test_english_translation(_Config) ->
     %% given
@@ -61,4 +60,4 @@ given_loaded_translations() ->
     translate:start().
 
 given_default_language(Language) ->
-    mongoose_config:set_opt(language, Language).
+    mongoose_config:set_opts(#{language => Language}).

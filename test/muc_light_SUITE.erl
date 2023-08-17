@@ -51,7 +51,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(codec_calls, Config) ->
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     meck_mongoose_subdomain_core(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
@@ -73,17 +73,17 @@ end_per_testcase(codec_calls, Config) ->
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
     meck:unload(),
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    mongoose_config:erase_opts(),
     Config;
 end_per_testcase(_, Config) ->
     Config.
 
 opts() ->
-    [{hosts, [host_type()]},
-     {host_types, []},
-     {all_metrics_are_global, false},
-     {component_backend, mnesia},
-     {{modules, host_type()}, #{mod_muc_light => default_mod_config(mod_muc_light)}}].
+    #{hosts => [host_type()],
+      host_types => [],
+      all_metrics_are_global => false,
+      component_backend => mnesia,
+      {modules, host_type()} => #{mod_muc_light => default_mod_config(mod_muc_light)}}.
 
 %% ------------------------------------------------------------------
 %% Test cases

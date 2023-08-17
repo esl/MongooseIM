@@ -37,14 +37,13 @@ end_per_suite(_C) ->
     ok.
 
 init_per_group(routing, Config) ->
-    RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
-    mongoose_config:set_opt(routing_modules, xmpp_router:expand_routing_modules(RoutingModules)),
+    mongoose_config:set_opts(opts()),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config.
 
 end_per_group(routing, _Config) ->
-    mongoose_config:unset_opt(routing_modules).
+    mongoose_config:erase_opts().
 
 init_per_testcase(_CaseName, Config) ->
     Config.
@@ -170,3 +169,9 @@ resend_as_error(From0, To0, Acc0, Packet0) ->
     {Acc1, Packet1} = jlib:make_error_reply(Acc0, Packet0, #xmlel{}),
     Acc2 = ejabberd_router:route(To0, From0, Acc1, Packet1),
     {done, Acc2}.
+
+opts() ->
+    RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
+    #{all_metrics_are_global => false,
+      component_backend => mnesia,
+      routing_modules => xmpp_router:expand_routing_modules(RoutingModules)}.

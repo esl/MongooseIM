@@ -25,7 +25,7 @@ init_per_testcase(_TC, C) ->
     C.
 
 end_per_testcase(_, _C) ->
-    mongoose_config:unset_opt(services),
+    mongoose_config:erase_opts(),
     meck:unload(test_services()).
 
 %% Test cases
@@ -133,7 +133,7 @@ replaces_services_with_same_deps(_Config) ->
 %% Helpers
 
 set_services(Services) ->
-    mongoose_config:set_opt(services, Services).
+    mongoose_config:set_opts(#{services => Services}).
 
 get_services() ->
     mongoose_config:get_opt(services).

@@ -14,25 +14,25 @@ all() ->
 
 groups() ->
     [
-     {opts, [parallel], [get_opt,
-                         lookup_opt,
-                         get_path,
-                         lookup_path,
-                         set_short_path,
-                         set_long_path,
-                         unset_path,
-                         load_from_file]},
+     {opts, [get_opt,
+             lookup_opt,
+             get_path,
+             lookup_path,
+             set_short_path,
+             set_long_path,
+             unset_path,
+             load_from_file]},
      {cluster, [], [cluster_load_from_file]}
     ].
 
 init_per_suite(Config) ->
     mnesia:start(), %% TODO Remove this call when possible (We still need it for s2s)
     {ok, _} = application:ensure_all_started(jid),
+    mongoose_config:set_opts(#{}),
     Config.
 
 end_per_suite(_Config) ->
-    [persistent_term:erase(Key) || {Key = {mongoose_config, _}, _Value} <- persistent_term:get()],
-    persistent_term:erase(mongoose_config_state),
+    mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     ok.
@@ -59,7 +59,7 @@ end_per_group(_GroupName, _Config) ->
 %%
 
 get_opt(_Config) ->
-    ?assertError(badarg, mongoose_config:get_opt(get_me)),
+    ?assertError({badkey, get_me}, mongoose_config:get_opt(get_me)),
     ?assertEqual(default_value, mongoose_config:get_opt(get_me, default_value)),
     mongoose_config:set_opt(get_me, you_got_me),
     ?assertEqual(you_got_me, mongoose_config:get_opt(get_me)),
@@ -67,7 +67,7 @@ get_opt(_Config) ->
     ?assertEqual(you_got_me_again, mongoose_config:get_opt(get_me)),
     ?assertEqual(you_got_me_again, mongoose_config:get_opt(get_me, default_value)),
     mongoose_config:unset_opt(get_me),
-    ?assertError(badarg, mongoose_config:get_opt(get_me)),
+    ?assertError({badkey, get_me}, mongoose_config:get_opt(get_me)),
     ?assertEqual(default_value, mongoose_config:get_opt(get_me, default_value)).
 
 lookup_opt(_Config) ->
@@ -78,14 +78,14 @@ lookup_opt(_Config) ->
     ?assertEqual({error, not_found}, mongoose_config:lookup_opt(look_me_up)).
 
 get_path(_Config) ->
-    ?assertError(badarg, mongoose_config:get_opt([root])),
-    ?assertError(badarg, mongoose_config:get_opt([root, branch])),
+    ?assertError({badkey, root}, mongoose_config:get_opt([root])),
+    ?assertError({badkey, root}, mongoose_config:get_opt([root, branch])),
     mongoose_config:set_opt(root, #{branch => leaf}),
     ?assertEqual(#{branch => leaf}, mongoose_config:get_opt([root])),
     ?assertEqual(leaf, mongoose_config:get_opt([root, branch])),
     ?assertError({badmap, leaf}, mongoose_config:get_opt([root, branch, leaf])),
     mongoose_config:unset_opt(root),
-    ?assertError(badarg, mongoose_config:get_opt([root])).
+    ?assertError({badkey, root}, mongoose_config:get_opt([root])).
 
 lookup_path(_Config) ->
     ?assertEqual({error, not_found}, mongoose_config:lookup_opt([basement])),
@@ -106,9 +106,9 @@ set_short_path(_Config) ->
     ?assertEqual(2, mongoose_config:get_opt(a)).
 
 set_long_path(_Config) ->
-    ?assertError(badarg, mongoose_config:set_opt([one, two, three], 4)),
+    ?assertError({badkey, one}, mongoose_config:set_opt([one, two, three], 4)),
     mongoose_config:set_opt([one], #{}),
-    ?assertError({badkey, _}, mongoose_config:set_opt([one, two, three], 4)),
+    ?assertError({badkey, two}, mongoose_config:set_opt([one, two, three], 4)),
     mongoose_config:set_opt([one, two], #{}),
     mongoose_config:set_opt([one, two, three], 4),
     ?assertEqual(#{two => #{three => 4}}, mongoose_config:get_opt(one)),
@@ -124,15 +124,15 @@ unset_path(_Config) ->
     mongoose_config:unset_opt([foo, bar, baz]), % no error for a non-existing key
     ?assertEqual(#{bar => #{}}, mongoose_config:get_opt(foo)),
     mongoose_config:unset_opt([foo]),
-    ?assertError(badarg, mongoose_config:get_opt(foo)),
-    ?assertError(badarg, mongoose_config:unset_opt([foo, bar])),
+    ?assertError({badkey, foo}, mongoose_config:get_opt(foo)),
+    ?assertError({badkey, foo}, mongoose_config:unset_opt([foo, bar])),
     mongoose_config:unset_opt([foo]). % no error for a non-existing key
 
 load_from_file(Config) ->
     use_config_file(Config, "mongooseim.minimal.toml"),
     ok = mongoose_config:start(),
-    State = mongoose_config:config_state(),
-    check_loaded_config(State),
+    Opts = mongoose_config:get_opts(),
+    check_loaded_config(Opts),
 
     ok = mongoose_config:stop(),
     check_removed_config(),
@@ -148,8 +148,8 @@ cluster_load_from_file(Config) ->
     {ok, _} = start_ejabberd_with_config(Config, "mongooseim.toml"),
     {ok, _} = start_remote_ejabberd_with_config(SlaveNode, Config, "mongooseim.toml"),
     maybe_join_cluster(SlaveNode),
-    [State, State] = mongoose_config:config_states(),
-    check_loaded_config(State),
+    check_loaded_config(mongoose_config:get_opts()),
+    check_loaded_config(rpc:call(SlaveNode, mongoose_config, get_opts, [])),
 
     ok = mongooseim:stop(),
     stop_remote_ejabberd(SlaveNode),
@@ -159,40 +159,35 @@ cluster_load_from_file(Config) ->
 %% Helpers
 %%
 
-check_loaded_config(State) ->
-    Opts = lists:sort(mongoose_config_parser:get_opts(State)),
-    ExpectedOpts = lists:sort(minimal_config_opts()),
-    ?assertEqual(ExpectedOpts, Opts),
-    [?assertEqual(Val, mongoose_config:get_opt(Key)) || {Key, Val} <- ExpectedOpts].
+check_loaded_config(Opts) ->
+    ?assertEqual(minimal_config_opts(), Opts).
 
 check_removed_config() ->
-    Opts = minimal_config_opts(),
-    ?assertError(badarg, mongoose_config:config_state()),
-    [?assertError(badarg, mongoose_config:get_opt(Key)) || {Key, _} <- Opts].
+    ?assertError(badarg, mongoose_config:get_opts()).
 
 minimal_config_opts() ->
-    [{all_metrics_are_global, false},
-     {default_server_domain, <<"localhost">>},
-     {hide_service_name, false},
-     {host_types, []},
-     {hosts, [<<"localhost">>]},
-     {internal_databases, #{mnesia => #{}}},
-     {language, <<"en">>},
-     {listen, []},
-     {loglevel, warning},
-     {mongooseimctl_access_commands, #{}},
-     {outgoing_pools, []},
-     {rdbms_server_type, generic},
-     {registration_timeout, 600},
-     {routing_modules, mongoose_router:default_routing_modules()},
-     {services, #{}},
-     {sm_backend, mnesia},
-     {component_backend, mnesia},
-     {s2s_backend, mnesia},
-     {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
-     {{modules, <<"localhost">>}, #{}},
-     {{replaced_wait_timeout, <<"localhost">>}, 2000},
-     {{s2s, <<"localhost">>}, config_parser_helper:default_s2s()}].
+    #{all_metrics_are_global => false,
+      default_server_domain => <<"localhost">>,
+      hide_service_name => false,
+      host_types => [],
+      hosts => [<<"localhost">>],
+      internal_databases => #{mnesia => #{}},
+      language => <<"en">>,
+      listen => [],
+      loglevel => warning,
+      mongooseimctl_access_commands => #{},
+      outgoing_pools => [],
+      rdbms_server_type => generic,
+      registration_timeout => 600,
+      routing_modules => mongoose_router:default_routing_modules(),
+      services => #{},
+      sm_backend => mnesia,
+      component_backend => mnesia,
+      s2s_backend => mnesia,
+      {auth, <<"localhost">>} => config_parser_helper:default_auth(),
+      {modules, <<"localhost">>} => #{},
+      {replaced_wait_timeout, <<"localhost">>} => 2000,
+      {s2s, <<"localhost">>} => config_parser_helper:default_s2s()}.
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

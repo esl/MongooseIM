@@ -65,7 +65,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(_CaseName, Config) ->
     set_meck(),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     mongoose_domain_sup:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
     gen_hook:start_link(),
@@ -74,15 +74,15 @@ init_per_testcase(_CaseName, Config) ->
 
 end_per_testcase(_CaseName, Config) ->
     mongoose_modules:stop(),
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    mongoose_config:erase_opts(),
     unset_meck(),
     Config.
 
 opts() ->
-    [{hosts, hosts()},
-     {host_types, []},
-     {all_metrics_are_global, false} |
-     [{{modules, HostType}, modules(HostType)} || HostType <- hosts()]].
+    maps:from_list([{hosts, hosts()},
+                    {host_types, []},
+                    {all_metrics_are_global, false} |
+                    [{{modules, HostType}, modules(HostType)} || HostType <- hosts()]]).
 
 hosts() ->
     [global_host(), local_host()].

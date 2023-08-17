@@ -48,7 +48,7 @@ all() ->
 init_per_suite(Config) ->
     ok = meck:new(wpool, [no_link, passthrough]),
     ok = meck:new(mongoose_wpool, [no_link, passthrough]),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     Self = self(),
     spawn(fun() ->
                   register(test_helper, self()),
@@ -62,12 +62,11 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     meck:unload(wpool),
     whereis(test_helper) ! stop,
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    mongoose_config:erase_opts(),
     Config.
 
 opts() ->
-    [{hosts, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]},
-     {host_types, []}].
+    #{hosts => [<<"a.com">>, <<"b.com">>, <<"c.eu">>], host_types => []}.
 
 init_per_testcase(_Case, Config) ->
     cleanup_pools(),

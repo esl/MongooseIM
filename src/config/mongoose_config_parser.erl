@@ -7,7 +7,12 @@
 -export([parse_file/1]).
 
 %% state API
--export([build_state/3, get_opts/1]).
+-export([build_state/3]).
+
+%% only for tests
+-export([get_opts/1]).
+
+-ignore_xref([get_opts/1]).
 
 -callback parse_file(FileName :: string()) -> state().
 
@@ -25,11 +30,12 @@
 
 %% Parser API
 
--spec parse_file(FileName :: string()) -> state().
+-spec parse_file(FileName :: string()) -> opts().
 parse_file(FileName) ->
     ParserModule = parser_module(filename:extension(FileName)),
-    try
-        ParserModule:parse_file(FileName)
+    try ParserModule:parse_file(FileName) of
+        State ->
+            get_opts(State)
     catch
         error:{config_error, ExitMsg, Errors} ->
             halt_with_msg(ExitMsg, Errors)

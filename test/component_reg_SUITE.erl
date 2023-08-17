@@ -13,7 +13,7 @@ init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_host_type,
                 fun(_) -> {error, not_found} end),
@@ -31,13 +31,12 @@ end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     meck:unload(),
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
-    ok.
+    mongoose_config:erase_opts().
 
 opts() ->
-    [{all_metrics_are_global, false},
-     {component_backend, mnesia},
-     {routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]}].
+    #{all_metrics_are_global => false,
+      component_backend => mnesia,
+      routing_modules => [xmpp_router_a, xmpp_router_b, xmpp_router_c]}.
 
 registering(_C) ->
     Dom = <<"aaa.bbb.com">>,

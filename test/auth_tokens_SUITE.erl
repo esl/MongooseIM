@@ -41,13 +41,14 @@ groups() ->
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    mongoose_config:set_opt({modules, host_type()},
-                            #{?TESTED => config_parser_helper:default_mod_config(?TESTED)}),
+    mongoose_config:set_opts(opts()),
     C.
 
-end_per_suite(C) ->
-    mongoose_config:unset_opt({modules, host_type()}),
-    C.
+end_per_suite(_C) ->
+    mongoose_config:erase_opts().
+
+opts() ->
+    #{{modules, host_type()} => #{?TESTED => config_parser_helper:default_mod_config(?TESTED)}}.
 
 init_per_testcase(Test, Config)
         when Test =:= serialize_deserialize_property;

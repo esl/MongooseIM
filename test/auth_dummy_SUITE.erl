@@ -35,13 +35,13 @@ all() -> [
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    mongoose_config:set_opt({auth, ?HOST_TYPE}, #{methods => [dummy],
-                                                  dummy => #{base_time => 5,
-                                                             variance => 10}}),
+    AuthOpts = #{methods => [dummy],
+                 dummy => #{base_time => 5, variance => 10}},
+    mongoose_config:set_opts(#{{auth, ?HOST_TYPE} => AuthOpts}),
     C.
 
 end_per_suite(_C) ->
-    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
+    mongoose_config:erase_opts().
 
 %%--------------------------------------------------------------------
 %% Authentication tests

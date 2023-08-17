@@ -24,11 +24,11 @@ all() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(exometer_core),
-    mongoose_config:set_opt(all_metrics_are_global, false),
+    mongoose_config:set_opts(#{all_metrics_are_global => false}),
     Config.
 
 end_per_suite(Config) ->
-    mongoose_config:unset_opt(all_metrics_are_global),
+    mongoose_config:erase_opts(),
     application:stop(exometer_core),
     Config.
 

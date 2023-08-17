@@ -244,13 +244,13 @@ set_opts(Config) ->
                          _ -> scram
                      end,
     HttpOpts = #{basic_auth => ?BASIC_AUTH},
-    mongoose_config:set_opt({auth, ?HOST_TYPE}, #{methods => [http],
-                                                  password => #{format => PasswordFormat,
-                                                                scram_iterations => 10},
-                                                  http => HttpOpts}).
+    mongoose_config:set_opts(#{{auth, ?HOST_TYPE} => #{methods => [http],
+                                                       password => #{format => PasswordFormat,
+                                                                     scram_iterations => 10},
+                                                       http => HttpOpts}}).
 
 unset_opts() ->
-    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
+    mongoose_config:erase_opts().
 
 do_scram(Pass, Config) ->
     case lists:keyfind(scram_group, 1, Config) of

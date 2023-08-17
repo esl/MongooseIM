@@ -51,8 +51,8 @@ setup() ->
                 fun(mongoose_listener_sup, _) -> {ok, self()};
                    (A, B) -> meck:passthrough([A, B])
                 end),
+    mongoose_config:set_opts(#{default_server_name => <<"localhost">>}),
     %% Start websocket cowboy listening
-
     Handlers = [config([listen, http, handlers, mod_bosh],
                        #{host => '_', path => "/http-bind"}),
                 config([listen, http, handlers, mod_websockets],
@@ -70,6 +70,7 @@ setup() ->
 teardown() ->
     meck:unload(),
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
+    mongoose_config:erase_opts(),
     application:stop(cowboy),
     %% Do not stop jid, Erlang 21 does not like to reload nifs
     ok.

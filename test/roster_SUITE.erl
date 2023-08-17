@@ -37,15 +37,14 @@ init_per_suite(C) ->
     meck:expect(gen_iq_handler, remove_iq_handler_for_domain, fun(_, _, _) -> ok end),
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(_) -> {ok, host_type()} end),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     C.
 
-end_per_suite(C) ->
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+end_per_suite(_C) ->
+    mongoose_config:erase_opts(),
     meck:unload(),
     mnesia:stop(),
-    mnesia:delete_schema([node()]),
-    C.
+    mnesia:delete_schema([node()]).
 
 init_per_testcase(_TC, C) ->
     init_ets(),
@@ -62,10 +61,10 @@ end_per_testcase(_TC, C) ->
     C.
 
 opts() ->
-    [{hosts, [host_type()]},
-     {host_types, []},
-     {all_metrics_are_global, false},
-     {{modules, host_type()}, #{mod_roster => config_parser_helper:default_mod_config(mod_roster)}}].
+    #{hosts => [host_type()],
+      host_types => [],
+      all_metrics_are_global => false,
+      {modules, host_type()} => #{mod_roster => config_parser_helper:default_mod_config(mod_roster)}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%
