@@ -207,7 +207,6 @@
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host_type/0,
-         set_wait_for_parallel_writer/2,
          config_opts/1
         ]).
 

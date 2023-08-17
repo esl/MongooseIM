@@ -54,7 +54,6 @@
          start_alice_protected_room/1,
          start_alice_anonymous_room/1,
          maybe_wait_for_archive/1,
-         set_wait_for_parallel_writer/2,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
          stanza_date_range_archive_request_not_empty/3,
@@ -717,12 +716,16 @@ clean_archives(Config) ->
         false ->
             ok
     end,
+    %% Wait until messages are flushed before removing them
+    wait_for_parallel_writer(Config),
     [ok = delete_archive(S, U) || {S, U} <- SUs],
     %% Wait for archive to be empty
     [wait_for_archive_size(S, U, 0) || {S, U} <- SUs],
     Config.
 
 destroy_room(Config) ->
+    %% Wait until messages are flushed before removing them
+    wait_for_parallel_writer(Config),
     clean_room_archive(Config),
     muc_helper:destroy_room(Config).
 
@@ -1102,11 +1105,6 @@ maybe_wait_for_archive(Config) ->
         Value ->
             timer:sleep(Value)
     end.
-
-set_wait_for_parallel_writer(Type, Config) ->
-    Old = proplists:get_value(wait_for_parallel_writer, Config, []),
-    Config2 = proplists:delete(wait_for_parallel_writer, Config),
-    [{wait_for_parallel_writer, lists:usort([Type] ++ Old)}|Config2].
 
 wait_for_parallel_writer(Config) ->
     case ?config(wait_for_parallel_writer, Config) of
