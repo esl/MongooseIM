@@ -14,11 +14,16 @@
 
 all() ->
     [
-     {group, basic}
+     {group, all_tests}
     ].
 
 groups() ->
     [
+     {all_tests, [parallel],
+      [
+       {group, basic},
+       {group, scram}
+      ]},
      {basic, [parallel],
       [
        server_does_not_announce_if_not_tls,
@@ -27,11 +32,14 @@ groups() ->
        user_agent_is_invalid,
        authenticate_with_plain,
        authenticate_with_plain_and_user_agent_without_id,
+       authenticate_again_results_in_stream_error
+      ]},
+     {scram, [parallel],
+      [
        authenticate_with_scram_abort,
        authenticate_with_scram_bad_abort,
        authenticate_with_scram_bad_response,
-       authenticate_with_scram,
-       authenticate_again_results_in_stream_error
+       authenticate_with_scram
       ]}
     ].
 
@@ -48,6 +56,13 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
+init_per_group(scram, Config) ->
+    case mongoose_helper:supports_sasl_module(cyrsasl_scram_sha256) of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
+            Config
+    end;
 init_per_group(_GroupName, Config) ->
     Config.
 
