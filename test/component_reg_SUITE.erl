@@ -18,13 +18,13 @@ init_per_suite(C) ->
     meck:expect(mongoose_domain_api, get_host_type,
                 fun(_) -> {error, not_found} end),
     application:ensure_all_started(exometer_core),
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     ejabberd_router:start_link(),
     C.
 
 init_per_testcase(_, C) ->
     mongoose_router:start(),
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     C.
 
 end_per_suite(_C) ->
@@ -48,7 +48,7 @@ registering(_C) ->
     ok.
 
 registering_with_local(_C) ->
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     Dom = <<"aaa.bbb.com">>,
     ThisNode = node(),
     AnotherNode = 'another@nohost',

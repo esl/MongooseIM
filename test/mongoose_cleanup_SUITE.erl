@@ -82,7 +82,7 @@ end_per_group(_Group, Config) ->
 
 init_per_testcase(TestCase, Config) ->
     mim_ct_sup:start_link(ejabberd_sup),
-    {ok, _HooksServer} = gen_hook:start_link(),
+    {ok, _HooksServer} = mongooseim_helper:start_link_loaded_hooks(),
     {ok, _DomainSup} = mongoose_domain_sup:start_link(),
     setup_meck(meck_mods(TestCase)),
     start_component(TestCase),

@@ -27,7 +27,7 @@ end_per_suite(_C) ->
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, gen_hook, start_link, []),
+    Config1 = async_helper:start(Config, mongooseim_helper, start_link_loaded_hooks, []),
     mongoose_config:set_opts(opts()),
     Config1.
 

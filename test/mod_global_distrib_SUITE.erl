@@ -68,7 +68,7 @@ init_per_testcase(_CaseName, Config) ->
     mongoose_config:set_opts(opts()),
     mongoose_domain_sup:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     mongoose_modules:start(),
     Config.
 

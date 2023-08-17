@@ -33,7 +33,7 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(_, Config) ->
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     Config.
 
 end_per_testcase(_, Config) ->

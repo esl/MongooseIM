@@ -46,7 +46,7 @@ end_per_suite(_C) ->
     ok.
 
 init_per_testcase(_, C) ->
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     mongoose_config:set_opts(opts()),
     mongoose_modules:start(),
     C.

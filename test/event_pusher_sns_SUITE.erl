@@ -112,7 +112,7 @@ end_per_suite(_) ->
     ok.
 
 init_per_testcase(CaseName, Config) ->
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     meck:new(erlcloud_sns, [non_strict, passthrough]),
     meck:new([mongoose_wpool, mongoose_metrics], [stub_all]),
     meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
