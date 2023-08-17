@@ -124,12 +124,12 @@ check_password_succeeds_for_pubkey_signed_token(C) ->
 %%--------------------------------------------------------------------
 
 set_auth_opts(Secret, Algorithm, Key) ->
-    mongoose_config:set_opt({auth, ?HOST_TYPE}, #{jwt => #{secret => Secret,
-                                                           algorithm => Algorithm,
-                                                           username_key => Key}}).
+    mongoose_config:set_opts(#{{auth, ?HOST_TYPE} => #{jwt => #{secret => Secret,
+                                                                algorithm => Algorithm,
+                                                                username_key => Key}}}).
 
 unset_auth_opts() ->
-    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
+    mongoose_config:erase_opts().
 
 generate_token(Alg, NbfDelta, Key) ->
     Now = erlang:system_time(second),

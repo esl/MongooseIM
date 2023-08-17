@@ -47,10 +47,11 @@ end_per_group(_Group, Config) ->
     Config.
 
 init_per_testcase(_TC, Config) ->
+    mongoose_config:set_opts(#{}),
     Config.
 
 end_per_testcase(_TC, _Config) ->
-    clean_config().
+    mongoose_config:erase_opts().
 
 host_type() ->
     <<"test host type">>.
@@ -286,10 +287,6 @@ different_specs_matching_the_same_user(Config) ->
 
 acl(Spec) ->
     [maps:merge(#{match => current_domain}, Spec)].
-
-clean_config() ->
-    [persistent_term:erase(Key) || {Key = {mongoose_config, _}, _Value} <- persistent_term:get()],
-    ok.
 
 given_registered_domains(Config, DomainsList) ->
     case proplists:get_value(dynamic_domains, Config, false) of

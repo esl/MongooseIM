@@ -197,18 +197,18 @@ sns_config(_) ->
     common_sns_opts().
 
 start_modules(SNSExtra) ->
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(SNSExtra)],
+    mongoose_config:set_opts(opts(SNSExtra)),
     mongoose_modules:start().
 
 stop_modules() ->
     mongoose_modules:stop(),
-    [mongoose_config:unset_opt(Key) || {Key, _} <- opts(#{})].
+    mongoose_config:erase_opts().
 
 opts(SNSExtra) ->
-    [{hosts, [host_type()]},
-     {host_types, []},
-     {all_metrics_are_global, false},
-     {{modules, host_type()}, modules(SNSExtra)}].
+    #{hosts => [host_type()],
+      host_types => [],
+      all_metrics_are_global => false,
+      {modules, host_type()} => modules(SNSExtra)}.
 
 modules(SNSExtra) ->
     gen_mod_deps:resolve_deps(host_type(), #{mod_event_pusher => module_opts(SNSExtra)}).

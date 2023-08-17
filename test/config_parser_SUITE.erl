@@ -3040,8 +3040,7 @@ test_config_file(Config, File) ->
     ExpectedOpts = config_parser_helper:options(File),
 
     TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
-    State = mongoose_config_parser:parse_file(TOMLPath),
-    TOMLOpts = mongoose_config_parser:get_opts(State),
+    TOMLOpts = mongoose_config_parser:parse_file(TOMLPath),
 
     %% Save the parsed TOML options
     %% - for debugging

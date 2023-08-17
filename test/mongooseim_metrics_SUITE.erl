@@ -68,16 +68,15 @@ end_per_suite(C) ->
     C.
 
 init_per_group(Group, C) ->
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(Group)],
+    mongoose_config:set_opts(opts(Group)),
     mongoose_metrics:init(),
     mongoose_metrics:init_mongooseim_metrics(),
     C.
 
-end_per_group(Group, C) ->
+end_per_group(_Group, _C) ->
     mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
     mongoose_metrics:remove_host_type_metrics(global),
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts(Group)],
-    C.
+    mongoose_config:erase_opts().
 
 init_per_testcase(CN, C) when tcp_connections_detected =:= CN;
                               tcp_metric_varies_with_tcp_variations =:= CN ->
@@ -165,9 +164,9 @@ wait_for_update({ok, [{count,0}]}, N) ->
     wait_for_update(exometer:get_value([carbon, packets], count), N-1).
 
 opts(Group) ->
-    [{hosts, [<<"localhost">>]},
-     {host_types, []},
-     {all_metrics_are_global, Group =:= all_metrics_are_global}].
+    #{hosts => [<<"localhost">>],
+      host_types => [],
+      all_metrics_are_global => Group =:= all_metrics_are_global}.
 
 get_reporters_cfg(Port) ->
     [{reporters, [

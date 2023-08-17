@@ -115,7 +115,7 @@ end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
     unload_meck(),
-    unset_opts(Config).
+    mongoose_config:erase_opts().
 
 open_session(C) ->
     {Sid, USR} = generate_random_user(<<"localhost">>),
@@ -610,7 +610,7 @@ is_redis_running() ->
     end.
 
 setup_sm(Config) ->
-    set_opts(Config),
+    mongoose_config:set_opts(opts(Config)),
     set_meck(),
     ejabberd_sm:start_link(),
     case ?config(backend, Config) of
@@ -625,17 +625,11 @@ setup_sm(Config) ->
 terminate_sm() ->
     gen_server:stop(ejabberd_sm).
 
-set_opts(Config) ->
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(Config)].
-
-unset_opts(Config) ->
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts(Config)].
-
 opts(Config) ->
-    [{hosts, [<<"localhost">>]},
-     {host_types, []},
-     {all_metrics_are_global, false},
-     {sm_backend, sm_backend(?config(backend, Config))}].
+    #{hosts => [<<"localhost">>],
+      host_types => [],
+      all_metrics_are_global => false,
+      sm_backend => sm_backend(?config(backend, Config))}.
 
 sm_backend(ejabberd_sm_redis) -> redis;
 sm_backend(ejabberd_sm_mnesia) -> mnesia;

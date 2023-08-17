@@ -135,14 +135,14 @@ meck_unload_rand() ->
     meck:unload(rand).
 
 set_opts() ->
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()].
+    mongoose_config:set_opts(opts()).
 
 unset_opts() ->
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()].
+    mongoose_config:erase_opts().
 
 opts() ->
-    [{all_metrics_are_global, false},
-     {max_fsm_queue, 1024}].
+    #{all_metrics_are_global => false,
+      max_fsm_queue => 1024}.
 
 meck_db(odbc) ->
     meck:new(eodbc, [no_link]),

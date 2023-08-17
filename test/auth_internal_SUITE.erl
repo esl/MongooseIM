@@ -12,16 +12,16 @@ init_per_suite(C) ->
     application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    mongoose_config:set_opt({auth, host_type()}, #{methods => [internal],
-                                                   internal => #{},
-                                                   password => #{format => scram,
-                                                                 scram_iterations => 10}}),
+    AuthOpts = #{methods => [internal],
+                 internal => #{},
+                 password => #{format => scram, scram_iterations => 10}},
+    mongoose_config:set_opts(#{{auth, host_type()} => AuthOpts}),
     ejabberd_auth_internal:start(host_type()),
     C.
 
 end_per_suite(_C) ->
     ejabberd_auth_internal:stop(host_type()),
-    mongoose_config:unset_opt({auth, host_type()}),
+    mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]).
 

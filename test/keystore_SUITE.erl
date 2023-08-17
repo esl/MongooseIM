@@ -28,21 +28,21 @@ end_per_suite(_C) ->
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
     Config1 = async_helper:start(Config, gen_hook, start_link, []),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     Config1.
 
 end_per_testcase(_, C) ->
     mongoose_modules:stop(),
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    mongoose_config:erase_opts(),
     meck:unload(mongoose_metrics),
     async_helper:stop_all(C),
     mnesia:delete_table(key).
 
 opts() ->
-    [{hosts, hosts()},
-     {host_types, []},
-     {all_metrics_are_global, false}]
-    ++ [{{modules, Host}, #{}} || Host <- hosts()].
+    maps:from_list([{hosts, hosts()},
+                    {host_types, []},
+                    {all_metrics_are_global, false} |
+                    [{{modules, Host}, #{}} || Host <- hosts()]]).
 
 hosts() ->
     [<<"localhost">>, <<"first.com">>, <<"second.com">>].

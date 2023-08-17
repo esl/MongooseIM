@@ -57,11 +57,11 @@ init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_config:set_opts(opts()),
     Config.
 
 end_per_suite(Config) ->
-    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     Config.
@@ -116,11 +116,11 @@ needs_component(TestCase) ->
     lists:member(TestCase, component_cases()).
 
 opts() ->
-    [{hosts, [?HOST]},
-     {host_types, []},
-     {all_metrics_are_global, false},
-     {s2s_backend, mnesia},
-     {{modules, ?HOST}, #{}}].
+    #{hosts => [?HOST],
+      host_types => [],
+      all_metrics_are_global => false,
+      s2s_backend => mnesia,
+      {modules, ?HOST} => #{}}.
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
 meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];

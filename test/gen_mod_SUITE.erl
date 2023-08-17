@@ -37,12 +37,12 @@ all() ->
      hosts_and_opts_with_module].
 
 init_per_testcase(_, Config) ->
-    [mongoose_config:set_opt(Opt, Val) || {Opt, Val} <- opts()],
+    mongoose_config:set_opts(opts()),
     [setup_meck(Module) || Module <- [a_module, b_module]],
     Config.
 
 end_per_testcase(_, Config) ->
-    [mongoose_config:unset_opt(Opt) || Opt <- opts()],
+    mongoose_config:erase_opts(),
     [meck:unload(Module) || Module <- [a_module, b_module]],
     Config.
 
@@ -113,8 +113,8 @@ setup_meck(Module) ->
     meck:expect(Module, stop, fun(_) -> ok end).
 
 opts() ->
-    [{hosts, [host(a), host(b)]},
-     {host_types, []},
-     {services, #{}},
-     {{modules, host(a)}, #{a_module => #{}}},
-     {{modules, host(b)}, #{b_module => #{k => v}}}].
+    #{hosts => [host(a), host(b)],
+      host_types => [],
+      services => #{},
+      {modules, host(a)} => #{a_module => #{}},
+      {modules, host(b)} => #{b_module => #{k => v}}}.

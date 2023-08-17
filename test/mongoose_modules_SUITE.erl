@@ -18,12 +18,11 @@ all() ->
      replaces_modules_with_same_deps].
 
 init_per_suite(C) ->
-    [mongoose_config:set_opt(Opt, Val) || {Opt, Val} <- opts()],
+    mongoose_config:set_opts(opts()),
     C.
 
 end_per_suite(_C) ->
-    [mongoose_config:unset_opt(Opt) || {Opt, _} <- opts()],
-    ok.
+    mongoose_config:erase_opts().
 
 init_per_testcase(_TC, C) ->
     meck:new(gen_mod, [passthrough]),
@@ -156,8 +155,7 @@ check_modules(ExpectedModules) ->
     ?assertEqual(ExpectedModules, gen_mod:loaded_modules_with_opts(?HOST)).
 
 opts() ->
-    [{hosts, [?HOST]},
-     {host_types, []}].
+    #{hosts => [?HOST], host_types => []}.
 
 set_modules(Modules) ->
     mongoose_config:set_opt({modules, ?HOST}, Modules).
