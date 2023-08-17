@@ -4078,7 +4078,7 @@ host_to_host_type(Host) ->
 -spec tree(HostType :: mongooseim:host_type() | host()) -> module() | nodetree_virtual.
 tree(HostType) ->
     try gen_mod:get_module_opt(HostType, ?MODULE, nodetree)
-    catch error:badarg ->
+    catch error:{badkey, _} ->
         %todo remove when pubsub supports dynamic domains
         HT = host_to_host_type(HostType),
         gen_mod:get_module_opt(HT, ?MODULE, nodetree)

@@ -8,15 +8,14 @@
          get_opt/2,
          get_opt/1]).
 
-%% Test API, do not use outside of test suites, options set here are not cleaned up by stop/0
--export([set_opt/2,
+%% Test API, do not use outside of test suites
+-export([set_opts/1,
+         get_opts/0,
+         erase_opts/0,
+         set_opt/2,
          unset_opt/1]).
 
-%% Shell utilities intended for debugging and system inspection
--export([config_state/0,
-         config_states/0]).
-
--ignore_xref([set_opt/2, unset_opt/1, config_state/0, config_states/0]).
+-ignore_xref([set_opts/1, get_opts/0, erase_opts/0, set_opt/2, unset_opt/1]).
 
 -include("mongoose.hrl").
 
@@ -34,19 +33,15 @@
 -spec start() -> ok.
 start() ->
     Path = get_config_path(),
-    State = mongoose_config_parser:parse_file(Path),
-    persistent_term:put(mongoose_config_state, State),
-    set_opts(State).
+    Opts = mongoose_config_parser:parse_file(Path),
+    set_opts(maps:from_list(Opts)).
 
 -spec stop() -> ok | {error, not_started}.
 stop() ->
-    try persistent_term:get(mongoose_config_state) of
-        State ->
-            unset_opts(State),
-            persistent_term:erase(mongoose_config_state),
-            ok
-    catch
-        _:_ ->
+    case erase_opts() of
+        true ->
+            ok;
+        false ->
             {error, not_started}
     end.
 
@@ -62,32 +57,33 @@ get_config_path() ->
                   end,
     application:get_env(mongooseim, config, DefaultPath).
 
--spec set_opts(mongoose_config_parser:state()) -> ok.
-set_opts(State) ->
-    Opts = mongoose_config_parser:get_opts(State),
-    lists:foreach(fun({Key, Value}) -> set_opt(Key, Value) end, Opts).
+-spec set_opts(#{key() => value()}) -> ok.
+set_opts(Opts) ->
+    persistent_term:put(?MODULE, Opts).
 
--spec unset_opts(mongoose_config_parser:state()) -> ok.
-unset_opts(State) ->
-    Opts = mongoose_config_parser:get_opts(State),
-    lists:foreach(fun unset_opt/1, proplists:get_keys(Opts)).
+-spec get_opts() -> #{key() => value()}.
+get_opts() ->
+    persistent_term:get(?MODULE).
+
+-spec erase_opts() -> boolean().
+erase_opts() ->
+    persistent_term:erase(?MODULE).
 
 -spec set_opt(key() | key_path(), value()) -> ok.
-set_opt([Key], Value) ->
-    set_opt(Key, Value);
-set_opt([Key | Rest], Value) ->
-    set_opt(Key, set_nested_opt(get_opt(Key), Rest, Value));
+set_opt(KeyPath, Value) when is_list(KeyPath) ->
+    Opts = persistent_term:get(?MODULE),
+    NewOpts = set_nested_opt(Opts, KeyPath, Value),
+    persistent_term:put(?MODULE, NewOpts);
 set_opt(Key, Value) ->
-    persistent_term:put({?MODULE, Key}, Value).
+    set_opt([Key], Value).
 
 -spec unset_opt(key() | key_path()) -> ok.
-unset_opt([Key]) ->
-    unset_opt(Key);
-unset_opt([Key | Rest]) ->
-    set_opt(Key, unset_nested_opt(get_opt(Key), Rest));
+unset_opt(KeyPath) when is_list(KeyPath) ->
+    Opts = persistent_term:get(?MODULE),
+    NewOpts = unset_nested_opt(Opts, KeyPath),
+    persistent_term:put(?MODULE, NewOpts);
 unset_opt(Key) ->
-    persistent_term:erase({?MODULE, Key}),
-    ok.
+    unset_opt([Key]).
 
 %% @doc Use instead of get_opt(Key, undefined)
 -spec lookup_opt(key() | key_path()) -> {ok, value()} | {error, not_found}.
@@ -95,7 +91,6 @@ lookup_opt(Key) ->
     try get_opt(Key) of
         Value -> {ok, Value}
     catch
-        error:badarg -> {error, not_found}; % missing persistent term
         error:{badkey, _} -> {error, not_found} % missing map key
     end.
 
@@ -105,39 +100,16 @@ get_opt(Key, Default) ->
     try
         get_opt(Key)
     catch
-        error:badarg -> Default; % missing persistent term
         error:{badkey, _} -> Default % missing map key
     end.
 
 %% @doc Fails if the option does not exist
 -spec get_opt(key() | key_path()) -> value().
-get_opt([Key | Rest]) ->
-    Config = persistent_term:get({?MODULE, Key}),
-    lists:foldl(fun maps:get/2, Config, Rest);
+get_opt(KeyPath) when is_list(KeyPath) ->
+    Opts = persistent_term:get(?MODULE),
+    lists:foldl(fun maps:get/2, Opts, KeyPath);
 get_opt(Key) ->
-    persistent_term:get({?MODULE, Key}).
-
--spec config_state() -> mongoose_config_parser:state().
-config_state() ->
-    persistent_term:get(mongoose_config_state).
-
--spec config_states() -> [mongoose_config_parser:state()].
-config_states() ->
-    config_states(mongoose_cluster:all_cluster_nodes()).
-
--spec config_states([node()]) -> [mongoose_config_parser:state()].
-%% @doc Returns config states from all nodes in cluster
-%% State from the local node comes as head of a list
-config_states(Nodes) ->
-    {States, FailedNodes} = rpc:multicall(Nodes, ?MODULE, config_state, [], 30000),
-    case FailedNodes of
-        [] ->
-            States;
-        [_|_] ->
-            erlang:error(#{issue => config_state_failed,
-                           cluster_nodes => Nodes,
-                           failed_nodes => FailedNodes})
-    end.
+    get_opt([Key]).
 
 %% Internal functions
 
