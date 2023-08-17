@@ -199,7 +199,7 @@ session_info_is_updated_properly_if_session_conflicts(C) ->
     {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
     %% Sid2 > Sid in this case, because SIDs have a timestamp in them
     %% We cannot test store_info for Sid2 though, because it has a different pid
-    Sid2 = make_sid_with_unique_pid(),
+    Sid2 = make_sid(),
 
     %% Two sessions for the same USR are registered after that:
     given_session_opened(Sid, USR, 1, [{key1, val1}, {key2, a}]),
@@ -361,15 +361,12 @@ ensure_empty(C, N, Sessions) ->
 
 too_many_sessions(_C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
-    UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
-    {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
-
+    UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) ||
+                       _ <- lists:seq(1, ?MAX_USER_SESSIONS + 1)],
     [given_session_opened(Sid, USR) || {Sid, USR} <- UserSessions],
 
-    given_session_opened(AddSid, AddUSR),
-
     receive
-        {'$gen_cast', {exit, <<"Replaced by new connection">>}} ->
+        {forwarded, _Sid, {'$gen_cast', {exit, <<"Replaced by new connection">>}}} ->
             ok;
         Message ->
             ct:fail("Unexpected message: ~p", [Message])
@@ -464,13 +461,25 @@ get_fun_for_unique_count(ejabberd_sm_redis) ->
     end.
 
 make_sid() ->
-    %% ejabberd_sm:store_info has different behaviour when called
-    %% from inside and from outside of the c2s process. So, self() here is important.
-    {erlang:system_time(microsecond), self()}.
+    %% A sid consists of a timestamp and a pid.
+    %% Timestamps can repeat, and a unique pid is needed to avoid sid duplication.
+    TestPid = self(),
+    Pid = spawn_link(fun() ->
+                             Sid = ejabberd_sm:make_new_sid(),
+                             TestPid ! {sid, Sid},
+                             forward_messages(Sid, TestPid)
+                     end),
+    receive
+        {sid, Sid = {_, Pid}} -> Sid
+    after
+        1000 -> ct:fail("Timeout waiting for sid")
+    end.
 
-make_sid_with_unique_pid() ->
-    %% Use spawn to get an unique pid
-    {erlang:system_time(microsecond), spawn(fun() -> ok end)}.
+forward_messages(Sid, Target) ->
+    receive
+        Msg -> Target ! {forwarded, Sid, Msg}
+    end,
+    forward_messages(Sid, Target).
 
 given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
