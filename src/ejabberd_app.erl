@@ -80,6 +80,7 @@ do_start() ->
     mongoose_listener:start(),
     ejabberd_admin:start(),
     mongoose_metrics:init_mongooseim_metrics(),
+    gen_hook:reload_hooks(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
     Sup.

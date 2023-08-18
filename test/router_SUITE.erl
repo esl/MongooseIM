@@ -38,7 +38,7 @@ end_per_suite(_C) ->
 
 init_per_group(routing, Config) ->
     mongoose_config:set_opts(opts()),
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     ejabberd_router:start_link(),
     Config.
 

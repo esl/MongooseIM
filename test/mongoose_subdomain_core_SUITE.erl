@@ -39,7 +39,7 @@ init_per_testcase(TestCase, Config) ->
     %%   - one "dynamic" host type with two configured domain names
     %% initial mongoose_subdomain_core conditions:
     %%   - no subdomains configured for any host type
-    gen_hook:start_link(),
+    mongooseim_helper:start_link_loaded_hooks(),
     mongoose_domain_sup:start_link(?STATIC_PAIRS, ?ALLOWED_HOST_TYPES),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],

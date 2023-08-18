@@ -38,7 +38,7 @@ init_per_suite(C) ->
     Sup = spawn(fun() ->
         mim_ct_sup:start_link(ejabberd_sup),
         Hooks = {gen_hook,
-                 {gen_hook, start_link, []},
+                 {mongooseim_helper, start_link_loaded_hooks, []},
                  permanent,
                  brutal_kill,
                  worker,

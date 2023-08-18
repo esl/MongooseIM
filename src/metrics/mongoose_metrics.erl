@@ -145,7 +145,7 @@ get_global_metric_names() ->
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
 
--spec increment_generic_hook_metric(mongooseim:host_type(), atom()) -> ok | {error, any()}.
+-spec increment_generic_hook_metric(mongooseim:host_type_or_global(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(HostType, Hook) ->
     UseOrSkip = filter_hook(Hook),
     do_increment_generic_hook_metric(HostType, Hook, UseOrSkip).
