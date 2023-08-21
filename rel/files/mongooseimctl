@@ -190,68 +190,8 @@ help ()
 # common control function
 ctl ()
 {
-    # Control number of connections identifiers
-    # using flock if available. Expects a linux-style
-    # flock that can lock a file descriptor.
-    MAXCONNID=100
-    CONNLOCKDIR="{{mongooseim_lock_dir}}/ctl"
-    mkdir -p "$CONNLOCKDIR"
-    FLOCK='/usr/bin/flock'
-    if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
-	JOT='/usr/bin/jot'
-	if [ ! -x "$JOT" ] ; then
-	    # no flock or jot, simply invoke ctlexec()
-	    CTL_CONN="ctl-${NODENAME}"
-	    ctlexec $CTL_CONN "$@"
-	    result=$?
-	else
-	    # no flock, but at least there is jot
-	    RAND=`jot -r 1 0 $MAXCONNID`
-	    CTL_CONN="ctl-${RAND}-${NODENAME}"
-	    ctlexec $CTL_CONN "$@"
-	    result=$?
-	fi
-    else
-	# we have flock so we get a lock
-	# on one of a limited number of
-	# conn names -- this allows
-	# concurrent invocations using a bound
-	# number of atoms
-	for N in $(seq 1 $MAXCONNID); do
-	    CTL_CONN="mongooseimctl-$N-${NODENAME}"
-	    CTL_LOCKFILE="$CONNLOCKDIR/$CTL_CONN"
-	    (
-		exec 8>"$CTL_LOCKFILE"
-		if flock --nb 8; then
-		    ctlexec $CTL_CONN "$@"
-                    ssresult=$?
-                    # segregate from possible flock exit(1)
-		    ssresult=$(expr $ssresult \* 10)
-		    exit $ssresult
-		else
-		    exit 1
-		fi
-            )
-	    result=$?
-	    if [ $result -eq 1 ]; then
-                # means we errored out in flock
-                # rather than in the exec - stay in the loop
-                # trying other conn names...
-		badlock=1
-	    else
-		badlock=""
-		break;
-	    fi
-	done
-	result=$(expr $result / 10)
-    fi
-
-    if [ "$badlock" ];then
-	echo "Ran out of connections to try. Your MongooseIM processes" >&2
-	echo "may be stuck or this is a very busy server. For very"   >&2
-	echo "busy servers, consider raising MAXCONNID in mongooseimctl">&2
-	exit 1;
-    fi
+    ctlexec "$@"
+    result=$?
 
     case $result in
 	0) :;;
@@ -265,12 +205,10 @@ ctl ()
 ctlexec ()
 {
     export BINDIR=$ERTS_PATH
-    CONN_NAME=$1; shift
     $ERTS_PATH/erlexec \
       -boot "$MIM_DIR/releases/$APP_VSN/start_clean" \
-      $NAME_TYPE ${CONN_NAME} \
+      $NAME_TYPE undefined \
       -noinput \
-      -hidden \
       $COOKIE_ARG \
       -args_file "$RUNNER_ETC_DIR"/vm.dist.args \
       -pa "$MIM_DIR"/lib/mongooseim-*/ebin/ \

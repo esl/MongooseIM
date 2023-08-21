@@ -88,6 +88,10 @@ start() ->
                              end
                      end,
             Node = list_to_atom(SNode1),
+            %% We use dynamic node names
+            %% https://www.erlang.org/doc/reference_manual/distributed#dynamic-node-name
+            %% Names are recycled, so the atom table would not leak
+            net_kernel:connect_node(Node),
             Status = case rpc:call(Node, ?MODULE, process, [Args]) of
                          {badrpc, Reason} ->
                              ?PRINT("Failed RPC connection to the node ~p: ~p~n",
