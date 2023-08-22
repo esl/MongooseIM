@@ -7,6 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
+-define(BAD_RESOURCE, <<"\x{EFBB}"/utf8>>).
 
 -import(distributed_helper, [mim/0]).
 
@@ -27,7 +28,8 @@ groups() ->
        two_users_can_log_and_chat,
        too_big_stanza_rejected,
        message_sent_to_malformed_jid_results_in_error,
-       verify_session_establishment_is_not_announced
+       verify_session_establishment_is_not_announced,
+       invalid_resource_fails_to_log
       ]},
      {backwards_compatible_session, [parallel],
       [
@@ -118,6 +120,16 @@ message_sent_to_malformed_jid_results_in_error(Config) ->
         % Bob gets the message
         escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
     end).
+
+invalid_resource_fails_to_log(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = [start_stream, stream_features, authenticate],
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    BindStanza = escalus_stanza:bind(?BAD_RESOURCE),
+    escalus_connection:send(Alice, BindStanza),
+    Response = escalus_client:wait_for_stanza(Alice),
+    escalus_assert:is_error(Response, <<"modify">>, <<"bad-request">>),
+    escalus_connection:stop(Alice).
 
 verify_session_establishment_is_not_announced(Config) ->
     MaybeSessionFeature = start_connection_maybe_get_session_feature(Config),
