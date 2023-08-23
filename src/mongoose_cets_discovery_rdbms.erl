@@ -19,15 +19,30 @@ init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     try
-        try_register(ClusterName, Node)
+        case is_rdbms_running() of
+            true ->
+                try_register(ClusterName, Node);
+            false ->
+                skip
+        end
     of
         {Num, Nodes, Info} ->
             mongoose_node_num:set_node_num(Num),
-            {{ok, Nodes}, State#{last_query_info => Info}}
+            {{ok, Nodes}, State#{last_query_info => Info}};
+        skip ->
+            {{error, rdbms_not_running}, State}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
             {{error, Reason}, State}
+    end.
+
+is_rdbms_running() ->
+    try mongoose_wpool:get_worker(rdbms, global) of
+         {ok, _} -> true;
+         _ -> false
+    catch _:_ ->
+         false
     end.
 
 try_register(ClusterName, NodeBin) when is_binary(NodeBin), is_binary(ClusterName) ->
