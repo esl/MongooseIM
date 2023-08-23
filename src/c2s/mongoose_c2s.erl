@@ -429,7 +429,7 @@ handle_sasl_continue(StateData, SaslAcc, #{server_out := ServerOut}, Retries) ->
 handle_sasl_failure(#c2s_data{host_type = HostType, lserver = LServer} = StateData, SaslAcc,
                     #{server_out := ServerOut, maybe_username := Username}, Retries) ->
     ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
-                jid => Username, c2s_state => StateData}),
+                username => Username, lserver => LServer, c2s_state => StateData}),
     mongoose_hooks:auth_failed(HostType, LServer, Username),
     El = mongoose_c2s_stanzas:sasl_failure_stanza(ServerOut),
     NewSaslAcc = send_acc_from_server_jid(StateData, SaslAcc, El),
@@ -443,7 +443,7 @@ handle_sasl_error(#c2s_data{lang = Lang} = StateData, _SaslAcc,
 
 -spec handle_sasl_abort(data(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_sasl_abort(StateData, SaslAcc, Retries) ->
-    Error = #{server_out => <<"aborted">>, maybe_username => StateData#c2s_data.jid},
+    Error = #{server_out => <<"aborted">>, maybe_username => undefined},
     handle_sasl_failure(StateData, SaslAcc, Error, Retries).
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().

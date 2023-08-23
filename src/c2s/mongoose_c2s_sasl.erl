@@ -11,7 +11,6 @@
 -module(mongoose_c2s_sasl).
 
 -include_lib("kernel/include/logger.hrl").
--include("jlib.hrl").
 
 -export([new/1, start/4, continue/3]).
 
@@ -69,8 +68,8 @@ handle_sasl_step(C2SData, {continue, ServerOut, NewCyrSaslState}, SaslAcc) ->
 handle_sasl_step(C2SData, {error, Error, Username}, SaslAcc) ->
     handle_sasl_failure(C2SData, Error, Username, undefined, SaslAcc);
 handle_sasl_step(C2SData, {error, Error}, SaslAcc) ->
-    Jid = mongoose_c2s:get_jid(C2SData),
-    handle_sasl_failure(C2SData, Error, undefined, Jid, SaslAcc).
+    MaybeUsername = maybe_get_username_from_data(C2SData),
+    handle_sasl_failure(C2SData, Error, undefined, MaybeUsername, SaslAcc).
 
 -spec handle_sasl_success(mongoose_c2s:data(), mongoose_credentials:t(), mongoose_acc:t()) -> result().
 handle_sasl_success(C2SData, Creds, SaslAcc) ->
@@ -92,12 +91,8 @@ handle_sasl_continue(_C2SData, ServerOut, NewCyrSaslState, SaslAcc) ->
         mongoose_c2s:data(), term(), maybe_username(), maybe_username(), mongoose_acc:t()) -> result().
 handle_sasl_failure(_C2SData, Error, undefined, undefined, SaslAcc) ->
     {failure, SaslAcc, #{server_out => Error, maybe_username => undefined}};
-handle_sasl_failure(_C2SData, Error, undefined, #jid{luser = Username}, SaslAcc) ->
-    {failure, SaslAcc, #{server_out => Error, maybe_username => Username}};
-handle_sasl_failure(C2SData, Error, Username, _, SaslAcc) ->
-    LServer = mongoose_c2s:get_lserver(C2SData),
-    NewJid = jid:make_bare(Username, LServer),
-    {failure, SaslAcc, #{server_out => Error, maybe_username => NewJid}}.
+handle_sasl_failure(_C2SData, Error, Username, _, SaslAcc) ->
+    {failure, SaslAcc, #{server_out => Error, maybe_username => Username}}.
 
 sasl_acc(HostType, LServer, CyrSaslState, Creds) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
@@ -111,3 +106,13 @@ set_cyrsasl_state_in_acc(SaslAcc, NewCyrSaslState) ->
 -spec get_cyrsasl_state_from_acc(mongoose_acc:t()) -> cyrsasl:sasl_state().
 get_cyrsasl_state_from_acc(SaslAcc) ->
     mongoose_acc:get(?MODULE, cyrsasl, SaslAcc).
+
+-spec maybe_get_username_from_data(mongoose_c2s:data()) -> maybe_username().
+maybe_get_username_from_data(C2SData) ->
+    case mongoose_c2s:get_jid(C2SData) of
+        undefined ->
+            undefined;
+        Jid ->
+            {U, _S} = jid:to_lus(Jid),
+               U
+    end.
