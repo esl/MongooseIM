@@ -39,6 +39,8 @@
 
 %% sasl2 handlers
 -export([sasl2_stream_features/2,
+         bind2_stream_features/2,
+         bind2_enable_features/3,
          sasl2_start/3,
          sasl2_success/3]).
 
@@ -496,6 +498,23 @@ sasl2_stream_features(C2SData, InitialFeatures) ->
     Params = #{c2s_data => C2SData},
     HostType = mongoose_c2s:get_host_type(C2SData),
     run_hook_for_host_type(sasl2_stream_features, HostType, InitialFeatures, Params).
+
+-spec bind2_stream_features(C2SData, InitialFeatures) -> Result when
+    C2SData :: mongoose_c2s:data(),
+    InitialFeatures :: [exml:element()],
+    Result :: [exml:element()].
+bind2_stream_features(C2SData, InitialFeatures) ->
+    Params = #{c2s_data => C2SData},
+    HostType = mongoose_c2s:get_host_type(C2SData),
+    run_hook_for_host_type(bind2_stream_features, HostType, InitialFeatures, Params).
+
+-spec bind2_enable_features(HostType, Acc, Params) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Params :: mod_sasl2:c2s_state_data(),
+    Result :: mongoose_acc:t().
+bind2_enable_features(HostType, Acc, Params) ->
+    run_hook_for_host_type(bind2_enable_features, HostType, Acc, Params).
 
 %% This hook will cache in the accumulator all the requests from sasl2 inlined features
 -spec sasl2_start(HostType, Acc, Element) -> Result when

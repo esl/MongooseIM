@@ -835,6 +835,8 @@ default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_bind2) ->
+    #{};
 default_mod_config(mod_blocking) ->
     #{backend => mnesia};
 default_mod_config(mod_bosh) ->

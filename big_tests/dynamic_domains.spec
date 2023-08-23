@@ -23,6 +23,8 @@
 
 {suites, "tests", auth_methods_for_c2s_SUITE}.
 
+{suites, "tests", bind2_SUITE}.
+
 {suites, "tests", bosh_SUITE}.
 
 {suites, "tests", carboncopy_SUITE}.

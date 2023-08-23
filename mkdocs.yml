@@ -97,6 +97,7 @@ nav:
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_amp': 'modules/mod_amp.md'
       - 'mod_auth_token': 'modules/mod_auth_token.md'
+      - 'mod_bind2': 'modules/mod_bind2.md'
       - 'mod_blocking': 'modules/mod_blocking.md'
       - 'mod_bosh': 'modules/mod_bosh.md'
       - 'mod_caps': 'modules/mod_caps.md'
