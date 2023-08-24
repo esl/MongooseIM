@@ -116,7 +116,7 @@ hook_enabled_features(StateData) ->
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
--spec sasl_success_stanza(binary()) -> exml:element().
+-spec sasl_success_stanza(undefined | binary()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
@@ -139,11 +139,11 @@ maybe_text_tag(Text) ->
     [#xmlel{name = <<"text">>,
             children = [#xmlcdata{content = Text}]}].
 
--spec sasl_challenge_stanza([exml:element() | exml:cdata()]) -> exml:element().
-sasl_challenge_stanza(Challenge) ->
+-spec sasl_challenge_stanza(binary()) -> exml:element().
+sasl_challenge_stanza(ServerOut) ->
     #xmlel{name = <<"challenge">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],
-           children = Challenge}.
+           children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}.
 
 -spec successful_resource_binding(jlib:iq(), jid:jid()) -> exml:element().
 successful_resource_binding(IQ, Jid) ->

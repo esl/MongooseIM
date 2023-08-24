@@ -190,7 +190,7 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
 -spec auth_failed(HostType, Server, Username) -> Result when
     HostType :: mongooseim:host_type(),
     Server :: jid:server(),
-    Username :: jid:user() | unknown,
+    Username :: jid:user() | undefined,
     Result :: ok.
 auth_failed(HostType, Server, Username) ->
     Params = #{username => Username, server => Server},
