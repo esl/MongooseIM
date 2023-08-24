@@ -976,7 +976,7 @@ state_timeout(#{c2s_state_timeout := Timeout}) ->
 replace_resource(StateData, <<>>) ->
     replace_resource(StateData, generate_random_resource());
 replace_resource(#c2s_data{jid = OldJid} = StateData, NewResource) ->
-    StateData#c2s_data{jid = jid:replace_resource(OldJid, NewResource)}.
+    StateData#c2s_data{jid = jid:replace_resource_noprep(OldJid, NewResource)}.
 
 -spec new_stream_id() -> binary().
 new_stream_id() ->

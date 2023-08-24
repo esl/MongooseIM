@@ -81,7 +81,7 @@ registrator_proc(Manager, Map) ->
 
 -spec do_register([binary()]) -> {reason(), jid:user() | binary()}.
 do_register([User, Host, Password] = List) ->
-    JID = jid:make(User, Host, <<>>),
+    JID = jid:make_bare(User, Host),
     case ejabberd_auth:try_register(JID, Password) of
         {error, invalid_jid} -> {invalid_jid, join(List)};
         {error, Reason} -> {Reason, JID};

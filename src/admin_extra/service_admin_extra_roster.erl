@@ -167,10 +167,10 @@ commands() ->
                      Subs :: subs()) -> {Res, string()} when
     Res :: user_doest_not_exist | error | bad_subs | ok.
 add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
-    LocalJID = jid:make(LocalUser, LocalServer, <<>>),
+    LocalJID = jid:make_bare(LocalUser, LocalServer),
     case ejabberd_auth:does_user_exist(LocalJID) of
         true ->
-            RemoteJID = jid:make(User, Server, <<>>),
+            RemoteJID = jid:make_bare(User, Server),
             case subscribe(LocalJID, RemoteJID, Nick, Group, Subs, []) of
                 ok ->
                     do_add_rosteritem(LocalJID, RemoteJID, Nick, Group, Subs);
@@ -217,10 +217,10 @@ subscribe(LocalJID, RemoteJID, Nick, Group, SubscriptionS, _Xattrs) ->
                         Server :: jid:server()) -> {Res, string()} when
     Res :: ok | error | user_does_not_exist.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
-    LocalJID = jid:make(LocalUser, LocalServer, <<>>),
+    LocalJID = jid:make_bare(LocalUser, LocalServer),
     case ejabberd_auth:does_user_exist(LocalJID) of
         true ->
-            RemoteJID = jid:make(User, Server, <<>>),
+            RemoteJID = jid:make_bare(User, Server),
             case unsubscribe(LocalJID, RemoteJID) of
                 ok ->
                     push_roster_item(LocalJID, RemoteJID, remove),
@@ -253,7 +253,7 @@ unsubscribe(LocalJID, RemoteJID) ->
 -spec get_roster(jid:user(), jid:server()) ->
     [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
-    UserJID = jid:make(User, Server, <<>>),
+    UserJID = jid:make_bare(User, Server),
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(UserJID#jid.lserver),
     Acc = mongoose_acc:new(#{location => ?LOCATION,
                              host_type => HostType,
@@ -329,8 +329,8 @@ subscribe_roster({Name, Server, Group, Nick}, [{Name, Server, _, _} | Roster]) -
     subscribe_roster({Name, Server, Group, Nick}, Roster);
 %% Subscribe Name2 to Name1
 subscribe_roster({Name1, Server1, Group1, Nick1}, [{Name2, Server2, Group2, Nick2} | Roster]) ->
-    subscribe(jid:make(Name1, Server1, <<>>),
-              jid:make(Name2, Server2, <<>>),
+    subscribe(jid:make_bare(Name1, Server1),
+              jid:make_bare(Name2, Server2),
               Nick2, Group2, <<"both">>, []),
     subscribe_roster({Name1, Server1, Group1, Nick1}, Roster).
 
