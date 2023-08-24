@@ -36,10 +36,7 @@
     commands/0, private_get/4, private_set/3
 ]).
 
--include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
--include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
 
 %%%
 %%% Register commands

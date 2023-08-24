@@ -1,7 +1,5 @@
 -module(gdpr_api).
 
--include("ejabberd_commands.hrl").
--include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
 % Exported for RPC call

@@ -2,9 +2,6 @@
 
 -export([run/1]).
 
--include("mongoose.hrl").
--include("jlib.hrl").
-
 -define(REGISTER_WORKERS_NUM, 10).
 
 -type summary() :: #{reason() => [jid:jid() | binary()]}.
