@@ -957,7 +957,7 @@ commands() ->
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
 user_resources(UserStr, ServerStr) ->
-    JID = jid:make(list_to_binary(UserStr), list_to_binary(ServerStr), <<"">>),
+    JID = jid:make_bare(list_to_binary(UserStr), list_to_binary(ServerStr)),
     Resources = get_user_resources(JID),
     lists:sort(Resources).
 

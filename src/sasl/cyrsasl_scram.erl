@@ -25,7 +25,7 @@ mech_new(LServer, Creds, #{sha := Sha,
                            scram_plus := ScramPlus}) ->
     ChannelBinding = calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech),
     Fun = fun(Username, St0) ->
-                  JID = jid:make(Username, LServer, <<>>),
+                  JID = jid:make_bare(Username, LServer),
                   HostType = mongoose_credentials:host_type(Creds),
                   case get_scram_attributes(HostType, JID, Sha) of
                       {AuthModule, {StoredKey, ServerKey, Salt, ItCount}} ->

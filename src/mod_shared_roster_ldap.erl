@@ -489,7 +489,7 @@ check_and_accumulate_member({ok, UID}, AuthChecker, Host, JIDsAcc) ->
         error ->
             JIDsAcc;
         _ ->
-            JID = jid:make(PUID, Host, <<>>),
+            JID = jid:make_bare(PUID, Host),
             case AuthChecker(JID) of
                 true ->
                     [{PUID, Host} | JIDsAcc];

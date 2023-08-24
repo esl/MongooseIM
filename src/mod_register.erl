@@ -354,7 +354,7 @@ try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
         _ ->
-            JID = jid:make(User, Server, <<>>),
+            JID = jid:make_bare(User, Server),
             Access = gen_mod:get_module_opt(HostType, ?MODULE, access),
             IPAccess = get_ip_access(HostType),
             case {acl:match_rule(HostType, Server, Access, JID),
