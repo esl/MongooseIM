@@ -498,19 +498,20 @@ sasl2_stream_features(C2SData, InitialFeatures) ->
     run_hook_for_host_type(sasl2_stream_features, HostType, InitialFeatures, Params).
 
 %% This hook will cache in the accumulator all the requests from sasl2 inlined features
--spec sasl2_start(HostType, Acc, Params) -> Result when
+-spec sasl2_start(HostType, Acc, Element) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s_hooks:params(),
+    Element :: exml:element(),
     Result :: mongoose_acc:t().
-sasl2_start(HostType, Acc, Params) ->
+sasl2_start(HostType, Acc, Element) ->
+    Params = #{stanza => Element},
     run_hook_for_host_type(sasl2_start, HostType, Acc, Params).
 
 %% If SASL authentication is successful, inline features can be triggered
 -spec sasl2_success(HostType, Acc, Params) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
-    Params :: mongoose_c2s_hooks:params(),
+    Params :: mod_sasl2:c2s_state_data(),
     Result :: mongoose_acc:t().
 sasl2_success(HostType, Acc, Params) ->
     run_hook_for_host_type(sasl2_success, HostType, Acc, Params).

@@ -1,3 +1,15 @@
+%% Design Notes
+%%
+%% This module has three entry points for the statem: `authenticate', `response', and `abort'.
+%% All three of them will generate one `OriginalStateData' that will remain unchained for the whole
+%% statem event, and a copy of this value will be stored into the `SaslAcc::mongoose_acc:t()', which
+%% hook handlers can modify, and at the end of the processing, they can be compared for changes.
+%%
+%% This module triggers two hooks for before and after the full sasl2 mechanism was executed.
+%% Handlers to these hooks can read the original `OriginalStateData', as well as the values
+%% accumulated on the SaslAcc. If a value wants to be updated, it should be careful to fetch the
+%% most recent from the accumulator, modify that one, and reinsert, otherwise it can override
+%% updates made by previous handlers.
 -module(mod_sasl2).
 -xep([{xep, 388}, {version, "0.4.0"}, {status, partial}]).
 
@@ -20,14 +32,24 @@
 %% hooks handlers
 -export([c2s_stream_features/3, user_send_xmlel/3]).
 
+%% helpers
+-export([get_inline_request/2, put_inline_request/3, update_inline_request/4,
+         get_state_data/1, set_state_data/2]).
+
 -type maybe_binary() :: undefined | binary().
+-type status() :: pending | success | failure.
+-type inline_request() :: #{request := exml:element(),
+                            response := undefined | exml:element(),
+                            status := status()}.
 -type mod_state() :: #{authenticated := boolean(),
                        id := not_provided | uuid:uuid(),
                        software := not_provided | binary(),
                        device := not_provided | binary()}.
+-type c2s_state_data() :: #{c2s_state := mongoose_c2s:state(),
+                            c2s_data := mongoose_c2s:data(),
+                            _ := _}.
 
--type params() :: #{c2s_data => mongoose_c2s:data(), c2s_state => mongoose_c2s:state()}.
--export_type([params/0]).
+-export_type([c2s_state_data/0, inline_request/0]).
 
 %% gen_mod
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -62,15 +84,11 @@ init(_) ->
 -spec handle_event(gen_statem:event_type(), term(), mongoose_c2s:state(), mongoose_c2s:data()) ->
     mongoose_c2s:fsm_res().
 handle_event(internal, #xmlel{name = <<"authenticate">>} = El,
-             {wait_for_feature_before_auth, SaslAcc, Retries} = C2SState, C2SData) ->
-    case exml_query:attr(El, <<"xmlns">>) of
-        ?NS_SASL_2 ->
-            handle_auth_start(C2SData, C2SState, El, SaslAcc, Retries);
-        _ ->
-            mongoose_c2s:c2s_stream_error(C2SData, mongoose_xmpp_errors:invalid_namespace())
-    end;
+             ?EXT_C2S_STATE({wait_for_feature_before_auth, SaslAcc, Retries}) = C2SState, C2SData) ->
+    %% We don't verify the namespace here because to here we just jumped from user_send_xmlel
+    handle_auth_start(C2SData, C2SState, El, SaslAcc, Retries);
 handle_event(internal, #xmlel{name = <<"response">>} = El,
-             {wait_for_sasl_response, SaslAcc, Retries} = C2SState, C2SData) ->
+             ?EXT_C2S_STATE({wait_for_sasl_response, SaslAcc, Retries}) = C2SState, C2SData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL_2 ->
             handle_auth_response(C2SData, C2SState, El, SaslAcc, Retries);
@@ -78,7 +96,7 @@ handle_event(internal, #xmlel{name = <<"response">>} = El,
             mongoose_c2s:c2s_stream_error(C2SData, mongoose_xmpp_errors:invalid_namespace())
     end;
 handle_event(internal, #xmlel{name = <<"abort">>} = El,
-             C2SState = {_, SaslAcc, Retries}, C2SData) ->
+             ?EXT_C2S_STATE({_, SaslAcc, Retries}) = C2SState, C2SData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL_2 ->
             handle_sasl_abort(C2SData, C2SState, El, SaslAcc, Retries);
@@ -123,13 +141,13 @@ user_send_xmlel(Acc, Params, _Extra) ->
 
 -spec user_send_sasl2_element(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
      mongoose_c2s_hooks:result().
-user_send_sasl2_element(Acc, #{c2s_data := C2SData}, El) ->
+user_send_sasl2_element(Acc, #{c2s_data := C2SData, c2s_state := C2SState}, El) ->
     case is_not_sasl2_authenticated_already(C2SData) andalso is_ssl_connection(C2SData) of
         true ->
             %% We need to take control of the state machine to ensure no stanza
             %% out of the established protocol is processed
             Actions = [{push_callback_module, ?MODULE}, {next_event, internal, El}],
-            ToAcc = [{actions, Actions}],
+            ToAcc = [{c2s_state, ?EXT_C2S_STATE(C2SState)}, {actions, Actions}],
             {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
         false ->
             Lang = mongoose_c2s:get_lang(C2SData),
@@ -140,8 +158,8 @@ user_send_sasl2_element(Acc, #{c2s_data := C2SData}, El) ->
 
 -spec is_not_sasl2_authenticated_already(mongoose_c2s:data()) -> boolean().
 is_not_sasl2_authenticated_already(C2SData) ->
-    case get_mod_state(C2SData) of
-        #{authenticated := true} -> false;
+    case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
+        {ok, #{authenticated := true}} -> false;
         _ -> true
     end.
 
@@ -149,30 +167,29 @@ is_not_sasl2_authenticated_already(C2SData) ->
 is_ssl_connection(C2SData) ->
     mongoose_c2s_socket:is_ssl(mongoose_c2s:get_socket(C2SData)).
 
--spec get_mod_state(mongoose_c2s:data()) -> {error, not_found} | mod_state().
-get_mod_state(C2SData) ->
-    case mongoose_c2s:get_mod_state(C2SData, ?MODULE) of
-        {ok, State} -> State;
-        Error -> Error
+-spec get_mod_state(mongoose_acc:t()) -> {error, not_found} | mod_state().
+get_mod_state(SaslAcc) ->
+    case mongoose_acc:get_statem_acc(SaslAcc) of
+        #{state_mod := #{?MODULE := ModState}} -> ModState;
+        _ -> {error, not_found}
     end.
 
 -spec handle_auth_start(
         mongoose_c2s:data(), mongoose_c2s:state(), exml:element(), mongoose_acc:t(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
 handle_auth_start(C2SData, C2SState, El, SaslAcc, Retries) ->
-    case capture_mod_state(C2SData, exml_query:subelement(El, <<"user-agent">>, not_provided)) of
+    case init_mod_state(exml_query:subelement(El, <<"user-agent">>, not_provided)) of
         invalid_agent ->
             mongoose_c2s:c2s_stream_error(C2SData, mongoose_xmpp_errors:policy_violation());
-        C2SData1 ->
-            HostType = mongoose_c2s:get_host_type(C2SData1),
+        ModState ->
+            HostType = mongoose_c2s:get_host_type(C2SData),
             Mech = get_selected_mech(El),
             ClientIn = get_initial_response(El),
-            EventContent = #{event_tag => ?MODULE,
-                             event_content => #{stanza => El, mech => Mech, client_in => ClientIn}},
-            HookParams = mongoose_c2s:hook_arg(C2SData1, C2SState, internal, EventContent, start),
-            SaslAcc1 = mongoose_hooks:sasl2_start(HostType, SaslAcc, HookParams),
-            SaslAcc2 = mongoose_c2s_sasl:start(C2SData1, SaslAcc1, Mech, ClientIn),
-            handle_sasl_step(HookParams, SaslAcc2, Retries)
+            OriginalStateData = #{c2s_state => C2SState, c2s_data => C2SData},
+            SaslAcc1 = mongoose_c2s_acc:to_acc(SaslAcc, state_mod, {?MODULE, ModState}),
+            SaslAcc2 = mongoose_hooks:sasl2_start(HostType, SaslAcc1, El),
+            SaslResult = mongoose_c2s_sasl:start(C2SData, SaslAcc2, Mech, ClientIn),
+            handle_sasl_step(SaslResult, OriginalStateData, Retries)
     end.
 
 -spec handle_auth_response(
@@ -180,75 +197,65 @@ handle_auth_start(C2SData, C2SState, El, SaslAcc, Retries) ->
     mongoose_c2s:fsm_res().
 handle_auth_response(C2SData, C2SState, El, SaslAcc, Retries) ->
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
-    EventContent = #{event_tag => ?MODULE,
-                     event_content => #{stanza => El, client_in => ClientIn}},
-    HookParams = mongoose_c2s:hook_arg(C2SData, C2SState, internal, EventContent, start),
-    SaslAcc1 = mongoose_c2s_sasl:continue(C2SData, SaslAcc, ClientIn),
-    handle_sasl_step(HookParams, SaslAcc1, Retries).
+    OriginalStateData = #{c2s_state => C2SState, c2s_data => C2SData},
+    SaslResult = mongoose_c2s_sasl:continue(C2SData, SaslAcc, ClientIn),
+    handle_sasl_step(SaslResult, OriginalStateData, Retries).
 
 -spec handle_sasl_abort(
         mongoose_c2s:data(), mongoose_c2s:state(), exml:element(), mongoose_acc:t(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
-handle_sasl_abort(C2SData, C2SState, El, SaslAcc, Retries) ->
+handle_sasl_abort(C2SData, C2SState, _El, SaslAcc, Retries) ->
     Jid = mongoose_c2s:get_jid(C2SData),
     Error = #{server_out => <<"aborted">>, maybe_username => Jid},
-    EventContent = #{event_tag => ?MODULE, event_content => #{stanza => El}},
-    HookParams = mongoose_c2s:hook_arg(C2SData, C2SState, internal, EventContent, start),
-    handle_sasl_failure(HookParams, SaslAcc, Error, Retries).
+    OriginalStateData = #{c2s_state => C2SState, c2s_data => C2SData},
+    handle_sasl_failure(SaslAcc, Error, OriginalStateData, Retries).
 
--spec handle_sasl_step(
-        mongoose_c2s_hooks:params(), mongoose_c2s_sasl:result(), mongoose_c2s:retries()) ->
+-spec handle_sasl_step(mongoose_c2s_sasl:result(), c2s_state_data(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
-handle_sasl_step(HookParams, {success, NewSaslAcc, Result}, _Retries) ->
-    handle_sasl_success(HookParams, NewSaslAcc, Result);
-handle_sasl_step(HookParams, {continue, NewSaslAcc, Result}, Retries) ->
-    handle_sasl_continue(HookParams, NewSaslAcc, Result, Retries);
-handle_sasl_step(HookParams, {failure, NewSaslAcc, Result}, Retries) ->
-    handle_sasl_failure(HookParams, NewSaslAcc, Result, Retries);
-handle_sasl_step(HookParams, {error, NewSaslAcc, Result}, Retries) ->
-    handle_sasl_error(HookParams, NewSaslAcc, Result, Retries).
+handle_sasl_step({success, NewSaslAcc, Result}, OriginalStateData, _Retries) ->
+    handle_sasl_success(NewSaslAcc, Result, OriginalStateData);
+handle_sasl_step({continue, NewSaslAcc, Result}, OriginalStateData, Retries) ->
+    handle_sasl_continue(NewSaslAcc, Result, OriginalStateData, Retries);
+handle_sasl_step({failure, NewSaslAcc, Result}, OriginalStateData, Retries) ->
+    handle_sasl_failure(NewSaslAcc, Result, OriginalStateData, Retries);
+handle_sasl_step({error, NewSaslAcc, #{type := Type}}, OriginalStateData, Retries) ->
+    handle_sasl_failure(NewSaslAcc, #{server_out => atom_to_binary(Type),
+                                      maybe_username => undefined}, OriginalStateData, Retries).
 
--spec handle_sasl_success(
-        mongoose_c2s_hooks:params(), mongoose_acc:t(), mongoose_c2s_sasl:success()) ->
+-spec handle_sasl_success(mongoose_acc:t(), mongoose_c2s_sasl:success(), c2s_state_data()) ->
     mongoose_c2s:fsm_res().
-handle_sasl_success(#{c2s_data := C2SData, c2s_state := C2SState} = HookParams, SaslAcc,
-                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod}) ->
-    C2SData1 = mongoose_c2s:set_jid(C2SData, Jid),
-    C2SData2 = mongoose_c2s:set_auth_module(C2SData1, AuthMod),
-    HostType = mongoose_c2s:get_host_type(C2SData2),
+handle_sasl_success(SaslAcc,
+                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod},
+                    #{c2s_data := C2SData} = OriginalStateData) ->
+    C2SData1 = build_final_c2s_data(C2SData, Jid, AuthMod),
+    OriginalStateData1 = OriginalStateData#{c2s_data := C2SData1},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
-                user => jid:to_binary(Jid), c2s_state => C2SData2}),
-    ModState = get_mod_state(C2SData2),
-    Actions = [pop_callback_module,
-               {next_event, internal, mongoose_c2s_stanzas:stream_header(C2SData2)},
-               mongoose_c2s:state_timeout(C2SData2)],
-    SuccessStanza = success_stanza(Jid, MaybeServerOut),
-    StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData2),
-    C2SState1 = {wait_for_feature_after_auth, ?BIND_RETRIES},
-    ToAcc = [{socket_send, [SuccessStanza, StreamFeaturesStanza]},
-             {actions, Actions},
-             {state_mod, {?MODULE, ModState#{authenticated := true}}},
-             {c2s_state, C2SState1}],
-    SaslAcc1 = mongoose_c2s_acc:to_acc_many(SaslAcc, ToAcc),
-    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, HookParams),
-    mongoose_c2s:handle_state_after_packet(C2SData2, C2SState, SaslAcc2).
+                user => jid:to_binary(Jid), c2s_state => C2SData1}),
+    HostType = mongoose_c2s:get_host_type(C2SData1),
+    SaslAcc1 = set_state_data(SaslAcc, OriginalStateData1),
+    SaslAcc2 = mongoose_hooks:sasl2_success(HostType, SaslAcc1, OriginalStateData1),
+    process_sasl2_success(SaslAcc2, OriginalStateData1, MaybeServerOut).
 
 -spec handle_sasl_continue(
-        mongoose_c2s_hooks:params(), mongoose_acc:t(), mongoose_c2s_sasl:continue(), mongoose_c2s:retries()) ->
+        mongoose_acc:t(), mongoose_c2s_sasl:continue(), c2s_state_data(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
-handle_sasl_continue(#{c2s_data := C2SData, c2s_state := C2SState} = HookParams, SaslAcc,
-                     #{server_out := ServerOut}, Retries) ->
+handle_sasl_continue(SaslAcc,
+                     #{server_out := ServerOut},
+                     #{c2s_data := C2SData, c2s_state := C2SState},
+                     Retries) ->
     El = challenge_stanza(ServerOut),
     ToAcc = [{socket_send, El},
-             {c2s_state, {wait_for_sasl_response, SaslAcc, Retries}}],
+             {c2s_state, ?EXT_C2S_STATE({wait_for_sasl_response, SaslAcc, Retries})}],
     SaslAcc1 = mongoose_c2s_acc:to_acc_many(SaslAcc, ToAcc),
     mongoose_c2s:handle_state_after_packet(C2SData, C2SState, SaslAcc1).
 
 -spec handle_sasl_failure(
-        mongoose_c2s_hooks:params(), mongoose_acc:t(), mongoose_c2s_sasl:failure(), mongoose_c2s:retries()) ->
+        mongoose_acc:t(), mongoose_c2s_sasl:failure(), c2s_state_data(), mongoose_c2s:retries()) ->
     mongoose_c2s:fsm_res().
-handle_sasl_failure(#{c2s_data := C2SData, c2s_state := C2SState} = HookParams, SaslAcc,
-                    #{server_out := ServerOut, maybe_username := Username}, Retries) ->
+handle_sasl_failure(SaslAcc,
+                    #{server_out := ServerOut, maybe_username := Username},
+                    #{c2s_data := C2SData, c2s_state := C2SState},
+                    Retries) ->
     LServer = mongoose_c2s:get_lserver(C2SData),
     ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
                 username => Username, lserver => LServer, c2s_state => C2SData}),
@@ -258,28 +265,76 @@ handle_sasl_failure(#{c2s_data := C2SData, c2s_state := C2SState} = HookParams, 
             {stop, Reason, C2SData};
         C2SState1 ->
             ToAcc = [{socket_send, El},
-                     {c2s_state, {wait_for_feature_before_auth, SaslAcc, Retries}}],
+                     {c2s_state, ?EXT_C2S_STATE({wait_for_feature_before_auth, SaslAcc, Retries})}],
             SaslAcc2 = mongoose_c2s_acc:to_acc_many(SaslAcc, ToAcc),
             mongoose_c2s:handle_state_after_packet(C2SData, C2SState1, SaslAcc2)
     end.
 
--spec handle_sasl_error(
-        mongoose_c2s_hooks:params(), mongoose_acc:t(), mongoose_c2s_sasl:error(), mongoose_c2s:retries()) ->
-    mongoose_c2s:fsm_res().
-handle_sasl_error(#{c2s_data := C2SData} = HookParams, SaslAcc, #{type := Type, text := Text}, _Retries) ->
-    Lang = mongoose_c2s:get_lang(C2SData),
-    El = mongoose_xmpp_errors:Type(Lang, Text),
-    mongoose_c2s:c2s_stream_error(C2SData, El),
-    {stop, mongoose_c2s_acc:to_acc(SaslAcc, hard_stop, sasl2_violation)}.
+%% Append to the c2s_data both the new jid and the auth module.
+%% Note that further inline requests can later on append a new jid if a resource is negotiated.
+-spec build_final_c2s_data(mongoose_c2s:data(), jid:jid(), module()) -> mongoose_c2s:data().
+build_final_c2s_data(C2SData, Jid, AuthMod) ->
+    C2SData1 = mongoose_c2s:set_jid(C2SData, Jid),
+    mongoose_c2s:set_auth_module(C2SData1, AuthMod).
 
--spec success_stanza(jid:jid(), maybe_binary()) -> exml:element().
-success_stanza(AuthJid, undefined) ->
-    AuthorizationId = success_subelement(<<"authorization-identifier">>, jid:to_binary(AuthJid)),
-    sasl2_ns_stanza(<<"success">>, [AuthorizationId]);
-success_stanza(AuthJid, CData) ->
-    AdditionalData = success_subelement(<<"additional-data">>, base64:encode(CData)),
-    AuthorizationId = success_subelement(<<"authorization-identifier">>, jid:to_binary(AuthJid)),
-    sasl2_ns_stanza(<<"success">>, [AdditionalData, AuthorizationId]).
+-spec process_sasl2_success(mongoose_acc:t(), c2s_state_data(), maybe_binary()) ->
+    mongoose_c2s:fsm_res().
+process_sasl2_success(SaslAcc, OriginalStateData, MaybeServerOut) ->
+    #{c2s_data := C2SData, c2s_state := C2SState} = get_state_data(SaslAcc),
+    SuccessStanza = success_stanza(SaslAcc, C2SData, MaybeServerOut),
+    ToAcc = build_to_c2s_acc(SaslAcc, C2SData, OriginalStateData, SuccessStanza),
+    SaslAcc1 = mongoose_c2s_acc:to_acc_many(SaslAcc, ToAcc),
+    mongoose_c2s:handle_state_after_packet(C2SData, C2SState, SaslAcc1).
+
+%% After auth and inline requests we:
+%% - return control to mongoose_c2s (pop_callback_module),
+%% - ensure the answer to the sasl2 request is sent in the socket first,
+%% - then decide depending on whether an inline request has taken control of the c2s_state if
+%%      - do nothing if control was taken
+%%      - put the statem in wait_for_feature_after_auth
+-spec build_to_c2s_acc(mongoose_acc:t(), mongoose_c2s:data(), c2s_state_data(), exml:element()) ->
+    mongoose_c2s_acc:pairs().
+build_to_c2s_acc(SaslAcc, C2SData, OriginalStateData, SuccessStanza) ->
+    ModState = get_mod_state(SaslAcc),
+    ToAcc0 = [{actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
+              {state_mod, {?MODULE, ModState#{authenticated := true}}}],
+    case is_new_c2s_state_requested(SaslAcc, OriginalStateData) of
+        true ->
+            [{socket_send_first, SuccessStanza} | ToAcc0];
+        false ->
+            %% Unless specified by an inline feature, sasl2 would normally put the statem just before bind
+            StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData),
+            [{socket_send_first, SuccessStanza},
+             {socket_send, StreamFeaturesStanza},
+             {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}} | ToAcc0]
+    end.
+
+-spec is_new_c2s_state_requested(mongoose_acc:t(), c2s_state_data()) -> boolean().
+is_new_c2s_state_requested(SaslAcc, #{c2s_state := OldState}) ->
+    #{c2s_state := NewState} = mod_sasl2:get_state_data(SaslAcc),
+    OldState =/= NewState.
+
+-spec success_stanza(mongoose_acc:t(), mongoose_c2s:data(), maybe_binary()) -> exml:element().
+success_stanza(SaslAcc, C2SData, MaybeCData) ->
+    Jid = mongoose_c2s:get_jid(C2SData),
+    Inlines = get_acc_sasl2_state(SaslAcc),
+    InlineAnswers = get_inline_responses(Inlines),
+    case MaybeCData of
+        undefined ->
+            AuthorizationId = success_subelement(<<"authorization-identifier">>, jid:to_binary(Jid)),
+            sasl2_ns_stanza(<<"success">>, [AuthorizationId | InlineAnswers]);
+        CData ->
+            AdditionalData = success_subelement(<<"additional-data">>, base64:encode(CData)),
+            AuthorizationId = success_subelement(<<"authorization-identifier">>, jid:to_binary(Jid)),
+            sasl2_ns_stanza(<<"success">>, [AdditionalData, AuthorizationId | InlineAnswers])
+    end.
+
+-spec get_inline_responses([inline_request()]) -> [exml:element()].
+get_inline_responses(Inlines) ->
+    [ Response || {Module, #{status := Status, response := Response}} <- Inlines,
+                  ?MODULE =/= Module,
+                  pending =/= Status,
+                  undefined =/= Response ].
 
 -spec challenge_stanza(binary()) -> exml:element().
 challenge_stanza(ServerOut) ->
@@ -308,12 +363,10 @@ get_selected_mech(El) ->
 get_initial_response(El) ->
     base64:decode(exml_query:path(El, [{element, <<"initial-response">>}, cdata], <<>>)).
 
--spec capture_mod_state(mongoose_c2s:data(), not_provided | exml:element()) ->
-    invalid_agent | mongoose_c2s:data().
-capture_mod_state(C2SData, not_provided) ->
-    UserAgent = #{authenticated => false, id => not_provided, software => not_provided, device => not_provided},
-    mongoose_c2s:merge_mod_state(C2SData, #{?MODULE => UserAgent});
-capture_mod_state(C2SData, El) ->
+-spec init_mod_state(not_provided | exml:element()) -> invalid_agent | mod_state().
+init_mod_state(not_provided) ->
+    #{authenticated => false, id => not_provided, software => not_provided, device => not_provided};
+init_mod_state(El) ->
     MaybeId = exml_query:attr(El, <<"id">>, not_provided),
     case if_provided_then_is_not_invalid_uuid_v4(MaybeId) of
         invalid_agent ->
@@ -321,8 +374,7 @@ capture_mod_state(C2SData, El) ->
         Value ->
             Software = exml_query:path(El, [{element, <<"software">>}, cdata], not_provided),
             Device = exml_query:path(El, [{element, <<"device">>}, cdata], not_provided),
-            UserAgent = #{authenticated => false, id => Value, software => Software, device => Device},
-            mongoose_c2s:merge_mod_state(C2SData, #{?MODULE => UserAgent})
+            #{authenticated => false, id => Value, software => Software, device => Device}
     end.
 
 -spec if_provided_then_is_not_invalid_uuid_v4(not_provided | binary()) ->
@@ -354,3 +406,35 @@ inlines(InlineFeatures) ->
 -spec feature_name() -> binary().
 feature_name() ->
     <<"authentication">>.
+
+-spec get_acc_sasl2_state(mongoose_acc:t()) -> [{module(), inline_request()}].
+get_acc_sasl2_state(SaslAcc) ->
+    mongoose_acc:get(?MODULE, SaslAcc).
+
+-spec get_inline_request(mongoose_acc:t(), module()) -> undefined | inline_request().
+get_inline_request(SaslAcc, ModuleRequest) ->
+    mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc).
+
+-spec put_inline_request(mongoose_acc:t(), module(), exml:element()) -> mongoose_acc:t().
+put_inline_request(SaslAcc, ModuleRequest, XmlRequest) ->
+    Request = #{request => XmlRequest, response => undefined, status => pending},
+    mongoose_acc:set(?MODULE, ModuleRequest, Request, SaslAcc).
+
+-spec update_inline_request(mongoose_acc:t(), module(), exml:element(), status()) -> mongoose_acc:t().
+update_inline_request(SaslAcc, ModuleRequest, XmlResponse, Status) ->
+    case mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc) of
+        undefined ->
+            SaslAcc;
+        Request ->
+            Request1 = Request#{response := XmlResponse, status := Status},
+            mongoose_acc:set(?MODULE, ModuleRequest, Request1, SaslAcc)
+    end.
+
+%% Here we extract these two values after all modifications by the inline requests
+-spec get_state_data(mongoose_acc:t()) -> c2s_state_data().
+get_state_data(SaslAcc) ->
+    mongoose_acc:get(?MODULE, c2s_state_data, SaslAcc).
+
+-spec set_state_data(mongoose_acc:t(), c2s_state_data()) -> mongoose_acc:t().
+set_state_data(SaslAcc, OriginalStateData) ->
+    mongoose_acc:set(?MODULE, c2s_state_data, OriginalStateData, SaslAcc).

@@ -3,6 +3,7 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
 
@@ -42,10 +43,18 @@ start_stream_get_features(_Config, Client, Data) ->
     Features = escalus_connection:get_stanza(Client1, wait_for_features),
     {Client1, Data#{features => Features}}.
 
-send_invalid_authenticate_stanza(_Config, Client, Data) ->
+send_invalid_mech_auth_stanza(_Config, Client, Data) ->
     Authenticate = #xmlel{name = <<"authenticate">>,
                           attrs = [{<<"xmlns">>, ?NS_SASL_2},
                                    {<<"mechanism">>, <<"invalid-non-existent-mechanism">>}]},
+    escalus:send(Client, Authenticate),
+    Answer = escalus_client:wait_for_stanza(Client),
+    {Client, Data#{answer => Answer}}.
+
+send_invalid_ns_auth_stanza(_Config, Client, Data) ->
+    Authenticate = #xmlel{name = <<"authenticate">>,
+                          attrs = [{<<"xmlns">>, <<"bad-namespace">>},
+                                   {<<"mechanism">>, <<"PLAIN">>}]},
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     {Client, Data#{answer => Answer}}.
@@ -57,6 +66,37 @@ send_bad_user_agent(_Config, Client, Data) ->
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     {Client, Data#{answer => Answer}}.
+
+auth_with_resumption(Config, Client, #{smid := SMID, texts := Texts} = Data) ->
+    Resume = escalus_stanza:resume(SMID, 1),
+    {Client1, Data1} = plain_auth(Config, Client, Data, [Resume]),
+    Msgs = sm_helper:wait_for_messages(Client, Texts),
+    {Client1, Data1#{sm_storage => Msgs}}.
+
+auth_with_resumption_invalid_h(Config, Client, #{smid := SMID} = Data) ->
+    Resume = #xmlel{name = <<"resume">>,
+                    attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                             {<<"previd">>, SMID},
+                             {<<"h">>, <<"aaa">>}]},
+    plain_auth(Config, Client, Data, [Resume]).
+
+auth_with_resumption_missing_previd(Config, Client, Data) ->
+    Resume = #xmlel{name = <<"resume">>,
+                    attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                             {<<"h">>, <<"aaa">>}]},
+    plain_auth(Config, Client, Data, [Resume]).
+
+auth_with_resumption_exceeding_h(Config, Client, #{smid := SMID} = Data) ->
+    Resume = escalus_stanza:resume(SMID, 999),
+    plain_auth(Config, Client, Data, [Resume]).
+
+auth_with_resumption_unknown_smid(Config, Client, Data) ->
+    Resume = escalus_stanza:resume(<<"123456">>, 1),
+    plain_auth(Config, Client, Data, [Resume]).
+
+has_no_more_stanzas(_Config, Client, Data) ->
+    escalus_assert:has_no_stanzas(Client),
+    {Client, Data}.
 
 plain_auth_user_agent_without_id(Config, Client, Data) ->
     plain_auth(Config, Client, Data, [user_agent_elem_without_id()]).
@@ -123,6 +163,22 @@ scram_step_2(_Config, Client,
         {ok, _, _} -> {Client, Data#{answer => SuccessStanza}};
         {error, _, _} -> throw({auth_failed, SuccessStanza})
     end.
+
+buffer_messages_and_die(Config, _Client, Data) ->
+    Spec = escalus_fresh:create_fresh_user(Config, alice),
+    Client = sm_helper:connect_spec(Spec, sr_presence, manual),
+    C2SPid = mongoose_helper:get_session_pid(Client),
+    BobSpec = escalus_fresh:create_fresh_user(Config, bob),
+    {ok, Bob, _} = escalus_connection:start(BobSpec),
+    Texts = [ integer_to_binary(N) || N <- [1, 2, 3]],
+    sm_helper:send_messages(Bob, Client, Texts),
+    %% Client receives them, but doesn't ack.
+    sm_helper:wait_for_messages(Client, Texts),
+    %% Client's connection is violently terminated.
+    escalus_client:kill_connection(Config, Client),
+    sm_SUITE:wait_until_resume_session(C2SPid),
+    SMID = sm_helper:client_to_smid(Client),
+    {C2SPid, Data#{spec => Spec, smid => SMID, smh => 3, texts => Texts}}.
 
 receive_features(_Config, Client, Data) ->
     Features = escalus_client:wait_for_stanza(Client),
