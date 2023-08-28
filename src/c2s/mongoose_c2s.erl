@@ -35,7 +35,6 @@
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
-          auth_module :: undefined | module(),
           state_mod = #{} :: #{module() => term()},
           info = #{} :: info()
          }).
@@ -429,14 +428,14 @@ handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
     maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries}).
 
 -spec handle_sasl_success(data(), term()) -> fsm_res().
-handle_sasl_success(State = #c2s_data{listener_opts = LOpts}, Creds) ->
+handle_sasl_success(State = #c2s_data{listener_opts = LOpts, info = Info}, Creds) ->
     ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
     AuthModule = mongoose_credentials:get(Creds, auth_module),
     send_element_from_server_jid(State, mongoose_c2s_stanzas:sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     NewState = State#c2s_data{streamid = new_stream_id(),
                               jid = jid:make_bare(User, State#c2s_data.lserver),
-                              auth_module = AuthModule},
+                              info = maps:merge(Info, #{auth_module => AuthModule})},
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
                 c2s_state => NewState}),
     {next_state, {wait_for_stream, authenticated}, NewState, state_timeout(LOpts)}.
@@ -882,10 +881,9 @@ route(Pid, Acc) ->
 -spec open_session(data()) -> {[pid()], data()}.
 open_session(
   StateData = #c2s_data{host_type = HostType, sid = Sid, jid = Jid,
-                        socket = Socket, auth_module = AuthModule, info = Info}) ->
+                        socket = Socket, info = Info}) ->
     NewFields = #{ip => mongoose_c2s_socket:get_ip(Socket),
-                  conn => mongoose_c2s_socket:get_conn_type(Socket),
-                  auth_module => AuthModule},
+                  conn => mongoose_c2s_socket:get_conn_type(Socket)},
     Info2 = maps:merge(Info, NewFields),
     ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
     {ReplacedPids, StateData#c2s_data{info = Info2}}.
