@@ -296,14 +296,16 @@ process_sasl2_success(SaslAcc, OriginalStateData, MaybeServerOut) ->
     mongoose_c2s_acc:pairs().
 build_to_c2s_acc(SaslAcc, C2SData, OriginalStateData, SuccessStanza) ->
     ModState = get_mod_state(SaslAcc),
-    ToAcc0 = [{actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
-              {state_mod, {?MODULE, ModState#{authenticated := true}}}],
     case is_new_c2s_state_requested(SaslAcc, OriginalStateData) of
         true ->
+            ToAcc0 = [{actions, [pop_callback_module]},
+                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
             [{socket_send_first, SuccessStanza} | ToAcc0];
         false ->
             %% Unless specified by an inline feature, sasl2 would normally put the statem just before bind
             StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData),
+            ToAcc0 = [{actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
+                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
             [{socket_send_first, SuccessStanza},
              {socket_send, StreamFeaturesStanza},
              {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}} | ToAcc0]

@@ -31,12 +31,17 @@ connect_non_tls_user(Config, _, Data) ->
     Client1 = escalus_connection:connect(Spec),
     {Client1, Data#{spec => Spec}}.
 
-connect_tls_user(Config, _, Data) ->
+create_user(Config, Client, Data) ->
+    Spec = escalus_fresh:create_fresh_user(Config, alice),
+    {Client, Data#{spec => Spec}}.
+
+connect_tls(_Config, _, #{spec := Spec} = Data) ->
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
-    Spec = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]}
-            | escalus_fresh:create_fresh_user(Config, alice)],
-    Client1 = escalus_connection:connect(Spec),
-    {Client1, Data#{spec => Spec}}.
+    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]},
+             {resource, <<"res1">>} | Spec],
+    Client1 = escalus_connection:connect(Spec1),
+    Jid = <<(escalus_client:short_jid(Client1))/binary, "/res1">>,
+    {Client1, Data#{spec => Spec1, client_1_jid => Jid}}.
 
 start_stream_get_features(_Config, Client, Data) ->
     Client1 = escalus_session:start_stream(Client),
@@ -164,8 +169,7 @@ scram_step_2(_Config, Client,
         {error, _, _} -> throw({auth_failed, SuccessStanza})
     end.
 
-buffer_messages_and_die(Config, _Client, Data) ->
-    Spec = escalus_fresh:create_fresh_user(Config, alice),
+buffer_messages_and_die(Config, _Client, #{spec := Spec} = Data) ->
     Client = sm_helper:connect_spec(Spec, sr_presence, manual),
     C2SPid = mongoose_helper:get_session_pid(Client),
     BobSpec = escalus_fresh:create_fresh_user(Config, bob),
@@ -178,7 +182,16 @@ buffer_messages_and_die(Config, _Client, Data) ->
     escalus_client:kill_connection(Config, Client),
     sm_SUITE:wait_until_resume_session(C2SPid),
     SMID = sm_helper:client_to_smid(Client),
-    {C2SPid, Data#{spec => Spec, smid => SMID, smh => 3, texts => Texts}}.
+    {C2SPid, Data#{bob => Bob, smid => SMID, smh => 3, texts => Texts}}.
+
+can_send_messages(_Config, Client, #{bob := Bob} = Data) ->
+    escalus:send(Bob, escalus_stanza:chat_to(Client, <<"hello">>)),
+    AliceReceived = escalus_client:wait_for_stanza(Client),
+    escalus:assert(is_message, AliceReceived),
+    escalus:send(Client, escalus_stanza:chat_to(Bob, <<"hello">>)),
+    BobReceived = escalus_client:wait_for_stanza(Bob),
+    escalus:assert(is_message, BobReceived),
+    {Client, Data}.
 
 receive_features(_Config, Client, Data) ->
     Features = escalus_client:wait_for_stanza(Client),
