@@ -18,7 +18,7 @@ init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
     maps:merge(defaults(), Opts).
 
 defaults() ->
-    #{expire_time => 60 * 60 * 24, %% one day in seconds
+    #{expire_time => 60 * 60 * 1, %% 1 hour in seconds
       last_query_info => #{}}.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
