@@ -49,17 +49,13 @@ start_stream_get_features(_Config, Client, Data) ->
     {Client1, Data#{features => Features}}.
 
 send_invalid_mech_auth_stanza(_Config, Client, Data) ->
-    Authenticate = #xmlel{name = <<"authenticate">>,
-                          attrs = [{<<"xmlns">>, ?NS_SASL_2},
-                                   {<<"mechanism">>, <<"invalid-non-existent-mechanism">>}]},
+    Authenticate = auth_elem(<<"invalid-non-existent-mechanism">>, []),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     {Client, Data#{answer => Answer}}.
 
 send_invalid_ns_auth_stanza(_Config, Client, Data) ->
-    Authenticate = #xmlel{name = <<"authenticate">>,
-                          attrs = [{<<"xmlns">>, <<"bad-namespace">>},
-                                   {<<"mechanism">>, <<"PLAIN">>}]},
+    Authenticate = auth_elem(<<"PLAIN">>, <<"bad-namespace">>, []),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     {Client, Data#{answer => Answer}}.
@@ -199,8 +195,11 @@ receive_features(_Config, Client, Data) ->
 
 %% XML helpers
 auth_elem(Mech, Children) ->
+    auth_elem(Mech, ?NS_SASL_2, Children).
+
+auth_elem(Mech, NS, Children) ->
     #xmlel{name = <<"authenticate">>,
-           attrs = [{<<"xmlns">>, ?NS_SASL_2}, {<<"mechanism">>, Mech}],
+           attrs = [{<<"xmlns">>, NS}, {<<"mechanism">>, Mech}],
            children = Children}.
 
 plain_auth_initial_response(#client{props = Props}) ->
