@@ -6,8 +6,8 @@ references:
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}-v3
-  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
-  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v5
+  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v5
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v6
 
 # list of references to be used inside executors block
 containers:
