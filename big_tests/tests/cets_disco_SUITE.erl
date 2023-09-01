@@ -1,7 +1,7 @@
 -module(cets_disco_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, mim2/0, rpc/4]).
+-import(distributed_helper, [mim/0, rpc/4]).
 -include_lib("common_test/include/ct.hrl").
 
 %%--------------------------------------------------------------------
@@ -80,7 +80,7 @@ rdbms_backend(_Config) ->
 rdbms_backend_supports_auto_cleaning(_Config) ->
     CN = <<"big_test2">>,
     Opts1 = #{cluster_name => CN, node_name_to_insert => <<"test1">>, override_timestamp => month_ago()},
-    Opts2 = #{cluster_name => CN, node_name_to_insert => <<"test2">>, min_node_count_to_expire => 1},
+    Opts2 = #{cluster_name => CN, node_name_to_insert => <<"test2">>},
     %% test1 row is written
     State1 = disco_init(Opts1),
     {_, State1_2} = disco_get_nodes(State1),
