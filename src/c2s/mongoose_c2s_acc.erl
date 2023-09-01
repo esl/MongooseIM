@@ -174,7 +174,7 @@ to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when i
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->
     C2SAcc#{socket_send := [Stanza | Stanzas]};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send_first, NewStanzas}) when is_list(NewStanzas) ->
-    C2SAcc#{socket_send := Stanzas ++ NewStanzas};
+    C2SAcc#{socket_send := Stanzas ++ lists:reverse(NewStanzas)};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send_first, Stanza}) ->
     C2SAcc#{socket_send := Stanzas ++ [Stanza]};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {stop, Reason}) ->

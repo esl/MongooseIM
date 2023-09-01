@@ -1,11 +1,11 @@
 %% Design Notes
 %%
 %% This module has three entry points for the statem: `authenticate', `response', and `abort'.
-%% All three of them will generate one `OriginalStateData' that will remain unchained for the whole
+%% All three of them will generate one `OriginalStateData' that will remain unchanged for the whole
 %% statem event, and a copy of this value will be stored into the `SaslAcc::mongoose_acc:t()', which
 %% hook handlers can modify, and at the end of the processing, they can be compared for changes.
 %%
-%% This module triggers two hooks for before and after the full sasl2 mechanism was executed.
+%% This module triggers two hooks for before and after the full sasl2 mechanism is executed.
 %% Handlers to these hooks can read the original `OriginalStateData', as well as the values
 %% accumulated on the SaslAcc. If a value wants to be updated, it should be careful to fetch the
 %% most recent from the accumulator, modify that one, and reinsert, otherwise it can override
@@ -18,7 +18,7 @@
 
 -define(BIND_RETRIES, 3).
 -define(XMLNS_SASL, {<<"xmlns">>, ?NS_SASL}).
--define(XMLNS_SASL2, {<<"xmlns">>, ?NS_SASL_2}).
+-define(XMLNS_SASL_2, {<<"xmlns">>, ?NS_SASL_2}).
 
 -behaviour(gen_mod).
 -behaviour(gen_statem).
@@ -115,7 +115,7 @@ terminate(Reason, C2SState, C2SData) ->
                  c2s_state => C2SState, c2s_data => C2SData}),
     mongoose_c2s:terminate({shutdown, ?MODULE}, C2SState, C2SData).
 
-%% Hooks
+%% Hook handlers
 -spec c2s_stream_features(Acc, map(), gen_hook:extra()) -> {ok, Acc} when
     Acc :: [exml:element()].
 c2s_stream_features(Acc, #{c2s_data := C2SData}, _) ->
@@ -350,7 +350,7 @@ failure_stanza(Reason) ->
 
 -spec sasl2_ns_stanza(binary(), [exml:element() | exml:cdata()]) -> exml:element().
 sasl2_ns_stanza(Name, Children) ->
-    #xmlel{name = Name, attrs = [?XMLNS_SASL2], children = Children}.
+    #xmlel{name = Name, attrs = [?XMLNS_SASL_2], children = Children}.
 
 -spec success_subelement(binary(), binary()) -> exml:element().
 success_subelement(Name, AuthId) ->
@@ -380,7 +380,7 @@ init_mod_state(El) ->
     end.
 
 -spec if_provided_then_is_not_invalid_uuid_v4(not_provided | binary()) ->
-    invalid_agent | uuid:uuid().
+    not_provided | invalid_agent | uuid:uuid().
 if_provided_then_is_not_invalid_uuid_v4(not_provided) ->
     not_provided;
 if_provided_then_is_not_invalid_uuid_v4(Binary) ->
@@ -398,7 +398,7 @@ feature(C2SData, Mechanisms) ->
     InlineFeatures = mongoose_hooks:sasl2_stream_features(C2SData, []),
     InlineElem = inlines(InlineFeatures),
     #xmlel{name = feature_name(),
-           attrs = [?XMLNS_SASL2],
+           attrs = [?XMLNS_SASL_2],
            children = [InlineElem | Mechanisms]}.
 
 -spec inlines([exml:element()]) -> exml:element().
@@ -432,7 +432,7 @@ update_inline_request(SaslAcc, ModuleRequest, XmlResponse, Status) ->
             mongoose_acc:set(?MODULE, ModuleRequest, Request1, SaslAcc)
     end.
 
-%% Here we extract these two values after all modifications by the inline requests
+%% Here we extract these values after all modifications by the inline requests
 -spec get_state_data(mongoose_acc:t()) -> c2s_state_data().
 get_state_data(SaslAcc) ->
     mongoose_acc:get(?MODULE, c2s_state_data, SaslAcc).

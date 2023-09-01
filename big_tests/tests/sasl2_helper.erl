@@ -176,7 +176,7 @@ buffer_messages_and_die(Config, _Client, #{spec := Spec} = Data) ->
     sm_helper:wait_for_messages(Client, Texts),
     %% Client's connection is violently terminated.
     escalus_client:kill_connection(Config, Client),
-    sm_SUITE:wait_until_resume_session(C2SPid),
+    sm_helper:wait_until_resume_session(C2SPid),
     SMID = sm_helper:client_to_smid(Client),
     {C2SPid, Data#{bob => Bob, smid => SMID, smh => 3, texts => Texts}}.
 
