@@ -10,7 +10,7 @@
 -endif.
 
 -type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => map(),
-                  expire_time := non_neg_integer(), override_timestamp := integer()}.
+                  expire_time := non_neg_integer()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().
@@ -52,8 +52,7 @@ is_rdbms_running() ->
 
 try_register(ClusterName, NodeBin, State) when is_binary(NodeBin), is_binary(ClusterName) ->
     prepare(),
-    %% We could pass the timestamp as an argument in tests
-    Timestamp = maps:get(override_timestamp, State, timestamp()),
+    Timestamp = timestamp(),
     Node = binary_to_atom(NodeBin),
     {selected, Rows} = select(ClusterName),
     Zipped = [{binary_to_atom(DbNodeBin), Num, TS} || {DbNodeBin, Num, TS} <- Rows],
@@ -92,8 +91,7 @@ run_cleaning(ClusterName, Timestamp, Rows, State) ->
         [] ->
             {skip, nothing_expired};
         _ ->
-            [delete_node_from_db(ClusterName, DbNodeBin)
-             || {DbNodeBin, _Num, _TS} <- Expired],
+            [delete_node_from_db(ClusterName, DbNodeBin) || {DbNodeBin, _Num, _TS} <- Expired],
             ?LOG_WARNING(#{what => cets_expired_nodes,
                            text => <<"Expired nodes are detected in discovery_nodes table">>,
                            expired_nodes => ExpiredNodes}),
