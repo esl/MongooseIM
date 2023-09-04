@@ -9,6 +9,14 @@
 
 -include("../mongoose_graphql_types.hrl").
 
+execute(Ctx, cets, <<"systemInfo">>, _) ->
+    try cets_discovery:system_info(mongoose_cets_discovery) of
+        #{unavailable_nodes := UnNodes} ->
+            {ok, #{<<"unavailableNodes">> => format_nodes(UnNodes),
+                   <<"unavailableNodesCount">> => length(UnNodes)}}
+    catch _Class:Reason ->
+            make_error({Reason, <<"Failed to get CETS system info">>}, Ctx)
+    end;
 execute(Ctx, cets, <<"tableInfo">>, _) ->
     try cets_discovery:info(mongoose_cets_discovery) of
         Tables ->
@@ -18,6 +26,8 @@ execute(Ctx, cets, <<"tableInfo">>, _) ->
     end.
 
 process_result(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) ->
-    Nodes2 = [{ok, Node} || Node <- Nodes],
     {ok, #{<<"memory">> => Memory, <<"size">> => Size,
-           <<"nodes">> => Nodes2, <<"tableName">> => Tab}}.
+           <<"nodes">> => format_nodes(Nodes), <<"tableName">> => Tab}}.
+
+format_nodes(Nodes) ->
+    [{ok, Node} || Node <- Nodes].

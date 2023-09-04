@@ -3,6 +3,9 @@ type CETSAdminQuery @protected{
     "Get a list of tables from the local node. Only for global admin"
     tableInfo: [CETSTableInfo]
       @protected(type: GLOBAL)
+    "Get status of CETS. Only for global admin"
+    systemInfo: CETSSystemInfo
+      @protected(type: GLOBAL)
 }
 
 type CETSTableInfo {
@@ -14,4 +17,11 @@ type CETSTableInfo {
   size: Int
   "A list of clustered nodes"
   nodes: [String]
+}
+
+type CETSSystemInfo {
+  "Unavailable nodes"
+  unavailableNodes: [String]
+  "Unavailable nodes count"
+  unavailableNodesCount: Int
 }
