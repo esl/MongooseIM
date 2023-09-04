@@ -1,5 +1,6 @@
 -module(mongoose_graphql_cets_admin_query).
 -behaviour(mongoose_graphql).
+-include("mongoose_logger.hrl").
 
 -export([execute/4]).
 
@@ -11,9 +12,21 @@
 
 execute(Ctx, cets, <<"systemInfo">>, _) ->
     try cets_discovery:system_info(mongoose_cets_discovery) of
-        #{unavailable_nodes := UnNodes} ->
+        #{unavailable_nodes := UnNodes, nodes := Nodes, tables := Tables} ->
+            NodesSorted = lists:sort(Nodes),
+            AvailNodes = filter_available_nodes(NodesSorted),
+            JoinedNodes = filter_joined_nodes(AvailNodes, Tables),
+            PartNodes = AvailNodes -- JoinedNodes,
             {ok, #{<<"unavailableNodes">> => format_nodes(UnNodes),
-                   <<"unavailableNodesCount">> => length(UnNodes)}}
+                   <<"unavailableNodesCount">> => length(UnNodes),
+                   <<"availableNodes">> => format_nodes(AvailNodes),
+                   <<"availableNodesCount">> => length(AvailNodes),
+                   <<"joinedNodes">> => format_nodes(JoinedNodes),
+                   <<"joinedNodesCount">> => length(JoinedNodes),
+                   <<"partiallyJoinedNodes">> => format_nodes(PartNodes),
+                   <<"partiallyJoinedNodesCount">> => length(PartNodes),
+                   <<"discoveredNodes">> => format_nodes(NodesSorted),
+                   <<"discoveredNodesCount">> => length(NodesSorted)}}
     catch _Class:Reason ->
             make_error({Reason, <<"Failed to get CETS system info">>}, Ctx)
     end;
@@ -31,3 +44,29 @@ process_result(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) 
 
 format_nodes(Nodes) ->
     [{ok, Node} || Node <- Nodes].
+
+filter_available_nodes(Nodes) ->
+    OnlineNodes = [node() | nodes()],
+    [Node || Node <- Nodes, lists:member(Node, OnlineNodes)].
+
+%% Returns only nodes that replicate all our local CETS tables to the same list of remote nodes
+filter_joined_nodes(AvailNodes, Tables) ->
+    OtherNodes = lists:delete(node(), AvailNodes),
+    Expected = node_list_for_tables(node(), Tables),
+    OtherJoined = [Node || Node <- OtherNodes, node_list_for_tables(Node, Tables) =:= Expected],
+    lists:sort([node() | OtherJoined]).
+
+node_list_for_tables(Node, Tables) ->
+    [{Table, node_list_for_table(Node, Table)} || Table <- Tables].
+
+node_list_for_table(Node, Table) ->
+    lists:sort([Node | other_nodes(Node, Table)]).
+
+other_nodes(Node, Table) ->
+    case catch rpc:call(Node, cets, other_nodes, [Table]) of
+        List when is_list(List) ->
+            List;
+        Other ->
+            ?LOG_ERROR(#{what => cets_get_other_nodes_failed, node => Node, table => Table, reason => Other}),
+            []
+    end.

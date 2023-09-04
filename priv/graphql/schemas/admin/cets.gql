@@ -24,4 +24,20 @@ type CETSSystemInfo {
   unavailableNodes: [String]
   "Unavailable nodes count"
   unavailableNodesCount: Int
+  "Available nodes"
+  availableNodes: [String]
+  "Available nodes count"
+  availableNodesCount: Int
+  "Joined nodes"
+  joinedNodes: [String]
+  "Joined nodes count"
+  joinedNodesCount: Int
+  "Partially joined (bad) nodes"
+  partiallyJoinedNodes: [String]
+  "Joined nodes count"
+  partiallyJoinedNodesCount: Int
+  "Discovered nodes (returned from the discovery backend)"
+  discoveredNodes: [String]
+  "Discovered nodes count"
+  discoveredNodesCount: Int
 }
