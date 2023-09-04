@@ -33,7 +33,8 @@
 -export([c2s_stream_features/3, user_send_xmlel/3]).
 
 %% helpers
--export([get_inline_request/2, put_inline_request/3, update_inline_request/4,
+-export([get_inline_request/2, get_inline_request/3, put_inline_request/3,
+         append_inline_response/3, update_inline_request/4,
          get_state_data/1, set_state_data/2]).
 
 -type maybe_binary() :: undefined | binary().
@@ -413,14 +414,28 @@ feature_name() ->
 get_acc_sasl2_state(SaslAcc) ->
     mongoose_acc:get(?MODULE, SaslAcc).
 
--spec get_inline_request(mongoose_acc:t(), module()) -> undefined | inline_request().
+-spec get_inline_request(mongoose_acc:t(), module()) -> inline_request().
 get_inline_request(SaslAcc, ModuleRequest) ->
-    mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc).
+    mongoose_acc:get(?MODULE, ModuleRequest, SaslAcc).
+
+-spec get_inline_request(mongoose_acc:t(), module(), Default) -> Default | inline_request().
+get_inline_request(SaslAcc, ModuleRequest, Default) ->
+    mongoose_acc:get(?MODULE, ModuleRequest, Default, SaslAcc).
 
 -spec put_inline_request(mongoose_acc:t(), module(), exml:element()) -> mongoose_acc:t().
 put_inline_request(SaslAcc, ModuleRequest, XmlRequest) ->
     Request = #{request => XmlRequest, response => undefined, status => pending},
     mongoose_acc:set(?MODULE, ModuleRequest, Request, SaslAcc).
+
+-spec append_inline_response(mongoose_acc:t(), module(), exml:element()) -> mongoose_acc:t().
+append_inline_response(SaslAcc, ModuleRequest, XmlResponse) ->
+    case mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc) of
+        undefined ->
+            SaslAcc;
+        Request ->
+            Request1 = Request#{response := XmlResponse},
+            mongoose_acc:set(?MODULE, ModuleRequest, Request1, SaslAcc)
+    end.
 
 -spec update_inline_request(mongoose_acc:t(), module(), exml:element(), status()) -> mongoose_acc:t().
 update_inline_request(SaslAcc, ModuleRequest, XmlResponse, Status) ->

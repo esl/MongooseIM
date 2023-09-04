@@ -449,12 +449,13 @@ handle_sasl_abort(StateData, SaslAcc, Retries) ->
     handle_sasl_failure(StateData, SaslAcc, Error, Retries).
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().
-stream_start_features_before_auth(#c2s_data{listener_opts = LOpts} = StateData) ->
+stream_start_features_before_auth(#c2s_data{sid = SID, listener_opts = LOpts} = StateData) ->
     send_header(StateData),
-    SaslAcc = mongoose_c2s_sasl:new(StateData),
+    SaslAcc0 = mongoose_c2s_sasl:new(StateData),
+    SaslAcc1 = mongoose_acc:set_permanent(c2s, [{origin_sid, SID}], SaslAcc0),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(StateData),
-    SaslAcc1 = send_acc_from_server_jid(StateData, SaslAcc, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SaslAcc1, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
+    SaslAcc2 = send_acc_from_server_jid(StateData, SaslAcc1, StreamFeatures),
+    {next_state, {wait_for_feature_before_auth, SaslAcc2, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
 
 -spec stream_start_features_after_auth(data()) -> fsm_res().
 stream_start_features_after_auth(#c2s_data{listener_opts = LOpts} = StateData) ->

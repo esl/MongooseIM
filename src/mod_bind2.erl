@@ -20,6 +20,8 @@
          sasl2_success/3
         ]).
 
+-export([get_bind2_jid/1, get_bind_request/1, append_inline_bound_answer/3]).
+
 %% gen_mod
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, _Opts) ->
@@ -60,13 +62,13 @@ sasl2_start(SaslAcc, #{stanza := El}, _) ->
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_success(SaslAcc, _, _) ->
-    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE) of
+    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
         undefined ->
             {ok, SaslAcc};
         #{request := BindRequest} ->
             Resource = generate_lresource(BindRequest),
-            SmRequest = get_stream_management_resumption_status(SaslAcc),
-            maybe_bind(SaslAcc, Resource, SmRequest)
+            InlineSm = get_stream_management_resumption_status(SaslAcc),
+            maybe_bind(SaslAcc, Resource, InlineSm)
     end.
 
 -spec sasl2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
@@ -96,7 +98,7 @@ generate_lresource(BindRequest) ->
 
 -spec get_stream_management_resumption_status(mongoose_acc:t()) -> mod_sasl2:inline_request().
 get_stream_management_resumption_status(SaslAcc) ->
-    mod_sasl2:get_inline_request(SaslAcc, mod_stream_management).
+    mod_sasl2:get_inline_request(SaslAcc, mod_stream_management, undefined).
 
 -spec maybe_bind(
         SaslAcc, jid:lresource(), undefined | mod_sasl2:inline_request()) ->
@@ -104,21 +106,23 @@ get_stream_management_resumption_status(SaslAcc) ->
 maybe_bind(SaslAcc, _Resource, #{status := success, response := SmResponse}) ->
     Bound = #xmlel{name = <<"bound">>, attrs = [?XMLNS_BIND2], children = [SmResponse]},
     {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Bound, success)};
-maybe_bind(SaslAcc, Resource, SmRequest) ->
+maybe_bind(SaslAcc, Resource, InlineSm) ->
     SaslStateData = mod_sasl2:get_state_data(SaslAcc),
-    MaybeSmChild = case SmRequest of
+    MaybeSmChild = case InlineSm of
                        #{status := failure, response := Response} -> [Response];
                        _ -> []
                    end,
     case do_bind(SaslAcc, SaslStateData, Resource) of
         {ok, SaslAcc1, C2SData} ->
+            NewJid = mongoose_c2s:get_jid(C2SData),
             HostType = mongoose_acc:host_type(SaslAcc),
             Bound = #xmlel{name = <<"bound">>, attrs = [?XMLNS_BIND2], children = MaybeSmChild},
-            NewStateData = SaslStateData#{c2s_data => C2SData, c2s_state => session_established},
-            SaslAcc2 = mod_sasl2:set_state_data(SaslAcc1, NewStateData),
+            NewSaslStateData = SaslStateData#{c2s_data => C2SData, c2s_state => session_established},
+            SaslAcc2 = mod_sasl2:set_state_data(SaslAcc1, NewSaslStateData),
             SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?MODULE, Bound, success),
-            SaslAcc4 = mongoose_hooks:bind2_enable_features(HostType, SaslAcc3, SaslStateData),
-            {ok, SaslAcc4};
+            SaslAcc4 = mongoose_acc:set(?MODULE, jid, NewJid, SaslAcc3),
+            SaslAcc5 = mongoose_hooks:bind2_enable_features(HostType, SaslAcc4, SaslStateData),
+            {ok, SaslAcc5};
         {stop, SaslAcc1} ->
             %% The XEP does not specify what to do if the resource wasn't bound
             %% so we just set failed here and move along with SASL2
@@ -130,7 +134,6 @@ maybe_bind(SaslAcc, Resource, SmRequest) ->
     {ok, SaslAcc, mongoose_c2s:data()} | {stop, SaslAcc}
       when SaslAcc :: mongoose_acc:t().
 do_bind(SaslAcc, #{c2s_state := C2SState, c2s_data := C2SData}, Resource) ->
-    %% TODO the jid will be in the accumulator, not in the data, we just authenticated!
     C2SData1 = mongoose_c2s:replace_resource(C2SData, Resource),
     HookParams = mongoose_c2s:hook_arg(C2SData1, C2SState, internal, bind2, undefined),
     mongoose_c2s:verify_user_and_open_session(HookParams, session_established, SaslAcc).
@@ -150,3 +153,17 @@ inlines(Inlines) ->
 -spec feature_name() -> binary().
 feature_name() ->
     <<"bind">>.
+
+-spec get_bind2_jid(mongoose_acc:t()) -> jid:jid().
+get_bind2_jid(SaslAcc) ->
+    mongoose_acc:get(?MODULE, jid, SaslAcc).
+
+-spec get_bind_request(mongoose_acc:t()) -> mod_sasl2:inline_request().
+get_bind_request(SaslAcc) ->
+    mod_sasl2:get_inline_request(SaslAcc, ?MODULE).
+
+-spec append_inline_bound_answer(mongoose_acc:t(), mod_sasl2:inline_request(), exml:element()) ->
+    mongoose_acc:t().
+append_inline_bound_answer(SaslAcc, #{response := BoundEl = #xmlel{children = Children}}, Response) ->
+    BoundEl1 = BoundEl#xmlel{children = [Response | Children]},
+    mod_sasl2:append_inline_response(SaslAcc, ?MODULE, BoundEl1).

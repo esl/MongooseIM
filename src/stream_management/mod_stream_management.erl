@@ -18,6 +18,7 @@
          sasl2_start/3,
          sasl2_success/3,
          bind2_stream_features/3,
+         bind2_enable_features/3,
          session_cleanup/3,
          user_send_packet/3,
          user_receive_packet/3,
@@ -103,7 +104,8 @@ hooks(HostType) ->
      {sasl2_stream_features, HostType, fun ?MODULE:sasl2_stream_features/3, #{}, 50},
      {sasl2_start, HostType, fun ?MODULE:sasl2_start/3, #{}, 50},
      {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 30},
-     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50}
+     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50},
+     {bind2_enable_features, HostType, fun ?MODULE:bind2_enable_features/3, #{}, 50}
      | c2s_hooks(HostType) ].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -493,37 +495,45 @@ calc_to_drop(Acked, OldAcked) ->
 -spec handle_enable(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
 handle_enable(Acc, #{c2s_data := StateData}, El) ->
-    case {get_mod_state(StateData), exml_query:attr(El, <<"resume">>, false)} of
-        {{error, not_found}, <<"true">>} ->
-            do_handle_enable(Acc, StateData, true);
-        {{error, not_found}, <<"1">>} ->
-            do_handle_enable(Acc, StateData, true);
-        {{error, not_found}, false} ->
-            do_handle_enable(Acc, StateData, false);
-        {{error, not_found}, _InvalidResumeAttr} ->
+    case if_not_already_enabled_create_sm_state(StateData) of
+        error ->
             stream_error(Acc, StateData);
-        {#sm_state{}, _} ->
+        SmState ->
+            do_handle_enable(Acc, StateData, SmState, El)
+    end.
+
+-spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:data(), sm_state(), exml:element()) ->
+    mongoose_c2s_hooks:result().
+do_handle_enable(Acc, StateData, SmState, El) ->
+    case exml_query:attr(El, <<"resume">>, false) of
+        false ->
+            Stanza = stream_mgmt_enabled(),
+            ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
+            {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
+        Attr when Attr =:= <<"true">>; Attr =:= <<"1">> ->
+            Stanza = register_smid_return_enabled_stanza(StateData),
+            ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
+            {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
+        _ ->
             stream_error(Acc, StateData)
     end.
 
--spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:data(), boolean()) ->
-    mongoose_c2s_hooks:result().
-do_handle_enable(Acc, StateData, false) ->
-    Stanza = stream_mgmt_enabled(),
-    HostType = mongoose_c2s:get_host_type(StateData),
-    SmState = build_sm_handler(HostType),
-    ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
-
-do_handle_enable(Acc, StateData, true) ->
+-spec register_smid_return_enabled_stanza(mongoose_c2s:data()) -> exml:element().
+register_smid_return_enabled_stanza(StateData) ->
     SMID = make_smid(),
     Sid = mongoose_c2s:get_sid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     ok = register_smid(HostType, SMID, Sid),
-    Stanza = stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]),
-    SmState = build_sm_handler(HostType),
-    ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}.
+    stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]).
+
+-spec if_not_already_enabled_create_sm_state(mongoose_c2s:data()) -> sm_state() | error.
+if_not_already_enabled_create_sm_state(StateData) ->
+    case get_mod_state(StateData) of
+        #sm_state{} -> error;
+        {error, not_found} ->
+            HostType = mongoose_c2s:get_host_type(StateData),
+            build_sm_handler(HostType)
+    end.
 
 -spec handle_resume_request(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
@@ -748,6 +758,45 @@ bind2_stream_features(Acc, _, _) ->
     SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_STREAM_MGNT_3}]},
     {ok, [SmFeature | Acc]}.
 
+-spec bind2_enable_features(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
+    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+bind2_enable_features(SaslAcc, Params, _) ->
+    Inline = #{request := BindRequest} = mod_bind2:get_bind_request(SaslAcc),
+    case exml_query:subelement_with_name_and_ns(BindRequest, <<"enable">>, ?NS_STREAM_MGNT_3) of
+        undefined ->
+            {ok, SaslAcc};
+        El ->
+            handle_bind_enable(SaslAcc, Params, Inline, El)
+    end.
+
+-spec handle_bind_enable(SaslAcc, mod_sasl2:c2s_state_data(), mod_sasl2:inline_request(), exml:element()) ->
+    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+handle_bind_enable(SaslAcc, #{c2s_data := StateData}, Inline, El) ->
+    case if_not_already_enabled_create_sm_state(StateData) of
+        error ->
+            stream_error(SaslAcc, StateData);
+        SmState ->
+            do_handle_bind_enable(SaslAcc, StateData, SmState, Inline, El)
+    end.
+
+-spec do_handle_bind_enable(SaslAcc, mongoose_c2s:data(), sm_state(), mod_sasl2:inline_request(), exml:element()) ->
+    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+do_handle_bind_enable(SaslAcc, StateData, SmState, Inline, El) ->
+    case exml_query:attr(El, <<"resume">>, false) of
+        false ->
+            Stanza = stream_mgmt_enabled(),
+            SaslAcc1 = mongoose_c2s_acc:to_acc(SaslAcc, state_mod, {?MODULE, SmState}),
+            SaslAcc2 = mod_bind2:append_inline_bound_answer(SaslAcc1, Inline, Stanza),
+            {ok, SaslAcc2};
+        Attr when Attr =:= <<"true">>; Attr =:= <<"1">> ->
+            Stanza = register_smid_return_enabled_stanza(StateData),
+            SaslAcc1 = mongoose_c2s_acc:to_acc(SaslAcc, state_mod, {?MODULE, SmState}),
+            SaslAcc2 = mod_bind2:append_inline_bound_answer(SaslAcc1, Inline, Stanza),
+            {ok, SaslAcc2};
+        _ ->
+            stream_error(SaslAcc, StateData)
+    end.
+
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_start(SaslAcc, #{stanza := El}, _) ->
@@ -761,7 +810,7 @@ sasl2_start(SaslAcc, #{stanza := El}, _) ->
 -spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
 sasl2_success(SaslAcc, _, _) ->
-    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE) of
+    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE, undefined) of
         undefined ->
             {ok, SaslAcc};
         SmRequest ->
