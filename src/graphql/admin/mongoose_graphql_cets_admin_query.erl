@@ -9,7 +9,7 @@
 
 -include("../mongoose_graphql_types.hrl").
 
-execute(Ctx, cets, <<"systemInfo">>, _) ->
+execute(Ctx, cets, <<"tableInfo">>, _) ->
     try cets_discovery:info(mongoose_cets_discovery) of
         Tables ->
             {ok, lists:map(fun process_result/1, Tables)}

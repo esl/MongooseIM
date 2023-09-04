@@ -56,7 +56,7 @@ init_per_testcase(_, Config) ->
 
 has_sm_table_in_info(Config) ->
     Res = get_info(Config),
-    Tables = get_ok_value([data, cets, systemInfo], Res),
+    Tables = get_ok_value([data, cets, tableInfo], Res),
     [T] = [T || T = #{<<"tableName">> := <<"cets_session">>} <- Tables],
     #{<<"memory">> := Mem, <<"nodes">> := Nodes, <<"size">> := Size} = T,
     true = is_integer(Mem),
@@ -74,4 +74,4 @@ domain_admin_get_info_test(Config) ->
 %--------------------------------------------------------------------------------------------------
 
 get_info(Config) ->
-    execute_command(<<"cets">>, <<"systemInfo">>, #{}, Config).
+    execute_command(<<"cets">>, <<"tableInfo">>, #{}, Config).
