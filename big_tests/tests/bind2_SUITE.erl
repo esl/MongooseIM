@@ -89,15 +89,13 @@ server_announces_bind2_with_sm(Config) ->
     ?assertNotEqual(undefined, SM).
 
 auth_and_bind_ignores_invalid_resource_and_generates_a_new_one(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             {?MODULE, auth_and_bind_wrong_resource}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_wrong_resource}, has_no_more_stanzas],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     Success = exml_query:path(Response, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Success).
 
 auth_and_bind_to_random_resource(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             {?MODULE, auth_and_bind}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind}, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -107,8 +105,7 @@ auth_and_bind_to_random_resource(Config) ->
     ?assert(0 =< byte_size(LResource), LResource).
 
 auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             {?MODULE, auth_and_bind_with_user_agent_uuid}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_with_user_agent_uuid}, has_no_more_stanzas],
     #{answer := Success, uuid := Uuid} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -118,8 +115,7 @@ auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
     ?assertNotEqual(Uuid, LResource).
 
 auth_and_bind_contains_client_tag(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             {?MODULE, auth_and_bind_with_tag}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_with_tag}, has_no_more_stanzas],
     #{answer := Success, tag := Tag} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),

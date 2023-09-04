@@ -109,21 +109,21 @@ server_announces_sasl2_with_some_mechanism(Config) ->
     ?assertNotEqual([], Mechs).
 
 authenticate_stanza_has_invalid_mechanism(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, send_invalid_mech_auth_stanza],
+    Steps = [start_new_user, send_invalid_mech_auth_stanza],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response).
 
 user_agent_is_invalid(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, send_bad_user_agent],
+    Steps = [start_new_user, send_bad_user_agent],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).
 
 authenticate_with_plain(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, plain_authentication, receive_features],
+    Steps = [start_new_user, plain_authentication, receive_features],
     auth_with_plain(Steps, Config).
 
 authenticate_with_plain_and_user_agent_without_id(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, plain_auth_user_agent_without_id, receive_features],
+    Steps = [start_new_user, plain_auth_user_agent_without_id, receive_features],
     auth_with_plain(Steps, Config).
 
 auth_with_plain(Steps, Config) ->
@@ -136,25 +136,24 @@ auth_with_plain(Steps, Config) ->
     ?assertMatch(#xmlel{name = <<"stream:features">>}, Features).
 
 authenticate_with_scram_abort(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, scram_step_1, scram_abort],
+    Steps = [start_new_user, scram_step_1, scram_abort],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"failure">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Response),
     Aborted = exml_query:path(Response, [{element_with_ns, <<"aborted">>, ?NS_SASL}]),
     ?assertNotEqual(undefined, Aborted).
 
 authenticate_with_scram_bad_abort(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, scram_step_1, scram_bad_abort],
+    Steps = [start_new_user, scram_step_1, scram_bad_abort],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Response).
 
 authenticate_with_scram_bad_response(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features, scram_step_1, scram_bad_ns_response],
+    Steps = [start_new_user, scram_step_1, scram_bad_ns_response],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Response).
 
 authenticate_with_scram(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             scram_step_1, scram_step_2, receive_features],
+    Steps = [start_new_user, scram_step_1, scram_step_2, receive_features],
     #{answer := Success, features := Features} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     CData = exml_query:path(Success, [{element, <<"additional-data">>}, cdata], <<>>),
@@ -164,8 +163,7 @@ authenticate_with_scram(Config) ->
     ?assertMatch(#xmlel{name = <<"stream:features">>}, Features).
 
 authenticate_again_results_in_stream_error(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features,
-             plain_authentication, receive_features, plain_authentication],
+    Steps = [start_new_user, plain_authentication, receive_features, plain_authentication],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).
 

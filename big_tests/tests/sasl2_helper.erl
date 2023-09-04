@@ -41,17 +41,20 @@ create_connect_tls(Config, Client, Data) ->
     {Client1, Data1} = create_user(Config, Client, Data),
     connect_tls(Config, Client1, Data1).
 
+start_new_user(Config, Client, Data) ->
+    {Client1, Data1} = create_connect_tls(Config, Client, Data),
+    start_stream_get_features(Config, Client1, Data1).
+
 create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),
     {Client, Data#{spec => Spec}}.
 
 connect_tls(_Config, _, #{spec := Spec} = Data) ->
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
-    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]},
-             {resource, <<"res1">>} | Spec],
+    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]}
+             | Spec],
     Client1 = escalus_connection:connect(Spec1),
-    Jid = <<(escalus_client:short_jid(Client1))/binary, "/res1">>,
-    {Client1, Data#{spec => Spec1, client_1_jid => Jid}}.
+    {Client1, Data#{spec => Spec1}}.
 
 start_stream_get_features(_Config, Client, Data) ->
     Client1 = escalus_session:start_stream(Client),
