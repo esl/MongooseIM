@@ -7,6 +7,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-define(NS_CSI, <<"urn:xmpp:csi:0">>).
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
 -define(NS_BIND_2, <<"urn:xmpp:bind:0">>).
 -define(BAD_TAG, <<"\x{EFBB}"/utf8>>).
@@ -24,8 +25,7 @@ groups() ->
     [
      {basic, [parallel],
       [
-       server_announces_bind2,
-       server_announces_bind2_with_sm,
+       server_announces_bind2_with_features,
        auth_and_bind_ignores_invalid_resource_and_generates_a_new_one,
        auth_and_bind_to_random_resource,
        auth_and_bind_do_not_expose_user_agent_id_in_client,
@@ -70,23 +70,17 @@ load_modules(Config) ->
 %% tests
 %%--------------------------------------------------------------------
 
-server_announces_bind2(Config) ->
+server_announces_bind2_with_features(Config) ->
     Steps = [create_connect_tls, start_stream_get_features],
     #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
     Bind2 = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2},
                                        {element, <<"inline">>},
                                        {element_with_ns, <<"bind">>, ?NS_BIND_2}]),
-    ?assertNotEqual(undefined, Bind2).
-
-server_announces_bind2_with_sm(Config) ->
-    Steps = [create_connect_tls, start_stream_get_features],
-    #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
-    SM = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2},
-                                    {element, <<"inline">>},
-                                    {element_with_ns, <<"bind">>, ?NS_BIND_2},
-                                    {element, <<"inline">>},
-                                    {element_with_attr, <<"var">>, ?NS_STREAM_MGNT_3}]),
-    ?assertNotEqual(undefined, SM).
+    ?assertNotEqual(undefined, Bind2),
+    InlineFeatures = exml_query:path(Bind2, [{element, <<"inline">>}]),
+    check_var(InlineFeatures, ?NS_STREAM_MGNT_3),
+    check_var(InlineFeatures, ?NS_CARBONS_2),
+    check_var(InlineFeatures, ?NS_CSI).
 
 auth_and_bind_ignores_invalid_resource_and_generates_a_new_one(Config) ->
     Steps = [start_new_user, {?MODULE, auth_and_bind_wrong_resource}, has_no_more_stanzas],
@@ -207,3 +201,7 @@ user_agent_elem(Id, Software, Device) ->
               || Value <- [Device], Value =/= undefined ],
     Attrs = [ {<<"id">>, Value} || Value <- [Id], Value =/= undefined ],
     #xmlel{name = <<"user-agent">>, attrs = Attrs, children = SoftEl ++ DeviEl}.
+
+check_var(InlineFeatures, NS) ->
+    Var = exml_query:subelement_with_attr(InlineFeatures, <<"var">>, NS),
+    ?assertNotEqual(undefined, Var).
