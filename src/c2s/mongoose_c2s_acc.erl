@@ -13,6 +13,7 @@
 %% - `route': mongoose_acc elements to trigger the whole `handle_route' pipeline.
 %% - `flush': mongoose_acc elements to trigger the `handle_flush` pipeline.
 %% - `socket_send': xml elements to send on the socket to the user.
+%% - `socket_send_first': xml elements to send on the socket to the user, but appended first.
 -module(mongoose_c2s_acc).
 
 -export([new/0, new/1,
@@ -21,7 +22,16 @@
          to_acc/3, to_acc_many/2
         ]).
 
--type key() :: state_mod | actions | c2s_state | c2s_data | stop | hard_stop | route | flush | socket_send.
+-type key() :: state_mod
+             | actions
+             | c2s_state
+             | c2s_data
+             | stop
+             | hard_stop
+             | route
+             | flush
+             | socket_send
+             | socket_send_first.
 -type pairs() :: [pair()].
 -type pair() :: {state_mod, {module(), term()}}
               | {actions, gen_statem:action()}
@@ -31,7 +41,8 @@
               | {hard_stop, term() | {shutdown, atom()}}
               | {route, mongoose_acc:t()}
               | {flush, mongoose_acc:t()}
-              | {socket_send, exml:element()}.
+              | {socket_send, exml:element() | [exml:element()]}
+              | {socket_send_first, exml:element() | [exml:element()]}.
 
 -type t() :: #{
         state_mod := #{module() => term()},
@@ -54,7 +65,7 @@
         socket_send => [exml:element()]
        }.
 
--export_type([t/0]).
+-export_type([t/0, pairs/0]).
 
 %% --------------------------------------------------------
 %% API
@@ -122,7 +133,8 @@ from_mongoose_acc(Acc, Key) ->
             (mongoose_acc:t(), stop, atom() | {shutdown, atom()}) -> mongoose_acc:t();
             (mongoose_acc:t(), route, mongoose_acc:t()) -> mongoose_acc:t();
             (mongoose_acc:t(), flush, mongoose_acc:t()) -> mongoose_acc:t();
-            (mongoose_acc:t(), socket_send, exml:element()) -> mongoose_acc:t().
+            (mongoose_acc:t(), socket_send, exml:element() | [exml:element()]) -> mongoose_acc:t();
+            (mongoose_acc:t(), socket_send_first, exml:element() | [exml:element()]) -> mongoose_acc:t().
 to_acc(Acc, Key, NewValue) ->
     C2SAcc = mongoose_acc:get_statem_acc(Acc),
     C2SAcc1 = to_c2s_acc(C2SAcc, {Key, NewValue}),
@@ -161,6 +173,10 @@ to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, NewStanzas}) when i
     C2SAcc#{socket_send := lists:reverse(NewStanzas) ++ Stanzas};
 to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send, Stanza}) ->
     C2SAcc#{socket_send := [Stanza | Stanzas]};
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send_first, NewStanzas}) when is_list(NewStanzas) ->
+    C2SAcc#{socket_send := Stanzas ++ lists:reverse(NewStanzas)};
+to_c2s_acc(C2SAcc = #{socket_send := Stanzas}, {socket_send_first, Stanza}) ->
+    C2SAcc#{socket_send := Stanzas ++ [Stanza]};
 to_c2s_acc(C2SAcc = #{actions := Actions}, {stop, Reason}) ->
     C2SAcc#{actions := [{next_event, cast, {stop, Reason}} | Actions]};
 to_c2s_acc(C2SAcc, {Key, NewValue}) ->

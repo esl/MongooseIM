@@ -26,6 +26,7 @@
 -define(ALL_HOST_TYPES, mongoose_config:get_opt(hosts) ++ mongoose_config:get_opt(host_types)).
 -define(MYNAME, mongoose_config:get_opt(default_server_domain)).
 -define(MYLANG, mongoose_config:get_opt(language)).
+-define(XMPP_VERSION, <<"1.0">>).
 
 -define(CONFIG_PATH, "etc/mongooseim.toml").
 

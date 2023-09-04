@@ -6,7 +6,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--define(XMPP_VERSION, <<"1.0">>).
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
@@ -21,6 +20,7 @@
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([get_auth_mechs/1, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
 -export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1]).
+-export([set_jid/2, set_auth_module/2, state_timeout/1, handle_state_after_packet/3]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -41,7 +41,8 @@
          }).
 -type data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
--type fsm_res() :: gen_statem:event_handler_result(state(), data()).
+-type fsm_res(State) :: gen_statem:event_handler_result(state(State), data()).
+-type fsm_res() :: fsm_res(term()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 -type info() :: #{atom() => term()}.
 
@@ -66,7 +67,7 @@
                            proto := tcp,
                            term() => term()}.
 
--export_type([packet/0, data/0, state/0, state/1, listener_opts/0]).
+-export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -829,8 +830,8 @@ stream_start_error(StateData, Error) ->
     c2s_stream_error(StateData, Error).
 
 -spec send_header(StateData :: data()) -> any().
-send_header(StateData = #c2s_data{lserver = LServer, lang = Lang, streamid = StreamId}) ->
-    Header = mongoose_c2s_stanzas:stream_header(LServer, ?XMPP_VERSION, Lang, StreamId),
+send_header(StateData) ->
+    Header = mongoose_c2s_stanzas:stream_header(StateData),
     send_xml(StateData, Header).
 
 send_trailer(StateData) ->
@@ -1088,6 +1089,14 @@ get_socket(#c2s_data{socket = Socket}) ->
 -spec get_jid(data()) -> jid:jid() | undefined.
 get_jid(#c2s_data{jid = Jid}) ->
     Jid.
+
+-spec set_jid(data(), jid:jid()) -> data().
+set_jid(StateData, NewJid) ->
+    StateData#c2s_data{jid = NewJid}.
+
+-spec set_auth_module(data(), module()) -> data().
+set_auth_module(StateData, AuthModule) ->
+    StateData#c2s_data{auth_module = AuthModule}.
 
 -spec get_info(data()) -> info().
 get_info(#c2s_data{info = Info}) ->

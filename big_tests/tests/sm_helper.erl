@@ -25,6 +25,7 @@
          wait_for_resource_count/2,
          wait_for_c2s_unacked_count/2,
          wait_for_process_termination/1,
+         wait_until_resume_session/1,
          process_initial_stanza/1,
          kill_and_connect_resume/1,
          monitor_session/1]).
@@ -44,6 +45,7 @@
                              rpc/4]).
 
 -define(MOD_SM, mod_stream_management).
+-define(EXT_C2S_STATE(S), {external_state, S}).
 
 client_to_smid(#client{props = Props}) ->
     proplists:get_value(smid, Props).
@@ -261,6 +263,9 @@ get_us_from_spec(UserSpec) ->
     U = proplists:get_value(username, UserSpec),
     S = proplists:get_value(server, UserSpec),
     {U, S}.
+
+wait_until_resume_session(C2SPid) ->
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, ?EXT_C2S_STATE(resume_session)).
 
 
 %% Stanza helpers

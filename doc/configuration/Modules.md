@@ -156,6 +156,9 @@ This does not provide a solution to the forgotten password use case via SMS or e
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
 Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
 
+### [mod_sasl2](../modules/mod_sasl2.md)
+Implements [XEP-0388: Extensible SASL Profile](http://xmpp.org/extensions/xep-0388.html).
+
 ### [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
 This module, when enabled, will inject roster entries fetched from LDAP.
 

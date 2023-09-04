@@ -984,6 +984,8 @@ default_mod_config(mod_register) ->
       password_strength => 0, ip_access => []};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_sasl) ->
+    #{};
 default_mod_config(mod_shared_roster_ldap) ->
     #{pool_tag => default, deref => never, filter => <<"">>,
       groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,
