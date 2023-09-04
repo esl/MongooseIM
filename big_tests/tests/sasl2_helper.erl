@@ -15,6 +15,8 @@ ns() ->
 load_all_sasl2_modules(HostType) ->
     Modules = [{mod_bind2, config_parser_helper:default_mod_config(mod_bind2)},
                {mod_sasl2, config_parser_helper:default_mod_config(mod_sasl2)},
+               {mod_csi, config_parser_helper:default_mod_config(mod_csi)},
+               {mod_carboncopy, config_parser_helper:default_mod_config(mod_carboncopy)},
                {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})}],
     dynamic_modules:ensure_modules(HostType, Modules).
 
