@@ -354,13 +354,13 @@ carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
 enable(JID, CC, Acc) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    OriginSid = mongoose_acc:get(c2s, origin_sid, Acc),
     ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)).
 
 disable(JID, Acc) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    OriginSid = mongoose_acc:get(c2s, origin_sid, Acc),
     ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY).
 
 complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
