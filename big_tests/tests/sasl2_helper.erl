@@ -12,6 +12,12 @@
 ns() ->
     ?NS_SASL_2.
 
+load_all_sasl2_modules(HostType) ->
+    Modules = [{mod_bind2, config_parser_helper:default_mod_config(mod_bind2)},
+               {mod_sasl2, config_parser_helper:default_mod_config(mod_sasl2)},
+               {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})}],
+    dynamic_modules:ensure_modules(HostType, Modules).
+
 apply_steps(Steps, Config) ->
     apply_steps(Steps, Config, undefined, #{}).
 
@@ -30,6 +36,10 @@ connect_non_tls_user(Config, _, Data) ->
     Spec = escalus_fresh:freshen_spec(Config, alice),
     Client1 = escalus_connection:connect(Spec),
     {Client1, Data#{spec => Spec}}.
+
+create_connect_tls(Config, Client, Data) ->
+    {Client1, Data1} = create_user(Config, Client, Data),
+    connect_tls(Config, Client1, Data1).
 
 create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),

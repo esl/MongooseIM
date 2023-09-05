@@ -17,6 +17,7 @@
          sasl2_stream_features/3,
          sasl2_start/3,
          sasl2_success/3,
+         bind2_stream_features/3,
          session_cleanup/3,
          user_send_packet/3,
          user_receive_packet/3,
@@ -101,7 +102,8 @@ hooks(HostType) ->
      {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
      {sasl2_stream_features, HostType, fun ?MODULE:sasl2_stream_features/3, #{}, 50},
      {sasl2_start, HostType, fun ?MODULE:sasl2_start/3, #{}, 50},
-     {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 30}
+     {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 30},
+     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50}
      | c2s_hooks(HostType) ].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -739,6 +741,12 @@ c2s_stream_features(Acc, _, _) ->
 sasl2_stream_features(Acc, _, _) ->
     Resume = #xmlel{name = <<"resume">>, attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]},
     {ok, [Resume | Acc]}.
+
+-spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
+    {ok, Acc} when Acc :: [exml:element()].
+bind2_stream_features(Acc, _, _) ->
+    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_STREAM_MGNT_3}]},
+    {ok, [SmFeature | Acc]}.
 
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
