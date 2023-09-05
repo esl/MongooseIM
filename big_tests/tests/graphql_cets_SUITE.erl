@@ -77,8 +77,8 @@ has_sm_table_in_info(Config) ->
     Tables = get_ok_value([data, cets, tableInfo], Res),
     [T] = [T || T = #{<<"tableName">> := <<"cets_session">>} <- Tables],
     #{<<"memory">> := Mem, <<"nodes">> := Nodes, <<"size">> := Size} = T,
-    true = is_integer(Mem),
-    true = is_integer(Size),
+    ?assert(is_integer(Mem), T),
+    ?assert(is_integer(Size), T),
     #{node := Node1} = mim(),
     assert_member(atom_to_binary(Node1), Nodes).
 
@@ -96,8 +96,8 @@ unavailable_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
     #{<<"unavailableNodesCount">> := Count} = Info,
-    true = is_integer(Count),
-    true = Count > 0.
+    ?assert(is_integer(Count), Info),
+    ?assert(Count > 0, Info).
 
 available_nodes(Config) ->
     #{node := Node1} = mim(),
@@ -113,8 +113,8 @@ available_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
     #{<<"availableNodesCount">> := Count} = Info,
-    true = is_integer(Count),
-    true = Count > 1.
+    ?assert(is_integer(Count), Info),
+    ?assert(Count > 1, Info).
 
 joined_nodes(Config) ->
     #{node := Node1} = mim(),
@@ -157,8 +157,8 @@ discovered_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
     #{<<"discoveredNodesCount">> := Count} = Info,
-    true = is_integer(Count),
-    true = Count > 2.
+    ?assert(is_integer(Count), Info),
+    ?assert(Count > 2, Info).
 
 % Domain admin tests
 

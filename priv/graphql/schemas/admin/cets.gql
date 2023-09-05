@@ -24,15 +24,15 @@ type CETSSystemInfo {
   unavailableNodes: [String]
   "Unavailable nodes count"
   unavailableNodesCount: Int
-  "Available nodes"
+  "Available nodes (visible to the current node at this moment including the current node)"
   availableNodes: [String]
   "Available nodes count"
   availableNodesCount: Int
-  "Joined nodes"
+  "Joined nodes (replicate the same tables as the current node)"
   joinedNodes: [String]
   "Joined nodes count"
   joinedNodesCount: Int
-  "Partially joined (bad) nodes"
+  "Partially joined nodes (replicate a different list of tables)"
   partiallyJoinedNodes: [String]
   "Joined nodes count"
   partiallyJoinedNodesCount: Int

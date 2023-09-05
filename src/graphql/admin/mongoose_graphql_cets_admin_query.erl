@@ -12,9 +12,11 @@
 
 execute(Ctx, cets, <<"systemInfo">>, _) ->
     try cets_discovery:system_info(mongoose_cets_discovery) of
+        %% The node lists could not match for different nodes
+        %% because they are updated periodically
         #{unavailable_nodes := UnNodes, nodes := Nodes, tables := Tables} ->
             NodesSorted = lists:sort(Nodes),
-            AvailNodes = filter_available_nodes(NodesSorted),
+            AvailNodes = available_nodes(),
             JoinedNodes = filter_joined_nodes(AvailNodes, Tables),
             PartNodes = AvailNodes -- JoinedNodes,
             {ok, #{<<"unavailableNodes">> => format_nodes(UnNodes),
@@ -45,9 +47,13 @@ process_result(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) 
 format_nodes(Nodes) ->
     [{ok, Node} || Node <- Nodes].
 
-filter_available_nodes(Nodes) ->
+%% Nodes, that host mongoose_cets_discovery process
+available_nodes() ->
     OnlineNodes = [node() | nodes()],
-    [Node || Node <- Nodes, lists:member(Node, OnlineNodes)].
+    [Node || Node <- OnlineNodes, is_disco_running_on(Node)].
+
+is_disco_running_on(Node) ->
+    is_pid(rpc:call(Node, erlang, whereis, [mongoose_cets_discovery])).
 
 %% Returns only nodes that replicate all our local CETS tables to the same list of remote nodes
 filter_joined_nodes(AvailNodes, Tables) ->
