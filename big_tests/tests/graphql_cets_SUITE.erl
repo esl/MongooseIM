@@ -3,7 +3,7 @@
 
 -compile([export_all, nowarn_export_all]).
 
--import(distributed_helper, [mim/0, rpc/4]).
+-import(distributed_helper, [mim/0, mim2/0, rpc/4]).
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2]).
@@ -14,23 +14,37 @@ all() ->
      {group, domain_admin_cets}].
 
 groups() ->
-    [{admin_cets_http, [sequence], admin_cets_tests()},
-     {admin_cets_cli, [sequence], admin_cets_tests()},
+    [{admin_cets_http, [parallel], admin_cets_tests()},
+     {admin_cets_cli, [parallel], admin_cets_tests()},
      {domain_admin_cets, [], domain_admin_tests()}].
 
 admin_cets_tests() ->
     [has_sm_table_in_info,
-     add_bad_node,
-     unavailable_nodes_are_listed,
-     unavailable_nodes_count].
+     unavailable_nodes,
+     unavailable_nodes_count,
+     available_nodes,
+     available_nodes_count,
+     joined_nodes,
+     joined_nodes_count,
+     partially_joined_nodes,
+     partially_joined_nodes_count,
+     discovered_nodes,
+     discovered_nodes_count].
 
 domain_admin_tests() ->
     [domain_admin_get_table_info_test,
      domain_admin_get_system_info_test].
 
 init_per_suite(Config) ->
-    Config1 = escalus:init_per_suite(Config),
-    ejabberd_node_utils:init(mim(), Config1).
+    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend]]) of
+        rdbms ->
+            Config1 = escalus:init_per_suite(Config),
+            Config2 = ejabberd_node_utils:init(mim(), Config1),
+            add_bad_node(),
+            Config2 ++ distributed_helper:require_rpc_nodes([mim, mim2]);
+        _ ->
+            {skip, "CETS is not configured with RDBMS"}
+    end.
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -53,13 +67,6 @@ init_per_testcase(has_sm_table_in_info, Config) ->
         _ ->
             {skip, "SM backend is not CETS"}
     end;
-init_per_testcase(add_bad_node, Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend]]) of
-        rdbms ->
-            Config;
-        _ ->
-            {skip, "CETS is not configured with RDBMS"}
-    end;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -73,27 +80,85 @@ has_sm_table_in_info(Config) ->
     true = is_integer(Mem),
     true = is_integer(Size),
     #{node := Node1} = mim(),
-    lists:member(Node1, Nodes).
+    assert_member(atom_to_binary(Node1), Nodes).
 
-add_bad_node(Config) ->
-    register_bad_node(),
-    force_check(),
-    wait_for_has_bad_node().
-
-unavailable_nodes_are_listed(Config) ->
+unavailable_nodes(Config) ->
+    #{node := Node1} = mim(),
+    #{node := Node2} = mim2(),
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"unavailableNodes">> := UnNodes} = Info,
-    true = is_list(UnNodes),
-    [_|_] = UnNodes,
-    true = lists:member(<<"badnode@localhost">>, UnNodes).
+    #{<<"unavailableNodes">> := Nodes} = Info,
+    assert_member(<<"badnode@localhost">>, Nodes),
+    assert_not_member(atom_to_binary(Node1), Nodes),
+    assert_not_member(atom_to_binary(Node2), Nodes).
 
 unavailable_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"unavailableNodesCount">> := UnNodesCount} = Info,
-    true = is_integer(UnNodesCount),
-    true = UnNodesCount > 0.
+    #{<<"unavailableNodesCount">> := Count} = Info,
+    true = is_integer(Count),
+    true = Count > 0.
+
+available_nodes(Config) ->
+    #{node := Node1} = mim(),
+    #{node := Node2} = mim2(),
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"availableNodes">> := Nodes} = Info,
+    assert_member(atom_to_binary(Node1), Nodes),
+    assert_member(atom_to_binary(Node2), Nodes),
+    assert_not_member(<<"badnode@localhost">>, Nodes).
+
+available_nodes_count(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"availableNodesCount">> := Count} = Info,
+    true = is_integer(Count),
+    true = Count > 1.
+
+joined_nodes(Config) ->
+    #{node := Node1} = mim(),
+    #{node := Node2} = mim2(),
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"joinedNodes">> := Nodes} = Info,
+    assert_member(atom_to_binary(Node1), Nodes),
+    assert_member(atom_to_binary(Node2), Nodes),
+    assert_not_member(<<"badnode@localhost">>, Nodes).
+
+joined_nodes_count(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"joinedNodesCount">> := Count} = Info,
+    true = is_integer(Count),
+    true = Count > 1.
+
+partially_joined_nodes(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"partiallyJoinedNodes">> := []} = Info.
+
+partially_joined_nodes_count(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"partiallyJoinedNodesCount">> := 0} = Info.
+
+discovered_nodes(Config) ->
+    #{node := Node1} = mim(),
+    #{node := Node2} = mim2(),
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"discoveredNodes">> := Nodes} = Info,
+    assert_member(atom_to_binary(Node1), Nodes),
+    assert_member(atom_to_binary(Node2), Nodes),
+    assert_member(<<"badnode@localhost">>, Nodes).
+
+discovered_nodes_count(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    #{<<"discoveredNodesCount">> := Count} = Info,
+    true = is_integer(Count),
+    true = Count > 2.
 
 % Domain admin tests
 
@@ -112,6 +177,11 @@ get_table_info(Config) ->
 
 get_system_info(Config) ->
     execute_command(<<"cets">>, <<"systemInfo">>, #{}, Config).
+
+add_bad_node() ->
+    register_bad_node(),
+    force_check(),
+    wait_for_has_bad_node().
 
 register_bad_node() ->
     ClusterName = <<"mim">>,
@@ -140,3 +210,11 @@ has_bad_node() ->
 
 wait_for_has_bad_node() ->
     mongoose_helper:wait_until(fun() -> has_bad_node() end, true).
+
+assert_member(Elem, List) ->
+    lists:member(Elem, List)
+        orelse ct:fail({assert_member_failed, Elem, List}).
+
+assert_not_member(Elem, List) ->
+    lists:member(Elem, List)
+        andalso ct:fail({assert_member_failed, Elem, List}).
