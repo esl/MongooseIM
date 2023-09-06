@@ -53,8 +53,8 @@ hooks(HostType) ->
     ].
 
 ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIInactive], spiral),
-    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIActive], spiral).
+    mongoose_metrics:ensure_metric(HostType, [modCSIInactive], spiral),
+    mongoose_metrics:ensure_metric(HostType, [modCSIActive], spiral).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
