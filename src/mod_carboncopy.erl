@@ -127,9 +127,16 @@ bind2_enable_features(SaslAcc, _, _) ->
         undefined ->
             {ok, SaslAcc};
         _ ->
-            From = mod_bind2:get_bind2_jid(SaslAcc),
-            enable(From, ?NS_CC_2, SaslAcc),
-            {ok, SaslAcc}
+            %% We modify the info here, which is what will be written by set_session later,
+            %% so that enabling carbons and opening a session are an atomic operation
+            SaslStateData = mod_sasl2:get_state_data(SaslAcc),
+            #{c2s_data := C2SData} = SaslStateData,
+            Info = mongoose_c2s:get_info(C2SData),
+            Info1 = maps:put(?CC_KEY, cc_ver_to_int(?NS_CC_2), Info),
+            C2SData1 = mongoose_c2s:set_info(C2SData, Info1),
+            SaslStateData1 = SaslStateData#{c2s_data => C2SData1},
+            SaslAcc2 = mod_sasl2:set_state_data(SaslAcc, SaslStateData1),
+            {ok, SaslAcc2}
     end.
 
 iq_handler2(Acc, From, _To, IQ, _Extra) ->
