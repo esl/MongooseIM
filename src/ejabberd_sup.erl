@@ -37,130 +37,31 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Hooks =
-        {gen_hook,
-         {gen_hook, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [gen_hook]},
-    Cleaner =
-        {mongoose_cleaner,
-         {mongoose_cleaner, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [mongoose_cleaner]},
-    Router =
-        {ejabberd_router,
-         {ejabberd_router, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [ejabberd_router]},
-    S2S =
-        {ejabberd_s2s,
-         {ejabberd_s2s, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [ejabberd_s2s]},
-    Local =
-        {ejabberd_local,
-         {ejabberd_local, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [ejabberd_local]},
-    Listener =
-        {mongoose_listener_sup,
-         {mongoose_listener_sup, start_link, []},
-         permanent,
-         infinity,
-         supervisor,
-         [mongoose_listener_sup]},
+    Hooks = worker_spec(gen_hook),
+    Cleaner = worker_spec(mongoose_cleaner),
+    Router = worker_spec(ejabberd_router),
+    S2S = worker_spec(ejabberd_s2s),
+    Local = worker_spec(ejabberd_local),
+    MucIQ = worker_spec(mod_muc_iq),
+    StartIdServer = worker_spec(mongoose_start_node_id),
+    PG = worker_spec(pg, [mim_scope]),
+    SMBackendSupervisor = supervisor_spec(ejabberd_sm_backend_sup),
+    OutgoingPoolsSupervisor = supervisor_spec(mongoose_wpool_sup),
+    Listener = supervisor_spec(mongoose_listener_sup),
+    ShaperSup = supervisor_spec(mongoose_shaper_sup),
+    DomainSup = supervisor_spec(mongoose_domain_sup),
     ReceiverSupervisor =
-        {mongoose_transport_sup,
-         {ejabberd_tmp_sup, start_link,
-          [mongoose_transport_sup, mongoose_transport]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+        ejabberd_tmp_sup_spec(mongoose_transport_sup, [mongoose_transport_sup, mongoose_transport]),
     C2SSupervisor =
-        {mongoose_c2s_sup,
-         {ejabberd_tmp_sup, start_link, [mongoose_c2s_sup, mongoose_c2s]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+        ejabberd_tmp_sup_spec(mongoose_c2s_sup, [mongoose_c2s_sup, mongoose_c2s]),
     S2SInSupervisor =
-        {ejabberd_s2s_in_sup,
-         {ejabberd_tmp_sup, start_link,
-          [ejabberd_s2s_in_sup, ejabberd_s2s_in]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+        ejabberd_tmp_sup_spec(ejabberd_s2s_in_sup, [ejabberd_s2s_in_sup, ejabberd_s2s_in]),
     S2SOutSupervisor =
-        {ejabberd_s2s_out_sup,
-         {ejabberd_tmp_sup, start_link,
-          [ejabberd_s2s_out_sup, ejabberd_s2s_out]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+        ejabberd_tmp_sup_spec(ejabberd_s2s_out_sup, [ejabberd_s2s_out_sup, ejabberd_s2s_out]),
     ServiceSupervisor =
-        {ejabberd_service_sup,
-         {ejabberd_tmp_sup, start_link,
-          [ejabberd_service_sup, ejabberd_service]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
-    OutgoingPoolsSupervisor =
-        {mongoose_wpool_sup,
-         {mongoose_wpool_sup, start_link, []},
-         permanent, infinity,
-         supervisor, [mongoose_wpool_sup]},
+        ejabberd_tmp_sup_spec(ejabberd_service_sup, [ejabberd_service_sup, ejabberd_service]),
     IQSupervisor =
-        {ejabberd_iq_sup,
-         {ejabberd_tmp_sup, start_link,
-          [ejabberd_iq_sup, mongoose_iq_worker]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
-    SMBackendSupervisor =
-        {ejabberd_sm_backend_sup,
-         {ejabberd_sm_backend_sup, start_link, []},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_sm_backend_sup]},
-    MucIQ =
-        {mod_muc_iq,
-         {mod_muc_iq, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [mod_muc_iq]},
-    ShaperSup =
-        {mongoose_shaper_sup,
-          {mongoose_shaper_sup, start_link, []},
-          permanent, infinity, supervisor, [mongoose_shaper_sup]},
-    DomainSup =
-        {mongoose_domain_sup,
-          {mongoose_domain_sup, start_link, []},
-          permanent, infinity, supervisor, [mongoose_domain_sup]},
-    PG =
-        {pg,
-          {pg, start_link, [mim_scope]},
-          permanent, infinity, worker, [pg]},
-    StartIdServer =
-        {mongoose_start_node_id,
-          {mongoose_start_node_id, start_link, []},
-          permanent, infinity, worker, [mongoose_start_node_id]},
+        ejabberd_tmp_sup_spec(ejabberd_iq_sup, [ejabberd_iq_sup, mongoose_iq_worker]),
     {ok, {{one_for_one, 10, 1},
           [StartIdServer,
            PG,
@@ -204,3 +105,17 @@ stop_child(Proc) ->
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc),
     ok.
+
+ejabberd_tmp_sup_spec(Name, Args) ->
+    {Name,
+     {ejabberd_tmp_sup, start_link, Args},
+     permanent, infinity, supervisor, [ejabberd_tmp_sup]}.
+
+supervisor_spec(Mod) ->
+    {Mod, {Mod, start_link, []}, permanent, infinity, supervisor, [Mod]}.
+
+worker_spec(Mod) ->
+    worker_spec(Mod, []).
+
+worker_spec(Mod, Args) ->
+    {Mod, {Mod, start_link, Args}, permanent, timer:seconds(5), worker, [Mod]}.
