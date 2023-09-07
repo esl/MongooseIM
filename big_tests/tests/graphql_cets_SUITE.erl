@@ -29,7 +29,8 @@ admin_cets_tests() ->
      partially_joined_nodes,
      partially_joined_nodes_count,
      discovered_nodes,
-     discovered_nodes_count].
+     discovered_nodes_count,
+     discovery_works].
 
 domain_admin_tests() ->
     [domain_admin_get_table_info_test,
@@ -159,6 +160,11 @@ discovered_nodes_count(Config) ->
     #{<<"discoveredNodesCount">> := Count} = Info,
     ?assert(is_integer(Count), Info),
     ?assert(Count > 2, Info).
+
+discovery_works(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assertMatch(#{<<"discoveryWorks">> := true}, Info).
 
 % Domain admin tests
 

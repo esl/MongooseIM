@@ -40,4 +40,6 @@ type CETSSystemInfo {
   discoveredNodes: [String]
   "Discovered nodes count"
   discoveredNodesCount: Int
+  "Returns true if the last discovery attempt is successful"
+  discoveryWorks: Boolean
 }

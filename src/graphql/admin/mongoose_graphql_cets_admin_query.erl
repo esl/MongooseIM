@@ -14,7 +14,7 @@ execute(Ctx, cets, <<"systemInfo">>, _) ->
     try cets_discovery:system_info(mongoose_cets_discovery) of
         %% The node lists could not match for different nodes
         %% because they are updated periodically
-        #{unavailable_nodes := UnNodes, nodes := Nodes, tables := Tables} ->
+        #{unavailable_nodes := UnNodes, nodes := Nodes, tables := Tables} = Info ->
             NodesSorted = lists:sort(Nodes),
             AvailNodes = available_nodes(),
             JoinedNodes = filter_joined_nodes(AvailNodes, Tables),
@@ -28,7 +28,8 @@ execute(Ctx, cets, <<"systemInfo">>, _) ->
                    <<"partiallyJoinedNodes">> => format_nodes(PartNodes),
                    <<"partiallyJoinedNodesCount">> => length(PartNodes),
                    <<"discoveredNodes">> => format_nodes(NodesSorted),
-                   <<"discoveredNodesCount">> => length(NodesSorted)}}
+                   <<"discoveredNodesCount">> => length(NodesSorted),
+                   <<"discoveryWorks">> => discovery_works(Info)}}
     catch _Class:Reason ->
             make_error({Reason, <<"Failed to get CETS system info">>}, Ctx)
     end;
@@ -76,3 +77,8 @@ other_nodes(Node, Table) ->
             ?LOG_ERROR(#{what => cets_get_other_nodes_failed, node => Node, table => Table, reason => Other}),
             []
     end.
+
+discovery_works(#{last_get_nodes_result := {ok, _}}) ->
+    true;
+discovery_works(_) ->
+    false.
