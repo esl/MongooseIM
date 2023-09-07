@@ -435,13 +435,16 @@ configure_c2s_listener(Config) ->
 create_tls_users(Config) ->
    Config1 = escalus:create_users(Config, escalus:get_users([alice, neustradamus])),
    Users = proplists:get_value(escalus_users, Config1, []),
-   NSpec = lists:keydelete(starttls, 1, proplists:get_value(neustradamus, Users)),
-   NSpec2 = {neustradamus, lists:keystore(ssl, 1, NSpec, {ssl, true})},
-   NewUsers = lists:keystore(neustradamus, 1, Users, NSpec2),
-   AliceSpec = proplists:get_value(alice, Users),
-   AliceSpec2 = {alice, lists:keystore(ssl, 1, AliceSpec, {ssl, true})},
-   NewUsers2 = lists:keystore(alice, 1, NewUsers, AliceSpec2),
-   lists:keystore(escalus_users, 1, Config1, {escalus_users, NewUsers2}).
+   Users1 = prepare_user_for_ssl(Users, neustradamus),
+   Users2 = prepare_user_for_ssl(Users1, alice),
+   lists:keystore(escalus_users, 1, Config1, {escalus_users, Users2}).
+
+prepare_user_for_ssl(Users, User) ->
+   UserSpec = proplists:get_value(User, Users),
+   UserSpec1 = lists:keydelete(starttls, 1, UserSpec),
+   UserSpec2 = lists:keystore(ssl, 1, UserSpec1, {ssl, true}),
+   UserSpec3 = lists:keystore(ssl_opts, 1, UserSpec2, {ssl_opts, [{verify, verify_none}]}),
+   lists:keystore(User, 1, Users, {User, UserSpec3}).
 
 delete_tls_users(Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, neustradamus])).
