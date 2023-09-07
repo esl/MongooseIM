@@ -37,7 +37,7 @@ domain_admin_tests() ->
      domain_admin_get_system_info_test].
 
 init_per_suite(Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend]]) of
+    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
         rdbms ->
             Config1 = escalus:init_per_suite(Config),
             Config2 = ejabberd_node_utils:init(mim(), Config1),
@@ -131,18 +131,18 @@ joined_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
     #{<<"joinedNodesCount">> := Count} = Info,
-    true = is_integer(Count),
-    true = Count > 1.
+    ?assert(true, is_integer(Count)),
+    ?assert(Count > 1, Info).
 
 partially_joined_nodes(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"partiallyJoinedNodes">> := []} = Info.
+    ?assertMatch(#{<<"partiallyJoinedNodes">> := []}, Info).
 
 partially_joined_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"partiallyJoinedNodesCount">> := 0} = Info.
+    ?assertMatch(#{<<"partiallyJoinedNodesCount">> := 0}, Info).
 
 discovered_nodes(Config) ->
     #{node := Node1} = mim(),
