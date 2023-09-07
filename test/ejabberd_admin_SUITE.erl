@@ -53,6 +53,7 @@ import_users_from_valid_csv(Config) ->
     ValidCsvPath = data(Config, "valid.csv"),
     % when
     Result = ejabberd_admin:import_users(ValidCsvPath),
+    SortedResult = lists:sort(Result),
     % then
     ?assertEqual([{bad_csv, [<<"wrong,number,of,fields,line">>]},
                   {exists, [#jid{luser = <<"existing_user">>,
@@ -62,11 +63,12 @@ import_users_from_valid_csv(Config) ->
                   {not_allowed, [#jid{luser = <<"bad_domain_user">>,
                                       lserver = <<"not_allowed_domain">>,
                                       lresource = <<>>}]},
+
                   {null_password, [#jid{luser = <<"null_password_user">>,
                                         lserver = <<"localhost">>,
                                         lresource = <<>>}]},
                   {ok, [#jid{luser = <<"user">>, lserver = <<"localhost">>, lresource = <<>>}]}],
-                 Result).
+                  SortedResult).
 
 import_users_from_valid_csv_with_quoted_fields(Config) ->
     % given
