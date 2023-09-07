@@ -3,7 +3,7 @@
 -behaviour(cets_discovery).
 -export([init/1, get_nodes/1]).
 
--include_lib("kernel/include/logger.hrl").
+-include("mongoose_logger.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

@@ -23,13 +23,15 @@ enum MetricType {
   vm_system_info
   "Information about process queue length"
   probe_queues
+  "Information about CETS status"
+  cets_system
 }
 
 "Type of metric result"
 union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
                    | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
                    | VMStatsMemoryMetric | VMSystemInfoMetric
-                   | ProbeQueuesMetric
+                   | ProbeQueuesMetric | CETSSystemMetric
 
 type HistogramMetric {
   "Metric name"
@@ -184,6 +186,25 @@ type ProbeQueuesMetric {
   regular: Int
   "Total number of messages (fsm + regular)"
   total: Int
+}
+
+type CETSSystemMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of unavailable nodes"
+  unavailable_nodes: Int
+  "Number of available nodes"
+  available_nodes: Int
+  "Number of joined nodes"
+  joined_nodes: Int
+  "Number of partially joined nodes"
+  partially_joined_nodes: Int
+  "Number of nodes extracted from the discovery backend"
+  discovered_nodes: Int
+  "Status of discover backend: 1 if it works, 0 if not"
+  discovery_works: Int
 }
 
 type MetricDictEntry {

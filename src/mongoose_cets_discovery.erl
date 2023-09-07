@@ -1,5 +1,12 @@
 -module(mongoose_cets_discovery).
+-export([start_link/1]).
 -export([supervisor_specs/0]).
+
+start_link(DiscoOpts) ->
+    Res = cets_discovery:start_link(DiscoOpts),
+    %% Ensure metrics are added after the disco start
+    mongoose_metrics_probe_cets:start(),
+    Res.
 
 -include("mongoose_logger.hrl").
 
@@ -27,7 +34,7 @@ supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts)
         name => mongoose_cets_discovery, disco_file => DiscoFile},
     CetsDisco =
         {cets_discovery,
-          {cets_discovery, start_link, [DiscoOpts]},
+          {?MODULE, start_link, [DiscoOpts]},
           permanent, infinity, supervisor, [cets_discovery]},
     [CetsDisco].
 
