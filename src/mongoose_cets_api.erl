@@ -6,6 +6,7 @@
                   available_nodes => [node()],
                   joined_nodes => [node()],
                   partially_joined_nodes => [node()],
+                  partially_joined_tables => [atom()],
                   discovered_nodes => [node()],
                   discovery_works => boolean()}.
 
@@ -17,12 +18,13 @@ take() ->
         Info = cets_discovery:system_info(mongoose_cets_discovery),
     NodesSorted = lists:sort(Nodes),
     AvailNodes = available_nodes(),
-    JoinedNodes = filter_joined_nodes(AvailNodes, Tables),
+    {JoinedNodes, PartTables} = filter_joined_nodes(AvailNodes, Tables),
     PartNodes = AvailNodes -- JoinedNodes,
     #{unavailable_nodes => UnNodes,
       available_nodes => AvailNodes,
       joined_nodes => JoinedNodes,
       partially_joined_nodes => PartNodes,
+      partially_joined_tables => PartTables,
       discovered_nodes => NodesSorted,
       discovery_works => discovery_works(Info)}.
 
@@ -38,19 +40,25 @@ is_disco_running_on(Node) ->
 filter_joined_nodes(AvailNodes, Tables) ->
     OtherNodes = lists:delete(node(), AvailNodes),
     Expected = node_list_for_tables(node(), Tables),
-    OtherJoined = [Node || Node <- OtherNodes, node_list_for_tables(Node, Tables) =:= Expected],
-    lists:sort([node() | OtherJoined]).
+    OtherTables = [{Node, node_list_for_tables(Node, Tables)} || Node <- OtherNodes],
+    OtherJoined = [Node || {Node, NodeTabs} <- OtherTables, NodeTabs =:= Expected],
+    JoinedNodes = lists:sort([node() | OtherJoined]),
+    PartTables = filter_partially_joined_tables(Expected, OtherTables),
+    {JoinedNodes, PartTables}.
+
+filter_partially_joined_tables(Expected, OtherTables) ->
+    TableVariants = [Expected | [NodeTabs || {_Node, NodeTabs} <- OtherTables]],
+    SharedTables = ordsets:intersection(TableVariants),
+    AllTables = ordsets:union(TableVariants),
+    ordsets:subtract(AllTables, SharedTables).
 
 node_list_for_tables(Node, Tables) ->
     [{Table, node_list_for_table(Node, Table)} || Table <- Tables].
 
 node_list_for_table(Node, Table) ->
-    lists:sort([Node | other_nodes(Node, Table)]).
-
-other_nodes(Node, Table) ->
     case catch rpc:call(Node, cets, other_nodes, [Table]) of
         List when is_list(List) ->
-            List;
+            ordsets:add_element(Node, List);
         Other ->
             ?LOG_ERROR(#{what => cets_get_other_nodes_failed, node => Node, table => Table, reason => Other}),
             []

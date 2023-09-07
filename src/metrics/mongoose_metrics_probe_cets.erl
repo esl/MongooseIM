@@ -22,6 +22,7 @@ format_probe_cets(#{unavailable_nodes := UnNodes,
                     available_nodes := AvailNodes,
                     joined_nodes := JoinedNodes,
                     partially_joined_nodes := PartNodes,
+                    partially_joined_tables := PartTables,
                     discovered_nodes := NodesSorted,
                     discovery_works := DiscoveryWorks}) ->
     #{<<"type">> => <<"cets_system">>,
@@ -29,6 +30,7 @@ format_probe_cets(#{unavailable_nodes := UnNodes,
       <<"available_nodes">> => AvailNodes,
       <<"joined_nodes">> => JoinedNodes,
       <<"partially_joined_nodes">> => PartNodes,
+      <<"partially_joined_tables">> => PartTables,
       <<"discovered_nodes">> => NodesSorted,
       <<"discovery_works">> => DiscoveryWorks}.
 
@@ -37,6 +39,7 @@ datapoints() ->
      available_nodes,
      joined_nodes,
      partially_joined_nodes,
+     partially_joined_tables,
      discovered_nodes,
      discovery_works].
 
@@ -46,12 +49,14 @@ sample() ->
           available_nodes := AvailNodes,
           joined_nodes := JoinedNodes,
           partially_joined_nodes := PartNodes,
+          partially_joined_tables := PartTables,
           discovered_nodes := NodesSorted,
           discovery_works := DiscoveryWorks} ->
                 #{unavailable_nodes => length(UnNodes),
                   available_nodes => length(AvailNodes),
                   joined_nodes => length(JoinedNodes),
                   partially_joined_nodes => length(PartNodes),
+                  partially_joined_tables => length(PartTables),
                   discovered_nodes => length(NodesSorted),
                   discovery_works => boolean_to_integer(DiscoveryWorks)}
     catch Class:Reason:Stacktrace ->
@@ -61,6 +66,7 @@ sample() ->
                   available_nodes => 0,
                   joined_nodes => 0,
                   partially_joined_nodes => 0,
+                  partially_joined_tables => 0,
                   discovered_nodes => 0,
                   discovery_works => 0}
     end.

@@ -16,6 +16,7 @@ execute(Ctx, cets, <<"systemInfo">>, _) ->
           available_nodes := AvailNodes,
           joined_nodes := JoinedNodes,
           partially_joined_nodes := PartNodes,
+          partially_joined_tables := PartTables,
           discovered_nodes := NodesSorted,
           discovery_works := DiscoveryWorks} ->
             {ok, #{<<"unavailableNodes">> => format_nodes(UnNodes),
@@ -25,6 +26,7 @@ execute(Ctx, cets, <<"systemInfo">>, _) ->
                    <<"joinedNodes">> => format_nodes(JoinedNodes),
                    <<"joinedNodesCount">> => length(JoinedNodes),
                    <<"partiallyJoinedNodes">> => format_nodes(PartNodes),
+                   <<"partiallyJoinedTables">> => format_nodes(PartTables),
                    <<"partiallyJoinedNodesCount">> => length(PartNodes),
                    <<"discoveredNodes">> => format_nodes(NodesSorted),
                    <<"discoveredNodesCount">> => length(NodesSorted),

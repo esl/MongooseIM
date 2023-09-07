@@ -27,6 +27,7 @@ admin_cets_tests() ->
      joined_nodes,
      joined_nodes_count,
      partially_joined_nodes,
+     partially_joined_tables,
      partially_joined_nodes_count,
      discovered_nodes,
      discovered_nodes_count,
@@ -138,6 +139,11 @@ partially_joined_nodes(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
     ?assertMatch(#{<<"partiallyJoinedNodes">> := []}, Info).
+
+partially_joined_tables(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assertMatch(#{<<"partiallyJoinedTables">> := []}, Info).
 
 partially_joined_nodes_count(Config) ->
     Res = get_system_info(Config),

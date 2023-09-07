@@ -34,6 +34,8 @@ type CETSSystemInfo {
   joinedNodesCount: Int
   "Partially joined nodes (replicate a different list of tables)"
   partiallyJoinedNodes: [String]
+  "Partially joined tables (tables that are missing on some nodes)"
+  partiallyJoinedTables: [String]
   "Partially joined nodes count"
   partiallyJoinedNodesCount: Int
   "Discovered nodes (returned from the discovery backend)"
