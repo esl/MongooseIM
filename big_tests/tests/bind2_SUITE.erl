@@ -34,6 +34,7 @@ groups() ->
        csi_is_active_with_bind_inline_request,
        csi_is_inactive_with_bind_inline_request,
        stream_resumption_enable_sm_on_bind,
+       stream_resumption_enable_sm_on_bind_with_resume,
        stream_resumption_failing_does_bind_and_contains_sm_status,
        stream_resumption_overrides_bind_request
       ]}
@@ -154,6 +155,16 @@ stream_resumption_enable_sm_on_bind(Config) ->
                                         {element_with_ns, <<"enabled">>, ?NS_STREAM_MGNT_3}]),
     ?assertNotEqual(undefined, Enabled).
 
+stream_resumption_enable_sm_on_bind_with_resume(Config) ->
+    Steps = [start_new_user,
+             {?MODULE, start_peer},
+             {?MODULE, auth_and_bind_with_sm_resume_enabled}, has_no_more_stanzas],
+    #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
+    ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
+    Enabled = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2},
+                                        {element_with_ns, <<"enabled">>, ?NS_STREAM_MGNT_3}]),
+    ?assertNotEqual(undefined, Enabled).
+
 stream_resumption_failing_does_bind_and_contains_sm_status(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
              {?MODULE, auth_and_bind_with_resumption_unknown_smid}, has_no_more_stanzas],
@@ -244,6 +255,10 @@ active_csi_msg_arrives(_Config, Client, #{peer := Bob} = Data) ->
 
 auth_and_bind_with_sm_enabled(Config, Client, Data) ->
     SmEnable = escalus_stanza:enable_sm(),
+    plain_auth(Config, Client, Data, [SmEnable], []).
+
+auth_and_bind_with_sm_resume_enabled(Config, Client, Data) ->
+    SmEnable = escalus_stanza:enable_sm([{resume, true}]),
     plain_auth(Config, Client, Data, [SmEnable], []).
 
 receive_message_carbon_arrives(
