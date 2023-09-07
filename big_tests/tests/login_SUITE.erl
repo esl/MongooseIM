@@ -92,7 +92,8 @@ all_tests() ->
     [log_one,
      log_non_existent_plain,
      log_one_scram_sha1,
-     log_non_existent_scram
+     log_non_existent_scram,
+     log_bad_user_fails
     ].
 
 access_tests() ->
@@ -377,6 +378,14 @@ log_non_existent_digest(Config) ->
 log_non_existent_scram(Config) ->
     R = log_non_existent([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]),
     {expected_challenge, _, _} = R.
+
+log_bad_user_fails(Config) ->
+    Config1 = [{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config],
+    [{kate, UserSpec}] = escalus_users:get_users([kate]),
+    UserSpec1 = lists:keyreplace(username, 1, UserSpec, {username, <<" kate">>}),
+    {error, {connection_step_failed, _, R}} = escalus_client:start(Config1, UserSpec1, <<"res">>),
+    {expected_challenge, got, Xmlel} = R,
+    #xmlel{name = <<"failure">>} = Xmlel.
 
 log_non_existent(Config) ->
     [{kate, UserSpec}] = escalus_users:get_users([kate]),
