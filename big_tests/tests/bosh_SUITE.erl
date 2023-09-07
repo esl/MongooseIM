@@ -173,7 +173,7 @@ create_and_terminate_session(Config) ->
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
                        {[global, data, xmpp, received, c2s, bosh], changed},
                        {[global, data, xmpp, sent, c2s, bosh], changed},
-                       {[global, data, xmpp, received, c2s, tcp], 0}, 
+                       {[global, data, xmpp, received, c2s, tcp], 0},
                        {[global, data, xmpp, sent, c2s, tcp], 0}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
@@ -315,7 +315,13 @@ get_fusco_connection(Config) ->
     Path = proplists:get_value(path, CarolSpec),
     Port = proplists:get_value(port, CarolSpec),
     UseSSL = proplists:get_value(ssl, CarolSpec, false),
-    {ok, Client} = fusco_cp:start_link({binary_to_list(Host), Port, UseSSL}, [], 1),
+    Opts = case UseSSL of
+        true ->
+            [{connect_options, [{verify, verify_none}]}];
+        false ->
+            []
+    end,
+    {ok, Client} = fusco_cp:start_link({binary_to_list(Host), Port, UseSSL}, Opts, 1),
     {Server, Path, Client}.
 
 stream_error(Config) ->
