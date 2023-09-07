@@ -2,6 +2,8 @@
 -export([start_link/1]).
 -export([supervisor_specs/0]).
 
+-ignore_xref([start_link/1]).
+
 start_link(DiscoOpts) ->
     Res = cets_discovery:start_link(DiscoOpts),
     %% Ensure metrics are added after the disco start
