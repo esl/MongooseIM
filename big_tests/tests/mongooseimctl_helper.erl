@@ -59,4 +59,6 @@ loop(Cmd, Args, Port, Data, Timeout) ->
 log_command(Cmd, Args, Data, ExitStatus) ->
     Pattern = lists:flatten(lists:duplicate(length(Args), " ~s")),
     ct:log("Execute ~s " ++ Pattern ++ "~nResult ~p~nExitStatus ~p",
-           [Cmd] ++ Args  ++ [Data, ExitStatus]).
+           [Cmd] ++ Args  ++ [Data, ExitStatus]),
+    %% For easy read of multiline outputs:
+    ct:log("ResultString:~n~ts", [Data]).
