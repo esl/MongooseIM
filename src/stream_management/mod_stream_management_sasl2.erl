@@ -88,8 +88,9 @@ handle_sasl2_resume(SaslAcc, #{request := El}) ->
         {ok, #{resumed := Resumed, forward := ToForward} = Ret} ->
             SaslAcc1 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Resumed, success),
             SaslAcc2 = mod_sasl2:set_state_data(SaslAcc1, Ret),
+            SaslAcc3 = mod_sasl2:request_block_future_stream_features(SaslAcc2),
             %% We stop here to completely ignore subsequent inlines (for example BIND2)
-            {stop, mongoose_c2s_acc:to_acc(SaslAcc2, socket_send, ToForward)}
+            {stop, mongoose_c2s_acc:to_acc(SaslAcc3, socket_send, ToForward)}
     end.
 
 -spec handle_bind_enable(SaslAcc, mod_sasl2:c2s_state_data(), mod_sasl2:inline_request(), exml:element()) ->

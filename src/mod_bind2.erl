@@ -83,20 +83,16 @@ sasl2_success(SaslAcc, _, #{host_type := HostType}) ->
             {ok, SaslAcc};
         #{request := BindRequest} ->
             Resource = generate_lresource(BindRequest),
-            InlineSm = get_stream_management_resumption_status(SaslAcc),
-            maybe_bind(SaslAcc, Resource, HostType, InlineSm)
+            maybe_bind(SaslAcc, Resource, HostType)
     end.
 
--spec maybe_bind(SaslAcc, jid:lresource(), mongooseim:host_type(), undefined | mod_sasl2:inline_request()) ->
+-spec maybe_bind(SaslAcc, jid:lresource(), mongooseim:host_type()) ->
     {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-maybe_bind(SaslAcc, _Resource, _HostType, #{status := success, response := SmResponse}) ->
-    Bound = #xmlel{name = <<"bound">>, attrs = [?XMLNS_BIND_2], children = [SmResponse]},
-    {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Bound, success)};
-maybe_bind(SaslAcc, Resource, HostType, InlineSm) ->
+maybe_bind(SaslAcc, Resource, HostType) ->
     {SaslAcc1, SaslStateData1, HookParams} = build_new_c2sdata_saslstatedata_and_hookparams(SaslAcc, Resource),
     case mongoose_c2s:verify_user(session_established, HostType, HookParams, SaslAcc1) of
         {ok, SaslAcc2} ->
-            Bound = create_bind_response(<<"bound">>, InlineSm),
+            Bound = create_bind_response(<<"bound">>),
             SaslAcc3 = mod_sasl2:update_inline_request(SaslAcc2, ?MODULE, Bound, success),
             SaslAcc4 = mongoose_hooks:bind2_enable_features(HostType, SaslAcc3, SaslStateData1),
             #{c2s_data := C2SData2} = SaslStateData2 = mod_sasl2:get_state_data(SaslAcc4),
@@ -105,7 +101,7 @@ maybe_bind(SaslAcc, Resource, HostType, InlineSm) ->
             SaslAcc6 = mod_sasl2:set_state_data(SaslAcc5, SaslStateData3),
             {ok, SaslAcc6};
         {stop, SaslAcc1} ->
-            bind2_failed(SaslAcc1, InlineSm)
+            bind2_failed(SaslAcc1)
     end.
 
 -spec build_new_c2sdata_saslstatedata_and_hookparams(mongoose_acc:t(), jid:lresource()) ->
@@ -118,18 +114,14 @@ build_new_c2sdata_saslstatedata_and_hookparams(SaslAcc, Resource) ->
     HookParams = mongoose_c2s:hook_arg(C2SData2, C2SState1, internal, bind2, undefined),
     {mod_sasl2:set_state_data(SaslAcc, SaslStateData2), SaslStateData2, HookParams}.
 
-bind2_failed(SaslAcc, InlineSm) ->
+bind2_failed(SaslAcc) ->
     %% The XEP does not specify what to do if the resource wasn't bound
     %% so we just set failed here and move along with SASL2
-    Error = create_bind_response(<<"failed">>, InlineSm),
+    Error = create_bind_response(<<"failed">>),
     {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Error, failure)}.
 
-create_bind_response(Answer, InlineSm) ->
-    MaybeSmChild = case InlineSm of
-                       #{status := failure, response := Response} -> [Response];
-                       _ -> []
-                   end,
-    #xmlel{name = Answer, attrs = [?XMLNS_BIND_2], children = MaybeSmChild}.
+create_bind_response(Answer) ->
+    #xmlel{name = Answer, attrs = [?XMLNS_BIND_2]}.
 
 %% Helpers
 -spec generate_lresource(exml:element()) -> jid:lresource().
@@ -148,10 +140,6 @@ generate_lresource(BindRequest) ->
                     <<Prefix/binary, "/", GeneratedResource/binary>>
             end
     end.
-
--spec get_stream_management_resumption_status(mongoose_acc:t()) -> mod_sasl2:inline_request().
-get_stream_management_resumption_status(SaslAcc) ->
-    mod_sasl2:get_inline_request(SaslAcc, mod_stream_management, undefined).
 
 -spec feature(mongoose_c2s:data()) -> exml:element().
 feature(C2SData) ->
