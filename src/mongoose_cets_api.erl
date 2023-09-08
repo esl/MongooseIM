@@ -40,17 +40,21 @@ is_disco_running_on(Node) ->
     is_pid(rpc:call(Node, erlang, whereis, [mongoose_cets_discovery])).
 
 %% Returns only nodes that replicate all our local CETS tables to the same list of remote nodes
+%% (and do not have some unknown tables)
 -spec filter_joined_nodes(AvailNodes :: [node()], Tables :: [table()]) ->
     {JoinedNodes :: [node()], PartTables :: [table()]}.
 filter_joined_nodes(AvailNodes, Tables) ->
     OtherNodes = lists:delete(node(), AvailNodes),
     Expected = node_list_for_tables(node(), Tables),
-    OtherTables = [{Node, node_list_for_tables(Node, Tables)} || Node <- OtherNodes],
+    OtherTables = [{Node, node_list_for_tables(Node)} || Node <- OtherNodes],
     OtherJoined = [Node || {Node, NodeTabs} <- OtherTables, NodeTabs =:= Expected],
     JoinedNodes = lists:sort([node() | OtherJoined]),
     PartTables = filter_partially_joined_tables(Expected, OtherTables),
     {JoinedNodes, PartTables}.
 
+%% Partially joined means that:
+%% - one of the nodes has a table not known to other nodes
+%% - or some tables are not joined by all nodes
 -spec filter_partially_joined_tables([tab_nodes()], [{node(), [tab_nodes()]}]) -> [table()].
 filter_partially_joined_tables(Expected, OtherTables) ->
     TableNodesVariants = [Expected | [NodeTabs || {_Node, NodeTabs} <- OtherTables]],
@@ -63,9 +67,24 @@ filter_partially_joined_tables(Expected, OtherTables) ->
 tab_nodes_to_tables(TabNodes) ->
     [Table || {Table, [_|_] = _Nodes} <- TabNodes].
 
+%% Returns nodes for each table hosted on node()
+-spec node_list_for_tables(node()) -> [tab_nodes()].
+node_list_for_tables(Node) ->
+    Tables = get_tables_list_on_node(Node),
+    node_list_for_tables(Node, Tables).
+
+%% Returns nodes for each table in the Tables list
 -spec node_list_for_tables(node(), [table()]) -> [tab_nodes()].
 node_list_for_tables(Node, Tables) ->
     [{Table, node_list_for_table(Node, Table)} || Table <- Tables].
+
+get_tables_list_on_node(Node) ->
+    case rpc:call(Node, cets_discovery, system_info, [mongoose_cets_discovery]) of
+        #{tables := Tables} ->
+            Tables;
+        _ ->
+            []
+    end.
 
 node_list_for_table(Node, Table) ->
     case catch rpc:call(Node, cets, other_nodes, [Table]) of
