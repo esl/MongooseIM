@@ -2,11 +2,14 @@
 -export([take/0]).
 -include("mongoose_logger.hrl").
 
+-type tab_nodes() :: {Table :: atom(), Nodes :: [node()]}.
+-type table() :: atom().
+
 -type info() :: #{unavailable_nodes => [node()],
                   available_nodes => [node()],
                   joined_nodes => [node()],
                   partially_joined_nodes => [node()],
-                  partially_joined_tables => [atom()],
+                  partially_joined_tables => [table()],
                   discovered_nodes => [node()],
                   discovery_works => boolean()}.
 
@@ -37,6 +40,8 @@ is_disco_running_on(Node) ->
     is_pid(rpc:call(Node, erlang, whereis, [mongoose_cets_discovery])).
 
 %% Returns only nodes that replicate all our local CETS tables to the same list of remote nodes
+-spec filter_joined_nodes(AvailNodes :: [node()], Tables :: [table()]) ->
+    {JoinedNodes :: [node()], PartTables :: [table()]}.
 filter_joined_nodes(AvailNodes, Tables) ->
     OtherNodes = lists:delete(node(), AvailNodes),
     Expected = node_list_for_tables(node(), Tables),
@@ -46,12 +51,19 @@ filter_joined_nodes(AvailNodes, Tables) ->
     PartTables = filter_partially_joined_tables(Expected, OtherTables),
     {JoinedNodes, PartTables}.
 
+-spec filter_partially_joined_tables([tab_nodes()], [{node(), [tab_nodes()]}]) -> [table()].
 filter_partially_joined_tables(Expected, OtherTables) ->
-    TableVariants = [Expected | [NodeTabs || {_Node, NodeTabs} <- OtherTables]],
+    TableNodesVariants = [Expected | [NodeTabs || {_Node, NodeTabs} <- OtherTables]],
+    TableVariants = lists:map(fun tab_nodes_to_tables/1, TableNodesVariants),
     SharedTables = ordsets:intersection(TableVariants),
     AllTables = ordsets:union(TableVariants),
     ordsets:subtract(AllTables, SharedTables).
 
+-spec tab_nodes_to_tables([tab_nodes()]) -> [table()].
+tab_nodes_to_tables(TabNodes) ->
+    [Table || {Table, [_|_] = _Nodes} <- TabNodes].
+
+-spec node_list_for_tables(node(), [table()]) -> [tab_nodes()].
 node_list_for_tables(Node, Tables) ->
     [{Table, node_list_for_table(Node, Table)} || Table <- Tables].
 
