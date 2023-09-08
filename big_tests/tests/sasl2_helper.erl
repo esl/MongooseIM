@@ -5,6 +5,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-define(VALID_UUID_BUT_NOT_V4, <<"a55c8fde-2cef-0655-a55c-8fde2cefc655">>).
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
 
 -type step(Config, Client, Data) :: fun((Config, Client, Data) -> {Client, Data}).
@@ -78,6 +79,14 @@ send_invalid_ns_auth_stanza(_Config, Client, Data) ->
 send_bad_user_agent(_Config, Client, Data) ->
     InitialResponse = initial_response_elem(<<"some-random-payload">>),
     Agent = bad_user_agent_elem(),
+    Authenticate = auth_elem(<<"PLAIN">>, [InitialResponse, Agent]),
+    escalus:send(Client, Authenticate),
+    Answer = escalus_client:wait_for_stanza(Client),
+    {Client, Data#{answer => Answer}}.
+
+send_bad_user_agent_uuid(_Config, Client, Data) ->
+    InitialResponse = initial_response_elem(<<"some-random-payload">>),
+    Agent = bad_user_agent_elem(?VALID_UUID_BUT_NOT_V4),
     Authenticate = auth_elem(<<"PLAIN">>, [InitialResponse, Agent]),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
@@ -253,6 +262,9 @@ good_user_agent_elem() ->
 
 bad_user_agent_elem() ->
     user_agent_elem(<<"bad-id">>, undefined, undefined).
+
+bad_user_agent_elem(Uuid) ->
+    user_agent_elem(Uuid, undefined, undefined).
 
 user_agent_elem(Id, undefined, Device) ->
     user_agent_elem(Id, [], Device);

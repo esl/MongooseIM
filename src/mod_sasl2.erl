@@ -391,7 +391,7 @@ if_provided_then_is_not_invalid_uuid_v4(Binary) ->
         Uuid
     catch
         exit:badarg:_ -> invalid_agent;
-        error:badmatch:_ -> invalid_agent
+        error:{badmatch, false}:_ -> invalid_agent
     end.
 
 -spec feature(mongoose_c2s:data(), [exml:element()]) -> exml:element().

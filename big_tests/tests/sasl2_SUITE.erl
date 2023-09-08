@@ -31,6 +31,7 @@ groups() ->
        server_announces_sasl2_with_some_mechanism,
        authenticate_stanza_has_invalid_mechanism,
        user_agent_is_invalid,
+       user_agent_is_invalid_uuid_but_not_v4,
        authenticate_with_plain,
        authenticate_with_plain_and_user_agent_without_id,
        authenticate_again_results_in_stream_error
@@ -115,6 +116,11 @@ authenticate_stanza_has_invalid_mechanism(Config) ->
 
 user_agent_is_invalid(Config) ->
     Steps = [start_new_user, send_bad_user_agent],
+    #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
+    escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).
+
+user_agent_is_invalid_uuid_but_not_v4(Config) ->
+    Steps = [start_new_user, send_bad_user_agent_uuid],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], Response).
 
