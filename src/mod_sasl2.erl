@@ -298,31 +298,40 @@ process_sasl2_success(SaslAcc, OriginalStateData, MaybeServerOut) ->
     mongoose_c2s_acc:pairs().
 build_to_c2s_acc(SaslAcc, C2SData, OriginalStateData, SuccessStanza) ->
     ModState = get_mod_state(SaslAcc),
-    MaybeSocketSendStreamFeatures = maybe_stream_features(SaslAcc, C2SData),
+    MaybeSocketSendStreamFeatures = maybe_flush_stream_features(SaslAcc, C2SData),
     case is_new_c2s_state_requested(SaslAcc, OriginalStateData) of
         false ->
             %% Unless specified by an inline feature, sasl2 would normally put the statem just before bind
-            ToAcc0 = [{actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
-                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
-            MaybeSocketSendStreamFeatures ++
-                [{socket_send_first, SuccessStanza},
-                 {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}} | ToAcc0];
+            [{socket_send_first, SuccessStanza},
+             {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}},
+             {actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
+             {state_mod, {?MODULE, ModState#{authenticated := true}}}
+             | MaybeSocketSendStreamFeatures];
         true ->
-            ToAcc0 = [{actions, [pop_callback_module]},
-                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
-            MaybeSocketSendStreamFeatures ++
-                [{socket_send_first, SuccessStanza} | ToAcc0]
+            [{socket_send_first, SuccessStanza},
+             {actions, [pop_callback_module]},
+             {state_mod, {?MODULE, ModState#{authenticated := true}}}
+             | MaybeSocketSendStreamFeatures]
     end.
 
 -spec request_block_future_stream_features(mongoose_acc:t()) -> mongoose_acc:t().
 request_block_future_stream_features(SaslAcc) ->
     mongoose_acc:set(?MODULE, stream_features, false, SaslAcc).
 
--spec maybe_stream_features(mongoose_acc:t(), mongoose_c2s:data()) -> [{socket_send, exml:element()}].
-maybe_stream_features(SaslAcc, C2SData) ->
+-spec maybe_flush_stream_features(mongoose_acc:t(), mongoose_c2s:data()) ->
+    [{flush, mongoose_acc:t()}].
+maybe_flush_stream_features(SaslAcc, C2SData) ->
     case mongoose_acc:get(?MODULE, stream_features, true, SaslAcc) of
         true ->
-            [{socket_send, mongoose_c2s_stanzas:stream_features_after_auth(C2SData)}];
+            StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData),
+            Jid = mongoose_c2s:get_jid(C2SData),
+            LServer = mongoose_c2s:get_lserver(C2SData),
+            HostType = mongoose_c2s:get_host_type(C2SData),
+            AccParams = #{lserver => LServer, host_type => HostType,
+                          from_jid => jid:make_noprep(<<>>, LServer, <<>>), to_jid => Jid,
+                          element => StreamFeaturesStanza},
+            Acc = mongoose_acc:strip(AccParams, SaslAcc),
+            [{flush, Acc}];
         false ->
             []
     end.
