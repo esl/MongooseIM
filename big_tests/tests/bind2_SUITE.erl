@@ -88,13 +88,13 @@ server_announces_bind2_with_features(Config) ->
     check_var(InlineFeatures, ?NS_CSI).
 
 auth_and_bind_ignores_invalid_resource_and_generates_a_new_one(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_bind_wrong_resource}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_wrong_resource}, receive_features, has_no_more_stanzas],
     #{answer := Response} = sasl2_helper:apply_steps(Steps, Config),
     Success = exml_query:path(Response, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Success).
 
 auth_and_bind_to_random_resource(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_bind}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind}, receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -104,7 +104,7 @@ auth_and_bind_to_random_resource(Config) ->
     ?assert(0 =< byte_size(LResource), LResource).
 
 auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_bind_with_user_agent_uuid}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_with_user_agent_uuid}, receive_features, has_no_more_stanzas],
     #{answer := Success, uuid := Uuid} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -114,7 +114,7 @@ auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
     ?assertNotEqual(Uuid, LResource).
 
 auth_and_bind_contains_client_tag(Config) ->
-    Steps = [start_new_user, {?MODULE, auth_and_bind_with_tag}, has_no_more_stanzas],
+    Steps = [start_new_user, {?MODULE, auth_and_bind_with_tag}, receive_features, has_no_more_stanzas],
     #{answer := Success, tag := Tag} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -127,14 +127,14 @@ auth_and_bind_contains_client_tag(Config) ->
 carbons_are_enabled_with_bind_inline_request(Config) ->
     Steps = [start_new_user,
              {?MODULE, start_peer},
-             {?MODULE, auth_and_bind_with_carbon_copies},
-             {?MODULE, receive_message_carbon_arrives}],
+             {?MODULE, auth_and_bind_with_carbon_copies}, receive_features,
+             {?MODULE, receive_message_carbon_arrives}, has_no_more_stanzas],
     sasl2_helper:apply_steps(Steps, Config).
 
 csi_is_active_with_bind_inline_request(Config) ->
     Steps = [start_new_user,
              {?MODULE, start_peer},
-             {?MODULE, auth_and_bind_with_csi_active},
+             {?MODULE, auth_and_bind_with_csi_active}, receive_features,
              {?MODULE, inactive_csi_msg_wont_arrive}, has_no_more_stanzas],
     sasl2_helper:apply_steps(Steps, Config).
 
@@ -142,13 +142,16 @@ csi_is_inactive_with_bind_inline_request(Config) ->
     Steps = [start_new_user,
              {?MODULE, start_peer},
              {?MODULE, auth_and_bind_with_csi_inactive}, has_no_more_stanzas,
-             {?MODULE, active_csi_msg_arrives}],
+             {?MODULE, inactive_csi_msgs_do_not_arrive},
+             {?MODULE, activate_csi}, receive_features,
+             {?MODULE, receive_csi_msgs}, has_no_more_stanzas],
     sasl2_helper:apply_steps(Steps, Config).
 
 stream_resumption_enable_sm_on_bind(Config) ->
     Steps = [start_new_user,
              {?MODULE, start_peer},
-             {?MODULE, auth_and_bind_with_sm_enabled}, has_no_more_stanzas],
+             {?MODULE, auth_and_bind_with_sm_enabled},
+             receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Enabled = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2},
@@ -158,7 +161,8 @@ stream_resumption_enable_sm_on_bind(Config) ->
 stream_resumption_enable_sm_on_bind_with_resume(Config) ->
     Steps = [start_new_user,
              {?MODULE, start_peer},
-             {?MODULE, auth_and_bind_with_sm_resume_enabled}, has_no_more_stanzas],
+             {?MODULE, auth_and_bind_with_sm_resume_enabled},
+             receive_features, has_no_more_stanzas],
     #{answer := Success} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Enabled = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2},
@@ -167,7 +171,8 @@ stream_resumption_enable_sm_on_bind_with_resume(Config) ->
 
 stream_resumption_failing_does_bind_and_contains_sm_status(Config) ->
     Steps = [create_user, buffer_messages_and_die, connect_tls, start_stream_get_features,
-             {?MODULE, auth_and_bind_with_resumption_unknown_smid}, has_no_more_stanzas],
+             {?MODULE, auth_and_bind_with_resumption_unknown_smid},
+             receive_features, has_no_more_stanzas],
     #{answer := Success, tag := Tag} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
@@ -184,8 +189,6 @@ stream_resumption_overrides_bind_request(Config) ->
              {?MODULE, auth_and_bind_with_resumption}, has_no_more_stanzas],
     #{answer := Success, smid := SMID} = sasl2_helper:apply_steps(Steps, Config),
     ?assertMatch(#xmlel{name = <<"success">>, attrs = [{<<"xmlns">>, ?NS_SASL_2}]}, Success),
-    Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
-    ?assertNotEqual(undefined, Bound),
     Resumed = exml_query:path(Success, [{element_with_ns, <<"resumed">>, ?NS_STREAM_MGNT_3}]),
     ?assert(escalus_pred:is_sm_resumed(SMID, Resumed)).
 
@@ -227,15 +230,14 @@ auth_and_bind_with_carbon_copies(Config, Client, #{spec := Spec} = Data) ->
     Jid = <<(escalus_client:short_jid(Client2))/binary, "/", Resource/binary>>,
     {Client1, Data1#{client_2 => Client2, client_2_jid => Jid}}.
 
-auth_and_bind_with_csi_active(Config, Client, #{peer := Bob} = Data) ->
+auth_and_bind_with_csi_active(Config, Client, Data) ->
     CsiActive = csi_helper:csi_stanza(<<"active">>),
-    {Client1, Data1} = plain_auth(Config, Client, Data, [CsiActive], []),
-    escalus_client:send(Bob, escalus_stanza:chat_to(Client1, <<"hello 1">>)),
-    AliceReceived = escalus_client:wait_for_stanza(Client1),
-    escalus:assert(is_message, AliceReceived),
-    {Client1, Data1}.
+    plain_auth(Config, Client, Data, [CsiActive], []).
 
 inactive_csi_msg_wont_arrive(_Config, Client, #{peer := Bob} = Data) ->
+    escalus_client:send(Bob, escalus_stanza:chat_to(Client, <<"hello 1">>)),
+    AliceReceived = escalus_client:wait_for_stanza(Client),
+    escalus:assert(is_message, AliceReceived),
     csi_helper:given_client_is_inactive_and_no_messages_arrive(Client),
     csi_helper:given_messages_are_sent(Client, Bob, 1),
     csi_helper:then_client_does_not_receive_any_message(Client),
@@ -243,13 +245,18 @@ inactive_csi_msg_wont_arrive(_Config, Client, #{peer := Bob} = Data) ->
 
 auth_and_bind_with_csi_inactive(Config, Client, Data) ->
     CsiInactive = csi_helper:csi_stanza(<<"inactive">>),
-    {Client1, Data1} = plain_auth(Config, Client, Data, [CsiInactive], []),
-    {Client1, Data1}.
+    plain_auth(Config, Client, Data, [CsiInactive], []).
 
-active_csi_msg_arrives(_Config, Client, #{peer := Bob} = Data) ->
+inactive_csi_msgs_do_not_arrive(_Config, Client, #{peer := Bob} = Data) ->
     Msgs = csi_helper:given_messages_are_sent(Client, Bob, 2),
     csi_helper:then_client_does_not_receive_any_message(Client),
+    {Client, Data#{msgs => Msgs}}.
+
+activate_csi(_Config, Client, Data) ->
     csi_helper:given_client_is_active(Client),
+    {Client, Data}.
+
+receive_csi_msgs(_Config, Client, #{msgs := Msgs} = Data) ->
     csi_helper:then_client_receives_message(Client, Msgs),
     {Client, Data}.
 
