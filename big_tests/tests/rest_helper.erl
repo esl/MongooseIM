@@ -179,7 +179,12 @@ fusco_request(#{ role := Role, method := Method, path := Path, body := Body, ser
     fusco_request(Method, Path, Body, Headers, get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
-    Opts = [{connect_options, [{verify, verify_none}]}],
+    Opts = case SSL of
+        true ->
+            [{connect_options, [{verify, verify_none}]}];
+        false ->
+            []
+    end,
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, Opts, 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>},
                {<<"Request-Id">>, random_request_id()} | HeadersIn],
