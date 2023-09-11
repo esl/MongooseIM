@@ -59,7 +59,8 @@ process_error({badmatch, {error, ErrorCode}}, ZipFile)
     when ErrorCode =:= eacces orelse ErrorCode =:= erofs ->
         ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",
         {file_creation_permission_denied_error, ErrorMessage};
-process_error({badmatch, {error, eisdir}}, ZipFile) ->
+process_error({badmatch, {error, ErrorCode}}, ZipFile)
+    when ErrorCode =:= eisdir orelse ErrorCode =:= eexist->
     ErrorMessage = "Given location '" ++ ZipFile ++ "' is a directory",
     {location_is_a_directory_error, ErrorMessage};
 process_error({badmatch, {error, {'EXIT', {{badmatch, {error, ErrorCode}}, _}}}}, ZipFile)
