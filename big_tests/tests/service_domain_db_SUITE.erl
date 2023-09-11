@@ -972,9 +972,11 @@ rest_can_enable_domain(Config) ->
 
 rest_can_select_domain(Config) ->
     rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    {HttpStatus, {Info}} = rest_select_domain(Config, <<"example.db">>),
+    SortedResult = {HttpStatus, {lists:sort(Info)}},
     {{<<"200">>, <<"OK">>},
-     {[ {<<"status">>, <<"enabled">>}, {<<"host_type">>, <<"type1">>} ]}} =
-        rest_select_domain(Config, <<"example.db">>).
+     {[ {<<"host_type">>, <<"type1">>}, {<<"status">>, <<"enabled">>} ]}} =
+        SortedResult.
 
 rest_cannot_select_domain_if_domain_not_found(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
