@@ -28,7 +28,7 @@ groups() ->
      {basic, [parallel],
       [
        server_does_not_announce_if_not_tls,
-       server_announces_sasl2_with_some_mechanism,
+       server_announces_sasl2_with_some_mechanism_and_inline_sm,
        authenticate_stanza_has_invalid_mechanism,
        user_agent_is_invalid,
        user_agent_is_invalid_uuid_but_not_v4,
@@ -101,13 +101,16 @@ server_does_not_announce_if_not_tls(Config) ->
     Sasl2 = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2}]),
     ?assertEqual(undefined, Sasl2).
 
-server_announces_sasl2_with_some_mechanism(Config) ->
+server_announces_sasl2_with_some_mechanism_and_inline_sm(Config) ->
     Steps = [create_connect_tls, start_stream_get_features],
     #{features := Features} = sasl2_helper:apply_steps(Steps, Config),
     Sasl2 = exml_query:path(Features, [{element_with_ns, <<"authentication">>, ?NS_SASL_2}]),
     ?assertNotEqual(undefined, Sasl2),
     Mechs = exml_query:paths(Sasl2, [{element, <<"mechanism">>}]),
-    ?assertNotEqual([], Mechs).
+    ?assertNotEqual([], Mechs),
+    Sm = exml_query:path(Sasl2, [{element, <<"inline">>},
+                                 {element_with_ns, <<"sm">>, ?NS_STREAM_MGNT_3}]),
+    ?assertNotEqual(undefined, Sm).
 
 authenticate_stanza_has_invalid_mechanism(Config) ->
     Steps = [start_new_user, send_invalid_mech_auth_stanza],

@@ -28,7 +28,7 @@ hooks(HostType) ->
 -spec sasl2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
     {ok, Acc} when Acc :: [exml:element()].
 sasl2_stream_features(Acc, _, _) ->
-    Resume = #xmlel{name = <<"resume">>, attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]},
+    Resume = #xmlel{name = <<"sm">>, attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]},
     {ok, [Resume | Acc]}.
 
 -spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
