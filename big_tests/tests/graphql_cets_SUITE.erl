@@ -43,6 +43,7 @@ init_per_suite(Config) ->
             Config1 = escalus:init_per_suite(Config),
             Config2 = ejabberd_node_utils:init(mim(), Config1),
             add_bad_node(),
+            ok = rpc_call(cets_discovery, wait_for_ready, [mongoose_cets_discovery, 5000]),
             Config2 ++ distributed_helper:require_rpc_nodes([mim, mim2]);
         _ ->
             {skip, "CETS is not configured with RDBMS"}
