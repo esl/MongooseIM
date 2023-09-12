@@ -174,6 +174,7 @@ start(HostType, Opts) when is_map(Opts) ->
 stop(HostType) ->
     stop_supervisor(HostType),
     stop_gen_server(HostType),
+    mongoose_muc_online_backend:stop(HostType),
     ok.
 
 -spec supported_features() -> [atom()].

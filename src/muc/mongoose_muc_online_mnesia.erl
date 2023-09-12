@@ -2,6 +2,7 @@
 -behaviour(mongoose_muc_online_backend).
 
 -export([start/2,
+         stop/1,
          register_room/4,
          room_destroyed/4,
          find_room_pid/3,
@@ -18,6 +19,9 @@ start(_HostType, _Opts) ->
                          {attributes, record_info(fields, muc_online_room)}]),
     mnesia:add_table_copy(muc_online_room, node(), ram_copies),
     ok.
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(_HostType) -> ok.
 
 -spec register_room(
         HostType :: mongooseim:host_type(),

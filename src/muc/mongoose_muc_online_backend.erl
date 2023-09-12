@@ -1,6 +1,7 @@
 -module(mongoose_muc_online_backend).
 
 -export([start/2,
+         stop/1,
          register_room/4,
          room_destroyed/4,
          find_room_pid/3,
@@ -16,6 +17,8 @@
 %% Callbacks
 
 -callback start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+
+-callback stop(mongooseim:host_type()) -> ok.
 
 -callback register_room(
         HostType :: mongooseim:host_type(),
@@ -41,6 +44,9 @@
 start(HostType, Opts = #{online_backend := Backend}) ->
     mongoose_backend:init(HostType, ?MAIN_MODULE, tracked_funs(), #{backend => Backend}),
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType, Opts]).
+
+stop(HostType) ->
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, [HostType]).
 
 -spec tracked_funs() -> [atom()].
 tracked_funs() ->
