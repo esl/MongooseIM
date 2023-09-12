@@ -37,42 +37,42 @@ datapoints() ->
     [available_nodes,
      unavailable_nodes,
      joined_nodes,
+     discovered_nodes,
+     discovery_works,
      remote_nodes_without_disco,
      remote_nodes_with_unknown_tables,
      remote_unknown_tables,
      remote_nodes_with_missing_tables,
      remote_missing_tables,
      conflict_nodes,
-     conflict_tables,
-     discovered_nodes,
-     discovery_works].
+     conflict_tables].
 
 sample() ->
     try cets_status:status(mongoose_cets_discovery) of
         #{available_nodes := AvNodes,
           unavailable_nodes := UnNodes,
           joined_nodes := Joined,
+          discovered_nodes := DiscoNodes,
+          discovery_works := DiscoveryWorks,
           remote_nodes_without_disco := NoDisco,
           remote_nodes_with_unknown_tables := UnkNodes,
           remote_unknown_tables := UnkTabs,
           remote_nodes_with_missing_tables := MissNodes,
           remote_missing_tables := MissTabs,
           conflict_nodes := ConNodes,
-          conflict_tables := ConTabs,
-          discovered_nodes := DiscoNodes,
-          discovery_works := DiscoveryWorks} ->
+          conflict_tables := ConTabs} ->
                 #{available_nodes => length(AvNodes),
                   unavailable_nodes => length(UnNodes),
                   joined_nodes => length(Joined),
+                  discovered_nodes => length(DiscoNodes),
+                  discovery_works => boolean_to_integer(DiscoveryWorks),
                   remote_nodes_without_disco => length(NoDisco),
                   remote_nodes_with_unknown_tables => length(UnkNodes),
                   remote_unknown_tables => length(UnkTabs),
                   remote_nodes_with_missing_tables => length(MissNodes),
                   remote_missing_tables => length(MissTabs),
                   conflict_nodes => length(ConNodes),
-                  conflict_tables => length(ConTabs),
-                  discovered_nodes => length(DiscoNodes),
-                  discovery_works => boolean_to_integer(DiscoveryWorks)}
+                  conflict_tables => length(ConTabs)}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => cets_system_info_failed, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),

@@ -20,28 +20,28 @@ type CETSTableInfo {
 }
 
 type CETSSystemInfo {
-  "Unavailable nodes"
-  unavailableNodes: [String]
-  "Unavailable nodes count"
-  unavailableNodesCount: Int
-  "Available nodes (visible to the current node at this moment including the current node)"
+  "Available nodes (nodes that are connected to us and have the CETS disco process started)"
   availableNodes: [String]
-  "Available nodes count"
-  availableNodesCount: Int
-  "Joined nodes (replicate the same tables as the current node)"
+  "Unavailable nodes (nodes that do not respond to our pings)"
+  unavailableNodes: [String]
+  "Joined nodes (nodes that has our local tables running)"
   joinedNodes: [String]
-  "Joined nodes count"
-  joinedNodesCount: Int
-  "Partially joined nodes (replicate a different list of tables)"
-  partiallyJoinedNodes: [String]
-  "Partially joined tables (tables that are missing on some nodes)"
-  partiallyJoinedTables: [String]
-  "Partially joined nodes count"
-  partiallyJoinedNodesCount: Int
-  "Discovered nodes (returned from the discovery backend)"
+  "Discovered nodes (nodes that are extracted from the discovery backend)."
   discoveredNodes: [String]
-  "Discovered nodes count"
-  discoveredNodesCount: Int
+  "Nodes with stopped CETS discovery"
+  remoteNodesWithoutDisco: [String]
+  "Nodes that have more tables registered than the local node"
+  remoteNodesWithUnknownTables: [String]
+  "Unknown remote tables"
+  remoteUnknownTables: [String]
+  "Nodes that are available, but do not host one of our local tables"
+  remoteNodesWithNissingTables: [String]
+  "Missing remote tables"
+  remoteMissingTables: [String]
+  "Nodes that replicate at least one of our local tables to a different list of nodes"
+  conflictNodes: [String]
+  "Tables that have conflicting replication destinations"
+  conflictTables: [String]
   "Returns true if the last discovery attempt is successful"
   discoveryWorks: Boolean
 }
