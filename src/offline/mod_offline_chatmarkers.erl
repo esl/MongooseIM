@@ -105,7 +105,7 @@ config_spec() ->
     Params :: map(),
     Extra :: gen_hook:extra().
 remove_user(Acc, #{jid := #jid{luser = User, lserver = Server}}, #{host_type := HostType}) ->
-    mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<>>)),
+    mod_offline_chatmarkers_backend:remove_user(HostType, jid:make_bare(User, Server)),
     {ok, Acc}.
 
 -spec pop_offline_messages(Acc, Params, Extra) -> {ok, Acc} when

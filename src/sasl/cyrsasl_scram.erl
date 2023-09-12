@@ -8,6 +8,7 @@
 -export([mech_new/3, mech_step/2]).
 
 -include("mongoose.hrl").
+-include("jlib.hrl").
 
 -behaviour(cyrsasl).
 
@@ -24,31 +25,39 @@ mech_new(LServer, Creds, #{sha := Sha,
                            auth_mech := AuthMech,
                            scram_plus := ScramPlus}) ->
     ChannelBinding = calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech),
-    Fun = fun(Username, St0) ->
-                  JID = jid:make(Username, LServer, <<>>),
-                  HostType = mongoose_credentials:host_type(Creds),
-                  case get_scram_attributes(HostType, JID, Sha) of
-                      {AuthModule, {StoredKey, ServerKey, Salt, ItCount}} ->
-                          Creds1 = fast_scram:mech_get(creds, St0, Creds),
-                          R = [{username, Username}, {auth_module, AuthModule}],
-                          Creds2 = mongoose_credentials:extend(Creds1, R),
-                          St1 = fast_scram:mech_set(creds, Creds2, St0),
-                          ExtraConfig = #{it_count => ItCount, salt => Salt,
-                                          auth_data => #{stored_key => StoredKey,
-                                                         server_key => ServerKey}},
-                          {St1, ExtraConfig};
-                      {error, Reason, User} ->
-                          {error, {Reason, User}}
-                  end
-          end,
     {ok, St0} = fast_scram:mech_new(
                         #{entity => server,
                           hash_method => Sha,
-                          retrieve_mechanism => Fun,
+                          retrieve_mechanism => retrieve_mechanism_fun(LServer, Creds, Sha),
                           nonce_size => ?NONCE_LENGTH,
                           channel_binding => ChannelBinding}),
     St1 = fast_scram:mech_set(creds, Creds, St0),
     {ok, St1}.
+
+retrieve_mechanism_fun(LServer, Creds, Sha) ->
+    fun(Username, St0) ->
+            case jid:make_bare(Username, LServer) of
+                error -> {error, {invalid_username, Username}};
+                JID ->
+                    retrieve_mechanism_continue(JID, Creds, Sha, St0)
+            end
+    end.
+
+retrieve_mechanism_continue(#jid{luser = Username} = JID, Creds, Sha, St0) ->
+    HostType = mongoose_credentials:host_type(Creds),
+    case get_scram_attributes(HostType, JID, Sha) of
+        {AuthModule, {StoredKey, ServerKey, Salt, ItCount}} ->
+            Creds1 = fast_scram:mech_get(creds, St0, Creds),
+            R = [{username, Username}, {auth_module, AuthModule}],
+            Creds2 = mongoose_credentials:extend(Creds1, R),
+            St1 = fast_scram:mech_set(creds, Creds2, St0),
+            ExtraConfig = #{it_count => ItCount, salt => Salt,
+                            auth_data => #{stored_key => StoredKey,
+                                           server_key => ServerKey}},
+            {St1, ExtraConfig};
+        {error, Reason, User} ->
+            {error, {Reason, User}}
+    end.
 
 mech_step(State, ClientIn) ->
     case fast_scram:mech_step(State, ClientIn) of

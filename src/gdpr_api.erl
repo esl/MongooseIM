@@ -1,7 +1,5 @@
 -module(gdpr_api).
 
--include("ejabberd_commands.hrl").
--include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
 % Exported for RPC call
@@ -17,7 +15,7 @@
 -spec retrieve_all(jid:user(), jid:server(), Path :: binary()) ->
     ok | {error_code(), Reason :: string()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
-    JID = jid:make(Username, Domain, <<>>),
+    JID = jid:make_bare(Username, Domain),
     case user_exists(JID) of
         true ->
             DataFromModules = get_data_from_modules(JID),
@@ -71,7 +69,7 @@ process_error({badmatch, {error, {'EXIT', {{badmatch, {error, ErrorCode}}, _}}}}
 
 -spec get_data_from_modules(jid:user(), jid:server()) -> gdpr:personal_data().
 get_data_from_modules(Username, Domain) ->
-    JID = jid:make(Username, Domain, <<>>),
+    JID = jid:make_bare(Username, Domain),
     get_data_from_modules(JID).
 
 -spec get_data_from_modules(jid:jid()) -> gdpr:personal_data().

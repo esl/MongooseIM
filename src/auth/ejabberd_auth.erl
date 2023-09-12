@@ -201,7 +201,7 @@ set_password(#jid{luser = LUser, lserver = LServer}, Password) ->
                 end
         end,
     Opts = #{default => {error, not_allowed}},
-    case ejabberd_auth:does_user_exist(jid:make(LUser, LServer, <<>>)) of
+    case ejabberd_auth:does_user_exist(jid:make_bare(LUser, LServer)) of
         true ->
             call_auth_modules_for_domain(LServer, F, Opts);
         false ->
@@ -370,7 +370,7 @@ does_method_support(AuthMethod, Feature) ->
                  (error) -> error.
 remove_user(error) -> error;
 remove_user(#jid{luser = LUser, lserver = LServer}) ->
-    JID = jid:make(LUser, LServer, <<>>),
+    JID = jid:make_bare(LUser, LServer),
     F = fun(HostType, Mod) ->
                 case mongoose_gen_auth:remove_user(Mod, HostType, LUser, LServer) of
                     ok -> {continue, {ok, HostType}};

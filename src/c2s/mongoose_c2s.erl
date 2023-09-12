@@ -37,7 +37,6 @@
           parser :: undefined | exml_stream:parser(),
           shaper :: undefined | shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
-          auth_module :: undefined | module(),
           state_mod = #{} :: #{module() => term()},
           info = #{} :: info()
          }).
@@ -414,9 +413,10 @@ handle_sasl_step(StateData, {error, NewSaslAcc, Result}, Retries) ->
     handle_sasl_error(StateData, NewSaslAcc, Result, Retries).
 
 -spec handle_sasl_success(data(), mongoose_acc:t(), mongoose_c2s_sasl:success()) -> fsm_res().
-handle_sasl_success(StateData, SaslAcc,
+handle_sasl_success(StateData = #c2s_data{info = Info}, SaslAcc,
                     #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod}) ->
-    StateData1 = StateData#c2s_data{streamid = new_stream_id(), jid = Jid, auth_module = AuthMod},
+    StateData1 = StateData#c2s_data{streamid = new_stream_id(), jid = Jid,
+                                    info = maps:merge(Info, #{auth_module => AuthMod})},
     El = mongoose_c2s_stanzas:sasl_success_stanza(MaybeServerOut),
     send_acc_from_server_jid(StateData1, SaslAcc, El),
     ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_state => StateData1}),
@@ -905,10 +905,9 @@ route(Pid, Acc) ->
 -spec open_session(data()) -> {[pid()], data()}.
 open_session(
   StateData = #c2s_data{host_type = HostType, sid = Sid, jid = Jid,
-                        socket = Socket, auth_module = AuthModule, info = Info}) ->
+                        socket = Socket, info = Info}) ->
     NewFields = #{ip => mongoose_c2s_socket:get_ip(Socket),
-                  conn => mongoose_c2s_socket:get_conn_type(Socket),
-                  auth_module => AuthModule},
+                  conn => mongoose_c2s_socket:get_conn_type(Socket)},
     Info2 = maps:merge(Info, NewFields),
     ReplacedPids = ejabberd_sm:open_session(HostType, Sid, Jid, 0, Info2),
     {ReplacedPids, StateData#c2s_data{info = Info2}}.
@@ -1008,7 +1007,7 @@ state_timeout(#{c2s_state_timeout := Timeout}) ->
 replace_resource(StateData, <<>>) ->
     replace_resource(StateData, generate_random_resource());
 replace_resource(#c2s_data{jid = OldJid} = StateData, NewResource) ->
-    StateData#c2s_data{jid = jid:replace_resource(OldJid, NewResource)}.
+    StateData#c2s_data{jid = jid:replace_resource_noprep(OldJid, NewResource)}.
 
 -spec new_stream_id() -> binary().
 new_stream_id() ->
@@ -1115,8 +1114,8 @@ set_jid(StateData, NewJid) ->
     StateData#c2s_data{jid = NewJid}.
 
 -spec set_auth_module(data(), module()) -> data().
-set_auth_module(StateData, AuthModule) ->
-    StateData#c2s_data{auth_module = AuthModule}.
+set_auth_module(StateData = #c2s_data{info = Info}, AuthModule) ->
+    StateData#c2s_data{info = maps:merge(Info, #{auth_module => AuthModule})}.
 
 -spec get_info(data()) -> info().
 get_info(#c2s_data{info = Info}) ->

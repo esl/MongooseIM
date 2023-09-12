@@ -62,6 +62,7 @@ rdbms_queries_cases() ->
      read_prep_binary_16m_case,
      read_prep_enum_char_case,
      read_prep_boolean_case,
+     select_current_timestamp_case,
 
      select_like_case,
      select_like_prep_case,
@@ -321,6 +322,13 @@ read_prep_enum_char_case(Config) ->
 
 read_prep_boolean_case(Config) ->
     [check_prep_boolean(Config, Value) || Value <- [0, 1]].
+
+select_current_timestamp_case(Config) ->
+    ok = rpc(mim(), mongoose_rdbms_timestamp, prepare, []),
+    assert_is_integer(rpc(mim(), mongoose_rdbms_timestamp, select, [])).
+
+assert_is_integer(X) when is_integer(X) ->
+    X.
 
 truncate_binaries(Len, List) ->
     [truncate_binary(Len, Bin) || Bin <- List].
