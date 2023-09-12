@@ -26,9 +26,9 @@ admin_cets_tests() ->
      available_nodes_count,
      joined_nodes,
      joined_nodes_count,
-     partially_joined_nodes,
-     partially_joined_tables,
-     partially_joined_nodes_count,
+     conflict_nodes,
+     conflict_tables,
+     conflict_nodes_count,
      discovered_nodes,
      discovered_nodes_count,
      discovery_works].
@@ -135,20 +135,20 @@ joined_nodes_count(Config) ->
     ?assert(true, is_integer(Count)),
     ?assert(Count > 1, Info).
 
-partially_joined_nodes(Config) ->
+conflict_nodes(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    ?assertMatch(#{<<"partiallyJoinedNodes">> := []}, Info).
+    ?assertMatch(#{<<"conflictNodes">> := []}, Info).
 
-partially_joined_tables(Config) ->
+conflict_tables(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    ?assertMatch(#{<<"partiallyJoinedTables">> := []}, Info).
+    ?assertMatch(#{<<"conflictTables">> := []}, Info).
 
-partially_joined_nodes_count(Config) ->
+conflict_nodes_count(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    ?assertMatch(#{<<"partiallyJoinedNodesCount">> := 0}, Info).
+    ?assertMatch(#{<<"conflictNodesCount">> := 0}, Info).
 
 discovered_nodes(Config) ->
     #{node := Node1} = mim(),

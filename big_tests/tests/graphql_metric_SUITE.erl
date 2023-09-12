@@ -135,8 +135,12 @@ type_to_keys(<<"vm_system_info">>) ->
 type_to_keys(<<"probe_queues">>) ->
     [<<"fsm">>, <<"regular">>, <<"total">>];
 type_to_keys(<<"cets_system">>) ->
-    [<<"available_nodes">>, <<"discovered_nodes">>, <<"discovery_works">>,
-     <<"joined_nodes">>, <<"partially_joined_nodes">>, <<"unavailable_nodes">>].
+    [<<"available_nodes">>, <<"unavailable_nodes">>,
+    <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
+    <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
+    <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
+    <<"conflict_nodes">>, <<"conflict_tables">>,
+    <<"discovered_nodes">>, <<"discovery_works">>].
 
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works

@@ -18,57 +18,65 @@ start() ->
     mongoose_metrics:ensure_metric(global, [cets, system], {probe, M}),
     ok.
 
-format_probe_cets(#{unavailable_nodes := UnNodes,
-                    available_nodes := AvailNodes,
-                    joined_nodes := JoinedNodes,
-                    partially_joined_nodes := PartNodes,
-                    partially_joined_tables := PartTables,
-                    discovered_nodes := NodesSorted,
-                    discovery_works := DiscoveryWorks}) ->
-    #{<<"type">> => <<"cets_system">>,
-      <<"unavailable_nodes">> => UnNodes,
-      <<"available_nodes">> => AvailNodes,
-      <<"joined_nodes">> => JoinedNodes,
-      <<"partially_joined_nodes">> => PartNodes,
-      <<"partially_joined_tables">> => PartTables,
-      <<"discovered_nodes">> => NodesSorted,
-      <<"discovery_works">> => DiscoveryWorks}.
+format_probe_cets(Map) ->
+    Acc0 = #{<<"type">> => <<"cets_system">>},
+    F = fun(M, Acc) ->
+            V = maps:get(M, Map),
+            maps:put(atom_to_binary(M), V, Acc)
+        end,
+    lists:foldl(F, Acc0, datapoints()).
+
+all_zeros() ->
+    Acc0 = #{},
+    F = fun(M, Acc) ->
+            maps:put(atom_to_binary(M), 0, Acc)
+        end,
+    lists:foldl(F, Acc0, datapoints()).
 
 datapoints() ->
-    [unavailable_nodes,
-     available_nodes,
+    [available_nodes,
+     unavailable_nodes,
      joined_nodes,
-     partially_joined_nodes,
-     partially_joined_tables,
+     remote_nodes_without_disco,
+     remote_nodes_with_unknown_tables,
+     remote_unknown_tables,
+     remote_nodes_with_missing_tables,
+     remote_missing_tables,
+     conflict_nodes,
+     conflict_tables,
      discovered_nodes,
      discovery_works].
 
 sample() ->
-    try mongoose_cets_api:take() of
-        #{unavailable_nodes := UnNodes,
-          available_nodes := AvailNodes,
-          joined_nodes := JoinedNodes,
-          partially_joined_nodes := PartNodes,
-          partially_joined_tables := PartTables,
-          discovered_nodes := NodesSorted,
+    try cets_status:status(mongoose_cets_discovery) of
+        #{available_nodes := AvNodes,
+          unavailable_nodes := UnNodes,
+          joined_nodes := Joined,
+          remote_nodes_without_disco := NoDisco,
+          remote_nodes_with_unknown_tables := UnkNodes,
+          remote_unknown_tables := UnkTabs,
+          remote_nodes_with_missing_tables := MissNodes,
+          remote_missing_tables := MissTabs,
+          conflict_nodes := ConNodes,
+          conflict_tables := ConTabs,
+          discovered_nodes := DiscoNodes,
           discovery_works := DiscoveryWorks} ->
-                #{unavailable_nodes => length(UnNodes),
-                  available_nodes => length(AvailNodes),
-                  joined_nodes => length(JoinedNodes),
-                  partially_joined_nodes => length(PartNodes),
-                  partially_joined_tables => length(PartTables),
-                  discovered_nodes => length(NodesSorted),
+                #{available_nodes => length(AvNodes),
+                  unavailable_nodes => length(UnNodes),
+                  joined_nodes => length(Joined),
+                  remote_nodes_without_disco => length(NoDisco),
+                  remote_nodes_with_unknown_tables => length(UnkNodes),
+                  remote_unknown_tables => length(UnkTabs),
+                  remote_nodes_with_missing_tables => length(MissNodes),
+                  remote_missing_tables => length(MissTabs),
+                  conflict_nodes => length(ConNodes),
+                  conflict_tables => length(ConTabs),
+                  discovered_nodes => length(DiscoNodes),
                   discovery_works => boolean_to_integer(DiscoveryWorks)}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => cets_system_info_failed, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
-                #{unavailable_nodes => 0,
-                  available_nodes => 0,
-                  joined_nodes => 0,
-                  partially_joined_nodes => 0,
-                  partially_joined_tables => 0,
-                  discovered_nodes => 0,
-                  discovery_works => 0}
+                all_zeros()
     end.
 
 boolean_to_integer(true) -> 1;
