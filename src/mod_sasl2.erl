@@ -33,8 +33,10 @@
 -export([c2s_stream_features/3, user_send_xmlel/3]).
 
 %% helpers
--export([get_inline_request/2, put_inline_request/3, update_inline_request/4,
-         get_state_data/1, set_state_data/2]).
+-export([get_inline_request/2, get_inline_request/3, put_inline_request/3,
+         append_inline_response/3, update_inline_request/4,
+         get_state_data/1, set_state_data/2,
+         request_block_future_stream_features/1]).
 
 -type maybe_binary() :: undefined | binary().
 -type status() :: pending | success | failure.
@@ -296,19 +298,42 @@ process_sasl2_success(SaslAcc, OriginalStateData, MaybeServerOut) ->
     mongoose_c2s_acc:pairs().
 build_to_c2s_acc(SaslAcc, C2SData, OriginalStateData, SuccessStanza) ->
     ModState = get_mod_state(SaslAcc),
+    MaybeSocketSendStreamFeatures = maybe_flush_stream_features(SaslAcc, C2SData),
     case is_new_c2s_state_requested(SaslAcc, OriginalStateData) of
-        true ->
-            ToAcc0 = [{actions, [pop_callback_module]},
-                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
-            [{socket_send_first, SuccessStanza} | ToAcc0];
         false ->
             %% Unless specified by an inline feature, sasl2 would normally put the statem just before bind
-            StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData),
-            ToAcc0 = [{actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
-                      {state_mod, {?MODULE, ModState#{authenticated := true}}}],
             [{socket_send_first, SuccessStanza},
-             {socket_send, StreamFeaturesStanza},
-             {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}} | ToAcc0]
+             {c2s_state, {wait_for_feature_after_auth, ?BIND_RETRIES}},
+             {actions, [pop_callback_module, mongoose_c2s:state_timeout(C2SData)]},
+             {state_mod, {?MODULE, ModState#{authenticated := true}}}
+             | MaybeSocketSendStreamFeatures];
+        true ->
+            [{socket_send_first, SuccessStanza},
+             {actions, [pop_callback_module]},
+             {state_mod, {?MODULE, ModState#{authenticated := true}}}
+             | MaybeSocketSendStreamFeatures]
+    end.
+
+-spec request_block_future_stream_features(mongoose_acc:t()) -> mongoose_acc:t().
+request_block_future_stream_features(SaslAcc) ->
+    mongoose_acc:set(?MODULE, stream_features, false, SaslAcc).
+
+-spec maybe_flush_stream_features(mongoose_acc:t(), mongoose_c2s:data()) ->
+    [{flush, mongoose_acc:t()}].
+maybe_flush_stream_features(SaslAcc, C2SData) ->
+    case mongoose_acc:get(?MODULE, stream_features, true, SaslAcc) of
+        true ->
+            StreamFeaturesStanza = mongoose_c2s_stanzas:stream_features_after_auth(C2SData),
+            Jid = mongoose_c2s:get_jid(C2SData),
+            LServer = mongoose_c2s:get_lserver(C2SData),
+            HostType = mongoose_c2s:get_host_type(C2SData),
+            AccParams = #{lserver => LServer, host_type => HostType,
+                          from_jid => jid:make_noprep(<<>>, LServer, <<>>), to_jid => Jid,
+                          element => StreamFeaturesStanza},
+            Acc = mongoose_acc:strip(AccParams, SaslAcc),
+            [{flush, Acc}];
+        false ->
+            []
     end.
 
 -spec is_new_c2s_state_requested(mongoose_acc:t(), c2s_state_data()) -> boolean().
@@ -390,7 +415,7 @@ if_provided_then_is_not_invalid_uuid_v4(Binary) ->
         Uuid
     catch
         exit:badarg:_ -> invalid_agent;
-        error:badmatch:_ -> invalid_agent
+        error:{badmatch, false}:_ -> invalid_agent
     end.
 
 -spec feature(mongoose_c2s:data(), [exml:element()]) -> exml:element().
@@ -413,14 +438,28 @@ feature_name() ->
 get_acc_sasl2_state(SaslAcc) ->
     mongoose_acc:get(?MODULE, SaslAcc).
 
--spec get_inline_request(mongoose_acc:t(), module()) -> undefined | inline_request().
+-spec get_inline_request(mongoose_acc:t(), module()) -> inline_request().
 get_inline_request(SaslAcc, ModuleRequest) ->
-    mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc).
+    mongoose_acc:get(?MODULE, ModuleRequest, SaslAcc).
+
+-spec get_inline_request(mongoose_acc:t(), module(), Default) -> Default | inline_request().
+get_inline_request(SaslAcc, ModuleRequest, Default) ->
+    mongoose_acc:get(?MODULE, ModuleRequest, Default, SaslAcc).
 
 -spec put_inline_request(mongoose_acc:t(), module(), exml:element()) -> mongoose_acc:t().
 put_inline_request(SaslAcc, ModuleRequest, XmlRequest) ->
     Request = #{request => XmlRequest, response => undefined, status => pending},
     mongoose_acc:set(?MODULE, ModuleRequest, Request, SaslAcc).
+
+-spec append_inline_response(mongoose_acc:t(), module(), exml:element()) -> mongoose_acc:t().
+append_inline_response(SaslAcc, ModuleRequest, XmlResponse) ->
+    case mongoose_acc:get(?MODULE, ModuleRequest, undefined, SaslAcc) of
+        undefined ->
+            SaslAcc;
+        Request ->
+            Request1 = Request#{response := XmlResponse},
+            mongoose_acc:set(?MODULE, ModuleRequest, Request1, SaslAcc)
+    end.
 
 -spec update_inline_request(mongoose_acc:t(), module(), exml:element(), status()) -> mongoose_acc:t().
 update_inline_request(SaslAcc, ModuleRequest, XmlResponse, Status) ->

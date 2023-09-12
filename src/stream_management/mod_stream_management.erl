@@ -14,10 +14,6 @@
 
 %% hooks handlers
 -export([c2s_stream_features/3,
-         sasl2_stream_features/3,
-         sasl2_start/3,
-         sasl2_success/3,
-         bind2_stream_features/3,
          session_cleanup/3,
          user_send_packet/3,
          user_receive_packet/3,
@@ -31,6 +27,10 @@
 
 %% gen_statem callbacks
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
+
+%% helpers
+-export([handle_resume/3, if_not_already_enabled_create_sm_state/1]).
+-export([stream_error/2, register_smid_return_enabled_stanza/1]).
 
 %% API for inspection and tests
 -export([get_sid/2, get_stale_h/2, get_session_from_smid/2,
@@ -79,7 +79,7 @@
                     | {stale_h, non_neg_integer()}
                     | {error, smid_not_found}.
 
--export_type([smid/0]).
+-export_type([smid/0, short/0, sm_state/0, c2s_state/0]).
 
 %%
 %% `gen_mod' callbacks
@@ -99,12 +99,8 @@ stop(HostType) ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 50},
-     {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
-     {sasl2_stream_features, HostType, fun ?MODULE:sasl2_stream_features/3, #{}, 50},
-     {sasl2_start, HostType, fun ?MODULE:sasl2_start/3, #{}, 50},
-     {sasl2_success, HostType, fun ?MODULE:sasl2_success/3, #{}, 30},
-     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50}
-     | c2s_hooks(HostType) ].
+     {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50}]
+    ++ mod_stream_management_sasl2:hooks(HostType) ++ c2s_hooks(HostType).
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
 c2s_hooks(HostType) ->
@@ -272,7 +268,7 @@ maybe_send_ack_request(Acc, #sm_state{buffer_size = BufferSize,
                                       counter_out = Out,
                                       ack_freq = AckFreq} = SmState)
   when 0 =:= (Out + BufferSize) rem AckFreq, ack_freq =/= never ->
-    Stanza = stream_mgmt_request(),
+    Stanza = mod_stream_management_stanzas:stream_mgmt_request(),
     ToAcc = [{socket_send, Stanza}, {state_mod, {?MODULE, SmState}}],
     {ok, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
 maybe_send_ack_request(Acc, SmState) ->
@@ -432,7 +428,7 @@ handle_r(Acc, #{c2s_data := StateData}) ->
                            text => <<"received <r/> but stream management is off!">>}),
             {ok, Acc};
         #sm_state{counter_in = In} ->
-            Stanza = stream_mgmt_ack(In),
+            Stanza = mod_stream_management_stanzas:stream_mgmt_ack(In),
             {ok, mongoose_c2s_acc:to_acc(Acc, socket_send, Stanza)}
     end.
 
@@ -469,7 +465,7 @@ do_handle_ack(#sm_state{counter_out = OldAcked,
             ErrorStanza0 = #xmlel{children = Children}
                 = mongoose_xmpp_errors:undefined_condition(
                     ?MYLANG, <<"You acknowledged more stanzas that what has been sent">>),
-            HandledCountField = sm_handled_count_too_high_stanza(Acked, OldAcked),
+            HandledCountField = mod_stream_management_stanzas:sm_handled_count_too_high_stanza(Acked, OldAcked),
             ErrorStanza = ErrorStanza0#xmlel{children = [HandledCountField | Children]},
             {error, ErrorStanza, {shutdown, sm_handled_count_too_high_stanza}};
         false ->
@@ -493,37 +489,45 @@ calc_to_drop(Acked, OldAcked) ->
 -spec handle_enable(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
 handle_enable(Acc, #{c2s_data := StateData}, El) ->
-    case {get_mod_state(StateData), exml_query:attr(El, <<"resume">>, false)} of
-        {{error, not_found}, <<"true">>} ->
-            do_handle_enable(Acc, StateData, true);
-        {{error, not_found}, <<"1">>} ->
-            do_handle_enable(Acc, StateData, true);
-        {{error, not_found}, false} ->
-            do_handle_enable(Acc, StateData, false);
-        {{error, not_found}, _InvalidResumeAttr} ->
+    case if_not_already_enabled_create_sm_state(StateData) of
+        error ->
             stream_error(Acc, StateData);
-        {#sm_state{}, _} ->
+        SmState ->
+            do_handle_enable(Acc, StateData, SmState, El)
+    end.
+
+-spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:data(), sm_state(), exml:element()) ->
+    mongoose_c2s_hooks:result().
+do_handle_enable(Acc, StateData, SmState, El) ->
+    case exml_query:attr(El, <<"resume">>, false) of
+        false ->
+            Stanza = mod_stream_management_stanzas:stream_mgmt_enabled(),
+            ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
+            {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
+        Attr when Attr =:= <<"true">>; Attr =:= <<"1">> ->
+            Stanza = register_smid_return_enabled_stanza(StateData),
+            ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
+            {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
+        _ ->
             stream_error(Acc, StateData)
     end.
 
--spec do_handle_enable(mongoose_acc:t(), mongoose_c2s:data(), boolean()) ->
-    mongoose_c2s_hooks:result().
-do_handle_enable(Acc, StateData, false) ->
-    Stanza = stream_mgmt_enabled(),
-    HostType = mongoose_c2s:get_host_type(StateData),
-    SmState = build_sm_handler(HostType),
-    ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)};
-
-do_handle_enable(Acc, StateData, true) ->
+-spec register_smid_return_enabled_stanza(mongoose_c2s:data()) -> exml:element().
+register_smid_return_enabled_stanza(StateData) ->
     SMID = make_smid(),
     Sid = mongoose_c2s:get_sid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     ok = register_smid(HostType, SMID, Sid),
-    Stanza = stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]),
-    SmState = build_sm_handler(HostType),
-    ToAcc = [{state_mod, {?MODULE, SmState}}, {socket_send, Stanza}],
-    {stop, mongoose_c2s_acc:to_acc_many(Acc, ToAcc)}.
+    mod_stream_management_stanzas:stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}]).
+
+-spec if_not_already_enabled_create_sm_state(mongoose_c2s:data()) -> sm_state() | error.
+if_not_already_enabled_create_sm_state(StateData) ->
+    case get_mod_state(StateData) of
+        #sm_state{} -> error;
+        {error, not_found} ->
+            HostType = mongoose_c2s:get_host_type(StateData),
+            build_sm_handler(HostType)
+    end.
 
 -spec handle_resume_request(mongoose_acc:t(), mongoose_c2s_hooks:params(), exml:element()) ->
     mongoose_c2s_hooks:result().
@@ -548,11 +552,11 @@ handle_resume_request(Acc, #{c2s_state := C2SState, c2s_data := C2SData}, El) ->
 handle_resume(C2SData, C2SState, El) ->
     case {get_previd(El), stream_mgmt_parse_h(El), get_mod_state(C2SData)} of
         {undefined, _, _} ->
-            {error, stream_mgmt_failed(<<"bad-request">>)};
+            {error, mod_stream_management_stanzas:stream_mgmt_failed(<<"bad-request">>)};
         {_, invalid_h_attribute, _} ->
-            {error, stream_mgmt_failed(<<"bad-request">>)};
+            {error, mod_stream_management_stanzas:stream_mgmt_failed(<<"bad-request">>)};
         {_, _, #sm_state{}} ->
-            {error, stream_mgmt_failed(<<"bad-request">>)};
+            {error, mod_stream_management_stanzas:stream_mgmt_failed(<<"bad-request">>)};
         {SMID, H, {error, not_found}} ->
             HostType = mongoose_c2s:get_host_type(C2SData),
             FromSMID = get_session_from_smid(HostType, SMID),
@@ -577,16 +581,16 @@ do_handle_resume(StateData, _C2SState, SMID, H, {sid, {_TS, Pid}}) ->
             ?LOG_WARNING(#{what => resumption_error,
                            text => <<"Resumption error because of invalid response">>,
                            class => C, reason => R, stacktrace => S, pid => Pid, c2s_state => StateData}),
-            {stream_mgmt_error, stream_mgmt_failed(<<"item-not-found">>)}
+            {stream_mgmt_error, mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>)}
     end;
 do_handle_resume(StateData, _C2SState, SMID, _H, {stale_h, StaleH}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => session_resumption_timed_out,
                    smid => SMID, stale_h => StaleH, c2s_state => StateData}),
-    {stream_mgmt_error, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(StaleH)}])};
+    {stream_mgmt_error, mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(StaleH)}])};
 do_handle_resume(StateData, _C2SState, SMID, _H, {error, smid_not_found}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => no_previous_session_for_smid,
                    smid => SMID, c2s_state => StateData}),
-    {stream_mgmt_error, stream_mgmt_failed(<<"item-not-found">>)}.
+    {stream_mgmt_error, mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>)}.
 
 %% This runs on the new process
 -spec do_resume(StateData, SMID) -> HookResult when
@@ -608,7 +612,7 @@ register_smid(StateData, SMID) ->
 -spec get_all_stanzas_to_forward(mongoose_c2s:data(), smid()) -> {exml:element(), [exml:element()]}.
 get_all_stanzas_to_forward(StateData, SMID) ->
     #sm_state{counter_in = Counter, buffer = Buffer} = get_mod_state(StateData),
-    Resumed = stream_mgmt_resumed(SMID, Counter),
+    Resumed = mod_stream_management_stanzas:stream_mgmt_resumed(SMID, Counter),
     LServer = mongoose_c2s:get_lserver(StateData),
     FromServer = jid:make_noprep(<<>>, LServer, <<>>),
     ToForward = [ begin
@@ -674,14 +678,14 @@ is_conflict_receiver_sid(Acc, StateData) ->
 -spec stream_error(mongoose_acc:t(), mongoose_c2s:data()) ->
     {stop, mongoose_acc:t()}.
 stream_error(Acc, StateData) ->
-    Err = stream_mgmt_failed(<<"unexpected-request">>),
+    Err = mod_stream_management_stanzas:stream_mgmt_failed(<<"unexpected-request">>),
     mongoose_c2s:c2s_stream_error(StateData, Err),
     {stop, mongoose_c2s_acc:to_acc(Acc, stop, {shutdown, stream_error})}.
 
 -spec unexpected_sm_request(mongoose_acc:t(), mongoose_c2s:data(), c2s_state()) ->
     {stop, mongoose_acc:t()}.
 unexpected_sm_request(Acc, StateData, C2SState) ->
-    Err = stream_mgmt_failed(<<"unexpected-request">>),
+    Err = mod_stream_management_stanzas:stream_mgmt_failed(<<"unexpected-request">>),
     stream_mgmt_error(Acc, StateData, C2SState, Err).
 
 -spec stream_mgmt_error(
@@ -734,62 +738,7 @@ get_previd(El) ->
     Params :: map(),
     Extra :: gen_hook:extra().
 c2s_stream_features(Acc, _, _) ->
-    {ok, lists:keystore(<<"sm">>, #xmlel.name, Acc, sm())}.
-
--spec sasl2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
-    {ok, Acc} when Acc :: [exml:element()].
-sasl2_stream_features(Acc, _, _) ->
-    Resume = #xmlel{name = <<"resume">>, attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]},
-    {ok, [Resume | Acc]}.
-
--spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
-    {ok, Acc} when Acc :: [exml:element()].
-bind2_stream_features(Acc, _, _) ->
-    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_STREAM_MGNT_3}]},
-    {ok, [SmFeature | Acc]}.
-
--spec sasl2_start(SaslAcc, #{stanza := exml:element()}, gen_hook:extra()) ->
-    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-sasl2_start(SaslAcc, #{stanza := El}, _) ->
-    case exml_query:path(El, [{element_with_ns, <<"resume">>, ?NS_STREAM_MGNT_3}]) of
-        undefined ->
-            {ok, SaslAcc};
-        SmRequest ->
-            {ok, mod_sasl2:put_inline_request(SaslAcc, ?MODULE, SmRequest)}
-    end.
-
--spec sasl2_success(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
-    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-sasl2_success(SaslAcc, _, _) ->
-    case mod_sasl2:get_inline_request(SaslAcc, ?MODULE) of
-        undefined ->
-            {ok, SaslAcc};
-        SmRequest ->
-            handle_sasl2_resume(SaslAcc, SmRequest)
-    end.
-
--spec handle_sasl2_resume(SaslAcc, mod_sasl2:inline_request()) ->
-    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
-handle_sasl2_resume(SaslAcc, #{request := El}) ->
-    #{c2s_state := C2SState, c2s_data := C2SData} = mod_sasl2:get_state_data(SaslAcc),
-    case handle_resume(C2SData, C2SState, El) of
-        {stream_mgmt_error, ErrorStanza} ->
-            {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, ErrorStanza, failure)};
-        {error, _ErrorStanza, _Reason} -> %% This signifies a stream-error, but we discard those here
-            SimpleErrorStanza = stream_mgmt_failed(<<"bad-request">>),
-            {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, SimpleErrorStanza, failure)};
-        {error, ErrorStanza} ->
-            {ok, mod_sasl2:update_inline_request(SaslAcc, ?MODULE, ErrorStanza, failure)};
-        {ok, #{resumed := Resumed, forward := ToForward} = Ret} ->
-            SaslAcc1 = mod_sasl2:update_inline_request(SaslAcc, ?MODULE, Resumed, success),
-            SaslAcc2 = mod_sasl2:set_state_data(SaslAcc1, Ret),
-            {ok, mongoose_c2s_acc:to_acc(SaslAcc2, socket_send, ToForward)}
-    end.
-
--spec sm() -> exml:element().
-sm() ->
-    #xmlel{name = <<"sm">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+    {ok, lists:keystore(<<"sm">>, #xmlel.name, Acc, mod_stream_management_stanzas:sm())}.
 
 -spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -912,52 +861,6 @@ is_sm_element(Acc) ->
 -spec make_smid() -> smid().
 make_smid() ->
     base64:encode(crypto:strong_rand_bytes(21)).
-
--spec stream_mgmt_enabled() -> exml:element().
-stream_mgmt_enabled() ->
-    stream_mgmt_enabled([]).
-
--spec stream_mgmt_enabled([exml:attr()]) -> exml:element().
-stream_mgmt_enabled(ExtraAttrs) ->
-    #xmlel{name = <<"enabled">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
-
--spec stream_mgmt_resumed(smid(), short()) -> exml:element().
-stream_mgmt_resumed(SMID, Handled) ->
-    #xmlel{name = <<"resumed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"previd">>, SMID},
-                    {<<"h">>, integer_to_binary(Handled)}]}.
-
--spec stream_mgmt_failed(binary()) -> exml:element().
-stream_mgmt_failed(Reason) ->
-    stream_mgmt_failed(Reason, []).
-
--spec stream_mgmt_failed(binary(), [exml:attr()]) -> exml:element().
-stream_mgmt_failed(Reason, Attrs) ->
-    ReasonEl = #xmlel{name = Reason,
-                      attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
-    #xmlel{name = <<"failed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3} | Attrs],
-           children = [ReasonEl]}.
-
--spec stream_mgmt_ack(non_neg_integer()) -> exml:element().
-stream_mgmt_ack(NIncoming) ->
-    #xmlel{name = <<"a">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"h">>, integer_to_binary(NIncoming)}]}.
-
--spec stream_mgmt_request() -> exml:element().
-stream_mgmt_request() ->
-    #xmlel{name = <<"r">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
-
--spec sm_handled_count_too_high_stanza(non_neg_integer(), non_neg_integer()) -> exml:element().
-sm_handled_count_too_high_stanza(Handled, OldAcked) ->
-    #xmlel{name = <<"handled-count-too-high">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                    {<<"h">>, integer_to_binary(Handled)},
-                    {<<"send-count">>, integer_to_binary(OldAcked)}]}.
 
 %% Getters
 -spec get_session_from_smid(mongooseim:host_type(), smid()) -> maybe_smid().

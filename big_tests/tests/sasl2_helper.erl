@@ -5,6 +5,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-define(VALID_UUID_BUT_NOT_V4, <<"a55c8fde-2cef-0655-a55c-8fde2cefc655">>).
 -define(NS_SASL_2, <<"urn:xmpp:sasl:2">>).
 
 -type step(Config, Client, Data) :: fun((Config, Client, Data) -> {Client, Data}).
@@ -15,6 +16,8 @@ ns() ->
 load_all_sasl2_modules(HostType) ->
     Modules = [{mod_bind2, config_parser_helper:default_mod_config(mod_bind2)},
                {mod_sasl2, config_parser_helper:default_mod_config(mod_sasl2)},
+               {mod_csi, config_parser_helper:default_mod_config(mod_csi)},
+               {mod_carboncopy, config_parser_helper:default_mod_config(mod_carboncopy)},
                {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})}],
     dynamic_modules:ensure_modules(HostType, Modules).
 
@@ -41,17 +44,20 @@ create_connect_tls(Config, Client, Data) ->
     {Client1, Data1} = create_user(Config, Client, Data),
     connect_tls(Config, Client1, Data1).
 
+start_new_user(Config, Client, Data) ->
+    {Client1, Data1} = create_connect_tls(Config, Client, Data),
+    start_stream_get_features(Config, Client1, Data1).
+
 create_user(Config, Client, Data) ->
     Spec = escalus_fresh:create_fresh_user(Config, alice),
     {Client, Data#{spec => Spec}}.
 
 connect_tls(_Config, _, #{spec := Spec} = Data) ->
     TlsPort = ct:get_config({hosts, mim, c2s_tls_port}),
-    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]},
-             {resource, <<"res1">>} | Spec],
+    Spec1 = [{port, TlsPort}, {tls_module, ssl}, {ssl, true}, {ssl_opts, [{verify, verify_none}]}
+             | Spec],
     Client1 = escalus_connection:connect(Spec1),
-    Jid = <<(escalus_client:short_jid(Client1))/binary, "/res1">>,
-    {Client1, Data#{spec => Spec1, client_1_jid => Jid}}.
+    {Client1, Data#{spec => Spec1}}.
 
 start_stream_get_features(_Config, Client, Data) ->
     Client1 = escalus_session:start_stream(Client),
@@ -73,6 +79,14 @@ send_invalid_ns_auth_stanza(_Config, Client, Data) ->
 send_bad_user_agent(_Config, Client, Data) ->
     InitialResponse = initial_response_elem(<<"some-random-payload">>),
     Agent = bad_user_agent_elem(),
+    Authenticate = auth_elem(<<"PLAIN">>, [InitialResponse, Agent]),
+    escalus:send(Client, Authenticate),
+    Answer = escalus_client:wait_for_stanza(Client),
+    {Client, Data#{answer => Answer}}.
+
+send_bad_user_agent_uuid(_Config, Client, Data) ->
+    InitialResponse = initial_response_elem(<<"some-random-payload">>),
+    Agent = bad_user_agent_elem(?VALID_UUID_BUT_NOT_V4),
     Authenticate = auth_elem(<<"PLAIN">>, [InitialResponse, Agent]),
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
@@ -248,6 +262,9 @@ good_user_agent_elem() ->
 
 bad_user_agent_elem() ->
     user_agent_elem(<<"bad-id">>, undefined, undefined).
+
+bad_user_agent_elem(Uuid) ->
+    user_agent_elem(Uuid, undefined, undefined).
 
 user_agent_elem(Id, undefined, Device) ->
     user_agent_elem(Id, [], Device);

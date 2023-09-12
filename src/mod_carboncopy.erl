@@ -39,6 +39,8 @@
 
 %% Hooks
 -export([disco_local_features/3,
+         bind2_stream_features/3,
+         bind2_enable_features/3,
          user_send_message/3,
          user_receive_message/3,
          iq_handler2/5,
@@ -89,6 +91,8 @@ stop(HostType) ->
 hooks(HostType) ->
     [
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50},
+     {bind2_enable_features, HostType, fun ?MODULE:bind2_enable_features/3, #{}, 50},
      {unset_presence_hook, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
      {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 89},
      {user_receive_message, HostType, fun ?MODULE:user_receive_message/3, #{}, 89}
@@ -108,6 +112,32 @@ disco_local_features(Acc = #{node := <<>>}, _, _) ->
     {ok, NewAcc};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
+
+-spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
+    {ok, Acc} when Acc :: [exml:element()].
+bind2_stream_features(Acc, _, _) ->
+    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_CC_2}]},
+    {ok, [SmFeature | Acc]}.
+
+-spec bind2_enable_features(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
+    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+bind2_enable_features(SaslAcc, _, _) ->
+    #{request := BindRequest} = mod_bind2:get_bind_request(SaslAcc),
+    case exml_query:subelement_with_name_and_ns(BindRequest, <<"enable">>, ?NS_CC_2) of
+        undefined ->
+            {ok, SaslAcc};
+        _ ->
+            %% We modify the info here, which is what will be written by set_session later,
+            %% so that enabling carbons and opening a session are an atomic operation
+            SaslStateData = mod_sasl2:get_state_data(SaslAcc),
+            #{c2s_data := C2SData} = SaslStateData,
+            Info = mongoose_c2s:get_info(C2SData),
+            Info1 = maps:put(?CC_KEY, cc_ver_to_int(?NS_CC_2), Info),
+            C2SData1 = mongoose_c2s:set_info(C2SData, Info1),
+            SaslStateData1 = SaslStateData#{c2s_data => C2SData1},
+            SaslAcc2 = mod_sasl2:set_state_data(SaslAcc, SaslStateData1),
+            {ok, SaslAcc2}
+    end.
 
 iq_handler2(Acc, From, _To, IQ, _Extra) ->
     iq_handler(Acc, From, IQ, ?NS_CC_2).
@@ -331,13 +361,13 @@ carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
 enable(JID, CC, Acc) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    OriginSid = mongoose_acc:get(c2s, origin_sid, Acc),
     ejabberd_sm:store_info(JID, OriginSid, ?CC_KEY, cc_ver_to_int(CC)).
 
 disable(JID, Acc) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    OriginSid = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    OriginSid = mongoose_acc:get(c2s, origin_sid, Acc),
     ejabberd_sm:remove_info(JID, OriginSid, ?CC_KEY).
 
 complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
