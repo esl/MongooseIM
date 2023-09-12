@@ -11,25 +11,30 @@
 -include("../mongoose_graphql_types.hrl").
 
 execute(Ctx, cets, <<"systemInfo">>, _) ->
-    try mongoose_cets_api:take() of
-        #{unavailable_nodes := UnNodes,
-          available_nodes := AvailNodes,
-          joined_nodes := JoinedNodes,
-          partially_joined_nodes := PartNodes,
-          partially_joined_tables := PartTables,
-          discovered_nodes := NodesSorted,
-          discovery_works := DiscoveryWorks} ->
-            {ok, #{<<"unavailableNodes">> => format_nodes(UnNodes),
-                   <<"unavailableNodesCount">> => length(UnNodes),
-                   <<"availableNodes">> => format_nodes(AvailNodes),
-                   <<"availableNodesCount">> => length(AvailNodes),
-                   <<"joinedNodes">> => format_nodes(JoinedNodes),
-                   <<"joinedNodesCount">> => length(JoinedNodes),
-                   <<"partiallyJoinedNodes">> => format_nodes(PartNodes),
-                   <<"partiallyJoinedTables">> => format_nodes(PartTables),
-                   <<"partiallyJoinedNodesCount">> => length(PartNodes),
-                   <<"discoveredNodes">> => format_nodes(NodesSorted),
-                   <<"discoveredNodesCount">> => length(NodesSorted),
+    try cets_status:status(mongoose_cets_discovery) of
+        #{available_nodes := AvNodes,
+          unavailable_nodes := UnNodes,
+          joined_nodes := Joined,
+          discovered_nodes := DiscoNodes,
+          discovery_works := DiscoveryWorks,
+          remote_nodes_without_disco := NoDisco,
+          remote_nodes_with_unknown_tables := UnkNodes,
+          remote_unknown_tables := UnkTabs,
+          remote_nodes_with_missing_tables := MissNodes,
+          remote_missing_tables := MissTabs,
+          conflict_nodes := ConNodes,
+          conflict_tables := ConTabs} ->
+            {ok, #{<<"availableNodes">> => format_nodes(AvNodes),
+                   <<"unavailableNodes">> => format_nodes(UnNodes),
+                   <<"joinedNodes">> => format_nodes(Joined),
+                   <<"discoveredNodes">> => format_nodes(DiscoNodes),
+                   <<"remoteNodesWithoutDisco">> => format_nodes(NoDisco),
+                   <<"remoteNodesWithUnknownTables">> => format_nodes(UnkNodes),
+                   <<"remoteUnknownTables">> => format_tables(UnkTabs),
+                   <<"remoteNodesWithMissingTables">> => format_nodes(MissNodes),
+                   <<"remoteMissingTables">> => format_tables(MissTabs),
+                   <<"conflictNodes">> => format_nodes(ConNodes),
+                   <<"conflictTables">> => format_tables(ConTabs),
                    <<"discoveryWorks">> => DiscoveryWorks}}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => cets_system_info_failed, class => Class,
@@ -49,4 +54,7 @@ process_result(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) 
            <<"nodes">> => format_nodes(Nodes), <<"tableName">> => Tab}}.
 
 format_nodes(Nodes) ->
+    [{ok, Node} || Node <- Nodes].
+
+format_tables(Nodes) ->
     [{ok, Node} || Node <- Nodes].

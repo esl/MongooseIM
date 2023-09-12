@@ -20,17 +20,17 @@ groups() ->
 
 admin_cets_tests() ->
     [has_sm_table_in_info,
-     unavailable_nodes,
-     unavailable_nodes_count,
      available_nodes,
-     available_nodes_count,
+     unavailable_nodes,
      joined_nodes,
-     joined_nodes_count,
+     discovered_nodes,
+     remote_nodes_without_disco,
+     remote_nodes_with_unknown_tables,
+     remote_unknown_tables,
+     remote_nodes_with_missing_tables,
+     remote_missing_tables,
      conflict_nodes,
      conflict_tables,
-     conflict_nodes_count,
-     discovered_nodes,
-     discovered_nodes_count,
      discovery_works].
 
 domain_admin_tests() ->
@@ -84,23 +84,6 @@ has_sm_table_in_info(Config) ->
     #{node := Node1} = mim(),
     assert_member(atom_to_binary(Node1), Nodes).
 
-unavailable_nodes(Config) ->
-    #{node := Node1} = mim(),
-    #{node := Node2} = mim2(),
-    Res = get_system_info(Config),
-    Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"unavailableNodes">> := Nodes} = Info,
-    assert_member(<<"badnode@localhost">>, Nodes),
-    assert_not_member(atom_to_binary(Node1), Nodes),
-    assert_not_member(atom_to_binary(Node2), Nodes).
-
-unavailable_nodes_count(Config) ->
-    Res = get_system_info(Config),
-    Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"unavailableNodesCount">> := Count} = Info,
-    ?assert(is_integer(Count), Info),
-    ?assert(Count > 0, Info).
-
 available_nodes(Config) ->
     #{node := Node1} = mim(),
     #{node := Node2} = mim2(),
@@ -111,12 +94,15 @@ available_nodes(Config) ->
     assert_member(atom_to_binary(Node2), Nodes),
     assert_not_member(<<"badnode@localhost">>, Nodes).
 
-available_nodes_count(Config) ->
+unavailable_nodes(Config) ->
+    #{node := Node1} = mim(),
+    #{node := Node2} = mim2(),
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"availableNodesCount">> := Count} = Info,
-    ?assert(is_integer(Count), Info),
-    ?assert(Count > 1, Info).
+    #{<<"unavailableNodes">> := Nodes} = Info,
+    assert_member(<<"badnode@localhost">>, Nodes),
+    assert_not_member(atom_to_binary(Node1), Nodes),
+    assert_not_member(atom_to_binary(Node2), Nodes).
 
 joined_nodes(Config) ->
     #{node := Node1} = mim(),
@@ -128,12 +114,30 @@ joined_nodes(Config) ->
     assert_member(atom_to_binary(Node2), Nodes),
     assert_not_member(<<"badnode@localhost">>, Nodes).
 
-joined_nodes_count(Config) ->
+remote_nodes_without_disco(Config) ->
     Res = get_system_info(Config),
     Info = get_ok_value([data, cets, systemInfo], Res),
-    #{<<"joinedNodesCount">> := Count} = Info,
-    ?assert(true, is_integer(Count)),
-    ?assert(Count > 1, Info).
+    ?assert(is_list(maps:get(<<"remoteNodesWithoutDisco">>, Info)), Info).
+
+remote_nodes_with_unknown_tables(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assert(is_list(maps:get(<<"remoteNodesWithUnknownTables">>, Info)), Info).
+
+remote_unknown_tables(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assert(is_list(maps:get(<<"remoteUnknownTables">>, Info)), Info).
+
+remote_nodes_with_missing_tables(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assert(is_list(maps:get(<<"remoteNodesWithMissingTables">>, Info)), Info).
+
+remote_missing_tables(Config) ->
+    Res = get_system_info(Config),
+    Info = get_ok_value([data, cets, systemInfo], Res),
+    ?assert(is_list(maps:get(<<"remoteMissingTables">>, Info)), Info).
 
 conflict_nodes(Config) ->
     Res = get_system_info(Config),

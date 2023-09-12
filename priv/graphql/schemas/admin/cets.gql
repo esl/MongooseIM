@@ -35,7 +35,7 @@ type CETSSystemInfo {
   "Unknown remote tables"
   remoteUnknownTables: [String]
   "Nodes that are available, but do not host one of our local tables"
-  remoteNodesWithNissingTables: [String]
+  remoteNodesWithMissingTables: [String]
   "Missing remote tables"
   remoteMissingTables: [String]
   "Nodes that replicate at least one of our local tables to a different list of nodes"
