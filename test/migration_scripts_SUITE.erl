@@ -49,41 +49,45 @@ end_per_suite(Config) ->
 
 %% ----------------- sender-jid-from-mam-message.escript ----------------------
 
-sender_jid_from_mam_muc_eterm_stream(_Config) ->
+sender_jid_from_mam_muc_eterm_stream(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["eterm", os:getenv("PWD") ++
-             "/tools/migration/sender-jid-from-mam-message.example.eterm"]),
+            ["eterm", filename:join(small_path_helper:repo_dir(Config),
+                                    "tools/migration/sender-jid-from-mam-message.example.eterm")]),
     sender_jid_from_mam_muc_data_stream(Port).
 
-sender_jid_from_mam_muc_xml_stream(_Config) ->
+sender_jid_from_mam_muc_xml_stream(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["xml", os:getenv("PWD") ++
-             "/tools/migration/sender-jid-from-mam-message.example.xml"]),
+            ["xml", filename:join(small_path_helper:repo_dir(Config),
+                                  "tools/migration/sender-jid-from-mam-message.example.xml")]),
     sender_jid_from_mam_muc_data_stream(Port).
 
 sender_jid_from_mam_muc_data_stream(Port) ->
     BareJID = <<"gżegżółka@brzęczyszczykiewicz.pl"/utf8>>,
     BareJID = script_helper:read(Port).
 
-sender_jid_from_mam_muc_doesnt_crash_on_unsupported_eterm_input(_Config) ->
+sender_jid_from_mam_muc_doesnt_crash_on_unsupported_eterm_input(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["eterm", os:getenv("PWD") ++ "/tools/migration/unsupported_input.example.eterm"]),
+            ["eterm", filename:join(small_path_helper:repo_dir(Config),
+                                    "tools/migration/unsupported_input.example.eterm")]),
     sender_jid_from_mam_muc_doesnt_crash_on_unsupported_input(Port).
 
-sender_jid_from_mam_muc_doesnt_crash_on_unsupported_xml_input(_Config) ->
+sender_jid_from_mam_muc_doesnt_crash_on_unsupported_xml_input(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["xml",  os:getenv("PWD") ++ "/tools/migration/unsupported_input.example.xml"]),
+            ["xml", filename:join(small_path_helper:repo_dir(Config),
+                                  "tools/migration/unsupported_input.example.xml")]),
     sender_jid_from_mam_muc_doesnt_crash_on_unsupported_input(Port).
 
 
-sender_jid_from_mam_muc_doesnt_crash_on_malformed_eterm_input(_Config) ->
+sender_jid_from_mam_muc_doesnt_crash_on_malformed_eterm_input(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["eterm", os:getenv("PWD") ++ "/tools/migration/malformed_input.example.eterm"]),
+            ["eterm", filename:join(small_path_helper:repo_dir(Config),
+                                    "tools/migration/malformed_input.example.eterm")]),
     sender_jid_from_mam_muc_doesnt_crash_on_malformed_input(Port).
 
-sender_jid_from_mam_muc_doesnt_crash_on_malformed_xml_input(_Config) ->
+sender_jid_from_mam_muc_doesnt_crash_on_malformed_xml_input(Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript",
-            ["xml", os:getenv("PWD") ++ "/tools/migration/malformed_input.example.xml"]),
+            ["xml", filename:join(small_path_helper:repo_dir(Config),
+                                  "tools/migration/malformed_input.example.xml")]),
     sender_jid_from_mam_muc_doesnt_crash_on_malformed_input(Port).
 
 sender_jid_from_mam_muc_doesnt_crash_on_unsupported_input(Port) ->
