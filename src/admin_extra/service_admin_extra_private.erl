@@ -36,10 +36,7 @@
     commands/0, private_get/4, private_set/3
 ]).
 
--include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
--include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
 
 %%%
 %%% Register commands
@@ -72,7 +69,7 @@ commands() ->
 -spec private_get(jid:user(), jid:server(), binary(), binary()) ->
     {not_found, string()} | string().
 private_get(Username, Host, Element, Ns) ->
-    JID = jid:make(Username, Host, <<>>),
+    JID = jid:make_bare(Username, Host),
     case mod_private_api:private_get(JID, Element, Ns) of
         {ok, Xml} -> exml:to_list(Xml);
         Error -> Error
@@ -88,7 +85,7 @@ private_set(Username, Host, ElementString) ->
                       [ElementString, Error]),
             {parse_error, String};
         {ok, Xml} ->
-            JID = jid:make(Username, Host, <<>>),
+            JID = jid:make_bare(Username, Host),
             case mod_private_api:private_set(JID, Xml) of
                 {ok, _} -> {ok, ""};
                 Error -> Error

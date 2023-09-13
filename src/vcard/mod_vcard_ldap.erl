@@ -136,7 +136,7 @@ remove_user(_HostType, _LUser, _LServer) ->
 -spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, [exml:element()]}.
 get_vcard(HostType, LUser, LServer) ->
     State = get_state(HostType, LServer),
-    JID = jid:make(LUser, LServer, <<>>),
+    JID = jid:make_bare(LUser, LServer),
     case ejabberd_auth:does_user_exist(JID) of
         true ->
             case find_ldap_user(LUser, State) of
@@ -373,7 +373,7 @@ attrs_to_item(Attrs, #state{uids = UIDs} = State) ->
 make_user_item_if_exists(Username, Attrs,
                          #state{serverhost = LServer, search_reported = SearchReported,
                                 vcard_map = VCardMap, binary_search_fields = BinFields}) ->
-    JID = jid:make(Username, LServer, <<>>),
+    JID = jid:make_bare(Username, LServer),
     case ejabberd_auth:does_user_exist(JID) of
         true ->
             RFields = lists:map(fun ({_, VCardName}) ->

@@ -112,7 +112,7 @@ maybe_authorize(UserName, KeyVals, Nonce, State) ->
     AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
     LServer = mongoose_credentials:lserver(State#state.creds),
     HostType = mongoose_credentials:host_type(State#state.creds),
-    JID = jid:make(UserName, LServer, <<>>),
+    JID = jid:make_bare(UserName, LServer),
     case ejabberd_auth:get_passterm_with_authmodule(HostType, JID) of
         false ->
             {error, <<"not-authorized">>, UserName};

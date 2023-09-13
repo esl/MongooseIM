@@ -38,7 +38,7 @@ register_user(#{<<"domain">> := Domain, <<"username">> := null,
 register_user(#{<<"domain">> := Domain, <<"username">> := Username,
                 <<"password">> := Password}) ->
     Result = mongoose_account_api:register_user(Username, Domain, Password),
-    format_user_payload(Result, jid:make(Username, Domain, <<>>)).
+    format_user_payload(Result, jid:make_bare(Username, Domain)).
 
 -spec remove_user(map()) -> {ok, map()} | {error, resolver_error()}.
 remove_user(#{<<"user">> := JID}) ->

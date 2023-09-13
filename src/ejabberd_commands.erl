@@ -411,7 +411,7 @@ check_access_commands(AccessCommands, Auth, Method, Command, Arguments) ->
 -spec check_auth(auth()) -> {ok, jid:jid()} | no_return().
 check_auth({User, Server, Password}) ->
     %% Check the account exists and password is valid
-    JID = jid:make(User, Server, <<>>),
+    JID = jid:make_bare(User, Server),
     AccountPass = ejabberd_auth:get_password_s(JID),
     AccountPassMD5 = get_md5(AccountPass),
     case Password of

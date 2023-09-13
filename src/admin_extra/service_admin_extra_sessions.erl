@@ -150,13 +150,13 @@ commands() ->
 
 -spec num_resources(jid:user(), jid:server()) -> non_neg_integer().
 num_resources(User, Host) ->
-    JID = jid:make(User, Host, <<>>),
+    JID = jid:make_bare(User, Host),
     {ok, Value} = mongoose_session_api:num_resources(JID),
     Value.
 
 -spec resource_num(jid:user(), jid:server(), integer()) -> mongoose_session_api:res_number_result().
 resource_num(User, Host, Num) ->
-    JID = jid:make(User, Host, <<>>),
+    JID = jid:make_bare(User, Host),
     mongoose_session_api:get_user_resource(JID, Num).
 
 -spec kick_session(jid:user(), jid:server(), jid:resource(), null | binary()) ->
@@ -204,7 +204,7 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
 
 -spec user_sessions_info(jid:user(), jid:server()) -> [tuple()].
 user_sessions_info(User, Host) ->
-    JID = jid:make(User, Host, <<>>),
+    JID = jid:make_bare(User, Host),
     {ok, Sessions} = mongoose_session_api:list_user_sessions(JID),
     format_sessions(Sessions).
 

@@ -16,7 +16,7 @@
 -module (mod_extdisco).
 -author('jan.ciesla@erlang-solutions.com').
 
--xep([{xep, 215}, {version, "0.7"}]).
+-xep([{xep, 215}, {version, "1.0.0"}]).
 -behaviour(gen_mod).
 
 %% gen_mod callbacks.

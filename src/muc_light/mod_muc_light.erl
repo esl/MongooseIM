@@ -150,7 +150,7 @@ try_to_create_room(CreatorJid, RoomJID, #create{raw_config = RawConfig} = Creati
     {ok, jid:jid(), config_req_props()}
     | {error, validation_error() | bad_request | not_allowed | not_exists | item_not_found}.
 change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq, Acc1) ->
-    RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
+    RoomJID = jid:make_bare(RoomID, MUCLightDomain),
     {Acc2, AffUsersRes} = get_acc_room_affiliations(Acc1, RoomJID),
     case mod_muc_light_room:process_request(UserJid, RoomJID, {set, ConfigReq},
                                             AffUsersRes, Acc2) of

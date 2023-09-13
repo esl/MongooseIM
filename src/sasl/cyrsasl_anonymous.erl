@@ -51,7 +51,7 @@ mech_step(#state{creds = Creds}, _ClientIn) ->
     User = <<(mongoose_bin:gen_from_crypto())/binary,
              (integer_to_binary(erlang:unique_integer([positive])))/binary>>,
     %% Checks that the username is available
-    JID = jid:make(User, mongoose_credentials:lserver(Creds), <<>>),
+    JID = jid:make_bare(User, mongoose_credentials:lserver(Creds)),
     case ejabberd_auth:does_user_exist(JID) of
         true  -> {error, <<"not-authorized">>};
         false -> {ok, mongoose_credentials:extend(Creds, [{username, User},

@@ -9,19 +9,24 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => map()}.
+-type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => map(),
+                  expire_time := non_neg_integer()}.
 -type state() :: opts().
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    Opts#{last_query_info => #{}}.
+    maps:merge(defaults(), Opts).
+
+defaults() ->
+    #{expire_time => 60 * 60 * 1, %% 1 hour in seconds
+      last_query_info => #{}}.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     try
         case is_rdbms_running() of
             true ->
-                try_register(ClusterName, Node);
+                try_register(ClusterName, Node, State);
             false ->
                 skip
         end
@@ -45,19 +50,19 @@ is_rdbms_running() ->
          false
     end.
 
-try_register(ClusterName, NodeBin) when is_binary(NodeBin), is_binary(ClusterName) ->
-    Node = binary_to_atom(NodeBin),
+try_register(ClusterName, NodeBin, State) when is_binary(NodeBin), is_binary(ClusterName) ->
     prepare(),
-    {selected, Rows} = select(ClusterName),
-    Pairs = [{binary_to_atom(DbNodeBin), Num} || {DbNodeBin, Num} <- Rows],
-    {Nodes, Nums} = lists:unzip(Pairs),
-    AlreadyRegistered = lists:member(Node, Nodes),
     Timestamp = timestamp(),
+    Node = binary_to_atom(NodeBin),
+    {selected, Rows} = select(ClusterName),
+    Zipped = [{binary_to_atom(DbNodeBin), Num, TS} || {DbNodeBin, Num, TS} <- Rows],
+    {Nodes, Nums, _Timestamps} = lists:unzip3(Zipped),
+    AlreadyRegistered = lists:member(Node, Nodes),
     NodeNum =
         case AlreadyRegistered of
             true ->
                  update_existing(ClusterName, NodeBin, Timestamp),
-                 {value, {_, Num}} = lists:keysearch(Node, 1, Pairs),
+                 {value, {_, Num, _TS}} = lists:keysearch(Node, 1, Zipped),
                  Num;
             false ->
                  Num = next_free_num(lists:usort(Nums)),
@@ -66,21 +71,52 @@ try_register(ClusterName, NodeBin) when is_binary(NodeBin), is_binary(ClusterNam
                  insert_new(ClusterName, NodeBin, Timestamp, Num),
                  Num
         end,
+    RunCleaningResult = run_cleaning(ClusterName, Timestamp, Rows, State),
     %% This could be used for debugging
     Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp,
-             node_num => Num, last_rows => Rows},
-    {NodeNum, Nodes, Info}.
+             node_num => Num, last_rows => Rows, run_cleaning_result => RunCleaningResult},
+    Nodes2 = skip_expired_nodes(Nodes, RunCleaningResult),
+    {NodeNum, Nodes2, Info}.
+
+skip_expired_nodes(Nodes, {removed, ExpiredNodes}) ->
+    Nodes -- ExpiredNodes;
+skip_expired_nodes(Nodes, {skip, _}) ->
+    Nodes.
+
+run_cleaning(ClusterName, Timestamp, Rows, State) ->
+    Expired = [{DbNodeBin, Num, DbTS} || {DbNodeBin, Num, DbTS} <- Rows,
+               is_expired(DbTS, Timestamp, State)],
+    ExpiredNodes = [binary_to_atom(DbNodeBin) || {DbNodeBin, _Num, _TS} <- Expired],
+    case Expired of
+        [] ->
+            {skip, nothing_expired};
+        _ ->
+            [delete_node_from_db(ClusterName, DbNodeBin) || {DbNodeBin, _Num, _TS} <- Expired],
+            ?LOG_WARNING(#{what => cets_expired_nodes,
+                           text => <<"Expired nodes are detected in discovery_nodes table">>,
+                           expired_nodes => ExpiredNodes}),
+            {removed, ExpiredNodes}
+    end.
+
+is_expired(DbTS, Timestamp, #{expire_time := ExpireTime}) when is_integer(DbTS) ->
+    (Timestamp - DbTS) > ExpireTime. %% compare seconds
+
+delete_node_from_db(ClusterName, Node) ->
+    mongoose_rdbms:execute_successfully(global, cets_delete_node_from_db, [ClusterName, Node]).
 
 prepare() ->
     T = discovery_nodes,
+    mongoose_rdbms_timestamp:prepare(),
     mongoose_rdbms:prepare(cets_disco_select, T, [cluster_name], select()),
     mongoose_rdbms:prepare(cets_disco_insert_new, T,
                            [cluster_name, node_name, node_num, updated_timestamp], insert_new()),
     mongoose_rdbms:prepare(cets_disco_update_existing, T,
-                           [updated_timestamp, cluster_name, node_name], update_existing()).
+                           [updated_timestamp, cluster_name, node_name], update_existing()),
+    mongoose_rdbms:prepare(cets_delete_node_from_db, T,
+                           [cluster_name, node_name], delete_node_from_db()).
 
 select() ->
-    <<"SELECT node_name, node_num FROM discovery_nodes WHERE cluster_name = ?">>.
+    <<"SELECT node_name, node_num, updated_timestamp FROM discovery_nodes WHERE cluster_name = ?">>.
 
 select(ClusterName) ->
     mongoose_rdbms:execute_successfully(global, cets_disco_select, [ClusterName]).
@@ -95,11 +131,17 @@ insert_new(ClusterName, Node, Timestamp, Num) ->
 update_existing() ->
     <<"UPDATE discovery_nodes SET updated_timestamp = ? WHERE cluster_name = ? AND node_name = ?">>.
 
+delete_node_from_db() ->
+    <<"DELETE FROM discovery_nodes WHERE cluster_name = ? AND node_name = ?">>.
+
 update_existing(ClusterName, Node, Timestamp) ->
     mongoose_rdbms:execute(global, cets_disco_update_existing, [Timestamp, ClusterName, Node]).
 
+%% in seconds
 timestamp() ->
-    os:system_time(microsecond).
+    % We could use Erlang timestamp os:system_time(second).
+    % But we use the database server time as a central source of truth.
+    mongoose_rdbms_timestamp:select().
 
 %% Returns a next free node id based on the currently registered ids
 next_free_num([]) ->
