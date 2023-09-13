@@ -22,10 +22,11 @@ get_connections(Type) ->
 type_to_supervisor(in) -> ejabberd_s2s_in_sup;
 type_to_supervisor(out) -> ejabberd_s2s_out_sup.
 
+%% temporary supervisors do not allow Pid to be undefined or restarting.
 -spec child_to_pid(supervisor_child_spec()) -> pid().
-child_to_pid({_, Pid, _, _}) -> Pid.
+child_to_pid({_, Pid, _, _}) when is_pid(Pid) -> Pid.
 
--spec get_state_info(pid()) -> [connection_info()].
+-spec get_state_info(pid() | undefined | restarting) -> [connection_info()].
 get_state_info(Pid) when is_pid(Pid) ->
     case gen_fsm_compat:sync_send_all_state_event(Pid, get_state_info) of
         Info when is_map(Info) ->
