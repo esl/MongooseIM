@@ -335,7 +335,7 @@ extract_chat_markers(Acc, From, To, Packet) ->
 -spec get_thread(exml:element()) -> maybe_thread().
 get_thread(El) ->
     case exml_query:path(El, [{element, <<"thread">>}, cdata]) of
-        Thread when Thread =/= <<>> -> Thread;
+        Thread when Thread =/= <<>>, is_binary(Thread) -> Thread;
         _ -> undefined
     end.
 
