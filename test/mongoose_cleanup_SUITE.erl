@@ -18,6 +18,7 @@
          bosh/1,
          component/1,
          component_from_other_node_remains/1,
+         muc_node_cleanup_for_host_type/1,
          muc_room/1,
          muc_room_from_other_node_remains/1
         ]).
@@ -51,7 +52,7 @@ component_cases() ->
     [component, component_from_other_node_remains].
 
 muc_cases() ->
-    [muc_room, muc_room_from_other_node_remains].
+    [muc_node_cleanup_for_host_type, muc_room, muc_room_from_other_node_remains].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -86,7 +87,7 @@ init_per_testcase(TestCase, Config) ->
     {ok, _DomainSup} = mongoose_domain_sup:start_link(),
     setup_meck(meck_mods(TestCase)),
     start_component(TestCase),
-    start_muc_backend(Config),
+    start_muc(TestCase, Config),
     Config.
 
 end_per_testcase(TestCase, _Config) ->
@@ -250,6 +251,12 @@ component_from_other_node_remains(_Config) ->
     mongoose_component:unregister_components(Comps),
     ok.
 
+muc_node_cleanup_for_host_type(_Config) ->
+    {ok, Pid} = mongoose_cleaner:start_link(),
+    Pid ! {nodedown, 'badnode@localhost'},
+    %% Check if the cleaner process is still running
+    ok = gen_server:call(Pid, ping).
+
 muc_room(_Config) ->
     HostType = ?HOST,
     MucHost = <<"muc.localhost">>,
@@ -359,9 +366,25 @@ remote_pid_binary() ->
 remote_pid() ->
     binary_to_term(remote_pid_binary()).
 
-start_muc_backend(Config) ->
+start_muc(TestCase, Config) ->
     case proplists:get_value(muc_backend, Config) of
         undefined -> ok;
         Backend ->
-            mongoose_muc_online_backend:start(?HOST, #{online_backend => Backend})
+            case should_start_full_muc_module(TestCase) of
+                true ->
+                    start_muc_module(Backend);
+                false ->
+                    start_muc_backend(Backend)
+            end
     end.
+
+start_muc_backend(Backend) ->
+    mongoose_muc_online_backend:start(?HOST, #{online_backend => Backend}).
+
+start_muc_module(Backend) ->
+    ExtraOpts = #{online_backend => Backend, backend => mnesia},
+    Opts = config_parser_helper:mod_config(mod_muc, ExtraOpts),
+    {started, ok} = start(?HOST, mod_muc, Opts).
+
+should_start_full_muc_module(TestCase) ->
+    lists:member(TestCase, [muc_node_cleanup_for_host_type]).

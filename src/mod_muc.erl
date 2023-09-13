@@ -1262,7 +1262,7 @@ disco_local_items(Acc, _, _) ->
     Extra :: gen_hook:extra().
 node_cleanup_for_host_type(Acc, #{node := Node}, #{host_type := HostType}) ->
     node_cleanup(HostType, Node),
-    Acc.
+    {ok, Acc}.
 
 online_rooms_number() ->
     lists:sum([online_rooms_number(HostType)
