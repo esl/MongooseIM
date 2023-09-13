@@ -28,6 +28,7 @@
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
      || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
+-define(CACERT_FILE, "priv/ssl/cacert.pem").
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 
@@ -655,7 +656,7 @@ configure_c2s_listener(Config, ExtraC2SOpts) ->
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
 tls_opts(Mode, Config) ->
-    ExtraOpts = #{mode => Mode, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
+    ExtraOpts = #{mode => Mode, cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
     Module = proplists:get_value(tls_module, Config, fast_tls),
     maps:merge(default_c2s_tls(Module), ExtraOpts).
 
