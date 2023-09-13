@@ -93,9 +93,12 @@ tracking_id_section() ->
 
 -spec start_link(mongoose_service:options()) -> {ok, pid()}.
 start_link(Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
+    Res = gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []),
+    check_start_link_result(Res).
 
--spec init(mongoose_service:options()) -> {ok, system_metrics_state()}.
+check_start_link_result(Res = {ok, Pid}) when is_pid(Pid) -> Res.
+
+-spec init(mongoose_service:options()) -> {ok, system_metrics_state()} | ignore.
 init(Opts) ->
     case report_transparency(Opts) of
         skip -> ignore;
