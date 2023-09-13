@@ -344,7 +344,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 stream_features_test(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
     List = [start_stream, stream_features, {?MODULE, verify_features}],
-    escalus_connection:start(UserSpec, List),
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], List),
     ok.
 
 verify_features(Conn, Features) ->
@@ -367,7 +367,7 @@ metrics_test(Config) ->
                        {[global, data, xmpp, received, c2s, tls], changed},
                        {[global, data, xmpp, sent, c2s, tls], changed},
                        %% TCP traffic before starttls
-                       {[global, data, xmpp, received, c2s, tcp], changed}, 
+                       {[global, data, xmpp, received, c2s, tcp], changed},
                        {[global, data, xmpp, sent, c2s, tcp], changed}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     tls_authenticate(Config),
@@ -378,12 +378,13 @@ tls_authenticate(Config) ->
     UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    {ok, Conn, _} = escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], ConnetctionSteps),
     % then
     true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
 
 auth_bind_pipelined_session(Config) ->
-    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]},
+                {ssl_opts, [{verify, verify_none}]}
                 | escalus_fresh:create_fresh_user(Config, alice)],
 
     Username = proplists:get_value(username, UserSpec),
@@ -410,6 +411,7 @@ auth_bind_pipelined_session(Config) ->
 
 auth_bind_pipelined_auth_failure(Config) ->
     UserSpec = [{password, <<"badpassword">>}, {ssl, true},
+                {ssl_opts, [{verify, verify_none}]},
                 {parser_opts, [{start_tag, <<"stream:stream">>}]}
                 | escalus_fresh:freshen_spec(Config, alice)],
 
@@ -441,7 +443,8 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
                    AuthResponse).
 
 bind_server_generated_resource(Config) ->
-    UserSpec = [{resource, <<>>} | escalus_fresh:create_fresh_user(Config, ?SECURE_USER)],
+    UserSpec = [{resource, <<>>}, {ssl_opts, [{verify, verify_none}]}
+                | escalus_fresh:create_fresh_user(Config, ?SECURE_USER)],
     ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
     {ok, #client{props = NewSpec}, _} = escalus_connection:start(UserSpec, ConnectionSteps),
     {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
@@ -657,7 +660,7 @@ tls_opts(Mode, Config) ->
     maps:merge(default_c2s_tls(Module), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
-    [{ssl_opts, [{versions, [Version]}]} | UserSpec].
+    [{ssl_opts, [{versions, [Version]}, {verify, verify_none}]} | UserSpec].
 
 connect_to_invalid_host(Spec) ->
     {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),
