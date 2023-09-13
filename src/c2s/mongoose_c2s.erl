@@ -857,17 +857,19 @@ reroute_one(#c2s_data{sid = Sid}, Acc) ->
     Acc2 = patch_acc_for_reroute(Acc, Sid),
     ejabberd_router:route(From, To, Acc2).
 
--spec reroute_buffer(data(), [mongoose_acc:t()]) -> term().
+-spec reroute_buffer(data(), [mongoose_acc:t()]) -> ok.
 reroute_buffer(StateData = #c2s_data{host_type = HostType, jid = Jid}, Buffer) ->
     OrderedBuffer = lists:reverse(Buffer),
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
-    [reroute_one(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+    [reroute_one(StateData, BufferedAcc) || BufferedAcc <- FilteredBuffer],
+    ok.
 
--spec reroute_buffer_to_pid(data(), pid(), [mongoose_acc:t()]) -> term().
+-spec reroute_buffer_to_pid(data(), pid(), [mongoose_acc:t()]) -> ok.
 reroute_buffer_to_pid(StateData = #c2s_data{host_type = HostType, jid = Jid}, Pid, Buffer) ->
     OrderedBuffer = lists:reverse(Buffer),
     FilteredBuffer = mongoose_hooks:filter_unacknowledged_messages(HostType, Jid, OrderedBuffer),
-    [reroute_one_to_pid(StateData, Pid, BufferedAcc) || BufferedAcc <- FilteredBuffer].
+    [reroute_one_to_pid(StateData, Pid, BufferedAcc) || BufferedAcc <- FilteredBuffer],
+    ok.
 
 -spec reroute_one_to_pid(data(), pid(), mongoose_acc:t()) -> {route, mongoose_acc:t()}.
 reroute_one_to_pid(#c2s_data{sid = Sid}, Pid, Acc) ->

@@ -1,3 +1,4 @@
+% vim: syntax=erlang
 os:putenv("EXOMETER_PACKAGES", "(minimal)"),
 
 MaybeReadFromConfig =

@@ -42,6 +42,19 @@
 -define(IS_STREAM_MGMT_STOP(R), R =:= {shutdown, ?MODULE}; R =:= {shutdown, resumed}).
 -define(IS_ALLOWED_STATE(S), S =:= wait_for_session_establishment; S =:= session_established).
 
+%% Ensure that function returns only stuff that it defines in the spec.
+-ifdef(dialyzer_has_missing_return_attribute).
+-dialyzer([missing_return, extra_return, unmatched_returns, error_handling, underspecs]).
+
+%% We trust that config module validates types for us
+-dialyzer({no_missing_return, [is_stale_h_enabled/1, get_buffer_max/1, get_ack_freq/1]}).
+%% This function would not return float(), because math used in it is integer based
+-dialyzer({no_missing_return, calc_to_drop/2}).
+
+%% We want to return mongoose_c2s_hooks:result() type even if we only return {ok, Acc}.
+-dialyzer({no_extra_return, [do_resume/3]}).
+-endif.
+
 -record(sm_state, {
           buffer = [] :: [mongoose_acc:t()],
           buffer_size = 0 :: non_neg_integer(),
@@ -299,7 +312,7 @@ foreign_event(Acc, #{c2s_data := StateData, event_type := {timeout, ?MODULE}, ev
         true ->
             Lang = mongoose_c2s:get_lang(StateData),
             Err = mongoose_xmpp_errors:stream_resource_constraint(Lang, <<"too many unacked stanzas">>),
-            mongoose_c2s:c2s_stream_error(StateData, Err),
+            send_stream_error(StateData, Err),
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, too_many_unacked_stanzas)};
         false ->
             {ok, Acc}
@@ -362,7 +375,7 @@ user_terminate(Acc, _Params, _Extra) ->
 maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, Reason, #sm_state{counter_in = H} = SmState)
   when ?IS_STREAM_MGMT_STOP(Reason) ->
     Sid = mongoose_c2s:get_sid(StateData),
-    do_remove_smid(HostType, Sid, H),
+    do_remove_smid_ok(HostType, Sid, H),
     NewSmState = handle_user_terminate(SmState, StateData, HostType),
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})};
 maybe_handle_stream_mgmt_reroute(Acc, StateData, HostType, _Reason, #sm_state{} = SmState) ->
@@ -374,7 +387,7 @@ maybe_handle_stream_mgmt_reroute(Acc, _StateData, _HostType, _Reason, {error, no
 -spec handle_user_terminate(sm_state(), mongoose_c2s:data(), mongooseim:host_type()) -> sm_state().
 handle_user_terminate(#sm_state{counter_in = H} = SmState, StateData, HostType) ->
     Sid = mongoose_c2s:get_sid(StateData),
-    do_remove_smid(HostType, Sid, H),
+    do_remove_smid_ok(HostType, Sid, H),
     reroute_buffer(StateData, SmState),
     SmState#sm_state{buffer = [], buffer_size = 0}.
 
@@ -428,7 +441,7 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
             {ok, Acc};
         {_, invalid_h_attribute} ->
             Stanza = mongoose_xmpp_errors:policy_violation(?MYLANG, <<"Invalid h attribute">>),
-            mongoose_c2s:c2s_stream_error(StateData, Stanza),
+            send_stream_error(StateData, Stanza),
             {stop, mongoose_c2s_acc:to_acc(Acc, hard_stop, invalid_h_attribute)};
         {Handler, H} ->
             HandledAck = do_handle_ack(Handler, H),
@@ -438,7 +451,7 @@ handle_a(Acc, #{c2s_data := StateData}, El) ->
 -spec finish_handle_a(mongoose_c2s:data(), mongoose_acc:t(), sm_state() | {error, term()}) ->
     mongoose_c2s_hooks:result().
 finish_handle_a(StateData, Acc, {error, ErrorStanza, Reason}) ->
-    mongoose_c2s:c2s_stream_error(StateData, ErrorStanza),
+    send_stream_error(StateData, ErrorStanza),
     {stop, mongoose_c2s_acc:to_acc(Acc, stop, Reason)};
 finish_handle_a(_StateData, Acc, #sm_state{} = NewSmState) ->
     {ok, mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewSmState})}.
@@ -540,7 +553,7 @@ do_handle_resume(Acc, StateData, _C2SState, SMID, H, {sid, {_TS, Pid}}) ->
             NewState = mongoose_c2s:merge_states(OldStateData, StateData),
             do_resume(Acc, NewState, SMID);
         {error, ErrorStanza, Reason} ->
-            mongoose_c2s:c2s_stream_error(StateData, ErrorStanza),
+            send_stream_error(StateData, ErrorStanza),
             {stop, mongoose_c2s_acc:to_acc(Acc, stop, Reason)};
         {exception, {C, R, S}} ->
             ?LOG_WARNING(#{what => resumption_error,
@@ -654,8 +667,14 @@ bad_request(Acc) ->
     {stop, mongoose_acc:t()}.
 stream_error(Acc, StateData) ->
     Err = stream_mgmt_failed(<<"unexpected-request">>),
-    mongoose_c2s:c2s_stream_error(StateData, Err),
+    send_stream_error(StateData, Err),
     {stop, mongoose_c2s_acc:to_acc(Acc, stop, {shutdown, stream_error})}.
+
+-spec send_stream_error(mongoose_c2s:data(), exml:element()) -> ok.
+send_stream_error(StateData, Err) ->
+    %% Reuse that function but ignore the return result
+    _ = mongoose_c2s:c2s_stream_error(StateData, Err),
+    ok.
 
 -spec unexpected_sm_request(mongoose_acc:t(), mongoose_c2s:data(), c2s_state()) ->
     {stop, mongoose_acc:t()}.
@@ -735,11 +754,16 @@ remove_smid(Acc, HostType, Sid) ->
     MaybeSMID = do_remove_smid(HostType, Sid, H),
     mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
+do_remove_smid_ok(HostType, Sid, H) ->
+    _ = do_remove_smid(HostType, Sid, H),
+    ok.
+
 do_remove_smid(HostType, Sid, H) ->
     MaybeSMID = unregister_smid(HostType, Sid),
     case MaybeSMID of
         {ok, SMID} when H =/= undefined ->
-            register_stale_smid_h(HostType, SMID, H);
+            _ = register_stale_smid_h(HostType, SMID, H),
+            ok;
         _ ->
             ok
     end,
@@ -781,7 +805,7 @@ handle_resume_call(StateData, From, H) ->
     case do_handle_ack(get_mod_state(StateData), H) of
         #sm_state{} = SmState1 ->
             KeepSmState = sm_state_to_keep(SmState1, From),
-            mongoose_c2s:c2s_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()),
+            send_stream_error(StateData, mongoose_xmpp_errors:stream_conflict()),
             PassSmState = pipeline_future_sm_state(StateData, SmState1),
             pass_c2s_data_to_new_session(StateData, PassSmState, From),
             {ok, KeepSmState};
