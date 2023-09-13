@@ -13,7 +13,7 @@
          get_vcard/1]).
 
 -spec set_vcard(jid:jid(), vcard_map()) ->
-     {ok, vcard_map()} | {user_not_found, string()} | {internal, string()} | {vcard_not_found, string()}.
+     {ok, vcard_map()} | {user_not_found, binary()} | {internal, string()} | {vcard_not_found, string()}.
 set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
     case check_user(UserJID) of
         {ok, HostType} ->
@@ -28,7 +28,7 @@ set_vcard(#jid{luser = LUser, lserver = LServer} = UserJID, Vcard) ->
     end.
 
 -spec get_vcard(jid:jid()) ->
-     {ok, vcard_map()} | {user_not_found, string()} | {internal, string()} | {vcard_not_found, string()}
+     {ok, vcard_map()} | {user_not_found, binary()} | {internal, string()} | {vcard_not_found, string()}
    | {vcard_not_configured_error, string()}.
 get_vcard(#jid{luser = LUser, lserver = LServer} = UserJID) ->
     % check if mod_vcard is loaded is needed in user's get_vcard command, when user variable is not passed
