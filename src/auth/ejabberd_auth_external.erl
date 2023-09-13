@@ -132,7 +132,7 @@ check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
 -spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
-                   Password :: binary()) -> ok | {error, not_allowed}.
+                   Password :: binary()) -> ok | {error, not_allowed} | {error, unknown_problem}.
 set_password(HostType, LUser, LServer, Password) ->
     case extauth:set_password(HostType, LUser, LServer, Password) of
         true ->

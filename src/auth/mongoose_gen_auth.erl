@@ -79,7 +79,7 @@
                        User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()) ->
-    ok | {error, not_allowed | invalid_jid | user_not_found}.
+    ok | {error, not_allowed | invalid_jid | user_not_found | unknown_problem}.
 
 -callback remove_user(HostType :: mongooseim:host_type(),
                       User :: jid:luser(),
@@ -204,7 +204,7 @@ get_password_s(Mod, HostType, LUser, LServer) ->
 
 -spec set_password(ejabberd_auth:authmodule(), mongooseim:host_type(),
                    jid:luser(), jid:lserver(), binary()) ->
-          ok | {error, not_allowed | invalid_jid}.
+          ok | {error, not_allowed | invalid_jid | unknown_problem}.
 set_password(Mod, HostType, LUser, LServer, Password) ->
     case is_exported(Mod, set_password, 4) of
         true -> Mod:set_password(HostType, LUser, LServer, Password);
