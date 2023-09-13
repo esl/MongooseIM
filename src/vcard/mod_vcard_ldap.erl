@@ -157,7 +157,7 @@ set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
 -spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) ->
-          [[mongoose_data_forms:field()]].
+          [[mongoose_data_forms:field()]] | error.
 search(HostType, LServer, Data) ->
     State = get_state(HostType, LServer),
     search_internal(State, Data).
