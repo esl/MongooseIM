@@ -21,12 +21,14 @@ stream_header(StateData) ->
     Lang = mongoose_c2s:get_lang(StateData),
     LServer = mongoose_c2s:get_lserver(StateData),
     StreamId = mongoose_c2s:get_stream_id(StateData),
+    MaybeFrom = [ {<<"to">>, jid:to_binary(Jid)}
+                  || Jid <- [mongoose_c2s:get_jid(StateData)], Jid =/= undefined],
     Attrs = [{<<"xmlns">>, ?NS_CLIENT},
              {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
              {<<"id">>, StreamId},
              {<<"from">>, LServer},
              {<<"version">>, ?XMPP_VERSION},
-             {<<"xml:lang">>, Lang}],
+             {<<"xml:lang">>, Lang} | MaybeFrom ],
     #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec stream_features([exml:element() | exml:cdata()]) -> exml:element().
