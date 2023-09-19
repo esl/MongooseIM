@@ -18,20 +18,45 @@ start() ->
     mongoose_metrics:ensure_metric(global, [cets, system], {probe, M}),
     ok.
 
-format_probe_cets(Map) ->
-    Acc0 = #{<<"type">> => <<"cets_system">>},
-    F = fun(M, Acc) ->
-            V = maps:get(M, Map),
-            maps:put(atom_to_binary(M), V, Acc)
-        end,
-    lists:foldl(F, Acc0, datapoints()).
+format_probe_cets(#{available_nodes := AvNodes,
+                    unavailable_nodes := UnNodes,
+                    joined_nodes := Joined,
+                    discovered_nodes := DiscoNodes,
+                    discovery_works := DiscoveryWorks,
+                    remote_nodes_without_disco := NoDisco,
+                    remote_nodes_with_unknown_tables := UnkNodes,
+                    remote_unknown_tables := UnkTabs,
+                    remote_nodes_with_missing_tables := MissNodes,
+                    remote_missing_tables := MissTabs,
+                    conflict_nodes := ConNodes,
+                    conflict_tables := ConTabs}) ->
+    #{<<"type">> => <<"cets_system">>,
+      <<"available_nodes">> => AvNodes,
+      <<"unavailable_nodes">> => UnNodes,
+      <<"joined_nodes">> => Joined,
+      <<"discovered_nodes">> => DiscoNodes,
+      <<"discovery_works">> => DiscoveryWorks,
+      <<"remote_nodes_without_disco">> => NoDisco,
+      <<"remote_nodes_with_unknown_tables">> => UnkNodes,
+      <<"remote_unknown_tables">> => UnkTabs,
+      <<"remote_nodes_with_missing_tables">> => MissNodes,
+      <<"remote_missing_tables">> => MissTabs,
+      <<"conflict_nodes">> => ConNodes,
+      <<"conflict_tables">> => ConTabs}.
 
 all_zeros() ->
-    Acc0 = #{},
-    F = fun(M, Acc) ->
-            maps:put(atom_to_binary(M), 0, Acc)
-        end,
-    lists:foldl(F, Acc0, datapoints()).
+    #{<<"available_nodes">> => 0,
+      <<"unavailable_nodes">> => 0,
+      <<"joined_nodes">> => 0,
+      <<"discovered_nodes">> => 0,
+      <<"discovery_works">> => 0,
+      <<"remote_nodes_without_disco">> => 0,
+      <<"remote_nodes_with_unknown_tables">> => 0,
+      <<"remote_unknown_tables">> => 0,
+      <<"remote_nodes_with_missing_tables">> => 0,
+      <<"remote_missing_tables">> => 0,
+      <<"conflict_nodes">> => 0,
+      <<"conflict_tables">> => 0}.
 
 datapoints() ->
     [available_nodes,
