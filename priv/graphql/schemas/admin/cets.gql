@@ -1,9 +1,9 @@
 "Allow admin to get information about CETS status"
 type CETSAdminQuery @protected{
-    "Get a list of tables from the local node. Only for global admin"
+    "Get a list of tables from the local node"
     tableInfo: [CETSTableInfo]
       @protected(type: GLOBAL)
-    "Get status of CETS. Only for global admin"
+    "Get status of CETS"
     systemInfo: CETSSystemInfo
       @protected(type: GLOBAL)
 }
