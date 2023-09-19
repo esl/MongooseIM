@@ -50,6 +50,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
+    ensure_bad_node_unregistered(),
     escalus:end_per_suite(Config).
 
 init_per_group(admin_cets_http, Config) ->
@@ -196,6 +197,7 @@ get_system_info(Config) ->
     execute_command(<<"cets">>, <<"systemInfo">>, #{}, Config).
 
 add_bad_node() ->
+    ensure_bad_node_unregistered(),
     register_bad_node(),
     force_check(),
     wait_for_has_bad_node().
@@ -206,14 +208,14 @@ register_bad_node() ->
     Num = 100,
     Timestamp = rpc(mim(), mongoose_rdbms_timestamp, select, []),
     InsertArgs = [ClusterName, Node, Num, Timestamp],
-    UpdateArgs = [Timestamp, ClusterName, Node],
-    Res1 = rpc(mim(), mongoose_rdbms, execute, [global, cets_disco_insert_new, InsertArgs]),
-    Res2 = rpc(mim(), mongoose_rdbms, execute, [global, cets_disco_update_existing, UpdateArgs]),
-    check_sql_ok(Res1),
-    check_sql_ok(Res2).
+    {updated, 1} = rpc(mim(), mongoose_rdbms, execute, [global, cets_disco_insert_new, InsertArgs]).
 
-check_sql_ok({updated, 1}) -> ok;
-check_sql_ok({error, duplicate_key}) -> ok.
+ensure_bad_node_unregistered() ->
+    ClusterName = <<"mim">>,
+    Node = <<"badnode@localhost">>,
+    DeleteArgs = [ClusterName, Node],
+    %% Ensure the node is removed
+    {updated, _} = rpc(mim(), mongoose_rdbms, execute, [global, cets_delete_node_from_db, DeleteArgs]).
 
 force_check() ->
     Pid = rpc(mim(), erlang, whereis, [mongoose_cets_discovery]),
