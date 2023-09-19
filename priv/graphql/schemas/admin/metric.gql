@@ -209,7 +209,7 @@ type CETSSystemMetric {
   remote_nodes_with_missing_tables: Int
   "Number of missing tables"
   remote_missing_tables: Int
-  "Number of nodes with confict tables (replication destinations do not match)"
+  "Number of nodes with conflict tables (replication destinations do not match)"
   conflict_nodes: Int
   "Number of conflict tables (replication destinations do not match)"
   conflict_tables: Int
