@@ -24,7 +24,7 @@ type CETSSystemInfo {
   availableNodes: [String]
   "Unavailable nodes (nodes that do not respond to our pings)"
   unavailableNodes: [String]
-  "Joined nodes (nodes that has our local tables running)"
+  "Joined nodes (nodes that have our local tables running)"
   joinedNodes: [String]
   "Discovered nodes (nodes that are extracted from the discovery backend)."
   discoveredNodes: [String]
@@ -34,7 +34,7 @@ type CETSSystemInfo {
   remoteNodesWithUnknownTables: [String]
   "Unknown remote tables"
   remoteUnknownTables: [String]
-  "Nodes that are available, but do not host one of our local tables"
+  "Nodes that are available, but do not host some of our local tables"
   remoteNodesWithMissingTables: [String]
   "Missing remote tables"
   remoteMissingTables: [String]

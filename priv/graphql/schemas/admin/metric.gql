@@ -199,7 +199,7 @@ type CETSSystemMetric {
   unavailable_nodes: Int
   "Number of joined nodes"
   joined_nodes: Int
-  "Number of nodes without disco"
+  "Number of nodes without CETS discovery"
   remote_nodes_without_disco: Int
   "Number of nodes with unknown tables"
   remote_nodes_with_unknown_tables: Int
