@@ -2,6 +2,7 @@
 -behaviour(mongoose_muc_online_backend).
 
 -export([start/2,
+         stop/1,
          register_room/4,
          room_destroyed/4,
          find_room_pid/3,
@@ -29,6 +30,12 @@ start(HostType, _Opts) ->
     cets:start(Tab, #{handle_conflict => fun ?MODULE:handle_conflict/2}),
     cets_discovery:add_table(mongoose_cets_discovery, Tab),
     ok.
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Tab = table_name(HostType),
+    cets_discovery:delete_table(mongoose_cets_discovery, Tab),
+    cets:stop(Tab).
 
 %% We should keep one room and stop another room
 %% But stopping logic needs to be tested heavily and designed

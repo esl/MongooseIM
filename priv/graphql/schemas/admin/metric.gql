@@ -23,13 +23,15 @@ enum MetricType {
   vm_system_info
   "Information about process queue length"
   probe_queues
+  "Information about CETS status"
+  cets_system
 }
 
 "Type of metric result"
 union MetricResult = HistogramMetric | CounterMetric | SpiralMetric
                    | GaugeMetric | MergedInetStatsMetric | RDBMSStatsMetric
                    | VMStatsMemoryMetric | VMSystemInfoMetric
-                   | ProbeQueuesMetric
+                   | ProbeQueuesMetric | CETSSystemMetric
 
 type HistogramMetric {
   "Metric name"
@@ -184,6 +186,37 @@ type ProbeQueuesMetric {
   regular: Int
   "Total number of messages (fsm + regular)"
   total: Int
+}
+
+type CETSSystemMetric {
+  "Metric name"
+  name: [String]
+  "Metric type"
+  type: MetricType
+  "Number of available nodes"
+  available_nodes: Int
+  "Number of unavailable nodes"
+  unavailable_nodes: Int
+  "Number of joined nodes"
+  joined_nodes: Int
+  "Number of nodes without CETS discovery"
+  remote_nodes_without_disco: Int
+  "Number of nodes with unknown tables"
+  remote_nodes_with_unknown_tables: Int
+  "Number of unknown tables"
+  remote_unknown_tables: Int
+  "Number of nodes with missing tables"
+  remote_nodes_with_missing_tables: Int
+  "Number of missing tables"
+  remote_missing_tables: Int
+  "Number of nodes with conflict tables (replication destinations do not match)"
+  conflict_nodes: Int
+  "Number of conflict tables (replication destinations do not match)"
+  conflict_tables: Int
+  "Number of nodes returned from the discovery backend"
+  discovered_nodes: Int
+  "Status of discovery backend: 1 if it works, 0 if not"
+  discovery_works: Int
 }
 
 type MetricDictEntry {

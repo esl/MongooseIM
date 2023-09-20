@@ -227,7 +227,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
-    muc_helper:unload_muc(),
+    ensure_muc_stopped(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 

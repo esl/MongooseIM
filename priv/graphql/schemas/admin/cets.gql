@@ -1,11 +1,14 @@
 "Allow admin to get information about CETS status"
 type CETSAdminQuery @protected{
-    "Get from the local node. Only for global admin"
-    systemInfo: [CETSInfo]
+    "Get a list of tables from the local node"
+    tableInfo: [CETSTableInfo]
+      @protected(type: GLOBAL)
+    "Get status of CETS"
+    systemInfo: CETSSystemInfo
       @protected(type: GLOBAL)
 }
 
-type CETSInfo {
+type CETSTableInfo {
   "ETS table name"
   tableName: String
   "Memory (in words)"
@@ -14,4 +17,31 @@ type CETSInfo {
   size: Int
   "A list of clustered nodes"
   nodes: [String]
+}
+
+type CETSSystemInfo {
+  "Available nodes (nodes that are connected to us and have the CETS disco process started)"
+  availableNodes: [String]
+  "Unavailable nodes (nodes that do not respond to our pings)"
+  unavailableNodes: [String]
+  "Joined nodes (nodes that have our local tables running)"
+  joinedNodes: [String]
+  "Discovered nodes (nodes that are extracted from the discovery backend)."
+  discoveredNodes: [String]
+  "Nodes with stopped CETS discovery"
+  remoteNodesWithoutDisco: [String]
+  "Nodes that have more tables registered than the local node"
+  remoteNodesWithUnknownTables: [String]
+  "Unknown remote tables"
+  remoteUnknownTables: [String]
+  "Nodes that are available, but do not host some of our local tables"
+  remoteNodesWithMissingTables: [String]
+  "Missing remote tables"
+  remoteMissingTables: [String]
+  "Nodes that replicate at least one of our local tables to a different list of nodes"
+  conflictNodes: [String]
+  "Tables that have conflicting replication destinations"
+  conflictTables: [String]
+  "Returns true if the last discovery attempt is successful"
+  discoveryWorks: Boolean
 }

@@ -35,6 +35,7 @@ metrics_tests() ->
      get_process_queue_length,
      get_inet_stats,
      get_vm_stats_memory,
+     get_cets_system,
      get_all_metrics_as_dicts,
      get_by_name_metrics_as_dicts,
      get_metrics_as_dicts_by_nonexistent_name,
@@ -78,6 +79,13 @@ init_per_group(domain_admin_metrics, Config) ->
 end_per_group(_GroupName, _Config) ->
     graphql_helper:clean().
 
+init_per_testcase(get_cets_system = CaseName, Config) ->
+     case is_cets_enabled() of
+         true ->
+             escalus:init_per_testcase(CaseName, Config);
+         false ->
+             {skip, cets_not_enabled}
+     end;
 init_per_testcase(CaseName, Config) ->
      escalus:init_per_testcase(CaseName, Config).
 
@@ -125,7 +133,14 @@ type_to_keys(<<"vm_system_info">>) ->
     [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
      <<"process_count">>, <<"process_limit">>];
 type_to_keys(<<"probe_queues">>) ->
-    [<<"fsm">>, <<"regular">>, <<"total">>].
+    [<<"fsm">>, <<"regular">>, <<"total">>];
+type_to_keys(<<"cets_system">>) ->
+    [<<"available_nodes">>, <<"unavailable_nodes">>,
+    <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
+    <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
+    <<"remote_nodes_with_missing_tables">>, <<"remote_missing_tables">>,
+    <<"conflict_nodes">>, <<"conflict_tables">>,
+    <<"discovered_nodes">>, <<"discovery_works">>].
 
 get_by_name_global_erlang_metrics(Config) ->
     %% Filter by name works
@@ -188,6 +203,12 @@ get_vm_stats_memory(Config) ->
     %% VMStatsMemoryMetric type
     #{<<"type">> := <<"vm_stats_memory">>} = Mem,
     check_metric_by_type(Mem).
+
+get_cets_system(Config) ->
+    Result = get_metrics([<<"global">>, <<"cets">>, <<"system">>], Config),
+    ParsedResult = get_ok_value([data, metric, getMetrics], Result),
+    [#{<<"type">> := <<"cets_system">>} = Sys] = ParsedResult,
+    check_metric_by_type(Sys).
 
 get_all_metrics_as_dicts(Config) ->
     Result = get_metrics_as_dicts(Config),
@@ -454,3 +475,11 @@ values_are_integers(Map, Keys) ->
 
 metric_host_type() ->
     binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).
+
+is_cets_enabled() ->
+    case rpc(mim(), mongoose_config, lookup_opt, [[internal_databases, cets]]) of
+        {ok, _} ->
+            true;
+        _ ->
+            false
+    end.
