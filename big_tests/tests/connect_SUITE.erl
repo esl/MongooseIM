@@ -34,6 +34,7 @@
 
 -import(distributed_helper, [mim/0,
                              mim2/0,
+                             mim3/0,
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
@@ -624,19 +625,34 @@ c2s_port(Config) ->
         Value -> Value
     end.
 
+get_node(Port) ->
+    Mim2Port = ct:get_config({hosts, mim2, c2s_tls_port}),
+    Mim3Port = ct:get_config({hosts, mim3, c2s_tls_port}),
+    case Port of
+        Mim2Port ->
+            mim2();
+        Mim3Port ->
+            mim3();
+        _ ->
+            mim()
+    end.
+
 ciphers_available_in_os() ->
     CiphersStr = os:cmd("openssl ciphers 'ALL:eNULL'"),
     [string:strip(C, both, $\n) || C <- string:tokens(CiphersStr, ":")].
 
 ciphers_working_with_ssl_clients(Config) ->
     Port = c2s_port(Config),
+    Path = rpc(get_node(Port), os, getenv, ["PWD"]),
+    CertPath = Path ++ "/" ++ ?CERT_FILE,
     lists:filter(fun(Cipher) ->
-                         openssl_client_can_use_cipher(Cipher, Port)
+                         openssl_client_can_use_cipher(Cipher, Port, CertPath)
                  end, ciphers_available_in_os()).
 
-openssl_client_can_use_cipher(Cipher, Port) ->
+openssl_client_can_use_cipher(Cipher, Port, Path) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
+          " -cert \"" ++ Path ++ "\""
           " -cipher \"" ++ Cipher ++ "\" -tls1_2 2>&1",
     Output = os:cmd(Cmd),
     0 == string:str(Output, ":error:") andalso 0 == string:str(Output, "errno=0").
