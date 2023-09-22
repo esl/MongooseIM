@@ -337,7 +337,8 @@ no_cert_fails_to_authenticate(_C) ->
                 {password, <<"break_me">>},
                 {resource, <<>>}, %% Allow the server to generate the resource
                 {auth, {escalus_auth, auth_sasl_external}},
-                {starttls, required}],
+                {starttls, required},
+                {ssl_opts, [{fail_if_no_peer_cert, false}, {verify, verify_none}]}],
 
     Result = escalus_connection:start(UserSpec),
     ?assertMatch({error, {connection_step_failed, _, _}}, Result),
@@ -417,7 +418,8 @@ generate_user(C, User, Transport) ->
               {resource, <<>>}, %% Allow the server to generate the resource
               {auth, {escalus_auth, auth_sasl_external}},
               {transport, Transport},
-              {ssl_opts, [{versions, ['tlsv1.2']},
+              {ssl_opts, [{verify, verify_none},
+                          {versions, ['tlsv1.2']},
                           {certfile, maps:get(cert, UserCert)},
                           {keyfile, maps:get(key, UserCert)}]}],
     Common ++ transport_specific_options(Transport)
