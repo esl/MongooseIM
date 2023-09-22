@@ -59,8 +59,8 @@ all() ->
      {group, services}].
 
 groups() ->
-    [{file, [parallel], [sample_pgsql,
-                         miscellaneous,
+    [{file, [sequence], [miscellaneous,
+                         sample_pgsql,
                          s2s,
                          modules,
                          outgoing_pools,

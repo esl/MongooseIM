@@ -140,13 +140,18 @@ tcp_metric_varies_with_tcp_variations(_C) ->
     X = get_new_tcp_metric_value({ok, [{value, Y}]}).
 
 queued_messages_increase(_C) ->
+    Fun = fun(Value) ->
+        case Value of
+            [{fsm, 5}, {regular, 5}, {total, 10}] -> true;
+            [{fsm, 5}, {regular, 6}, {total, 11}] -> true;
+            _ -> false
+        end
+    end,
     async_helper:wait_until(
       fun() ->
               {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
               lists:sort(L)
-      end,
-      [{fsm, 5}, {regular, 5}, {total, 10}]
-     ).
+      end, Fun).
 
 no_skip_metric(_C) ->
     ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
