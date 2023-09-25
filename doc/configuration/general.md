@@ -147,7 +147,8 @@ These options can be used to configure the way MongooseIM manages user sessions.
 * **Example:** `sm_backend = "redis"`
 
 Backend for storing user session data. All nodes in a cluster must have access to a complete session database.
-Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend. Requires a redis pool with the `default` tag defined in the `outgoing_pools` section.
+CETS is a new backend, requires RDBMS configured to work properly.
+Mnesia is a legacy backend, sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend. Requires a redis pool with the `default` tag defined in the `outgoing_pools` section.
 See the section about [redis connection setup](./outgoing-connections.md#redis-specific-options) for more information.
 
 !!! Warning

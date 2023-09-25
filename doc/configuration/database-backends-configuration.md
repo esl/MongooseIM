@@ -21,14 +21,16 @@ Subsequent sections go into more depth on each database: what they are suitable 
 
 Transient data:
 
-* Mnesia - we highly recommend Mnesia (a highly available and distributed database) over Redis for storing **transient** data.
- Being an Erlang-based database, it's the default persistence option for most modules in MongooseIM.
-  
-    !!! Warning
-        We **strongly recommend** keeping **persistent** data in an external DB (RDBMS) for production.
-        Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
-        Sooner or later a migration will be needed which may be painful.
-        It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
+* CETS - a library to synchronise records from the ETS tables between nodes.
+  A new choice to share the live data across the MongooseIM cluster.
+  We recommend to use this backend for transient data.
+  This backend requires an RDBMS database configured because we use an external database to discover nodes in the cluster.
+  Check for CETS config example in [tutorials](../tutorials/CETS-configure.md).
+
+* Mnesia - a built-in Erlang Database.
+  Mnesia is fine for the cluster of the fixed size with reliable networking between nodes and with nodes rarely restarted.
+  There are some issues when nodes are restarting or joining the cluster. So, we recommend to use CETS instead.
+  Mnesia is still a default backend for modules for config compatibility reasons.
 
 * Redis - A fantastic choice for storing live data.
  It's highly scalable and it can be easily shared by multiple MongooseIM nodes.
@@ -37,6 +39,12 @@ Transient data:
 
 
 Persistent Data:
+
+    !!! Warning
+        We **strongly recommend** keeping **persistent** data in an external DB (RDBMS) for production.
+        Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
+        Sooner or later a migration will be needed which may be painful.
+        It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
 
 * RDBMS - MongooseIM has a strong backend support for relational databases.
  Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
@@ -47,11 +55,12 @@ Persistent Data:
 
 * ElasticSearch - Only for MAM (Message Archive Management).
 
+* Mnesia - some backends support Mnesia to store data, but it is not recommended.
+
 
 User Data:
 
 * LDAP -  Used for: users, shared rosters, vCards
-
 
 ## RDBMS
 

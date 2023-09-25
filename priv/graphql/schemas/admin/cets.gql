@@ -26,7 +26,7 @@ type CETSSystemInfo {
   unavailableNodes: [String]
   "Joined nodes (nodes that have our local tables running)"
   joinedNodes: [String]
-  "Discovered nodes (nodes that are extracted from the discovery backend)."
+  "Discovered nodes (nodes that are extracted from the discovery backend)"
   discoveredNodes: [String]
   "Nodes with stopped CETS discovery"
   remoteNodesWithoutDisco: [String]

@@ -179,6 +179,27 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections`. |
 | `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
+### CETS system metrics
+
+| Metric name | Type | Description |
+| ----------- | ---- | ----------- |
+| `[global, cets, system]` | proplist | A proplist with a list of stats. Description is below. |
+
+| Stat Name | Description |
+| ----------- | ----------- |
+| `available_nodes` | Available nodes (nodes that are connected to us and have the CETS disco process started). |
+| `unavailable_nodes` | Unavailable nodes (nodes that do not respond to our pings). |
+| `joined_nodes` | Joined nodes (nodes that have our local tables running). |
+| `discovered_nodes` | Discovered nodes (nodes that are extracted from the discovery backend). |
+| `remote_nodes_without_disco` | Nodes that have more tables registered than the local node. |
+| `remote_nodes_with_unknown_tables` | Nodes that have more tables registered than the local node. |
+| `remote_unknown_tables` | Unknown remote tables. |
+| `remote_nodes_with_missing_tables` | Nodes that are available, but do not host some of our local tables. |
+| `remote_missing_tables` | Nodes that replicate at least one of our local tables to a different list of nodes. |
+| `conflict_nodes` | Nodes that replicate at least one of our local tables to a different list of nodes. |
+| `conflict_tables` | Tables that have conflicting replication destinations. |
+| `discovery_works` | Returns 1 if the last discovery attempt is successful (otherwise returns 0). |
+
 ### VM metrics
 
 | Metric name | Type | Description |
