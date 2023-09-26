@@ -4,7 +4,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -define(BAD_RESOURCE, <<"\x{EFBB}"/utf8>>).
@@ -25,6 +25,8 @@ groups() ->
     [
      {basic, [parallel],
       [
+       client_sets_stream_from_server_answers_with_to,
+       stream_from_does_not_match_sasl_jid_results_in_stream_error,
        two_users_can_log_and_chat,
        too_big_stanza_rejected,
        message_sent_to_malformed_jid_results_in_error,
@@ -80,6 +82,33 @@ end_per_testcase(Name, Config) ->
 %%--------------------------------------------------------------------
 %% tests
 %%--------------------------------------------------------------------
+client_sets_stream_from_server_answers_with_to(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Alice = escalus_connection:connect(AliceSpec),
+    escalus_client:send(Alice, stream_start(Alice)),
+    [StreamStartAnswer, _StreamFeatures] = escalus_client:wait_for_stanzas(Alice, 2, 500),
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs} = StreamStartAnswer,
+    FromClient = jid:from_binary(escalus_utils:get_jid(Alice)),
+    {_, FromServerBin} = lists:keyfind(<<"to">>, 1, Attrs),
+    FromServer = jid:from_binary(FromServerBin),
+    ?assert(jid:are_equal(FromClient, FromServer)),
+    escalus_connection:stop(Alice).
+
+stream_from_does_not_match_sasl_jid_results_in_stream_error(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Alice = escalus_connection:connect(AliceSpec),
+    Server = escalus_utils:get_server(Alice),
+    escalus_client:send(Alice, stream_start(Server, <<"not_alice@", Server/binary>>)),
+    [_StreamStartAnswer, _StreamFeatures] = escalus_client:wait_for_stanzas(Alice, 2, 500),
+    try escalus_auth:auth_plain(Alice, AliceSpec) of
+        _ -> error(authentication_with_inconsistent_jid_succeeded)
+    catch
+        throw:{auth_failed, _User, AuthReply} ->
+            escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>], AuthReply),
+            escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
+            true = escalus_connection:wait_for_close(Alice, timer:seconds(1))
+    end.
+
 two_users_can_log_and_chat(Config) ->
     AliceHost = escalus_users:get_server(Config, alice),
     HostType = domain_helper:domain_to_host_type(mim(), AliceHost),
@@ -153,6 +182,20 @@ start_connection_maybe_get_session_feature(Config) ->
 %%--------------------------------------------------------------------
 %% helpers
 %%--------------------------------------------------------------------
+
+stream_start(Client) ->
+    Server = escalus_utils:get_server(Client),
+    From = escalus_utils:get_jid(Client),
+    stream_start(Server, From).
+
+stream_start(Server, From) ->
+    #xmlstreamstart{name = <<"stream:stream">>,
+                    attrs = [{<<"to">>, Server},
+                             {<<"from">>, From},
+                             {<<"version">>, <<"1.0">>},
+                             {<<"xml:lang">>, <<"en">>},
+                             {<<"xmlns">>, <<"jabber:client">>},
+                             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>}]}.
 
 save_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),

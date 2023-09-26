@@ -329,25 +329,36 @@ stop_if_unhandled(_, _, {ok, _Acc}, Reason) ->
 -spec handle_stream_start(data(), exml:element(), stream_state()) -> fsm_res().
 handle_stream_start(S0, StreamStart, StreamState) ->
     Lang = get_xml_lang(StreamStart),
+    From = maybe_capture_from_jid_in_stream_start(StreamStart),
     LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
     case {StreamState,
           exml_query:attr(StreamStart, <<"xmlns:stream">>, <<>>),
           exml_query:attr(StreamStart, <<"version">>, <<>>),
           mongoose_domain_api:get_domain_host_type(LServer)} of
         {stream_start, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
-            S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
+            S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
             stream_start_features_before_auth(S);
         {authenticated, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
             stream_start_features_after_auth(S);
         {_, ?NS_STREAM, _Pre1_0, {ok, HostType}} ->
             %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
-            S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
+            S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
             stream_start_error(S, mongoose_xmpp_errors:unsupported_version());
         {_, ?NS_STREAM, _, {error, not_found}} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
         {_, _, _, _} ->
             stream_start_error(S0, mongoose_xmpp_errors:invalid_namespace())
+    end.
+
+%% We conditionally set the jid field before authentication if it was provided by the client in the
+%% stream-start stanza, as extensions might use this (carefully, as it hasn't been proved this is
+%% the real identity of the client!). See RFC6120#section-4.7.1
+-spec maybe_capture_from_jid_in_stream_start(exml:element()) -> error | jid:jid().
+maybe_capture_from_jid_in_stream_start(StreamStart) ->
+    case jid:from_binary(exml_query:attr(StreamStart, <<"from">>)) of
+        error -> undefined;
+        Jid -> Jid
     end.
 
 %% As stated in BCP47, 4.4.1:
@@ -413,14 +424,26 @@ handle_sasl_step(StateData, {error, NewSaslAcc, Result}, Retries) ->
     handle_sasl_error(StateData, NewSaslAcc, Result, Retries).
 
 -spec handle_sasl_success(data(), mongoose_acc:t(), mongoose_c2s_sasl:success()) -> fsm_res().
-handle_sasl_success(StateData = #c2s_data{info = Info}, SaslAcc,
-                    #{server_out := MaybeServerOut, jid := Jid, auth_module := AuthMod}) ->
-    StateData1 = StateData#c2s_data{streamid = new_stream_id(), jid = Jid,
-                                    info = maps:merge(Info, #{auth_module => AuthMod})},
-    El = mongoose_c2s_stanzas:sasl_success_stanza(MaybeServerOut),
-    send_acc_from_server_jid(StateData1, SaslAcc, El),
-    ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_state => StateData1}),
-    {next_state, {wait_for_stream, authenticated}, StateData1, state_timeout(StateData1)}.
+handle_sasl_success(StateData = #c2s_data{jid = MaybeInitialJid, info = Info}, SaslAcc,
+                    #{server_out := MaybeServerOut, jid := SaslJid, auth_module := AuthMod}) ->
+    case verify_initial_jid(MaybeInitialJid, SaslJid) of
+        true ->
+            StateData1 = StateData#c2s_data{streamid = new_stream_id(), jid = SaslJid,
+                                            info = maps:merge(Info, #{auth_module => AuthMod})},
+            El = mongoose_c2s_stanzas:sasl_success_stanza(MaybeServerOut),
+            send_acc_from_server_jid(StateData1, SaslAcc, El),
+            ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_state => StateData1}),
+            {next_state, {wait_for_stream, authenticated}, StateData1, state_timeout(StateData1)};
+        false ->
+            c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from())
+    end.
+
+%% 6.4.6.  SASL Success: https://www.rfc-editor.org/rfc/rfc6120.html#section-6.4.6
+-spec verify_initial_jid(undefined | jid:jid(), jid:jid()) -> boolean().
+verify_initial_jid(undefined, _Jid) ->
+    true;
+verify_initial_jid(InitialJid, SaslJid) ->
+    jid:are_bare_equal(InitialJid, SaslJid).
 
 -spec handle_sasl_continue(data(), mongoose_acc:t(), mongoose_c2s_sasl:continue(), retries()) -> fsm_res().
 handle_sasl_continue(StateData, SaslAcc, #{server_out := ServerOut}, Retries) ->
