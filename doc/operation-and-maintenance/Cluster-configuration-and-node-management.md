@@ -116,7 +116,7 @@ Checklist:
 === "CETS"
 
     Stopping the node is enough to leave the cluster.
-    If you want to avoid the node to join the cluster again, you have to specify a different `cluster_name`
+    If you want to avoid the node joining the cluster again, you have to specify a different `cluster_name`
     option in the CETS backend configuration. A different Erlang cookie is a good idea too.
 
 === "Mnesia"
@@ -127,7 +127,7 @@ Checklist:
     mongooseimctl leave_cluster
     ```
 
-    It only makes sense to use it if the node is the part of a cluster, e.g `join_cluster` was called from that node before.
+    It only makes sense to use it if the node is part of a cluster, e.g `join_cluster` was called on that node before.
 
     Similarly to `join_cluster` a warning and a question will be displayed unless the option `-f` is added to the command.
 
@@ -152,7 +152,7 @@ Checklist:
     mongooseimctl remove_from_cluster RemoteNodeName
     ```
 
-    where `RemoteNodeName` is a name of the node that we'd like to remove from our cluster.
+    where `RemoteNodeName` is the name of the node that we'd like to remove from our cluster.
     This command could be useful when the node is dead and not responding and we'd like to remove it remotely.
     The successful output from the above command may look like the following:
 
@@ -182,9 +182,8 @@ Checklist:
     It should generally be equal to the list of `discoveredNodes`.
 
     If it is not equal, you could have some configuration or networking issues.
-    You can check `unavailableNodes`, `remoteNodesWithUnknownTables`,
-    `remoteNodesWithMissingTables` lists for more information (generally, these lists should be empty).
-
+    You can check the `unavailableNodes`, `remoteNodesWithUnknownTables`,
+    and `remoteNodesWithMissingTables` lists for more information (generally, these lists should be empty).
     You can read the description for other fields of `systemInfo` in the GraphQL schema file.
 
     For a properly configured 2 nodes cluster the metrics would show something like that:
@@ -236,7 +235,7 @@ Checklist:
     ```bash
     running db nodes = [mongooseim@node1, mongooseim@node2]
     ```
-    To see stopped or misbehaving nodes following command can be useful:
+    To see stopped or misbehaving nodes the following command can be useful:
 
     ```bash
     mongooseimctl mnesia info | grep "stopped db nodes"
