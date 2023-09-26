@@ -127,12 +127,16 @@ get_available_host_types() ->
     ?ALL_HOST_TYPES.
 
 prepare_metrics(Metrics) ->
-    maps:from_list([{prepare_name(NameParts), prepare_value(Value)}
-                    || {[_HostType | NameParts], Value} <- Metrics]).
+    maps:from_list([{prepare_name(NameParts, FullName), prepare_value(Value)}
+                    || {FullName = [_HostType | NameParts], Value} <- Metrics]).
 
-prepare_name(NameParts) ->
-    ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
-    list_to_binary(string:join(ToStrings, ".")).
+prepare_name(NameParts, FullName) ->
+    try
+        ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
+        list_to_binary(string:join(ToStrings, "."))
+    catch Class:Reason:Stacktrace ->
+        erlang:raise(Class, {failed_to_prepare_name, FullName, Reason}, Stacktrace)
+    end.
 
 prepare_value(KVs) ->
     maps:from_list([{prepare_key(K), V} || {K, V} <- KVs]).

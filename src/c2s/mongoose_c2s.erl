@@ -6,7 +6,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--define(XMPP_VERSION, <<"1.0">>).
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
@@ -21,6 +20,9 @@
          get_ip/1, get_socket/1, get_lang/1, get_stream_id/1, hook_arg/5]).
 -export([get_auth_mechs/1, c2s_stream_error/2, maybe_retry_state/1, merge_states/2]).
 -export([route/2, reroute_buffer/2, reroute_buffer_to_pid/3, open_session/1]).
+-export([set_jid/2, set_auth_module/2, state_timeout/1, handle_state_after_packet/3]).
+-export([replace_resource/2, generate_random_resource/0]).
+-export([verify_user/4, maybe_open_session/3]).
 
 -ignore_xref([get_ip/1, get_socket/1]).
 
@@ -40,7 +42,8 @@
          }).
 -type data() :: #c2s_data{}.
 -type maybe_ok() :: ok | {error, atom()}.
--type fsm_res() :: gen_statem:event_handler_result(state(), data()).
+-type fsm_res(State) :: gen_statem:event_handler_result(state(State), data()).
+-type fsm_res() :: fsm_res(term()).
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 -type info() :: #{atom() => term()}.
 
@@ -48,9 +51,9 @@
 -type stream_state() :: stream_start | authenticated.
 -type state(State) :: connect
                     | {wait_for_stream, stream_state()}
-                    | {wait_for_feature_before_auth, cyrsasl:sasl_state(), retries()}
+                    | {wait_for_feature_before_auth, mongoose_acc:t(), retries()}
                     | {wait_for_feature_after_auth, retries()}
-                    | {wait_for_sasl_response, cyrsasl:sasl_state(), retries()}
+                    | {wait_for_sasl_response, mongoose_acc:t(), retries()}
                     | wait_for_session_establishment
                     | session_established
                     | ?EXT_C2S_STATE(State).
@@ -65,7 +68,7 @@
                            proto := tcp,
                            term() => term()}.
 
--export_type([packet/0, data/0, state/0, state/1, listener_opts/0]).
+-export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -113,24 +116,31 @@ handle_event(internal, #xmlstreamerror{name = <<"child element too big">> = Err}
     c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#c2s_data.lang, Err));
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));
-handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslState, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"starttls">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_TLS ->
-            handle_starttls(StateData, El, SaslState, Retries);
+            handle_starttls(StateData, El, SaslAcc, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_auth, SaslState, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"auth">>} = El, {wait_for_feature_before_auth, SaslAcc, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
-            handle_auth_start(StateData, El, SaslState, Retries);
+            handle_auth_start(StateData, El, SaslAcc, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
-handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, SaslState, Retries}, StateData) ->
+handle_event(internal, #xmlel{name = <<"response">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
     case exml_query:attr(El, <<"xmlns">>) of
         ?NS_SASL ->
-            handle_auth_continue(StateData, El, SaslState, Retries);
+            handle_auth_continue(StateData, El, SaslAcc, Retries);
+        _ ->
+            c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
+    end;
+handle_event(internal, #xmlel{name = <<"abort">>} = El, {wait_for_sasl_response, SaslAcc, Retries}, StateData) ->
+    case exml_query:attr(El, <<"xmlns">>) of
+        ?NS_SASL ->
+            handle_sasl_abort(StateData, SaslAcc, Retries);
         _ ->
             c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
@@ -319,25 +329,36 @@ stop_if_unhandled(_, _, {ok, _Acc}, Reason) ->
 -spec handle_stream_start(data(), exml:element(), stream_state()) -> fsm_res().
 handle_stream_start(S0, StreamStart, StreamState) ->
     Lang = get_xml_lang(StreamStart),
+    From = maybe_capture_from_jid_in_stream_start(StreamStart),
     LServer = jid:nameprep(exml_query:attr(StreamStart, <<"to">>, <<>>)),
     case {StreamState,
           exml_query:attr(StreamStart, <<"xmlns:stream">>, <<>>),
           exml_query:attr(StreamStart, <<"version">>, <<>>),
           mongoose_domain_api:get_domain_host_type(LServer)} of
         {stream_start, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
-            S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
+            S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
             stream_start_features_before_auth(S);
         {authenticated, ?NS_STREAM, ?XMPP_VERSION, {ok, HostType}} ->
             S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
             stream_start_features_after_auth(S);
         {_, ?NS_STREAM, _Pre1_0, {ok, HostType}} ->
             %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
-            S = S0#c2s_data{host_type = HostType, lserver = LServer, lang = Lang},
+            S = S0#c2s_data{host_type = HostType, lserver = LServer, jid = From, lang = Lang},
             stream_start_error(S, mongoose_xmpp_errors:unsupported_version());
         {_, ?NS_STREAM, _, {error, not_found}} ->
             stream_start_error(S0, mongoose_xmpp_errors:host_unknown());
         {_, _, _, _} ->
             stream_start_error(S0, mongoose_xmpp_errors:invalid_namespace())
+    end.
+
+%% We conditionally set the jid field before authentication if it was provided by the client in the
+%% stream-start stanza, as extensions might use this (carefully, as it hasn't been proved this is
+%% the real identity of the client!). See RFC6120#section-4.7.1
+-spec maybe_capture_from_jid_in_stream_start(exml:element()) -> error | jid:jid().
+maybe_capture_from_jid_in_stream_start(StreamStart) ->
+    case jid:from_binary(exml_query:attr(StreamStart, <<"from">>)) of
+        error -> undefined;
+        Jid -> Jid
     end.
 
 %% As stated in BCP47, 4.4.1:
@@ -353,10 +374,10 @@ get_xml_lang(StreamStart) ->
             ?MYLANG
     end.
 
--spec handle_starttls(data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
+-spec handle_starttls(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                       parser = Parser,
-                                      listener_opts = LOpts}, El, SaslState, Retries) ->
+                                      listener_opts = LOpts}, El, SaslAcc, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
     case mongoose_c2s_socket:tcp_to_tls(TcpSocket, LOpts) of
         {ok, TlsSocket} ->
@@ -370,7 +391,7 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
             ErrorStanza = mongoose_xmpp_errors:bad_request(StateData#c2s_data.lang, <<"bad_config">>),
             Err = jlib:make_error_reply(El, ErrorStanza),
             send_element_from_server_jid(StateData, Err),
-            maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries});
+            maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslAcc, Retries});
         {error, closed} ->
             {stop, {shutdown, tls_closed}};
         {error, timeout} ->
@@ -379,77 +400,86 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
             {stop, TlsAlert}
     end.
 
--spec handle_auth_start(data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
-handle_auth_start(StateData, El, SaslState, Retries) ->
-    case {mongoose_c2s_socket:is_ssl(StateData#c2s_data.socket), StateData#c2s_data.listener_opts} of
-        {false, #{tls := #{mode := starttls_required}}} ->
-            Error = mongoose_xmpp_errors:policy_violation(
-                      StateData#c2s_data.lang, <<"Use of STARTTLS required">>),
-            c2s_stream_error(StateData, Error);
-        _ ->
-            do_handle_auth_start(StateData, El, SaslState, Retries)
-    end.
-
--spec do_handle_auth_start(data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
-do_handle_auth_start(StateData, El, SaslState, Retries) ->
+-spec handle_auth_start(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
+handle_auth_start(StateData, El, SaslAcc, Retries) ->
     Mech = exml_query:attr(El, <<"mechanism">>),
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
-    AuthMech = get_auth_mechs(StateData),
-    SocketData = #{socket => StateData#c2s_data.socket, auth_mech => AuthMech,
-                   listener_opts => StateData#c2s_data.listener_opts},
-    StepResult = cyrsasl:server_start(SaslState, Mech, ClientIn, SocketData),
-    handle_sasl_step(StateData, StepResult, SaslState, Retries).
+    StepResult = mongoose_c2s_sasl:start(StateData, SaslAcc, Mech, ClientIn),
+    handle_sasl_step(StateData, StepResult, Retries).
 
--spec handle_auth_continue(data(), exml:element(), cyrsasl:sasl_state(), retries()) -> fsm_res().
-handle_auth_continue(StateData, El, SaslState, Retries) ->
+-spec handle_auth_continue(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
+handle_auth_continue(StateData, El, SaslAcc, Retries) ->
     ClientIn = base64:mime_decode(exml_query:cdata(El)),
-    StepResult = cyrsasl:server_step(SaslState, ClientIn),
-    handle_sasl_step(StateData, StepResult, SaslState, Retries).
+    StepResult = mongoose_c2s_sasl:continue(StateData, SaslAcc, ClientIn),
+    handle_sasl_step(StateData, StepResult, Retries).
 
--spec handle_sasl_step(data(), cyrsasl:sasl_result(), cyrsasl:sasl_state(), retries()) -> fsm_res().
-handle_sasl_step(StateData, {ok, Creds}, _, _) ->
-    handle_sasl_success(StateData, Creds);
-handle_sasl_step(StateData = #c2s_data{listener_opts = LOpts}, {continue, ServerOut, NewSaslState}, _, Retries) ->
-    Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
-    send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_challenge_stanza(Challenge)),
-    {next_state, {wait_for_sasl_response, NewSaslState, Retries}, StateData, state_timeout(LOpts)};
-handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
-                 {error, Error, Username}, SaslState, Retries) ->
-    ?LOG_INFO(#{what => auth_failed,
-                text => <<"Failed SASL authentication">>,
-                user => Username, lserver => Server, c2s_state => StateData}),
-    mongoose_hooks:auth_failed(HostType, Server, Username),
-    send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries});
-handle_sasl_step(#c2s_data{host_type = HostType, lserver = Server} = StateData,
-                 {error, Error}, SaslState, Retries) ->
-    mongoose_hooks:auth_failed(HostType, Server, unknown),
-    send_element_from_server_jid(StateData, mongoose_c2s_stanzas:sasl_failure_stanza(Error)),
-    maybe_retry_state(StateData, {wait_for_feature_before_auth, SaslState, Retries}).
+-spec handle_sasl_step(data(), mongoose_c2s_sasl:result(), retries()) -> fsm_res().
+handle_sasl_step(StateData, {success, NewSaslAcc, Result}, _Retries) ->
+    handle_sasl_success(StateData, NewSaslAcc, Result);
+handle_sasl_step(StateData, {continue, NewSaslAcc, Result}, Retries) ->
+    handle_sasl_continue(StateData, NewSaslAcc, Result, Retries);
+handle_sasl_step(StateData, {failure, NewSaslAcc, Result}, Retries) ->
+    handle_sasl_failure(StateData, NewSaslAcc, Result, Retries);
+handle_sasl_step(StateData, {error, NewSaslAcc, Result}, Retries) ->
+    handle_sasl_error(StateData, NewSaslAcc, Result, Retries).
 
--spec handle_sasl_success(data(), term()) -> fsm_res().
-handle_sasl_success(State = #c2s_data{listener_opts = LOpts, info = Info}, Creds) ->
-    ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
-    AuthModule = mongoose_credentials:get(Creds, auth_module),
-    send_element_from_server_jid(State, mongoose_c2s_stanzas:sasl_success_stanza(ServerOut)),
-    User = mongoose_credentials:get(Creds, username),
-    NewState = State#c2s_data{streamid = new_stream_id(),
-                              jid = jid:make_bare(User, State#c2s_data.lserver),
-                              info = maps:merge(Info, #{auth_module => AuthModule})},
-    ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>,
-                c2s_state => NewState}),
-    {next_state, {wait_for_stream, authenticated}, NewState, state_timeout(LOpts)}.
+-spec handle_sasl_success(data(), mongoose_acc:t(), mongoose_c2s_sasl:success()) -> fsm_res().
+handle_sasl_success(StateData = #c2s_data{jid = MaybeInitialJid, info = Info}, SaslAcc,
+                    #{server_out := MaybeServerOut, jid := SaslJid, auth_module := AuthMod}) ->
+    case verify_initial_jid(MaybeInitialJid, SaslJid) of
+        true ->
+            StateData1 = StateData#c2s_data{streamid = new_stream_id(), jid = SaslJid,
+                                            info = maps:merge(Info, #{auth_module => AuthMod})},
+            El = mongoose_c2s_stanzas:sasl_success_stanza(MaybeServerOut),
+            send_acc_from_server_jid(StateData1, SaslAcc, El),
+            ?LOG_INFO(#{what => auth_success, text => <<"Accepted SASL authentication">>, c2s_state => StateData1}),
+            {next_state, {wait_for_stream, authenticated}, StateData1, state_timeout(StateData1)};
+        false ->
+            c2s_stream_error(StateData, mongoose_xmpp_errors:invalid_from())
+    end.
+
+%% 6.4.6.  SASL Success: https://www.rfc-editor.org/rfc/rfc6120.html#section-6.4.6
+-spec verify_initial_jid(undefined | jid:jid(), jid:jid()) -> boolean().
+verify_initial_jid(undefined, _Jid) ->
+    true;
+verify_initial_jid(InitialJid, SaslJid) ->
+    jid:are_bare_equal(InitialJid, SaslJid).
+
+-spec handle_sasl_continue(data(), mongoose_acc:t(), mongoose_c2s_sasl:continue(), retries()) -> fsm_res().
+handle_sasl_continue(StateData, SaslAcc, #{server_out := ServerOut}, Retries) ->
+    El = mongoose_c2s_stanzas:sasl_challenge_stanza(ServerOut),
+    NewSaslAcc = send_acc_from_server_jid(StateData, SaslAcc, El),
+    {next_state, {wait_for_sasl_response, NewSaslAcc, Retries}, StateData, state_timeout(StateData)}.
+
+-spec handle_sasl_failure(data(), mongoose_acc:t(), mongoose_c2s_sasl:failure(), retries()) -> fsm_res().
+handle_sasl_failure(#c2s_data{host_type = HostType, lserver = LServer} = StateData, SaslAcc,
+                    #{server_out := ServerOut, maybe_username := Username}, Retries) ->
+    ?LOG_INFO(#{what => auth_failed, text => <<"Failed SASL authentication">>,
+                username => Username, lserver => LServer, c2s_state => StateData}),
+    mongoose_hooks:auth_failed(HostType, LServer, Username),
+    El = mongoose_c2s_stanzas:sasl_failure_stanza(ServerOut),
+    NewSaslAcc = send_acc_from_server_jid(StateData, SaslAcc, El),
+    maybe_retry_state(StateData, {wait_for_feature_before_auth, NewSaslAcc, Retries}).
+
+-spec handle_sasl_error(data(), mongoose_acc:t(), mongoose_c2s_sasl:error(), retries()) -> fsm_res().
+handle_sasl_error(#c2s_data{lang = Lang} = StateData, _SaslAcc,
+                  #{type := Type, text := Text}, _Retries) ->
+    Error = mongoose_xmpp_errors:Type(Lang, Text),
+    c2s_stream_error(StateData, Error).
+
+-spec handle_sasl_abort(data(), mongoose_acc:t(), retries()) -> fsm_res().
+handle_sasl_abort(StateData, SaslAcc, Retries) ->
+    Error = #{server_out => <<"aborted">>, maybe_username => undefined},
+    handle_sasl_failure(StateData, SaslAcc, Error, Retries).
 
 -spec stream_start_features_before_auth(data()) -> fsm_res().
-stream_start_features_before_auth(#c2s_data{host_type = HostType, lserver = LServer,
-                                            listener_opts = LOpts} = StateData) ->
+stream_start_features_before_auth(#c2s_data{sid = SID, listener_opts = LOpts} = StateData) ->
     send_header(StateData),
-    CredOpts = mongoose_credentials:make_opts(LOpts),
-    Creds = mongoose_credentials:new(LServer, HostType, CredOpts),
-    SASLState = cyrsasl:server_new(<<"jabber">>, LServer, HostType, <<>>, [], Creds),
+    SaslAcc0 = mongoose_c2s_sasl:new(StateData),
+    SaslAcc1 = mongoose_acc:set_permanent(c2s, [{origin_sid, SID}], SaslAcc0),
     StreamFeatures = mongoose_c2s_stanzas:stream_features_before_auth(StateData),
-    send_element_from_server_jid(StateData, StreamFeatures),
-    {next_state, {wait_for_feature_before_auth, SASLState, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
+    SaslAcc2 = send_acc_from_server_jid(StateData, SaslAcc1, StreamFeatures),
+    {next_state, {wait_for_feature_before_auth, SaslAcc2, ?AUTH_RETRIES}, StateData, state_timeout(LOpts)}.
 
 -spec stream_start_features_after_auth(data()) -> fsm_res().
 stream_start_features_after_auth(#c2s_data{listener_opts = LOpts} = StateData) ->
@@ -471,18 +501,21 @@ handle_bind_resource(StateData, C2SState, El, #iq{sub_el = SubEl} = IQ) ->
             maybe_retry_state(StateData, C2SState);
         Resource ->
             NewStateData = replace_resource(StateData, Resource),
-            NextState = maybe_wait_for_session(StateData),
+            NextState = maybe_wait_for_session(NewStateData),
             Jid = get_jid(NewStateData),
             BindResult = mongoose_c2s_stanzas:successful_resource_binding(IQ, Jid),
             MAcc = mongoose_c2s_acc:new(#{c2s_state => NextState, socket_send => [BindResult]}),
             Acc = element_to_origin_accum(NewStateData, El),
             Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc),
-            verify_user_and_open_session(NewStateData, C2SState, NextState, Acc1, El)
+            HookParams = hook_arg(NewStateData, C2SState, internal, El, undefined),
+            HostType = NewStateData#c2s_data.host_type,
+            Return = verify_user(NextState, HostType, HookParams, Acc1),
+            Return1 = maybe_open_session(NextState, Return, NewStateData),
+            finish_open_session(Return1, NewStateData, C2SState, NextState)
     end.
 
 -spec handle_session_establishment(data(), state(), exml:element(), jlib:iq()) -> fsm_res().
 handle_session_establishment(#c2s_data{host_type = HostType, lserver = LServer} = StateData, C2SState, El, IQ) ->
-    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     Acc0 = element_to_origin_accum(StateData, El),
     SessEstablished = mongoose_c2s_stanzas:successful_session_establishment(IQ),
     ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
@@ -490,28 +523,28 @@ handle_session_establishment(#c2s_data{host_type = HostType, lserver = LServer} 
     SessEstablishedAcc = mongoose_acc:update_stanza(ParamsAcc, Acc0),
     MAcc = mongoose_c2s_acc:new(#{c2s_state => session_established, route => [SessEstablishedAcc]}),
     Acc1 = mongoose_acc:set_statem_acc(MAcc, Acc0),
+    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
     {_, Acc2} = mongoose_c2s_hooks:user_send_packet(HostType, Acc1, HookParams),
     {_, Acc3} = mongoose_c2s_hooks:user_send_iq(HostType, Acc2, HookParams),
-    verify_user_and_open_session(StateData, C2SState, session_established, Acc3, El).
+    Return = verify_user(session_established, HostType, HookParams, Acc3),
+    Return1 = maybe_open_session(session_established, Return, StateData),
+    finish_open_session(Return1, StateData, C2SState, session_established).
 
--spec verify_user_and_open_session(data(), state(), state(), mongoose_acc:t(), exml:element()) ->
-    fsm_res().
-verify_user_and_open_session(StateData, C2SState, wait_for_session_establishment, Acc, _El) ->
-    handle_state_after_packet(StateData, C2SState, Acc);
-verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateData, C2SState,
-                             session_established, Acc, El) ->
-    HookParams = hook_arg(StateData, C2SState, internal, El, undefined),
+-spec verify_user(state(), mongooseim:host_type(), mongoose_c2s_hooks:params(), mongoose_acc:t()) ->
+    {ok | stop, mongoose_acc:t()}.
+verify_user(wait_for_session_establishment, _, _, Acc) ->
+    {ok, Acc};
+verify_user(session_established, HostType, #{c2s_data := StateData} = HookParams, Acc) ->
     case mongoose_c2s_hooks:user_open_session(HostType, Acc, HookParams) of
         {ok, Acc1} ->
             ?LOG_INFO(#{what => c2s_opened_session, c2s_state => StateData}),
-            do_open_session(StateData, C2SState, Acc1);
+            {ok, Acc1};
         {stop, Acc1} ->
+            Jid = StateData#c2s_data.jid,
             Acc2 = mongoose_hooks:forbidden_session_hook(HostType, Acc1, Jid),
             ?LOG_INFO(#{what => forbidden_session, text => <<"User not allowed to open session">>,
                         acc => Acc2, c2s_state => StateData}),
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_allowed()),
-            send_element_from_server_jid(StateData, Err),
-            maybe_retry_state(StateData, C2SState)
+            {stop, Acc2}
     end.
 
 %% Note that RFC 3921 said:
@@ -528,8 +561,9 @@ verify_user_and_open_session(#c2s_data{host_type = HostType, jid = Jid} = StateD
 %% > If no priority is provided, a server SHOULD consider the priority to be zero.
 %% But, RFC 6121 says:
 %% > If no priority is provided, the processing server or client MUST consider the priority to be zero.
--spec do_open_session(data(), state(), mongoose_acc:t()) -> fsm_res().
-do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
+-spec maybe_open_session(state(), {ok | stop, mongoose_acc:t()}, data()) ->
+    {ok, mongoose_acc:t(), data()} | {stop, mongoose_acc:t()}.
+maybe_open_session(session_established, {ok, Acc1}, StateData = #c2s_data{host_type = HostType}) ->
     {ReplacedPids, StateData2} = open_session(StateData),
     FsmActions = case ReplacedPids of
                      [] -> [];
@@ -538,7 +572,20 @@ do_open_session(#c2s_data{host_type = HostType} = StateData, C2SState, Acc1) ->
                          [{{timeout, replaced_wait_timeout}, Timeout, ReplacedPids}]
                  end,
     Acc2 = mongoose_c2s_acc:to_acc(Acc1, actions, FsmActions),
-    handle_state_after_packet(StateData2, C2SState, Acc2).
+    {ok, Acc2, StateData2};
+maybe_open_session(wait_for_session_establishment, {ok, Acc}, StateData) ->
+    {ok, Acc, StateData};
+maybe_open_session(_, {stop, Acc}, _StateData) ->
+    {stop, Acc}.
+
+-spec finish_open_session(_, data(), state(), state()) -> fsm_res().
+finish_open_session({ok, Acc, StateData}, _, _OldC2SState, NewC2SState) ->
+    handle_state_after_packet(StateData, NewC2SState, Acc);
+finish_open_session({stop, Acc}, StateData, OldC2SState, _NewC2SState) ->
+    El = mongoose_acc:element(Acc),
+    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_allowed()),
+    send_element_from_server_jid(StateData, Err),
+    maybe_retry_state(StateData, OldC2SState).
 
 maybe_wait_for_session(#c2s_data{listener_opts = #{backwards_compatible_session := false}}) ->
     session_established;
@@ -639,10 +686,10 @@ maybe_retry_state({wait_for_sasl_response, _, 0}) ->
     {stop, {shutdown, retries}};
 maybe_retry_state({wait_for_feature_after_auth, Retries}) ->
     {wait_for_feature_after_auth, Retries - 1};
-maybe_retry_state({wait_for_feature_before_auth, SaslState, Retries}) ->
-    {wait_for_feature_before_auth, SaslState, Retries - 1};
-maybe_retry_state({wait_for_sasl_response, SaslState, Retries}) ->
-    {wait_for_sasl_response, SaslState, Retries - 1};
+maybe_retry_state({wait_for_feature_before_auth, SaslAcc, Retries}) ->
+    {wait_for_feature_before_auth, SaslAcc, Retries - 1};
+maybe_retry_state({wait_for_sasl_response, SaslAcc, Retries}) ->
+    {wait_for_sasl_response, SaslAcc, Retries - 1};
 maybe_retry_state(?EXT_C2S_STATE(_) = State) ->
     State.
 
@@ -826,8 +873,8 @@ stream_start_error(StateData, Error) ->
     c2s_stream_error(StateData, Error).
 
 -spec send_header(StateData :: data()) -> any().
-send_header(StateData = #c2s_data{lserver = LServer, lang = Lang, streamid = StreamId}) ->
-    Header = mongoose_c2s_stanzas:stream_header(LServer, ?XMPP_VERSION, Lang, StreamId),
+send_header(StateData) ->
+    Header = mongoose_c2s_stanzas:stream_header(StateData),
     send_xml(StateData, Header).
 
 send_trailer(StateData) ->
@@ -942,6 +989,13 @@ send_element_from_server_jid(StateData, El) ->
               element => El}),
     do_send_element(StateData, Acc, El).
 
+-spec send_acc_from_server_jid(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
+send_acc_from_server_jid(StateData = #c2s_data{lserver = LServer, jid = Jid}, Acc0, El) ->
+    ServerJid = jid:make_noprep(<<>>, LServer, <<>>),
+    ParamsAcc = #{from_jid => ServerJid, to_jid => Jid, element => El},
+    Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc0),
+    do_send_element(StateData, Acc1, El).
+
 -spec maybe_send_xml(data(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 maybe_send_xml(StateData = #c2s_data{host_type = HostType, lserver = LServer}, undefined, ToSend) ->
     Acc = mongoose_acc:new(#{host_type => HostType, lserver => LServer, location => ?LOCATION}),
@@ -967,6 +1021,8 @@ send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
     mongoose_c2s_socket:send_xml(Socket, XmlElements).
 
 
+state_timeout(#c2s_data{listener_opts = LOpts}) ->
+    state_timeout(LOpts);
 state_timeout(#{c2s_state_timeout := Timeout}) ->
     {state_timeout, Timeout, state_timeout_termination}.
 
@@ -1038,7 +1094,7 @@ cast(Pid, EventTag, EventContent) ->
 create_data(#{host_type := HostType, jid := Jid}) ->
     #c2s_data{host_type = HostType, jid = Jid}.
 
--spec get_auth_mechs(data()) -> [cyrsasl:mechanism()].
+-spec get_auth_mechs(data()) -> [mongoose_c2s_sasl:mechanism()].
 get_auth_mechs(#c2s_data{host_type = HostType} = StateData) ->
     [M || M <- cyrsasl:listmech(HostType), filter_mechanism(StateData, M)].
 
@@ -1075,6 +1131,14 @@ get_socket(#c2s_data{socket = Socket}) ->
 -spec get_jid(data()) -> jid:jid() | undefined.
 get_jid(#c2s_data{jid = Jid}) ->
     Jid.
+
+-spec set_jid(data(), jid:jid()) -> data().
+set_jid(StateData, NewJid) ->
+    StateData#c2s_data{jid = NewJid}.
+
+-spec set_auth_module(data(), module()) -> data().
+set_auth_module(StateData = #c2s_data{info = Info}, AuthModule) ->
+    StateData#c2s_data{info = maps:merge(Info, #{auth_module => AuthModule})}.
 
 -spec get_info(data()) -> info().
 get_info(#c2s_data{info = Info}) ->

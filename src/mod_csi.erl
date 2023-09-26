@@ -13,6 +13,8 @@
 
 %% Hook handlers
 -export([c2s_stream_features/3,
+         bind2_stream_features/3,
+         bind2_enable_features/3,
          xmpp_presend_element/3,
          user_send_xmlel/3,
          handle_user_stopping/3,
@@ -25,6 +27,7 @@
           buffer_max = 20 :: non_neg_integer()
          }).
 
+-type params() :: #{c2s_data := mongoose_c2s:data(), _ := _}.
 -type state() :: active | inactive.
 -type csi_state() :: #csi_state{}.
 
@@ -39,6 +42,8 @@ stop(_HostType) ->
 hooks(HostType) ->
     [
      {c2s_stream_features, HostType, fun ?MODULE:c2s_stream_features/3, #{}, 60},
+     {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50},
+     {bind2_enable_features, HostType, fun ?MODULE:bind2_enable_features/3, #{}, 50},
      {xmpp_presend_element, HostType, fun ?MODULE:xmpp_presend_element/3, #{}, 45}, %% just before stream management!
      {user_send_xmlel, HostType, fun ?MODULE:user_send_xmlel/3, #{}, 60},
      {user_stop_request, HostType, fun ?MODULE:handle_user_stopping/3, #{}, 95},
@@ -48,8 +53,8 @@ hooks(HostType) ->
     ].
 
 ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIInactive], spiral),
-    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIActive], spiral).
+    mongoose_metrics:ensure_metric(HostType, [modCSIInactive], spiral),
+    mongoose_metrics:ensure_metric(HostType, [modCSIActive], spiral).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -68,6 +73,27 @@ supported_features() ->
 -spec c2s_stream_features(Acc, map(), gen_hook:extra()) -> {ok, Acc} when Acc :: [exml:element()].
 c2s_stream_features(Acc, _, _) ->
     {ok, lists:keystore(<<"csi">>, #xmlel.name, Acc, csi())}.
+
+-spec bind2_stream_features(Acc, #{c2s_data := mongoose_c2s:data()}, gen_hook:extra()) ->
+    {ok, Acc} when Acc :: [exml:element()].
+bind2_stream_features(Acc, _, _) ->
+    SmFeature = #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_CSI}]},
+    {ok, [SmFeature | Acc]}.
+
+-spec bind2_enable_features(SaslAcc, mod_sasl2:c2s_state_data(), gen_hook:extra()) ->
+    {ok, SaslAcc} when SaslAcc :: mongoose_acc:t().
+bind2_enable_features(SaslAcc, Params, _) ->
+    #{request := BindRequest} = mod_bind2:get_bind_request(SaslAcc),
+    case exml_query:subelement_with_ns(BindRequest, ?NS_CSI) of
+        undefined ->
+            {ok, SaslAcc};
+        #xmlel{name = <<"active">>} ->
+            SaslAcc1 = handle_active_request(SaslAcc, Params),
+            {ok, SaslAcc1};
+        #xmlel{name = <<"inactive">>} ->
+            SaslAcc1 = handle_inactive_request(SaslAcc, Params),
+            {ok, SaslAcc1}
+    end.
 
 %% The XEP doesn't require any specific server behaviour in response to CSI stanzas,
 %% there are only some suggestions. The implementation in MongooseIM will simply buffer
@@ -153,7 +179,7 @@ handle_csi_request(Acc, _, _) ->
     ErrorAcc = mongoose_acc:update_stanza(#{from_jid => From, to_jid => To, element => Error }, Acc),
     mongoose_c2s_acc:to_acc(Acc, route, ErrorAcc).
 
--spec handle_inactive_request(mongoose_acc:t(), mongoose_c2s_hooks:params()) -> mongoose_acc:t().
+-spec handle_inactive_request(mongoose_acc:t(), params()) -> mongoose_acc:t().
 handle_inactive_request(Acc, #{c2s_data := C2SData} = _Params) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
     mongoose_metrics:update(HostType, modCSIInactive, 1),
@@ -167,7 +193,7 @@ handle_inactive_request(Acc, #{c2s_data := C2SData} = _Params) ->
             mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewCsi})
     end.
 
--spec handle_active_request(mongoose_acc:t(), mongoose_c2s_hooks:params()) -> mongoose_acc:t().
+-spec handle_active_request(mongoose_acc:t(), params()) -> mongoose_acc:t().
 handle_active_request(Acc, #{c2s_data := C2SData}) ->
     HostType = mongoose_c2s:get_host_type(C2SData),
     mongoose_metrics:update(HostType, modCSIActive, 1),

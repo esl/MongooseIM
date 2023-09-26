@@ -835,6 +835,8 @@ default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_bind2) ->
+    #{};
 default_mod_config(mod_blocking) ->
     #{backend => mnesia};
 default_mod_config(mod_bosh) ->
@@ -984,6 +986,8 @@ default_mod_config(mod_register) ->
       password_strength => 0, ip_access => []};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_sasl2) ->
+    #{};
 default_mod_config(mod_shared_roster_ldap) ->
     #{pool_tag => default, deref => never, filter => <<"">>,
       groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,

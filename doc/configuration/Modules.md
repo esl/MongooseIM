@@ -59,6 +59,9 @@ It requires [mod_keystore](../modules/mod_keystore.md) as an actual key database
 ### [mod_blocking](../modules/mod_blocking.md)
 Implements [XEP-0191: Blocking Command](http://xmpp.org/extensions/xep-0191.html), a simplified interface to privacy lists.
 
+### [mod_bind2](../modules/mod_bind2.md)
+Implements [XEP-0386: Bind 2](http://xmpp.org/extensions/xep-0386.html).
+
 ### [mod_bosh](../modules/mod_bosh.md)
 Allows users to connect to MongooseIM using BOSH (Bidirectional-streams Over Synchronous HTTP), the HTTP long-polling technique described in [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html) and [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html).
 
@@ -155,6 +158,9 @@ This does not provide a solution to the forgotten password use case via SMS or e
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).
 Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
+
+### [mod_sasl2](../modules/mod_sasl2.md)
+Implements [XEP-0388: Extensible SASL Profile](http://xmpp.org/extensions/xep-0388.html).
 
 ### [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
 This module, when enabled, will inject roster entries fetched from LDAP.

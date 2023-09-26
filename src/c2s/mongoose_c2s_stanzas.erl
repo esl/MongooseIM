@@ -1,10 +1,11 @@
 -module(mongoose_c2s_stanzas).
 
--include_lib("exml/include/exml_stream.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 
 -export([
-         stream_header/4,
+         stream_header/1,
          stream_features_before_auth/1,
          tls_proceed/0,
          stream_features_after_auth/1,
@@ -15,22 +16,20 @@
          successful_session_establishment/1
         ]).
 
--spec stream_header(binary(), binary(), binary(), binary()) -> exml_stream:start().
-stream_header(Server, Version, Lang, StreamId) ->
+-spec stream_header(mongoose_c2s:data()) -> exml_stream:start().
+stream_header(StateData) ->
+    Lang = mongoose_c2s:get_lang(StateData),
+    LServer = mongoose_c2s:get_lserver(StateData),
+    StreamId = mongoose_c2s:get_stream_id(StateData),
+    MaybeFrom = [ {<<"to">>, jid:to_binary(Jid)}
+                  || Jid <- [mongoose_c2s:get_jid(StateData)], Jid =/= undefined],
     Attrs = [{<<"xmlns">>, ?NS_CLIENT},
              {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
              {<<"id">>, StreamId},
-             {<<"from">>, Server}],
-    Attrs1 = case Version of
-                 <<>> -> Attrs;
-                 _ -> [{<<"version">>, Version} | Attrs]
-             end,
-    Attrs2 = case Lang of
-                 <<>> -> Attrs1;
-                 _ -> [{<<"xml:lang">>, Lang} | Attrs1]
-             end,
-    #xmlstreamstart{name = <<"stream:stream">>,
-                    attrs = Attrs2}.
+             {<<"from">>, LServer},
+             {<<"version">>, ?XMPP_VERSION},
+             {<<"xml:lang">>, Lang} | MaybeFrom ],
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
 
 -spec stream_features([exml:element() | exml:cdata()]) -> exml:element().
 stream_features(Features) ->
@@ -116,7 +115,7 @@ hook_enabled_features(StateData) ->
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
--spec sasl_success_stanza(binary()) -> exml:element().
+-spec sasl_success_stanza(undefined | binary()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
     C = case ServerOut of
             undefined -> [];
@@ -139,11 +138,11 @@ maybe_text_tag(Text) ->
     [#xmlel{name = <<"text">>,
             children = [#xmlcdata{content = Text}]}].
 
--spec sasl_challenge_stanza([exml:element() | exml:cdata()]) -> exml:element().
-sasl_challenge_stanza(Challenge) ->
+-spec sasl_challenge_stanza(binary()) -> exml:element().
+sasl_challenge_stanza(ServerOut) ->
     #xmlel{name = <<"challenge">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],
-           children = Challenge}.
+           children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}.
 
 -spec successful_resource_binding(jlib:iq(), jid:jid()) -> exml:element().
 successful_resource_binding(IQ, Jid) ->

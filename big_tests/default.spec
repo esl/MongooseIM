@@ -20,6 +20,7 @@
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
 {suites, "tests", auth_methods_for_c2s_SUITE}.
+{suites, "tests", bind2_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
 {suites, "tests", cluster_commands_SUITE}.
@@ -100,6 +101,7 @@
 {suites, "tests", rest_client_SUITE}.
 {suites, "tests", s2s_SUITE}.
 {suites, "tests", sasl_SUITE}.
+{suites, "tests", sasl2_SUITE}.
 {suites, "tests", sasl_external_SUITE}.
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
