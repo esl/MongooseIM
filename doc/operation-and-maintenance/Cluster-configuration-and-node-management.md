@@ -184,7 +184,8 @@ Checklist:
     If it is not equal, you could have some configuration or networking issues.
     You can check the `unavailableNodes`, `remoteNodesWithUnknownTables`,
     and `remoteNodesWithMissingTables` lists for more information (generally, these lists should be empty).
-    You can read the description for other fields of `systemInfo` in the GraphQL schema file.
+    You can read the description for other fields of `systemInfo` in the
+    [GraphQL API reference](../graphql-api/admin-graphql-doc.html#definition-CETSSystemInfo).
 
     For a properly configured 2 nodes cluster the metrics would show something like that:
 

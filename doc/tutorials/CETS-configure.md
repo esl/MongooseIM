@@ -5,7 +5,7 @@ across the MongooseIM cluster. It could be used to store:
 
 - information about online XMPP sessions;
 - information about outgoung S2S connections;
-- steam management session IDs;
+- stream management session IDs;
 - information about online MUC rooms.
 
 If you want to use CETS instead of Mnesia, ensure that these options are set:

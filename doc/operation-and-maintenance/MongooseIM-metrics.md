@@ -192,7 +192,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `joined_nodes` | Joined nodes (nodes that have our local tables running). |
 | `discovered_nodes` | Discovered nodes (nodes that are extracted from the discovery backend). |
 | `remote_nodes_without_disco` | Nodes that have more tables registered than the local node. |
-| `remote_nodes_with_unknown_tables` | Nodes that have more tables registered than the local node. |
+| `remote_nodes_with_unknown_tables` | Nodes with unknown tables. |
 | `remote_unknown_tables` | Unknown remote tables. |
 | `remote_nodes_with_missing_tables` | Nodes that are available, but do not host some of our local tables. |
 | `remote_missing_tables` | Nodes that replicate at least one of our local tables to a different list of nodes. |
