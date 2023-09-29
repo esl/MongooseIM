@@ -58,7 +58,7 @@ do_start() ->
     update_status_file(starting),
     mongoose_config:start(),
     mongoose_metrics:init(),
-    db_init(),
+    mongoose_internal_databases:init(),
     mongoose_graphql:init(),
     translate:start(),
     ejabberd_commands:init(),
@@ -111,31 +111,9 @@ stop(_State) ->
     %% That is why we call mnesia:stop() inside of db_init_mnesia() instead.
     ok.
 
-
 %%%
 %%% Internal functions
 %%%
-db_init() ->
-    case mongoose_config:lookup_opt([internal_databases, mnesia]) of
-        {ok, _} ->
-            db_init_mnesia(),
-            mongoose_node_num_mnesia:init();
-        {error, _} ->
-            ok
-    end.
-
-db_init_mnesia() ->
-    %% Mnesia should not be running at this point, unless it is started by tests.
-    %% Ensure Mnesia is stopped
-    mnesia:stop(),
-    case mnesia:system_info(extra_db_nodes) of
-        [] ->
-            mnesia:create_schema([node()]);
-        _ ->
-            ok
-    end,
-    application:start(mnesia, permanent),
-    mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 
 -spec broadcast_c2s_shutdown_listeners() -> ok.
 broadcast_c2s_shutdown_listeners() ->
