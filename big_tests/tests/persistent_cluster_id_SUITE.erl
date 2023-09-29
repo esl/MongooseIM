@@ -20,7 +20,8 @@
          id_persists_after_restart/1,
          same_cluster_id_in_backend_and_mnesia/1,
          backed_up_id_if_rdbms_is_added/1,
-         cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost/1
+         cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost/1,
+         clean_start_and_two_nodes/1
         ]).
 
 -import(distributed_helper, [mim/0, mim2/0]).
@@ -39,7 +40,8 @@ tests() ->
      id_persists_after_restart,
      same_cluster_id_in_backend_and_mnesia,
      backed_up_id_if_rdbms_is_added,
-     cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost
+     cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost,
+     clean_start_and_two_nodes
     ].
 
 groups() ->
@@ -52,7 +54,7 @@ groups() ->
 %%% Overall setup/teardown
 %%%===================================================================
 init_per_suite(Config) ->
-    Config.
+    distributed_helper:require_rpc_nodes([mim]) ++ Config.
 
 end_per_suite(_Config) ->
     ok.
@@ -144,3 +146,26 @@ cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost(_Config) ->
     {ok, SecondID} = mongoose_helper:successful_rpc(
                Node, mongoose_cluster_id, get_cached_cluster_id, []),
     ?assertEqual(FirstID, SecondID).
+
+clean_start_and_two_nodes(_Config) ->
+    {ok, MnesiaID} = mongoose_helper:successful_rpc(
+           mim(), mongoose_cluster_id, get_cached_cluster_id, []),
+    {ok, MnesiaID2} = mongoose_helper:successful_rpc(
+           mim2(), mongoose_cluster_id, get_cached_cluster_id, []),
+    %% Sanity check: IDs are in sync
+    ?assertEqual(MnesiaID, MnesiaID2),
+    %% Remove an old ID from anywhere
+    ok = mongoose_helper:successful_rpc(
+           mim(), mongoose_cluster_id, clean_table, []),
+    ok = mongoose_helper:successful_rpc(
+           mim(), mongoose_cluster_id, clean_cache, []),
+    ok = mongoose_helper:successful_rpc(
+           mim2(), mongoose_cluster_id, clean_cache, []),
+    {ok, AfterRestartID} = mongoose_helper:successful_rpc(
+           mim(), mongoose_cluster_id, start, []),
+    {ok, AfterRestartID2} = mongoose_helper:successful_rpc(
+           mim2(), mongoose_cluster_id, start, []),
+    %% We've created a new ID
+    ?assertNotEqual(AfterRestartID, MnesiaID),
+    %% Both nodes have the same ID
+    ?assertEqual(AfterRestartID, AfterRestartID2).

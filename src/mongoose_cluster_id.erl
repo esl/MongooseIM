@@ -9,9 +9,9 @@
         ]).
 
 % For testing purposes only
--export([clean_table/0]).
+-export([clean_table/0, clean_cache/0]).
 
--ignore_xref([clean_table/0, get_backend_cluster_id/0]).
+-ignore_xref([clean_table/0, clean_cache/0, get_backend_cluster_id/0]).
 
 -record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
 -type cluster_id() :: binary().
@@ -178,3 +178,9 @@ clean_table(rdbms) ->
             {error, {Class, Reason}}
     end;
 clean_table(_) -> ok.
+
+clean_cache() ->
+    clean_cache(which_volatile_backend_available()).
+
+clean_cache(mnesia) ->
+    mnesia:dirty_delete(mongoose_cluster_id, cluster_id).
