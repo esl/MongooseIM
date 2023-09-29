@@ -17,14 +17,16 @@
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.
 -type mongoose_backend() :: rdbms
-                          | mnesia.
+                          | mnesia
+                          | cets.
 
 -spec start() -> maybe_cluster_id().
 start() ->
-    init_mnesia_cache(),
+    init_cache(),
     Backend = which_backend_available(),
+    IntBackend = which_volatile_backend_available(),
     maybe_prepare_queries(Backend),
-    CachedRes = get_cached_cluster_id(),
+    CachedRes = get_cached_cluster_id(IntBackend),
     BackendRes = get_backend_cluster_id(),
     case {CachedRes, BackendRes} of
         {{ok, ID}, {ok, ID}} ->
@@ -32,7 +34,7 @@ start() ->
         {{ok, ID}, {error, _}} ->
             set_new_cluster_id(ID, Backend);
         {{error, _}, {ok, ID}} ->
-            set_new_cluster_id(ID, mnesia);
+            set_new_cluster_id(ID, IntBackend);
         {{error, _}, {error, _}} ->
             make_and_set_new_cluster_id();
         {{ok, CachedID}, {ok, BackendID}} ->
@@ -45,6 +47,10 @@ start() ->
 %% Get cached version
 -spec get_cached_cluster_id() -> maybe_cluster_id().
 get_cached_cluster_id() ->
+    IntBackend = which_volatile_backend_available(),
+    get_cached_cluster_id(IntBackend).
+
+get_cached_cluster_id(mnesia) ->
     T = fun() -> mnesia:read(mongoose_cluster_id, cluster_id) end,
     case mnesia:transaction(T) of
         {atomic, [#mongoose_cluster_id{value = ClusterID}]} ->
@@ -74,7 +80,10 @@ make_and_set_new_cluster_id() ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
-init_mnesia_cache() ->
+init_cache() ->
+    init_cache(which_volatile_backend_available()).
+
+init_cache(mnesia) ->
     mnesia:create_table(mongoose_cluster_id,
                         [{type, set},
                          {record_name, mongoose_cluster_id},
@@ -104,15 +113,18 @@ make_cluster_id() ->
 -spec which_backend_available() -> mongoose_backend().
 which_backend_available() ->
     case mongoose_wpool:get_pool_settings(rdbms, global, default) of
-        undefined -> mnesia;
+        undefined -> which_volatile_backend_available();
         _ -> rdbms
     end.
+
+which_volatile_backend_available() ->
+    mnesia.
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
 set_new_cluster_id(ID, rdbms) ->
     try execute_cluster_insert_new(ID) of
         {updated, 1} ->
-            set_new_cluster_id(ID, mnesia),
+            set_new_cluster_id(ID, which_volatile_backend_available()),
             {ok, ID}
     catch
         Class:Reason:Stacktrace ->
