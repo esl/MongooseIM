@@ -77,7 +77,8 @@ usage() ->
               "Output format could be one of the following: ~n"
               "  doap - DOAP (Description Of A Project)~n"
               "  list - Erlang list~n"
-              "  markdown - Markdown table~n~n"
+              "  markdown - Markdown table~n"
+              "  json - JSON~n~n"
               "Example usage (from mongooseim repo root):~n"
               "tools/xep_tool/xep_tool.escript doap doc/mongooseim.doap~n"),
     erlang:halt(1).
@@ -215,6 +216,7 @@ get_xep_status(#{}) -> complete.
 generate_output("markdown", Records) -> generate_table(Records);
 generate_output("list", Records) -> generate_list(Records);
 generate_output("doap", Records) -> generate_doap(Records);
+generate_output("json", Records) -> generate_json(Records);
 generate_output(_, _Records) -> usage().
 
 -spec generate_table([#xep{}]) -> iodata().
@@ -229,9 +231,9 @@ generate_prefix() ->
 -spec generate_row(#xep{}) -> iodata().
 generate_row(#xep{xep = XepId, url = URL, name = Name, version = Version,
                   status = Status, modules = Modules}) ->
-    FormatStr = "|`~4..0B`|[~s](~s)|~s|~p|`~s`|~n",
+    FormatStr = "|`~s`|[~s](~s)|~s|~p|`~s`|~n",
     ModuleStr = [string:join(lists:map(fun atom_to_list/1, Modules), "`, `")],
-    io_lib:format(FormatStr, [XepId, Name, URL, Version, Status, ModuleStr]).
+    io_lib:format(FormatStr, [format_xep_id(XepId), Name, URL, Version, Status, ModuleStr]).
 
 -spec generate_list([#xep{}]) -> iodata().
 generate_list(RecordList) ->
@@ -246,3 +248,24 @@ generate_doap(Records) ->
     Dir = filename:dirname(escript:script_name()),
     {ok, Template} = file:read_file(Dir ++ "/mongooseim.doap.mustache"),
     bbmustache:render(Template, #{"xeps" => MapList}).
+
+-spec generate_json([#xep{}]) -> iodata().
+generate_json(Records) ->
+    MapList = [record_to_json_map(Record) || Record <- Records],
+    jiffy:encode(MapList, [pretty]).
+
+-spec record_to_json_map(#xep{}) -> jiffy:json_object().
+record_to_json_map(#xep{xep = XepId, url = URL, name = Name, version = Version,
+                        status = Status, modules = Modules}) ->
+    #{xep => iolist_to_binary(format_xep_id(XepId)),
+      url => iolist_to_binary(URL),
+      name => iolist_to_binary(Name),
+      version => iolist_to_binary(Version),
+      status => Status,
+      modules => Modules}.
+
+-spec format_xep_id(xep()) -> iolist().
+format_xep_id(XepId) when is_integer(XepId), XepId >= 1, XepId =< 9999 ->
+    io_lib:format("~4..0B", [XepId]);
+format_xep_id(XepId) ->
+    atom_to_list(XepId).

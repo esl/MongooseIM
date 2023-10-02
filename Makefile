@@ -73,6 +73,7 @@ certs: maybe_clean_certs
 
 xeplist:
 	$(XEP_TOOL)/xep_tool.escript doap doc/mongooseim.doap
+	$(XEP_TOOL)/xep_tool.escript json doc/supported-xeps.json
 	$(XEP_TOOL)/xep_tool.escript markdown doc/user-guide/Supported-XEPs.md
 
 install: configure.out rel
