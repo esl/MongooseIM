@@ -38,7 +38,7 @@
   0},
  {<<"exometer_report_graphite">>,
   {git,"https://github.com/esl/exometer_report_graphite.git",
-       {ref,"55573e6b70802b73965f9022ef3c83b7dd32da38"}},
+       {ref,"59e475a094818294443de9dc68e08ee0116a5626"}},
   0},
  {<<"exometer_report_statsd">>,
   {git,"https://github.com/esl/exometer_report_statsd.git",
