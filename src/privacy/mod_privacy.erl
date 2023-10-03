@@ -218,7 +218,7 @@ do_user_send_iq(Acc1, StateData, HostType, #iq{type = Type, sub_el = SubEl} = IQ
                 {error, Error} ->
                     IQ#iq{type = error, sub_el = [SubEl, Error]}
             end,
-    ejabberd_router:route(ToJid, FromJid, Acc2, jlib:iq_to_xml(IQRes)),
+    ejabberd_router:route(ToJid, FromJid, Acc2, jlib:iq_to_xml(Acc2, IQRes)),
     {stop, Acc2}.
 
 -spec handle_new_privacy_list(
@@ -367,12 +367,12 @@ process_iq_get(Acc,
                #{host_type := HostType}) ->
     Res = case xml:remove_cdata(Els) of
               [] ->
-                  process_lists_get(HostType, LUser, LServer, Active);
+                  process_lists_get(Acc, HostType, LUser, LServer, Active);
               [#xmlel{name = Name, attrs = Attrs}] ->
                   case Name of
                       <<"list">> ->
                           ListName = xml:get_attr(<<"name">>, Attrs),
-                          process_list_get(HostType, LUser, LServer, ListName);
+                          process_list_get(Acc, HostType, LUser, LServer, ListName);
                       _ ->
                           {error, mongoose_xmpp_errors:bad_request()}
                   end;
@@ -383,28 +383,32 @@ process_iq_get(Acc,
 process_iq_get(Acc, _, _) ->
     {ok, Acc}.
 
-process_lists_get(HostType, LUser, LServer, Active) ->
+process_lists_get(Acc, HostType, LUser, LServer, Active) ->
     case mod_privacy_backend:get_list_names(HostType, LUser, LServer) of
         {ok, {Default, ListNames}} ->
             {result, [list_names_query(Active, Default, ListNames)]};
         {error, not_found} ->
             {result, [empty_list_names_query()]};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_get_list_names_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-process_list_get(HostType, LUser, LServer, {value, Name}) ->
+process_list_get(Acc, HostType, LUser, LServer, {value, Name}) ->
     case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, Name) of
         {ok, List} ->
             LItems = lists:map(fun item_to_xml/1, List),
             {result, [list_query_result(Name, LItems)]};
         {error, not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_get_privacy_list_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_list_get(_HostType, _LUser, _LServer, false) ->
-    {error, mongoose_xmpp_errors:bad_request()}.
+process_list_get(_Acc, _HostType, _LUser, _LServer, false) ->
+    {error, mongoose_xmpp_errors:bad_request(<<"en">>, <<"name attribute is missing">>)}.
 
 -spec process_iq_set(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
@@ -419,12 +423,12 @@ process_iq_set(Acc,
                   ListName = xml:get_attr(<<"name">>, Attrs),
                   case Name of
                       <<"list">> ->
-                          process_list_set(HostType, From, ListName,
+                          process_list_set(Acc, HostType, From, ListName,
                                    xml:remove_cdata(SubEls));
                       <<"active">> ->
-                          process_active_set(HostType, From, ListName);
+                          process_active_set(Acc, HostType, From, ListName);
                       <<"default">> ->
-                          process_default_set(HostType, From, ListName);
+                          process_default_set(Acc, HostType, From, ListName);
                       _ ->
                           {error, mongoose_xmpp_errors:bad_request()}
                   end;
@@ -435,49 +439,55 @@ process_iq_set(Acc,
 process_iq_set(Acc, _, _) ->
     {ok, Acc}.
 
-process_default_set(HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
+process_default_set(Acc, HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
     case mod_privacy_backend:set_default_list(HostType, LUser, LServer, Name) of
         ok ->
             {result, []};
         {error, not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_process_default_set_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_default_set(HostType, #jid{luser = LUser, lserver = LServer}, false) ->
+process_default_set(Acc, HostType, #jid{luser = LUser, lserver = LServer}, false) ->
     case mod_privacy_backend:forget_default_list(HostType, LUser, LServer) of
         ok ->
             {result, []};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_process_default_set_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-process_active_set(HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
+process_active_set(Acc, HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
     case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, Name) of
         {ok, List} ->
             NeedDb = is_list_needdb(List),
             {result, [], #userlist{name = Name, list = List, needdb = NeedDb}};
         {error, not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_process_active_set_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_active_set(_HostType, _UserJID, false) ->
+process_active_set(_Acc, _HostType, _UserJID, false) ->
     {result, [], #userlist{}}.
 
-process_list_set(HostType, UserJID, {value, Name}, Els) ->
+process_list_set(Acc, HostType, UserJID, {value, Name}, Els) ->
     case parse_items(Els) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
         remove ->
-            remove_privacy_list(HostType, UserJID, Name);
+            remove_privacy_list(Acc, HostType, UserJID, Name);
         List ->
-            replace_privacy_list(HostType, UserJID, Name, List)
+            replace_privacy_list(Acc, HostType, UserJID, Name, List)
     end;
-process_list_set(_HostType, _UserJID, false, _Els) ->
+process_list_set(_Acc, _HostType, _UserJID, false, _Els) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
-remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
+remove_privacy_list(Acc, HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
     case mod_privacy_backend:remove_privacy_list(HostType, LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
@@ -486,18 +496,22 @@ remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, 
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
             {error, mongoose_xmpp_errors:conflict()};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_remove_privacy_list_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-replace_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name, List) ->
+replace_privacy_list(Acc, HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name, List) ->
     case mod_privacy_backend:replace_privacy_list(HostType, LUser, LServer, Name, List) of
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
             broadcast_privacy_list(HostType, UserJID, Name, UserList),
             {result, []};
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => privacy_replace_privacy_list_failed,
+                         reason => Reason, acc => Acc}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
