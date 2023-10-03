@@ -25,7 +25,9 @@ add_node_to_cluster(Config) ->
     add_node_to_cluster(Node2, Config).
 
 has_mnesia(Node) ->
-    DBs = rpc(Node, mongoose_internal_databases, configured_internal_databases, []),
+    %% It is shometimes called, when MIM application is stopped,
+    %% so we use running_internal_databases instead of configured_internal_databases.
+    DBs = rpc(Node, mongoose_internal_databases, running_internal_databases, []),
     lists:member(mnesia, DBs).
 
 add_node_to_cluster(Node, Config) ->
