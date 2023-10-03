@@ -38,6 +38,7 @@
          iq_query_info/1,
          iq_query_or_response_info/1,
          iq_to_xml/1,
+         iq_to_xml/2,
          timestamp_to_xml/3,
          decode_base64/1,
          encode_base64/1,
@@ -120,14 +121,19 @@ make_result_iq_reply_attrs(Attrs) ->
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
                        xmlcdata() | exml:element()) ->
     exml:element() | {mongoose_acc:t(), exml:element() | {error, {already_an_error, _, _}}}.
-make_error_reply(#xmlel{name = Name, attrs = Attrs,
-                        children = SubTags}, Error) ->
-    NewAttrs = make_error_reply_attrs(Attrs),
-    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
+make_error_reply(#xmlel{} = Packet, Error) ->
+    log_error(undefined, Packet, Error),
+    make_error_reply_elem(Packet, Error);
 make_error_reply(Acc, Error) ->
     make_error_reply(Acc, mongoose_acc:element(Acc), Error).
 
+make_error_reply_elem(#xmlel{name = Name, attrs = Attrs,
+                             children = SubTags}, Error) ->
+    NewAttrs = make_error_reply_attrs(Attrs),
+    #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]}.
+
 make_error_reply(Acc, Packet, Error) ->
+    log_error(Acc, Packet, Error),
     case mongoose_acc:get(flag, error, false, Acc) of
         true ->
             ?LOG_ERROR(#{what => error_reply_to_error, exml_packet => Packet,
@@ -137,6 +143,12 @@ make_error_reply(Acc, Packet, Error) ->
             {mongoose_acc:set(flag, error, true, Acc),
              make_error_reply(Packet, Error)}
     end.
+
+log_error(MaybeAcc, Packet, Error) ->
+    {current_stacktrace, Stacktrace} = erlang:process_info(self(), current_stacktrace),
+    ?LOG_ERROR(#{what => send_error_reply, exml_packet => Packet, acc => MaybeAcc,
+                 reason => Error, stacktrace => Stacktrace}),
+    ok.
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_error_reply_attrs(Attrs) ->
@@ -157,8 +169,7 @@ make_error_reply_attrs(Attrs) ->
                      Attrs3
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"error">>} | Attrs5],
-    Attrs6.
+    [{<<"type">>, <<"error">>} | Attrs5].
 
 
 -spec make_config_change_message(binary()) -> exml:element().
@@ -307,15 +318,29 @@ iq_type_to_binary(result) -> <<"result">>;
 iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
+%% deprecated, use iq_to_xml/2 (it should show more info in case of an errors)
 -spec iq_to_xml(iq()) -> exml:element().
-iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
+iq_to_xml(IQ) ->
+    iq_to_xml(undefined, IQ).
+
+-spec iq_to_xml(mongoose_acc:t() | undefined, iq()) -> exml:element().
+iq_to_xml(Acc, IQ = #iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
+    maybe_log_iq_error(Type, Acc, IQ),
     #xmlel{name = <<"iq">>,
         attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
         children = sub_el_to_els(SubEl)};
-iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
+iq_to_xml(Acc, IQ = #iq{type = Type, sub_el = SubEl}) ->
+    maybe_log_iq_error(Type, Acc, IQ),
     #xmlel{name = <<"iq">>,
         attrs = [{<<"type">>, iq_type_to_binary(Type)}],
         children = sub_el_to_els(SubEl)}.
+
+maybe_log_iq_error(error, Acc, IQ = #iq{id = ID}) ->
+    {current_stacktrace, Stacktrace} = erlang:process_info(self(), current_stacktrace),
+    ?LOG_ERROR(#{what => send_error_reply, iq => IQ, stanza_id => ID,
+                 acc => Acc, current_stacktrace => Stacktrace});
+maybe_log_iq_error(_Type, _Acc, _IQ) ->
+    ok.
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
 %% @end
