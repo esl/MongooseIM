@@ -143,6 +143,9 @@ queued_messages_increase(_C) ->
     Fun = fun(Value) ->
         case Value of
             [{fsm, 5}, {regular, 5}, {total, 10}] -> true;
+
+            %% Sometimes there is an additional unprocessed message
+            %% in the standard I/O ('user') process
             [{fsm, 5}, {regular, 6}, {total, 11}] -> true;
             _ -> false
         end
