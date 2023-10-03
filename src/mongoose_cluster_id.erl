@@ -22,6 +22,9 @@
 
 -spec start() -> maybe_cluster_id().
 start() ->
+    %% Consider rewriting this logic, so it does not block the starting process.
+    %% Currently, we have to do an SQL query each time we restart MongooseIM
+    %% application in the tests.
     init_cache(),
     Backend = which_backend_available(),
     IntBackend = which_volatile_backend_available(),
@@ -56,9 +59,16 @@ get_cached_cluster_id(mnesia) ->
         {atomic, [#mongoose_cluster_id{value = ClusterID}]} ->
             {ok, ClusterID};
         {atomic, []} ->
-            {error, cluster_id_not_in_mnesia};
+            {error, cluster_id_not_in_cache};
         {aborted, Reason} ->
             {error, Reason}
+    end;
+get_cached_cluster_id(cets) ->
+    case ets:lookup(cets_cluster_id, cluster_id) of
+        [{cluster_id, ClusterID}] ->
+            {ok, ClusterID};
+        [] ->
+            {error, cluster_id_not_in_cache}
     end.
 
 %% ====================================================================
@@ -90,7 +100,13 @@ init_cache(mnesia) ->
                          {attributes, record_info(fields, mongoose_cluster_id)},
                          {ram_copies, [node()]}
                         ]),
-    mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies).
+    mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies);
+init_cache(cets) ->
+    cets:start(cets_cluster_id, #{}),
+    cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id),
+    %% We have to do it, because we want to read from across the cluster
+    %% in the start/0 function.
+    ok = cets_discovery:wait_for_ready(mongoose_cets_discovery, infinity).
 
 -spec maybe_prepare_queries(mongoose_backend()) -> ok.
 maybe_prepare_queries(mnesia) -> ok;
@@ -118,7 +134,12 @@ which_backend_available() ->
     end.
 
 which_volatile_backend_available() ->
-    mnesia.
+    case mongoose_config:get_opt(internal_databases) of
+        #{cets := _} ->
+            cets;
+        #{mnesia := _} ->
+            mnesia
+    end.
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
 set_new_cluster_id(ID, rdbms) ->
@@ -141,7 +162,10 @@ set_new_cluster_id(ID, mnesia) ->
             {ok, ID};
         {aborted, Reason} ->
             {error, Reason}
-    end.
+    end;
+set_new_cluster_id(ID, cets) ->
+    cets:insert_serial(cets_cluster_id, {cluster_id, ID}),
+    {ok, ID}.
 
 %% Get cluster ID
 -spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
@@ -157,7 +181,9 @@ get_backend_cluster_id(rdbms) ->
             {error, {Class, Reason}}
     end;
 get_backend_cluster_id(mnesia) ->
-    get_cached_cluster_id().
+    get_cached_cluster_id(mnesia);
+get_backend_cluster_id(cets) ->
+    get_cached_cluster_id(cets).
 
 clean_table() ->
     clean_table(which_backend_available()).
@@ -183,4 +209,6 @@ clean_cache() ->
     clean_cache(which_volatile_backend_available()).
 
 clean_cache(mnesia) ->
-    mnesia:dirty_delete(mongoose_cluster_id, cluster_id).
+    mnesia:dirty_delete(mongoose_cluster_id, cluster_id);
+clean_cache(cets) ->
+    cets:delete(cets_cluster_id, cluster_id).
