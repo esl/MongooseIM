@@ -128,8 +128,9 @@
 %% ct_mongoose_hook will:
 %% * ensure preset & mim_data_dir values are passed to ct Config
 %% * check server's purity after SUITE
+%% ct_sanity_hook would warn if test starts/stops internal databases when not expected.
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
-            ct_markdown_errors_hook, ct_mongoose_log_hook]}.
+            ct_markdown_errors_hook, ct_mongoose_log_hook, ct_sanity_hook]}.
 
 %% since test-runner.sh can be executed with the --one-node option,
 %% log collection is enabled by default for host mim1 only.
