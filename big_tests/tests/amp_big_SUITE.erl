@@ -154,7 +154,7 @@ setup_meck(suite) ->
 setup_meck(mam_failure) ->
     ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 3, {ok, {error, simulated}}]);
 setup_meck(offline_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 4, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_offline_backend_module(), write_messages, 4, {error, simulated}]);
 setup_meck(_) -> ok.
 
 save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];
@@ -174,7 +174,7 @@ end_per_group(GroupName, Config) ->
 teardown_meck(mam_failure) ->
     rpc(mim(), meck, unload, [mod_mam_rdbms_arch]);
 teardown_meck(offline_failure) ->
-    rpc(mim(), meck, unload, [mod_offline_mnesia]);
+    rpc(mim(), meck, unload, [mod_offline_backend_module()]);
 teardown_meck(suite) ->
     rpc(mim(), meck, unload, []);
 teardown_meck(_) -> ok.
@@ -994,15 +994,27 @@ mam_modules(off) ->
     [{mod_mam, stopped}].
 
 offline_modules(on) ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_offline, config_parser_helper:mod_config(mod_offline,
-        #{access_max_user_messages => max_user_offline_messages})}];
+        #{backend => Backend,
+          access_max_user_messages => max_user_offline_messages})}];
 offline_modules(off) ->
     [{mod_offline, stopped},
      {mod_offline_stub, []}].
 
 privacy_modules(on) ->
-    [{mod_privacy, config_parser_helper:default_mod_config(mod_privacy)},
-     {mod_blocking, config_parser_helper:default_mod_config(mod_blocking)}];
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    [{mod_privacy, config_parser_helper:mod_config(mod_privacy, #{backend => Backend})},
+     {mod_blocking, config_parser_helper:mod_config(mod_blocking, #{backend => Backend})}];
 privacy_modules(off) ->
     [{mod_privacy, stopped},
      {mod_blocking, stopped}].
+
+mod_offline_backend_module() ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    case Backend of
+        mnesia ->
+            mod_offline_mnesia;
+        rdbms ->
+            mod_offline_rdbms
+    end.
