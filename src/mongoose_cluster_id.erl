@@ -94,13 +94,12 @@ init_cache() ->
     init_cache(which_volatile_backend_available()).
 
 init_cache(mnesia) ->
-    mnesia:create_table(mongoose_cluster_id,
+    mongoose_mnesia:create_table(mongoose_cluster_id,
                         [{type, set},
                          {record_name, mongoose_cluster_id},
                          {attributes, record_info(fields, mongoose_cluster_id)},
                          {ram_copies, [node()]}
-                        ]),
-    mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies);
+                        ]);
 init_cache(cets) ->
     cets:start(cets_cluster_id, #{}),
     cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id),

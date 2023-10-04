@@ -6,11 +6,10 @@
                    num :: mongoose_node_num:node_num() }).
 
 init() ->
-    mnesia:create_table(node_num,
+    mongoose_mnesia:create_table(node_num,
         [{ram_copies, [node()]}, {type, set},
          {attributes, record_info(fields, node_num)}]),
     mnesia:add_table_index(node_num, num),
-    mnesia:add_table_copy(node_num, node(), ram_copies),
     register_node(node()),
     [#node_num{num = Num}] = mnesia:dirty_read(node_num, node()),
     mongoose_node_num:set_node_num(Num),

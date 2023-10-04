@@ -35,9 +35,9 @@
 -export([init/0, new/1]).
 
 init() ->
-    mnesia:create_table(pubsub_index,
-                        [{disc_copies, [node()]},
-                         {attributes, record_info(fields, pubsub_index)}]).
+    mongoose_mnesia:create_table(pubsub_index,
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, pubsub_index)}]).
 
 new(Index) ->
     %% Create a new short lived transaction to reduce lock contention

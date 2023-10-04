@@ -32,8 +32,7 @@ init(_) ->
 init_pids() ->
     Opts = [{ram_copies, [node()]}, {type, bag},
             {attributes, record_info(fields, s2s)}],
-    mnesia:create_table(s2s, Opts),
-    mnesia:add_table_copy(s2s, node(), ram_copies).
+    mongoose_mnesia:create_table(s2s, Opts).
 
 -spec get_s2s_out_pids(ejabberd_s2s:fromto()) -> ejabberd_s2s:s2s_pids().
 get_s2s_out_pids(FromTo) ->
@@ -98,8 +97,7 @@ s2s_to_pids(List) ->
 %% Secrets
 init_secrets() ->
     Opts = [{ram_copies, [node()]}, {attributes, record_info(fields, s2s_shared)}],
-    mnesia:create_table(s2s_shared, Opts),
-    mnesia:add_table_copy(s2s_shared, node(), ram_copies).
+    mongoose_mnesia:create_table(s2s_shared, Opts).
 
 -spec register_secret(HostType :: mongooseim:host_type(),
                       Secret :: ejabberd_s2s:base16_secret()) -> ok.

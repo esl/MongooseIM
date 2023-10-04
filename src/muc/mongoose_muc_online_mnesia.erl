@@ -14,10 +14,9 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, _Opts) ->
-    mnesia:create_table(muc_online_room,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, muc_online_room)}]),
-    mnesia:add_table_copy(muc_online_room, node(), ram_copies),
+    mongoose_mnesia:create_table(muc_online_room,
+        [{ram_copies, [node()]},
+         {attributes, record_info(fields, muc_online_room)}]),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.

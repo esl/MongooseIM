@@ -41,10 +41,9 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mnesia:create_table(mam_prefs,
-            [{disc_copies, [node()]},
-             {attributes, record_info(fields, mam_prefs)}]),
-    mnesia:add_table_copy(mam_prefs, node(), disc_copies),
+    mongoose_mnesia:create_table(mam_prefs,
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, mam_prefs)}]),
     gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(mongooseim:host_type()) -> ok.
