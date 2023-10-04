@@ -80,8 +80,7 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
-init(HostType, Opts) ->
-    mod_pubsub_db_mnesia:init(HostType, Opts),
+init(_HostType, _Opts) ->
     % -------------------- State building ----------------------------
     mongoose_rdbms:prepare(pubsub_get_item_rows_id, pubsub_items, [nidx],
         <<"SELECT nidx, created_luser, created_lserver, itemid "
@@ -251,7 +250,7 @@ init(HostType, Opts) ->
 
 -spec stop() -> ok.
 stop() ->
-    mod_pubsub_db_mnesia:stop().
+    ok.
 
 %% ------------------------ Queries execution --------------------
 prepare_select_nodes_by_owner() ->
