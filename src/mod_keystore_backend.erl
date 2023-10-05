@@ -2,11 +2,12 @@
 %% the backend modules (i.e. mod_keystore_mnesia...).
 -module(mod_keystore_backend).
 
--export([init/2, init_ram_key/2, get_key/1]).
+-export([init/2, stop/1, init_ram_key/2, get_key/1]).
 
 -define(MAIN_MODULE, mod_keystore).
 
 -callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+-callback stop(mongooseim:host_type()) -> ok.
 
 %% Cluster members race to decide whose key gets stored in the distributed database.
 %% That's why ProposedKey (the key this cluster member tries to propagate to other nodes)
@@ -22,6 +23,11 @@
 init(HostType, Opts) ->
     mongoose_backend:init(HostType, ?MAIN_MODULE, [], Opts),
     Args = [HostType, Opts],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Args = [HostType],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 %% Cluster members race to decide whose key gets stored in the distributed database.

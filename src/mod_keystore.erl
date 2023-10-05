@@ -57,6 +57,7 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     clear_keystore_ets(HostType),
+    mod_keystore_backend:stop(HostType),
     ok.
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().

@@ -2,6 +2,7 @@
 -behaviour(mod_keystore_backend).
 
 -export([init/2,
+         stop/1,
          init_ram_key/1,
          get_key/1]).
 
@@ -13,13 +14,23 @@
 -include("mod_keystore.hrl").
 -include("mongoose_logger.hrl").
 
--define(TABLE, cets_keystore).
+table_name(HostType) ->
+    binary_to_atom(<<"cets_keystore_", HostType/binary>>).
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-init(_HostType, _Opts) ->
+init(HostType, _Opts) ->
     %% There is no logic to remove keys.
-    cets:start(?TABLE, #{handle_conflict => fun ?MODULE:handle_conflict/2}),
-    cets_discovery:add_table(mongoose_cets_discovery, ?TABLE),
+    %% Separate table per HostType (so we could remove the table once the module is unloaded).
+    Tab = table_name(HostType),
+    cets:start(Tab, #{handle_conflict => fun ?MODULE:handle_conflict/2}),
+    cets_discovery:add_table(mongoose_cets_discovery, Tab),
+    ok.
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Tab = table_name(HostType),
+    cets_discovery:delete_table(mongoose_cets_discovery, Tab),
+    cets:stop(Tab),
     ok.
 
 %% We need to choose one key consistently.
@@ -42,12 +53,13 @@ init_ram_key(ProposedKey) ->
 init_ram_key(#key{id = Id, key = Key}, _, 0) ->
     ?LOG_ERROR(#{what => init_ram_key_failed, id => Id, key => Key}),
     {error, init_ram_key_failed};
-init_ram_key(ProposedKey = #key{id = Id, key = PropKey}, N, Retries) ->
-    case cets:insert_new(?TABLE, {Id, PropKey}) of
+init_ram_key(ProposedKey = #key{id = Id = {_, HostType}, key = PropKey}, N, Retries) ->
+    Tab = table_name(HostType),
+    case cets:insert_new(Tab, {Id, PropKey}) of
         true ->
             {ok, ProposedKey};
         false ->
-            case ets:lookup(?TABLE, Id) of
+            case ets:lookup(Tab, Id) of
                 [{Id, Key}] ->
                     %% Return already inserted key
                     {ok, #key{id = Id, key = Key}};
@@ -59,5 +71,6 @@ init_ram_key(ProposedKey = #key{id = Id, key = PropKey}, N, Retries) ->
    end.
 
 -spec get_key(Id :: mod_keystore:key_id()) -> mod_keystore:key_list().
-get_key(Id) ->
-    ets:lookup(?TABLE, Id).
+get_key(Id = {_, HostType}) ->
+    Tab = table_name(HostType),
+    ets:lookup(Tab, Id).
