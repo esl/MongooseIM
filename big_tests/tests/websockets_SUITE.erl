@@ -82,7 +82,7 @@ metrics_test(Config) ->
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
                        {[global, data, xmpp, received, c2s, websocket], changed},
                        {[global, data, xmpp, sent, c2s, websocket], changed},
-                       {[global, data, xmpp, received, c2s, tcp], 0}, 
+                       {[global, data, xmpp, received, c2s, tcp], 0},
                        {[global, data, xmpp, sent, c2s, tcp], 0}],
     escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
                   [{geralt, 1}, {geralt_s, 1}],

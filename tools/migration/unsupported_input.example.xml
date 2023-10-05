@@ -1,0 +1,4 @@
+113
+<message from='a@localhost' to='b@localhost' type='chat'>
+    <body>Zażółć gęślą jaźń</body>
+</message>

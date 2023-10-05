@@ -41,22 +41,21 @@
                            Module :: atom(), % caller
                            Line :: integer(),
                            Args :: any() ) -> ok.
-log_if_backend_error(V, Module, Line, Args) ->
-    case V of
-        ok -> ok;
-        {atomic, _} -> ok;
-        {updated, _} -> ok; % rdbms
-        {error, E} ->
-            ?LOG_ERROR(#{what => backend_error,
-                         text => <<"Error calling backend module">>,
-                         caller_module => Module, caller_line => Line,
-                         reason => E, args => Args});
-        E ->
-            ?LOG_ERROR(#{what => backend_error,
-                         text => <<"Unexpected return from backend">>,
-                         caller_module => Module, caller_line => Line,
-                         reason => E, args => Args})
-    end,
+log_if_backend_error(ok, _Module, _Line, _Args) -> ok;
+log_if_backend_error({ok, _}, _Module, _Line, _Args) -> ok;
+log_if_backend_error({atomic, _}, _Module, _Line, _Args) -> ok;
+log_if_backend_error({updated, _}, _Module, _Line, _Args) -> ok;
+log_if_backend_error({error, E}, Module, Line, Args) ->
+    ?LOG_ERROR(#{what => backend_error,
+                 text => <<"Error calling backend module">>,
+                 caller_module => Module, caller_line => Line,
+                 reason => E, args => Args}),
+    ok;
+log_if_backend_error(E, Module, Line, Args) ->
+    ?LOG_ERROR(#{what => backend_error,
+                 text => <<"Unexpected return from backend">>,
+                 caller_module => Module, caller_line => Line,
+                 reason => E, args => Args}),
     ok.
 
 %% ------------------------------------------------------------------

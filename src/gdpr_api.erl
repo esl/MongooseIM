@@ -62,6 +62,9 @@ process_error({badmatch, {error, ErrorCode}}, ZipFile)
 process_error({badmatch, {error, eisdir}}, ZipFile) ->
     ErrorMessage = "Given location '" ++ ZipFile ++ "' is a directory",
     {location_is_a_directory_error, ErrorMessage};
+process_error({badmatch, {error, eexist}}, ZipFile) ->
+    ErrorMessage = "File '" ++ ZipFile ++ "' already exist",
+    {file_already_exist_error, ErrorMessage};
 process_error({badmatch, {error, {'EXIT', {{badmatch, {error, ErrorCode}}, _}}}}, ZipFile)
     when ErrorCode =:= eacces orelse ErrorCode =:= erofs ->
         ErrorMessage = "Permission to create file in location '" ++ ZipFile ++ "' denied",

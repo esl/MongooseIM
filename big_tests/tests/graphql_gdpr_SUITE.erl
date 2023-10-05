@@ -132,7 +132,7 @@ admin_gdpr_access_denied_filename_is_a_directory(Config) ->
         fun admin_gdpr_access_denied_filename_is_a_directory/2).
 
 admin_gdpr_access_denied_filename_is_a_directory(Config, Alice) ->
-    Filename = "//",
+    Filename = "./",
     Res = admin_retrieve_personal_data(escalus_client:username(Alice), escalus_client:server(Alice),
                                        list_to_binary(Filename), Config),
     ?assertEqual(<<"location_is_a_directory_error">>, get_err_code(Res)).

@@ -65,7 +65,7 @@ add_deps(HostType, Modules) ->
 %% @end
 -spec resolve_deps(mongooseim:host_type(), module_map() | module_list()) -> module_map().
 resolve_deps(HostType, Modules) when is_map(Modules) ->
-    resolve_deps(HostType, maps:to_list(Modules));
+    resolve_deps(HostType, lists:sort(maps:to_list(Modules)));
 resolve_deps(HostType, ModuleQueue) ->
     resolve_deps(HostType, ModuleQueue, #{}, #{}).
 

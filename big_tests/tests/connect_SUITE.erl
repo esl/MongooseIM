@@ -28,11 +28,13 @@
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
      || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
+-define(CACERT_FILE, "priv/ssl/cacert.pem").
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 
 -import(distributed_helper, [mim/0,
                              mim2/0,
+                             mim3/0,
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [domain/0]).
@@ -344,7 +346,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 stream_features_test(Config) ->
     UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
     List = [start_stream, stream_features, {?MODULE, verify_features}],
-    escalus_connection:start(UserSpec, List),
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], List),
     ok.
 
 verify_features(Conn, Features) ->
@@ -367,7 +369,7 @@ metrics_test(Config) ->
                        {[global, data, xmpp, received, c2s, tls], changed},
                        {[global, data, xmpp, sent, c2s, tls], changed},
                        %% TCP traffic before starttls
-                       {[global, data, xmpp, received, c2s, tcp], changed}, 
+                       {[global, data, xmpp, received, c2s, tcp], changed},
                        {[global, data, xmpp, sent, c2s, tcp], changed}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     tls_authenticate(Config),
@@ -378,12 +380,13 @@ tls_authenticate(Config) ->
     UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    {ok, Conn, _} = escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], ConnetctionSteps),
     % then
     true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
 
 auth_bind_pipelined_session(Config) ->
-    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]},
+                {ssl_opts, [{verify, verify_none}]}
                 | escalus_fresh:create_fresh_user(Config, alice)],
 
     Username = proplists:get_value(username, UserSpec),
@@ -410,6 +413,7 @@ auth_bind_pipelined_session(Config) ->
 
 auth_bind_pipelined_auth_failure(Config) ->
     UserSpec = [{password, <<"badpassword">>}, {ssl, true},
+                {ssl_opts, [{verify, verify_none}]},
                 {parser_opts, [{start_tag, <<"stream:stream">>}]}
                 | escalus_fresh:freshen_spec(Config, alice)],
 
@@ -441,7 +445,8 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
                    AuthResponse).
 
 bind_server_generated_resource(Config) ->
-    UserSpec = [{resource, <<>>} | escalus_fresh:create_fresh_user(Config, ?SECURE_USER)],
+    UserSpec = [{resource, <<>>}, {ssl_opts, [{verify, verify_none}]}
+                | escalus_fresh:create_fresh_user(Config, ?SECURE_USER)],
     ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
     {ok, #client{props = NewSpec}, _} = escalus_connection:start(UserSpec, ConnectionSteps),
     {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
@@ -620,19 +625,34 @@ c2s_port(Config) ->
         Value -> Value
     end.
 
+get_node(Port) ->
+    Mim2Port = ct:get_config({hosts, mim2, c2s_tls_port}),
+    Mim3Port = ct:get_config({hosts, mim3, c2s_tls_port}),
+    case Port of
+        Mim2Port ->
+            mim2();
+        Mim3Port ->
+            mim3();
+        _ ->
+            mim()
+    end.
+
 ciphers_available_in_os() ->
     CiphersStr = os:cmd("openssl ciphers 'ALL:eNULL'"),
     [string:strip(C, both, $\n) || C <- string:tokens(CiphersStr, ":")].
 
 ciphers_working_with_ssl_clients(Config) ->
     Port = c2s_port(Config),
+    Path = rpc(get_node(Port), os, getenv, ["PWD"]),
+    CertPath = Path ++ "/" ++ ?CERT_FILE,
     lists:filter(fun(Cipher) ->
-                         openssl_client_can_use_cipher(Cipher, Port)
+                         openssl_client_can_use_cipher(Cipher, Port, CertPath)
                  end, ciphers_available_in_os()).
 
-openssl_client_can_use_cipher(Cipher, Port) ->
+openssl_client_can_use_cipher(Cipher, Port, Path) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
+          " -cert \"" ++ Path ++ "\""
           " -cipher \"" ++ Cipher ++ "\" -tls1_2 2>&1",
     Output = os:cmd(Cmd),
     0 == string:str(Output, ":error:") andalso 0 == string:str(Output, "errno=0").
@@ -652,12 +672,12 @@ configure_c2s_listener(Config, ExtraC2SOpts) ->
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
 tls_opts(Mode, Config) ->
-    ExtraOpts = #{mode => Mode, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
+    ExtraOpts = #{mode => Mode, cacertfile => ?CACERT_FILE, certfile => ?CERT_FILE, dhfile => ?DH_FILE},
     Module = proplists:get_value(tls_module, Config, fast_tls),
     maps:merge(default_c2s_tls(Module), ExtraOpts).
 
 set_secure_connection_protocol(UserSpec, Version) ->
-    [{ssl_opts, [{versions, [Version]}]} | UserSpec].
+    [{ssl_opts, [{versions, [Version]}, {verify, verify_none}]} | UserSpec].
 
 connect_to_invalid_host(Spec) ->
     {ok, Conn, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),

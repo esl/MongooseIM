@@ -4,7 +4,7 @@
 
 -include_lib("xmerl/include/xmerl.hrl").
 
-main([Type]) ->
+main([Type, FilePath]) ->
     case os:getenv("DEBUG") of
         "1" ->
             {ok, DebugFile} = file:open("/tmp/script-debug", [write, append]),
@@ -13,8 +13,8 @@ main([Type]) ->
             ok
     end,
     try
-        ok = io:setopts([binary]),
-        loop(Type)
+        io:setopts(standard_io, [{encoding, unicode}]),
+        read(Type, FilePath)
     catch
         C:R:S ->
             debug(C, R, S, #{ type => unrecoverable_error })
@@ -32,20 +32,19 @@ print_usage() ->
     io:format("\t\t xml - if MIM stores messages in plain XML~n"),
     io:format("\t\t Please check documentation to learn about IO format.~n~n").
 
-loop("eterm") -> common_loop(fun jid_from_eterm/1);
-loop("xml") -> common_loop(fun jid_from_xml/1);
-loop(_) -> print_usage().
+read("eterm", FilePath) -> read_file(fun jid_from_eterm/1, FilePath);
+read("xml", FilePath) -> read_file(fun jid_from_xml/1, FilePath);
+read(_, _) -> print_usage().
 
-common_loop(ExtractionFun) ->
-    case file:read_line(standard_io) of
-        eof ->
-            ok;
-        {ok, InLenBin} ->
-            % We skip trailing \n
-            InLen = binary_to_integer(binary:part(InLenBin, 0, byte_size(InLenBin) - 1)),
-            {ok, Data} = file:read(standard_io, InLen),
-            safe_jid_extraction(ExtractionFun, Data),
-            common_loop(ExtractionFun)
+read_file(ExtractionFun, FilePath) ->
+    case file:open(FilePath, [read, binary]) of
+        {ok, Device} ->
+            {ok, InLenBit} = file:read_line(Device),
+            InLen = binary_to_integer(binary:part(InLenBit, 0, byte_size(InLenBit) - 1)),
+            {ok, Data} = file:read(Device, InLen),
+            safe_jid_extraction(ExtractionFun, Data);
+        {error, Reason} ->
+            io:format("Error reading file: ~p~n", [Reason])
     end.
 
 jid_from_eterm(ETerm) ->
@@ -92,7 +91,7 @@ safe_jid_extraction(JIDExtractorFun, Data) ->
             JID = bare_jid(JID0),
             OutLen = byte_size(JID),
             OutLenBin = integer_to_binary(OutLen),
-            ok = file:write(standard_io, <<OutLenBin/binary, $\n, JID/binary>>)
+            io:put_chars(<<OutLenBin/binary, $\n, JID/binary>>)
     catch
         throw:R:S ->
             Extra = #{ type => invalid_message_type, data => Data },
@@ -116,4 +115,3 @@ debug(Class, Reason, StackTrace, Extra) ->
             ToWrite = #{ class => Class, reason => Reason, stack_trace => StackTrace },
             io:fwrite(File, "~p~n~n", [maps:merge(ToWrite, Extra)])
     end.
-

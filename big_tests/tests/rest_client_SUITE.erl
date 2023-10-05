@@ -1125,7 +1125,8 @@ is_participant(User, Role, RoomInfo) ->
 
 connect_to_sse(User) ->
     Port = ct:get_config({hosts, mim, http_api_client_endpoint_port}),
-    sse_helper:connect_to_sse(Port, "/api/sse", credentials(User), #{transport => tls}).
+    sse_helper:connect_to_sse(Port, "/api/sse", credentials(User), #{transport => tls,
+        tls_opts => [{verify, verify_none}]}).
 
 assert_json_message(Sent, Received) ->
     #{<<"body">> := Body,

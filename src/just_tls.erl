@@ -122,7 +122,8 @@ format_opts_with_ref(Opts) ->
     {Ref, VerifyFun} = verify_fun_opt(Opts),
     SNIOpts = sni_opts(Opts),
     SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    {Ref, [{verify, Verify}, {verify_fun, VerifyFun}] ++ SNIOpts ++ SSLOpts}.
+    {Ref, [{fail_if_no_peer_cert, false}, {verify, Verify}, {verify_fun, VerifyFun}] ++
+     SNIOpts ++ SSLOpts}.
 
 ssl_option_keys() ->
     [certfile, cacertfile, ciphers, keyfile, password, versions, dhfile].
