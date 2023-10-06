@@ -24,20 +24,39 @@ add_node_to_cluster(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config).
 
+has_mnesia(Node) ->
+    %% TODO We should check that Mnesia is configured here instead of is_running.
+    %% But it would require the issue fixed first:
+    %% "MIM-2067 Actually disable mnesia from starting in tests in pgsql_cets"
+    rpc(Node, mnesia, system_info, [is_running]) =:= yes.
+
 add_node_to_cluster(Node, Config) ->
+    case has_mnesia(Node) of
+        true ->
+            add_node_to_mnesia_cluster(Node, Config);
+        false ->
+            ok
+    end,
+    Config.
+
+add_node_to_mnesia_cluster(Node, Config) ->
     ClusterMemberNode = maps:get(node, mim()),
     ok = rpc(Node#{timeout => cluster_op_timeout()},
              mongoose_cluster, join, [ClusterMemberNode]),
-    verify_result(Node, add),
-    Config.
+    verify_result(Node, add).
 
 remove_node_from_cluster(_Config) ->
     Node = mim2(),
     remove_node_from_cluster(Node, _Config).
 
 remove_node_from_cluster(Node, _Config) ->
-    ok = rpc(Node#{timeout => cluster_op_timeout()}, mongoose_cluster, leave, []),
-    verify_result(Node, remove),
+    case has_mnesia(Node) of
+        true ->
+            ok = rpc(Node#{timeout => cluster_op_timeout()}, mongoose_cluster, leave, []),
+            verify_result(Node, remove);
+        false ->
+            ok
+    end,
     ok.
 
 ctl_path(Node, Config) ->

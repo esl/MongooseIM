@@ -71,8 +71,13 @@ end_per_group(GroupName, Config) ->
     metrics_helper:finalise_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
 init_per_testcase(cluster_size = CN, Config) ->
-    Config1 = ensure_nodes_not_clustered(Config),
-    escalus:init_per_testcase(CN, Config1);
+    case distributed_helper:has_mnesia(mim()) of
+        true ->
+            Config1 = ensure_nodes_not_clustered(Config),
+            escalus:init_per_testcase(CN, Config1);
+        false ->
+            {skip, "Requires Mnesia"}
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
