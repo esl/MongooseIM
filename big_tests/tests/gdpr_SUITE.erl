@@ -281,7 +281,7 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
             {skip, no_mam_backend_configured};
         Backend ->
             dynamic_modules:restore_modules(Config),
-            RequiredModules = mam_required_modules(CN, Backend),
+            RequiredModules = mam_required_modules(CN, Backend, Config),
             dynamic_modules:ensure_modules(host_type(), RequiredModules),
             ct:log("required modules: ~p~n", [RequiredModules]),
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
@@ -344,18 +344,20 @@ groupchat_module(muclight) ->
                                 #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                   rooms_in_rosters => true})}].
 
-mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
-                                       CN =:= retrieve_mam_pm ->
+mam_required_modules(CN, Backend, _Config)
+        when CN =:= remove_mam_pm;
+             CN =:= retrieve_mam_pm ->
     [{mod_mam, mam_helper:config_opts(#{backend => Backend, pm => #{}})}];
-mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
-                                       CN =:= retrieve_mam_muc_light ->
+mam_required_modules(CN, Backend, _Config)
+        when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
+             CN =:= retrieve_mam_muc_light ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
     MucLightOpts = #{backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
                                         pm => #{},
                                         muc => #{host => HostPattern}})},
      {mod_muc_light, mod_config(mod_muc_light, MucLightOpts)}];
-mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
+mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend, _Config) ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
     MucLightOpts = #{backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
@@ -363,21 +365,25 @@ mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
                                         pm => #{archive_groupchats => true},
                                         muc => #{host => HostPattern}})},
      {mod_muc_light, mod_config(mod_muc_light, MucLightOpts)}];
-mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
-                                       CN =:= retrieve_mam_muc ->
+mam_required_modules(CN, Backend, Config) when CN =:= retrieve_mam_muc_private_msg;
+                                               CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
+    MucOpts = #{host => HostPattern,
+                online_backend => mongoose_helper:mnesia_or_cets_backend(Config),
+                backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
                                         pm => #{},
                                         muc => #{host => HostPattern}})},
-     {mod_muc, muc_helper:make_opts(#{host => HostPattern,
-                                      backend => mongoose_helper:mnesia_or_rdbms_backend()})}];
-mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
+     {mod_muc, muc_helper:make_opts(MucOpts)}];
+mam_required_modules(retrieve_mam_muc_store_pm, Backend, Config) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
+    MucOpts = #{host => HostPattern,
+                online_backend => mongoose_helper:mnesia_or_cets_backend(Config),
+                backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
                                         pm => #{archive_groupchats => true},
                                         muc => #{host => HostPattern}})},
-     {mod_muc, muc_helper:make_opts(#{host => HostPattern,
-                                      backend => mongoose_helper:mnesia_or_rdbms_backend()})}].
+     {mod_muc, muc_helper:make_opts(MucOpts)}].
 
 pick_enabled_backend() ->
     BackendsList = [
