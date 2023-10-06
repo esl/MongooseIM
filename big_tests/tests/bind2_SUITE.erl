@@ -68,7 +68,7 @@ end_per_testcase(Name, Config) ->
 load_modules(Config) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
-    sasl2_helper:load_all_sasl2_modules(HostType),
+    sasl2_helper:load_all_sasl2_modules(HostType, Config1),
     Config1.
 
 %%--------------------------------------------------------------------

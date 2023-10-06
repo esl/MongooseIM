@@ -13,12 +13,13 @@
 ns() ->
     ?NS_SASL_2.
 
-load_all_sasl2_modules(HostType) ->
+load_all_sasl2_modules(HostType, Config) ->
+    MemBackend = mongoose_helper:mnesia_or_cets_backend(Config),
     Modules = [{mod_bind2, config_parser_helper:default_mod_config(mod_bind2)},
                {mod_sasl2, config_parser_helper:default_mod_config(mod_sasl2)},
                {mod_csi, config_parser_helper:default_mod_config(mod_csi)},
                {mod_carboncopy, config_parser_helper:default_mod_config(mod_carboncopy)},
-               {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})}],
+               {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never, backend => MemBackend})}],
     dynamic_modules:ensure_modules(HostType, Modules).
 
 apply_steps(Steps, Config) ->
