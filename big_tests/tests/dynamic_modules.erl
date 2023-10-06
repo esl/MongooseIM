@@ -30,7 +30,20 @@ ensure_modules(HostType, RequiredModules) ->
 ensure_modules(Node, HostType, RequiredModules) ->
     ToStop = [M || {M, stopped} <- RequiredModules],
     ToEnsure = maps:without(ToStop, maps:from_list(RequiredModules)),
+    MnesiaMods = [M || {M, #{backend := mnesia}} <- RequiredModules],
+    case {MnesiaMods, is_mnesia_configured()} of
+        {[_|_], false} -> ct:fail({trying_to_start_mnesia_mods, MnesiaMods});
+        _ -> ok
+    end,
     rpc(Node, mongoose_modules, replace_modules, [HostType, ToStop, ToEnsure]).
+
+is_mnesia_configured() ->
+    case rpc(mim(), mongoose_config, lookup_opt, [[internal_databases, mnesia]]) of
+        {ok, _} ->
+            true;
+        _ ->
+            false
+    end.
 
 ensure_stopped(HostType, ModulesToStop) ->
     ensure_stopped(mim(), HostType, ModulesToStop).
