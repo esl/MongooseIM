@@ -25,10 +25,10 @@ add_node_to_cluster(Config) ->
     add_node_to_cluster(Node2, Config).
 
 has_mnesia(Node) ->
-    %% It is shometimes called, when MIM application is stopped,
-    %% so we use running_internal_databases instead of configured_internal_databases.
-    DBs = rpc(Node, mongoose_internal_databases, running_internal_databases, []),
-    lists:member(mnesia, DBs).
+    %% TODO We should check that Mnesia is configured here instead of is_running.
+    %% But it would require the issue fixed first:
+    %% "MIM-2067 Actually disable mnesia from starting in tests in pgsql_cets"
+    rpc(Node, mnesia, system_info, [is_running]) =:= yes.
 
 add_node_to_cluster(Node, Config) ->
     case has_mnesia(Node) of

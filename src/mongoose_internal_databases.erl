@@ -1,10 +1,5 @@
 -module(mongoose_internal_databases).
--export([init/0,
-         configured_internal_databases/0,
-         running_internal_databases/0]).
-
--ignore_xref([configured_internal_databases/0,
-              running_internal_databases/0]).
+-export([init/0]).
 
 init() ->
     case mongoose_config:lookup_opt([internal_databases, mnesia]) of
@@ -32,31 +27,3 @@ init_mnesia() ->
     end,
     application:start(mnesia, permanent),
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
-
-configured_internal_databases() ->
-    case mongoose_config:lookup_opt([internal_databases, mnesia]) of
-        {ok, _} ->
-            [mnesia];
-        {error, _} ->
-            []
-    end ++
-    case mongoose_config:lookup_opt([internal_databases, cets]) of
-        {ok, _} ->
-            [cets];
-        {error, _} ->
-            []
-    end.
-
-running_internal_databases() ->
-    case mnesia:system_info(is_running) of
-        yes ->
-            [mnesia];
-        no ->
-            []
-    end ++
-    case is_pid(whereis(mongoose_cets_discovery)) of
-        true ->
-            [cets];
-        false ->
-            []
-    end.
