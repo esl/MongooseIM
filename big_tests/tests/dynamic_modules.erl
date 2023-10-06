@@ -30,7 +30,7 @@ ensure_modules(HostType, RequiredModules) ->
 ensure_modules(Node, HostType, RequiredModules) ->
     ToStop = [M || {M, stopped} <- RequiredModules],
     ToEnsure = maps:without(ToStop, maps:from_list(RequiredModules)),
-    MnesiaMods = [M || {M, #{backend := mnesia}} <- RequiredModules],
+    MnesiaMods = [M || {M, Opts} <- RequiredModules, has_mnesia_in_values(Opts)],
     case {MnesiaMods, is_mnesia_configured()} of
         {[_|_], false} -> ct:fail({trying_to_start_mnesia_mods, MnesiaMods});
         _ -> ok
@@ -44,6 +44,20 @@ is_mnesia_configured() ->
         _ ->
             false
     end.
+
+has_mnesia_in_values(Opts) ->
+    %% backend = mnesia is not an universal way to configure modules,
+    %% some modules use different keys. Or be inside a nested map.
+    lists:member(mnesia, flatten_values([Opts])).
+
+flatten_values([H|T]) when is_map(H) ->
+    flatten_values(maps:values(H)) ++ flatten_values(T);
+flatten_values([H|T]) when is_list(H) ->
+    flatten_values(H) ++ flatten_values(T);
+flatten_values([H | T]) ->
+    [H | flatten_values(T)];
+flatten_values([]) ->
+    [].
 
 ensure_stopped(HostType, ModulesToStop) ->
     ensure_stopped(mim(), HostType, ModulesToStop).
