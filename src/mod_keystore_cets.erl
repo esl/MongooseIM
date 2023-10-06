@@ -41,34 +41,10 @@ handle_conflict(Rec1, Rec2) ->
       ProposedKey :: mod_keystore:key(),
       Result :: {ok, ActualKey} | {error, init_ram_key_failed},
       ActualKey :: mod_keystore:key().
-init_ram_key(ProposedKey) ->
-    init_ram_key(ProposedKey, 1, 3).
-
-%% Inserts new key or returns already inserted.
--spec init_ram_key(Key, TriedTimes, Retries) -> Result when
-      Result :: {ok, Key} | {error, init_ram_key_failed},
-      Key :: mod_keystore:key(),
-      TriedTimes :: non_neg_integer(),
-      Retries :: non_neg_integer().
-init_ram_key(#key{id = Id, key = Key}, _, 0) ->
-    ?LOG_ERROR(#{what => init_ram_key_failed, id => Id, key => Key}),
-    {error, init_ram_key_failed};
-init_ram_key(ProposedKey = #key{id = Id = {_, HostType}, key = PropKey}, N, Retries) ->
+init_ram_key(#key{id = Id = {_, HostType}, key = PropKey}) ->
     Tab = table_name(HostType),
-    case cets:insert_new(Tab, {Id, PropKey}) of
-        true ->
-            {ok, ProposedKey};
-        false ->
-            case ets:lookup(Tab, Id) of
-                [{Id, Key}] ->
-                    %% Return already inserted key
-                    {ok, #key{id = Id, key = Key}};
-                [] ->
-                    ?LOG_WARNING(#{what => init_ram_key_retry,
-                                   id => Id, key => PropKey, tried_times => N}),
-                    init_ram_key(ProposedKey, N + 1, Retries - 1)
-            end
-   end.
+    {_, [{Id, Key}]} = cets:insert_new_or_lookup(Tab, {Id, PropKey}),
+    {ok, #key{id = Id, key = Key}}.
 
 -spec get_key(Id :: mod_keystore:key_id()) -> mod_keystore:key_list().
 get_key(Id = {_, HostType}) ->
