@@ -116,21 +116,21 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(time, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(time)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(time, Config)),
     Config;
 init_per_group(GroupName, Config) when GroupName =:= essential;
                                        GroupName =:= without_bosh ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName, Config)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https, Config)),
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https, Config)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
 init_per_group(GroupName, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName, Config)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
@@ -151,11 +151,12 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group
 
-required_modules(without_bosh) ->
+required_modules(without_bosh, _Config) ->
     [{mod_bosh, stopped}];
-required_modules(GroupName) ->
-    [{mod_bosh, maps:merge(config_parser_helper:default_mod_config(mod_bosh),
-                           required_bosh_opts(GroupName))}].
+required_modules(GroupName, Config) ->
+    Backend = mongoose_helper:mnesia_or_cets_backend(Config),
+    ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
+    [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
 
 required_bosh_opts(time) ->
     #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
@@ -941,7 +942,7 @@ wait_until_user_has_no_stanzas(User) ->
 
 wait_for_zero_bosh_sessions() ->
     mongoose_helper:wait_until(fun() ->
-                                       length(get_bosh_sessions())
+                                       get_bosh_sessions()
                                end,
-                               0,
+                               [],
                                #{name => get_bosh_sessions}).

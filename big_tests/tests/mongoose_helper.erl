@@ -9,6 +9,7 @@
          get_backend_mnesia_rdbms/1,
          backend_for_module/2,
          mnesia_or_rdbms_backend/0,
+         mnesia_or_cets_backend/1,
          get_backend_name/2]).
 
 -export([auth_modules/0]).
@@ -69,6 +70,9 @@ mnesia_or_rdbms_backend() ->
         true -> rdbms;
         false -> mnesia
     end.
+
+mnesia_or_cets_backend(Config) ->
+    ct_helper:get_preset_var(Config, mnesia_or_cets_backend, mnesia).
 
 get_backend_mnesia_rdbms(HostType) ->
     case is_rdbms_enabled(HostType) of
