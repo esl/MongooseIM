@@ -198,7 +198,9 @@ init_modules_per_node({NodeName, LocalHost, ReceiverPort}, Config0) ->
                      mod_stream_management],
     [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) || VirtHost <- VirtHosts],
 
-    SMOpts = config_parser_helper:mod_config(mod_stream_management, #{resume_timeout => 1}),
+    SMBackend = mongoose_helper:mnesia_or_cets_backend(Config1),
+    SMOpts = config_parser_helper:mod_config(mod_stream_management,
+                                             #{resume_timeout => 1, backend => SMBackend}),
     dynamic_modules:ensure_modules(Node, domain(), [{mod_global_distrib, Opts},
                                                     {mod_stream_management, SMOpts}]),
     Config1.
