@@ -134,13 +134,13 @@ init_per_testcase(rdbms_module_opts_are_reported = CN, Config) ->
             {skip, "RDBMS is not available"};
         true ->
             create_events_collection(),
-            dynamic_modules:ensure_modules(host_type(), required_modules(CN)),
+            dynamic_modules:ensure_modules(host_type(), required_modules(CN, Config)),
             enable_system_metrics(mim()),
             Config
     end;
 init_per_testcase(module_opts_are_reported = CN, Config) ->
     create_events_collection(),
-    dynamic_modules:ensure_modules(host_type(), required_modules(CN)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(CN, Config)),
     enable_system_metrics(mim()),
     Config;
 init_per_testcase(_TestcaseName, Config) ->
@@ -331,18 +331,19 @@ in_config_with_explicit_reporting_goes_on_silently(_Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-required_modules(CaseName) ->
+required_modules(CaseName, Config) ->
     lists:filter(fun({Module, _Opts}) -> is_module_supported(Module) end,
-                 modules_to_test(CaseName)).
+                 modules_to_test(CaseName, Config)).
 
-modules_to_test(module_opts_are_reported) ->
+modules_to_test(module_opts_are_reported, Config) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    [required_module(mod_bosh),
+    MemBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+    [required_module(mod_bosh, #{backend => MemBackend}),
      required_module(mod_event_pusher,
                      #{push => config([modules, mod_event_pusher, push], #{backend => Backend})}),
      required_module(mod_http_upload, s3),
      required_module(mod_last, Backend),
-     required_module(mod_muc, Backend),
+     required_module(mod_muc, #{backend => Backend, online_backend => MemBackend}),
      required_module(mod_muc_light, Backend),
      required_module(mod_offline, Backend),
      required_module(mod_privacy, Backend),
@@ -351,7 +352,7 @@ modules_to_test(module_opts_are_reported) ->
      required_module(mod_push_service_mongoosepush),
      required_module(mod_roster, Backend),
      required_module(mod_vcard, Backend)];
-modules_to_test(rdbms_module_opts_are_reported) ->
+modules_to_test(rdbms_module_opts_are_reported, _Config) ->
     [required_module(mod_auth_token),
      required_module(mod_inbox),
      required_module(mod_mam)].
