@@ -26,7 +26,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0, domain/0]).
--import(config_parser_helper, [config/2, default_mod_config/1]).
+-import(config_parser_helper, [config/2, mod_config/2]).
 
 -define(HTTP_UPLOAD_FILENAME, "tmp.txt").
 -define(HTTP_UPLOAD_FILESIZE, "5").
@@ -211,10 +211,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                       {roster_template, TemplatePath} | Config1]),
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last,
-        default_mod_config(mod_last)}]),
-    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(),
-        [{mod_last, default_mod_config(mod_last)}]),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    LastOpts = mod_config(mod_last, #{backend => Backend}),
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last, LastOpts}]),
+    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(), [{mod_last, LastOpts}]),
     prepare_roster_template(TemplatePath, domain()),
     %% dump_and_load requires at least one mnesia table
     %% ensure, that passwd table is available
@@ -236,13 +236,15 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(basic, Config) ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    OfflineOpts = mod_config(mod_offline, #{backend => Backend}),
     dynamic_modules:ensure_modules(domain_helper:host_type(),
-        [{mod_offline, default_mod_config(mod_offline)}]),
+                                   [{mod_offline, OfflineOpts}]),
     Config;
 init_per_group(private, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(),
-                                   [{mod_private, #{iqdisc => one_queue}}]
-                                  ),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    PrivateOpts = mod_config(mod_private, #{backend => Backend, iqdisc => one_queue}),
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_private, PrivateOpts}]),
     Config;
 init_per_group(vcard, Config) ->
     case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_vcard, backend, mnesia]) of
