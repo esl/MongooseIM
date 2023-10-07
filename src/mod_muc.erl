@@ -1321,7 +1321,7 @@ ensure_metrics(_Host) ->
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend]).
 
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
