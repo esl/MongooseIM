@@ -80,7 +80,7 @@ do_init_per_group(auth_removal = Group, Config) ->
         true ->
             HostTypes = domain_helper:host_types(),
             Config2 = dynamic_modules:save_modules(HostTypes, Config),
-            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group, Config2)) ||
                 HostType <- HostTypes],
             Config2;
         false ->
@@ -91,7 +91,7 @@ do_init_per_group(Group, Config) ->
         true ->
             HostTypes = domain_helper:host_types(),
             Config2 = dynamic_modules:save_modules(HostTypes, Config),
-            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group, Config)) ||
                 HostType <- HostTypes],
             Config2;
         false ->
@@ -114,42 +114,43 @@ end_per_group(_GroupName, Config) ->
     end,
     ok.
 
-group_to_modules(removal_failures) ->
-    group_to_modules(mam_removal);
-group_to_modules(auth_removal) ->
+group_to_modules(removal_failures, _Config) ->
+    group_to_modules(mam_removal, _Config);
+group_to_modules(auth_removal, _Config) ->
     [];
-group_to_modules(cache_removal) ->
+group_to_modules(cache_removal, _Config) ->
     [{mod_cache_users, config_parser_helper:default_mod_config(mod_cache_users)},
      {mod_mam, mam_helper:config_opts(#{pm => #{}})}];
-group_to_modules(mam_removal) ->
+group_to_modules(mam_removal, _Config) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam, mam_helper:config_opts(#{pm => #{}, muc => #{host => MucHost}})},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
-group_to_modules(mam_removal_incremental) ->
+group_to_modules(mam_removal_incremental, _Config) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam, mam_helper:config_opts(#{delete_domain_limit => 1, pm => #{}, muc => #{host => MucHost}})},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
-group_to_modules(muc_light_removal) ->
+group_to_modules(muc_light_removal, _Config) ->
     [{mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
-group_to_modules(muc_removal) ->
+group_to_modules(muc_removal, Config) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
-    Opts = #{backend => rdbms, host => MucHost},
+    OnlineBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+    Opts = #{backend => rdbms, online_backend => OnlineBackend, host => MucHost},
     [{mod_muc, muc_helper:make_opts(Opts)}];
-group_to_modules(inbox_removal) ->
+group_to_modules(inbox_removal, _Config) ->
     [{mod_inbox, inbox_helper:inbox_opts()}];
-group_to_modules(inbox_removal_incremental) ->
+group_to_modules(inbox_removal_incremental, _Config) ->
     [{mod_inbox, (inbox_helper:inbox_opts())#{delete_domain_limit => 1}}];
-group_to_modules(private_removal) ->
+group_to_modules(private_removal, _Config) ->
     [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
-group_to_modules(roster_removal) ->
+group_to_modules(roster_removal, _Config) ->
     [{mod_roster, mod_config(mod_roster, #{backend => rdbms})}];
-group_to_modules(offline_removal) ->
+group_to_modules(offline_removal, _Config) ->
     [{mod_offline, mod_config(mod_offline, #{backend => rdbms})}];
-group_to_modules(markers_removal) ->
+group_to_modules(markers_removal, _Config) ->
     [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)}];
-group_to_modules(vcard_removal) ->
+group_to_modules(vcard_removal, _Config) ->
     [{mod_vcard, mod_config(mod_vcard, #{backend => rdbms})}];
-group_to_modules(last_removal) ->
+group_to_modules(last_removal, _Config) ->
     [{mod_last, mod_config(mod_last, #{backend => rdbms})}].
 
 is_internal_or_rdbms() ->
