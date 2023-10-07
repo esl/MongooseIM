@@ -834,11 +834,21 @@ init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_light_failed_to_decode_message_in_database, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
+    case proplists:get_value(configuration, Config) of
+        elasticsearch ->
+            {skip, "elasticsearch does not support encodings"};
+        _ ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+            escalus:init_per_testcase(C, Config)
+    end;
 init_per_testcase(C=pm_failed_to_decode_message_in_database, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
+    case proplists:get_value(configuration, Config) of
+        elasticsearch ->
+            {skip, "elasticsearch does not support encodings"};
+        _ ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+            escalus:init_per_testcase(C, Config)
+    end;
 init_per_testcase(C, Config) when C =:= retract_muc_message;
                                   C =:= retract_muc_message_on_stanza_id;
                                   C =:= retract_wrong_muc_message ->
