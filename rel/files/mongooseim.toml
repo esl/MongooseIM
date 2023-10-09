@@ -215,6 +215,9 @@
 {{{mod_last}}}
 {{/mod_last}}
 [modules.mod_stream_management]
+  {{#stream_management_backend}}
+  backend = "{{{stream_management_backend}}}"
+  {{/stream_management_backend}}
 
 {{#mod_offline}}
 [modules.mod_offline]
