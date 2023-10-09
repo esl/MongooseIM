@@ -2,6 +2,7 @@
 -behaviour(mod_keystore_backend).
 
 -export([init/2,
+         stop/1,
          init_ram_key/1,
          get_key/1]).
 
@@ -14,6 +15,10 @@ init(_HostType, _Opts) ->
     mongoose_mnesia:create_table(key,
         [{ram_copies, [node()]}, {type, set},
          {attributes, record_info(fields, key)}]),
+    ok.
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(_HostType) ->
     ok.
 
 -spec init_ram_key(ProposedKey) -> Result when
