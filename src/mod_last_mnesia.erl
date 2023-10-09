@@ -29,10 +29,9 @@
 
 -spec init(host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
-    mnesia:create_table(last_activity,
-                        [{disc_copies, [node()]},
-                         {attributes,
-                          record_info(fields, last_activity)}]),
+    mongoose_mnesia:create_table(last_activity,
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, last_activity)}]),
     ok.
 
 -spec get_last(host_type(), jid:luser(), jid:lserver()) ->

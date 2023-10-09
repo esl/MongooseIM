@@ -14,10 +14,11 @@
 init(_) ->
     update_tables(),
     %% add distributed service_component routes
-    mnesia:create_table(external_component,
-                        [{attributes, record_info(fields, external_component)},
-                         {type, bag}, {ram_copies, [node()]}]),
-    mnesia:add_table_copy(external_component, node(), ram_copies).
+    mongoose_mnesia:create_table(external_component,
+                                 [{type, bag},
+                                  {ram_copies, [node()]},
+                                  {attributes,
+                                   record_info(fields, external_component)}]).
 
 update_tables() ->
     %% delete old schema

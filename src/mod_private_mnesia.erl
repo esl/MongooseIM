@@ -43,10 +43,9 @@
 -record(private_storage, {usns, xml}).
 
 init(_HostType, _Opts) ->
-    mnesia:create_table(private_storage,
-                        [{disc_only_copies, [node()]},
-                         {attributes, record_info(fields, private_storage)}]),
-    mnesia:add_table_copy(private_storage, node(), disc_only_copies),
+    mongoose_mnesia:create_table(private_storage,
+        [{disc_only_copies, [node()]},
+         {attributes, record_info(fields, private_storage)}]),
     ok.
 
 multi_set_data(_HostType, LUser, LServer, NS2XML) ->

@@ -26,12 +26,11 @@
 
 -spec init(map()) -> any().
 init(_Opts) ->
-    mnesia:create_table(session,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, session)}]),
+    mongoose_mnesia:create_table(session,
+        [{ram_copies, [node()]},
+         {attributes, record_info(fields, session)}]),
     mnesia:add_table_index(session, usr),
-    mnesia:add_table_index(session, us),
-    mnesia:add_table_copy(session, node(), ram_copies).
+    mnesia:add_table_index(session, us).
 
 -spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->

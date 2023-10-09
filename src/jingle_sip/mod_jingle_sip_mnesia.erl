@@ -17,9 +17,9 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_Host, _Opts) ->
-    mnesia:create_table(jingle_sip_session,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, jingle_sip_session)}]),
+    mongoose_mnesia:create_table(jingle_sip_session,
+        [{ram_copies, [node()]},
+         {attributes, record_info(fields, jingle_sip_session)}]),
     ok.
 
 -spec read_session(call_id()) -> [session()].

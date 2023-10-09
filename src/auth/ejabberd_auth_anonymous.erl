@@ -67,10 +67,9 @@
 -spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     %% TODO: Check cluster mode
-    mnesia:create_table(anonymous, [{ram_copies, [node()]},
-                                    {type, bag},
-                                    {attributes, record_info(fields, anonymous)}]),
-    mnesia:add_table_copy(anonymous, node(), ram_copies),
+    mongoose_mnesia:create_table(anonymous,
+        [{ram_copies, [node()]}, {type, bag},
+         {attributes, record_info(fields, anonymous)}]),
     %% The hooks are needed to add / remove users from the anonymous tables
     gen_hook:add_handlers(hooks(HostType)),
     ok.

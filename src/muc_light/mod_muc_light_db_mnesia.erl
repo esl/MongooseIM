@@ -248,31 +248,16 @@ force_clear() ->
 
 -spec init_tables() -> ok.
 init_tables() ->
-    create_table(muc_light_room,
-                 [{disc_copies, [node()]},
-                  {attributes, record_info(fields, muc_light_room)}]),
-    create_table(muc_light_user_room,
-                 [{disc_copies, [node()]},
-                  {attributes, record_info(fields, muc_light_user_room)},
-                  {type, bag}]),
-    create_table(muc_light_blocking,
-                 [{disc_copies, [node()]},
-                  {attributes, record_info(fields, muc_light_blocking)},
-                  {type, bag}]),
+    mongoose_mnesia:create_table(muc_light_room,
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, muc_light_room)}]),
+    mongoose_mnesia:create_table(muc_light_user_room,
+        [{disc_copies, [node()]}, {type, bag},
+         {attributes, record_info(fields, muc_light_user_room)}]),
+    mongoose_mnesia:create_table(muc_light_blocking,
+        [{disc_copies, [node()]}, {type, bag},
+         {attributes, record_info(fields, muc_light_blocking)}]),
     ok.
-
--spec create_table(Name :: atom(), TabDef :: list()) -> ok.
-create_table(Name, TabDef) ->
-    case mnesia:create_table(Name, TabDef) of
-        {atomic, ok} -> ok;
-        {aborted, exists} -> ok;
-        {aborted, {already_exists, _}} -> ok
-    end,
-    case mnesia:add_table_copy(Name, node(), disc_copies) of
-        {atomic, ok} -> ok;
-        {aborted, exists} -> ok;
-        {aborted, {already_exists, _, _}} -> ok
-    end.
 
 %% ------------------------ General room management ------------------------
 

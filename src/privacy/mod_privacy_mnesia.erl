@@ -46,9 +46,9 @@
 -include("mod_privacy.hrl").
 
 init(_HostType, _Opts) ->
-    mnesia:create_table(privacy, [{disc_copies, [node()]},
-                                  {attributes, record_info(fields, privacy)}]),
-    mnesia:add_table_copy(privacy, node(), disc_copies),
+    mongoose_mnesia:create_table(privacy, 
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, privacy)}]),
     ok.
 
 get_default_list(_HostType, LUser, LServer) ->

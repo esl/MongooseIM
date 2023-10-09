@@ -100,11 +100,12 @@ prepare_db() ->
     add_table_copies().
 
 create_tables() ->
-    mnesia:create_table(vcard, [{disc_only_copies, [node()]},
-                                {attributes, record_info(fields, vcard)}]),
-    mnesia:create_table(vcard_search,
-                        [{disc_copies, [node()]},
-                         {attributes, record_info(fields, vcard_search)}]).
+    mongoose_mnesia:create_table(vcard,
+        [{disc_only_copies, [node()]},
+         {attributes, record_info(fields, vcard)}]),
+    mongoose_mnesia:create_table(vcard_search,
+        [{disc_copies, [node()]},
+         {attributes, record_info(fields, vcard_search)}]).
 
 add_table_copies() ->
     mnesia:add_table_copy(vcard, node(), disc_only_copies),

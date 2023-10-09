@@ -14,10 +14,9 @@
 
 -spec start() -> any().
 start() ->
-    mnesia:create_table(bosh_session,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, bosh_session)}]),
-    mnesia:add_table_copy(bosh_session, node(), ram_copies).
+    mongoose_mnesia:create_table(bosh_session,
+        [{ram_copies, [node()]},
+         {attributes, record_info(fields, bosh_session)}]).
 
 %% The choice of the operation context here (transaction vs dirty,
 %% see man on mnesia:activity/4 for description of contexts) and the deletion
