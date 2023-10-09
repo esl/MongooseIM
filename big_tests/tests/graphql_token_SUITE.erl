@@ -84,7 +84,7 @@ end_per_suite(Config) ->
 
 required_modules(Config) ->
     KeyOpts = #{keys => #{token_secret => ram,
-                         provision_pre_shared => ram},
+                          provision_pre_shared => ram},
                 backend => ct_helper:get_preset_var(Config, keystore_backend, mnesia)},
     KeyStoreOpts = config_parser_helper:mod_config(mod_keystore, KeyOpts),
     [{mod_keystore, KeyStoreOpts},
