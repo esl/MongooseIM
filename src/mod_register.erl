@@ -51,10 +51,12 @@
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    mongoose_mnesia:create_table(mod_register_ip,
+    %% TODO Add CETS backend, use mongoose_mnesia
+    mnesia:create_table(mod_register_ip,
         [{ram_copies, [node()]},
          {local_content, true},
          {attributes, [key, value]}]),
+    mnesia:add_table_copy(mod_register_ip, node(), ram_copies),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
