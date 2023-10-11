@@ -203,9 +203,14 @@ executors:
       - *elasticsearch_container
       - *cassandra_container
       - *cassandra_proxy_container
-  arm64:
-    machine:
-      image: ubuntu-2004:current
+  otp_26_arm64:
+    docker:
+      - image: *OTP26
+    resource_class: arm.medium
+  otp_26_redis_arm64:
+    docker:
+      - image: *OTP26
+      - *redis_container
     resource_class: arm.medium
 commands:
   fetch_build_packages:
@@ -213,7 +218,7 @@ commands:
       - run:
           name: Install packages necessary for building
           command: |
-            $EXEC tools/circle-install-packages.sh \
+            tools/circle-install-packages.sh \
             'libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev'
   maybe_build_deps_and_cache:
     steps:
@@ -274,7 +279,7 @@ commands:
           when: on_success
           command: |
             echo "Success!"
-            $EXEC ./rebar3 codecov analyze
+            ./rebar3 codecov analyze
             tools/circle-upload-codecov.sh
   run_small_tests:
     steps:
@@ -282,11 +287,11 @@ commands:
       - run:
           name: Wait for redis
           command: |
-            $EXEC tools/wait-for-it.sh -p 6379
+            tools/wait-for-it.sh -p 6379
       - run:
           name: Run Small Tests
           command: |
-            $EXEC tools/test.sh -p small_tests -s true -e true
+            tools/test.sh -p small_tests -s true -e true
   run_docker_smoke_test:
     steps:
       - checkout
@@ -394,7 +399,7 @@ commands:
     steps:
       - run:
           name: Prepare for cache
-          command: $EXEC bash -c 'echo $OTP_VERSION-$ARCH > otp_version'
+          command: bash -c 'echo $OTP_VERSION-$ARCH > otp_version'
 
 jobs:
   # #########################
@@ -421,7 +426,7 @@ jobs:
       - run_docker_smoke_test
 
   docker_smoke_test_arm64:
-    executor: arm64
+    executor: otp_26_arm64
     steps:
       - run_docker_smoke_test
 
@@ -478,19 +483,15 @@ jobs:
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
   build_in_docker_arm64:
-    executor: arm64
-    environment:
-      DOCKER_IMAGE: *OTP26
-      EXEC: docker exec main
+    executor: otp_26_arm64
     steps:
-      - run: docker run -dit --name main --rm -v `pwd`:`pwd` $DOCKER_IMAGE
       - checkout
       - prepare_for_cache
       - restore_certs
       - fetch_build_packages
-      - run: $EXEC tools/configure with-all
-      - run: $EXEC tools/build-releases.sh
-      - run: $EXEC make rel
+      - run: tools/configure with-all
+      - run: tools/build-releases.sh
+      - run: make rel
       - cache_prod_build: {arch: arm64}
       - persist_workspace
 
@@ -543,27 +544,6 @@ jobs:
     steps:
       - run_small_tests
       - run_coverage_analysis
-      - upload_results_to_aws
-      - publish_github_comment
-
-  small_tests_in_docker_arm64:
-    executor: arm64
-    environment:
-      DOCKER_IMAGE: *OTP26
-      EXEC: docker exec main
-      PRESET: small_tests
-      SKIP_AUTO_COMPILE: true
-    steps:
-      - run:
-          name: Run main docker image
-          command: |
-            docker run -dit -e PRESET -e SKIP_AUTO_COMPILE --name main --network host --rm \
-              -v `pwd`:`pwd` $DOCKER_IMAGE
-      - run:
-          name: Run redis docker image
-          command: |
-            docker run -dit --name redis --network host --rm redis:__REDIS_VERSION__
-      - run_small_tests
       - upload_results_to_aws
       - publish_github_comment
 
@@ -849,8 +829,9 @@ workflows:
           requires:
             - otp_26_docker
           filters: *all_tags
-      - small_tests_in_docker_arm64:
+      - small_tests_in_docker:
           name: small_tests_26_arm64
+          executor: otp_26_redis_arm64
           context: mongooseim-org
           requires:
             - otp_26_docker_arm64
