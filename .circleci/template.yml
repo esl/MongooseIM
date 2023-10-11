@@ -482,19 +482,6 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
-  build_in_docker_arm64:
-    executor: otp_26_arm64
-    steps:
-      - checkout
-      - prepare_for_cache
-      - restore_certs
-      - fetch_build_packages
-      - run: tools/configure with-all
-      - run: tools/build-releases.sh
-      - run: make rel
-      - cache_prod_build: {arch: arm64}
-      - persist_workspace
-
   build_in_docker:
     executor: << parameters.executor >>
     parameters:
@@ -504,6 +491,10 @@ jobs:
         type: boolean
         description: When enabled, prod release will be generated besides the dev ones
         default: false
+      arch:
+        type: string
+        description: Target architecture
+        default: amd64
     parallelism: 1
     environment:
       SKIP_RELEASE: 1
@@ -523,7 +514,7 @@ jobs:
           condition: << parameters.build_prod >>
           steps:
             - run: make rel
-            - cache_prod_build: {arch: amd64}
+            - cache_prod_build: {arch: << parameters.arch >>}
             - run:
                 name: Generate DOAP and Markdown files with supported XEPs
                 command: make xeplist
@@ -779,9 +770,12 @@ workflows:
           context: mongooseim-org
           build_prod: false
           filters: *all_tags
-      - build_in_docker_arm64:
+      - build_in_docker:
           name: otp_26_docker_arm64
+          executor: otp_26_arm64
           context: mongooseim-org
+          build_prod: true
+          arch: arm64
           filters: *all_tags
       # ============= DIALYZER =============
       - dialyzer:
