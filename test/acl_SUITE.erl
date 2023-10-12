@@ -32,11 +32,10 @@ host_type_test_cases() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
-    Config.
+    async_helper:start(Config, mongoose_domain_sup, start_link, [[], []]).
 
-end_per_suite(_Config) ->
-    meck:unload(),
-    ok.
+end_per_suite(Config) ->
+    async_helper:stop_all(Config).
 
 init_per_group(dynamic_domains, Config) ->
     [{dynamic_domains, true}|Config];
@@ -299,10 +298,10 @@ given_registered_domains(Config, DomainsList) ->
 register_static_domains(DomainsList) ->
     mongoose_config:set_opt(hosts, DomainsList),
     mongoose_config:set_opt(host_types, []),
-    mongoose_domain_sup:start_link().
+    mongoose_domain_sup:restart_core([]).
 
 register_dynamic_domains(DomainsList) ->
     mongoose_config:set_opt(hosts, []),
     mongoose_config:set_opt(host_types, [<<"test type">>, <<"empty type">>]),
-    mongoose_domain_sup:start_link(),
+    mongoose_domain_sup:restart_core([]),
     [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].
