@@ -604,7 +604,7 @@ n(Node) ->
 
 
 is_redis_running() ->
-    case eredis:start_link() of
+    case eredis:start_link([{host, "127.0.0.1"}]) of
         {ok, Client} ->
             Result = eredis:q(Client, [<<"PING">>], 5000),
             eredis:stop(Client),
