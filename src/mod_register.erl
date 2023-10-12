@@ -46,18 +46,13 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
+-define(TABLE, mod_register_ip).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    %% TODO Add CETS backend, use mongoose_mnesia
-    mnesia:create_table(mod_register_ip,
-        [{ram_copies, [node()]},
-         {local_content, true},
-         {attributes, [key, value]}]),
-    mnesia:add_table_copy(mod_register_ip, node(), ram_copies),
-    ok.
+    ejabberd_sup:create_ets_table(?TABLE, [named_table, public, {read_concurrency, true}]).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -440,35 +435,24 @@ check_timeout(Source) ->
         true ->
             Priority = -(erlang:system_time(second)),
             CleanPriority = Priority + Timeout,
-            F = fun() -> check_and_store_ip_entry(Source, Priority, CleanPriority) end,
-
-            case mnesia:transaction(F) of
-                {atomic, Res} ->
-                    Res;
-                {aborted, Reason} ->
-                    ?LOG_ERROR(#{what => reg_check_timeout_failed,
-                                 reg_source => Source, reason => Reason}),
-                    true
-            end;
+            check_and_store_ip_entry(Source, Priority, CleanPriority);
         false ->
             true
     end.
 
 check_and_store_ip_entry(Source, Priority, CleanPriority) ->
-    Treap = case mnesia:read(mod_register_ip, treap, write) of
-                [] ->
-                    treap:empty();
-                [{mod_register_ip, treap, T}] -> T
+    Treap = case ets:lookup(?TABLE, treap) of
+                [] -> treap:empty();
+                [{treap, T}] -> T
             end,
     Treap1 = clean_treap(Treap, CleanPriority),
     case treap:lookup(Source, Treap1) of
         error ->
-            Treap2 = treap:insert(Source, Priority, [],
-                                  Treap1),
-            mnesia:write({mod_register_ip, treap, Treap2}),
+            Treap2 = treap:insert(Source, Priority, [], Treap1),
+            ets:insert(?TABLE, {treap, Treap2}),
             true;
         {ok, _, _} ->
-            mnesia:write({mod_register_ip, treap, Treap1}),
+            ets:insert(?TABLE, {treap, Treap1}),
             false
     end.
 
