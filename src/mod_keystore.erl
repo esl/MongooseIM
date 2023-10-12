@@ -49,7 +49,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    create_keystore_ets(),
+    ejabberd_sup:create_ets_table(keystore, [named_table, public, {read_concurrency, true}]),
     mod_keystore_backend:init(HostType, Opts),
     init_keys(HostType, Opts),
     ok.
@@ -129,35 +129,9 @@ get_key(HandlerAcc, #{key_id := KeyID}, _) ->
 %%
 %% Internal functions
 %%
-
-create_keystore_ets() ->
-    case does_table_exist(keystore) of
-        true -> ok;
-        false ->
-            BaseOpts = [named_table, public,
-                        {read_concurrency, true}],
-            Opts = maybe_add_heir(whereis(ejabberd_sup), self(), BaseOpts),
-            ets:new(keystore, Opts),
-            ok
-    end.
-
-%% In tests or when module is started in run-time, we need to set heir to the
-%% ETS table, otherwise it will be destroy when the creator's process finishes.
-%% When started normally during node start up, self() =:= EjdSupPid and there
-%% is no need for setting heir
-maybe_add_heir(EjdSupPid, EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
-     BaseOpts;
-maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
-      [{heir, EjdSupPid, testing} | BaseOpts];
-maybe_add_heir(_, _, BaseOpts) ->
-      BaseOpts.
-
 clear_keystore_ets(HostType) ->
     Pattern = {{'_', HostType}, '$1'},
     ets:match_delete(keystore, Pattern).
-
-does_table_exist(NameOrTID) ->
-    ets:info(NameOrTID, name) /= undefined.
 
 init_keys(HostType, Opts = #{keys := Keys}) ->
     maps:map(fun(KeyName, KeyType) -> init_key({KeyName, KeyType}, HostType, Opts) end, Keys).

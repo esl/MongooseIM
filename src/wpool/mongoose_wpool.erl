@@ -106,17 +106,12 @@ ensure_started() ->
         _ ->
             ok
     end,
-
-    case ets:info(?MODULE) of
-        undefined ->
-            % we set heir here because the whole thing may be started by an ephemeral process
-            ets:new(?MODULE, [named_table, public,
-                {read_concurrency, true},
-                {keypos, #mongoose_wpool.name},
-                {heir, whereis(mongoose_wpool_sup), undefined}]);
-        _ ->
-            ok
-    end.
+    ejabberd_sup:create_ets_table(
+      ?MODULE,
+      [named_table, public,
+       {read_concurrency, true},
+       {keypos, #mongoose_wpool.name},
+       {heir, whereis(mongoose_wpool_sup), undefined}]).
 
 start_configured_pools() ->
     Pools = mongoose_config:get_opt(outgoing_pools),

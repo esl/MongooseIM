@@ -20,18 +20,7 @@
 %% mongoose_wpool callbacks
 -spec init() -> ok.
 init() ->
-    case ets:info(?MODULE) of
-        undefined ->
-            Heir = case whereis(ejabberd_sup) of
-                       undefined -> [];
-                       Pid -> [{heir, Pid, undefined}]
-                   end,
-            ets:new(?MODULE,
-                    [named_table, public, {read_concurrency, true} | Heir]),
-            ok;
-        _ ->
-            ok
-    end.
+    ejabberd_sup:create_ets_table(?MODULE, [named_table, public, {read_concurrency, true}]).
 
 -spec start(mongooseim:host_type_or_global(), mongoose_wpool:tag(),
             mongoose_wpool:pool_opts(), mongoose_wpool:conn_opts()) -> {ok, pid()} | {error, any()}.
