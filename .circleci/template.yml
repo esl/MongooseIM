@@ -516,7 +516,7 @@ jobs:
             - run: make rel
             - cache_prod_build: {arch: << parameters.arch >>}
             - run:
-                name: Generate DOAP and Markdown files with supported XEPs
+                name: Generate DOAP, JSON and Markdown files with supported XEPs
                 command: make xeplist
       - run:
           name: Build Big Tests
