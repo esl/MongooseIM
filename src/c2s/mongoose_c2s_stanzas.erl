@@ -8,6 +8,7 @@
          stream_header/1,
          stream_features_before_auth/1,
          tls_proceed/0,
+         tls_failure/0,
          stream_features_after_auth/1,
          sasl_success_stanza/1,
          sasl_failure_stanza/1,
@@ -89,6 +90,11 @@ starttls_stanza(TLSRequired) when TLSRequired =:= required; TLSRequired =:= opti
 -spec tls_proceed() -> exml:element().
 tls_proceed() ->
     #xmlel{name = <<"proceed">>,
+           attrs = [{<<"xmlns">>, ?NS_TLS}]}.
+
+-spec tls_failure() -> exml:element().
+tls_failure() ->
+    #xmlel{name = <<"failure">>,
            attrs = [{<<"xmlns">>, ?NS_TLS}]}.
 
 -spec stream_features_after_auth(mongoose_c2s:data()) -> exml:element().
