@@ -163,8 +163,8 @@ Same syntax as for `auth.methods` option.
 
 ## TLS options for C2S
 
-By default the C2S listener does not use TLS.
-To use TLS, you need to add a TOML subsection called `tls` to the listener options.
+To enable TLS, a TOML subsection called `tls` has to be present in the listener options.
+To disable TLS, make sure that the section is not present, and no TLS options are set.
 You can set the following options in this section:
 
 ### `listen.c2s.tls.mode`
