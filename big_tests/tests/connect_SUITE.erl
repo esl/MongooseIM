@@ -64,17 +64,17 @@ groups() ->
                                          invalid_stream_namespace,
                                          deny_pre_xmpp_1_0_stream,
                                          correct_features_are_advertised_for_optional_starttls]},
-        {starttls_required, [], [{group, feature_order},
-                                 metrics_test,
-                                 should_fail_to_authenticate_without_starttls,
-                                 auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
+        {starttls_required, [], [{group, starttls_required_parallel}, metrics_test]},
+        {starttls_required_parallel, [parallel], [correct_features_are_advertised_for_required_starttls,
+                                                  tls_authenticate,
+                                                  bind_server_generated_resource,
+                                                  cannot_connect_with_proxy_header,
+                                                  should_fail_to_authenticate_without_starttls,
+                                                  auth_bind_pipelined_starttls_skipped_error
+                                                 | protocol_test_cases()]},
         {tls, [parallel], auth_bind_pipelined_cases() ++
                           protocol_test_cases() ++
                           cipher_test_cases()},
-        {feature_order, [parallel], [correct_features_are_advertised_for_required_starttls,
-                                     tls_authenticate,
-                                     bind_server_generated_resource,
-                                     cannot_connect_with_proxy_header]},
         {just_tls, tls_groups()},
         {fast_tls, tls_groups()},
         {session_replacement, [], [same_resource_replaces_session,
@@ -298,9 +298,10 @@ should_pass_with_tlsv1_2(Config) ->
 
 should_fail_to_authenticate_without_starttls(Config) ->
     %% GIVEN
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
     ConnectionSteps = [start_stream, stream_features],
     {ok, Conn, Features} = escalus_connection:start(UserSpec, ConnectionSteps),
+    UserName = escalus_utils:get_username(Conn),
 
     %% WHEN
     try escalus_session:authenticate(Conn, Features) of
@@ -309,7 +310,7 @@ should_fail_to_authenticate_without_starttls(Config) ->
             error(authentication_without_tls_suceeded)
     catch
         throw:{auth_failed, User, AuthReply} ->
-            ?assertEqual(atom_to_binary(?SECURE_USER, utf8), User),
+            ?assertEqual(UserName, User),
             escalus:assert(is_stream_error, [<<"policy-violation">>,
                                              <<"Use of STARTTLS required">>],
                            AuthReply)
