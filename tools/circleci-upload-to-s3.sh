@@ -14,8 +14,6 @@ fi
 echo "Uploading test results to s3"
 echo $(s3_url ${CT_REPORTS})
 
-
-
 FILE_COUNT=$(find "${CT_REPORTS}" -type f | wc -l)
 echo "Uploading $FILE_COUNT files"
 ls $CT_REPORTS
@@ -23,7 +21,7 @@ ls $CT_REPORTS
 if which aws ; then
     echo "aws tool ready"
 else
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
     unzip -q awscliv2.zip
     sudo ./aws/install
 fi
