@@ -21,7 +21,7 @@ ls $CT_REPORTS
 if which aws ; then
     echo "aws tool ready"
 else
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-`uname -m`.zip" -o "awscliv2.zip"
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
     unzip -q awscliv2.zip
     sudo ./aws/install
 fi
