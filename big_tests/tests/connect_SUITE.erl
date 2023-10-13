@@ -57,17 +57,21 @@ all() ->
 
 groups() ->
     [
-        {c2s_noproc, [], [bad_xml,
-                          invalid_host,
-                          invalid_stream_namespace,
-                          deny_pre_xmpp_1_0_stream]},
-        {starttls, [], [should_fail_to_authenticate_without_starttls,
-                        should_not_send_other_features_with_starttls_required,
-                        auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
+        {starttls_disabled, [parallel], [correct_features_are_advertised_for_disabled_starttls,
+                                         starttls_should_fail_when_disabled]},
+        {starttls_optional, [parallel], [bad_xml,
+                                         invalid_host,
+                                         invalid_stream_namespace,
+                                         deny_pre_xmpp_1_0_stream,
+                                         correct_features_are_advertised_for_optional_starttls]},
+        {starttls_required, [], [{group, feature_order},
+                                 metrics_test,
+                                 should_fail_to_authenticate_without_starttls,
+                                 auth_bind_pipelined_starttls_skipped_error | protocol_test_cases()]},
         {tls, [parallel], auth_bind_pipelined_cases() ++
                           protocol_test_cases() ++
                           cipher_test_cases()},
-        {feature_order, [parallel], [stream_features_test,
+        {feature_order, [parallel], [correct_features_are_advertised_for_required_starttls,
                                      tls_authenticate,
                                      bind_server_generated_resource,
                                      cannot_connect_with_proxy_header]},
@@ -88,10 +92,9 @@ groups() ->
 
 tls_groups()->
     [
-        {group, starttls},
-        {group, c2s_noproc},
-        {group, feature_order},
-        metrics_test, %% must follow right after feature_order group
+        {group, starttls_disabled},
+        {group, starttls_optional},
+        {group, starttls_required},
         {group, tls}
     ].
 
@@ -142,15 +145,18 @@ end_per_suite(Config) ->
     restore_c2s_listener(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(c2s_noproc, Config) ->
+init_per_group(starttls_optional, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(starttls, Config)}),
     Config;
 init_per_group(session_replacement, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(starttls, Config)}),
     logger_ct_backend:start(),
     Config;
-init_per_group(starttls, Config) ->
+init_per_group(starttls_required, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(starttls_required, Config)}),
+    Config;
+init_per_group(starttls_disabled, Config) ->
+    configure_c2s_listener(Config, #{}, [tls]),
     Config;
 init_per_group(tls, Config) ->
     configure_c2s_listener(Config, #{tls => tls_opts(tls, Config)}),
@@ -160,9 +166,6 @@ init_per_group(tls, Config) ->
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
-init_per_group(feature_order, Config) ->
-    configure_c2s_listener(Config, #{tls => tls_opts(starttls_required, Config)}),
-    Config;
 init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
 init_per_group(fast_tls, Config)->
@@ -312,17 +315,6 @@ should_fail_to_authenticate_without_starttls(Config) ->
                            AuthReply)
     end.
 
-should_not_send_other_features_with_starttls_required(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
-    {ok, Conn, _} = escalus_connection:start(UserSpec, [start_stream]),
-    Features = case escalus_connection:get_stanza(Conn, wait_for_features) of
-        #xmlel{name = <<"stream:features">>, children = Children} -> Children;
-        #xmlel{name = <<"features">>, children = Children} -> Children
-    end,
-    ?assertMatch([#xmlel{name = <<"starttls">>,
-                         children = [#xmlel{name = <<"required">>}]}],
-                 Features).
-
 clients_can_connect_with_advertised_ciphers(Config) ->
     ?assert(length(ciphers_working_with_ssl_clients(Config)) > 0).
 
@@ -342,26 +334,68 @@ clients_can_connect_with_advertised_ciphers(Config) ->
     ?assertEqual(["ECDHE-RSA-AES256-GCM-SHA384"],
                  ciphers_working_with_ssl_clients(Config1)).
 
-%% Tests features advertisement
-stream_features_test(Config) ->
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
-    List = [start_stream, stream_features, {?MODULE, verify_features}],
-    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], List),
-    ok.
+correct_features_are_advertised_for_disabled_starttls(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, alice),
+    Steps = [start_stream,
+             stream_features,
+             {?MODULE, verify_features_without_starttls},
+             authenticate],
+    escalus_connection:start(UserSpec, Steps).
 
-verify_features(Conn, Features) ->
-    %% should not advertise compression before tls
-    ?assertEqual({compression, false}, get_feature(compression, Features)),
-    %% start tls. Starttls should be then removed from list and compression should be added
-    Conn1 = escalus_session:starttls(Conn),
-    {Conn2, Features2} = escalus_session:stream_features(Conn1, []),
-    ?assertEqual({starttls, false}, get_feature(starttls, Features2)),
-    ?assertEqual({compression, false}, get_feature(compression, Features2)),
-    %% start authentication
-    escalus_session:authenticate(Conn2, Features2).
+correct_features_are_advertised_for_optional_starttls(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    Steps = [start_stream,
+             stream_features,
+             {?MODULE, verify_features_with_optional_starttls},
+             maybe_use_ssl,
+             {?MODULE, verify_features_without_starttls},
+             authenticate],
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
+
+correct_features_are_advertised_for_required_starttls(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    Steps = [start_stream,
+             stream_features,
+             {?MODULE, verify_features_with_required_starttls},
+             maybe_use_ssl,
+             {?MODULE, verify_features_without_starttls},
+             authenticate],
+    escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], Steps).
+
+verify_features_without_starttls(Conn, Features) ->
+    ?assertEqual({starttls, false}, get_feature(starttls, Features)),
+    ?assertMatch({sasl_mechanisms, [_|_]}, get_feature(sasl_mechanisms, Features)),
+    {Conn, Features}.
+
+verify_features_with_optional_starttls(Conn, Features) ->
+    ?assertEqual({starttls, true}, get_feature(starttls, Features)),
+    ?assertMatch({sasl_mechanisms, [_|_]}, get_feature(sasl_mechanisms, Features)),
+    {Conn, Features}.
+
+verify_features_with_required_starttls(Conn, Features) ->
+    AdvertisedFeatures = lists:filter(fun is_present/1, Features),
+    ?assertEqual([{starttls, true}], AdvertisedFeatures),
+    {Conn, Features}.
+
+is_present({_, Value}) ->
+    Value =/= false andalso Value =/= [] andalso Value =/= undefined.
 
 get_feature(Feature, FeatureList) ->
     lists:keyfind(Feature, 1, FeatureList).
+
+starttls_should_fail_when_disabled(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, alice),
+    List = [start_stream, stream_features],
+    {ok, Conn, _Features} =
+        escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], List),
+
+    %% Client tries to start tls anyway, and fails
+    escalus_connection:send(Conn, escalus_stanza:starttls()),
+    Result = escalus_connection:get_stanza(Conn, failure),
+    %% As defined in https://datatracker.ietf.org/doc/html/rfc6120#section-5.4.2.2, cause 2
+    ?assertEqual(<<"failure">>, Result#xmlel.name),
+    escalus:assert(has_ns, [?NS_TLS], Result),
+    escalus_connection:wait_for_close(Conn, timer:seconds(5)).
 
 metrics_test(Config) ->
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
@@ -378,9 +412,9 @@ metrics_test(Config) ->
 tls_authenticate(Config) ->
     %% Given
     UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
+    ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% when
-    {ok, Conn, _} = escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], ConnetctionSteps),
+    {ok, Conn, _} = escalus_connection:start(UserSpec ++ [{ssl_opts, [{verify, verify_none}]}], ConnectionSteps),
     % then
     true = escalus_tcp:is_using_ssl(Conn#client.rcv_pid).
 
@@ -665,9 +699,12 @@ assert_cert_file_exists() ->
     ejabberd_node_utils:file_exists(?CERT_FILE) orelse
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
-configure_c2s_listener(Config, ExtraC2SOpts) ->
+configure_c2s_listener(Config, ExtraC2sOpts) ->
+    configure_c2s_listener(Config, ExtraC2sOpts, []).
+
+configure_c2s_listener(Config, ExtraC2SOpts, RemovedC2SKeys) ->
     C2SListener = ?config(c2s_listener, Config),
-    NewC2SListener = maps:merge(C2SListener, ExtraC2SOpts),
+    NewC2SListener = maps:without(RemovedC2SKeys, maps:merge(C2SListener, ExtraC2SOpts)),
     ct:pal("C2S listener: ~p", [NewC2SListener]),
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
