@@ -377,7 +377,7 @@ get_xml_lang(StreamStart) ->
 -spec handle_starttls(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_starttls(StateData = #c2s_data{socket = TcpSocket,
                                       parser = Parser,
-                                      listener_opts = LOpts}, El, SaslAcc, Retries) ->
+                                      listener_opts = LOpts = #{tls := _}}, El, SaslAcc, Retries) ->
     send_xml(StateData, mongoose_c2s_stanzas:tls_proceed()), %% send last negotiation chunk via tcp
     case mongoose_c2s_socket:tcp_to_tls(TcpSocket, LOpts) of
         {ok, TlsSocket} ->
@@ -398,7 +398,11 @@ handle_starttls(StateData = #c2s_data{socket = TcpSocket,
             {stop, {shutdown, tls_timeout}};
         {error, {tls_alert, TlsAlert}} ->
             {stop, TlsAlert}
-    end.
+    end;
+handle_starttls(StateData, _El, _SaslAcc, _Retries) ->
+    %% As defined in https://datatracker.ietf.org/doc/html/rfc6120#section-5.4.2.2, cause 2
+    send_element_from_server_jid(StateData, mongoose_c2s_stanzas:tls_failure()),
+    {stop, {shutdown, tls_failure}}.
 
 -spec handle_auth_start(data(), exml:element(), mongoose_acc:t(), retries()) -> fsm_res().
 handle_auth_start(StateData, El, SaslAcc, Retries) ->

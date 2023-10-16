@@ -8,6 +8,7 @@
          stream_header/1,
          stream_features_before_auth/1,
          tls_proceed/0,
+         tls_failure/0,
          stream_features_after_auth/1,
          sasl_success_stanza/1,
          sasl_failure_stanza/1,
@@ -57,12 +58,12 @@ stream_features_before_auth(StateData) ->
 %% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
 determine_features(_, _, _, #{tls := #{mode := starttls_required}}, false) ->
     [starttls_stanza(required)];
-determine_features(StateData, HostType, LServer, _, true) ->
-    InitialFeatures = maybe_sasl_mechanisms(StateData),
+determine_features(StateData, HostType, LServer, #{tls := #{mode := starttls}}, false) ->
+    InitialFeatures = [starttls_stanza(optional) | maybe_sasl_mechanisms(StateData)],
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures);
 determine_features(StateData, HostType, LServer, _, _) ->
-    InitialFeatures = [starttls_stanza(optional) | maybe_sasl_mechanisms(StateData)],
+    InitialFeatures = maybe_sasl_mechanisms(StateData),
     StreamFeaturesParams = #{c2s_data => StateData, lserver => LServer},
     mongoose_hooks:c2s_stream_features(HostType, StreamFeaturesParams, InitialFeatures).
 
@@ -89,6 +90,11 @@ starttls_stanza(TLSRequired) when TLSRequired =:= required; TLSRequired =:= opti
 -spec tls_proceed() -> exml:element().
 tls_proceed() ->
     #xmlel{name = <<"proceed">>,
+           attrs = [{<<"xmlns">>, ?NS_TLS}]}.
+
+-spec tls_failure() -> exml:element().
+tls_failure() ->
+    #xmlel{name = <<"failure">>,
            attrs = [{<<"xmlns">>, ?NS_TLS}]}.
 
 -spec stream_features_after_auth(mongoose_c2s:data()) -> exml:element().
