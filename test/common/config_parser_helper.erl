@@ -270,7 +270,8 @@ options("mongooseim-pgsql") ->
      {component_backend, mnesia},
      {s2s_backend, mnesia},
      {{auth, <<"anonymous.localhost">>},
-      (default_auth())#{anonymous => #{allow_multiple_connections => true,
+      (default_auth())#{anonymous => #{backend => mnesia,
+                                       allow_multiple_connections => true,
                                        protocol => both},
                         methods => [anonymous]}},
      {{auth, <<"localhost">>},
@@ -690,7 +691,8 @@ custom_auth() ->
     maps:merge(default_auth(), extra_auth()).
 
 extra_auth() ->
-    #{anonymous => #{allow_multiple_connections => true,
+    #{anonymous => #{backend => mnesia,
+                     allow_multiple_connections => true,
                      protocol => sasl_anon},
       http => #{basic_auth => "admin:admin"},
       external => #{instances => 1,
