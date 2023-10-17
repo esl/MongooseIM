@@ -30,6 +30,7 @@
 
 -export([start_link/0, init/1]).
 -export([start_child/1, start_child/2, stop_child/1]).
+-export([create_ets_table/2]).
 
 -include("mongoose_logger.hrl").
 
@@ -119,3 +120,30 @@ worker_spec(Mod) ->
 
 worker_spec(Mod, Args) ->
     {Mod, {Mod, start_link, Args}, permanent, timer:seconds(5), worker, [Mod]}.
+
+-spec create_ets_table(atom(), list()) -> ok.
+create_ets_table(TableName, TableOpts) ->
+    case does_table_exist(TableName) of
+        true -> ok;
+        false ->
+            Opts = maybe_add_heir(whereis(?MODULE), self(), TableOpts),
+            ets:new(TableName, Opts),
+            ok
+    end.
+
+does_table_exist(TableName) ->
+    undefined =/= ets:info(TableName, name).
+
+%% In tests or when module is started in run-time, we need to set heir to the
+%% ETS table, otherwise it will be destroyed when the creator's process finishes.
+%% When started normally during node start up, self() =:= EjdSupPid and there
+%% is no need for setting heir
+maybe_add_heir(EjdSupPid, EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
+    BaseOpts;
+maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
+    case lists:keymember(heir, 1, BaseOpts) of
+        true -> BaseOpts;
+        false -> [{heir, EjdSupPid, testing} | BaseOpts]
+    end;
+maybe_add_heir(_, _, BaseOpts) ->
+    BaseOpts.

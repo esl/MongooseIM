@@ -46,18 +46,17 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
+-define(TABLE, mod_register_ip).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    %% TODO Add CETS backend, use mongoose_mnesia
-    mnesia:create_table(mod_register_ip,
-        [{ram_copies, [node()]},
-         {local_content, true},
-         {attributes, [key, value]}]),
-    mnesia:add_table_copy(mod_register_ip, node(), ram_copies),
-    ok.
+    Concurrency = case IQDisc of
+                      one_queue -> [];
+                      _ -> [{read_concurrency, true}]
+                  end,
+    ejabberd_sup:create_ets_table(?TABLE, [named_table, public | Concurrency]).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -66,7 +65,8 @@ stop(HostType) ->
     ok.
 
 iq_handlers() ->
-    [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
+    [{ejabberd_local, fun ?MODULE:process_iq/5},
+     {ejabberd_sm, fun ?MODULE:process_iq/5}].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
@@ -438,51 +438,24 @@ check_timeout(Source) ->
     Timeout = mongoose_config:get_opt(registration_timeout),
     case is_integer(Timeout) of
         true ->
-            Priority = -(erlang:system_time(second)),
-            CleanPriority = Priority + Timeout,
-            F = fun() -> check_and_store_ip_entry(Source, Priority, CleanPriority) end,
-
-            case mnesia:transaction(F) of
-                {atomic, Res} ->
-                    Res;
-                {aborted, Reason} ->
-                    ?LOG_ERROR(#{what => reg_check_timeout_failed,
-                                 reg_source => Source, reason => Reason}),
-                    true
-            end;
+            TS = erlang:system_time(second),
+            clean_ets(TS - Timeout),
+            check_and_store_ip_entry(Source, TS);
         false ->
             true
     end.
 
-check_and_store_ip_entry(Source, Priority, CleanPriority) ->
-    Treap = case mnesia:read(mod_register_ip, treap, write) of
-                [] ->
-                    treap:empty();
-                [{mod_register_ip, treap, T}] -> T
-            end,
-    Treap1 = clean_treap(Treap, CleanPriority),
-    case treap:lookup(Source, Treap1) of
-        error ->
-            Treap2 = treap:insert(Source, Priority, [],
-                                  Treap1),
-            mnesia:write({mod_register_ip, treap, Treap2}),
+check_and_store_ip_entry(Source, Timestamp) ->
+    case ets:member(?TABLE, Source) of
+        false ->
+            ets:insert(?TABLE, {Source, Timestamp}),
             true;
-        {ok, _, _} ->
-            mnesia:write({mod_register_ip, treap, Treap1}),
+        true ->
             false
     end.
 
-clean_treap(Treap, CleanPriority) ->
-    case treap:is_empty(Treap) of
-        true ->
-            Treap;
-        false ->
-            {_Key, Priority, _Value} = treap:get_root(Treap),
-            case Priority > CleanPriority of
-                true -> clean_treap(treap:delete_root(Treap), CleanPriority);
-                false -> Treap
-            end
-    end.
+clean_ets(CleanTimestamp) ->
+    ets:select_delete(?TABLE, [{ {'_', '$1'}, [{'<', '$1', CleanTimestamp}], [true]}]).
 
 ip_to_string(Source) when is_tuple(Source) -> inet_parse:ntoa(Source);
 ip_to_string(undefined) -> "undefined";

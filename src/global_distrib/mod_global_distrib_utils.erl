@@ -111,14 +111,7 @@ create_ets(Names) ->
 create_ets(Names, Type) when is_list(Names) ->
     [create_ets(Name, Type) || Name <- Names];
 create_ets(Name, Type) ->
-    Self = self(),
-    Heir = case whereis(ejabberd_sup) of
-               undefined -> {heir, none};
-               Self -> {heir, none};
-               Pid -> {heir, Pid, testing}
-           end,
-
-    ets:new(Name, [named_table, public, Type, {read_concurrency, true}, Heir]).
+    ejabberd_sup:create_ets_table(Name, [named_table, public, Type, {read_concurrency, true}]).
 
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) -> [endpoint()].
 resolve_endpoints(Endpoints) when is_list(Endpoints) ->
