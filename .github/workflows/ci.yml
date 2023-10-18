@@ -24,13 +24,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [ '24.3.4', '25.2' ]
+        ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
+        ## can be found here:
+        ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
+        otp: [ '25.3.2.6', '26.1.2' ]
     runs-on: ubuntu-22.04
     env:
       PRESET: 'small_tests'
     steps:
       - uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
       - uses: actions/cache@v3
@@ -61,17 +64,17 @@ jobs:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: [ '25.2' ]
+        otp: [ '26.1.2' ]
         include:
           - test-spec: "default.spec"
           - preset: elasticsearch_and_cassandra_mnesia
             test-spec: "mam.spec"
           - preset: ldap_mnesia
             test-spec: "default.spec"
-            otp: '24.3.4'
+            otp: '25.3.2.6'
           - preset: pgsql_mnesia
             test-spec: "default.spec"
-            otp: '24.3.4'
+            otp: '25.3.2.6'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -94,11 +97,11 @@ jobs:
       fail-fast: false
       matrix:
         preset: [pgsql_mnesia, mysql_redis, odbc_mssql_mnesia]
-        otp: [ '25.2' ]
+        otp: [ '26.1.2' ]
         test-spec: ["dynamic_domains.spec"]
         include:
           - preset: pgsql_mnesia
-            otp: '24.3.4'
+            otp: '25.3.2.6'
             test-spec: "dynamic_domains.spec"
     runs-on: ubuntu-22.04
     steps:
@@ -135,7 +138,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p dialyzer_only
@@ -149,7 +152,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p xref_only
@@ -163,7 +166,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p edoc_only
