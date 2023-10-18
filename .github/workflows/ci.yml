@@ -24,6 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        ## the full list of supported (prebuilt) OTP versions for ubuntu-22.04 runners
+        ## can be found here:
+        ##     https://builds.hex.pm/builds/otp/ubuntu-22.04/builds.txt
         otp: [ '25.3.2.6', '26.1.2' ]
     runs-on: ubuntu-22.04
     env:
