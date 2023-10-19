@@ -29,6 +29,7 @@
 -export([user_send_packet/3,
          user_send_iq/3,
          user_ping_response/3,
+         filter_local_packet/3,
          iq_ping/5]).
 
 %% Record that will be stored in the c2s state when the server pings the client,
@@ -40,7 +41,8 @@
 %%====================================================================
 
 hooks(HostType) ->
-    [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100}
+    [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100},
+     {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 100}
      | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -119,6 +121,19 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 %%====================================================================
 %% Hook callbacks
 %%====================================================================
+
+-spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} | {stop, drop} when
+      Acc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: gen_hook:extra().
+filter_local_packet({_, _, _, Stanza} = Acc, _Params, _Extra) ->
+    case is_ping_error(Stanza) of
+        true ->
+            ?LOG_DEBUG(#{what => ping_error_received, acc => Acc}),
+            {stop, drop};
+        false ->
+            {ok, Acc}
+    end.
 
 -spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
@@ -200,3 +215,13 @@ ping_get(Id) ->
     #xmlel{name = <<"iq">>,
            attrs = [{<<"type">>, <<"get">>}, {<<"id">>, Id}],
            children = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]}]}.
+
+-spec is_ping_error(exml:element()) -> boolean().
+is_ping_error(#xmlel{name = <<"iq">>,
+                      attrs = [{<<"type">>, <<"error">>}, _, _, _],
+                      children = [#xmlel{name = <<"ping">>,
+                                         attrs = [{<<"xmlns">>, ?NS_PING}]},
+                                  #xmlel{name = <<"error">>}]}) ->
+    true;
+is_ping_error(_) ->
+    false.

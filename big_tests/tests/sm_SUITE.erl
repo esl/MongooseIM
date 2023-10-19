@@ -40,6 +40,8 @@
 -define(LONG_TIMEOUT, 3600).
 -define(SHORT_TIMEOUT, 1).
 -define(SMALL_SM_BUFFER, 3).
+-define(PING_REQUEST_TIMEOUT, 1).
+-define(PING_INTERVAL, 3).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -57,7 +59,8 @@ groups() ->
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
+     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()},
+     {ping_timeout, [], ping_timeout_cases()}
     ].
 
 parallel_cases() ->
@@ -124,6 +127,9 @@ parallel_unacknowledged_message_hook_cases() ->
      unacknowledged_message_hook_resume,
      unacknowledged_message_hook_filter].
 
+ping_timeout_cases() ->
+    [ping_timeout].
+
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -150,6 +156,13 @@ init_per_group(stale_h, Config) ->
 init_per_group(stream_mgmt_disabled, Config) ->
     dynamic_modules:stop(host_type(), ?MOD_SM),
     rpc(mim(), mnesia, delete_table, [sm_session]),
+    Config;
+init_per_group(ping_timeout = Group, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
+    start_mod_ping(#{send_pings => true,
+                     ping_interval => ?PING_INTERVAL,
+                     ping_req_timeout => ?PING_REQUEST_TIMEOUT,
+                     timeout_action => kill}),
     Config;
 init_per_group(Group, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
@@ -210,6 +223,9 @@ required_sm_opts(group, parallel_unacknowledged_message_hook) ->
     #{ack_freq => 1};
 required_sm_opts(group, manual_ack_freq_long_session_timeout) ->
     #{ack_freq => 1, buffer_max => 1000};
+required_sm_opts(group, ping_timeout) ->
+    #{ack_freq => 1,
+      resume_timeout => ?SHORT_TIMEOUT};
 required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
     #{ack_freq => 1,
       resume_timeout => ?SHORT_TIMEOUT,
@@ -239,6 +255,10 @@ register_smid(IntSmidId) ->
 register_some_smid_h(Config) ->
     TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
     [{smid_test, TestSmids} | Config].
+
+start_mod_ping(Opts) ->
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:start(HostType, mod_ping, config_parser_helper:mod_config(mod_ping, Opts)).
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -589,6 +609,36 @@ resend_unacked_after_resume_timeout(Config) ->
                                  escalus:wait_for_stanzas(NewAlice, 2)),
 
     escalus_connection:stop(Bob),
+    escalus_connection:stop(NewAlice).
+
+ping_timeout(Config) ->
+    logger_ct_backend:start(),
+    logger_ct_backend:capture(error),
+
+    %% connect Alice and simulate ping timeout by dropping connection
+    Alice = connect_fresh(Config, alice, sr_presence),
+
+    escalus_client:wait_for_stanza(Alice),
+    ct:sleep(?PING_REQUEST_TIMEOUT + ?PING_INTERVAL + timer:seconds(1)),
+
+    %% attempt to resume the session after the connection drop
+    NewAlice = sm_helper:kill_and_connect_with_resume_session_without_waiting_for_result(Alice),
+
+    %% after resume_timeout, we expect the session to be closed
+    escalus_connection:get_stanza(NewAlice, failed_resumption),
+
+    %% bind a new session and expect unacknowledged messages to be resent
+    escalus_session:session(escalus_session:bind(NewAlice)),
+    send_initial_presence(NewAlice),
+
+    % check if the error occurred
+    FilterFun = fun(_, Msg) ->
+                    re:run(Msg, "parse_iq_id_failed", [global]) /= nomatch
+                end,
+    ?assertEqual([], logger_ct_backend:recv(FilterFun)),
+    logger_ct_backend:stop_capture(),
+
+    %% stop the connection
     escalus_connection:stop(NewAlice).
 
 resume_expired_session_returns_correct_h(Config) ->
