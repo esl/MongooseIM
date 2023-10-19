@@ -22,6 +22,13 @@ Specifies the SASL mechanisms supported by the `anonymous` authentication method
 * `login_anon` - support the non-anonymous mechanisms (`PLAIN`, `DIGEST-MD5`, `SCRAM-*`),
 * `both` - support both types of mechanisms.
 
+### `auth.anonymous.backend`
+* **Syntax:** string, one of `mnesia`, `cets`
+* **Default:** `mnesia`
+* **Example:** `backend = cets`
+
+Sets the backend where anonymous sessions will be stored in-memory. See [internal databases](../configuration/internal-databases.md)
+
 ### Example
 
 ```toml
