@@ -157,13 +157,6 @@ init_per_group(stream_mgmt_disabled, Config) ->
     dynamic_modules:stop(host_type(), ?MOD_SM),
     rpc(mim(), mnesia, delete_table, [sm_session]),
     Config;
-init_per_group(ping_timeout = Group, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
-    start_mod_ping(#{send_pings => true,
-                     ping_interval => ?PING_INTERVAL,
-                     ping_req_timeout => ?PING_REQUEST_TIMEOUT,
-                     timeout_action => kill}),
-    Config;
 init_per_group(Group, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
     Config.
@@ -206,9 +199,19 @@ required_modules(Config, Scope, Name) ->
                    stopped -> stopped;
                    ExtraOpts -> maps:merge(common_sm_opts(Config), ExtraOpts)
                end,
+    PingConfig = case Name of
+                    ping_timeout ->
+                        #{send_pings => true,
+                          ping_interval => ?PING_INTERVAL,
+                          ping_req_timeout => ?PING_REQUEST_TIMEOUT,
+                          timeout_action => kill};
+                    _ ->
+                        #{}
+                 end,
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
-     {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})}].
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})},
+     {mod_ping, config_parser_helper:mod_config(mod_ping, PingConfig)}].
 
 required_sm_opts(group, parallel) ->
     #{ack_freq => never};
@@ -255,10 +258,6 @@ register_smid(IntSmidId) ->
 register_some_smid_h(Config) ->
     TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
     [{smid_test, TestSmids} | Config].
-
-start_mod_ping(Opts) ->
-    HostType = domain_helper:host_type(mim),
-    dynamic_modules:start(HostType, mod_ping, config_parser_helper:mod_config(mod_ping, Opts)).
 
 %%--------------------------------------------------------------------
 %% Tests

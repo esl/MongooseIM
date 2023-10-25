@@ -56,7 +56,8 @@ all_tests() ->
      active,
      active_keep_alive,
      server_ping_pong,
-     server_ping_pang
+     server_ping_pang,
+     service_unavailable_response
     ].
 
 suite() ->
@@ -182,6 +183,26 @@ wrong_ping(Config) ->
 
             PingResp = escalus_client:wait_for_stanza(Alice),
             escalus:assert(is_iq_error, [PingReq], PingResp)
+        end).
+
+service_unavailable_response(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+            PingReq = wait_for_ping_req(Alice),
+            PingId = exml_query:attr(PingReq, <<"id">>),
+
+            ErrorStanzaBody = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]},
+                               #xmlel{name = <<"error">>, attrs = [{<<"type">>, <<"cancel">>}],
+                               children = [#xmlel{name = <<"service-unavailable">>,
+                                                  attrs = [{<<"xmlns">>, ?NS_STANZA_ERRORS}]}]}],
+            ErrorStanza = escalus_stanza:set_id(
+                            escalus_stanza:iq(domain(), <<"error">>, ErrorStanzaBody), PingId),
+            escalus_client:send(Alice, ErrorStanza),
+
+            ct:sleep(timer:seconds(1)),
+            TimeoutAction = ?config(timeout_action, Config),
+            check_connection(TimeoutAction, Alice),
+            escalus_client:kill_connection(Config, Alice)
         end).
 
 active(ConfigIn) ->
