@@ -146,3 +146,9 @@ Parts of the names are indexed from `0`.
 Time-based metrics in MongooseIM are given in **microseconds**, so to display human-readable values in graph's legend, the Y-axis unit has to be edited on the `Axes` tab.
 
 [Logger]: https://erlang.org/doc/apps/kernel/logger_chapter.html#handlers
+
+## Traffic monitor
+
+For debugging purposes, especially while developing MIM additional modules or client applications,
+you may want to use browser-based traffic monitor. It is downloaded as a dependency in installed
+in /web/traffic subdirectory. Consult README for details.
