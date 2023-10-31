@@ -329,7 +329,7 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.
 

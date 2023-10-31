@@ -82,10 +82,10 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-required_modules(Config) ->
+required_modules() ->
     KeyOpts = #{keys => #{token_secret => ram,
                           provision_pre_shared => ram},
-                backend => ct_helper:get_preset_var(Config, keystore_backend, mnesia)},
+                backend => ct_helper:get_internal_database()},
     KeyStoreOpts = config_parser_helper:mod_config(mod_keystore, KeyOpts),
     [{mod_keystore, KeyStoreOpts},
      {mod_auth_token, auth_token_opts()}].
@@ -113,7 +113,7 @@ init_per_group(user, Config) ->
 
 ensure_token_started(Config) ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:ensure_modules(HostType, required_modules(Config)),
+    dynamic_modules:ensure_modules(HostType, required_modules()),
     Config.
 
 ensure_token_stopped(Config) ->

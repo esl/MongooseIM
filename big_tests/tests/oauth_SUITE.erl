@@ -83,7 +83,7 @@ init_per_suite(Config0) ->
         true ->
             HostType = domain_helper:host_type(),
             Config = dynamic_modules:save_modules(HostType, Config0),
-            dynamic_modules:ensure_modules(HostType, required_modules(Config)),
+            dynamic_modules:ensure_modules(HostType, required_modules()),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RDBMS not available"}
@@ -459,8 +459,8 @@ serialize(ServerSideToken) ->
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
 
-required_modules(Config) ->
-    KeyOpts = #{backend => ct_helper:get_preset_var(Config, keystore_backend, mnesia),
+required_modules() ->
+    KeyOpts = #{backend => ct_helper:get_internal_database(),
                 keys => #{token_secret => ram,
                          %% This is a hack for tests! As the name implies,
                          %% a pre-shared key should be read from a file stored
