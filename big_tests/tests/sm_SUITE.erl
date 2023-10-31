@@ -51,7 +51,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() ->
-    ct_helper:groups_to_all(groups()).
+    ct_helper:groups_to_all(groups()) ++ [ping_timeout].
 
 groups() ->
     [
@@ -59,8 +59,7 @@ groups() ->
      {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_freq_1_cases()},
      {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
      {stale_h, [], stale_h_cases()},
-     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()},
-     {ping_timeout, [], ping_timeout_cases()}
+     {parallel_unacknowledged_message_hook, [parallel], parallel_unacknowledged_message_hook_cases()}
     ].
 
 parallel_cases() ->
@@ -127,9 +126,6 @@ parallel_unacknowledged_message_hook_cases() ->
      unacknowledged_message_hook_resume,
      unacknowledged_message_hook_filter].
 
-ping_timeout_cases() ->
-    [ping_timeout].
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -172,6 +168,10 @@ init_per_testcase(CN, Config) when CN =:= gc_repeat_after_never_means_no_cleanin
     dynamic_modules:ensure_modules(host_type(), required_modules(Config, testcase, CN)),
     Config2 = register_some_smid_h(Config),
     escalus:init_per_testcase(CN, Config2);
+init_per_testcase(ping_timeout = CN, Config) ->
+    ok = rpc(mim(), meck, new, [mod_ping, [passthrough, no_link]]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, testcase, CN)),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
@@ -189,6 +189,9 @@ end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_
 end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     unregister_handler(),
     escalus:end_per_testcase(CN, Config);
+end_per_testcase(ping_timeout = CN, Config) ->
+    rpc(mim(), meck, unload, [mod_ping]),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -199,19 +202,17 @@ required_modules(Config, Scope, Name) ->
                    stopped -> stopped;
                    ExtraOpts -> maps:merge(common_sm_opts(Config), ExtraOpts)
                end,
-    PingConfig = case Name of
-                    ping_timeout ->
-                        #{send_pings => true,
-                          ping_interval => ?PING_INTERVAL,
-                          ping_req_timeout => ?PING_REQUEST_TIMEOUT,
-                          timeout_action => kill};
-                    _ ->
-                        #{}
-                 end,
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
-     {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})},
-     {mod_ping, config_parser_helper:mod_config(mod_ping, PingConfig)}].
+    BaseModules = [
+     {mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})}
+     ],
+     case Name of
+        ping_timeout ->
+            BaseModules ++ [{mod_ping, config_parser_helper:mod_config(mod_ping, mod_ping_opts())}];
+        _ ->
+            BaseModules
+    end.
 
 required_sm_opts(group, parallel) ->
     #{ack_freq => never};
@@ -226,9 +227,6 @@ required_sm_opts(group, parallel_unacknowledged_message_hook) ->
     #{ack_freq => 1};
 required_sm_opts(group, manual_ack_freq_long_session_timeout) ->
     #{ack_freq => 1, buffer_max => 1000};
-required_sm_opts(group, ping_timeout) ->
-    #{ack_freq => 1,
-      resume_timeout => ?SHORT_TIMEOUT};
 required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
     #{ack_freq => 1,
       resume_timeout => ?SHORT_TIMEOUT,
@@ -236,7 +234,10 @@ required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
 required_sm_opts(testcase, gc_repeat_after_never_means_no_cleaning) ->
     #{stale_h => stale_h(?LONG_TIMEOUT, ?SHORT_TIMEOUT)};
 required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
-    #{stale_h => stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT)}.
+    #{stale_h => stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT)};
+required_sm_opts(testcase, ping_timeout) ->
+    #{ack_freq => 1,
+      resume_timeout => ?SHORT_TIMEOUT}.
 
 common_sm_opts(Config) ->
     Backend = ct_helper:get_preset_var(Config, stream_management_backend, mnesia),
@@ -258,6 +259,12 @@ register_smid(IntSmidId) ->
 register_some_smid_h(Config) ->
     TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
     [{smid_test, TestSmids} | Config].
+
+mod_ping_opts() ->
+    #{send_pings => true,
+      ping_interval => ?PING_INTERVAL,
+      ping_req_timeout => ?PING_REQUEST_TIMEOUT,
+      timeout_action => kill}.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -611,10 +618,10 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_connection:stop(NewAlice).
 
 ping_timeout(Config) ->
-    logger_ct_backend:start(),
-    logger_ct_backend:capture(error),
+    %% make sure there are no leftover stanzas in the history
+    ?assertEqual([], get_stanzas_filtered_by_mod_ping()),
 
-    %% connect Alice and simulate ping timeout by dropping connection
+    %% connect Alice and wait for the session to close
     Alice = connect_fresh(Config, alice, sr_presence),
 
     escalus_client:wait_for_stanza(Alice),
@@ -630,12 +637,8 @@ ping_timeout(Config) ->
     escalus_session:session(escalus_session:bind(NewAlice)),
     send_initial_presence(NewAlice),
 
-    % check if the error occurred
-    FilterFun = fun(_, Msg) ->
-                    re:run(Msg, "parse_iq_id_failed", [global]) /= nomatch
-                end,
-    ?assertEqual([], logger_ct_backend:recv(FilterFun)),
-    logger_ct_backend:stop_capture(),
+    %% check if the error stanza was handled by mod_ping
+    ?assertEqual(1, length(get_stanzas_filtered_by_mod_ping())),
 
     %% stop the connection
     escalus_connection:stop(NewAlice).
@@ -1321,6 +1324,17 @@ is_presence(Type) ->
 three_texts() ->
     [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>].
 
+get_stanzas_filtered_by_mod_ping() ->
+    History = rpc(mim(), meck, history, [mod_ping]),
+    [Stanza ||
+        {_Pid,
+         {_Mod,
+          filter_local_packet = _Func,
+          [{_, _, _, Stanza} = _Acc, _Params, _Extra] = _Args
+         },
+         {stop, drop} = _Result
+        } <- History
+    ].
 %%--------------------------------------------------------------------
 %% IQ handler necessary for reproducing "replies_are_processed_by_resumed_session"
 %%--------------------------------------------------------------------
