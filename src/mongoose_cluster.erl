@@ -2,8 +2,6 @@
 
 %% This is a library module for cluster management: joining / leaving a cluster.
 
-%% TODO: it might make sense to expose this stuff as service_admin_extra_cluster
-
 -export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
 -export([all_cluster_nodes/0, other_cluster_nodes/0]).

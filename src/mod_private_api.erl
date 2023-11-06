@@ -2,7 +2,6 @@
 -module(mod_private_api).
 
 -include("mongoose.hrl").
--include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 

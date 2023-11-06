@@ -148,10 +148,6 @@
     tls.cacertfile = "priv/ca.pem"
     tls.server_name_indication.enabled = false
 
-[services.service_admin_extra]
-  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats"]
-
 [services.service_mongoose_system_metrics]
   initial_report = 300_000
   periodic_report = 10_800_000

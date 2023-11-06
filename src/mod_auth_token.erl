@@ -4,7 +4,6 @@
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
--include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
 -include("mongoose_config_spec.hrl").
@@ -82,7 +81,6 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
       fun ?MODULE:process_iq/5, #{}, IQDisc),
-    ejabberd_commands:register_commands(commands()),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -127,13 +125,6 @@ validity_period_spec() ->
                 },
        required = all
       }.
-
--spec commands() -> [ejabberd_commands:cmd()].
-commands() ->
-    [#ejabberd_commands{ name = revoke_token, tags = [tokens],
-                         desc = "Revoke REFRESH token",
-                         module = ?MODULE, function = revoke_token_command,
-                         args = [{owner, binary}], result = {res, restuple} }].
 
 %%
 %% Other stuff
