@@ -5,7 +5,8 @@
          repeat_all_until_any_fail/1,
          repeat_all_until_any_fail/2,
          groups_to_all/1,
-         get_preset_var/3]).
+         get_preset_var/3,
+         get_internal_database/0]).
 
 -type group_name() :: atom().
 
@@ -118,9 +119,15 @@ groups_to_all(Groups) ->
 
 get_preset_var(Config, Opt, Def) ->
     case proplists:get_value(preset, Config, undefined) of
+        undefined ->
+            Def;
         Preset ->
             PresetAtom = list_to_existing_atom(Preset),
-            ct:get_config({presets, toml, PresetAtom, Opt}, Def);
-        _ ->
-            Def
+            ct:get_config({presets, toml, PresetAtom, Opt}, Def)
+    end.
+
+get_internal_database() ->
+    case distributed_helper:lookup_config_opt([internal_databases, cets]) of
+        {ok, _} -> cets;
+        {error, not_found} -> mnesia
     end.

@@ -202,3 +202,6 @@ mongooseim_script(Node, Cmd, Args, Config) ->
 
 subhost_pattern(SubhostTemplate) ->
     rpc(mim(), mongoose_subdomain_utils, make_subdomain_pattern, [SubhostTemplate]).
+
+lookup_config_opt(Key) ->
+    rpc(mim(), mongoose_config, lookup_opt, [Key]).

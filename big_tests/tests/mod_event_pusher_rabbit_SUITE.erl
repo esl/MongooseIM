@@ -110,7 +110,7 @@ init_per_suite(Config) ->
         true ->
             start_rabbit_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
-            muc_helper:load_muc(Config),
+            muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}

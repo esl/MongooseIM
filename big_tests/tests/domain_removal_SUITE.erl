@@ -162,7 +162,7 @@ is_internal_or_rdbms() ->
 %%%===================================================================
 
 init_per_testcase(muc_removal, Config) ->
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
     escalus:init_per_testcase(muc_removal, Config);
 init_per_testcase(roster_removal, ConfigIn) ->

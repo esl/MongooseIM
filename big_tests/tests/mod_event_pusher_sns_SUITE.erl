@@ -60,7 +60,7 @@ init_per_suite(Config) ->
             %% For mocking with unnamed functions
             mongoose_helper:inject_module(?MODULE),
 
-            muc_helper:load_muc(Config),
+            muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         {error, _} ->
             {skip, "erlcloud dependency is not enabled"}
