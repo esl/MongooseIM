@@ -428,6 +428,56 @@ jobs:
       - setup_remote_docker
       - run_docker_smoke_test
 
+  k8s_with_kind:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    steps:
+      - setup_remote_docker
+      - run:
+          name: Install KinD
+          command: |
+            curl -Lo kind https://github.com/kubernetes-sigs/kind/releases/download/v0.20.0/kind-linux-amd64
+            chmod +x kind
+            sudo mv kind /usr/local/bin/
+      - run:
+          name: Create Kubernetes Cluster
+          command: |
+            kind create cluster --loglevel debug
+      - run:
+          name: Install kubectl
+          command: |
+            curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v1.27.3/bin/linux/amd64/kubectl
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+      - run:
+          name: Port forwarding to the remote Docker
+          command: |
+            APISERVER_PORT=$(kubectl config view -o jsonpath='{.clusters[].cluster.server}' | cut -d: -f 3 -) && \
+            ssh -f -N -L 127.0.0.1:$APISERVER_PORT:127.0.0.1:$APISERVER_PORT remote-docker
+      - run:
+          name: Run Tests
+          command: |
+            kubectl cluster-info --context kind-kind
+            kubectl get pods --all-namespaces
+      - run:
+          name: Install Helm
+          command: |
+            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      - run:
+          name: Get MongooseHelm
+          command: |
+            mkdir -p ~/.ssh && \
+            ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts && \
+            git clone "git@github.com:esl/MongooseHelm.git" && \
+            cd MongooseHelm && \
+            helm install test-mim MongooseIM --set replicaCount=3
+      - run:
+          name: Logs
+          command: |
+            sleep 60 && kubectl logs mongooseim-0
+
   docs_build_deploy:
     parallelism: 1
     docker:
@@ -989,4 +1039,9 @@ workflows:
           context: mongooseim-org
           requires:
             - docker_build_and_ship
+          filters: *all_tags
+      - k8s_with_kind:
+          name: k8s_with_kind
+          executor: otp_26
+          context: mongooseim-org
           filters: *all_tags
