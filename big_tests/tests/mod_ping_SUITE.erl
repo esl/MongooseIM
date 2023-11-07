@@ -199,7 +199,6 @@ service_unavailable_response(Config) ->
                             escalus_stanza:iq(domain(), <<"error">>, ErrorStanzaBody), PingId),
             escalus_client:send(Alice, ErrorStanza),
 
-            ct:sleep(timer:seconds(1)),
             TimeoutAction = ?config(timeout_action, Config),
             check_connection(TimeoutAction, Alice),
             escalus_client:kill_connection(Config, Alice)
@@ -286,7 +285,7 @@ wait_ping_interval(Ration) ->
     ct:sleep(WaitTime).
 
 check_connection(kill, Client) ->
-    false = escalus_connection:is_connected(Client);
+    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Client) end, false);
 check_connection(_, Client) ->
     true = escalus_connection:is_connected(Client).
 

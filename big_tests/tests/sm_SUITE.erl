@@ -638,7 +638,10 @@ ping_timeout(Config) ->
     send_initial_presence(NewAlice),
 
     %% check if the error stanza was handled by mod_ping
-    ?assertEqual(1, length(get_stanzas_filtered_by_mod_ping())),
+    [Stanza] = get_stanzas_filtered_by_mod_ping(),
+    escalus:assert(is_iq_error, Stanza),
+    ?assertNotEqual(undefined,
+        exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>)),
 
     %% stop the connection
     escalus_connection:stop(NewAlice).
