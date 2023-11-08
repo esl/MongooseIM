@@ -17,8 +17,9 @@
 -export([init/2]).
 
 -define(SERVER, ?MODULE).
+-type state() :: [pid()].
 
-
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     gen_hook:add_handlers(hooks(HostType)),
     case whereis(?MODULE) of
@@ -34,6 +35,7 @@ start(HostType, _Opts) ->
     end,
     ok.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(Host) ->
     gen_hook:delete_handlers(hooks(Host)),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
@@ -43,8 +45,11 @@ stop(Host) ->
 hooks(_HostType) ->
     [{c2s_debug, global, fun ?MODULE:trace_traffic/3, #{}, 50}].
 
+-spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
+-spec trace_traffic(mongoose_acc:t(), #{arg => mongoose_debug:debug_entry()}, term()) ->
+    {ok, mongoose_acc:t()}.
 trace_traffic(Acc, #{arg := {client_to_server, From, El}}, _) ->
     traffic(client_to_server, From, El),
     {ok, Acc};
@@ -52,13 +57,15 @@ trace_traffic(Acc, #{arg := {server_to_client, To, El}}, _) ->
     traffic(server_to_client, To, El),
     {ok, Acc}.
 
+-spec traffic(mongoose_debug:direction(), jid:jid(), exml:element()) ->
+    ok.
 traffic(Dir, Jid, El) ->
     St = iolist_to_binary(fix_and_format(El)),
-    UserPid = self(),
-    gen_server:cast(?MODULE, {message, Dir, {UserPid, Jid}, St}),
+    UserSessionPid = self(),
+    gen_server:cast(?MODULE, {message, Dir, UserSessionPid, Jid, St}),
     ok.
 
-
+-spec init(term()) -> {ok, state()}.
 init([]) ->
     register(?MODULE, self()),
     {ok, []}.
@@ -71,13 +78,15 @@ handle_call({unregister, Pid}, _From, State) ->
 handle_call(_, _, State) ->
     {reply, ok, State}.
 
-handle_cast({message, _, _, _} = Msg, State) ->
+handle_cast({message, _, _, _, _} = Msg, State) ->
     lists:map(fun(Pid) -> Pid ! Msg end, State),
     {noreply, State}.
 
 handle_info({'DOWN', _, _, Pid, _}, State) ->
     {noreply, lists:delete(Pid, State)}.
 
+-spec init(cowboy_req:req(), term()) ->
+    {ok, cowboy_req:req(), term()}.
 init(Req, State) ->
     {ok, Cwd} = file:get_cwd(),
     Base = Cwd ++ "/web/traffic",

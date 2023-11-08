@@ -21,16 +21,27 @@
 -define(MAX_ITEMS, 500).
 -define(MAX_TRACED, 100).
 
+-type str_pid() :: binary(). % representation of traced user's session pid
+-type str_stanza() :: binary().
+
 -record(state, {traces = #{},
                 tracing = false,
                 current = <<>>,
                 mappings = #{},
                 start_times = #{}}).
 
+-type state() :: #state{traces :: #{str_pid() => queue:queue()},
+                        tracing :: boolean(),
+                        current :: str_pid(),
+                        mappings :: #{str_pid() => jid:jid()},
+                        start_times :: #{str_pid() => float()}}.
+
 %%--------------------------------------------------------------------
 %% Common callbacks for all cowboy behaviours
 %%--------------------------------------------------------------------
 
+-spec init(cowboy_req:req(), proplists:proplist()) ->
+    {cowboy_websocket, cowboy_req:req(), proplists:proplist(), map()}.
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
@@ -72,14 +83,21 @@ websocket_handle(Any, State) ->
     {ok, State}.
 
 % Other messages from the system are handled here.
-websocket_info({message, _Dir, _J, _Stanza}, #state{tracing = false} = State) ->
+-spec websocket_info({message,
+                      mongoose_debug:direction(),
+                      pid(),
+                      jid:jid(),
+                      str_stanza()},
+                     state()) ->
+    {ok | stop, state()}.
+websocket_info({message, _Dir, _P, _J, _Stanza}, #state{tracing = false} = State) ->
     {ok, State};
-websocket_info({message, Dir, {Pid, Jid}, Stanza} = Message, State) ->
+websocket_info({message, Dir, Pid, Jid, Stanza} = Message, State) ->
     Spid = pid_to_binary(Pid),
     Now = now_seconds(),
     {Traces1, Mappings, IsNewMapping} = record_item(Now,
                                                     Dir,
-                                                    {Spid, Jid},
+                                                    Spid, Jid,
                                                     Stanza,
                                                     State#state.traces,
                                                     State#state.mappings),
@@ -90,7 +108,7 @@ websocket_info({message, Dir, {Pid, Jid}, Stanza} = Message, State) ->
         N when N > ?MAX_TRACED ->
             force_stop_tracing(State1);
         _ ->
-            maybe_send_to_user(Now, {IsNewMapping, Now}, Message, State3)
+            maybe_send_to_user(Now, IsNewMapping, Message, State3)
     end;
 websocket_info(stop, State) ->
     {stop, State};
@@ -103,20 +121,24 @@ force_stop_tracing(State) ->
     M = reply(<<"error">>, #{<<"reason">> => <<"too_many_traced_procs">>}),
     {reply, M, State1}.
 
-maybe_send_to_user(Now, IsNewMapping, {message, Dir, {Pid, Jid}, Stanza}, State) ->
+maybe_send_to_user(Now, IsNewMapping, {message, Dir, Pid, Jid, Stanza}, State) ->
     Spid = pid_to_binary(Pid),
-    Announcement = maybe_announce_new(IsNewMapping, Spid, Jid),
+    Announcement = maybe_announce_new(IsNewMapping, Now, Spid, Jid),
     Msg = maybe_send_current(Now, Dir, Spid, Stanza, State),
     {reply, Announcement ++ Msg, State}.
 
-maybe_announce_new({true, StartTime}, Spid, Jid) ->
-    {BareJid, FullJid} = format_jid(Jid),
+maybe_announce_new(true, StartTime, Spid, Jid) ->
+    {BareJid, FullJid} = case classify_jid(Jid) of
+                             empty -> {<<>>, <<>>};
+                             bare -> {<<>>, jid:to_bare_binary(Jid)};
+                             full -> {jid:to_binary(Jid), <<>>}
+                         end,
     [reply(<<"new_trace">>,
            #{<<"pid">> => Spid,
              <<"start_time">> => StartTime,
              <<"bare_jid">> => BareJid,
              <<"full_jid">> => FullJid})];
-maybe_announce_new({false, _}, _, _) ->
+maybe_announce_new(false, _, _, _) ->
     [].
 
 maybe_send_current(Now, Dir, Spid, Stanza, State) ->
@@ -179,20 +201,20 @@ reply(Event, Payload) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec is_current(str_pid(), state()) -> boolean().
 is_current(J, #state{current = J}) -> true;
 is_current(_, _)                   -> false.
 
-record_item(Time, Dir, {Spid, Jid}, Stanza, Traces, Mappings) ->
+record_item(Time, Dir, Spid, Jid, Stanza, Traces, Mappings) ->
     Tr = case maps:get(Spid, Traces, undefined) of
              undefined ->
                  queue:new();
              Q -> Q
          end,
-    Fjid = format_jid(Jid),
-    IsNew = is_new_mapping(maps:get(Spid, Mappings, undefined), Fjid),
+    IsNew = is_new_mapping(maps:get(Spid, Mappings, undefined), Jid),
     Mappings1 = case IsNew of
                     true ->
-                        maps:put(Spid, Fjid, Mappings);
+                        maps:put(Spid, Jid, Mappings);
                     false ->
                         Mappings
                 end,
@@ -213,29 +235,29 @@ format_trace(Trace, StartTime) ->
               end,
               lists:reverse(queue:to_list(Trace))).
 
+-spec pid_to_binary(pid()) -> str_pid().
 pid_to_binary(Pid) when is_pid(Pid) ->
     [Spid] = io_lib:format("~p", [Pid]),
     list_to_binary(Spid).
 
-format_jid(Bin) when is_binary(Bin) ->
-    format_jid(jid:from_binary(Bin));
-format_jid(undefined) ->
-    {<<>>, <<>>};
-format_jid(#jid{lresource = <<>>} = Jid) ->
-    {jid:to_binary(jid:to_lower(Jid)), <<>>};
-format_jid(#jid{} = Jid) ->
-    {<<>>, jid:to_binary(jid:to_lower(Jid))}.
+-spec classify_jid(binary() | jid:jid()) -> empty | bare | full.
+classify_jid(Bin) when is_binary(Bin) -> classify_jid(jid:from_binary(Bin));
+classify_jid(undefined) -> empty;
+classify_jid(#jid{lresource = <<>>}) -> bare;
+classify_jid(#jid{}) -> full.
 
-is_new_mapping(undefined,    {_, _})       -> true; % showed up for the very first time
-is_new_mapping({_, _},       {<<>>, <<>>}) -> false; % nothing new
-is_new_mapping({<<>>, <<>>}, {_, _})       -> true; % nothing old, something new
-is_new_mapping({<<>>, _},    {_, _})       -> false; % we already have full jid
-is_new_mapping({_, <<>>},    {<<>>, _})    -> true; % we have bare, received full
-is_new_mapping(_,            {_, _})       -> false.
+% we map pids to jids, initially we don't know the jid, then we
+% know bare jid, and then full jid
+% we need to know when it changes so that send an update to client
+-spec is_new_mapping(jid:jid(), jid:jid()) -> boolean().
+is_new_mapping(Old, New) ->
+    case {classify_jid(Old), classify_jid(New)} of
+        {S, S} -> false;
+        _ -> true
+    end.
 
 now_seconds() ->
-    {Msec, Sec, Micro} = os:timestamp(),
-    Msec * 1000000 + Sec + (Micro / 1000000).
+    os:system_time(microsecond) / 1000000.
 
 maybe_store_start_time(Spid, Time, #state{start_times = StartTimes} = State) ->
     case maps:get(Spid, StartTimes, undefined) of
