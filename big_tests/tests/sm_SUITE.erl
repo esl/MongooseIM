@@ -170,7 +170,7 @@ init_per_testcase(CN, Config) when CN =:= gc_repeat_after_never_means_no_cleanin
     escalus:init_per_testcase(CN, Config2);
 init_per_testcase(ping_timeout = CN, Config) ->
     ok = rpc(mim(), meck, new, [mod_ping, [passthrough, no_link]]),
-    dynamic_modules:ensure_modules(host_type(), required_modules(Config, testcase, CN)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     escalus:init_per_testcase(CN, Config);
