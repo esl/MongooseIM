@@ -4,8 +4,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
--import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4]).
--import(mongooseimctl_helper, [mongooseimctl/3]).
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4,
+                             remove_node_from_cluster/2]).
+-import(graphql_helper, [execute_command/4]).
 
 -import(domain_rest_helper,
         [set_invalid_creds/1,
@@ -87,28 +88,6 @@ db_cases() -> [
      db_keeps_syncing_after_cluster_join,
      db_gaps_are_getting_filled_automatically,
      db_event_could_appear_with_lower_id,
-     cli_can_insert_domain,
-     cli_can_disable_domain,
-     cli_can_enable_domain,
-     cli_can_delete_domain,
-     cli_cannot_delete_domain_without_correct_type,
-     cli_cannot_insert_domain_twice_with_another_host_type,
-     cli_cannot_insert_domain_with_unknown_host_type,
-     cli_cannot_delete_domain_with_unknown_host_type,
-     cli_cannot_enable_missing_domain,
-     cli_cannot_disable_missing_domain,
-     cli_cannot_insert_domain_when_it_is_static,
-     cli_cannot_delete_domain_when_it_is_static,
-     cli_cannot_enable_domain_when_it_is_static,
-     cli_cannot_disable_domain_when_it_is_static,
-     cli_insert_domain_fails_if_db_fails,
-     cli_insert_domain_fails_if_service_disabled,
-     cli_delete_domain_fails_if_db_fails,
-     cli_delete_domain_fails_if_service_disabled,
-     cli_enable_domain_fails_if_db_fails,
-     cli_enable_domain_fails_if_service_disabled,
-     cli_disable_domain_fails_if_db_fails,
-     cli_disable_domain_fails_if_service_disabled,
      {group, rest_with_auth},
      {group, rest_without_auth}].
 
@@ -269,12 +248,16 @@ init_per_testcase2(TestcaseName, Config)
     Mods = [{mod_mam, mam_helper:config_opts(#{pm => #{}})}],
     dynamic_modules:ensure_modules(HostType, Mods),
     escalus:init_per_testcase(TestcaseName, Config);
+init_per_testcase2(db_keeps_syncing_after_cluster_join, Config) ->
+    graphql_helper:init_admin_cli(Config);
 init_per_testcase2(_, Config) ->
     Config.
 
 end_per_testcase2(TestcaseName, Config)
     when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
     escalus:end_per_testcase(TestcaseName, Config);
+end_per_testcase2(db_keeps_syncing_after_cluster_join, _Config) ->
+    graphql_helper:clean();
 end_per_testcase2(_, Config) ->
     Config.
 
@@ -730,112 +713,6 @@ db_event_could_appear_with_lower_id(_Config) ->
     mongoose_helper:wait_until(F, lists:seq(40, 50),
                                #{time_left => timer:seconds(15)}).
 
-cli_can_insert_domain(Config) ->
-    {"Added\n", 0} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), <<"example.db">>).
-
-cli_can_disable_domain(Config) ->
-    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    mongooseimctl("disable_domain", [<<"example.db">>], Config),
-    {ok, #{host_type := <<"type1">>, status := disabled}} =
-        select_domain(mim(), <<"example.db">>).
-
-cli_can_enable_domain(Config) ->
-    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    mongooseimctl("disable_domain", [<<"example.db">>], Config),
-    mongooseimctl("enable_domain", [<<"example.db">>], Config),
-    {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), <<"example.db">>).
-
-cli_can_delete_domain(Config) ->
-    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
-    {error, not_found} = select_domain(mim(), <<"example.db">>).
-
-cli_cannot_delete_domain_without_correct_type(Config) ->
-    {"Added\n", 0} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"Wrong host type was provided\"\n", 1} =
-        mongooseimctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
-    {ok, _} = select_domain(mim(), <<"example.db">>).
-
-cli_cannot_insert_domain_twice_with_another_host_type(Config) ->
-    {"Added\n", 0} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    {"Error: \"Domain already exists\"\n", 1} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
-
-cli_cannot_insert_domain_with_unknown_host_type(Config) ->
-    {"Error: \"Unknown host type\"\n", 1} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
-
-cli_cannot_delete_domain_with_unknown_host_type(Config) ->
-    {"Error: \"Unknown host type\"\n", 1} =
-        mongooseimctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
-
-cli_cannot_enable_missing_domain(Config) ->
-    {"Error: \"Given domain does not exist\"\n", 1} =
-        mongooseimctl("enable_domain", [<<"example.db">>], Config).
-
-cli_cannot_disable_missing_domain(Config) ->
-    {"Error: \"Given domain does not exist\"\n", 1} =
-        mongooseimctl("disable_domain", [<<"example.db">>], Config).
-
-cli_cannot_insert_domain_when_it_is_static(Config) ->
-    {"Error: \"Domain is static\"\n", 1} =
-        mongooseimctl("insert_domain", [<<"example.cfg">>, <<"type1">>], Config).
-
-cli_cannot_delete_domain_when_it_is_static(Config) ->
-    {"Error: \"Domain is static\"\n", 1} =
-        mongooseimctl("delete_domain", [<<"example.cfg">>, <<"type1">>], Config).
-
-cli_cannot_enable_domain_when_it_is_static(Config) ->
-    {"Error: \"Domain is static\"\n", 1} =
-        mongooseimctl("enable_domain", [<<"example.cfg">>], Config).
-
-cli_cannot_disable_domain_when_it_is_static(Config) ->
-    {"Error: \"Domain is static\"\n", 1} =
-        mongooseimctl("disable_domain", [<<"example.cfg">>], Config).
-
-cli_insert_domain_fails_if_db_fails(Config) ->
-    Res = mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    assert_cli_db_error(Res).
-
-cli_insert_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
-        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
-
-cli_delete_domain_fails_if_db_fails(Config) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    Res = mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
-    assert_cli_db_error(Res).
-
-cli_delete_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
-        mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
-
-cli_enable_domain_fails_if_db_fails(Config) ->
-    Res = mongooseimctl("enable_domain", [<<"example.db">>], Config),
-    assert_cli_db_error(Res).
-
-cli_enable_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
-        mongooseimctl("enable_domain", [<<"example.db">>], Config).
-
-cli_disable_domain_fails_if_db_fails(Config) ->
-    Res = mongooseimctl("disable_domain", [<<"example.db">>], Config),
-    assert_cli_db_error(Res).
-
-cli_disable_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {"Error: \"Dynamic domains service is disabled\"\n", 1} =
-        mongooseimctl("disable_domain", [<<"example.db">>], Config).
-
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
         rest_put_domain(Config, <<"example.db">>, <<"type1">>),
@@ -1254,19 +1131,15 @@ force_check_for_updates(Node) ->
 ensure_nodes_know_each_other() ->
     pong = rpc(mim2(), net_adm, ping, [maps:get(node, mim())]).
 
-maybe_setup_meck(TC) when TC =:= rest_insert_domain_fails_if_db_fails;
-                          TC =:= cli_insert_domain_fails_if_db_fails ->
+maybe_setup_meck(rest_insert_domain_fails_if_db_fails) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, insert_domain, 2,
                                    {error, {db_error, simulated_db_error}}]);
-maybe_setup_meck(TC) when TC =:= rest_delete_domain_fails_if_db_fails;
-                          TC =:= cli_delete_domain_fails_if_db_fails ->
+maybe_setup_meck(rest_delete_domain_fails_if_db_fails) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, delete_domain, 2,
                                    {error, {db_error, simulated_db_error}}]);
-maybe_setup_meck(TC) when TC =:= rest_enable_domain_fails_if_db_fails;
-                          TC =:= cli_enable_domain_fails_if_db_fails;
-                          TC =:= cli_disable_domain_fails_if_db_fails ->
+maybe_setup_meck(rest_enable_domain_fails_if_db_fails) ->
     ok = rpc(mim(), meck, new, [mongoose_domain_sql, [passthrough, no_link]]),
     ok = rpc(mim(), meck, expect, [mongoose_domain_sql, set_status, 2,
                                    {error, {db_error, simulated_db_error}}]);
@@ -1286,17 +1159,11 @@ maybe_teardown_meck(_) ->
     rpc(mim(), meck, unload, []).
 
 leave_cluster(Config) ->
-    Cmd = "leave_cluster",
-    #{node := Node} = distributed_helper:mim(),
-    Args = ["--force"],
-    mongooseimctl_helper:mongooseimctl(Node, Cmd, Args, Config).
+    execute_command(<<"server">>, <<"leaveCluster">>, #{}, Config).
 
 join_cluster(Config) ->
-    Cmd = "join_cluster",
-    #{node := Node} = distributed_helper:mim(),
     #{node := Node2} = distributed_helper:mim2(),
-    Args = ["--force", atom_to_list(Node2)],
-    mongooseimctl_helper:mongooseimctl(Node, Cmd, Args, Config).
+    execute_command(<<"server">>, <<"joinCluster">>, #{<<"node">> => Node2}, Config).
 
 assert_domains_are_equal(HostType) ->
     Domains1 = lists:sort(get_domains_by_host_type(mim(), HostType)),
@@ -1305,9 +1172,6 @@ assert_domains_are_equal(HostType) ->
         true -> ok;
         false -> ct:fail({Domains1, Domains2})
     end.
-
-assert_cli_db_error({Msg, 1}) ->
-    ?assertMatch([_|_], string:find(Msg, "simulated_db_error")).
 
 assert_rest_db_error({Result, Msg}) ->
     ?assertEqual({<<"500">>, <<"Internal Server Error">>}, Result),

@@ -4,7 +4,6 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mongoose.hrl").
 

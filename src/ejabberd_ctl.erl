@@ -126,9 +126,6 @@ process(["stop"]) ->
 process(["restart"]) ->
     init:restart(),
     ?STATUS_SUCCESS;
-process(["mnesia"]) ->
-    ?PRINT("~p~n", [mnesia:system_info(all)]),
-    ?STATUS_SUCCESS;
 process(["mnesia", "info"]) ->
     mnesia:info(),
     ?STATUS_SUCCESS;

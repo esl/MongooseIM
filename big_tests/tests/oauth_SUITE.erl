@@ -37,7 +37,6 @@ all() ->
      {group, token_login},
      {group, token_revocation},
      {group, provision_token},
-     {group, commands},
      {group, cleanup},
      {group, sasl_mechanisms}
     ].
@@ -47,8 +46,6 @@ groups() ->
          {token_login, [sequence], token_login_tests()},
          {token_revocation, [sequence], token_revocation_tests()},
          {provision_token, [], [provision_token_login]},
-         {commands, [], [revoke_token_cmd_when_no_token,
-                         revoke_token_cmd]},
          {cleanup, [], [token_removed_on_user_removal]},
          {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
                                 check_for_oauth_with_mod_auth_token_loaded]}
@@ -93,11 +90,7 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(GroupName, Config0) ->
-    Config = case GroupName of
-                 commands -> ejabberd_node_utils:init(Config0);
-                 _ -> Config0
-             end,
+init_per_group(GroupName, Config) ->
     AuthOpts = mongoose_helper:auth_opts_with_password_format(password_format(GroupName)),
     HostType = domain_helper:host_type(),
     Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth, HostType}, AuthOpts),
@@ -285,21 +278,6 @@ get_owner_seqno_to_revoke(Config, User) ->
 
 revoke_token(Owner) ->
     rpc(mim(), mod_auth_token, revoke, [domain_helper:host_type(), Owner]).
-
-revoke_token_cmd_when_no_token(Config) ->
-    %% given existing user with no token
-    %% when revoking token
-    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, bob)]),
-    %% then no token was found
-    "Error: \"User or token not found\"\n" = R.
-
-revoke_token_cmd(Config) ->
-    %% given existing user and token present in the database
-    _Tokens = request_tokens_once_logged_in_impl(Config, bob),
-    %% when
-    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, bob)]),
-    %% then
-    "Revoked\n" = R.
 
 token_removed_on_user_removal(Config) ->
     %% given existing user with token and XMPP (de)registration available

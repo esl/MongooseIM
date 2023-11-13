@@ -23,8 +23,6 @@
                              remove_node_from_cluster/2,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
--import(domain_helper, [host_type/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -37,38 +35,19 @@
 
 all() ->
     [{group, clustered},
-     {group, mnesia},
-     {group, clustering_two},
-     {group, clustering_three}].
+     {group, clustering_two}].
 
 groups() ->
     [{clustered, [], [one_to_one_message]},
-     {clustering_two, [], clustering_two_tests()},
-     {clustering_three, [], clustering_three_tests()},
-     {mnesia, [], [set_master_test]}].
+     {clustering_two, [], clustering_two_tests()}].
 
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
-    [join_successful_prompt,
-     join_successful_force,
-     leave_successful_prompt,
-     leave_successful_force,
-     join_unsuccessful,
-     leave_unsuccessful,
-     leave_but_no_cluster,
-     join_twice,
-     leave_using_rpc,
-     leave_twice,
+    [leave_using_rpc,
      join_twice_using_rpc,
      join_twice_in_parallel_using_rpc].
-
-clustering_three_tests() ->
-    [cluster_of_three,
-     leave_the_three,
-     %remove_dead_from_cluster, % TODO: Breaks cover
-     remove_alive_from_cluster].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -92,7 +71,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
+init_per_group(Group, Config) when Group == clustered ->
     Node2 = mim2(),
     Config1 = add_node_to_cluster(Node2, Config),
     case is_sm_distributed() of
@@ -117,7 +96,7 @@ init_per_group(Group, _Config) when Group == clustering_two orelse Group == clus
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
-end_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
+end_per_group(Group, Config) when Group == clustered ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config);
@@ -132,27 +111,7 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(cluster_of_three, Config) ->
-    Node2 = mim2(),
-    Node3 = mim3(),
-    remove_node_from_cluster(Node2, Config),
-    remove_node_from_cluster(Node3, Config),
-    escalus:end_per_testcase(cluster_of_three, Config);
-
-end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
-                                   orelse CaseName == remove_dead_from_cluster->
-    Node3 = mim3(),
-    Node2 = mim2(),
-    remove_node_from_cluster(Node3, Config),
-    remove_node_from_cluster(Node2, Config),
-    escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName, Config) when CaseName == join_successful_prompt
-                                   orelse CaseName == join_successful_force
-                                   orelse CaseName == leave_unsuccessful_prompt
-                                   orelse CaseName == leave_unsuccessful_force
-                                   orelse CaseName == join_twice
-                                   orelse CaseName == join_twice_using_rpc
+end_per_testcase(CaseName, Config) when CaseName == join_twice_using_rpc
                                    orelse CaseName == join_twice_in_parallel_using_rpc ->
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config),
@@ -184,113 +143,10 @@ one_to_one_message(ConfigIn) ->
         Stanza2 = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
     end).
-%%--------------------------------------------------------------------
-%% mnesia tests
-%%--------------------------------------------------------------------
-
-set_master_test(ConfigIn) ->
-    %% To ensure that passwd table exists.
-    %% We also need at least two nodes for set_master to work.
-    catch distributed_helper:rpc(mim(), ejabberd_auth_internal, start, [host_type(mim1)]),
-    catch distributed_helper:rpc(mim2(), ejabberd_auth_internal, start, [host_type(mim2)]),
-
-    TableName = passwd,
-    NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
-    mongooseimctl("set_master", ["self"], ConfigIn),
-    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-    true = lists:member(MasterNode, NodeList),
-    RestNodesList = lists:delete(MasterNode, NodeList),
-    OtherNode = hd(RestNodesList),
-    mongooseimctl("set_master", [atom_to_list(OtherNode)], ConfigIn),
-    [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-    mongooseimctl("set_master", ["self"], ConfigIn),
-    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
-
 
 %%--------------------------------------------------------------------
 %% Manage cluster commands tests
 %%--------------------------------------------------------------------
-
-
-join_successful_prompt(Config) ->
-    %% given
-    #{node := Node2} = RPCSpec2 = mim2(),
-    %% when
-    {_, OpCode} =
-        mongooseimctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
-    %% then
-    distributed_helper:verify_result(RPCSpec2, add),
-    ?eq(0, OpCode).
-
-join_successful_force(Config) ->
-    %% given
-    #{node := Node2} = RPCSpec2 = mim2(),
-    %% when
-    {_, OpCode} = mongooseimctl_force("join_cluster", [atom_to_list(Node2)], "--force", Config),
-    %% then
-    distributed_helper:verify_result(RPCSpec2, add),
-    ?eq(0, OpCode).
-
-leave_successful_prompt(Config) ->
-    %% given
-    Node2 = mim2(),
-    add_node_to_cluster(Node2, Config),
-    %% when
-    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
-    %% then
-    distributed_helper:verify_result(Node2, remove),
-    ?eq(0, OpCode).
-
-leave_successful_force(Config) ->
-    %% given
-    Node2 = mim2(),
-    add_node_to_cluster(Node2, Config),
-    %% when
-    {_, OpCode} = mongooseimctl_force("leave_cluster", [], "-f", Config),
-    %% then
-    distributed_helper:verify_result(Node2, remove),
-    ?eq(0, OpCode).
-
-join_unsuccessful(Config) ->
-    %% given
-    Node2 = mim2(),
-    %% when
-    {_, OpCode} = mongooseimctl_interactive("join_cluster", [], "no\n", Config),
-    %% then
-    distributed_helper:verify_result(Node2, remove),
-    ?ne(0, OpCode).
-
-leave_unsuccessful(Config) ->
-    %% given
-    Node2 = mim(),
-    add_node_to_cluster(Node2, Config),
-    %% when
-    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "no\n", Config),
-    %% then
-    distributed_helper:verify_result(Node2, add),
-    ?ne(0, OpCode).
-
-leave_but_no_cluster(Config) ->
-    %% given
-    Node2 = mim2(),
-    %% when
-    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
-    %% then
-    distributed_helper:verify_result(Node2, remove),
-    ?ne(0, OpCode).
-
-join_twice(Config) ->
-    %% given
-    #{node := Node2} = RPCSpec2 = mim2(),
-    %% when
-    {_, OpCode1} = mongooseimctl_interactive("join_cluster",
-                                             [atom_to_list(Node2)], "yes\n", Config),
-    {_, OpCode2} = mongooseimctl_interactive("join_cluster",
-                                             [atom_to_list(Node2)], "yes\n", Config),
-    %% then
-    distributed_helper:verify_result(RPCSpec2, add),
-    ?eq(0, OpCode1),
-    ?ne(0, OpCode2).
 
 %% This function checks that it's ok to call mongoose_cluster:join/1 twice
 join_twice_using_rpc(_Config) ->
@@ -338,98 +194,6 @@ leave_using_rpc(Config) ->
     distributed_helper:verify_result(Node2, remove),
     ok.
 
-leave_twice(Config) ->
-    %% given
-    Node2 = mim2(),
-    add_node_to_cluster(Node2, Config),
-    %% when
-    {_, OpCode1} = mongooseimctl_force("leave_cluster", [], "--force", Config),
-    {_, OpCode2} = mongooseimctl_force("leave_cluster", [], "-f", Config),
-    %% then
-    distributed_helper:verify_result(Node2, remove),
-    ?eq(0, OpCode1),
-    ?ne(0, OpCode2).
-
-cluster_of_three(Config) ->
-    %% given
-    #{node := ClusterMemberNodeName} = ClusterMember = mim(),
-    #{node := Node2Nodename} = Node2 = mim2(),
-    #{node := Node3Nodename} = Node3 = mim3(),
-    %% when
-    {_, OpCode1} = mongooseimctl_force(Node2Nodename, "join_cluster",
-                                       [atom_to_list(ClusterMemberNodeName)], "-f", Config),
-    {_, OpCode2} = mongooseimctl_force(Node3Nodename, "join_cluster",
-                                       [atom_to_list(ClusterMemberNodeName)], "-f", Config),
-    %% then
-    ?eq(0, OpCode1),
-    ?eq(0, OpCode2),
-    nodes_clustered(Node2, ClusterMember, true),
-    nodes_clustered(Node3, ClusterMember, true),
-    nodes_clustered(Node2, Node3, true).
-
-leave_the_three(Config) ->
-    %% given
-    Timeout = timer:seconds(60),
-    #{node := ClusterMemberNode} = ClusterMember = mim(),
-    #{node := Node2Nodename} = Node2 = mim2(),
-    #{node := Node3Nodename} = Node3 = mim3(),
-    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [ClusterMemberNode]),
-    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [ClusterMemberNode]),
-    %% when
-    {_, OpCode1} = mongooseimctl_interactive(Node2Nodename, "leave_cluster", [], "yes\n", Config),
-    nodes_clustered(Node2, ClusterMember, false),
-    nodes_clustered(Node3, ClusterMember, true),
-    {_, OpCode2} = mongooseimctl_interactive(Node3Nodename, "leave_cluster", [], "yes\n", Config),
-    %% then
-    nodes_clustered(Node3, ClusterMember, false),
-    nodes_clustered(Node2, Node3, false),
-    ?eq(0, OpCode1),
-    ?eq(0, OpCode2).
-
-remove_dead_from_cluster(Config) ->
-    % given
-    Timeout = timer:seconds(60),
-    #{node := Node1Nodename} = Node1 = mim(),
-    #{node := _Node2Nodename} = Node2 = mim2(),
-    #{node := Node3Nodename} = Node3 = mim3(),
-    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
-    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
-    %% when
-    distributed_helper:stop_node(Node3Nodename, Config),
-    {_, OpCode1} = mongooseimctl_interactive(Node1, "remove_from_cluster",
-                                             [atom_to_list(Node3Nodename)], "yes\n", Config),
-    %% then
-    ?eq(0, OpCode1),
-    % node is down hence its not in mnesia cluster
-    have_node_in_mnesia(Node1, Node2, true),
-    have_node_in_mnesia(Node1, Node3, false),
-    have_node_in_mnesia(Node2, Node3, false),
-    % after node awakening nodes are clustered again
-    distributed_helper:start_node(Node3Nodename, Config),
-    have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node2, Node3, true).
-
-remove_alive_from_cluster(Config) ->
-    % given
-    Timeout = timer:seconds(60),
-    #{node := Node1Name} = Node1 = mim(),
-    #{node := Node2Name} = Node2 = mim2(),
-    Node3 = mim3(),
-    ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
-    ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
-    %% when
-    %% Node2 is still running
-    {_, OpCode1} = mongooseimctl_force(Node1Name, "remove_from_cluster",
-                                       [atom_to_list(Node2Name)], "-f", Config),
-    %% then
-    ?eq(0, OpCode1),
-    % node is down hence its not in mnesia cluster
-    have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node1, Node2, false),
-    have_node_in_mnesia(Node3, Node2, false).
-
-
-
 %% Helpers
 mongooseimctl_interactive(C, A, R, Config) ->
     #{node := DefaultNode} = mim(),
@@ -445,12 +209,6 @@ normalize_args(Args) ->
                   (Arg) when is_list(Arg) ->
                       Arg
               end, Args).
-
-mongooseimctl_force(Command, Args, ForceFlag, Config) ->
-    #{node := DefaultNode} = mim(),
-    mongooseimctl_force(DefaultNode, Command, Args, ForceFlag, Config).
-mongooseimctl_force(Node, Cmd, Args, ForceFlag, Config) ->
-    mongooseimctl_helper:mongooseimctl(Node, Cmd, [ForceFlag | Args], Config).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
