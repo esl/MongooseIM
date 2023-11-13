@@ -18,7 +18,6 @@ options("host_types") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -80,9 +79,6 @@ options("miscellaneous") ->
                 transport => #{num_acceptors => 10, max_connections => 1024}
                })]},
      {loglevel, warning},
-     {mongooseimctl_access_commands,
-      #{local => #{commands => [join_cluster],
-                   argument_restrictions => #{node => "mongooseim@prime"}}}},
      {outgoing_pools, []},
      {rdbms_server_type, mssql},
      {registration_timeout, 600},
@@ -119,7 +115,6 @@ options("modules") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -240,7 +235,6 @@ options("mongooseim-pgsql") ->
       ]},
      {loglevel, warning},
      {max_fsm_queue, 1000},
-     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
       lists:map(
         fun pool_config/1,
@@ -260,10 +254,7 @@ options("mongooseim-pgsql") ->
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
-      #{service_admin_extra =>
-            #{submods => [node, accounts, sessions, vcard, gdpr, upload,
-                          roster, last, private, stanza, stats]},
-        service_mongoose_system_metrics =>
+      #{service_mongoose_system_metrics =>
             #{initial_report => 300000,
               periodic_report => 10800000}}},
      {sm_backend, mnesia},
@@ -322,7 +313,6 @@ options("outgoing_pools") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, #{}},
      {outgoing_pools,
       lists:map(
         fun pool_config/1,
@@ -386,7 +376,6 @@ options("s2s_only") ->
      {language, <<"en">>},
      {listen, []},
      {loglevel, warning},
-     {mongooseimctl_access_commands, #{}},
      {outgoing_pools, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
@@ -1071,8 +1060,6 @@ extra_service_listener_config() ->
       conflict_behaviour => disconnect,
       connection_type => component}.
 
-default_config([general, mongooseimctl_access_commands, _Key]) ->
-    #{commands => all, argument_restrictions => #{}};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),
@@ -1258,9 +1245,6 @@ default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
       server_name_indication => default_config(P ++ [server_name_indication])};
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
     #{enabled => true, protocol => default};
-default_config([services, service_admin_extra]) ->
-    #{submods => [node, accounts, sessions, vcard, roster, last,
-                  private, stanza, stats, gdpr, upload, domain]};
 default_config([services, service_domain_db]) ->
     #{event_cleaning_interval => 1800,
       event_max_age => 7200,

@@ -77,6 +77,8 @@ all() ->
     ].
 
 groups() ->
+    %% **DON'T** make any of these groups parallel, because calling mongooseimctl
+    %% in parallel is broken!
     [
      {retrieve_personal_data, [], [
                                    retrieve_vcard,
@@ -174,7 +176,7 @@ init_per_suite(Config) ->
     #{node := MimNode} = distributed_helper:mim(),
     Config1 = [{{ejabberd_cwd, MimNode}, get_mim_cwd()} | dynamic_modules:save_modules(host_type(), Config)],
     muc_helper:load_muc(),
-    Config2 = graphql_helper:init_admin_handler(Config1),
+    Config2 = graphql_helper:init_admin_cli(Config1),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
@@ -1531,14 +1533,15 @@ retrieve_inbox_for_multiple_messages(Config) ->
 retrieve_logs(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-            User = escalus_client:username(Alice),
-            Domain = escalus_client:server(Alice),
+            User = string:to_lower(binary_to_list(escalus_client:username(Alice))),
+            Domain = string:to_lower(binary_to_list(escalus_client:server(Alice))),
             JID = string:to_upper(binary_to_list(escalus_client:short_jid(Alice))),
             #{node := MIM2NodeName} = MIM2Node = distributed_helper:mim2(),
             mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2NodeName]),
             mongoose_helper:successful_rpc(MIM2Node, error_logger, error_msg,
                                            ["event=disturbance_in_the_force, jid=~s", [JID]]),
-            Dir = request_and_unzip_personal_data(User, Domain, Config),
+            Dir = request_and_unzip_personal_data(list_to_binary(User), list_to_binary(Domain),
+                                                  Config),
             Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2NodeName) ++ ".txt"),
             {ok, Content} = file:read_file(Filename),
             {match, _} = re:run(Content, "disturbance_in_the_force")

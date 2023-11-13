@@ -83,3 +83,4 @@ fi
 
 echo "Stopping mongooseim via 'mongooseimctl stop'"
 mongooseimctl stop
+

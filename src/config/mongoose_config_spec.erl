@@ -189,9 +189,6 @@ general() ->
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    wrap = host_config},
-                 <<"mongooseimctl_access_commands">> => #section{
-                                                           items = #{default => ctl_access_rule()},
-                                                           wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
                                                 process = fun xmpp_router:expand_routing_modules/1,
@@ -220,21 +217,9 @@ general_defaults() ->
       <<"component_backend">> => mnesia,
       <<"s2s_backend">> => mnesia,
       <<"rdbms_server_type">> => generic,
-      <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
-
-ctl_access_rule() ->
-    #section{
-       items = #{<<"commands">> => #list{items = #option{type = atom,
-                                                         validate = non_empty}},
-                 <<"argument_restrictions">> =>
-                     #section{items = #{default => #option{type = string}}}
-                },
-       defaults = #{<<"commands">> => all,
-                    <<"argument_restrictions">> => #{}}
-      }.
 
 %% path: general.domain_certfile
 domain_cert() ->

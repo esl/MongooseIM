@@ -19,6 +19,11 @@
          check_password_hash/4,
          import_users/1]).
 
+-ignore_xref([ban_account/3,
+              check_account/2,
+              check_password/3,
+              check_password_hash/4]).
+
 -type register_result() :: {ok | exists | invalid_jid | cannot_register |
                             limit_per_domain_exceeded, iolist()}.
 

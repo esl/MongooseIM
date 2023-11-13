@@ -81,7 +81,6 @@ groups() ->
                             http_server_name,
                             rdbms_server_type,
                             route_subdomains,
-                            mongooseimctl_access_commands,
                             routing_modules,
                             replaced_wait_timeout,
                             hide_service_name,
@@ -230,8 +229,7 @@ groups() ->
                             mod_version,
                             modules_without_config,
                             incorrect_module]},
-     {services, [parallel], [service_admin_extra,
-                             service_domain_db,
+     {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]}
     ].
 
@@ -416,19 +414,6 @@ rdbms_server_type(_Config) ->
 route_subdomains(_Config) ->
     ?cfgh(route_subdomains, s2s, #{<<"general">> => #{<<"route_subdomains">> => <<"s2s">>}}),
     ?errh(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}}).
-
-mongooseimctl_access_commands(_Config) ->
-    ?cfg(mongooseimctl_access_commands, #{}, #{}), % default
-    P = [mongooseimctl_access_commands, local],
-    T = fun(Opts) ->
-                #{<<"general">> => #{<<"mongooseimctl_access_commands">> => #{<<"local">> => Opts}}}
-        end,
-    ?cfg(P, default_config([general, mongooseimctl_access_commands, local]), T(#{})),
-    ?cfg(P ++ [commands], [join_cluster], T(#{<<"commands">> => [<<"join_cluster">>]})),
-    ?cfg(P ++ [argument_restrictions], #{node => "mim1@host1"},
-         T(#{<<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}})),
-    ?err(T(#{<<"commands">> => [<<>>]})),
-    ?err(T(#{<<"argument_restrictions">> => #{<<"node">> => 1}})).
 
 routing_modules(_Config) ->
     ?cfg(routing_modules, mongoose_router:default_routing_modules(), #{}), % default
@@ -2856,15 +2841,6 @@ incorrect_module(_Config) ->
     ?errh(#{<<"modules">> => #{<<"mod_incorrect">> => #{}}}).
 
 %% Services
-
-service_admin_extra(_Config) ->
-    P = [services, service_admin_extra],
-    T = fun(Opts) -> #{<<"services">> => #{<<"service_admin_extra">> => Opts}} end,
-    ?cfg(P, default_config(P), T(#{})),
-    ?cfg(P ++ [submods], [node], T(#{<<"submods">> => [<<"node">>]})),
-    ?err(T(#{<<"submods">> => 1})),
-    ?err(T(#{<<"submods">> => [1]})),
-    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})).
 
 service_domain_db(_Config) ->
     P = [services, service_domain_db],

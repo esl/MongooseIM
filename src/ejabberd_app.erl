@@ -77,7 +77,6 @@ do_start() ->
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_listener:start(),
-    ejabberd_admin:start(),
     mongoose_metrics:init_mongooseim_metrics(),
     gen_hook:reload_hooks(),
     update_status_file(started),

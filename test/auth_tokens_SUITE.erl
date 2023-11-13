@@ -65,7 +65,6 @@ init_per_testcase(validity_period_test, Config) ->
     mock_rdbms_backend(),
     mock_mongoose_metrics(),
     mock_gen_iq_handler(),
-    mock_ejabberd_commands(),
     async_helper:start(Config, [{mongooseim_helper, start_link_loaded_hooks, []}]);
 
 init_per_testcase(revoked_token_is_not_valid, Config) ->
@@ -91,7 +90,6 @@ end_per_testcase(validity_period_test, C) ->
     meck:unload(mod_auth_token_backend),
     meck:unload(mongoose_metrics),
     meck:unload(gen_iq_handler),
-    meck:unload(ejabberd_commands),
     async_helper:stop_all(C),
     C;
 
@@ -253,10 +251,6 @@ mock_tested_backend() ->
                 fun (_, _) ->
                         receive {valid_seq_no, SeqNo} -> SeqNo end
                 end).
-
-mock_ejabberd_commands() ->
-    meck:new(ejabberd_commands, []),
-    meck:expect(ejabberd_commands, register_commands, fun (_) -> ok end).
 
 provision_token_example() ->
     {token,provision,

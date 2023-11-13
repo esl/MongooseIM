@@ -77,7 +77,10 @@
 -ignore_xref([get_user_rosters_length/2,
               item_to_xml/1,
               process_subscription_t/6,
-              transaction/2]).
+              transaction/2,
+              broadcast_item/3,
+              set_items/3
+              ]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

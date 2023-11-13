@@ -39,8 +39,6 @@
 %%% TODO: Update the guide
 %%% TODO: Mention this in the release notes
 %%% Note: the commands with several words use now the underline: _
-%%% It is still possible to call the commands with dash: -
-%%% but this is deprecated, and may be removed in a future version.
 
 
 -module(ejabberd_ctl).
@@ -154,7 +152,7 @@ process(["help" | Mode]) ->
             ?STATUS_USAGE;
         [_] ->
             print_usage(dual, MaxC, ShCode),
-            ?STATUS_SUCCESS
+            ?STATUS_USAGE
     end;
 process(Args) ->
     case mongoose_graphql_commands:process(Args) of
@@ -162,7 +160,7 @@ process(Args) ->
             handle_graphql_result(Result);
         #{status := error, reason := no_args} = Ctx ->
             print_usage(Ctx),
-            ?STATUS_ERROR;
+            ?STATUS_USAGE;
         #{status := error} = Ctx ->
             ?PRINT(error_message(Ctx) ++ "\n\n", []),
             print_usage(Ctx),
@@ -184,8 +182,6 @@ error_message(#{reason := {unknown_arg, ArgName}, command := Command}) ->
 error_message(#{reason := {invalid_arg_value, ArgName, ArgValue}, command := Command}) ->
     io_lib:format("Invalid value '~s' of argument '~s' for command '~s'",
                   [ArgValue, ArgName, Command]);
-error_message(#{reason := no_args, command := Command}) ->
-    io_lib:format("No arguments provided for command '~s'", [Command]);
 error_message(#{reason := {missing_args, MissingArgs}, command := Command}) ->
     io_lib:format("Missing mandatory arguments for command '~s': ~s",
                   [Command, ["'", lists:join("', '", MissingArgs), "'"]]).

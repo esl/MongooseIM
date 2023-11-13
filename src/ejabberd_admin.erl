@@ -26,8 +26,7 @@
 -module(ejabberd_admin).
 -author('mickael.remond@process-one.net').
 
--export([start/0, stop/0,
-         %% Server
+-export([%% Server
          status/0,
          %% Accounts
          register/3, register/2, unregister/2,
@@ -47,12 +46,6 @@
     stop/0, unregister/2]).
 
 -include("mongoose.hrl").
-
-start() ->
-    ok.
-
-stop() ->
-    ok.
 
 %%%
 %%% Commands
