@@ -24,7 +24,7 @@ ct:
 		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
 eunit:
-	@$(RUN) $(REBAR) eunit
+	@$(RUN) $(REBAR) eunit $(REBAR_EUNIT_EXTRA_ARGS)
 
 rel: certs configure.out rel/configure.vars.config
 	. ./configure.out && $(REBAR) as prod release

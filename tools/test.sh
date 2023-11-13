@@ -100,6 +100,9 @@ run_small_tests() {
 run_eunit_tests() {
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
+  if [ "$COVER_ENABLED" = true ]; then
+    export REBAR_EUNIT_EXTRA_ARGS="-c"
+  fi
   make eunit
   RESULT="$?"
   tools/print-dots.sh stop
