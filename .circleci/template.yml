@@ -953,7 +953,7 @@ workflows:
           context: mongooseim-org
           requires:
 
-            - otp_25_docker
+            - otp_26_docker
 #           - small_tests_25
 #           - ldap_mnesia_25
 #           - pgsql_mnesia_25
