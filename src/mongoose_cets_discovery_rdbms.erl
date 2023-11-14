@@ -3,19 +3,27 @@
 -behaviour(cets_discovery).
 -export([init/1, get_nodes/1]).
 
+%% these functions are exported for testing purposes only.
+-export([select/1, insert_new/4, update_existing/3, delete_node_from_db/2]).
+-ignore_xref([select/1, insert_new/4, update_existing/3, delete_node_from_db/2]).
+
 -include("mongoose_logger.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type opts() :: #{cluster_name => binary(), node_name_to_insert => binary(), last_query_info => map(),
-                  expire_time := non_neg_integer()}.
--type state() :: opts().
+-type opts() :: #{cluster_name := binary(), node_name_to_insert := binary(),
+                  last_query_info => map(), expire_time => non_neg_integer(),
+                  any() => any()}.
+
+-type state() :: #{cluster_name := binary(), node_name_to_insert := binary(),
+                   last_query_info := map(), expire_time := non_neg_integer()}.
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    maps:merge(defaults(), Opts).
+    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time],
+    maps:with(Keys, maps:merge(defaults(), Opts)).
 
 defaults() ->
     #{expire_time => 60 * 60 * 1, %% 1 hour in seconds
@@ -23,23 +31,20 @@ defaults() ->
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
-    try
-        case is_rdbms_running() of
-            true ->
-                try_register(ClusterName, Node, State);
-            false ->
-                skip
-        end
-    of
-        {Num, Nodes, Info} ->
-            mongoose_node_num:set_node_num(Num),
-            {{ok, Nodes}, State#{last_query_info => Info}};
-        skip ->
+    case is_rdbms_running() of
+        true ->
+            try try_register(ClusterName, Node, State) of
+                {Num, Nodes, Info} ->
+                    mongoose_node_num:set_node_num(Num),
+                    {{ok, [binary_to_atom(N) || N <- Nodes]},
+                     State#{last_query_info => Info}}
+            catch Class:Reason:Stacktrace ->
+                ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
+                             reason => Reason, stacktrace => Stacktrace}),
+                {{error, Reason}, State}
+            end;
+        false ->
             {{error, rdbms_not_running}, State}
-    catch Class:Reason:Stacktrace ->
-            ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
-                         reason => Reason, stacktrace => Stacktrace}),
-            {{error, Reason}, State}
     end.
 
 is_rdbms_running() ->
@@ -50,59 +55,55 @@ is_rdbms_running() ->
          false
     end.
 
-try_register(ClusterName, NodeBin, State) when is_binary(NodeBin), is_binary(ClusterName) ->
+try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterName) ->
     prepare(),
     Timestamp = timestamp(),
-    Node = binary_to_atom(NodeBin),
     {selected, Rows} = select(ClusterName),
-    Zipped = [{binary_to_atom(DbNodeBin), Num, TS} || {DbNodeBin, Num, TS} <- Rows],
-    {Nodes, Nums, _Timestamps} = lists:unzip3(Zipped),
+    {Nodes, Nums, _Timestamps} = lists:unzip3(Rows),
     AlreadyRegistered = lists:member(Node, Nodes),
     NodeNum =
         case AlreadyRegistered of
             true ->
-                 update_existing(ClusterName, NodeBin, Timestamp),
-                 {value, {_, Num, _TS}} = lists:keysearch(Node, 1, Zipped),
+                 update_existing(ClusterName, Node, Timestamp),
+                 {value, {_, Num, _TS}} = lists:keysearch(Node, 1, Rows),
                  Num;
             false ->
-                 Num = next_free_num(lists:usort(Nums)),
+                 Num = first_free_num(lists:usort(Nums)),
                  %% Could fail with duplicate node_num reason.
                  %% In this case just wait for the next get_nodes call.
-                 insert_new(ClusterName, NodeBin, Timestamp, Num),
-                 Num
+                 case insert_new(ClusterName, Node, Timestamp, Num) of
+                     {error, _} -> 0; %% return default node num
+                     {updated, 1} -> Num
+                 end
         end,
     RunCleaningResult = run_cleaning(ClusterName, Timestamp, Rows, State),
     %% This could be used for debugging
     Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp,
              node_num => Num, last_rows => Rows, run_cleaning_result => RunCleaningResult},
-    Nodes2 = skip_expired_nodes(Nodes, RunCleaningResult),
-    {NodeNum, Nodes2, Info}.
+    {NodeNum, skip_expired_nodes(Nodes, RunCleaningResult), Info}.
 
 skip_expired_nodes(Nodes, {removed, ExpiredNodes}) ->
-    Nodes -- ExpiredNodes;
-skip_expired_nodes(Nodes, {skip, _}) ->
-    Nodes.
+    (Nodes -- ExpiredNodes).
 
 run_cleaning(ClusterName, Timestamp, Rows, State) ->
-    Expired = [{DbNodeBin, Num, DbTS} || {DbNodeBin, Num, DbTS} <- Rows,
-               is_expired(DbTS, Timestamp, State)],
-    ExpiredNodes = [binary_to_atom(DbNodeBin) || {DbNodeBin, _Num, _TS} <- Expired],
-    case Expired of
-        [] ->
-            {skip, nothing_expired};
-        _ ->
-            [delete_node_from_db(ClusterName, DbNodeBin) || {DbNodeBin, _Num, _TS} <- Expired],
+    #{expire_time := ExpireTime, node_name_to_insert := CurrentNode} = State,
+    ExpiredNodes = [DbNode || {DbNode, _Num, DbTS} <- Rows,
+                              is_expired(DbTS, Timestamp, ExpireTime),
+                              DbNode =/= CurrentNode],
+    [delete_node_from_db(ClusterName, DbNode) || DbNode <- ExpiredNodes],
+    case ExpiredNodes of
+        [] -> ok;
+        [_ | _] ->
             ?LOG_WARNING(#{what => cets_expired_nodes,
                            text => <<"Expired nodes are detected in discovery_nodes table">>,
-                           expired_nodes => ExpiredNodes}),
-            {removed, ExpiredNodes}
-    end.
+                           expired_nodes => ExpiredNodes})
+    end,
+    {removed, ExpiredNodes}.
 
-is_expired(DbTS, Timestamp, #{expire_time := ExpireTime}) when is_integer(DbTS) ->
+is_expired(DbTS, Timestamp, ExpireTime) when is_integer(Timestamp),
+                                             is_integer(ExpireTime),
+                                             is_integer(DbTS) ->
     (Timestamp - DbTS) > ExpireTime. %% compare seconds
-
-delete_node_from_db(ClusterName, Node) ->
-    mongoose_rdbms:execute_successfully(global, cets_delete_node_from_db, [ClusterName, Node]).
 
 prepare() ->
     T = discovery_nodes,
@@ -131,11 +132,14 @@ insert_new(ClusterName, Node, Timestamp, Num) ->
 update_existing() ->
     <<"UPDATE discovery_nodes SET updated_timestamp = ? WHERE cluster_name = ? AND node_name = ?">>.
 
+update_existing(ClusterName, Node, Timestamp) ->
+    mongoose_rdbms:execute(global, cets_disco_update_existing, [Timestamp, ClusterName, Node]).
+
 delete_node_from_db() ->
     <<"DELETE FROM discovery_nodes WHERE cluster_name = ? AND node_name = ?">>.
 
-update_existing(ClusterName, Node, Timestamp) ->
-    mongoose_rdbms:execute(global, cets_disco_update_existing, [Timestamp, ClusterName, Node]).
+delete_node_from_db(ClusterName, Node) ->
+    mongoose_rdbms:execute_successfully(global, cets_delete_node_from_db, [ClusterName, Node]).
 
 %% in seconds
 timestamp() ->
@@ -144,19 +148,17 @@ timestamp() ->
     mongoose_rdbms_timestamp:select().
 
 %% Returns a next free node id based on the currently registered ids
-next_free_num([]) ->
-    0;
-next_free_num([H | T = [E | _]]) when ((H + 1) =:= E) ->
-    %% Sequential, ignore H
-    next_free_num(T);
-next_free_num([H | _]) ->
-    H + 1.
+first_free_num(Nums) ->
+    %% 0 is default node_num, so lets start from 1
+    [FirstFreeNum | _] = lists:seq(1, length(Nums)+1) -- Nums,
+    FirstFreeNum.
 
 -ifdef(TEST).
 
 jid_to_opt_binary_test_() ->
-    [?_assertEqual(0, next_free_num([])),
-     ?_assertEqual(3, next_free_num([1, 2, 5])),
-     ?_assertEqual(3, next_free_num([1, 2]))].
+    [?_assertEqual(1, first_free_num([])),
+     ?_assertEqual(3, first_free_num([1, 2, 5])),
+     ?_assertEqual(1, first_free_num([2, 5])),
+     ?_assertEqual(3, first_free_num([1, 2]))].
 
 -endif.
