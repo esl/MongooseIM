@@ -178,7 +178,7 @@ disco_get_nodes(Node, State) ->
     NewState.
 
 log_disco_request(disco_init, Node, #{cluster_name := CN} = Opts, State) ->
-    ct:pal("[0] disco_init(~p,~n" ++
+    ct:log("[0] disco_init(~p,~n" ++
            "               ~p) =~n" ++
            "        ~p",
            [Node, Opts, State]),
@@ -188,7 +188,7 @@ log_disco_request(disco_get_nodes, Node, #{cluster_name := CN} = OldState, NewSt
             undefined -> 1;
             Int when is_integer(Int) -> Int
         end,
-    ct:pal("[~p] disco_get_nodes(~p,~n" ++
+    ct:log("[~p] disco_get_nodes(~p,~n" ++
            "                    ~p) =~n" ++
            "        ~p",
            [N, Node, OldState, NewState]),
@@ -218,20 +218,20 @@ random_cluster_name(CaseName) ->
 
 insert_new(CN, BinNode, TS, NodeNum) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, [CN, BinNode, TS, NodeNum]),
-    ct:pal("insert_new(~p, ~p, ~p, ~p) = ~p", [CN, BinNode, TS, NodeNum, Ret]),
+    ct:log("insert_new(~p, ~p, ~p, ~p) = ~p", [CN, BinNode, TS, NodeNum, Ret]),
     Ret.
 
 select(CN) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, select, [CN]),
-    ct:pal("select(~p) = ~p", [CN, Ret]),
+    ct:log("select(~p) = ~p", [CN, Ret]),
     Ret.
 
 update_existing(CN, BinNode, TS) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, update_existing, [CN, BinNode, TS]),
-    ct:pal("select(~p, ~p, ~p) = ~p", [CN, BinNode, TS, Ret]),
+    ct:log("select(~p, ~p, ~p) = ~p", [CN, BinNode, TS, Ret]),
     Ret.
 
 delete_node_from_db(CN, BinNode) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, [CN, BinNode]),
-    ct:pal("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
+    ct:log("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
     Ret.
