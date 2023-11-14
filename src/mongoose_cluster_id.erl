@@ -29,6 +29,7 @@ start() ->
     Backend = which_backend_available(),
     IntBackend = which_volatile_backend_available(),
     maybe_prepare_queries(Backend),
+    wait_for_any_backend(Backend, IntBackend),
     CachedRes = get_cached_cluster_id(IntBackend),
     BackendRes = get_backend_cluster_id(),
     case {CachedRes, BackendRes} of
@@ -46,6 +47,44 @@ start() ->
                          cached_id => CachedID, backend_id => BackendID}),
             {error, conflict}
     end.
+
+
+%% If RDBMS is available before CETS - it is enough for us to continue
+%% the starting procedure
+wait_for_any_backend(Backend, IntBackend) ->
+    Alias = erlang:alias([reply]),
+    [wait_for_backend_promise(B, Alias) || B <- lists:sort([Backend, IntBackend])],
+    wait_for_first_reply(Alias).
+
+wait_for_first_reply(Alias) ->
+    receive
+        {ready, Alias} ->
+            ok
+    end.
+
+wait_for_backend_promise(mnesia, Alias) ->
+    Alias ! {ready, Alias};
+wait_for_backend_promise(cets, Alias) ->
+    spawn(fun() ->
+            %% We have to do it, because we want to read from across the cluster
+            %% in the start/0 function.
+            ok = cets_discovery:wait_for_ready(mongoose_cets_discovery, infinity),
+            Alias ! {ready, Alias}
+        end);
+wait_for_backend_promise(rdbms, Alias) ->
+    spawn(fun() ->
+            wait_for_rdbms(),
+            Alias ! {ready, Alias}
+        end).
+
+wait_for_rdbms() ->
+    case get_backend_cluster_id(rdbms) of
+        {ok, _} ->
+            ok;
+        _ ->
+            timer:sleep(100),
+            wait_for_rdbms()
+     end.
 
 %% Get cached version
 -spec get_cached_cluster_id() -> maybe_cluster_id().
@@ -102,10 +141,7 @@ init_cache(mnesia) ->
                         ]);
 init_cache(cets) ->
     cets:start(cets_cluster_id, #{}),
-    cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id),
-    %% We have to do it, because we want to read from across the cluster
-    %% in the start/0 function.
-    ok = cets_discovery:wait_for_ready(mongoose_cets_discovery, infinity).
+    cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id).
 
 -spec maybe_prepare_queries(mongoose_backend()) -> ok.
 maybe_prepare_queries(mnesia) -> ok;
