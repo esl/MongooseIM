@@ -22,6 +22,7 @@
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
+    mongoose_node_address:init(),
     Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time],
     maps:with(Keys, maps:merge(defaults(), Opts)).
 
@@ -61,6 +62,9 @@ try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterNa
     {selected, Rows} = select(ClusterName),
     Nodes = [element(1, Row) || Row <- Rows],
     Nums = [element(2, Row) || Row <- Rows],
+    AddressPairs = [{binary_to_atom(DbNodeBin), Address}
+                    || {DbNodeBin, _Num, Address, _TS} <- Rows, Address =/= <<>>],
+    mongoose_node_address:remember_addresses(AddressPairs),
     AlreadyRegistered = lists:member(Node, Nodes),
     Address = os:getenv("POD_IP", ""),
     NodeNum =
