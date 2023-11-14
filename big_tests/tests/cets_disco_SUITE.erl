@@ -24,7 +24,12 @@ rdbms_cases() ->
     [rdbms_backend,
      rdbms_backend_supports_auto_cleaning,
      rdbms_backend_node_doesnt_remove_itself,
-     rdbms_backend_db_queries].
+     rdbms_backend_db_queries,
+     rdbms_backend_publishes_node_ip,
+     no_record_for_node,
+     no_ip_in_db,
+     cannot_connect_to_epmd,
+     address_please].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -34,6 +39,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_group(rdbms, Config) ->
+    start_node_address_server(mim()),
+    start_node_address_server(mim2()),
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
@@ -42,6 +49,10 @@ init_per_group(rdbms, Config) ->
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(rdbms, Config) ->
+    stop_node_address_server(mim()),
+    stop_node_address_server(mim2()),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -163,6 +174,47 @@ rdbms_backend_db_queries(_Config) ->
     ?assertEqual({updated, 1}, delete_node_from_db(CN, <<"test1">>)),
     ?assertEqual({selected, [{<<"test2">>, 2, <<>>, TS}]}, select(CN)).
 
+rdbms_backend_publishes_node_ip(_Config) ->
+    %% get_pairs would return only real available nodes, so use the real node names
+    Node1b = atom_to_binary(maps:get(node, mim())),
+    Node2b = atom_to_binary(maps:get(node, mim2())),
+    CN = random_cluster_name(?FUNCTION_NAME),
+    Opts1 = #{cluster_name => CN, node_name_to_insert => Node1b,
+              node_ip_binary => <<"127.0.0.1">>},
+    Opts2 = #{cluster_name => CN, node_name_to_insert => Node2b,
+              node_ip_binary => <<"127.0.0.1">>},
+    State1 = disco_init(mim(), Opts1),
+    State2 = disco_init(mim2(), Opts2),
+    {{ok, _Nodes1_2}, State1_2} = disco_get_nodes(mim(), State1),
+    {{ok, _Nodes2_2}, State2_2} = disco_get_nodes(mim2(), State2),
+    {{ok, _Nodes1_3}, State1_3} = disco_get_nodes(mim(), State1_2),
+    {{ok, _Nodes2_3}, State2_3} = disco_get_nodes(mim2(), State2_2),
+    {ok, {127, 0, 0, 1}} = match_node_name(mim2(), State2_3, Node1b),
+    {ok, {127, 0, 0, 1}} = match_node_name(mim(), State1_3, Node2b).
+
+no_record_for_node(_Config) ->
+    Node = <<"mongoose@badhost">>,
+    BackState = #{address_pairs => #{}},
+    {error, {no_record_for_node, Node}} = match_node_name(mim(), BackState, Node),
+    ok.
+
+no_ip_in_db(_Config) ->
+    Node = <<"mongoose@noiphost">>,
+    BackState = #{address_pairs => #{Node => <<>>}},
+    {error, {no_ip_in_db, Node}} = match_node_name(mim(), BackState, Node),
+    ok.
+
+cannot_connect_to_epmd(_Config) ->
+    Node = <<"mongoose@noepmdhost">>,
+    %% IP from a test range
+    BackState = #{address_pairs => #{Node => <<"192.0.2.1">>}},
+    {error, {cannot_connect_to_epmd, Node, {192, 0, 2, 1}}} = match_node_name(mim(), BackState, Node),
+    ok.
+
+address_please(_Config) ->
+    {error, nxdomain} =
+        rpc(mim(), mongoose_epmd, address_please, ["mongooseim", "badbadhost", inet]).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -176,6 +228,9 @@ disco_get_nodes(Node, State) ->
     NewState = rpc(Node, mongoose_cets_discovery_rdbms, get_nodes, [State]),
     log_disco_request(?FUNCTION_NAME, Node, State, NewState),
     NewState.
+
+match_node_name(Node, SysInfo, NodeToLookup) ->
+    rpc(Node, mongoose_epmd, match_node_name, [SysInfo, NodeToLookup]).
 
 log_disco_request(disco_init, Node, #{cluster_name := CN} = Opts, State) ->
     ct:log("[0] disco_init(~p,~n" ++
@@ -235,3 +290,11 @@ delete_node_from_db(CN, BinNode) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, [CN, BinNode]),
     ct:log("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
     Ret.
+
+start_node_address_server(Node) ->
+    MFA = {mongoose_node_address, start_link, []},
+    ChildSpec = #{id => mongoose_node_address, start => MFA, restart => temporary},
+    rpc(Node, supervisor, start_child, [ejabberd_sup, ChildSpec]).
+
+stop_node_address_server(Node) ->
+    rpc(Node, supervisor, terminate_child, [ejabberd_sup, mongoose_node_address]).

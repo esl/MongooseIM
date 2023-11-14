@@ -15,29 +15,34 @@
 
 -type opts() :: #{cluster_name := binary(), node_name_to_insert := binary(),
                   last_query_info => map(), expire_time => non_neg_integer(),
+                  node_ip_binary => binary(),
                   any() => any()}.
 
 -type state() :: #{cluster_name := binary(), node_name_to_insert := binary(),
-                   last_query_info := map(), expire_time := non_neg_integer()}.
+                   last_query_info := map(), expire_time := non_neg_integer(),
+                   node_ip_binary := binary(), address_pairs := #{binary() => binary()}}.
 
 -spec init(opts()) -> state().
-init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time],
+init(Opts = #{cluster_name := ClusterName, node_name_to_insert := Node})
+       when is_binary(ClusterName), is_binary(Node) ->
+    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time, node_ip_binary],
     maps:with(Keys, maps:merge(defaults(), Opts)).
 
 defaults() ->
     #{expire_time => 60 * 60 * 1, %% 1 hour in seconds
-      last_query_info => #{}}.
+      last_query_info => #{},
+      node_ip_binary => <<>>,
+      address_pairs => #{}}.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
     case is_rdbms_running() of
         true ->
             try try_register(ClusterName, Node, State) of
-                {Num, Nodes, Info} ->
+                {Num, Nodes, Info, AddrPairs} ->
                     mongoose_node_num:set_node_num(Num),
                     {{ok, [binary_to_atom(N) || N <- Nodes]},
-                     State#{last_query_info => Info}}
+                     State#{last_query_info => Info, address_pairs => AddrPairs}}
             catch Class:Reason:Stacktrace ->
                 ?LOG_ERROR(#{what => discovery_failed_select, class => Class,
                              reason => Reason, stacktrace => Stacktrace}),
@@ -55,14 +60,16 @@ is_rdbms_running() ->
          false
     end.
 
-try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterName) ->
+try_register(ClusterName, Node, State = #{node_ip_binary := Address})
+    when is_binary(Node), is_binary(ClusterName) ->
     prepare(),
     Timestamp = timestamp(),
     {selected, Rows} = select(ClusterName),
     Nodes = [element(1, Row) || Row <- Rows],
     Nums = [element(2, Row) || Row <- Rows],
+    Addresses = [element(3, Row) || Row <- Rows],
+    AddrPairs = maps:from_list(lists:zip(Nodes, Addresses)),
     AlreadyRegistered = lists:member(Node, Nodes),
-    Address = os:getenv("MIM_NODE_IP", ""),
     NodeNum =
         case AlreadyRegistered of
             true ->
@@ -83,7 +90,7 @@ try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterNa
     Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp,
              address => Address,
              node_num => Num, last_rows => Rows, run_cleaning_result => RunCleaningResult},
-    {NodeNum, skip_expired_nodes(Nodes, RunCleaningResult), Info}.
+    {NodeNum, skip_expired_nodes(Nodes, RunCleaningResult), Info, AddrPairs}.
 
 skip_expired_nodes(Nodes, {removed, ExpiredNodes}) ->
     (Nodes -- ExpiredNodes).
