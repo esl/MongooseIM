@@ -26,6 +26,7 @@
 -module(mod_muc).
 -author('alexey@process-one.net').
 -xep([{xep, 45}, {version, "1.34.5"}]).
+-xep([{xep, 249}, {version, "1.2"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -937,7 +938,7 @@ identity(Lang) ->
       name => translate:translate(Lang, <<"Chatrooms">>)}.
 
 features() ->
-    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].
+    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
 
 %% Disco for rooms
 -spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
