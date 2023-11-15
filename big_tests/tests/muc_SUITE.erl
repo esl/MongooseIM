@@ -2669,6 +2669,9 @@ change_availability_status(ConfigIn) ->
 
 
 % Direct Invitations (example 1 from XEP-0249)
+% This test only checks if the server routes properly such invitation.
+% There is no server-side logic for this XEP, but we want to advertise
+% that clients which supports this can work with MIM in such way.
 
 direct_invite(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -2681,7 +2684,9 @@ direct_invite(ConfigIn) ->
         is_direct_invitation(escalus:wait_for_stanza(Bob)),
         is_direct_invitation(escalus:wait_for_stanza(Kate)),
         escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), nick(Kate))),
-        escalus:wait_for_stanzas(Kate, 2)
+        [S1, S2] = escalus:wait_for_stanzas(Kate, 2),
+        is_presence_with_affiliation(S1, <<"owner">>),
+        is_presence_with_affiliation(S2, <<"none">>)
     end).
 
 %Example 56-59
