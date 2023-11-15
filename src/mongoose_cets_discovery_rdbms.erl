@@ -63,10 +63,12 @@ try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterNa
     Nodes = [element(1, Row) || Row <- Rows],
     Nums = [element(2, Row) || Row <- Rows],
     AddressPairs = [{binary_to_atom(DbNodeBin), Address}
-                    || {DbNodeBin, _Num, Address, _TS} <- Rows, Address =/= <<>>],
-    mongoose_node_address:remember_addresses(AddressPairs),
+                    || {DbNodeBin, _Num, Address, _TS} <- Rows],
+    Address = list_to_binary(os:getenv("POD_IP", "")),
+    %% Ignore IP in the DB for our own node (it could be from the previous container).
+    AddressPairs2 = [{Node, Address} | lists:delete(Node, AddressPairs)],
+    mongoose_node_address:remember_addresses(AddressPairs2),
     AlreadyRegistered = lists:member(Node, Nodes),
-    Address = os:getenv("POD_IP", ""),
     NodeNum =
         case AlreadyRegistered of
             true ->
