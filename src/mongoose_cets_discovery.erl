@@ -39,7 +39,11 @@ supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName, wait_fo
         {cets_discovery,
           {?MODULE, start_link, [DiscoOpts]},
           permanent, infinity, supervisor, [cets_discovery]},
-    [CetsDisco].
+    Addr =
+        {mongoose_node_address,
+          {mongoose_node_address, start_link, []},
+          permanent, infinity, supervisor, [mongoose_node_address]},
+    [CetsDisco, Addr].
 
 disco_backend_to_module(rdbms) -> mongoose_cets_discovery_rdbms;
 disco_backend_to_module(file) -> cets_discovery_file.
