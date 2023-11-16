@@ -131,9 +131,9 @@ group_to_modules(mam_removal_incremental, _Config) ->
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
 group_to_modules(muc_light_removal, _Config) ->
     [{mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
-group_to_modules(muc_removal, Config) ->
+group_to_modules(muc_removal, _Config) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
-    OnlineBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+    OnlineBackend = ct_helper:get_internal_database(),
     Opts = #{backend => rdbms, online_backend => OnlineBackend, host => MucHost},
     [{mod_muc, muc_helper:make_opts(Opts)}];
 group_to_modules(inbox_removal, _Config) ->

@@ -153,8 +153,8 @@ end_per_testcase(CaseName, Config) ->
 
 required_modules(without_bosh, _Config) ->
     [{mod_bosh, stopped}];
-required_modules(GroupName, Config) ->
-    Backend = mongoose_helper:mnesia_or_cets_backend(Config),
+required_modules(GroupName, _Config) ->
+    Backend = ct_helper:get_internal_database(),
     ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
     [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
 

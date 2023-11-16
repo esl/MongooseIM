@@ -14,8 +14,8 @@
 ns() ->
     ?NS_SASL_2.
 
-load_all_sasl2_modules(HostType, Config) ->
-    MemBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+load_all_sasl2_modules(HostType, _Config) ->
+    MemBackend = ct_helper:get_internal_database(),
     SMOpts = #{ack_freq => never, backend => MemBackend},
     Modules = [{mod_bind2, default_mod_config(mod_bind2)},
                {mod_sasl2, default_mod_config(mod_sasl2)},

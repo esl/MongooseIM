@@ -365,20 +365,20 @@ mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend, _Config) 
                                         pm => #{archive_groupchats => true},
                                         muc => #{host => HostPattern}})},
      {mod_muc_light, mod_config(mod_muc_light, MucLightOpts)}];
-mam_required_modules(CN, Backend, Config) when CN =:= retrieve_mam_muc_private_msg;
+mam_required_modules(CN, Backend, _Config) when CN =:= retrieve_mam_muc_private_msg;
                                                CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     MucOpts = #{host => HostPattern,
-                online_backend => mongoose_helper:mnesia_or_cets_backend(Config),
+                online_backend => ct_helper:get_internal_database(),
                 backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
                                         pm => #{},
                                         muc => #{host => HostPattern}})},
      {mod_muc, muc_helper:make_opts(MucOpts)}];
-mam_required_modules(retrieve_mam_muc_store_pm, Backend, Config) ->
+mam_required_modules(retrieve_mam_muc_store_pm, Backend, _Config) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     MucOpts = #{host => HostPattern,
-                online_backend => mongoose_helper:mnesia_or_cets_backend(Config),
+                online_backend => ct_helper:get_internal_database(),
                 backend => mongoose_helper:mnesia_or_rdbms_backend()},
     [{mod_mam, mam_helper:config_opts(#{backend => Backend,
                                         pm => #{archive_groupchats => true},

@@ -213,10 +213,10 @@ system_metrics_are_reported_to_a_json_file(_Config) ->
     {ok, File} = rpc(mim(), file, read_file, [ReportFilePath]),
     jiffy:decode(File).
 
-module_opts_are_reported(Config) ->
+module_opts_are_reported(_Config) ->
     mongoose_helper:wait_until(fun are_modules_reported/0, true),
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    MemBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+    MemBackend = ct_helper:get_internal_database(),
     check_module_backend(mod_bosh, MemBackend),
     check_module_backend(mod_event_pusher, push),
     check_module_backend(mod_event_pusher_push, Backend),
@@ -337,9 +337,9 @@ required_modules(CaseName, Config) ->
     lists:filter(fun({Module, _Opts}) -> is_module_supported(Module) end,
                  modules_to_test(CaseName, Config)).
 
-modules_to_test(module_opts_are_reported, Config) ->
+modules_to_test(module_opts_are_reported, _Config) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    MemBackend = mongoose_helper:mnesia_or_cets_backend(Config),
+    MemBackend = ct_helper:get_internal_database(),
     [required_module(mod_bosh, #{backend => MemBackend}),
      required_module(mod_event_pusher,
                      #{push => config([modules, mod_event_pusher, push], #{backend => Backend})}),
