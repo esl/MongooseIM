@@ -41,7 +41,7 @@ get_sessions() ->
 node_cleanup(Node) ->
     Guard = {'==', {node, '$1'}, Node},
     R = {'_', '_', '$1'},
-    cets:sync(?TABLE),
+    cets:ping_all(?TABLE),
     %% We don't need to replicate deletes
     %% We remove the local content here
     ets:select_delete(?TABLE, [{R, [Guard], [true]}]),
