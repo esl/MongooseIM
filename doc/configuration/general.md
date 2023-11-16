@@ -86,38 +86,7 @@ When using MSSQL or PostgreSQL databases, this option allows MongooseIM to optim
 
 ## Access management
 
-User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections. Here you can find some additional options.
-
-### `general.mongooseimctl_access_commands`
-
-!!! Warning
-    This option is deprecated. The commands are still supported, but they **will be removed** soon.
-    You should use the new GraphQL-based command line interface instead.
-
-* **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
-    * `commands`: optional, a list of strings representing the allowed commands. When not specified, all commands are allowed.
-    * `argument_restrictions`: optional, a table whose keys are the argument names, and the values are strings representing the allowed values. When not specified, there are no restrictions.
-* **Default:** not set
-
-By default, all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for a specific access rule. When the rule returns the value `"allow"`, the user is permitted to use the specified commands with the optional restrictions.
-
-**Example 1.** Allow administrators to execute all commands without any restrictions:
-
-```toml
-  [general.mongooseimctl_access_commands.admin]
-```
-
-The `admin` rule needs to be defined in the `access` section.
-
-**Example 2.** Allow local users to execute the `join_cluster` command, but only if the `node` argument is equal to `mongooseim@prime`:
-
-```toml
-  [general.mongooseimctl_access_commands.local]
-    commands = ["join_cluster"]
-    argument_restrictions.node = "mongooseim@prime"
-```
-
-The `local` rule needs to be defined in the `access` section.
+User access rules are configured mainly in the [`acl`](acl.md) and [`access`](access.md) sections.
 
 ## Security
 
