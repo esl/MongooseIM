@@ -95,9 +95,8 @@ open({_, _, _, _, _, _, _, _} = IP, Timeout) ->
 %% reachable first) or by connect_all feature in the global module of OTP.
 lookup(Node) ->
     Start = os:system_time(millisecond),
-    Timeout = 5000,
-    Sleep = 500,
-    wait_for_registry_to_be_ready(),
+    Timeout = 3000,
+    Sleep = 300,
     lookup_loop(Node, Start, Timeout, Sleep).
 
 %% We have to check that we could use the IP
