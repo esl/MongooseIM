@@ -31,7 +31,7 @@ init(_Opts) ->
 handle_call(wait_for_registry_to_be_ready, _From, State = #{waiting_for_nodes := []}) ->
     {reply, ok, State};
 handle_call(wait_for_registry_to_be_ready, From,
-            State = #{waiting_for_nodes := [], calls_waiting_for_ready := Calls}) ->
+            State = #{calls_waiting_for_ready := Calls}) ->
     %% We would reply later
     {noreply, State#{calls_waiting_for_ready := [From | Calls]}};
 handle_call(Msg, From, State) ->
