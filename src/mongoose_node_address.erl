@@ -142,7 +142,10 @@ maybe_retry(Node, Start, Timeout, Sleep, Reason) ->
 %% - nodes would tell us nodes they know (and actually connected to)
 %%   after nodeup message
 wait_for_registry_to_be_ready() ->
-    gen_server:call(?MODULE, wait_for_registry_to_be_ready).
+    cets_long:run_tracked(#{task => wait_for_registry_to_be_ready},
+        fun() ->
+            gen_server:call(?MODULE, wait_for_registry_to_be_ready, infinity)
+        end).
 
 %% There is a chance nodeup could come from a non-mongooseim node
 handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
