@@ -53,8 +53,11 @@ start() ->
 %% the starting procedure
 wait_for_any_backend(Backend, IntBackend) ->
     Alias = erlang:alias([reply]),
-    [wait_for_backend_promise(B, Alias) || B <- lists:sort([Backend, IntBackend])],
-    wait_for_first_reply(Alias).
+    Pids = lists:append([wait_for_backend_promise(B, Alias) || B <- lists:sort([Backend, IntBackend])]),
+    wait_for_first_reply(Alias),
+    %% Interrupt other waiting calls to reduce the logging noise
+    [erlang:exit(Pid, normal) || Pid <- Pids],
+    ok.
 
 wait_for_first_reply(Alias) ->
     receive
@@ -63,19 +66,20 @@ wait_for_first_reply(Alias) ->
     end.
 
 wait_for_backend_promise(mnesia, Alias) ->
-    Alias ! {ready, Alias};
+    Alias ! {ready, Alias},
+    [];
 wait_for_backend_promise(cets, Alias) ->
-    spawn(fun() ->
+    [spawn(fun() ->
             %% We have to do it, because we want to read from across the cluster
             %% in the start/0 function.
             ok = cets_discovery:wait_for_ready(mongoose_cets_discovery, infinity),
             Alias ! {ready, Alias}
-        end);
+        end)];
 wait_for_backend_promise(rdbms, Alias) ->
-    spawn(fun() ->
+    [spawn(fun() ->
             wait_for_rdbms(),
             Alias ! {ready, Alias}
-        end).
+        end)].
 
 wait_for_rdbms() ->
     case get_backend_cluster_id(rdbms) of
