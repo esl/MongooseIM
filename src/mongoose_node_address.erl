@@ -44,8 +44,8 @@ handle_cast(Msg, State) ->
 
 handle_info({nodeup, Node}, State) ->
     {noreply, handle_nodeup(Node, State)};
-handle_info({nodedown, _Node}, State) ->
-    {noreply, State};
+handle_info({nodedown, Node}, State) ->
+    {noreply, handle_nodedown(Node, State)};
 handle_info({get_pairs_result, Ref, Node, Res}, State) ->
     {noreply, handle_get_pairs_result(Ref, Node, Res, State)};
 handle_info(Msg, State) ->
@@ -162,6 +162,12 @@ handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
         end),
     %% Only one get_pairs per node is allowed, ignore the old result, if it comes.
     State#{waiting_for_nodes := [{Node, Ref} | lists:keydelete(Node, 1, Waiting)]}.
+
+handle_nodedown(Node, State = #{waiting_for_nodes := Waiting}) ->
+    %% Stop waiting for get_pairs_result for the node
+    Waiting2 = [Res || {WaitingNode, _Ref} = Res <- Waiting, WaitingNode =/= Node],
+    State2 = State#{waiting_for_nodes := Waiting2},
+    maybe_reply_waiting_for_nodes(State2).
 
 get_pairs() ->
     Nodes = [node() | nodes()],
