@@ -29,7 +29,9 @@ start() ->
     Backend = which_backend_available(),
     IntBackend = which_volatile_backend_available(),
     maybe_prepare_queries(Backend),
-    wait_for_any_backend(Backend, IntBackend),
+    cets_long:run_tracked(#{task => wait_for_any_backend,
+                            backend => Backend, volatile_backend => IntBackend},
+                          fun() -> wait_for_any_backend(Backend, IntBackend) end),
     CachedRes = get_cached_cluster_id(IntBackend),
     BackendRes = get_backend_cluster_id(),
     case {CachedRes, BackendRes} of
