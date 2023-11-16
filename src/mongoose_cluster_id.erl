@@ -77,7 +77,7 @@ wait_for_backend_promise(cets, Alias) ->
         end)];
 wait_for_backend_promise(rdbms, Alias) ->
     [spawn(fun() ->
-            wait_for_rdbms(),
+            cets_long:run_tracked(#{task => wait_for_rdbms}, fun() -> wait_for_rdbms() end),
             Alias ! {ready, Alias}
         end)].
 
