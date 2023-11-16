@@ -22,7 +22,6 @@
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    mongoose_node_address:init(),
     Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time],
     maps:with(Keys, maps:merge(defaults(), Opts)).
 
