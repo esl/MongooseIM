@@ -76,7 +76,7 @@ cleanup(Node) ->
     KeyPattern = {'_', '_', '_', {'_', '$1'}},
     Guard = {'==', {node, '$1'}, Node},
     R = {KeyPattern, '_', '_'},
-    cets:sync(?TABLE),
+    cets:ping_all(?TABLE),
     %% This is a full table scan, but cleanup is rare.
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
     lists:foreach(fun({_Key, _, _} = Tuple) ->
