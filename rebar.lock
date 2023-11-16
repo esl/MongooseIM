@@ -8,7 +8,7 @@
  {<<"certifi">>,{pkg,<<"certifi">>,<<"2.9.0">>},1},
  {<<"cets">>,
   {git,"https://github.com/esl/cets.git",
-       {ref,"f715c4a2e4b2bcb9f5c1dcd5164ee5271aefa0a9"}},
+       {ref,"2ca31058bf616392ed91e4eb8642cc5af872902e"}},
   0},
  {<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.9.0">>},0},
  {<<"cowboy_swagger">>,{pkg,<<"cowboy_swagger">>,<<"2.5.1">>},0},
