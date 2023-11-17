@@ -48,11 +48,9 @@
          process_iq/5,
          get_roster_entry/4,
          item_to_map/1,
-         set_items/3,
          set_roster_entry/5,
          remove_from_roster/3,
-         item_to_xml/1,
-         broadcast_item/3
+         item_to_xml/1
         ]).
 
 % Hook handlers
@@ -68,7 +66,8 @@
          get_personal_data/3
         ]).
 
--export([transaction/2,
+-export([set_items/3,
+         transaction/2,
          process_subscription_t/6,
          get_user_rosters_length/2]). % for testing
 
@@ -77,9 +76,8 @@
 -ignore_xref([get_user_rosters_length/2,
               item_to_xml/1,
               process_subscription_t/6,
-              transaction/2,
-              broadcast_item/3,
-              set_items/3
+              set_items/3,
+              transaction/2
               ]).
 
 -include("mongoose.hrl").

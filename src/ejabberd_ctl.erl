@@ -35,10 +35,6 @@
 %%% Note: strings cannot have blankspaces
 %%%
 %%% Does not support commands that have arguments with ctypes: list, tuple
-%%%
-%%% TODO: Update the guide
-%%% TODO: Mention this in the release notes
-%%% Note: the commands with several words use now the underline: _
 
 
 -module(ejabberd_ctl).
@@ -124,9 +120,16 @@ process(["stop"]) ->
 process(["restart"]) ->
     init:restart(),
     ?STATUS_SUCCESS;
-process(["mnesia", "info"]) ->
-    mnesia:info(),
-    ?STATUS_SUCCESS;
+process(["join_cluster", Arg]) when is_list(Arg) ->
+    join_cluster(Arg);
+process(["join_cluster" | _]) ->
+    cluster_command_without_arg();
+process(["leave_cluster"]) ->
+    leave_cluster();
+process(["remove_from_cluster", Arg]) when is_list(Arg) ->
+    remove_from_cluster(Arg);
+process(["remove_from_cluster" | _]) ->
+    cluster_command_without_arg();
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),
@@ -254,7 +257,17 @@ print_usage(HelpMode, MaxC, ShCode) ->
             "Most MongooseIM commands are grouped into the following categories:\n"], []),
     print_categories(HelpMode, MaxC, ShCode),
     ?PRINT(["\nTo list the commands in a particular category:\n  mongooseimctl ", ?U("category"),
-            "\n"], []).
+            "\n"], []),
+    ?PRINT(["\nThe following basic system management commands do not have a category:\n"], []),
+    print_usage_commands(HelpMode, MaxC, ShCode, basic_commands()).
+
+-spec basic_commands() -> [cmd()].
+basic_commands() ->
+    [{"status", [], "Get MongooseIM status"},
+     {"stop", [], "Stop MongooseIM"},
+     {"restart", [], "Restart MongooseIM"},
+     {"help", ["[--tags [tag] | com?*]"], "Show help for the deprecated commands"},
+     {"graphql", ["query"], "Execute GraphQL query or mutation"}].
 
 -spec print_categories(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_categories(HelpMode, MaxC, ShCode) ->
@@ -440,3 +453,30 @@ get_dist_proto() ->
         {ok, [Proto]} -> Proto;
         _ -> "inet_tcp"
     end.
+
+%%-----------------------------
+%% Cluster management commands
+%%-----------------------------
+
+join_cluster(NodeString) ->
+    handle_cluster_operation(join_cluster, [NodeString]).
+
+leave_cluster() ->
+    handle_cluster_operation(leave_cluster, []).
+
+remove_from_cluster(NodeString) ->
+    handle_cluster_operation(remove_from_cluster, [NodeString]).
+
+handle_cluster_operation(Operation, Args) ->
+    case apply(mongoose_server_api, Operation, Args) of
+        {ok, Result} ->
+            ?PRINT("~s\n", [Result]),
+            ?STATUS_SUCCESS;
+        {_, Result} ->
+            ?PRINT("Error: \"~s\"\n", [Result]),
+            ?STATUS_ERROR
+    end.
+
+cluster_command_without_arg() ->
+    ?PRINT("You have to provide another node's name\n", []),
+    ?STATUS_ERROR.

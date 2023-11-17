@@ -8,21 +8,12 @@
          unregister_user/1,
          unregister_user/2,
          ban_account/2,
-         ban_account/3,
          change_password/2,
          change_password/3,
          check_account/1,
-         check_account/2,
          check_password/2,
-         check_password/3,
          check_password_hash/3,
-         check_password_hash/4,
          import_users/1]).
-
--ignore_xref([ban_account/3,
-              check_account/2,
-              check_password/3,
-              check_password_hash/4]).
 
 -type register_result() :: {ok | exists | invalid_jid | cannot_register |
                             limit_per_domain_exceeded, iolist()}.
@@ -131,11 +122,6 @@ change_password(JID, Password) ->
     Result = ejabberd_auth:set_password(JID, Password),
     format_change_password(Result).
 
--spec check_account(jid:user(), jid:server()) -> check_account_result().
-check_account(User, Host) ->
-    JID = jid:make_bare(User, Host),
-    check_account(JID).
-
 -spec check_account(jid:jid()) -> check_account_result().
 check_account(JID) ->
     case ejabberd_auth:does_user_exist(JID) of
@@ -144,11 +130,6 @@ check_account(JID) ->
         false ->
             {user_does_not_exist, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
-
--spec check_password(jid:user(), jid:server(), binary()) -> check_password_result().
-check_password(User, Host, Password) ->
-    JID = jid:make_bare(User, Host),
-    check_password(JID, Password).
 
 -spec check_password(jid:jid(), binary()) -> check_password_result().
 check_password(JID, Password) ->
@@ -167,12 +148,6 @@ check_password(JID, Password) ->
             io_lib:format("Password ~s for user ~s is incorrect because this user does not"
                           " exist", [Password, jid:to_binary(JID)])}
     end.
-
--spec check_password_hash(jid:user(), jid:server(), string(), string()) ->
-    check_password_hash_result().
-check_password_hash(User, Host, PasswordHash, HashMethod) ->
-    JID = jid:make_bare(User, Host),
-    check_password_hash(JID, PasswordHash, HashMethod).
 
 -spec check_password_hash(jid:jid(), string(), string()) -> check_password_hash_result().
 check_password_hash(JID, PasswordHash, HashMethod) ->
@@ -218,11 +193,6 @@ from_reason(not_allowed) -> <<"notAllowed">>;
 from_reason(invalid_jid) -> <<"invalidJID">>;
 from_reason(null_password) -> <<"emptyPassword">>;
 from_reason(bad_csv) -> <<"invalidRecord">>.
-
--spec ban_account(jid:user(), jid:server(), binary()) -> change_password_result().
-ban_account(User, Host, ReasonText) ->
-    JID = jid:make_bare(User, Host),
-    ban_account(JID, ReasonText).
 
 -spec ban_account(jid:jid(), binary()) -> change_password_result().
 ban_account(JID, Reason) ->
