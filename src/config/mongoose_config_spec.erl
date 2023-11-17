@@ -457,11 +457,9 @@ internal_database_cets() ->
                  <<"cluster_name">> => #option{type = atom, validate = non_empty},
                  %% Relative to the release directory (or an absolute name)
                  <<"node_list_file">> => #option{type = string,
-                                                 validate = filename},
-                 <<"wait_for_dns">> => #option{type = boolean}
+                                                 validate = filename}
                 },
-       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim,
-                    <<"wait_for_dns">> => false}
+       defaults = #{<<"backend">> => rdbms, <<"cluster_name">> => mongooseim}
       }.
 
 %% path: internal_databases.mnesia
