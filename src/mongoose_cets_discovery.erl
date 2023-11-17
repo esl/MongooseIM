@@ -17,7 +17,7 @@ supervisor_specs() ->
 
 supervisor_specs(disabled) ->
     [];
-supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName, wait_for_dns := WaitForDNS} = Opts) ->
+supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts) ->
     DiscoFile =
         case {DiscoBackend, Opts} of
             {file, #{node_list_file := NodeFile}} ->
@@ -33,8 +33,7 @@ supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName, wait_fo
         backend_module => disco_backend_to_module(DiscoBackend),
         cluster_name => atom_to_binary(ClusterName),
         node_name_to_insert => atom_to_binary(node(), latin1),
-        name => mongoose_cets_discovery, disco_file => DiscoFile,
-        wait_for_dns => WaitForDNS},
+        name => mongoose_cets_discovery, disco_file => DiscoFile},
     CetsDisco =
         {cets_discovery,
           {?MODULE, start_link, [DiscoOpts]},

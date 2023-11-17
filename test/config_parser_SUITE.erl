@@ -1193,7 +1193,6 @@ internal_database_cets(_Config) ->
          #{<<"internal_databases">> => #{<<"cets">> => #{<<"cluster_name">> => <<"test">>}}}),
 
     ?cfg([internal_databases, cets, cluster_name], mongooseim, CetsEnabled),
-    ?cfg([internal_databases, cets, wait_for_dns], false, CetsEnabled),
     ?cfg([internal_databases, cets, node_list_file], "/dev/null", CetsFile),
     %% If only mnesia section is defined, CETS section is not included
     ?cfg([internal_databases], #{mnesia => #{}},

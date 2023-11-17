@@ -67,7 +67,7 @@ options("miscellaneous") ->
      {hosts, [<<"localhost">>, <<"anonymous.localhost">>]},
      {internal_databases,
           #{cets =>
-                #{backend => rdbms, cluster_name => mongooseim, wait_for_dns => false},
+                #{backend => rdbms, cluster_name => mongooseim},
             mnesia => #{}}},
      {language, <<"en">>},
      {listen,
@@ -145,7 +145,7 @@ options("mongooseim-pgsql") ->
       [<<"localhost">>, <<"anonymous.localhost">>, <<"localhost.bis">>]},
      {internal_databases,
           #{cets =>
-                #{backend => rdbms, cluster_name => mongooseim, wait_for_dns => false},
+                #{backend => rdbms, cluster_name => mongooseim},
             mnesia => #{}}},
      {language, <<"en">>},
      {listen,
