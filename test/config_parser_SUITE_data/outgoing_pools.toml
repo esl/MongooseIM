@@ -18,8 +18,8 @@
   [outgoing_pools.rdbms.default.connection]
     driver = "pgsql"
     host = "localhost"
-    database = "ejabberd"
-    username = "ejabberd"
+    database = "mongooseim"
+    username = "mongooseim"
     password = "mongooseim_secret"
     keepalive_interval = 30
     tls.required = true

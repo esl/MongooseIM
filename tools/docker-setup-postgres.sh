@@ -16,7 +16,7 @@ cp ${SQL_TEMP_DIR}/pg_hba.conf ${PGSQLDIR}/.
 cp ${SQL_TEMP_DIR}/pg.sql ${PGSQLDIR}/.
 
 # Configuring postgres
-psql -U postgres -c "CREATE ROLE ejabberd PASSWORD 'mongooseim_secret' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"
-psql -U postgres -c "CREATE DATABASE ejabberd;"
+psql -U postgres -c "CREATE ROLE mongooseim PASSWORD 'mongooseim_secret' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"
+psql -U postgres -c "CREATE DATABASE mongooseim;"
 # Creating schema
-psql -U postgres -q -d ejabberd -f ${PGSQLDIR}/pg.sql
+psql -U postgres -q -d mongooseim -f ${PGSQLDIR}/pg.sql
