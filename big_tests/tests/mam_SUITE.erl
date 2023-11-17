@@ -242,15 +242,15 @@ configurations() ->
 %% Called by test-runner for autocompletion
 all_configurations() ->
     cassandra_configs(true)
-    ++ rdbms_configs(true, true)
+    ++ rdbms_configs(true, mnesia)
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host_type()))
-    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()), mongoose_helper:is_mnesia_configured())
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()), ct_helper:get_internal_database())
     ++ elasticsearch_configs(is_elasticsearch_enabled(host_type())).
 
-rdbms_configs(true, true) ->
+rdbms_configs(true, mnesia) ->
     [rdbms,
      rdbms_easy,
      rdbms_async_pool,
@@ -259,7 +259,7 @@ rdbms_configs(true, true) ->
      rdbms_cache,
      rdbms_mnesia_cache
     ];
-rdbms_configs(true, false) ->
+rdbms_configs(true, cets) ->
     [rdbms,
      rdbms_easy,
      rdbms_async_pool,
@@ -906,7 +906,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 skip_if_retraction_not_supported(Config, Init) ->
-    ConfList = rdbms_configs(true, mongoose_helper:is_mnesia_configured()),
+    ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
     case lists:member(?config(configuration, Config), ConfList) of
         false ->
             {skip, "message retraction not supported"};

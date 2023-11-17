@@ -1004,7 +1004,7 @@ getenv(VarName, Default) ->
 init_modules(G, Config) ->
     MongoosePushAPI = mongoose_push_api_for_group(G),
     PubSubHost = ?config(pubsub_host, Config),
-    Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost, Config),
+    Modules = required_modules_for_group(G, MongoosePushAPI, PubSubHost),
     C = dynamic_modules:save_modules(domain(), Config),
     Fun = fun() -> catch dynamic_modules:ensure_modules(domain(), Modules) end,
     mongoose_helper:wait_until(Fun, ok),
@@ -1015,17 +1015,17 @@ mongoose_push_api_for_group(failure_cases_v2) ->
 mongoose_push_api_for_group(_) ->
     <<"v3">>.
 
-required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost, _Config) ->
+required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_inbox, inbox_opts()},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
      required_modules(API, PubSubHost)];
-required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost, _Config) ->
+required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}
      | required_modules(API, PubSubHost)];
-required_modules_for_group(muclight_msg_notifications, API, PubSubHost, _Config) ->
+required_modules_for_group(muclight_msg_notifications, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost)];
-required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost, _Config) ->
+required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     MemBackend = ct_helper:get_internal_database(),
     [{mod_muc_light, muc_light_opts()},
@@ -1034,13 +1034,13 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
                                                                backend => MemBackend})},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
      required_modules(API, PubSubHost)];
-required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost, _Config) ->
+required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
     MemBackend = ct_helper:get_internal_database(),
     [{mod_stream_management,
       config_parser_helper:mod_config(mod_stream_management,
                                       #{ack_freq => never, backend => MemBackend})} |
      required_modules(API, PubSubHost, enhanced_plugin_module_opts())];
-required_modules_for_group(_, API, PubSubHost, _Config) ->
+required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
 
 required_modules(API, PubSubHost)->

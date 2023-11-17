@@ -6,7 +6,6 @@
 %% API
 
 -export([is_rdbms_enabled/1,
-         is_mnesia_configured/0,
          get_backend_mnesia_rdbms/1,
          backend_for_module/2,
          mnesia_or_rdbms_backend/0,
@@ -61,14 +60,6 @@ is_rdbms_enabled(HostType) ->
     case rpc(mim(), mongoose_rdbms, sql_transaction, [HostType, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
-    end.
-
-is_mnesia_configured() ->
-    case rpc(mim(), mongoose_config, lookup_opt, [[internal_databases, mnesia]]) of
-        {ok, _} ->
-            true;
-        _ ->
-            false
     end.
 
 -spec mnesia_or_rdbms_backend() -> atom().

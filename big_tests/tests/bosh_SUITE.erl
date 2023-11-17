@@ -116,21 +116,21 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(time, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(time, Config)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(time)),
     Config;
 init_per_group(GroupName, Config) when GroupName =:= essential;
                                        GroupName =:= without_bosh ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName, Config)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https, Config)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https, Config)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
 init_per_group(GroupName, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName, Config)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
@@ -151,9 +151,9 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group
 
-required_modules(without_bosh, _Config) ->
+required_modules(without_bosh) ->
     [{mod_bosh, stopped}];
-required_modules(GroupName, _Config) ->
+required_modules(GroupName) ->
     Backend = ct_helper:get_internal_database(),
     ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
     [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
