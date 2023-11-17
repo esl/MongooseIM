@@ -246,8 +246,8 @@ options("mongooseim-pgsql") ->
         fun pool_config/1,
         [#{type => rdbms,
            opts => #{workers => 5},
-           conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
-                          username => "ejabberd", password => "mongooseim_secret",
+           conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "mongooseim",
+                          username => "mongooseim", password => "mongooseim_secret",
                           tls => #{required => true,
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
@@ -347,8 +347,8 @@ options("outgoing_pools") ->
          #{type => rdbms,
            opts => #{workers => 5},
            conn_opts => #{query_timeout => 5000, keepalive_interval => 30,
-                          driver => pgsql, host => "localhost", port => 5432, database => "ejabberd",
-                          username => "ejabberd", password => "mongooseim_secret",
+                          driver => pgsql, host => "localhost", port => 5432, database => "mongooseim",
+                          username => "mongooseim", password => "mongooseim_secret",
                           tls => #{required => true,
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
