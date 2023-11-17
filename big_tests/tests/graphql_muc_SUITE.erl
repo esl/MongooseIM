@@ -289,8 +289,9 @@ ensure_muc_stopped() ->
     muc_helper:unload_muc(SecondaryHostType).
 
 ensure_muc_light_started(Config) ->
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     MucLightOpts = config_parser_helper:mod_config(mod_muc_light,
-        #{rooms_in_rosters => true, config_schema => custom_schema()}),
+        #{backend => Backend, rooms_in_rosters => true, config_schema => custom_schema()}),
     HostType = domain_helper:host_type(),
     dynamic_modules:ensure_modules(HostType, [{mod_muc_light, MucLightOpts}]),
     [{muc_light_host, muc_light_helper:muc_host()} | Config].

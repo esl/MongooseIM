@@ -1020,20 +1020,25 @@ required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
      required_modules(API, PubSubHost)];
-required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost)->
+required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}
      | required_modules(API, PubSubHost)];
 required_modules_for_group(muclight_msg_notifications, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost)];
 required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    MemBackend = ct_helper:get_internal_database(),
     [{mod_muc_light, muc_light_opts()},
      {mod_stream_management, config_parser_helper:mod_config(mod_stream_management,
-                                                             #{ack_freq => never, resume_timeout => 1})},
+                                                             #{ack_freq => never, resume_timeout => 1,
+                                                               backend => MemBackend})},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
-    [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})} |
+    MemBackend = ct_helper:get_internal_database(),
+    [{mod_stream_management,
+      config_parser_helper:mod_config(mod_stream_management,
+                                      #{ack_freq => never, backend => MemBackend})} |
      required_modules(API, PubSubHost, enhanced_plugin_module_opts())];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).

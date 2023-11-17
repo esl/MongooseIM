@@ -42,8 +42,9 @@ end_per_suite(Config) ->
 
 modules() ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
     [{mod_domain_isolation, []},
-     {mod_muc_light, mod_config(mod_muc_light, #{host => MucHost})}].
+     {mod_muc_light, mod_config(mod_muc_light, #{host => MucHost, backend => Backend})}].
 
 init_per_group(two_domains, Config) ->
     Config2 = dynamic_modules:save_modules(host_types(), Config),

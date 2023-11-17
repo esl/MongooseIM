@@ -209,7 +209,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 required_modules(_) ->
-    MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true,
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    MucLightOpts = mod_config(mod_muc_light, #{backend => Backend,
+                                               rooms_in_rosters => true,
                                                config_schema => custom_schema()}),
     [{mod_muc_light, MucLightOpts}].
 
@@ -518,7 +520,7 @@ user_delete_room_story(Config, Alice, Bob) ->
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     Name = <<"first room">>,
-    {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
+    {ok, #{jid := #jid{luser = RoomID} = RoomJID} = RoomInfo} =
         create_room(MUCServer, Name, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Member cannot delete room
@@ -529,7 +531,7 @@ user_delete_room_story(Config, Alice, Bob) ->
     Res2 = user_delete_room(Alice, jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res2),
                                           <<"successfully">>)),
-    ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
+    ?assertEqual({error, not_exists}, get_room_info(RoomJID), RoomInfo),
     % Try with a non-existent domain
     Res3 = user_delete_room(Alice, make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
@@ -1290,11 +1292,11 @@ admin_delete_room_story(Config, Alice) ->
     AliceBin = escalus_client:short_jid(Alice),
     MUCServer = ?config(muc_light_host, Config),
     Name = <<"first room">>,
-    {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID} = RoomInfo} = create_room(MUCServer, Name, <<"subject">>, AliceBin),
     Res = delete_room(jid:to_binary(RoomJID), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res),
                                           <<"successfully">>)),
-    ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
+    ?assertEqual({error, not_exists}, get_room_info(RoomJID), RoomInfo),
     % Try with a non-existent room
     Res2 = delete_room(make_bare_jid(?UNKNOWN, MUCServer), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
@@ -1721,7 +1723,9 @@ invite_user(RoomJID, SenderBin, RecipientBin) ->
     RecipientJID = jid:from_binary(RecipientBin),
     rpc(mim(), mod_muc_light_api, invite_to_room, [RoomJID, SenderJID, RecipientJID]).
 
-get_room_info(JID) ->
+get_room_info(error) ->
+    arg_is_not_jid;
+get_room_info(#jid{} = JID) ->
     HostType = domain_helper:host_type(),
     RoomUS = jid:to_lus(JID),
     rpc(mim(), mod_muc_light_db_backend, get_info, [HostType, RoomUS]).

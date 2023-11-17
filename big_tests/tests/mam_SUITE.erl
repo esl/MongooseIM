@@ -221,8 +221,6 @@
 
 -import(domain_helper, [domain/0]).
 
--import(config_parser_helper, [default_mod_config/1]).
-
 -include("mam_helper.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
@@ -244,15 +242,15 @@ configurations() ->
 %% Called by test-runner for autocompletion
 all_configurations() ->
     cassandra_configs(true)
-    ++ rdbms_configs(true)
+    ++ rdbms_configs(true, mnesia)
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host_type()))
-    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()))
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()), ct_helper:get_internal_database())
     ++ elasticsearch_configs(is_elasticsearch_enabled(host_type())).
 
-rdbms_configs(true) ->
+rdbms_configs(true, mnesia) ->
     [rdbms,
      rdbms_easy,
      rdbms_async_pool,
@@ -261,7 +259,14 @@ rdbms_configs(true) ->
      rdbms_cache,
      rdbms_mnesia_cache
     ];
-rdbms_configs(_) ->
+rdbms_configs(true, cets) ->
+    [rdbms,
+     rdbms_easy,
+     rdbms_async_pool,
+     rdbms_async_cache,
+     rdbms_cache
+    ];
+rdbms_configs(_, _) ->
     [].
 
 cassandra_configs(true) ->
@@ -661,7 +666,8 @@ required_modules_for_group(C, muc_light, Config) ->
     MUCHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_muc_light, default_mod_config(mod_muc_light)},
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    {[{mod_muc_light, config_parser_helper:mod_config(mod_muc_light, #{backend => Backend})},
       {mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->
@@ -883,7 +889,6 @@ init_per_testcase(C=muc_text_search_request, Config) ->
     skip_if_cassandra(Config, Init);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    clean_archives(Config),
     escalus:init_per_testcase(C, Config);
 init_per_testcase(C, Config) when C =:= muc_light_easy;
                                   C =:= muc_light_shouldnt_modify_pm_archive;
@@ -901,7 +906,8 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 skip_if_retraction_not_supported(Config, Init) ->
-    case lists:member(?config(configuration, Config), rdbms_configs(true)) of
+    ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
+    case lists:member(?config(configuration, Config), ConfList) of
         false ->
             {skip, "message retraction not supported"};
         true ->
@@ -1558,7 +1564,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
 
 muc_light_easy(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, []),
 
             M1 = when_muc_light_message_is_sent(Alice, Room,
@@ -1572,7 +1578,7 @@ muc_light_easy(Config) ->
             Aff = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
             then_muc_light_affiliations_are_received_by([Alice, Bob], Aff),
 
-            maybe_wait_for_archive(Config),
+            mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 4),
             when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
             ExpectedResponse = [{create, [{Alice, owner}]},
                                 {muc_message, Room, Alice, <<"Msg 1">>},
@@ -1583,7 +1589,7 @@ muc_light_easy(Config) ->
 
 muc_light_shouldnt_modify_pm_archive(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom2">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
@@ -1611,8 +1617,8 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
         end).
 
 muc_light_stored_in_pm_if_allowed_to(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_pm">>,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             maybe_wait_for_archive(Config),
@@ -1636,7 +1642,7 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
 
 muc_light_chat_markers_are_archived_if_enabled(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_markers">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             %% Alice sends 3 chat markers
@@ -1664,7 +1670,7 @@ muc_light_chat_markers_are_archived_if_enabled(Config) ->
 
 muc_light_chat_markers_are_not_archived_if_disabled(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_no_markers">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             %% Alice sends 3 chat markers

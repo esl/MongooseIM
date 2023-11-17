@@ -133,7 +133,8 @@ group_to_modules(muc_light_removal) ->
     [{mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
 group_to_modules(muc_removal) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
-    Opts = #{backend => rdbms, host => MucHost},
+    OnlineBackend = ct_helper:get_internal_database(),
+    Opts = #{backend => rdbms, online_backend => OnlineBackend, host => MucHost},
     [{mod_muc, muc_helper:make_opts(Opts)}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, inbox_helper:inbox_opts()}];

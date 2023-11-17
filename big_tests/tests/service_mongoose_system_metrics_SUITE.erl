@@ -216,12 +216,14 @@ system_metrics_are_reported_to_a_json_file(_Config) ->
 module_opts_are_reported(_Config) ->
     mongoose_helper:wait_until(fun are_modules_reported/0, true),
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    check_module_backend(mod_bosh, mnesia),
+    MemBackend = ct_helper:get_internal_database(),
+    check_module_backend(mod_bosh, MemBackend),
     check_module_backend(mod_event_pusher, push),
     check_module_backend(mod_event_pusher_push, Backend),
     check_module_backend(mod_http_upload, s3),
     check_module_backend(mod_last, Backend),
     check_module_backend(mod_muc, Backend),
+    check_module_opt(mod_muc, <<"online_backend">>, atom_to_binary(MemBackend)),
     check_module_backend(mod_muc_light, Backend),
     check_module_backend(mod_offline, Backend),
     check_module_backend(mod_privacy, Backend),
@@ -337,12 +339,13 @@ required_modules(CaseName) ->
 
 modules_to_test(module_opts_are_reported) ->
     Backend = mongoose_helper:mnesia_or_rdbms_backend(),
-    [required_module(mod_bosh),
+    MemBackend = ct_helper:get_internal_database(),
+    [required_module(mod_bosh, #{backend => MemBackend}),
      required_module(mod_event_pusher,
                      #{push => config([modules, mod_event_pusher, push], #{backend => Backend})}),
      required_module(mod_http_upload, s3),
      required_module(mod_last, Backend),
-     required_module(mod_muc, Backend),
+     required_module(mod_muc, #{backend => Backend, online_backend => MemBackend}),
      required_module(mod_muc_light, Backend),
      required_module(mod_offline, Backend),
      required_module(mod_privacy, Backend),
@@ -364,10 +367,10 @@ required_module(Module, Backend) when is_atom(Backend) ->
 required_module(Module, Opts) ->
     {Module, mod_config(Module, Opts)}.
 
-check_module_opt(Module, Key, Value) ->
+check_module_opt(Module, Key, Value) when is_binary(Key), is_binary(Value) ->
     case is_module_supported(Module) of
         true ->
-            ?assertEqual(true, is_module_opt_reported(atom_to_binary(Module), Key, Value));
+            ?assert(is_module_opt_reported(atom_to_binary(Module), Key, Value), {Module, Key, Value});
         false ->
             ct:log("Skipping unsupported module ~p", [Module])
     end.
