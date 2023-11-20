@@ -49,7 +49,8 @@ suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
-    [join_successful_prompt,
+    [commands_without_args,
+     join_successful_prompt,
      join_successful_force,
      leave_successful_prompt,
      leave_successful_force,
@@ -187,6 +188,11 @@ one_to_one_message(ConfigIn) ->
 %% Manage cluster commands tests
 %%--------------------------------------------------------------------
 
+commands_without_args(Config) ->
+    {Res1, 1} = mongooseimctl_interactive("join_cluster", [], "yes\n", Config),
+    ?assertMatch({match, _}, re:run(Res1, "You have to provide other node's name")),
+    {Res2, 1} = mongooseimctl_interactive("remove_from_cluster", [], "yes\n",Config),
+    ?assertMatch({match, _}, re:run(Res2, "You have to provide other node's name")).
 
 join_successful_prompt(Config) ->
     %% given

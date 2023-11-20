@@ -44,7 +44,8 @@ admin_account_tests() ->
      admin_check_password_non_existing_user,
      admin_check_password_hash,
      admin_check_password_hash_non_existing_user,
-     admin_check_plain_password_hash,
+     admin_check_plain_password_hash_md5,
+     admin_check_plain_password_hash_sha,
      admin_check_user,
      admin_check_non_existing_user,
      admin_register_user,
@@ -135,7 +136,8 @@ domain_admin_clean_users(Config) ->
 init_per_testcase(admin_register_user = C, Config) ->
     Config1 = [{user, {<<"gql_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(admin_check_plain_password_hash = C, Config) ->
+init_per_testcase(C, Config) when C =:= admin_check_plain_password_hash_md5;
+                                  C =:= admin_check_plain_password_hash_sha ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
     case lists:member(ejabberd_auth_ldap, AuthMods) of
         true ->
@@ -176,7 +178,8 @@ end_per_testcase(admin_register_user = C, Config) ->
     {Username, Domain} = proplists:get_value(user, Config),
     rpc(mim(), mongoose_account_api, unregister_user, [Username, Domain]),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(admin_check_plain_password_hash, Config) ->
+end_per_testcase(C, Config) when C =:= admin_check_plain_password_hash_md5;
+                                 C =:= admin_check_plain_password_hash_sha ->
     mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([carol]));
 end_per_testcase(admin_register_user_limit_error = C, Config) ->
@@ -297,12 +300,17 @@ admin_check_password_hash_non_existing_user(Config) ->
     Resp3 = check_password_hash(?EMPTY_NAME_JID, EmptyHash, Method, Config),
     get_coercion_err_msg(Resp3).
 
-admin_check_plain_password_hash(Config) ->
+admin_check_plain_password_hash_md5(Config) ->
+    admin_check_password_hash(Config, <<"md5">>, fun get_md5/1).
+
+admin_check_plain_password_hash_sha(Config) ->
+    admin_check_password_hash(Config, <<"sha">>, fun get_sha/1).
+
+admin_check_password_hash(Config, Method, HashFun) ->
     UserJID = escalus_users:get_jid(Config, carol),
     Password = lists:last(escalus_users:get_usp(Config, carol)),
-    Method = <<"md5">>,
-    Hash = list_to_binary(get_md5(Password)),
-    WrongHash = list_to_binary(get_md5(<<"wrong password">>)),
+    Hash = list_to_binary(HashFun(Password)),
+    WrongHash = list_to_binary(HashFun(<<"wrong password">>)),
     Path = [data, account, checkPasswordHash],
     % A correct hash
     Resp = check_password_hash(UserJID, Hash, Method, Config),
@@ -608,6 +616,10 @@ domain_admin_change_user_password_no_permission(Config) ->
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
+
+get_sha(AccountPass) ->
+    lists:flatten([io_lib:format("~.16B", [X])
+                   || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 %% Commands
 

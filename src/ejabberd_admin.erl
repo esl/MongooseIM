@@ -29,21 +29,15 @@
 -export([%% Server
          status/0,
          %% Accounts
-         register/3, register/2, unregister/2,
-         registered_users/1,
+         register/3, unregister/2,
          import_users/1,
          %% Purge DB
-         delete_expired_messages/1, delete_old_messages/2,
          remove_from_cluster/1]).
 
 -ignore_xref([
-    backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
-    dump_mnesia/1, dump_table/2,
-    import_users/1, install_fallback_mnesia/1,
-    load_mnesia/1, mnesia_change_nodename/4,
-    register/2, register/3, registered_users/1, remove_from_cluster/1,
-    restore_mnesia/1, status/0,
-    stop/0, unregister/2]).
+    import_users/1,
+    register/3, remove_from_cluster/1,
+    status/0, unregister/2]).
 
 -include("mongoose.hrl").
 
@@ -104,12 +98,6 @@ remove_rpc_alive_node(AliveNode) ->
 %%% Account management
 %%%
 
--spec register(Host :: jid:server(),
-               Password :: binary()) -> mongoose_account_api:register_result().
-register(Host, Password) ->
-    {Result, _} = mongoose_account_api:register_generated_user(Host, Password),
-    Result.
-
 -spec register(User :: jid:user(),
                Host :: jid:server(),
                Password :: binary()) -> mongoose_account_api:register_result().
@@ -121,30 +109,7 @@ register(User, Host, Password) ->
 unregister(User, Host) ->
     mongoose_account_api:unregister_user(User, Host).
 
-
--spec registered_users(Host :: jid:server()) -> mongoose_account_api:list_user_result().
-registered_users(Host) ->
-    mongoose_account_api:list_users(Host).
-
 -spec import_users(file:filename()) -> [{binary(), jid:user() | binary()}].
 import_users(Filename) ->
     {ok, Result} = mongoose_import_users:run(Filename),
     maps:to_list(Result).
-
-%%%
-%%% Purge DB
-%%%
-
--spec delete_expired_messages(binary()) -> {ok, iolist()} | {error, iolist()}.
-delete_expired_messages(Domain) ->
-    case mod_offline_api:delete_expired_messages(jid:nameprep(Domain)) of
-        {ok, _} = Result -> Result;
-        {_, Message} -> {error, Message}
-    end.
-
--spec delete_old_messages(binary(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
-delete_old_messages(Domain, Days) ->
-    case mod_offline_api:delete_old_messages(jid:nameprep(Domain), Days) of
-        {ok, _} = Result -> Result;
-        {_, Message} -> {error, Message}
-    end.

@@ -478,5 +478,5 @@ handle_cluster_operation(Operation, Args) ->
     end.
 
 cluster_command_without_arg() ->
-    ?PRINT("You have to provide another node's name\n", []),
+    ?PRINT("You have to provide other node's name\n", []),
     ?STATUS_ERROR.

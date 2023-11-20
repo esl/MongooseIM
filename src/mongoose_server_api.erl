@@ -1,19 +1,8 @@
 -module(mongoose_server_api).
 
--export([get_loglevel_mongooseimctl/0]).
-
 -export([status/0, get_cookie/0, join_cluster/1, leave_cluster/0,
          remove_from_cluster/1, stop/0, restart/0, remove_node/1, set_loglevel/1,
          get_loglevel/0]).
-
--ignore_xref([get_loglevel_mongooseimctl/0]).
-
--spec get_loglevel_mongooseimctl() -> {ok, iolist()}.
-get_loglevel_mongooseimctl() ->
-    Level = mongoose_logs:get_global_loglevel(),
-    Number = mongoose_logs:loglevel_keyword_to_number(Level),
-    String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
-    {ok, String}.
 
 -spec get_loglevel() -> {ok, mongoose_logs:atom_log_level()}.
 get_loglevel() ->
