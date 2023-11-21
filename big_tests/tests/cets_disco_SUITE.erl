@@ -30,7 +30,8 @@ rdbms_cases() ->
      no_ip_in_db,
      cannot_connect_to_epmd,
      lookup_address_is_retried,
-     lookup_address_timeouts].
+     lookup_address_timeouts,
+     address_please].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -225,6 +226,13 @@ lookup_address_timeouts(_Config) ->
     Args = [Node, os:system_time(millisecond), 10, 50],
     {error, {no_record_for_node, Node}} =
         rpc(mim(), mongoose_node_address, lookup_loop, Args).
+
+address_please(_Config) ->
+    rpc(mim(), mongoose_node_address, remember_addresses, [[{'mim@localhost', <<"127.0.0.1">>}]]),
+    {ok, {127, 0, 0, 1}} =
+        rpc(mim(), mongoose_epmd, address_please, ["mim", "localhost", inet]),
+    {error, nxdomain} =
+        rpc(mim(), mongoose_epmd, address_please, ["mongooseim", "badbadhost", inet]).
 
 %%--------------------------------------------------------------------
 %% Helpers
