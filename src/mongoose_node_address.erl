@@ -18,9 +18,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--type state() :: #{
-    waiting_for_nodes := [{node(), reference()}]
-}.
+-type state() :: #{}.
 
 -type lookup_error() ::
     {no_ip_in_db, node()}
@@ -98,7 +96,7 @@ maybe_retry(Node, Start, Timeout, Sleep, Reason) ->
 init(_Opts) ->
     ets:new(?MODULE, [named_table, public]),
     net_kernel:monitor_nodes(true),
-    {ok, #{waiting_for_nodes => []}}.
+    {ok, #{}}.
 
 handle_call(Msg, From, State) ->
     ?LOG_ERROR(#{what => unexpected_call, msg => Msg, from => From}),
@@ -110,10 +108,10 @@ handle_cast(Msg, State) ->
 
 handle_info({nodeup, Node}, State) ->
     {noreply, handle_nodeup(Node, State)};
-handle_info({nodedown, Node}, State) ->
-    {noreply, handle_nodedown(Node, State)};
-handle_info({get_pairs_result, Ref, Node, Res}, State) ->
-    {noreply, handle_get_pairs_result(Ref, Node, Res, State)};
+handle_info({nodedown, _Node}, State) ->
+    {noreply, State};
+handle_info({get_pairs_result, Node, Res}, State) ->
+    {noreply, handle_get_pairs_result(Node, Res, State)};
 handle_info(Msg, State) ->
     ?LOG_ERROR(#{what => unexpected_info, msg => Msg}),
     {noreply, State}.
@@ -126,64 +124,32 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% There is a chance nodeup could come from a non-mongooseim node
 -spec handle_nodeup(node(), state()) -> state().
-handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
+handle_nodeup(Node, State = #{}) ->
     Server = self(),
-    Ref = make_ref(),
     %% There could be some time spent between nodeup and us getting the result
     %% from the RPC.
     %% We could use erpc:send_request/4 and avoid spawn, but the return result is
     %% undocumented (so, we cannot match in in handle_info)
     spawn_link(fun() ->
             %% We have to ignore our node name when processing result
-            Server ! {get_pairs_result, Ref, Node, rpc:call(Node, ?MODULE, get_pairs, [])},
+            Server ! {get_pairs_result, Node, rpc:call(Node, ?MODULE, get_pairs, [])},
             ok
         end),
-    %% Only one get_pairs per node is allowed, ignore the old result, if it comes.
-
-    case lists:keymember(Node, 1, Waiting) of
-        true ->
-            ?LOG_WARNING(#{what => discard_old_waiting_ref,
-                           text => <<"Could be a race condition issue">>,
-                           node => Node, new_reference => Ref, waiting_for_nodes => Waiting});
-        false ->
-            ok
-    end,
-    State#{waiting_for_nodes := [{Node, Ref} | lists:keydelete(Node, 1, Waiting)]}.
-
--spec handle_nodedown(node(), state()) -> state().
-handle_nodedown(Node, State = #{waiting_for_nodes := Waiting}) ->
-    %% Stop waiting for get_pairs_result for the node
-    Waiting2 = [Res || {WaitingNode, _Ref} = Res <- Waiting, WaitingNode =/= Node],
-    State#{waiting_for_nodes := Waiting2}.
+    State.
 
 -spec get_pairs() -> pairs().
 get_pairs() ->
     Nodes = [node() | nodes()],
     [Pair || {Node, _} = Pair <- ets:tab2list(?MODULE), lists:member(Node, Nodes)].
 
--spec handle_get_pairs_result(reference(), node(), pairs_result(), state()) -> state().
-handle_get_pairs_result(Ref, Node, Res, State = #{waiting_for_nodes := Waiting}) ->
-    case lists:member({Node, Ref}, Waiting) of
-        true ->
-            process_get_pairs_result(Node, Res),
-            State#{waiting_for_nodes := lists:delete({Node, Ref}, Waiting)};
-        false ->
-            ?LOG_WARNING(#{what => unknown_ref_in_get_pairs_result,
-                           text => <<"Could be a late response, if the remote nodes reconnects fast">>,
-                           node => Node, reference => Ref, result => Res, waiting_for_nodes => Waiting}),
-            State
-    end.
-
--spec process_get_pairs_result(node(), pairs_result()) -> ok.
-process_get_pairs_result(_Node, Pairs) when is_list(Pairs) ->
+-spec handle_get_pairs_result(node(), pairs_result(), state()) -> state().
+handle_get_pairs_result(_RemoteNode, Pairs, State) when is_list(Pairs) ->
     %% Ignore our node name in the result
     Pairs2 = lists:keydelete(node(), 1, Pairs),
-    remember_addresses(Pairs2);
-process_get_pairs_result(Node, Other) ->
-    ?LOG_WARNING(#{what => get_pairs_failed_on_node,
-                   text => <<"We asked the remote node for the node list and addresses, but got an error.">>,
-                   remote_node => Node, reason => Other}),
-    ok.
+    remember_addresses(Pairs2),
+    State;
+handle_get_pairs_result(_Node, _Res, State) ->
+    State.
 
 -spec can_connect(inet:ip_address()) -> boolean().
 can_connect(IP) ->
