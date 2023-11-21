@@ -55,10 +55,17 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-
-%% We also should send our IPs to other nodes on nodeup
+%% Store addresses extracted by CETS disco from RDBMS
+%% We also would send our IPs to other nodes on nodeup
+-spec remember_addresses([{node(), binary()}]) -> ok.
 remember_addresses(Pairs) ->
-    ets:insert(?MODULE, Pairs).
+    try
+        ets:insert(?MODULE, Pairs),
+        ok
+    catch _:Error ->
+        ?LOG_ERROR(#{what => remember_addresses_failed, reason => Error, pairs => Pairs}),
+        ok
+    end.
 
 can_connect(IP) ->
     Timeout = 1000,
