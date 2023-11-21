@@ -61,10 +61,10 @@ from_binary_kv_diff(RawConfig, ConfigSchema, Config) ->
         {error, Reason} ->
             {error, Reason};
         {value, RRawConfig, RConfigSchema, KV} ->
-            from_binary_kv(RRawConfig, RConfigSchema, [KV | Config]);
-        {default, _, _, _} ->
+            from_binary_kv_diff(RRawConfig, RConfigSchema, [KV | Config]);
+        {default, RRawConfig, RConfigSchema, _} ->
             % do not populate the diff with default values
-            from_binary_kv(RawConfig, ConfigSchema, Config)
+            from_binary_kv_diff(RRawConfig, RConfigSchema, Config)
     end.
 
 -spec from_binary_kv(RawConfig :: binary_kv(), ConfigSchema :: schema()) ->
@@ -93,7 +93,8 @@ take_next_kv([{KeyBin, _} | _], _) ->
 
 -spec to_binary_kv(Config :: kv(), ConfigSchema :: schema()) -> binary_kv().
 to_binary_kv(Config, ConfigSchema) ->
-    ConfigWithSchema = lists:zip(lists:sort(Config), lists:keysort(3, ConfigSchema)),
+    FConfigSchema = filter_config(Config, ConfigSchema, []),
+    ConfigWithSchema = lists:zip(lists:sort(Config), lists:keysort(3, FConfigSchema)),
     [{KeyBin, value2b(Val, Type)} || {{Key, Val}, {KeyBin, _Default, Key, Type}} <- ConfigWithSchema].
 
 %%====================================================================
@@ -109,3 +110,22 @@ b2value(ValBin, float) -> binary_to_float(ValBin).
 value2b(Val, binary) when is_binary(Val) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
 value2b(Val, float) -> float_to_binary(Val).
+
+filter_config([], _ConfigSchema, FinalSchema) ->
+    FinalSchema;
+filter_config([Config | RConfig], ConfigSchema, FinalSchema) ->
+    case filter_config_schema(Config, ConfigSchema, []) of
+        [] ->
+            filter_config(RConfig, ConfigSchema, FinalSchema);
+        Matched ->
+            filter_config(RConfig, ConfigSchema, [Matched | FinalSchema])
+    end.
+
+filter_config_schema( _Config, [], FinalMatch)->
+    FinalMatch;
+filter_config_schema( {Key, _} = Config, [{_, <<>>,CKey ,_} = ConfigSchema | RConfigSchema], FinalMatch)->
+    case Key == CKey of
+        true ->
+            filter_config_schema(Config, [], ConfigSchema);
+        false -> filter_config_schema(Config, RConfigSchema, [])
+    end.
