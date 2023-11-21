@@ -206,16 +206,17 @@ register_bad_node() ->
     ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
     Num = 100,
+    Address = <<>>,
     Timestamp = rpc(mim(), mongoose_rdbms_timestamp, select, []),
-    InsertArgs = [ClusterName, Node, Num, Timestamp],
-    {updated, 1} = rpc(mim(), mongoose_rdbms, execute, [global, cets_disco_insert_new, InsertArgs]).
+    InsertArgs = [ClusterName, Node, Num, Address, Timestamp],
+    {updated, 1} = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, InsertArgs).
 
 ensure_bad_node_unregistered() ->
     ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
     DeleteArgs = [ClusterName, Node],
     %% Ensure the node is removed
-    {updated, _} = rpc(mim(), mongoose_rdbms, execute, [global, cets_delete_node_from_db, DeleteArgs]).
+    {updated, _} = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, DeleteArgs).
 
 force_check() ->
     Pid = rpc(mim(), erlang, whereis, [mongoose_cets_discovery]),
