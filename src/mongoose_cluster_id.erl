@@ -58,7 +58,7 @@ wait_for_any_backend(Backend, IntBackend) ->
     Pids = lists:append([wait_for_backend_promise(B, Alias) || B <- lists:sort([Backend, IntBackend])]),
     wait_for_first_reply(Alias),
     %% Interrupt other waiting calls to reduce the logging noise
-    [erlang:exit(Pid, stop) || Pid <- Pids],
+    [erlang:exit(Pid, shutdown) || Pid <- Pids],
     ok.
 
 wait_for_first_reply(Alias) ->
