@@ -15,19 +15,22 @@
 
 -type opts() :: #{cluster_name := binary(), node_name_to_insert := binary(),
                   last_query_info => map(), expire_time => non_neg_integer(),
+                  node_ip_binary => binary(),
                   any() => any()}.
 
 -type state() :: #{cluster_name := binary(), node_name_to_insert := binary(),
-                   last_query_info := map(), expire_time := non_neg_integer()}.
+                   last_query_info := map(), expire_time := non_neg_integer(),
+                   node_ip_binary := binary()}.
 
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
-    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time],
+    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time, node_ip_binary],
     maps:with(Keys, maps:merge(defaults(), Opts)).
 
 defaults() ->
     #{expire_time => 60 * 60 * 1, %% 1 hour in seconds
-      last_query_info => #{}}.
+      last_query_info => #{},
+      node_ip_binary => <<>>}.
 
 -spec get_nodes(state()) -> {cets_discovery:get_nodes_result(), state()}.
 get_nodes(State = #{cluster_name := ClusterName, node_name_to_insert := Node}) ->
@@ -55,13 +58,14 @@ is_rdbms_running() ->
          false
     end.
 
-try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterName) ->
+try_register(ClusterName, Node, State = #{node_ip_binary := Address})
+    when is_binary(Node), is_binary(ClusterName) ->
     prepare(),
     Timestamp = timestamp(),
     {selected, Rows} = select(ClusterName),
     Nodes = [element(1, Row) || Row <- Rows],
     Nums = [element(2, Row) || Row <- Rows],
-    Address = remember_addresses(Node, Rows),
+    remember_addresses(Node, Rows, Address),
     AlreadyRegistered = lists:member(Node, Nodes),
     NodeNum =
         case AlreadyRegistered of
@@ -108,15 +112,14 @@ is_expired(DbTS, Timestamp, ExpireTime) when is_integer(Timestamp),
                                              is_integer(DbTS) ->
     (Timestamp - DbTS) > ExpireTime. %% compare seconds
 
-remember_addresses(Node, Rows) when is_binary(Node) ->
+remember_addresses(Node, Rows, MyAddress) when is_binary(Node), is_binary(MyAddress) ->
     AddressPairs = [{binary_to_atom(DbNodeBin), Address}
                     || {DbNodeBin, _Num, Address, _TS} <- Rows],
     NodeAtom = binary_to_atom(Node),
-    Address = list_to_binary(os:getenv("POD_IP", "")),
     %% Ignore IP in the DB for our own node (it could be from the previous container).
-    AddressPairs2 = [{NodeAtom, Address} | lists:delete(NodeAtom, AddressPairs)],
+    AddressPairs2 = [{NodeAtom, MyAddress} | lists:delete(NodeAtom, AddressPairs)],
     mongoose_node_address:remember_addresses(AddressPairs2),
-    Address.
+    ok.
 
 prepare() ->
     T = discovery_nodes,

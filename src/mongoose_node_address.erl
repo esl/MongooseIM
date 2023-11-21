@@ -11,10 +11,7 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([
-get_pairs/0,
-start_link/0
-]).
+-ignore_xref([get_pairs/0, start_link/0]).
 
 -include_lib("kernel/include/logger.hrl").
 
