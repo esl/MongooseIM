@@ -71,14 +71,14 @@ try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterNa
     NodeNum =
         case AlreadyRegistered of
             true ->
-                 update_existing(ClusterName, Node, Timestamp, Address),
+                 update_existing(ClusterName, Node, Address, Timestamp),
                  {value, {_, Num, _Addr, _TS}} = lists:keysearch(Node, 1, Rows),
                  Num;
             false ->
                  Num = first_free_num(lists:usort(Nums)),
                  %% Could fail with duplicate node_num reason.
                  %% In this case just wait for the next get_nodes call.
-                 case insert_new(ClusterName, Node, Timestamp, Num, Address) of
+                 case insert_new(ClusterName, Node, Num, Address, Timestamp) of
                      {error, _} -> 0; %% return default node num
                      {updated, 1} -> Num
                  end
@@ -134,14 +134,15 @@ insert_new() ->
     <<"INSERT INTO discovery_nodes (cluster_name, node_name, node_num, address, updated_timestamp)"
       " VALUES (?, ?, ?, ?, ?)">>.
 
-insert_new(ClusterName, Node, Timestamp, Num, Address) ->
-    mongoose_rdbms:execute(global, cets_disco_insert_new, [ClusterName, Node, Num, Address, Timestamp]).
+insert_new(ClusterName, NodeName, NodeNum, Address, UpdatedTimestamp) ->
+    mongoose_rdbms:execute(global, cets_disco_insert_new,
+                           [ClusterName, NodeName, NodeNum, Address, UpdatedTimestamp]).
 
 update_existing() ->
     <<"UPDATE discovery_nodes SET updated_timestamp = ?, address = ? WHERE cluster_name = ? AND node_name = ?">>.
 
-update_existing(ClusterName, Node, Timestamp, Address) ->
-    mongoose_rdbms:execute(global, cets_disco_update_existing, [Timestamp, Address, ClusterName, Node]).
+update_existing(ClusterName, NodeName, Address, UpdatedTimestamp) ->
+    mongoose_rdbms:execute(global, cets_disco_update_existing, [UpdatedTimestamp, Address, ClusterName, NodeName]).
 
 delete_node_from_db() ->
     <<"DELETE FROM discovery_nodes WHERE cluster_name = ? AND node_name = ?">>.

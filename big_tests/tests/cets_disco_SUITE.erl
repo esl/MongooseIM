@@ -144,24 +144,24 @@ rdbms_backend_db_queries(_Config) ->
     TS2 = TS + 100,
 
     %% insertion fails if node name or node num is already added for the cluster
-    ?assertEqual({updated, 1}, insert_new(CN, <<"test1">>, TS, 1)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, TS, 1)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, TS, 2)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test2">>, TS, 1)),
-    ?assertEqual({updated, 1}, insert_new(CN, <<"test2">>, TS, 2)),
+    ?assertEqual({updated, 1}, insert_new(CN, <<"test1">>, 1, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, 1, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, 2, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"test2">>, 1, <<>>, TS)),
+    ?assertEqual({updated, 1}, insert_new(CN, <<"test2">>, 2, <<>>, TS)),
 
     %% update of the timestamp works correctly
     {selected, SelectedNodes1} = select(CN),
-    ?assertEqual(lists:sort([{<<"test1">>, 1, TS}, {<<"test2">>, 2, TS}]),
+    ?assertEqual(lists:sort([{<<"test1">>, 1, <<>>, TS}, {<<"test2">>, 2, <<>>, TS}]),
                  lists:sort(SelectedNodes1)),
-    ?assertEqual({updated, 1}, update_existing(CN, <<"test1">>, TS2)),
+    ?assertEqual({updated, 1}, update_existing(CN, <<"test1">>, <<>>, TS2)),
     {selected, SelectedNodes2} = select(CN),
-    ?assertEqual(lists:sort([{<<"test1">>, 1, TS2}, {<<"test2">>, 2, TS}]),
+    ?assertEqual(lists:sort([{<<"test1">>, 1, <<>>, TS2}, {<<"test2">>, 2, <<>>, TS}]),
                  lists:sort(SelectedNodes2)),
 
     %% node removal work correctly
     ?assertEqual({updated, 1}, delete_node_from_db(CN, <<"test1">>)),
-    ?assertEqual({selected, [{<<"test2">>, 2, TS}]}, select(CN)).
+    ?assertEqual({selected, [{<<"test2">>, 2, <<>>, TS}]}, select(CN)).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -216,9 +216,9 @@ random_cluster_name(CaseName) ->
     Rand = rpc(mim(), mongoose_bin, gen_from_crypto, []),
     <<"big_test_", (atom_to_binary(CaseName))/binary, "_", Rand/binary>>.
 
-insert_new(CN, BinNode, TS, NodeNum) ->
-    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, [CN, BinNode, TS, NodeNum]),
-    ct:log("insert_new(~p, ~p, ~p, ~p) = ~p", [CN, BinNode, TS, NodeNum, Ret]),
+insert_new(CN, BinNode, NodeNum, Address, TS) ->
+    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, [CN, BinNode, NodeNum, Address, TS]),
+    ct:log("insert_new(~p, ~p, ~p, ~p, ~p) = ~p", [CN, BinNode, NodeNum, Address, TS, Ret]),
     Ret.
 
 select(CN) ->
@@ -226,9 +226,9 @@ select(CN) ->
     ct:log("select(~p) = ~p", [CN, Ret]),
     Ret.
 
-update_existing(CN, BinNode, TS) ->
-    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, update_existing, [CN, BinNode, TS]),
-    ct:log("select(~p, ~p, ~p) = ~p", [CN, BinNode, TS, Ret]),
+update_existing(CN, BinNode, Address, TS) ->
+    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, update_existing, [CN, BinNode, Address, TS]),
+    ct:log("select(~p, ~p, ~p, ~p) = ~p", [CN, BinNode, Address, TS, Ret]),
     Ret.
 
 delete_node_from_db(CN, BinNode) ->
