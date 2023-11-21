@@ -61,12 +61,7 @@ try_register(ClusterName, Node, State) when is_binary(Node), is_binary(ClusterNa
     {selected, Rows} = select(ClusterName),
     Nodes = [element(1, Row) || Row <- Rows],
     Nums = [element(2, Row) || Row <- Rows],
-    AddressPairs = [{binary_to_atom(DbNodeBin), Address}
-                    || {DbNodeBin, _Num, Address, _TS} <- Rows],
-    Address = list_to_binary(os:getenv("POD_IP", "")),
-    %% Ignore IP in the DB for our own node (it could be from the previous container).
-    AddressPairs2 = [{Node, Address} | lists:delete(Node, AddressPairs)],
-    mongoose_node_address:remember_addresses(AddressPairs2),
+    Address = remember_addresses(Node, Rows),
     AlreadyRegistered = lists:member(Node, Nodes),
     NodeNum =
         case AlreadyRegistered of
@@ -112,6 +107,16 @@ is_expired(DbTS, Timestamp, ExpireTime) when is_integer(Timestamp),
                                              is_integer(ExpireTime),
                                              is_integer(DbTS) ->
     (Timestamp - DbTS) > ExpireTime. %% compare seconds
+
+remember_addresses(Node, Rows) when is_binary(Node) ->
+    AddressPairs = [{binary_to_atom(DbNodeBin), Address}
+                    || {DbNodeBin, _Num, Address, _TS} <- Rows],
+    NodeAtom = binary_to_atom(Node),
+    Address = list_to_binary(os:getenv("POD_IP", "")),
+    %% Ignore IP in the DB for our own node (it could be from the previous container).
+    AddressPairs2 = [{NodeAtom, Address} | lists:delete(NodeAtom, AddressPairs)],
+    mongoose_node_address:remember_addresses(AddressPairs2),
+    Address.
 
 prepare() ->
     T = discovery_nodes,
