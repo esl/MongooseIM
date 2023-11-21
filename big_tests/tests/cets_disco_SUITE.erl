@@ -25,7 +25,10 @@ rdbms_cases() ->
      rdbms_backend_supports_auto_cleaning,
      rdbms_backend_node_doesnt_remove_itself,
      rdbms_backend_db_queries,
-     rdbms_backend_publishes_node_ip].
+     rdbms_backend_publishes_node_ip,
+     no_record_for_node,
+     no_ip_in_db,
+     cannot_connect_to_epmd].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -191,6 +194,21 @@ rdbms_backend_publishes_node_ip(_Config) ->
     ct:log("Pairs 2: ~p", [rpc(mim2(), mongoose_node_address, get_pairs, [])]),
     {ok, {127, 0, 0, 1}} = address_lookup(mim2(), Node1a),
     {ok, {127, 0, 0, 1}} = address_lookup(mim(), Node2a).
+
+no_record_for_node(_Config) ->
+    Node = 'mongooseim@badhost',
+    {error, {no_record_for_node, Node}} = address_lookup(mim2(), Node).
+
+no_ip_in_db(_Config) ->
+    Node = 'mongoose@noiphost',
+    rpc(mim(), mongoose_node_address, remember_addresses, [[{Node, <<>>}]]),
+    {error, {no_ip_in_db, Node}} = address_lookup(mim(), Node).
+
+cannot_connect_to_epmd(_Config) ->
+    Node = 'mongoose@noepmdhost',
+    %% IP from a test range
+    rpc(mim(), mongoose_node_address, remember_addresses, [[{Node, <<"192.0.2.1">>}]]),
+    {error, {cannot_connect_to_epmd, Node, {192, 0, 2, 1}}} = address_lookup(mim(), Node).
 
 %%--------------------------------------------------------------------
 %% Helpers
