@@ -10,8 +10,11 @@
          handle_info/2,
          terminate/2,
          code_change/3]).
-
 -ignore_xref([get_pairs/0, start_link/0]).
+
+%% For testing only
+-export([lookup_loop/4]).
+-ignore_xref([lookup_loop/4]).
 
 -include_lib("kernel/include/logger.hrl").
 

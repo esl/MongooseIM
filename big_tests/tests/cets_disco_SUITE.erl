@@ -28,7 +28,9 @@ rdbms_cases() ->
      rdbms_backend_publishes_node_ip,
      no_record_for_node,
      no_ip_in_db,
-     cannot_connect_to_epmd].
+     cannot_connect_to_epmd,
+     lookup_address_is_retried,
+     lookup_address_timeouts].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -209,6 +211,20 @@ cannot_connect_to_epmd(_Config) ->
     %% IP from a test range
     rpc(mim(), mongoose_node_address, remember_addresses, [[{Node, <<"192.0.2.1">>}]]),
     {error, {cannot_connect_to_epmd, Node, {192, 0, 2, 1}}} = address_lookup(mim(), Node).
+
+lookup_address_is_retried(_Config) ->
+    Node = 'mongoose@hosttoretry',
+    spawn(fun() ->
+            timer:sleep(50),
+            rpc(mim(), mongoose_node_address, remember_addresses, [[{Node, <<"127.0.0.1">>}]])
+        end),
+    {ok, {127, 0, 0, 1}} = address_lookup(mim(), Node).
+
+lookup_address_timeouts(_Config) ->
+    Node = 'mongoose@timeouthost',
+    Args = [Node, os:system_time(millisecond), 10, 50],
+    {error, {no_record_for_node, Node}} =
+        rpc(mim(), mongoose_node_address, lookup_loop, Args).
 
 %%--------------------------------------------------------------------
 %% Helpers
