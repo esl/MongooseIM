@@ -1,8 +1,7 @@
 -module(mongoose_node_address).
 -behaviour(gen_server).
 
--export([start_link/0, lookup/1, remember_addresses/1,
-         get_pairs/0, wait_for_registry_to_be_ready/0]).
+-export([start_link/0, lookup/1, remember_addresses/1, get_pairs/0]).
 
 %% gen_server hooks
 -export([init/1,
@@ -12,11 +11,15 @@
          terminate/2,
          code_change/3]).
 
+-ignore_xref([
+get_pairs/0,
+start_link/0
+]).
+
 -include_lib("kernel/include/logger.hrl").
 
 -type state() :: #{
-    waiting_for_nodes := [{node(), reference()}],
-    calls_waiting_for_ready := [From :: term()]
+    waiting_for_nodes := [{node(), reference()}]
 }.
 
 start_link() ->
@@ -26,14 +29,8 @@ start_link() ->
 init(_Opts) ->
     ets:new(?MODULE, [named_table, public]),
     net_kernel:monitor_nodes(true),
-    {ok, #{waiting_for_nodes => [], calls_waiting_for_ready => []}}.
+    {ok, #{waiting_for_nodes => []}}.
 
-handle_call(wait_for_registry_to_be_ready, _From, State = #{waiting_for_nodes := []}) ->
-    {reply, ok, State};
-handle_call(wait_for_registry_to_be_ready, From,
-            State = #{calls_waiting_for_ready := Calls}) ->
-    %% We would reply later
-    {noreply, State#{calls_waiting_for_ready := [From | Calls]}};
 handle_call(Msg, From, State) ->
     ?LOG_ERROR(#{what => unexpected_call, msg => Msg, from => From}),
     {reply, {error, unexpected_call}, State}.
@@ -136,23 +133,6 @@ maybe_retry(Node, Start, Timeout, Sleep, Reason) ->
             {error, Reason}
     end.
 
-%% There are two ways to get IPs of other nodes:
-%% - ask RDBMS
-%% - nodes would tell us nodes they know (and actually connected to)
-%%   after nodeup message
-wait_for_registry_to_be_ready() ->
-    cets_long:run_tracked(#{task => wait_for_registry_to_be_ready},
-        fun() ->
-            %% We cannot block for too long, because it would disable distributed connections
-            try
-                gen_server:call(?MODULE, wait_for_registry_to_be_ready, 3000)
-            catch Class:Reason:Stacktrace ->
-                ?LOG_WARNING(#{what => wait_for_registry_to_be_ready_failed,
-                               class => Class, reason => Reason, stacktrace => Stacktrace}),
-                ok
-            end
-        end).
-
 %% There is a chance nodeup could come from a non-mongooseim node
 handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
     Server = self(),
@@ -172,8 +152,7 @@ handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
 handle_nodedown(Node, State = #{waiting_for_nodes := Waiting}) ->
     %% Stop waiting for get_pairs_result for the node
     Waiting2 = [Res || {WaitingNode, _Ref} = Res <- Waiting, WaitingNode =/= Node],
-    State2 = State#{waiting_for_nodes := Waiting2},
-    maybe_reply_waiting_for_nodes(State2).
+    State#{waiting_for_nodes := Waiting2}.
 
 get_pairs() ->
     Nodes = [node() | nodes()],
@@ -183,8 +162,7 @@ handle_get_pairs_result(Ref, Node, Res, State = #{waiting_for_nodes := Waiting})
     case lists:member({Node, Ref}, Waiting) of
         true ->
             process_get_pairs_result(Node, Res),
-            State2 = State#{waiting_for_nodes := lists:delete({Node, Ref}, Waiting)},
-            maybe_reply_waiting_for_nodes(State2);
+            State#{waiting_for_nodes := lists:delete({Node, Ref}, Waiting)};
         false ->
             ?LOG_WARNING(#{what => unknown_ref_in_get_pairs_result,
                            text => <<"Could be a late response, if the remote nodes reconnects fast">>,
@@ -201,9 +179,3 @@ process_get_pairs_result(Node, Other) ->
                    text => <<"We asked the remote node for the node list and addresses, but got an error.">>,
                    remote_node => Node, reason => Other}),
     ok.
-
-maybe_reply_waiting_for_nodes(State = #{calls_waiting_for_ready := Calls, waiting_for_nodes := []}) ->
-    [gen_server:reply(From, ok) || From <- Calls],
-    State#{calls_waiting_for_ready := []};
-maybe_reply_waiting_for_nodes(State) ->
-    State.

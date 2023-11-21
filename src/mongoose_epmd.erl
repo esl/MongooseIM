@@ -1,3 +1,5 @@
+%% EPMD implementation which redefines how name lookups work
+%% There is no behaviour for erl_epmd
 -module(mongoose_epmd).
 -export([
     start/0,
@@ -11,6 +13,18 @@
     open/0, open/1, open/2
 ]).
 -include_lib("kernel/include/logger.hrl").
+
+-ignore_xref([
+    start/0,
+    start_link/0,
+    stop/0,
+    port_please/2, port_please/3,
+    listen_port_please/2,
+    names/0, names/1,
+    register_node/2, register_node/3,
+    address_please/3,
+    open/0, open/1, open/2
+]).
 
 start() -> erl_epmd:start().
 start_link() -> erl_epmd:start_link().
