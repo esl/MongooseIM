@@ -24,7 +24,8 @@ rdbms_cases() ->
     [rdbms_backend,
      rdbms_backend_supports_auto_cleaning,
      rdbms_backend_node_doesnt_remove_itself,
-     rdbms_backend_db_queries].
+     rdbms_backend_db_queries,
+     rdbms_backend_publishes_node_ip].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -34,6 +35,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_group(rdbms, Config) ->
+    start_node_address_server(mim()),
+    start_node_address_server(mim2()),
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
@@ -42,6 +45,10 @@ init_per_group(rdbms, Config) ->
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(rdbms, Config) ->
+    stop_node_address_server(mim()),
+    stop_node_address_server(mim2()),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -163,6 +170,28 @@ rdbms_backend_db_queries(_Config) ->
     ?assertEqual({updated, 1}, delete_node_from_db(CN, <<"test1">>)),
     ?assertEqual({selected, [{<<"test2">>, 2, <<>>, TS}]}, select(CN)).
 
+rdbms_backend_publishes_node_ip(_Config) ->
+    %% get_pairs would return only real available nodes, so use the real node names
+    Node1a = maps:get(node, mim()),
+    Node2a = maps:get(node, mim2()),
+    Node1b = atom_to_binary(Node1a),
+    Node2b = atom_to_binary(Node2a),
+    CN = random_cluster_name(?FUNCTION_NAME),
+    Opts1 = #{cluster_name => CN, node_name_to_insert => Node1b,
+              node_ip_binary => <<"127.0.0.1">>},
+    Opts2 = #{cluster_name => CN, node_name_to_insert => Node2b,
+              node_ip_binary => <<"127.0.0.1">>},
+    State1 = disco_init(mim(), Opts1),
+    State2 = disco_init(mim2(), Opts2),
+    {{ok, _Nodes1_2}, State1_2} = disco_get_nodes(mim(), State1),
+    {{ok, _Nodes2_2}, State2_2} = disco_get_nodes(mim2(), State2),
+    {{ok, _Nodes1_3}, _State1_3} = disco_get_nodes(mim(), State1_2),
+    {{ok, _Nodes2_3}, _State2_3} = disco_get_nodes(mim2(), State2_2),
+    ct:log("Pairs 1: ~p", [rpc(mim(), mongoose_node_address, get_pairs, [])]),
+    ct:log("Pairs 2: ~p", [rpc(mim2(), mongoose_node_address, get_pairs, [])]),
+    {ok, {127, 0, 0, 1}} = address_lookup(mim2(), Node1a),
+    {ok, {127, 0, 0, 1}} = address_lookup(mim(), Node2a).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -176,6 +205,9 @@ disco_get_nodes(Node, State) ->
     NewState = rpc(Node, mongoose_cets_discovery_rdbms, get_nodes, [State]),
     log_disco_request(?FUNCTION_NAME, Node, State, NewState),
     NewState.
+
+address_lookup(Node, NodeToLookup) ->
+    rpc(Node, mongoose_node_address, lookup, [NodeToLookup]).
 
 log_disco_request(disco_init, Node, #{cluster_name := CN} = Opts, State) ->
     ct:log("[0] disco_init(~p,~n" ++
@@ -235,3 +267,11 @@ delete_node_from_db(CN, BinNode) ->
     Ret = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, [CN, BinNode]),
     ct:log("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
     Ret.
+
+start_node_address_server(Node) ->
+    MFA = {mongoose_node_address, start_link, []},
+    ChildSpec = #{id => mongoose_node_address, start => MFA, restart => temporary},
+    rpc(Node, supervisor, start_child, [ejabberd_sup, ChildSpec]).
+
+stop_node_address_server(Node) ->
+    rpc(Node, supervisor, terminate_child, [ejabberd_sup, mongoose_node_address]).

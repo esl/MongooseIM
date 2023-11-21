@@ -136,6 +136,15 @@ handle_nodeup(Node, State = #{waiting_for_nodes := Waiting}) ->
             ok
         end),
     %% Only one get_pairs per node is allowed, ignore the old result, if it comes.
+
+    case lists:keymember(Node, 1, Waiting) of
+        true ->
+            ?LOG_WARNING(#{what => discard_old_waiting_ref,
+                           text => <<"Could be a race condition issue">>,
+                           node => Node, new_reference => Ref, waiting_for_nodes => Waiting});
+        false ->
+            ok
+    end,
     State#{waiting_for_nodes := [{Node, Ref} | lists:keydelete(Node, 1, Waiting)]}.
 
 -spec handle_nodedown(node(), state()) -> state().
@@ -158,7 +167,7 @@ handle_get_pairs_result(Ref, Node, Res, State = #{waiting_for_nodes := Waiting})
         false ->
             ?LOG_WARNING(#{what => unknown_ref_in_get_pairs_result,
                            text => <<"Could be a late response, if the remote nodes reconnects fast">>,
-                           node => Node, reference => Ref, result => Res}),
+                           node => Node, reference => Ref, result => Res, waiting_for_nodes => Waiting}),
             State
     end.
 

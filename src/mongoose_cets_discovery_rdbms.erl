@@ -23,7 +23,8 @@
                    node_ip_binary := binary()}.
 
 -spec init(opts()) -> state().
-init(Opts = #{cluster_name := _, node_name_to_insert := _}) ->
+init(Opts = #{cluster_name := ClusterName, node_name_to_insert := Node})
+       when is_binary(ClusterName), is_binary(Node) ->
     Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time, node_ip_binary],
     maps:with(Keys, maps:merge(defaults(), Opts)).
 
