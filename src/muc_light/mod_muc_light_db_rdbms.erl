@@ -708,11 +708,12 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
         {selected, [{DbRoomID, PrevVersion}]} ->
             RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
             {updated, _} = update_room_version(HostType, RoomU, RoomS, Version),
+            {ok, Config} = mod_muc_light_room_config:to_binary_kv_diff(
+                             ConfigChanges, mod_muc_light:config_schema(RoomS)),
             lists:foreach(
               fun({Key, Val}) ->
                       {updated, _} = update_config(HostType, RoomID, Key, Val)
-              end, mod_muc_light_room_config:to_binary_kv(
-                     ConfigChanges, mod_muc_light:config_schema(RoomS))),
+              end, Config),
             {ok, PrevVersion};
         {selected, []} ->
             {error, not_exists}

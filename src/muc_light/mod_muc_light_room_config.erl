@@ -23,7 +23,8 @@
 -module(mod_muc_light_room_config).
 
 %% API
--export([from_binary_kv_diff/2, from_binary_kv/2, to_binary_kv/2]).
+-export([from_binary_kv_diff/2, from_binary_kv/2,
+         to_binary_kv_diff/2, to_binary_kv/2]).
 
 -include("mod_muc_light.hrl").
 
@@ -61,14 +62,14 @@ from_binary_kv_diff(RawConfig, ConfigSchema, Config) ->
         {error, Reason} ->
             {error, Reason};
         {value, RRawConfig, RConfigSchema, KV} ->
-            from_binary_kv(RRawConfig, RConfigSchema, [KV | Config]);
-        {default, _, _, _} ->
+            from_binary_kv_diff(RRawConfig, RConfigSchema, [KV | Config]);
+        {default, RRawConfig, RConfigSchema, _} ->
             % do not populate the diff with default values
-            from_binary_kv(RawConfig, ConfigSchema, Config)
+            from_binary_kv_diff(RRawConfig, RConfigSchema, Config)
     end.
 
 -spec from_binary_kv(RawConfig :: binary_kv(), ConfigSchema :: schema()) ->
-          {ok, kv()} | validation_error().
+    {ok, kv()} | validation_error().
 from_binary_kv(RawConfig, ConfigSchema) ->
     from_binary_kv(lists:ukeysort(1, RawConfig), ConfigSchema, []).
 
@@ -89,6 +90,33 @@ take_next_kv([{KeyBin, ValBin} | RRawConfig], [{KeyBin, _Default, Key, Type} | R
 take_next_kv(RawConfig, [{_KeyBin, Default, Key, _Type} | RSchema]) ->
     {default, RawConfig, RSchema, {Key, Default}};
 take_next_kv([{KeyBin, _} | _], _) ->
+    {error, {KeyBin, not_found}}.
+
+-spec to_binary_kv_diff(RawConfig :: kv(), ConfigSchema :: schema()) ->
+    {ok, binary_kv()} | validation_error().
+to_binary_kv_diff(RawConfig, ConfigSchema) ->
+    to_binary_kv_diff(lists:ukeysort(1, RawConfig), ConfigSchema, []).
+
+to_binary_kv_diff([], [], Config) ->
+    {ok, Config};
+to_binary_kv_diff(RawConfig, ConfigSchema, Config) ->
+    case take_next_binary_kv(RawConfig, ConfigSchema) of
+        {error, Reason} ->
+            {error, Reason};
+        {value, RRawConfig, RConfigSchema, KV} ->
+            to_binary_kv_diff(RRawConfig, RConfigSchema, [KV | Config]);
+        {default, RRawConfig, RConfigSchema, _} ->
+            % do not populate the diff with default values
+            to_binary_kv_diff(RRawConfig, RConfigSchema, Config)
+    end.
+
+take_next_binary_kv([{Key, ValBin} | RRawConfig], [{KeyBin, _Default, Key, Type} | RSchema]) ->
+    try {value, RRawConfig, RSchema, {Key, value2b(ValBin, Type)}}
+    catch _:_ -> {error, {KeyBin, type_error}}
+    end;
+take_next_binary_kv(RawConfig, [{_KeyBin, Default, Key, _Type} | RSchema]) ->
+    {default, RawConfig, RSchema, {Key, Default}};
+take_next_binary_kv([{KeyBin, _} | _], _) ->
     {error, {KeyBin, not_found}}.
 
 -spec to_binary_kv(Config :: kv(), ConfigSchema :: schema()) -> binary_kv().
