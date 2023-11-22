@@ -48,6 +48,7 @@
          destroy_room_get_disco_items_empty/1,
          destroy_room_get_disco_items_one_left/1,
          set_config/1,
+         set_partial_config/1,
          set_config_with_custom_schema/1,
          deny_config_change_that_conflicts_with_schema/1,
          assorted_config_doesnt_lead_to_duplication/1,
@@ -169,6 +170,7 @@ groups() ->
                               destroy_room_get_disco_items_empty,
                               destroy_room_get_disco_items_one_left,
                               set_config,
+                              set_partial_config,
                               set_config_with_custom_schema,
                               deny_config_change_that_conflicts_with_schema,
                               assorted_config_doesnt_lead_to_duplication,
@@ -713,18 +715,31 @@ destroy_room_get_disco_items_one_left(Config) ->
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
-            escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
-            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange)
+        end).
+
+set_partial_config(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            FinalRoomName = <<"The Coven">>,
+            %% Change all the config
+            ConfigChange = [{<<"roomname">>, FinalRoomName}, {<<"subject">>, <<"Evil Ravens">>}],
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange),
+            %% Now change only the subject
+            ConfigChange2 = [{<<"subject">>, <<"Good Ravens">>}],
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange2),
+            %% Verify that roomname is still the original change
+            escalus:send(Alice, stanza_config_get(?ROOM, ver(1))),
+            IQRes = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, IQRes),
+            RoomName = exml_query:path(IQRes, [{element, <<"query">>}, {element, <<"roomname">>}, cdata]),
+            ?assertEqual(FinalRoomName, RoomName)
         end).
 
 set_config_with_custom_schema(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"background">>, <<"builtin:unicorns">>},
                             {<<"music">>, <<"builtin:rainbow">>}],
-            escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
-            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange)
         end).
 
 deny_config_change_that_conflicts_with_schema(Config) ->
@@ -740,10 +755,7 @@ assorted_config_doesnt_lead_to_duplication(Config) ->
             ConfigChange = [{<<"subject">>, <<"Elixirs">>},
                             {<<"roomname">>, <<"The Coven">>},
                             {<<"subject">>, <<"Elixirs">>}],
-            ConfigSetStanza = stanza_config_set(?ROOM, ConfigChange),
-            escalus:send(Alice, ConfigSetStanza),
-            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            change_room_config(Alice, [Alice, Bob, Kate], ConfigChange),
 
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
             VerifyFun = fun(Incoming) ->
@@ -936,6 +948,12 @@ blocking_disabled(Config) ->
 %%--------------------------------------------------------------------
 %% Subroutines
 %%--------------------------------------------------------------------
+
+-spec change_room_config(escalus:client(), [escalus:client()], list({binary(), binary()})) -> term().
+change_room_config(User, Users, ConfigChange) ->
+    escalus:send(User, stanza_config_set(?ROOM, ConfigChange)),
+    foreach_recipient(Users, config_msg_verify_fun(ConfigChange)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 -spec get_disco_rooms(User :: escalus:client()) -> list(xmlel()).
 get_disco_rooms(User) ->
