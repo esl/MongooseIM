@@ -657,7 +657,7 @@ create_room_transaction(HostType, {RoomU, RoomS}, Config, AffUsers, Version) ->
     insert_room(HostType, RoomU, RoomS, Version),
     RoomID = mongoose_rdbms:selected_to_integer(select_room_id(HostType, RoomU, RoomS)),
     Schema = mod_muc_light:config_schema(RoomS),
-    ConfigFields = mod_muc_light_room_config:to_binary_kv(Config, Schema),
+    {ok, ConfigFields} = mod_muc_light_room_config:to_binary_kv(Config, Schema),
     [insert_aff_tuple(HostType, RoomID, AffUser) || AffUser <- AffUsers],
     [insert_config_kv(HostType, RoomID, KV) || KV <- ConfigFields],
     ok.
