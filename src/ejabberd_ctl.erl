@@ -123,13 +123,13 @@ process(["restart"]) ->
 process(["join_cluster", Arg]) when is_list(Arg) ->
     join_cluster(Arg);
 process(["join_cluster" | _]) ->
-    cluster_command_without_arg();
+    cluster_command_usage();
 process(["leave_cluster"]) ->
     leave_cluster();
 process(["remove_from_cluster", Arg]) when is_list(Arg) ->
     remove_from_cluster(Arg);
 process(["remove_from_cluster" | _]) ->
-    cluster_command_without_arg();
+    cluster_command_usage();
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
     Ep = mongoose_graphql:get_endpoint(admin),
@@ -138,25 +138,6 @@ process(["graphql", Arg]) when is_list(Arg) ->
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
     ?STATUS_ERROR;
-
-%% @doc The arguments --long and --dual are not documented because they are
-%% automatically selected depending in the number of columns of the shell
-process(["help" | Mode]) ->
-    {MaxC, ShCode} = get_shell_info(),
-    case Mode of
-        [] ->
-            print_usage(dual, MaxC, ShCode),
-            ?STATUS_USAGE;
-        ["--dual"] ->
-            print_usage(dual, MaxC, ShCode),
-            ?STATUS_USAGE;
-        ["--long"] ->
-            print_usage(long, MaxC, ShCode),
-            ?STATUS_USAGE;
-        [_] ->
-            print_usage(dual, MaxC, ShCode),
-            ?STATUS_USAGE
-    end;
 process(Args) ->
     case mongoose_graphql_commands:process(Args) of
         #{status := executed, result := Result} ->
@@ -196,7 +177,7 @@ print_usage(#{category := Category, commands := Commands}) ->
     print_usage_category(Category, Commands);
 print_usage(_) ->
     {MaxC, ShCode} = get_shell_info(),
-    print_usage(dual, MaxC, ShCode).
+    print_usage(MaxC, ShCode).
 
 handle_graphql_result({ok, Result}) ->
     JSONResult = mongoose_graphql_response:term_to_pretty_json(Result),
@@ -247,34 +228,33 @@ format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
 
 print_usage() ->
     {MaxC, ShCode} = get_shell_info(),
-    print_usage(dual, MaxC, ShCode).
+    print_usage(MaxC, ShCode).
 
 
--spec print_usage(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
-print_usage(HelpMode, MaxC, ShCode) ->
+-spec print_usage(MaxC :: integer(), ShCode :: boolean()) -> ok.
+print_usage(MaxC, ShCode) ->
     ?PRINT(["Usage: ", ?B("mongooseimctl"), " [", ?U("category"), "] ", ?U("command"),
             " [", ?U("arguments"), "]\n\n"
             "Most MongooseIM commands are grouped into the following categories:\n"], []),
-    print_categories(HelpMode, MaxC, ShCode),
+    print_categories(MaxC, ShCode),
     ?PRINT(["\nTo list the commands in a particular category:\n  mongooseimctl ", ?U("category"),
             "\n"], []),
     ?PRINT(["\nThe following basic system management commands do not have a category:\n"], []),
-    print_usage_commands(HelpMode, MaxC, ShCode, basic_commands()).
+    print_usage_commands(MaxC, ShCode, basic_commands()).
 
 -spec basic_commands() -> [cmd()].
 basic_commands() ->
     [{"status", [], "Get MongooseIM status"},
      {"stop", [], "Stop MongooseIM"},
      {"restart", [], "Restart MongooseIM"},
-     {"help", ["[--tags [tag] | com?*]"], "Show help for the deprecated commands"},
      {"graphql", ["query"], "Execute GraphQL query or mutation"}].
 
--spec print_categories(dual | long, MaxC :: integer(), ShCode :: boolean()) -> ok.
-print_categories(HelpMode, MaxC, ShCode) ->
+-spec print_categories(MaxC :: integer(), ShCode :: boolean()) -> ok.
+print_categories(MaxC, ShCode) ->
     SortedSpecs = lists:sort(maps:to_list(mongoose_graphql_commands:get_specs())),
     Categories = [{binary_to_list(Category), [], binary_to_list(Desc)}
                   || {Category, #{desc := Desc}} <- SortedSpecs],
-    print_usage_commands(HelpMode, MaxC, ShCode, Categories).
+    print_usage_commands(MaxC, ShCode, Categories).
 
 -spec print_usage_category(mongoose_graphql_commands:category(),
                            mongoose_graphql_commands:command_map()) -> ok.
@@ -285,7 +265,7 @@ print_usage_category(Category, Commands) ->
             "The following commands are available in the category '", Category, "':\n"], []),
     CmdSpec = [{binary_to_list(Command), [], binary_to_list(Desc)}
                || {Command, #{desc := Desc}} <- maps:to_list(Commands)],
-    print_usage_commands(dual, MaxC, ShCode, CmdSpec),
+    print_usage_commands(MaxC, ShCode, CmdSpec),
     ?PRINT(["\nTo list the arguments for a particular command:\n"
             "  mongooseimctl ", Category, " ", ?U("command"), " --help", "\n"], []).
 
@@ -302,16 +282,15 @@ print_usage_command(Category, Command, ArgsSpec) ->
     %% This will be replaced with new logic when old commands are dropped
     Args = [{binary_to_list(Name), [], mongoose_graphql_commands:wrap_type(Wrap, Type)}
             || #{name := Name, type := Type, wrap := Wrap} <- ArgsSpec],
-    print_usage_commands(dual, MaxC, ShCode, Args),
+    print_usage_commands(MaxC, ShCode, Args),
     ?PRINT(["\nScalar values do not need quoting unless they contain special characters or spaces.\n"
             "Complex input types are passed as JSON maps or lists, depending on the type.\n"
             "When a type is followed by '!', the corresponding argument is required.\n"], []).
 
--spec print_usage_commands(HelpMode :: 'dual' | 'long',
-                           MaxC :: integer(),
+-spec print_usage_commands(MaxC :: integer(),
                            ShCode :: boolean(),
                            Commands :: [cmd(), ...]) -> 'ok'.
-print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
+print_usage_commands(MaxC, ShCode, Commands) ->
     CmdDescsSorted = lists:keysort(1, Commands),
 
     %% What is the length of the largest command?
@@ -336,7 +315,7 @@ print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
 
     %% For each command in the list of commands
     %% Convert its definition to a line
-    FmtCmdDescs = format_command_lines(CmdArgsLenDescsSorted, MaxCmdLen, MaxC, ShCode, HelpMode),
+    FmtCmdDescs = format_command_lines(CmdArgsLenDescsSorted, MaxCmdLen, MaxC, ShCode),
     ?PRINT([FmtCmdDescs], []).
 
 %% @doc Get some info about the shell: how many columns of width and guess if
@@ -409,26 +388,27 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
 -spec format_command_lines(CALD :: [{[any()], [any()], number(), _}, ...],
                            MaxCmdLen :: integer(),
                            MaxC :: integer(),
-                           ShCode :: boolean(),
-                           'dual' | 'long') -> [[any(), ...], ...].
-format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual)
-  when MaxC - MaxCmdLen < 40 ->
-    %% If the space available for descriptions is too narrow, enforce long help mode
-    format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, long);
-format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual) ->
-    lists:map(
-      fun({Cmd, Args, CmdArgsL, Desc}) ->
-              DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
-              ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
-               DescFmt, "\n"]
-      end, CALD);
-format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
-    lists:map(
-      fun({Cmd, Args, _CmdArgsL, Desc}) ->
-              DescFmt = prepare_description(8, MaxC, Desc),
-              ["\n  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], "\n", "        ",
-               DescFmt, "\n"]
-      end, CALD).
+                           ShCode :: boolean()) -> [[any(), ...], ...].
+format_command_lines(CALD, MaxCmdLen, MaxC, ShCode) ->
+    case MaxC - MaxCmdLen < 40 of
+        true ->
+            % Long mode
+            lists:map(
+                fun({Cmd, Args, _CmdArgsL, Desc}) ->
+                    DescFmt = prepare_description(8, MaxC, Desc),
+                    ["\n  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], "\n", "        ",
+                    DescFmt, "\n"]
+                end, CALD);
+        false ->
+            % Dual mode
+            lists:map(
+                fun({Cmd, Args, CmdArgsL, Desc}) ->
+                    DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
+                    ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
+                    DescFmt, "\n"]
+                end, CALD)
+    end.
+
 
 %%-----------------------------
 %% Print usage command
@@ -477,6 +457,6 @@ handle_cluster_operation(Operation, Args) ->
             ?STATUS_ERROR
     end.
 
-cluster_command_without_arg() ->
-    ?PRINT("You have to provide other node's name\n", []),
+cluster_command_usage() ->
+    ?PRINT("This command requires one argument: other node's name\n", []),
     ?STATUS_ERROR.

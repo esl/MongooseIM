@@ -190,9 +190,9 @@ one_to_one_message(ConfigIn) ->
 
 commands_without_args(Config) ->
     {Res1, 1} = mongooseimctl_interactive("join_cluster", [], "yes\n", Config),
-    ?assertMatch({match, _}, re:run(Res1, "You have to provide other node's name")),
+    ?assertMatch({match, _}, re:run(Res1, "This command requires one argument: other node's name")),
     {Res2, 1} = mongooseimctl_interactive("remove_from_cluster", [], "yes\n",Config),
-    ?assertMatch({match, _}, re:run(Res2, "You have to provide other node's name")).
+    ?assertMatch({match, _}, re:run(Res2, "This command requires one argument: other node's name")).
 
 join_successful_prompt(Config) ->
     %% given

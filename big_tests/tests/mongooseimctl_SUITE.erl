@@ -58,9 +58,7 @@ graphql() ->
      graphql_command].
 
 help() ->
-    [default_help,
-     help_with_dual_mode,
-     help_with_long_mode].
+    [default_help].
 
 server() ->
     [server_status,
@@ -192,20 +190,6 @@ default_help(Config) ->
     CtlCmd = distributed_helper:ctl_path(Node, Config),
     {Res, 2} = mongooseimctl_helper:run(CtlCmd, []),
     expect_category_list(Res).
-
-help_with_dual_mode(Config) ->
-    {Res1, 2} = mongooseimctl("help", ["--dual"], Config),
-    expect_category_list(Res1),
-    {Res2, 2} = mongooseimctl("help", ["--nonexistent"], Config),
-    expect_category_list(Res2),
-    {Res3, 2} = mongooseimctl("help", [], Config),
-    expect_category_list(Res3).
-
-help_with_long_mode(Config) ->
-    {Res, 2} = mongooseimctl("help", ["--long"], Config),
-    io:format("Res: ~p", [Res]),
-    ?assertMatch({match, _}, re:run(Res, "Usage")),
-    ?assertMatch({match, _}, re:run(Res, "account \n\s+Account management")).
 
 %%-----------------------------------------------------------------
 %% Server management tests
