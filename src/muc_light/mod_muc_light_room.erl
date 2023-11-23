@@ -108,7 +108,7 @@ process_request({get, #config{} = ConfigReq},
     {_, RoomS} = RoomUS,
     HostType = mongoose_acc:host_type(Acc),
     {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(HostType, RoomUS),
-    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
+    {ok, RawConfig} = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq},
@@ -121,7 +121,7 @@ process_request({get, #info{} = InfoReq},
                 _From, {_, RoomS} = RoomUS, _Auth, _AffUsers, Acc) ->
     HostType = mongoose_acc:host_type(Acc),
     {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(HostType, RoomUS),
-    RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
+    {ok, RawConfig} = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq},
