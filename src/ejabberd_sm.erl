@@ -88,7 +88,6 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_commands.hrl").
 -include("session.hrl").
 
 -record(state, {}).
@@ -441,7 +440,6 @@ init([]) ->
     gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50),
     lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
-    ejabberd_commands:register_commands(commands()),
     %% Create metrics after backend has started, otherwise probe could have null value
     create_metrics(),
     {ok, #state{}}.
@@ -532,13 +530,6 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    try
-        ejabberd_commands:unregister_commands(commands())
-    catch Class:Reason:Stacktrace ->
-              ?LOG_ERROR(#{what => sm_terminate_failed,
-                           text => <<"Caught error while terminating SM">>,
-                           class => Class, reason => Reason, stacktrace => Stacktrace})
-    end,
     ok.
 
 %%--------------------------------------------------------------------
@@ -926,34 +917,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% ejabberd commands
-
--spec commands() -> [ejabberd_commands:cmd(), ...].
-commands() ->
-        [
-     %% TODO: Implement following API functions with pluggable backends architcture
-     %% #ejabberd_commands{name = connected_users,
-     %%                    tags = [session],
-     %%                    desc = "List all established sessions",
-     %%                    module = ?MODULE, function = connected_users,
-     %%                    args = [],
-     %%                    result = {connected_users, {list, {sessions, string}}}},
-     %% #ejabberd_commands{name = connected_users_number,
-     %%                    tags = [session, stats],
-     %%                    desc = "Get the number of established sessions",
-     %%                    module = ?MODULE, function = connected_users_number,
-     %%                    args = [],
-     %%                    result = {num_sessions, integer}},
-     #ejabberd_commands{name = user_resources,
-                        tags = [session],
-                        desc = "List user's connected resources",
-                        module = ?MODULE, function = user_resources,
-                        args = [{user, string}, {host, string}],
-                        result = {resources, {list, {resource, binary}}}}
-        ].
-
 
 -spec user_resources(UserStr :: string(), ServerStr :: string()) -> [binary()].
 user_resources(UserStr, ServerStr) ->

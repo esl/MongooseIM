@@ -125,7 +125,7 @@ opts() ->
       {modules, ?HOST} => #{}}.
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
-meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
+meck_mods(s2s) -> [exometer, mongoose_bin];
 meck_mods(component) -> [exometer];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 
@@ -297,10 +297,6 @@ setup_meck([ejabberd_local | R]) ->
     meck:new(ejabberd_local),
     meck:expect(ejabberd_local, register_iq_handler,
                 fun(_A1, _A2, _A3) -> ok end),
-    setup_meck(R);
-setup_meck([ejabberd_commands | R]) ->
-    meck:new(ejabberd_commands),
-    meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     setup_meck(R);
 setup_meck([mongoose_bin | R]) ->
     meck:new(mongoose_bin, [passthrough]),

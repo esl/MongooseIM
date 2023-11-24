@@ -608,7 +608,7 @@ set_last(UserJID, DateTime, Config) ->
 
 check_account(User) ->
     {Username, LServer} = jid:to_lus(user_to_jid(User)),
-    rpc(mim(), mongoose_account_api, check_account, [Username, LServer]).
+    rpc(mim(), mongoose_account_api, check_account, [mongoose_helper:make_jid(Username, LServer)]).
 
 assert_err_msg(Contains, Res) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), Contains)).

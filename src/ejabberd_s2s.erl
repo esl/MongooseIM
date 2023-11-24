@@ -115,7 +115,6 @@ node_cleanup(Acc, #{node := Node}, _) ->
 init([]) ->
     internal_database_init(),
     set_shared_secret(),
-    ejabberd_commands:register_commands(mongoose_s2s_lib:commands()),
     gen_hook:add_handlers(hooks()),
     {ok, #state{}}.
 
@@ -133,7 +132,6 @@ handle_info(Msg, State) ->
 
 terminate(_Reason, _State) ->
     gen_hook:delete_handlers(hooks()),
-    ejabberd_commands:unregister_commands(mongoose_s2s_lib:commands()),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

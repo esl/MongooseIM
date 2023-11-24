@@ -1,9 +1,6 @@
 -module(stats_api).
 
 -export([incoming_s2s_number/0, outgoing_s2s_number/0, stats/1, stats/2]).
--export([stats_mongooseimctl/1, stats_mongooseimctl/2]).
-
--ignore_xref([stats_mongooseimctl/1, stats_mongooseimctl/2]).
 
 -include("mongoose.hrl").
 
@@ -36,17 +33,3 @@ stats(<<"onlineusers">>, Host) ->
     {ok, ejabberd_sm:get_vh_session_number(Host)};
 stats(_Name, _Host) ->
     {not_found, "Stats not found"}.
-
--spec stats_mongooseimctl(binary()) -> {ok | not_found, string()}.
-stats_mongooseimctl(Name) ->
-    case stats(Name) of
-        {ok, Stat} -> {ok, integer_to_list(Stat)};
-        Error -> Error
-    end.
-
--spec stats_mongooseimctl(binary(), binary()) -> {ok | not_found, string()}.
-stats_mongooseimctl(Name, Host) ->
-    case stats(Name, Host) of
-        {ok, Stat} -> {ok, integer_to_list(Stat)};
-        Error -> Error
-    end.
