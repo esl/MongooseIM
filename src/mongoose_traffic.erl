@@ -20,20 +20,24 @@
 -type state() :: [pid()].
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
+start(HostType, Opts) ->
     gen_hook:add_handlers(hooks(HostType)),
-    case whereis(?MODULE) of
-        undefined ->
-            Traffic = {mongoose_traffic,
-                         {gen_server, start_link, [?MODULE, [], []]},
-                         permanent, 1000, supervisor, [?MODULE]},
-            % there has to be another layer
-            % channel will set up its own traces, someone has to watch and distribute stanzas
-            ejabberd_sup:start_child(Traffic);
-        _ ->
-            ok
-    end,
-    ok.
+    case maps:get(standalone, Opts, false) of
+        true ->
+            gen_server:start_link(?MODULE, [], []);
+        false ->
+        case whereis(?MODULE) of
+            undefined ->
+                Traffic = {mongoose_traffic,
+                             {gen_server, start_link, [?MODULE, [], []]},
+                             permanent, 1000, supervisor, [?MODULE]},
+                % there has to be another layer
+                % channel will set up its own traces, someone has to watch and distribute stanzas
+                ejabberd_sup:start_child(Traffic);
+            _ ->
+                ok
+        end
+    end.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(Host) ->

@@ -45,7 +45,7 @@
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
+    ?LOG_DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
     %% upgrade protocol
     {cowboy_websocket, Req, AllModOpts, #{}}.
@@ -59,7 +59,7 @@ terminate(_Reason, _Req, _State) ->
 
 % Called for every new websocket connection.
 websocket_init(Opts) ->
-    ?DEBUG("websocket_init: ~p~n", [Opts]),
+    ?LOG_DEBUG("websocket_init: ~p~n", [Opts]),
     gen_server:call(mongoose_traffic, {register, self()}),
     {ok, #state{}}.
 
@@ -73,13 +73,13 @@ websocket_handle({text, Msg}, State) ->
     end;
 
 websocket_handle({binary, Msg}, State) ->
-    ?DEBUG("Received binary: ~p", [Msg]),
+    ?LOG_DEBUG("Received binary: ~p", [Msg]),
     {ok, State};
 
 % With this callback we can handle other kind of
 % messages, like binary.
 websocket_handle(Any, State) ->
-    ?DEBUG("Received non-text: ~p", [Any]),
+    ?LOG_DEBUG("Received non-text: ~p", [Any]),
     {ok, State}.
 
 % Other messages from the system are handled here.
@@ -113,7 +113,7 @@ websocket_info({message, Dir, Pid, Jid, Stanza} = Message, State) ->
 websocket_info(stop, State) ->
     {stop, State};
 websocket_info(Info, State) ->
-    ?DEBUG("unknown info: ~p", [Info]),
+    ?LOG_DEBUG("unknown info: ~p", [Info]),
     {ok, State}.
 
 force_stop_tracing(State) ->
