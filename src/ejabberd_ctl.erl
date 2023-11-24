@@ -389,26 +389,24 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
                            MaxCmdLen :: integer(),
                            MaxC :: integer(),
                            ShCode :: boolean()) -> [[any(), ...], ...].
-format_command_lines(CALD, MaxCmdLen, MaxC, ShCode) ->
-    case MaxC - MaxCmdLen < 40 of
-        true ->
-            % Long mode
-            lists:map(
-                fun({Cmd, Args, _CmdArgsL, Desc}) ->
-                    DescFmt = prepare_description(8, MaxC, Desc),
-                    ["\n  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], "\n", "        ",
-                    DescFmt, "\n"]
-                end, CALD);
-        false ->
-            % Dual mode
-            lists:map(
-                fun({Cmd, Args, CmdArgsL, Desc}) ->
-                    DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
-                    ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
-                    DescFmt, "\n"]
-                end, CALD)
-    end.
+format_command_lines(CALD, MaxCmdLen, MaxC, ShCode) when MaxC - MaxCmdLen < 40 ->
+    % Long mode
+    lists:map(
+        fun({Cmd, Args, _CmdArgsL, Desc}) ->
+            DescFmt = prepare_description(8, MaxC, Desc),
+            ["\n  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], "\n", "        ",
+             DescFmt, "\n"]
+        end, CALD);
 
+format_command_lines(CALD, MaxCmdLen, MaxC, ShCode) ->
+    % Dual mode
+    lists:map(
+        fun({Cmd, Args, CmdArgsL, Desc}) ->
+            DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
+            ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args],
+             string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
+             DescFmt, "\n"]
+        end, CALD).
 
 %%-----------------------------
 %% Print usage command
