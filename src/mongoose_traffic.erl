@@ -15,6 +15,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 %% cowboy handler for serving main page
 -export([init/2]).
+-ignore_xref([init/2]).
 
 -define(SERVER, ?MODULE).
 -type state() :: [pid()].
