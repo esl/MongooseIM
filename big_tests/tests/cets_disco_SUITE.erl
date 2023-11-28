@@ -29,7 +29,8 @@ rdbms_cases() ->
      no_record_for_node,
      no_ip_in_db,
      cannot_connect_to_epmd,
-     address_please].
+     address_please,
+     address_please_returns_ip].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -56,11 +57,45 @@ end_per_group(rdbms, Config) ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(address_please_returns_ip, Config) ->
+    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
+        undefined ->
+            mock_epmd(mim()),
+            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim1@localhost">>, <<"127.0.0.2">>)]),
+            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim2@localhost">>, <<"127.0.0.5">>)]),
+            %% Force nodes to see each other
+            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
+            ok = rpc(mim2(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
+            rpc(mim(), erlang, send, [mongoose_cets_discovery, check]),
+            Config;
+        _ ->
+            {skip, cets_disco_already_running}
+    end;
 init_per_testcase(_CaseName, Config) -> Config.
 
+end_per_testcase(address_please_returns_ip, Config) ->
+    ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
+    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
+    unmock_epmd(mim()),
+    Config;
 end_per_testcase(_CaseName, Config) ->
     unmock(mim()),
     unmock(mim2()).
+
+cets_disco_spec(Node, IP) ->
+    DiscoOpts = #{
+        backend_module => mongoose_cets_discovery_rdbms,
+        cluster_name => <<"mim">>,
+        node_name_to_insert => Node,
+        node_ip_binary => IP,
+        name => mongoose_cets_discovery},
+     #{
+        id => cets_discovery,
+        start => {mongoose_cets_discovery, start_link, [DiscoOpts]},
+        restart => temporary,
+        type => worker,
+        shutdown => infinity,
+        modules => [cets_discovery]}.
 
 %%--------------------------------------------------------------------
 %% Test cases
@@ -215,6 +250,12 @@ address_please(_Config) ->
     {error, nxdomain} =
         rpc(mim(), mongoose_epmd, address_please, ["mongooseim", "badbadhost", inet]).
 
+address_please_returns_ip(Config) ->
+    Res = rpc(mim(), mongoose_epmd, address_please, ["testmim2", "localhost", inet]),
+    Info = rpc(mim(), cets_discovery, system_info, [mongoose_cets_discovery]),
+    ct:log("system_info ~p", [Info]),
+    {ok, {127, 0, 0, 5}} = Res.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -263,6 +304,15 @@ mock_timestamp(Node, Timestamp) ->
 
 unmock_timestamp(Node) ->
     ok = rpc(Node, meck, unload, [mongoose_rdbms_timestamp]).
+
+mock_epmd(Node) ->
+    ok = rpc(Node, meck, new, [mongoose_epmd, [passthrough, no_link]]),
+    ok = rpc(Node, meck, expect, [mongoose_epmd, can_connect, 1, true]),
+    %% Ensure that we mock
+    true = rpc(Node, mongoose_epmd, can_connect, [{192, 168, 0, 100}]).
+
+unmock_epmd(Node) ->
+    ok = rpc(Node, meck, unload, [mongoose_epmd]).
 
 unmock(Node) ->
     rpc(Node, meck, unload, []).

@@ -18,6 +18,9 @@
 -export([lookup_ip/1]).
 -export([match_node_name/2]).
 
+%% Make it mockable
+-export([can_connect/1]).
+
 -type lookup_error() ::
     {no_ip_in_db, node()}
   | {cannot_connect_to_epmd, node(), inet:ip_address()}
@@ -86,7 +89,7 @@ match_node_name(#{address_pairs := Pairs}, Node) ->
             {error, {no_ip_in_db, Node}};
         #{Node := Bin} ->
             {ok, IP} = inet:parse_address(binary_to_list(Bin)),
-            case can_connect(IP) of
+            case ?MODULE:can_connect(IP) of
                 true ->
                     {ok, IP};
                 false ->
@@ -94,7 +97,13 @@ match_node_name(#{address_pairs := Pairs}, Node) ->
             end;
         #{} ->
             {error, {no_record_for_node, Node}}
-    end.
+    end;
+match_node_name(BackendState, Node) ->
+    %% Could happen if CETS backend is not mongoose_cets_discovery_rdbms
+    ?LOG_ERROR(#{what => cets_no_address_pairs_set,
+                 backend_state => BackendState,
+                 remote_node => Node}),
+    {error, no_address_pairs_set}.
 
 -spec can_connect(inet:ip_address()) -> boolean().
 can_connect(IP) ->
