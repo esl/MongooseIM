@@ -546,10 +546,10 @@ CREATE TABLE domain_events (
 CREATE INDEX i_domain_events_domain ON domain_events(domain);
 
 CREATE TABLE discovery_nodes (
-    cluster_name varchar(250),
-    node_name varchar(250),
+    cluster_name varchar(250) NOT NULL,
+    node_name varchar(250) NOT NULL,
     node_num INT UNSIGNED NOT NULL,
-    address varchar(250),
+    address varchar(250) NOT NULL DEFAULT '', -- empty means we should ask DNS
     updated_timestamp BIGINT NOT NULL, -- in seconds
     PRIMARY KEY (cluster_name, node_name)
 );
