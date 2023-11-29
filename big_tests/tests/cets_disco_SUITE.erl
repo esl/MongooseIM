@@ -28,10 +28,9 @@ rdbms_cases() ->
      rdbms_backend_publishes_node_ip,
      no_record_for_node,
      no_ip_in_db,
-     cannot_connect_to_epmd,
+     epmd_just_returns_ip_from_db,
      address_please,
      address_please_returns_ip,
-     address_please_returns_ip_fallbacks_to_resolve,
      address_please_returns_ip_fallbacks_to_resolve_with_file_backend,
      address_please_returns_ip_127_0_0_1_from_db].
 
@@ -61,9 +60,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(address_please_returns_ip, Config) ->
-    start_cets_discovery(Config, true);
-init_per_testcase(address_please_returns_ip_fallbacks_to_resolve, Config) ->
-    start_cets_discovery(Config, false);
+    start_cets_discovery(Config);
 init_per_testcase(address_please_returns_ip_fallbacks_to_resolve_with_file_backend, Config) ->
     start_cets_discovery_with_file_backnend(Config);
 init_per_testcase(address_please_returns_ip_127_0_0_1_from_db, Config) ->
@@ -72,10 +69,8 @@ init_per_testcase(_CaseName, Config) -> Config.
 
 end_per_testcase(address_please_returns_ip, Config) ->
     stop_cets_discovery(),
-    unmock_epmd(mim()),
     Config;
-end_per_testcase(Name, Config) when Name == address_please_returns_ip_fallbacks_to_resolve;
-                                    Name == address_please_returns_ip_fallbacks_to_resolve_with_file_backend;
+end_per_testcase(Name, Config) when Name == address_please_returns_ip_fallbacks_to_resolve_with_file_backend;
                                     Name == address_please_returns_ip_127_0_0_1_from_db ->
     stop_cets_discovery(),
     Config;
@@ -225,12 +220,11 @@ no_ip_in_db(_Config) ->
     {error, {no_ip_in_db, Node}} = match_node_name(mim(), BackState, Node),
     ok.
 
-cannot_connect_to_epmd(_Config) ->
+epmd_just_returns_ip_from_db(_Config) ->
     Node = <<"mongoose@noepmdhost">>,
     %% IP from a test range
     BackState = #{address_pairs => #{Node => <<"192.0.2.1">>}},
-    {error, {cannot_connect_to_epmd, Node, {192, 0, 2, 1}}} = match_node_name(mim(), BackState, Node),
-    ok.
+    {ok, {192, 0, 2, 1}} = match_node_name(mim(), BackState, Node).
 
 address_please(_Config) ->
     {error, nxdomain} =
@@ -242,12 +236,6 @@ address_please_returns_ip(Config) ->
     ct:log("system_info ~p", [Info]),
     {ok, {192, 168, 115, 112}} = Res.
 
-address_please_returns_ip_fallbacks_to_resolve(Config) ->
-    Res = rpc(mim(), mongoose_epmd, address_please, ["testmim2", "localhost", inet]),
-    Info = rpc(mim(), cets_discovery, system_info, [mongoose_cets_discovery]),
-    ct:log("system_info ~p", [Info]),
-    {ok, {127, 0, 0, 1}} = Res.
-
 address_please_returns_ip_fallbacks_to_resolve_with_file_backend(Config) ->
     Res = rpc(mim2(), mongoose_epmd, address_please, ["testmim1", "localhost", inet]),
     Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
@@ -255,8 +243,6 @@ address_please_returns_ip_fallbacks_to_resolve_with_file_backend(Config) ->
     {ok, {127, 0, 0, 1}} = Res.
 
 address_please_returns_ip_127_0_0_1_from_db(Config) ->
-    %% We use mim2() because it has no meck. We want to improve code coverage
-    %% covering case when mongoose_epmd:lookup_ip returns IP.
     Res = rpc(mim2(), mongoose_epmd, address_please, ["node1", "localhost", inet]),
     Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
     ct:log("system_info ~p", [Info]),
@@ -311,15 +297,6 @@ mock_timestamp(Node, Timestamp) ->
 unmock_timestamp(Node) ->
     ok = rpc(Node, meck, unload, [mongoose_rdbms_timestamp]).
 
-mock_epmd(Node) ->
-    ok = rpc(Node, meck, new, [mongoose_epmd, [passthrough, no_link]]),
-    ok = rpc(Node, meck, expect, [mongoose_epmd, can_connect, 1, true]),
-    %% Ensure that we mock
-    true = rpc(Node, mongoose_epmd, can_connect, [{192, 168, 0, 100}]).
-
-unmock_epmd(Node) ->
-    ok = rpc(Node, meck, unload, [mongoose_epmd]).
-
 unmock(Node) ->
     rpc(Node, meck, unload, []).
 
@@ -355,15 +332,9 @@ start_node_address_server(Node) ->
 stop_node_address_server(Node) ->
     rpc(Node, supervisor, terminate_child, [ejabberd_sup, mongoose_node_address]).
 
-start_cets_discovery(Config, MockEpmd) ->
+start_cets_discovery(Config) ->
     case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
         undefined ->
-            case MockEpmd of
-                true ->
-                    mock_epmd(mim());
-                false ->
-                    ok
-            end,
             {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)]),
             {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)]),
             %% Force nodes to see each other
