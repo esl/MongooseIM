@@ -31,7 +31,9 @@ rdbms_cases() ->
      cannot_connect_to_epmd,
      address_please,
      address_please_returns_ip,
-     address_please_returns_ip_fallbacks_to_resolve].
+     address_please_returns_ip_fallbacks_to_resolve,
+     address_please_returns_ip_fallbacks_to_resolve_with_file_backend,
+     address_please_returns_ip_127_0_0_1_from_db].
 
 suite() ->
     distributed_helper:require_rpc_nodes([mim, mim2]).
@@ -62,13 +64,19 @@ init_per_testcase(address_please_returns_ip, Config) ->
     start_cets_discovery(Config, true);
 init_per_testcase(address_please_returns_ip_fallbacks_to_resolve, Config) ->
     start_cets_discovery(Config, false);
+init_per_testcase(address_please_returns_ip_fallbacks_to_resolve_with_file_backend, Config) ->
+    start_cets_discovery_with_file_backnend(Config);
+init_per_testcase(address_please_returns_ip_127_0_0_1_from_db, Config) ->
+    start_cets_discovery_with_real_ips(Config);
 init_per_testcase(_CaseName, Config) -> Config.
 
 end_per_testcase(address_please_returns_ip, Config) ->
     stop_cets_discovery(),
     unmock_epmd(mim()),
     Config;
-end_per_testcase(address_please_returns_ip_fallbacks_to_resolve, Config) ->
+end_per_testcase(Name, Config) when Name == address_please_returns_ip_fallbacks_to_resolve;
+                                    Name == address_please_returns_ip_fallbacks_to_resolve_with_file_backend;
+                                    Name == address_please_returns_ip_127_0_0_1_from_db ->
     stop_cets_discovery(),
     Config;
 end_per_testcase(_CaseName, Config) ->
@@ -240,6 +248,20 @@ address_please_returns_ip_fallbacks_to_resolve(Config) ->
     ct:log("system_info ~p", [Info]),
     {ok, {127, 0, 0, 1}} = Res.
 
+address_please_returns_ip_fallbacks_to_resolve_with_file_backend(Config) ->
+    Res = rpc(mim2(), mongoose_epmd, address_please, ["testmim1", "localhost", inet]),
+    Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
+    ct:log("system_info ~p", [Info]),
+    {ok, {127, 0, 0, 1}} = Res.
+
+address_please_returns_ip_127_0_0_1_from_db(Config) ->
+    %% We use mim2() because it has no meck. We want to improve code coverage
+    %% covering case when mongoose_epmd:lookup_ip returns IP.
+    Res = rpc(mim2(), mongoose_epmd, address_please, ["node1", "localhost", inet]),
+    Info = rpc(mim2(), cets_discovery, system_info, [mongoose_cets_discovery]),
+    ct:log("system_info ~p", [Info]),
+    {ok, {127, 0, 0, 1}} = Res.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -353,6 +375,32 @@ start_cets_discovery(Config, MockEpmd) ->
             {skip, cets_disco_already_running}
     end.
 
+start_cets_discovery_with_real_ips(Config) ->
+    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
+        undefined ->
+            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)]),
+            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)]),
+            %% Force nodes to see each other
+            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
+            ok = rpc(mim2(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
+            rpc(mim(), erlang, send, [mongoose_cets_discovery, check]),
+            ok = rpc(mim(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
+            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
+            Config;
+        _ ->
+            {skip, cets_disco_already_running}
+    end.
+
+start_cets_discovery_with_file_backnend(Config) ->
+    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
+        undefined ->
+            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec_for_file_backend()]),
+            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec_for_file_backend()]),
+            Config;
+        _ ->
+            {skip, cets_disco_already_running}
+    end.
+
 stop_cets_discovery() ->
     ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
     ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]).
@@ -364,6 +412,16 @@ cets_disco_spec(Node, IP) ->
         node_name_to_insert => Node,
         node_ip_binary => IP,
         name => mongoose_cets_discovery},
+     cets_disco_spec(DiscoOpts).
+
+cets_disco_spec_for_file_backend() ->
+    DiscoOpts = #{
+        backend_module => cets_discovery_file,
+        disco_file => "/tmp/does_not_exist",
+        name => mongoose_cets_discovery},
+     cets_disco_spec(DiscoOpts).
+
+cets_disco_spec(DiscoOpts) ->
      #{
         id => cets_discovery,
         start => {mongoose_cets_discovery, start_link, [DiscoOpts]},
