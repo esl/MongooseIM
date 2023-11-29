@@ -42,8 +42,6 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_group(rdbms, Config) ->
-    start_node_address_server(mim()),
-    start_node_address_server(mim2()),
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
@@ -52,10 +50,6 @@ init_per_group(rdbms, Config) ->
 init_per_group(_, Config) ->
     Config.
 
-end_per_group(rdbms, Config) ->
-    stop_node_address_server(mim()),
-    stop_node_address_server(mim2()),
-    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -67,10 +61,8 @@ init_per_testcase(address_please_returns_ip_127_0_0_1_from_db, Config) ->
     start_cets_discovery_with_real_ips(Config);
 init_per_testcase(_CaseName, Config) -> Config.
 
-end_per_testcase(address_please_returns_ip, Config) ->
-    stop_cets_discovery(),
-    Config;
-end_per_testcase(Name, Config) when Name == address_please_returns_ip_fallbacks_to_resolve_with_file_backend;
+end_per_testcase(Name, Config) when Name == address_please_returns_ip;
+                                    Name == address_please_returns_ip_fallbacks_to_resolve_with_file_backend;
                                     Name == address_please_returns_ip_127_0_0_1_from_db ->
     stop_cets_discovery(),
     Config;
@@ -324,23 +316,12 @@ delete_node_from_db(CN, BinNode) ->
     ct:log("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
     Ret.
 
-start_node_address_server(Node) ->
-    MFA = {mongoose_node_address, start_link, []},
-    ChildSpec = #{id => mongoose_node_address, start => MFA, restart => temporary},
-    rpc(Node, supervisor, start_child, [ejabberd_sup, ChildSpec]).
-
-stop_node_address_server(Node) ->
-    rpc(Node, supervisor, terminate_child, [ejabberd_sup, mongoose_node_address]).
-
 start_cets_discovery(Config) ->
     case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
         undefined ->
-            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)]),
-            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)]),
-            %% Force nodes to see each other
-            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
-            ok = rpc(mim2(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
-            rpc(mim(), erlang, send, [mongoose_cets_discovery, check]),
+            start_disco(mim(), cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)),
+            start_disco(mim2(), cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)),
+            force_nodes_to_see_each_other(mim(), mim2()),
             Config;
         _ ->
             {skip, cets_disco_already_running}
@@ -349,14 +330,9 @@ start_cets_discovery(Config) ->
 start_cets_discovery_with_real_ips(Config) ->
     case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
         undefined ->
-            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)]),
-            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)]),
-            %% Force nodes to see each other
-            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
-            ok = rpc(mim2(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
-            rpc(mim(), erlang, send, [mongoose_cets_discovery, check]),
-            ok = rpc(mim(), cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]),
-            rpc(mim2(), erlang, send, [mongoose_cets_discovery, check]),
+            start_disco(mim(), cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)),
+            start_disco(mim2(), cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)),
+            force_nodes_to_see_each_other(mim(), mim2()),
             Config;
         _ ->
             {skip, cets_disco_already_running}
@@ -365,8 +341,8 @@ start_cets_discovery_with_real_ips(Config) ->
 start_cets_discovery_with_file_backnend(Config) ->
     case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
         undefined ->
-            {ok, _} = rpc(mim(), supervisor, start_child, [ejabberd_sup, cets_disco_spec_for_file_backend()]),
-            {ok, _} = rpc(mim2(), supervisor, start_child, [ejabberd_sup, cets_disco_spec_for_file_backend()]),
+            start_disco(mim(), cets_disco_spec_for_file_backend()),
+            start_disco(mim2(), cets_disco_spec_for_file_backend()),
             Config;
         _ ->
             {skip, cets_disco_already_running}
@@ -400,3 +376,20 @@ cets_disco_spec(DiscoOpts) ->
         type => worker,
         shutdown => infinity,
         modules => [cets_discovery]}.
+
+send_check(Node) ->
+    rpc(Node, erlang, send, [mongoose_cets_discovery, check]).
+
+wait_for_get_nodes(Node) ->
+    ok = rpc(Node, cets_discovery, wait_for_get_nodes, [mongoose_cets_discovery, 5000]).
+
+start_disco(Node, Spec) ->
+    {ok, _} = rpc(Node, supervisor, start_child, [ejabberd_sup, Spec]).
+
+force_nodes_to_see_each_other(Node1, Node2) ->
+    send_check(Node2),
+    wait_for_get_nodes(Node2),
+    send_check(Node1),
+    wait_for_get_nodes(Node1),
+    send_check(Node2),
+    wait_for_get_nodes(Node2).
