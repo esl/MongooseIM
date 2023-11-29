@@ -45,11 +45,16 @@ init_per_group(rdbms, Config) ->
     case not ct_helper:is_ct_running()
          orelse mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
-        true -> Config
+        true ->
+            stop_and_delete_cets_discovery_if_running(),
+            Config
     end;
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(rdbms, Config) ->
+    restore_default_cets_discovery(),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -317,40 +322,50 @@ delete_node_from_db(CN, BinNode) ->
     Ret.
 
 start_cets_discovery(Config) ->
-    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
-        undefined ->
-            start_disco(mim(), cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)),
-            start_disco(mim2(), cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)),
-            force_nodes_to_see_each_other(mim(), mim2()),
-            Config;
-        _ ->
-            {skip, cets_disco_already_running}
-    end.
+    start_disco(mim(), cets_disco_spec(<<"testmim1@localhost">>, <<"192.168.115.111">>)),
+    start_disco(mim2(), cets_disco_spec(<<"testmim2@localhost">>, <<"192.168.115.112">>)),
+    force_nodes_to_see_each_other(mim(), mim2()),
+    Config.
 
 start_cets_discovery_with_real_ips(Config) ->
-    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
-        undefined ->
-            start_disco(mim(), cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)),
-            start_disco(mim2(), cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)),
-            force_nodes_to_see_each_other(mim(), mim2()),
-            Config;
-        _ ->
-            {skip, cets_disco_already_running}
-    end.
+    start_disco(mim(), cets_disco_spec(<<"node1@localhost">>, <<"127.0.0.1">>)),
+    start_disco(mim2(), cets_disco_spec(<<"node2@localhost">>, <<"127.0.0.1">>)),
+    force_nodes_to_see_each_other(mim(), mim2()),
+    Config.
 
 start_cets_discovery_with_file_backnend(Config) ->
-    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
-        undefined ->
-            start_disco(mim(), cets_disco_spec_for_file_backend()),
-            start_disco(mim2(), cets_disco_spec_for_file_backend()),
-            Config;
-        _ ->
-            {skip, cets_disco_already_running}
-    end.
+    start_disco(mim(), cets_disco_spec_for_file_backend()),
+    start_disco(mim2(), cets_disco_spec_for_file_backend()),
+    Config.
 
 stop_cets_discovery() ->
     ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
     ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]).
+
+stop_and_delete_cets_discovery() ->
+    stop_cets_discovery(),
+    ok = rpc(mim(), supervisor, delete_child, [ejabberd_sup, cets_discovery]),
+    ok = rpc(mim2(), supervisor, delete_child, [ejabberd_sup, cets_discovery]).
+
+stop_and_delete_cets_discovery_if_running() ->
+    case rpc(mim(), erlang, whereis, [mongoose_cets_discovery]) of
+        undefined ->
+            ok;
+        _ ->
+            stop_and_delete_cets_discovery()
+    end.
+
+restore_default_cets_discovery() ->
+    restore_default_cets_discovery(mim()),
+    restore_default_cets_discovery(mim2()).
+
+restore_default_cets_discovery(Node) ->
+    case rpc(Node, mongoose_cets_discovery, supervisor_specs, []) of
+        [] ->
+            ok;
+        [Spec] ->
+            start_disco(Node, Spec)
+    end.
 
 cets_disco_spec(Node, IP) ->
     DiscoOpts = #{
