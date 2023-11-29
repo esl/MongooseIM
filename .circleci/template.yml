@@ -952,28 +952,7 @@ workflows:
           executor: otp_26
           context: mongooseim-org
           requires:
-
-            - small_tests_25
-            - ldap_mnesia_25
-            - pgsql_mnesia_25
-            - dynamic_domains_pgsql_mnesia_25
-            - dialyzer_25
-
-            - small_tests_26
-            - internal_mnesia_26
-            - pgsql_mnesia_26
-            - mysql_redis_26
-            - mssql_mnesia_26
-            - ldap_mnesia_26
-            - elasticsearch_and_cassandra_26
-            - dynamic_domains_pgsql_mnesia_26
-            - dynamic_domains_mysql_redis_26
-            - dynamic_domains_mssql_mnesia_26
-            - dialyzer_26
-            - small_tests_26_arm64
-
-            - xref
-            - edoc
+            - otp_26_docker
 
           filters: *all_tags
       - docker_smoke_test:
