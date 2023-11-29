@@ -21,4 +21,6 @@
 ## Tweak GC to run more often
 -env ERL_FULLSWEEP_AFTER 2
 
-{{epmd_vm_args}}
+{{#epmd_module}}
+-epmd_module {{{epmd_module}}}
+{{/epmd_module}}
