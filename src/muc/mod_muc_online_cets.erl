@@ -1,5 +1,5 @@
--module(mongoose_muc_online_cets).
--behaviour(mongoose_muc_online_backend).
+-module(mod_muc_online_cets).
+-behaviour(mod_muc_online_backend).
 
 -export([start/2,
          stop/1,
