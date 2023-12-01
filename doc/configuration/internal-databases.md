@@ -28,7 +28,7 @@ The following example enables only CETS with the default RDBMS discovery backend
     When switching to CETS, you need to configure particular backends to actually use it:
 
     * general backends: [`sm_backend`](general.md#generalsm_backend), [`s2s_backend`](general.md#generals2s_backend), [`component_backend`](general.md#generalcomponent_backend)
-    * module backends: [`mod_bosh`](../modules/mod_bosh.md#modulesmod_boshbackend), [`mod_stream_management`](../modules/mod_stream_management.md#modulesmod_stream_managementbackend), [`mod_jingle_sip`](../modules/mod_jingle_sip.md#modulesmod_jingle_sipbackend)
+    * module backends: [`mod_bosh`](../modules/mod_bosh.md#modulesmod_boshbackend), [`mod_stream_management`](../modules/mod_stream_management.md#modulesmod_stream_managementbackend), [`mod_jingle_sip`](../modules/mod_jingle_sip.md#modulesmod_jingle_sipbackend), [`mod_muc`](../modules/mod_muc.md#modulesmod_muconline_backend)
 
 Sometimes you might want to have both databases enabled and choose which backends use a particular DB:
 

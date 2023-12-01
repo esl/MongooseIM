@@ -29,6 +29,9 @@ Storage backend to store rooms and settings persistently.
 
 Backend to use to register and find online rooms. Queried when routing stanzas to the rooms.
 
+!!! Warning
+    The corresponding [internal database](../configuration/internal-databases.md) has to be enabled.
+
 ### `modules.mod_muc.access`
  * **Syntax:** non-empty string
  * **Default:** `"all"`
