@@ -19,8 +19,15 @@ Subdomain for MUC service to reside under. `@HOST@` is replaced with each served
  * **Syntax:** string, one of `"mnesia"` or `"rdbms"`
  * **Default:** `"mnesia"`
  * **Example:** `backend = "rdbms"`
- 
-Storage backend.
+
+Storage backend to store rooms and settings persistently.
+
+### `modules.mod_muc.online_backend`
+ * **Syntax:** string, one of `"mnesia"` or `"cets"`
+ * **Default:** `"mnesia"`
+ * **Example:** `online_backend = "cets"`
+
+Backend to use to register and find online rooms. Queried when routing stanzas to the rooms.
 
 ### `modules.mod_muc.access`
  * **Syntax:** non-empty string
