@@ -12,7 +12,7 @@ select_query() ->
        {mysql, _} ->
            <<"SELECT UNIX_TIMESTAMP()">>;
        {pgsql, _} ->
-           <<"SELECT ROUND(extract(epoch from now()))">>;
+           <<"SELECT CAST(extract(epoch from now()) AS integer)">>;
        {odbc, mssql} ->
            <<"SELECT DATEDIFF_BIG(second, '1970-01-01 00:00:00', GETUTCDATE())">>;
        Other ->
