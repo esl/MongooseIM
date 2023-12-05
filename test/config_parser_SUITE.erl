@@ -232,7 +232,8 @@ groups() ->
                             incorrect_module]},
      {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]},
-     {logs, [parallel], [no_warning_about_subdomain_patterns]}
+     {logs, [], [no_warning_about_subdomain_patterns,
+                 no_warning_for_resolvable_domain]}
     ].
 
 init_per_suite(Config) ->
@@ -2892,14 +2893,52 @@ no_warning_about_subdomain_patterns(_Config) ->
 
     ?cfgh(P ++ [host], {prefix, <<"vjud.">>},
           T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"vjud.test">>},
+          T(#{<<"host">> => <<"vjud.test">>})),
 
     logger_ct_backend:stop_capture(Node),
     logger_ct_backend:stop(Node),
 
     FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "test") /= nomatch orelse
                         re:run(Msg, "example.com") /= nomatch
                 end,
-    [] = logger_ct_backend:recv(FilterFun).
+    Logs = logger_ct_backend:recv(FilterFun),
+
+    ?assertNotEqual(0, length(Logs)),
+    AnyContainsExampleCom = lists:any(fun({_, Msg}) ->
+                                               re:run(Msg, "example.com") /= nomatch
+                                      end, Logs),
+    ?eq(false, AnyContainsExampleCom).
+
+no_warning_for_resolvable_domain(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
+    P = [modules, mod_http_upload],
+    RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
+
+    Node = #{node => mongooseim@localhost},
+    logger_ct_backend:start(Node),
+    logger_ct_backend:capture(warning, Node),
+
+    ?cfgh(P ++ [host], {fqdn, <<"example.org">>},
+          T(RequiredOpts#{<<"host">> => <<"example.org">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"something.invalid">>},
+          T(RequiredOpts#{<<"host">> => <<"something.invalid">>})),
+
+    logger_ct_backend:stop_capture(Node),
+    logger_ct_backend:stop(Node),
+
+    FilterFun = fun(_, Msg) ->
+                    re:run(Msg, "example.org") /= nomatch orelse
+                    re:run(Msg, "something.invalid") /= nomatch
+                end,
+    Logs = logger_ct_backend:recv(FilterFun),
+
+    ?assertNotEqual(0, length(Logs)),
+    ResolvableDomainInLogs = lists:any(fun({_, Msg}) ->
+                                                re:run(Msg, "example.org") /= nomatch
+                                       end, Logs),
+    ?eq(false, ResolvableDomainInLogs).
 
 %% Helpers for module tests
 
