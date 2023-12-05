@@ -264,9 +264,9 @@ muc_room(_Config) ->
     Pid = remote_pid(),
     Node = node(Pid),
     Room = <<"remote_room">>,
-    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
-    ok = mongoose_muc_online_backend:node_cleanup(HostType, Node),
-    {error, not_found} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+    ok = mod_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mod_muc_online_backend:node_cleanup(HostType, Node),
+    {error, not_found} = mod_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 muc_room_from_other_node_remains(_Config) ->
     HostType = ?HOST,
@@ -274,9 +274,9 @@ muc_room_from_other_node_remains(_Config) ->
     Pid = self(),
     RemoteNode = node(remote_pid()),
     Room = <<"room_on_other_node">>,
-    ok = mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
-    ok = mongoose_muc_online_backend:node_cleanup(HostType, RemoteNode),
-    {ok, Pid} = mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+    ok = mod_muc_online_backend:register_room(HostType, MucHost, Room, Pid),
+    ok = mod_muc_online_backend:node_cleanup(HostType, RemoteNode),
+    {ok, Pid} = mod_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 %% -----------------------------------------------------
 %% Internal
@@ -376,7 +376,7 @@ start_muc(TestCase, Config) ->
     end.
 
 start_muc_backend(Backend) ->
-    mongoose_muc_online_backend:start(?HOST, #{online_backend => Backend}).
+    mod_muc_online_backend:start(?HOST, #{online_backend => Backend}).
 
 start_muc_module(Backend) ->
     ExtraOpts = #{online_backend => Backend, backend => mnesia},

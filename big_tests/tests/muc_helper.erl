@@ -182,7 +182,7 @@ destroy_room(Config) ->
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     HostType = domain_helper:host_type(),
     Room1 = jid:nodeprep(Room),
-    case rpc(mim(), mongoose_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
+    case rpc(mim(), mod_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
         {ok, Pid} ->
             %% @TODO related to gen_fsm_compat: after migration to gen_statem
             %%       should be replaced to - gen_statem:call(Pid, destroy).
