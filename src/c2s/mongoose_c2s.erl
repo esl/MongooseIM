@@ -49,8 +49,7 @@
 
 -type retries() :: 0..8.
 -type stream_state() :: stream_start | authenticated.
--type state(State) :: connect
-                    | {wait_for_stream, stream_state()}
+-type state(State) :: {wait_for_stream, stream_state()}
                     | {wait_for_feature_before_auth, mongoose_acc:t(), retries()}
                     | {wait_for_feature_after_auth, retries()}
                     | {wait_for_sasl_response, mongoose_acc:t(), retries()}
@@ -81,20 +80,15 @@ callback_mode() ->
 -spec init({module(), term(), listener_opts()}) ->
     gen_statem:init_result(state(), data()).
 init({SocketModule, SocketOpts, LOpts}) ->
-    StateData = #c2s_data{listener_opts = LOpts},
-    ConnectEvent = {next_event, internal, {connect, {SocketModule, SocketOpts}}},
-    {ok, connect, StateData, ConnectEvent}.
-
--spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
-handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
-             StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
-                                                     max_stanza_size := MaxStanzaSize} = LOpts}) ->
+    proc_lib:init_ack({ok, self()}),
+    #{shaper := ShaperName, max_stanza_size := MaxStanzaSize} = LOpts,
     {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
     Shaper = shaper:new(ShaperName),
     C2SSocket = mongoose_c2s_socket:new(SocketModule, SocketOpts, LOpts),
-    StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
-    {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
+    StateData = #c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper, listener_opts = LOpts},
+    {ok, {wait_for_stream, stream_start}, StateData, state_timeout(LOpts)}.
 
+-spec handle_event(gen_statem:event_type(), term(), state(), data()) -> fsm_res().
 handle_event(internal, #xmlstreamstart{name = Name, attrs = Attrs}, {wait_for_stream, StreamState}, StateData) ->
     StreamStart = #xmlel{name = Name, attrs = Attrs},
     handle_stream_start(StateData, StreamStart, StreamState);
