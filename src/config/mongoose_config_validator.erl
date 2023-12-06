@@ -20,7 +20,7 @@
 
 -spec validate(mongoose_config_parser_toml:option_value(),
                mongoose_config_spec:option_type(), validator()) -> any().
-validate(V, binary, domain) -> validate_binary_domain(V);
+validate(V, binary, domain) -> validate_domain(V);
 validate(V, binary, url) -> validate_non_empty_binary(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, binary, subdomain_template) -> validate_subdomain_template(V);
@@ -122,19 +122,43 @@ validate_jid(Jid) ->
 validate_ldap_filter(Value) ->
     {ok, _} = eldap_filter:parse(Value).
 
-validate_domain(Domain) when is_list(Domain) ->
-    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),
-    validate_domain_res(Domain).
+validate_subdomain_template(SubdomainTemplate) ->
+    case mongoose_subdomain_utils:make_subdomain_pattern(SubdomainTemplate) of
+        {fqdn, Domain} ->
+            validate_domain(Domain);
+        Pattern ->
+            Domain = binary_to_list(mongoose_subdomain_utils:get_fqdn(Pattern, <<"example.com">>)),
+            case inet_parse:domain(Domain) of
+                true ->
+                    ok;
+                false ->
+                    error(#{what => validate_subdomain_template_failed,
+                            text => <<"Invalid subdomain template">>,
+                            subdomain_template => SubdomainTemplate})
+            end
+    end.
 
-validate_domain_res(Domain) ->
+validate_domain(Domain) when is_binary(Domain) ->
+    validate_domain(binary_to_list(Domain));
+validate_domain(Domain) ->
+    validate_domain_name(Domain),
+    resolve_domain(Domain).
+
+validate_domain_name(Domain) ->
+    case inet_parse:domain(Domain) of
+        true ->
+            ok;
+        false ->
+            error(#{what => validate_domain_failed,
+                    text => <<"Invalid domain name">>,
+                    domain => Domain})
+    end.
+
+resolve_domain(Domain) ->
     case inet_res:gethostbyname(Domain) of
         {ok, _} ->
             ok;
-        {error,formerr} ->
-            error(#{what => cfg_validate_domain_failed,
-                    reason => formerr, text => <<"Invalid domain name">>,
-                    domain => Domain});
-        {error,Reason} -> %% timeout, nxdomain
+        {error, Reason} -> %% timeout, nxdomain
             ?LOG_WARNING(#{what => cfg_validate_domain,
                            reason => Reason, domain => Domain,
                            text => <<"Couldn't resolve domain. "
@@ -142,16 +166,6 @@ validate_domain_res(Domain) ->
             ignore
     end.
 
-validate_binary_domain(Domain) when is_binary(Domain) ->
-    #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain),
-    validate_domain_res(binary_to_list(Domain)).
-
-validate_subdomain_template(SubdomainTemplate) ->
-    Pattern = mongoose_subdomain_utils:make_subdomain_pattern(SubdomainTemplate),
-    Domain = mongoose_subdomain_utils:get_fqdn(Pattern, <<"example.com">>),
-    %% TODO: do we want warning printed by validate_domain_res, especially when
-    %% validating modules.mod_event_pusher_push.virtual_pubsub_hosts option
-    validate_binary_domain(Domain).
 
 validate_url(Url) ->
     validate_non_empty_string(Url).

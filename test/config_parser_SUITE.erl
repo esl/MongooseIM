@@ -56,7 +56,8 @@ all() ->
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
-     {group, services}].
+     {group, services},
+     {group, logs}].
 
 groups() ->
     [{file, [parallel], [sample_pgsql,
@@ -230,7 +231,9 @@ groups() ->
                             modules_without_config,
                             incorrect_module]},
      {services, [parallel], [service_domain_db,
-                             service_mongoose_system_metrics]}
+                             service_mongoose_system_metrics]},
+     {logs, [], [no_warning_about_subdomain_patterns,
+                 no_warning_for_resolvable_domain]}
     ].
 
 init_per_suite(Config) ->
@@ -1862,8 +1865,11 @@ mod_http_upload(_Config) ->
     ?errh(T(RequiredOpts#{<<"token_bytes">> => 0})),
     ?errh(T(RequiredOpts#{<<"max_file_size">> => 0})),
     ?errh(T(RequiredOpts#{<<"host">> => <<"is this a host? no.">>})),
-    ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<"invalid-.com">>})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<"-invalid.com">>})),
+    ?errh(T(RequiredOpts#{<<"host">> => [<<"valid.@HOST@">>]})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<"invalid.sub@HOST@">>})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<"invalid.sub.@HOST@.as.well">>})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"not.supported.any.more.@HOSTS@">>]})),
     check_iqdisc(mod_http_upload, RequiredOpts).
 
@@ -1988,8 +1994,9 @@ mod_mam_muc(_Config) ->
     ?cfgh(P ++ [host], {prefix, <<"muc.">>}, T(#{<<"host">> => <<"muc.@HOST@">>})),
     ?cfgh(P ++ [host], {fqdn, <<"muc.test">>}, T(#{<<"host">> => <<"muc.test">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errh(T(#{<<"host">> => [<<"valid.@HOST@">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub@HOST@">>})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub.@HOST@.as.well">>})),
     ?errh(T(#{<<"archive_groupchats">> => true})), % pm-only
     ?errh(T(#{<<"same_mam_id_for_peers">> => true})). % pm-only
 
@@ -2110,8 +2117,9 @@ mod_muc(_Config) ->
           T(<<"hibernated_room_timeout">>, 0)),
     ?errh(T(<<"host">>, <<>>)),
     ?errh(T(<<"host">>, <<"is this a host? no.">>)),
-    ?errh(T(<<"host">>, [<<"invalid.sub@HOST@">>])),
-    ?errh(T(<<"host">>, [<<"invalid.sub.@HOST@.as.well">>])),
+    ?errh(T(<<"host">>, [<<"valid.@HOST@">>])),
+    ?errh(T(<<"host">>, <<"invalid.sub@HOST@">>)),
+    ?errh(T(<<"host">>, <<"invalid.sub.@HOST@.as.well">>)),
     ?errh(T(<<"backend">>, <<"amnesia">>)),
     ?errh(T(<<"access">>, <<>>)),
     ?errh(T(<<"access_create">>, 1)),
@@ -2281,8 +2289,11 @@ mod_muc_light(_Config) ->
           T(#{<<"rooms_in_rosters">> => true})),
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"host">> => <<"what is a domain?!">>})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid..com">>})),
+    ?errh(T(#{<<"host">> => [<<"valid.@HOST@">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub@HOST@">>})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub.@HOST@.as.well">>})),
+    ?errh(T(#{<<"host">> => <<"inv@lidsub.@HOST@">>})),
     ?errh(T(#{<<"equal_occupants">> => <<"true">>})),
     ?errh(T(#{<<"legacy_mode">> => 1234})),
     ?errh(T(#{<<"rooms_per_user">> => 0})),
@@ -2418,8 +2429,11 @@ mod_pubsub(_Config) ->
     test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
     ?errh(T(#{<<"host">> => <<"">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid domain.com">>})),
+    ?errh(T(#{<<"host">> => <<"inv@lid.com">>})),
+    ?errh(T(#{<<"host">> => [<<"valid.@HOST@">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub@HOST@">>})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub.@HOST@.as.well">>})),
     ?errh(T(#{<<"backend">> => <<"amnesia">>})),
     ?errh(T(#{<<"access_createnode">> => <<"">>})),
     ?errh(T(#{<<"max_items_node">> => -1})),
@@ -2750,9 +2764,11 @@ mod_vcard(_Config) ->
     ?cfgh(P ++ [ldap, binary_search_fields], [<<"PHOTO">>],
           T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"binary_search_fields">> => [<<"PHOTO">>]}})),
     ?errh(T(#{<<"host">> => 1})),
+    ?errh(T(#{<<"host">> => <<" ">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errh(T(#{<<"host">> => [<<"valid.@HOST@">>]})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub@HOST@">>})),
+    ?errh(T(#{<<"host">> => <<"invalid.sub.@HOST@.as.well">>})),
     ?errh(T(#{<<"search">> => 1})),
     ?errh(T(#{<<"backend">> => <<"mememesia">>})),
     ?errh(T(#{<<"matches">> => -1})),
@@ -2870,6 +2886,65 @@ service_mongoose_system_metrics(_Config) ->
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => "Secret"}})),
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666, <<"id">> => 666}})),
     ?err(T(#{<<"report">> => <<"maybe">>})).
+
+no_warning_about_subdomain_patterns(_Config) ->
+    check_module_defaults(mod_vcard),
+    check_iqdisc(mod_vcard),
+    P = [modules, mod_vcard],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
+
+    Node = #{node => mongooseim@localhost},
+    logger_ct_backend:start(Node),
+    logger_ct_backend:capture(warning, Node),
+
+    ?cfgh(P ++ [host], {prefix, <<"vjud.">>},
+          T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"vjud.test">>},
+          T(#{<<"host">> => <<"vjud.test">>})),
+
+    logger_ct_backend:stop_capture(Node),
+    logger_ct_backend:stop(Node),
+
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "test") /= nomatch orelse
+                        re:run(Msg, "example.com") /= nomatch
+                end,
+    Logs = logger_ct_backend:recv(FilterFun),
+
+    ?assertNotEqual(0, length(Logs)),
+    AnyContainsExampleCom = lists:any(fun({_, Msg}) ->
+                                               re:run(Msg, "example.com") /= nomatch
+                                      end, Logs),
+    ?eq(false, AnyContainsExampleCom).
+
+no_warning_for_resolvable_domain(_Config) ->
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
+    P = [modules, mod_http_upload],
+    RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
+
+    Node = #{node => mongooseim@localhost},
+    logger_ct_backend:start(Node),
+    logger_ct_backend:capture(warning, Node),
+
+    ?cfgh(P ++ [host], {fqdn, <<"example.org">>},
+          T(RequiredOpts#{<<"host">> => <<"example.org">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"something.invalid">>},
+          T(RequiredOpts#{<<"host">> => <<"something.invalid">>})),
+
+    logger_ct_backend:stop_capture(Node),
+    logger_ct_backend:stop(Node),
+
+    FilterFun = fun(_, Msg) ->
+                    re:run(Msg, "example.org") /= nomatch orelse
+                    re:run(Msg, "something.invalid") /= nomatch
+                end,
+    Logs = logger_ct_backend:recv(FilterFun),
+
+    ?assertNotEqual(0, length(Logs)),
+    ResolvableDomainInLogs = lists:any(fun({_, Msg}) ->
+                                                re:run(Msg, "example.org") /= nomatch
+                                       end, Logs),
+    ?eq(false, ResolvableDomainInLogs).
 
 %% Helpers for module tests
 
