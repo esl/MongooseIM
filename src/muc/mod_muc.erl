@@ -137,7 +137,7 @@
                     access,
                     history_size        :: integer(),
                     default_room_opts   :: list(),
-                    room_shaper         :: shaper:shaper(),
+                    room_shaper         :: opuntia:shaper(),
                     http_auth_pool      :: mongoose_http_client:pool(),
                     hibernated_room_check_interval :: timeout(),
                     hibernated_room_timeout :: timeout() }).
@@ -873,7 +873,7 @@ check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
 
 -spec start_room(HostType :: host_type(), ServerHost :: jid:lserver(),
         MucHost :: muc_host(), Access :: access(), room(),
-        HistorySize :: undefined | integer(), RoomShaper :: shaper:shaper(),
+        HistorySize :: undefined | integer(), RoomShaper :: opuntia:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
         DefRoomOpts :: undefined | [any()], Acc :: mongoose_acc:t())
             -> {error, {failed_to_restore, Reason :: term()}} | {ok, pid()}.

@@ -49,7 +49,7 @@
 
 -record(state, {socket :: socket(),
                 sockmod = gen_tcp     :: socket_module(),
-                shaper_state          :: shaper:shaper(),
+                shaper_state          :: opuntia:shaper(),
                 dest_pid              :: undefined | pid(), %% gen_fsm_compat pid
                 max_stanza_size       :: stanza_size(),
                 parser                :: exml_stream:parser(),
@@ -215,7 +215,7 @@ start_link(Socket, Shaper, Opts) ->
     gen_server:start_link(?MODULE, [Socket, Shaper, Opts], []).
 
 init([Socket, Shaper, Opts]) ->
-    ShaperState = shaper:new(Shaper),
+    ShaperState = opuntia:new(mongoose_shaper:get_shaper_rate(Shaper)),
     #{max_stanza_size := MaxStanzaSize,
       hibernate_after := HibernateAfter,
       connection_type := ConnectionType} = Opts,
@@ -267,7 +267,7 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State, hibernate_or_timeout(State)}.
 
 handle_cast({change_shaper, Shaper}, State) ->
-    NewShaperState = shaper:new(Shaper),
+    NewShaperState = opuntia:new(mongoose_shaper:get_shaper_rate(Shaper)),
     NewState = State#state{shaper_state = NewShaperState},
     {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_cast(close, State) ->
@@ -399,7 +399,7 @@ process_data(Data, #state{parser = Parser,
             {error, Reason} ->
                 {[{xmlstreamerror, Reason}], Parser}
         end,
-    {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+    {NewShaperState, Pause} = opuntia:update(ShaperState, Size),
     update_transport_metrics(Size, received, State#state.connection_type),
     [gen_fsm_compat:send_event(DestPid, Event) || Event <- Events],
     maybe_pause(Pause, State),
