@@ -193,7 +193,7 @@ By default the TLS library used for C2S connections is `fast_tls`, which uses Op
 Specifies the way client certificate verification works:
 
 * `peer` - makes sure the client certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
-* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`. Requires a valid `cacertfile`.
 * `none` - client certificate is not checked.
 
 ### `listen.c2s.tls.certfile`

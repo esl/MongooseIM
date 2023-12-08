@@ -64,6 +64,7 @@ In order to tell MongooseIM to accept self-signed certs, the `listen.c2s.tls.ver
 [listen.c2s]
   tls.verify_mode = "selfsigned_peer"
   tls.disconnect_on_failure = false
+  tls.cacertfile = "ca.pem"
 ```
 
 where the `tls.disconnect_on_failure` is a boolean with the following meaning only for `just_tls`:
@@ -81,6 +82,7 @@ In order to accept self-signed certs for WS or BOSH connections, the `tls` optio
 ```toml
 [listen.http]
   tls.verify_mode = "selfsigned_peer"
+  tls.cacertfile = "ca.pem"
 ```
 
 ### Examples

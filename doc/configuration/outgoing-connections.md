@@ -373,8 +373,11 @@ TLS options for a given pool type/tag pair are defined in a subsection starting 
 * **Default:** `"peer"`
 * **Example:** `tls.verify_mode = "none"`
 
-The default value, `"peer"`, enforces verification of the server certificate, and requires a valid `cacertfile` to do so.
-You can set it to `"selfsigned_peer"` to accept self-signed certificates or to `"none"` to skip certificate verification altogether.
+Specifies the way server certificate verification works:
+
+* `peer` - makes sure the server certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
+* `selfsigned_peer` - makes sure the server certificate is valid, but allows self-signed certificates. Requires a valid `cacertfile`.
+* `none` - server certificate is not checked.
 
 ### `outgoing_pools.*.*.connection.tls.certfile`
 * **Syntax:** string, path in the file system
