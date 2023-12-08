@@ -9,6 +9,7 @@
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/)
+* Try it now: [https://trymongoose.im](https://trymongoose.im)
 
 ## Get to know MongooseIM
 

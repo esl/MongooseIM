@@ -11,6 +11,7 @@
 * [Packages](https://www.erlang-solutions.com/resources/download.html)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/latest/)
+* Try it now: [https://trymongoose.im](https://trymongoose.im)
 
 ## Get to know MongooseIM
 MongooseIM is a robust, scalable and efficient XMPP server at the core of an Instant Messaging platform aimed at large installations.
