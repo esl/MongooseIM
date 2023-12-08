@@ -180,7 +180,8 @@ options("mongooseim-pgsql") ->
                               username => <<"ala">>, password => <<"makotaipsa">>})
                     ],
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                         verify_mode => none}
                }),
        config([listen, http],
               #{ip_address => "127.0.0.1",
@@ -198,7 +199,8 @@ options("mongooseim-pgsql") ->
                             #{host => '_', path => "/api"})],
                 protocol => #{compress => true},
                 transport => #{num_acceptors => 10, max_connections => 1024},
-                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => ""}
+                tls => #{certfile => "priv/cert.pem", keyfile => "priv/dc1.pem", password => "",
+                         verify_mode => none}
                }),
        config([listen, s2s],
               #{port => 5269,
