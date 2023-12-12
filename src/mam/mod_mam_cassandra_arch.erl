@@ -739,12 +739,12 @@ fetch_user_messages_cql() ->
 packet_to_stored_binary(HostType, Packet) ->
     %% Module implementing mam_message behaviour
     Module = db_message_format(HostType),
-    Module:encode(Packet).
+    mam_message:encode(Module, Packet).
 
 stored_binary_to_packet(HostType, Bin) ->
     %% Module implementing mam_message behaviour
     Module = db_message_format(HostType),
-    Module:decode(Bin).
+    mam_message:decode(Module, Bin).
 
 %% ----------------------------------------------------------------------
 %% Params getters

@@ -4,9 +4,6 @@
 -export([decode_muc_gdpr_row/2]).
 -export([decode_retraction_info/3]).
 
--include_lib("kernel/include/logger.hrl").
--include_lib("exml/include/exml.hrl").
-
 -type ext_mess_id() :: non_neg_integer() | binary().
 -type env_vars() :: mod_mam_rdbms_arch:env_vars().
 -type db_row() :: {ext_mess_id(), ExtSrcJID :: binary(), ExtData :: binary()}.
@@ -54,23 +51,8 @@ decode_jid(ExtJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
 -spec decode_packet(binary(), env_vars()) -> exml:element().
 decode_packet(ExtBin, Env = #{db_message_codec := Codec}) ->
     Bin = unescape_binary(ExtBin, Env),
-    try
-        mam_message:decode(Codec, Bin)
-    catch Class:Reason:Stacktrace ->
-        ?LOG_ERROR(#{what => mam_failed_to_decode_message,
-                     encoded_message => ExtBin,
-                     class => Class, reason => Reason, stacktrace => Stacktrace}),
-        error_stanza()
-    end.
+    mam_message:decode(Codec, Bin).
 
 -spec unescape_binary(binary(), env_vars()) -> binary().
 unescape_binary(Bin, #{host_type := HostType}) ->
     mongoose_rdbms:unescape_binary(HostType, Bin).
-
-error_stanza() ->
-    Text = <<"Failed to decode message in database">>,
-    Err = mongoose_xmpp_errors:internal_server_error(<<"en">>, Text),
-    Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
-    #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"error">>}],
-           children = [Err, Body]}.
