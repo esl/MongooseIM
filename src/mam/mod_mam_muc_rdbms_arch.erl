@@ -378,17 +378,11 @@ extract_gdpr_messages(HostType, SenderID) ->
     Acc :: {ok, mod_mam:lookup_result()},
     Params :: mam_iq:lookup_params(),
     Extra :: gen_hook:extra().
-lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
-    {ok, Result};
 lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
-    try
-        {ok, mam_lookup:lookup(Env, Filter, ExdParams)}
-    catch error:Reason:Stacktrace ->
-        {error, {Reason, {stacktrace, Stacktrace}}}
-    end.
+    {ok, mam_lookup:lookup(Env, Filter, ExdParams)}.
 
 lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order, OffsetLimit).
