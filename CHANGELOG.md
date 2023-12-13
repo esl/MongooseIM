@@ -1,3 +1,112 @@
+# [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) - 2023-12-13
+
+## Highlights
+
+- Introduced CETS as an alternative internal database to Mnesia
+- Updated many XEP implementations to the newest version
+- Implemented partial support for XEP-0386: Bind 2 and XEP-0388: Extensible SASL Profile
+- Support for Erlang 26
+- Removed support for Riak
+- Various improvements and fixes
+
+## Added
+
+- CETS
+  - CETS backend for session management and stream management (#3629, #4075, #4143)
+  - Add GraphQL handler for CETS info (#4015, #4116)
+  - RDBMS discovery backend for CETS (#4022, #4042, #4108, #4049, #4165, #4182)
+  - CETS backend for `mod_bosh` (#4050)
+  - CETS support for components (#4047)
+  - CETS support for S2S (#4046)
+  - CETS backend for `mod_muc` (#4066)
+  - CETS backend for `mod_jingle_sip` (#4076)
+  - CETS backend for `mongoose_cluster_id` (#4136)
+  - Add CETS backend for `mod_keystore` (#4140)
+  - Remove mnesia from `mod_register` (#4146)
+  - Anonymous auth supports mnesia and CETS backends (#4148)
+  - Custom EPMD module (#4179)
+- Unified XEP list for xmpp.org (#4021, #4024, #4025, #4123)
+- Reporting to Google Analytics 4 (#4040, #4061)
+- Add config option to limit the number of users per domain (#4059)
+- XEP-0386: Bind 2 and XEP-0388: Extensible SASL Profile
+  - Extensible SASL Profile (#4101, #4102)
+  - Bind 2 (#4113, #4114)
+- Log internal-server-errors in `mod_privacy` (#4139)
+
+## Changed
+
+- XEP updates
+  - Implement XEP-0004: Data Forms in a separate module (#4028, #4031)
+  - Update XEP-0016: Privacy Lists (#4038)
+  - Update XEP-0030: Service Discovery (#4039)
+  - Update XEP-0050: Ad-Hoc Commands (#4043, #4048)
+  - Update XEP-0363: HTTP File Upload(#4053)
+  - Update attributes for XEP-0178 and add for XEP-0220 (#4057)
+  - Update XEP-0045: Multi-User Chat (#4054)
+  - Update XEPs: XEP-0082, XEP-0115, XEP-0124, XEP-0157, XEP-0160, XEP-0163, XEP-0199, XEP-0248, XEP-0277 (#4060)
+  - Update XEP-0280 (#4083)
+  - Update XEP-0060: Publish-Subscribe (#4092)
+  - Update XEP-0215: External Service Discovery (#4120)
+  - Advertise support for XEP-0249: Direct MUC Invitations (#4168)
+- Upgrade segmented_cache library and its telemetry events (#4041)
+- Improved Metrics initialization (#4070)
+- Initialise domain workers in the supervision tree instead of manually (#4069)
+- Config in one persistent term (#4093)
+- C2S features optimisations (#4094)
+- Patch `ejabberd_sm` (#4096)
+- Use `jid:make_bare/2` instead of `jid:make/3` where appropiate (#4109)
+- Unify `auth_module` and `info` in `c2s_data` record (#4110)
+- Simplify specs for `ejabberd_sup` and let workers terminate (#4117)
+- Raise an error if `mnesia:create_table/2` fails (#4138)
+
+## Fixed
+
+- Fix `mod_event_pusher:push_event/3` (#3939)
+- Removing incorrect CORS headers (#4006)
+- Fix handling of the undefined host type for stream errors (#4052)
+- Put reporter init after app startup (#4085)
+- Fix slow getaddrs call in global distribution (#4086)
+- C2S fixes (#4095, #4129)
+- Fix invalid username in scram authentication (#4118)
+- Return a proper type from `mod_muc:node_cleanup_for_host_type/3` (#4122)
+- Correctly handle the case when TLS is disabled (#4150)
+- Fix error on ping timeout with stream management (#4153)
+- Update epgsql to fix an issue with Erlang/OTP 26 (#4169)
+- `mod_muc_light` config fix (#4178)
+- Change domain validation logic (#4184)
+- Require 'cacertfile' for just_tls when verify_mode = 'peer' (#4189)
+
+## Removed
+
+- Remove riak (#4035)
+- Remove legacy CLI commands (#4160)
+
+## Performance improvements
+
+- Cache router, filter, and process handlers into funs (#4068)
+- C2S features small optimisation (#4077)
+- Replace `erlang:apply` with explicit function calls for hooks (#4073)
+- Avoid calling `ejabberd_sm_backend:get_sessions/3` second time when routing presences (#4089)
+- Put hooks into persistent_term using batching (#3878)
+
+## Other
+
+- Tests improvements/fixes (#4064, #4072, #4079, #4098, #4099, #4100, #4104, #4103, #4107, #4115, #4137, #4142, #4147, #4155, #4164)
+- Documentation updates (#4030, #4034, #4055, #4087, #4130, #4133, #4181, #4190)
+- CI improvements/fixes (#4023, #4026, #4027, #4029, #4097, #4112, #4149, #4145, #4152, #4166, #4167, #4171)
+- Upgrade exometer_report_graphite (#4134)
+- Support for Erlang 26 (#4121)
+- Rename db and node to mongooseim (#4172)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.2.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2023-05-11..2023-12-13)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2023-05-11&to=2023-12-132023-12-13&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222023-05-11..2023-12-13%22+sort%3Acreated-asc+)
+
 # [MongooseIM 6.1.0](https://github.com/esl/MongooseIM/releases/tag/6.1.0) - 2023-05-10
 
 ## Highlights
