@@ -6,8 +6,7 @@
 -import(distributed_helper, [mim/0, mim2/0, rpc/4]).
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
--import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2,
-                         get_db_not_configured/1]).
+-import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2, get_not_loaded/1]).
 
 all() ->
     [{group, admin_cets_cli},
@@ -221,10 +220,10 @@ domain_admin_get_system_info_test(Config) ->
 % CETS not configured tests
 
 get_table_info_not_configured_test(Config) ->
-    get_db_not_configured(get_table_info(Config)).
+    get_not_loaded(get_table_info(Config)).
 
 get_system_info_not_configured_test(Config) ->
-    get_db_not_configured(get_system_info(Config)).
+    get_not_loaded(get_system_info(Config)).
 
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers

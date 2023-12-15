@@ -113,15 +113,17 @@ use_directive() ->
      use_dir_all_modules_loaded,
      use_dir_all_modules_and_services_loaded,
      use_dir_module_and_service_not_loaded,
-     use_dir_db_loaded,
+     use_dir_module_service_and_db_loaded,
      use_dir_db_not_loaded,
-     use_dir_object_module_and_service_not_loaded,
-     use_dir_object_all_modules_services_and_db_loaded,
-     use_dir_object_db_not_loaded,
-     use_dir_auth_admin_all_modules_services_and_db_loaded,
-     use_dir_auth_user_all_modules_services_and_db_loaded,
-     use_dir_auth_admin_module_and_service_not_loaded,
-     use_dir_auth_user_module_and_service_not_loaded,
+     use_dir_module_service_and_db_not_loaded,
+     use_dir_object_module_service_and_db_loaded,
+     use_dir_object_all_modules_services_and_dbs_loaded,
+     use_dir_object_module_and_db_not_loaded,
+     use_dir_object_service_and_db_not_loaded,
+     use_dir_auth_admin_all_modules_services_and_dbs_loaded,
+     use_dir_auth_user_all_modules_services_and_dbs_loaded,
+     use_dir_auth_admin_module_service_and_db_not_loaded,
+     use_dir_auth_user_module_service_and_db_not_loaded,
      use_dir_auth_admin_db_not_loaded,
      use_dir_auth_user_db_not_loaded
     ].
@@ -281,16 +283,18 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
 init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_all_modules_loaded;
                                   C =:= use_dir_module_and_service_not_loaded;
-                                  C =:= use_dir_db_loaded;
+                                  C =:= use_dir_module_service_and_db_loaded;
                                   C =:= use_dir_db_not_loaded;
+                                  C =:= use_dir_module_service_and_db_not_loaded;
                                   C =:= use_dir_all_modules_and_services_loaded;
-                                  C =:= use_dir_object_module_and_service_not_loaded;
-                                  C =:= use_dir_object_all_modules_services_and_db_loaded;
-                                  C =:= use_dir_object_db_not_loaded;
-                                  C =:= use_dir_auth_user_all_modules_services_and_db_loaded;
-                                  C =:= use_dir_auth_admin_all_modules_services_and_db_loaded;
-                                  C =:= use_dir_auth_user_module_and_service_not_loaded;
-                                  C =:= use_dir_auth_admin_module_and_service_not_loaded;
+                                  C =:= use_dir_object_module_service_and_db_loaded;
+                                  C =:= use_dir_object_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_object_module_and_db_not_loaded;
+                                  C =:= use_dir_object_service_and_db_not_loaded;
+                                  C =:= use_dir_auth_user_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_auth_admin_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_auth_user_module_service_and_db_not_loaded;
+                                  C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
                                   C =:= use_dir_auth_admin_db_not_loaded;
                                   C =:= use_dir_auth_user_db_not_loaded ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
@@ -691,8 +695,7 @@ use_directive_can_use_auth_user_domain(Config) ->
         execute(Ep, Body, {<<"alice@localhost">>, <<"makota">>}),
     #{<<"extensions">> :=
         #{<<"code">> := <<"deps_not_loaded">>,
-          <<"not_loaded_modules">> := [<<"mod_x">>],
-          <<"not_loaded_services">> := []}
+          <<"not_loaded_modules">> := [<<"mod_x">>]}
      } = Error.
 
 no_creds_defined_admin_can_access_protected(_Config) ->
@@ -722,8 +725,7 @@ use_directive_can_use_auth_domain_admin_domain(Config) ->
         execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
     #{<<"extensions">> :=
         #{<<"code">> := <<"deps_not_loaded">>,
-          <<"not_loaded_modules">> := [<<"mod_x">>],
-          <<"not_loaded_services">> := []}
+          <<"not_loaded_modules">> := [<<"mod_x">>]}
      } = Error.
 
 auth_domain_admin_wrong_password_error(Config) ->
@@ -856,10 +858,9 @@ use_dir_module_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>],
-          not_loaded_services := []
+          not_loaded_modules := [<<"mod_b">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message := <<"Some of the required modules are not loaded">>,
       path := [<<"catA">>, <<"command">>]
      } = Error.
 
@@ -880,11 +881,11 @@ use_dir_module_and_service_not_loaded(Config) ->
           not_loaded_modules := [<<"mod_z">>],
           not_loaded_services := [<<"service_d">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message := <<"Some of the required modules and services are not loaded">>,
       path := [<<"catA">>, <<"command3">>]
      } = Error.
 
-use_dir_db_loaded(Config) ->
+use_dir_module_service_and_db_loaded(Config) ->
     Doc = <<"{catA { command4(domain: \"localhost\")} }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
@@ -898,31 +899,62 @@ use_dir_db_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_databases := [<<"db_x">>]},
-      message := <<"The required internal databases are not configured">>,
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message :=
+        <<"Some of the required internal databases are not loaded">>,
       path := [<<"catA">>, <<"command5">>]
      } = Error.
 
-use_dir_object_all_modules_services_and_db_loaded(Config) ->
+use_dir_module_service_and_db_not_loaded(Config) ->
+    Doc = <<"{catA { command6(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
+      path := [<<"catA">>, <<"command6">>]
+     } = Error.
+
+use_dir_object_all_modules_services_and_dbs_loaded(Config) ->
     Doc = <<"{ catC { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     Res = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command">> => <<"command">>}}}, Res).
 
-use_dir_object_db_not_loaded(Config) ->
+use_dir_object_module_and_db_not_loaded(Config) ->
     Doc = <<"{ catD { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_databases := [<<"db_x">>]},
-      message := <<"The required internal databases are not configured">>,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+    message :=
+        <<"Some of the required modules and internal databases are not loaded">>,
       path := [<<"catD">>, <<"command">>]
      } = Error.
 
-use_dir_object_module_and_service_not_loaded(Config) ->
+use_dir_object_service_and_db_not_loaded(Config) ->
+    Doc = <<"{ catD { command3 } }">>,
+    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+          message := <<"Some of the required services and internal databases are not loaded">>,
+      path := [<<"catD">>, <<"command3">>]
+     } = Error.
+
+use_dir_object_module_service_and_db_loaded(Config) ->
     Doc = <<"{ catB { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
@@ -930,41 +962,45 @@ use_dir_object_module_and_service_not_loaded(Config) ->
     #{extensions :=
         #{code := deps_not_loaded,
           not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
       path := [<<"catB">>, <<"command">>]
      } = Error.
 
-use_dir_auth_user_all_modules_services_and_db_loaded(Config) ->
+use_dir_auth_user_all_modules_services_and_dbs_loaded(Config) ->
     Doc = <<"{ catC { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     Res = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
 
-use_dir_auth_admin_all_modules_services_and_db_loaded(Config) ->
+use_dir_auth_admin_all_modules_services_and_dbs_loaded(Config) ->
     Doc = <<"{ catC { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     Res = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
 
-use_dir_auth_user_module_and_service_not_loaded(Config) ->
+use_dir_auth_user_module_service_and_db_not_loaded(Config) ->
     Doc = <<"{ catB { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
+        not_loaded_modules := [<<"mod_x">>],
+        not_loaded_services := [<<"service_x">>],
+        not_loaded_internal_databases := [<<"db_x">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+    message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
       path := [<<"catB">>, <<"command2">>]
      } = Error.
 
-use_dir_auth_admin_module_and_service_not_loaded(Config) ->
+use_dir_auth_admin_module_service_and_db_not_loaded(Config) ->
     Doc = <<"{ catB { command2 } }">>,
     Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
@@ -972,9 +1008,11 @@ use_dir_auth_admin_module_and_service_not_loaded(Config) ->
     #{extensions :=
         #{code := deps_not_loaded,
           not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
       path := [<<"catB">>, <<"command2">>]
      } = Error.
 
@@ -985,8 +1023,8 @@ use_dir_auth_user_db_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_databases := [<<"db_x">>]},
-      message := <<"The required internal databases are not configured">>,
+          not_loaded_internal_databases := [<<"db_x">>]},
+          message := <<"Some of the required internal databases are not loaded">>,
       path := [<<"catD">>, <<"command2">>]
      } = Error.
 
@@ -997,8 +1035,8 @@ use_dir_auth_admin_db_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_databases := [<<"db_x">>]},
-      message := <<"The required internal databases are not configured">>,
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message := <<"Some of the required internal databases are not loaded">>,
       path := [<<"catD">>, <<"command2">>]
      } = Error.
 

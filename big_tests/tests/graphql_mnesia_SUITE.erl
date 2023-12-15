@@ -8,7 +8,7 @@
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
                          get_ok_value/2, get_err_code/1, get_err_value/2, get_unauthorized/1,
-                         get_coercion_err_msg/1, get_db_not_configured/1]).
+                         get_coercion_err_msg/1, get_not_loaded/1]).
 
 -record(mnesia_table_test, {key :: integer(), name :: binary()}).
 -record(vcard, {us, vcard}).
@@ -346,35 +346,35 @@ domain_admin_get_info_test(Config) ->
 
 backup_not_configured_test(Config) ->
     Filename = <<"backup_not_configured_test">>,
-    get_db_not_configured(backup_mnesia(Filename, Config)).
+    get_not_loaded(backup_mnesia(Filename, Config)).
 
 change_nodename_not_configured_test(Config) ->
     Filename1 = <<"change_nodename_not_configured_test">>,
     Filename2 = <<"change_nodename2_not_configured_test">>,
     ChangeFrom = <<"mongooseim@localhost">>,
     ChangeTo = <<"change_nodename_not_configured_test@localhost">>,
-    get_db_not_configured(change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config)).
+    get_not_loaded(change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config)).
 
 dump_not_configured_test(Config) ->
-    get_db_not_configured(dump_mnesia(<<"File">>, Config)).
+    get_not_loaded(dump_mnesia(<<"File">>, Config)).
 
 dump_table_not_configured_test(Config) ->
-    get_db_not_configured(dump_mnesia_table(<<"File">>, <<"mnesia_table_test">>, Config)).
+    get_not_loaded(dump_mnesia_table(<<"File">>, <<"mnesia_table_test">>, Config)).
 
 install_fallback_not_configured_test(Config) ->
-    get_db_not_configured(install_fallback(<<"Path">>, Config)).
+    get_not_loaded(install_fallback(<<"Path">>, Config)).
 
 load_not_configured_test(Config) ->
-    get_db_not_configured(load_mnesia(<<"Path">>, Config)).
+    get_not_loaded(load_mnesia(<<"Path">>, Config)).
 
 restore_not_configured_test(Config) ->
-    get_db_not_configured(restore_mnesia(<<"Path">>, Config)).
+    get_not_loaded(restore_mnesia(<<"Path">>, Config)).
 
 set_master_not_configured_test(Config) ->
-    get_db_not_configured(set_master(mim(), Config)).
+    get_not_loaded(set_master(mim(), Config)).
 
 system_info_not_configured_test(Config) ->
-    get_db_not_configured(get_info([<<"running_db_nodes">>], Config)).
+    get_not_loaded(get_info([<<"running_db_nodes">>], Config)).
 
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
@@ -424,7 +424,8 @@ create_file(FullPath) ->
     file:close(FullPath).
 
 create_and_write_file(FullPath) ->
-    {ok, _File} = file:open(FullPath, [write]),
+    {ok, File} = file:open(FullPath, [write]),
+    io:format(File, "~s~n", ["TEST"]),
     file:close(FullPath).
 
 check_if_response_contains(Response, String) ->

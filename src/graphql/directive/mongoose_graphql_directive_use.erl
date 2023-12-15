@@ -145,11 +145,22 @@ filter_unloaded_db(DBs) ->
                  end, DBs).
 
 -spec resolve_not_loaded_fun([binary()], [binary()], [binary()]) -> resolver().
-resolve_not_loaded_fun(Modules, Services, []) ->
-    Msg = <<"Some of required modules or services are not loaded">>,
-    Extra = #{not_loaded_modules => Modules, not_loaded_services => Services},
-    fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end;
-resolve_not_loaded_fun(_Modules, _Services, Databases) ->
-    Msg = <<"The required internal databases are not configured">>,
-    Extra = #{not_loaded_databases => Databases},
+resolve_not_loaded_fun(Modules, Services, Databases) ->
+    NotLoadedDescs = lists:filtermap(
+        fun
+            ({[], _}) -> false;
+            ({List, Desc}) when List =/= [] -> {true, Desc}
+        end,
+        [{Modules, "modules"}, {Services, "services"}, {Databases, "internal databases"}]
+    ),
+    MsgPrefix = <<"Some of the required ">>,
+    MsgList = string:join(NotLoadedDescs, " and "),
+    MsgBinaryList = list_to_binary(MsgList),
+    Msg = <<MsgPrefix/binary, MsgBinaryList/binary, " are not loaded">>,
+    Extra = maps:from_list(
+        [{list_to_atom("not_loaded_" ++
+                       unicode:characters_to_list(string:replace(Desc, " ", "_"))), List} ||
+         {List, Desc} <- [{Modules, "modules"}, {Services, "services"},
+                          {Databases, "internal databases"}],
+         lists:member(Desc, NotLoadedDescs)]),
     fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end.
