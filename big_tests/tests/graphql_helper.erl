@@ -202,6 +202,10 @@ get_not_loaded(Resp) ->
     ?assertEqual(<<"deps_not_loaded">>, get_err_code(Resp)),
     ?assertEqual(<<"Some of required modules or services are not loaded">>, get_err_msg(Resp)).
 
+get_db_not_configured(Resp) ->
+    ?assertEqual(<<"deps_not_loaded">>, get_err_code(Resp)),
+    ?assertEqual(<<"The required internal databases are not configured">>, get_err_msg(Resp)).
+
 get_err_code(Resp) ->
     get_value([extensions, code], get_error(1, Resp)).
 

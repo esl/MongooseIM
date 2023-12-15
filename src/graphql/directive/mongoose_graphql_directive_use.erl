@@ -150,6 +150,6 @@ resolve_not_loaded_fun(Modules, Services, []) ->
     Extra = #{not_loaded_modules => Modules, not_loaded_services => Services},
     fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end;
 resolve_not_loaded_fun(_Modules, _Services, Databases) ->
-    Msg = <<"The required internal databases is not configured">>,
+    Msg = <<"The required internal databases are not configured">>,
     Extra = #{not_loaded_databases => Databases},
     fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end.

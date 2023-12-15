@@ -8,7 +8,7 @@
 -import(mongooseimctl_helper, [rpc_call/3]).
 -import(graphql_helper, [execute_command/4, execute_user_command/5, user_to_bin/1,
                          get_ok_value/2, get_err_code/1, get_err_value/2, get_unauthorized/1,
-                         get_coercion_err_msg/1]).
+                         get_coercion_err_msg/1, get_db_not_configured/1]).
 
 -record(mnesia_table_test, {key :: integer(), name :: binary()}).
 -record(vcard, {us, vcard}).
@@ -16,12 +16,14 @@
 all() ->
     [{group, admin_mnesia_cli},
      {group, admin_mnesia_http},
-     {group, domain_admin_mnesia}].
+     {group, domain_admin_mnesia},
+     {group, mnesia_not_configured}].
 
 groups() ->
     [{admin_mnesia_http, [sequence], admin_mnesia_tests()},
      {admin_mnesia_cli, [sequence], admin_mnesia_tests()},
-     {domain_admin_mnesia, [], domain_admin_tests()}].
+     {domain_admin_mnesia, [], domain_admin_tests()},
+     {mnesia_not_configured, [parallel], mnesia_not_configured_tests()}].
 
 admin_mnesia_tests() ->
     [dump_mnesia_table_test,
@@ -64,6 +66,18 @@ domain_admin_tests() ->
      domain_admin_set_master_test,
      domain_admin_get_info_test].
 
+mnesia_not_configured_tests() ->
+    [backup_not_configured_test,
+     change_nodename_not_configured_test,
+     dump_not_configured_test,
+     dump_table_not_configured_test,
+     install_fallback_not_configured_test,
+     load_not_configured_test,
+     restore_not_configured_test,
+     set_master_not_configured_test,
+     system_info_not_configured_test
+    ].
+
 init_per_suite(Config) ->
     application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
@@ -76,15 +90,32 @@ end_per_suite(_C) ->
     mnesia:delete_schema([node()]).
 
 init_per_group(admin_mnesia_http, Config) ->
-    graphql_helper:init_admin_handler(Config);
+    Config1 = graphql_helper:init_admin_handler(Config),
+    skip_if_mnesia_not_configured(Config1);
 init_per_group(admin_mnesia_cli, Config) ->
-    graphql_helper:init_admin_cli(Config);
+    Config1 = graphql_helper:init_admin_cli(Config),
+    skip_if_mnesia_not_configured(Config1);
 init_per_group(domain_admin_mnesia, Config) ->
-    graphql_helper:init_domain_admin_handler(Config).
-
+    Config1 = graphql_helper:init_domain_admin_handler(Config),
+    skip_if_mnesia_not_configured(Config1);
+init_per_group(mnesia_not_configured, Config) ->
+    case rpc_call(mongoose_config, get_opt, [[internal_databases, mnesia], undefined]) of
+        undefined ->
+            graphql_helper:init_admin_handler(Config);
+        _ ->
+            {skip, "Mnesia is configured"}
+    end.
 end_per_group(_, _Config) ->
     graphql_helper:clean(),
     escalus_fresh:clean().
+
+skip_if_mnesia_not_configured(Config) ->
+    case rpc_call(mongoose_config, get_opt, [[internal_databases, mnesia], undefined]) of
+        undefined ->
+            {skip, "Mnesia is not configured"};
+        _ ->
+            Config
+    end.
 
 % Admin tests
 
@@ -313,6 +344,38 @@ domain_admin_set_master_test(Config) ->
 domain_admin_get_info_test(Config) ->
     get_unauthorized(get_info([<<"running_db_nodes">>], Config)).
 
+backup_not_configured_test(Config) ->
+    Filename = <<"backup_not_configured_test">>,
+    get_db_not_configured(backup_mnesia(Filename, Config)).
+
+change_nodename_not_configured_test(Config) ->
+    Filename1 = <<"change_nodename_not_configured_test">>,
+    Filename2 = <<"change_nodename2_not_configured_test">>,
+    ChangeFrom = <<"mongooseim@localhost">>,
+    ChangeTo = <<"change_nodename_not_configured_test@localhost">>,
+    get_db_not_configured(change_nodename(ChangeFrom, ChangeTo, Filename1, Filename2, Config)).
+
+dump_not_configured_test(Config) ->
+    get_db_not_configured(dump_mnesia(<<"File">>, Config)).
+
+dump_table_not_configured_test(Config) ->
+    get_db_not_configured(dump_mnesia_table(<<"File">>, <<"mnesia_table_test">>, Config)).
+
+install_fallback_not_configured_test(Config) ->
+    get_db_not_configured(install_fallback(<<"Path">>, Config)).
+
+load_not_configured_test(Config) ->
+    get_db_not_configured(load_mnesia(<<"Path">>, Config)).
+
+restore_not_configured_test(Config) ->
+    get_db_not_configured(restore_mnesia(<<"Path">>, Config)).
+
+set_master_not_configured_test(Config) ->
+    get_db_not_configured(set_master(mim(), Config)).
+
+system_info_not_configured_test(Config) ->
+    get_db_not_configured(get_info([<<"running_db_nodes">>], Config)).
+
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
 %--------------------------------------------------------------------------------------------------
@@ -361,8 +424,7 @@ create_file(FullPath) ->
     file:close(FullPath).
 
 create_and_write_file(FullPath) ->
-    {ok, File} = file:open(FullPath, [write]),
-    io:format(File, "~s~n", ["TEST"]),
+    {ok, _File} = file:open(FullPath, [write]),
     file:close(FullPath).
 
 check_if_response_contains(Response, String) ->

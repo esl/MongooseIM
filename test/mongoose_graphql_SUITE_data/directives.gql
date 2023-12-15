@@ -12,7 +12,8 @@ enum ProtectionType{
   DEFAULT
 }
 
-directive @use (modules: [String!] = [], services: [String!] = []) on FIELD_DEFINITION | OBJECT
+directive @use (modules: [String!] = [], services: [String!] = [],
+                internal_databases: [String!] = []) on FIELD_DEFINITION | OBJECT
 
 type UserQuery @use{
   field: String
