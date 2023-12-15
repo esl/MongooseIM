@@ -35,7 +35,7 @@
           jid :: undefined | jid:jid(),
           socket :: undefined | mongoose_c2s_socket:socket(),
           parser :: undefined | exml_stream:parser(),
-          shaper :: undefined | opuntia:shaper(),
+          shaper :: undefined | mongoose_shaper:shaper(),
           listener_opts :: undefined | listener_opts(),
           state_mod = #{} :: #{module() => term()},
           info = #{} :: info()
@@ -90,7 +90,7 @@ handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
                                                      max_stanza_size := MaxStanzaSize} = LOpts}) ->
     {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
-    Shaper = opuntia:new(mongoose_shaper:get_shaper_rate(ShaperName)),
+    Shaper = mongoose_shaper:new(ShaperName),
     C2SSocket = mongoose_c2s_socket:new(SocketModule, SocketOpts, LOpts),
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
     {next_state, {wait_for_stream, stream_start}, StateData1, state_timeout(LOpts)};
@@ -246,7 +246,7 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
-    {NewShaper, Pause} = opuntia:update(Shaper, Size),
+    {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
     mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),

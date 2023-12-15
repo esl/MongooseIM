@@ -49,7 +49,7 @@
 
 -record(state, {socket :: socket(),
                 sockmod = gen_tcp     :: socket_module(),
-                shaper_state          :: opuntia:shaper(),
+                shaper_state          :: mongoose_shaper:shaper(),
                 dest_pid              :: undefined | pid(), %% gen_fsm_compat pid
                 max_stanza_size       :: stanza_size(),
                 parser                :: exml_stream:parser(),
@@ -164,7 +164,7 @@ send_text(SocketData, Data) ->
     #socket_data{sockmod = SockMod, socket = Socket,
                  connection_type = ConnectionType} = SocketData,
     case catch SockMod:send(Socket, Data) of
-        ok -> 
+        ok ->
             update_transport_metrics(byte_size(Data), sent, ConnectionType),
             ok;
         {error, timeout} ->
@@ -215,7 +215,7 @@ start_link(Socket, Shaper, Opts) ->
     gen_server:start_link(?MODULE, [Socket, Shaper, Opts], []).
 
 init([Socket, Shaper, Opts]) ->
-    ShaperState = opuntia:new(mongoose_shaper:get_shaper_rate(Shaper)),
+    ShaperState = mongoose_shaper:new(Shaper),
     #{max_stanza_size := MaxStanzaSize,
       hibernate_after := HibernateAfter,
       connection_type := ConnectionType} = Opts,
@@ -267,7 +267,7 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State, hibernate_or_timeout(State)}.
 
 handle_cast({change_shaper, Shaper}, State) ->
-    NewShaperState = opuntia:new(mongoose_shaper:get_shaper_rate(Shaper)),
+    NewShaperState = mongoose_shaper:new(Shaper),
     NewState = State#state{shaper_state = NewShaperState},
     {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_cast(close, State) ->
@@ -277,7 +277,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({tcp, _TCPSocket, Data}, #state{sockmod = gen_tcp} = State) ->
     NewState = process_data(Data, State),
-    {noreply, NewState, hibernate_or_timeout(NewState)};  
+    {noreply, NewState, hibernate_or_timeout(NewState)};
 handle_info({Tag, _TCPSocket, Data},
             #state{socket = Socket,
                    sockmod = mongoose_tls} = State) when Tag == tcp; Tag == ssl ->
@@ -394,21 +394,21 @@ process_data(Data, #state{parser = Parser,
     Size = byte_size(Data),
     {Events, NewParser} =
         case exml_stream:parse(Parser, Data) of
-            {ok, NParser, Elems} -> 
+            {ok, NParser, Elems} ->
                 {[wrap_xml_elements_and_update_metrics(E) || E <- Elems], NParser};
             {error, Reason} ->
                 {[{xmlstreamerror, Reason}], Parser}
         end,
-    {NewShaperState, Pause} = opuntia:update(ShaperState, Size),
+    {NewShaperState, Pause} = mongoose_shaper:update(ShaperState, Size),
     update_transport_metrics(Size, received, State#state.connection_type),
     [gen_fsm_compat:send_event(DestPid, Event) || Event <- Events],
     maybe_pause(Pause, State),
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
-wrap_xml_elements_and_update_metrics(#xmlel{} = E) -> 
+wrap_xml_elements_and_update_metrics(#xmlel{} = E) ->
     mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
     {xmlstreamelement, E};
-wrap_xml_elements_and_update_metrics(E) -> 
+wrap_xml_elements_and_update_metrics(E) ->
     mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
     E.
 

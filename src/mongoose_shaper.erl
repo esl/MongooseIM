@@ -1,22 +1,28 @@
 -module(mongoose_shaper).
 
--export([child_spec/0, get_shaper_rate/1, wait/5, reset_all_shapers/1]).
+-export([child_spec/0]).
+-export([new/1, update/2, wait/5, reset_all_shapers/1]).
 -ignore_xref([reset_all_shapers/1]).
+
+-type shaper() :: opuntia:shaper().
+-export_type([shaper/0]).
 
 -spec child_spec() -> supervisor:child_spec().
 child_spec() ->
-    WPoolOpts = [{workers, 10}, {worker, {opuntia_srv, {mongoose_shaper, #{}}}}],
-    {mongoose_shaper,
-     {wpool, start_pool, [mongoose_shaper, WPoolOpts]},
-     permanent, infinity, supervisor, [opuntia_srv]}.
+    WPoolOpts = [{workers, 10}, {worker, {opuntia_srv, {?MODULE, #{}}}}],
+    #{id => ?MODULE,
+      start => {wpool, start_pool, [?MODULE, WPoolOpts]},
+      restart => permanent,
+      shutdown => infinity,
+      type => supervisor}.
 
--spec get_shaper_rate(atom()) -> number().
-get_shaper_rate(Name) ->
-    case mongoose_config:lookup_opt([shaper, Name]) of
-        {ok, #{max_rate := MaxRatePerSecond}} ->
-            MaxRatePerSecond / 1000;
-        {error, not_found} -> 0
-    end.
+-spec new(atom()) -> opuntia:shaper().
+new(Name) ->
+    opuntia:new(get_shaper_config(Name)).
+
+-spec update(opuntia:shaper(), opuntia:tokens()) -> {opuntia:shaper(), opuntia:delay()}.
+update(Shaper, Tokens) ->
+    opuntia:update(Shaper, Tokens).
 
 %% @doc Shapes the caller from executing the action.
 -spec wait(HostType :: mongooseim:host_type_or_global(),
@@ -25,8 +31,8 @@ get_shaper_rate(Name) ->
            FromJID :: jid:jid(),
            Size :: integer()) -> continue | {error, max_delay_reached}.
 wait(HostType, Domain, Action, FromJID, Size) ->
-    Worker = wpool_pool:hash_worker(mongoose_shaper, FromJID),
-    Config = get_shaper_rate(get_shaper_name(HostType, Domain, Action, FromJID)),
+    Worker = wpool_pool:hash_worker(?MODULE, FromJID),
+    Config = get_shaper_config(get_shaper_name(HostType, Domain, Action, FromJID)),
     Key = new_key(Domain, Action, FromJID),
     opuntia_srv:wait(Worker, Key, Size, Config).
 
@@ -37,7 +43,7 @@ new_key(Domain, Action, FromJID) ->
 
 %% @doc Ask all shaper servers to forget current shapers and read settings again
 reset_all_shapers(_HostType) ->
-    [ opuntia_srv:reset_shapers(ProcName) || ProcName <- wpool:get_workers(mongoose_shaper) ],
+    [ opuntia_srv:reset_shapers(ProcName) || ProcName <- wpool:get_workers(?MODULE) ],
     ok.
 
 -spec get_shaper_name(HostType :: mongooseim:host_type_or_global(),
@@ -48,6 +54,16 @@ get_shaper_name(HostType, Domain, Action, FromJID) ->
     case acl:match_rule(HostType, Domain, Action, FromJID) of
         deny -> default_shaper();
         Value -> Value
+    end.
+
+-spec get_shaper_config(atom()) -> number().
+get_shaper_config(Name) ->
+    case mongoose_config:lookup_opt([shaper, Name]) of
+        {ok, #{max_rate := MaxRatePerSecond}} ->
+            Rate = MaxRatePerSecond div 1000,
+            {MaxRatePerSecond, Rate, millisecond};
+        {error, not_found} ->
+            0
     end.
 
 default_shaper() ->
