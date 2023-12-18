@@ -1269,5 +1269,5 @@ dummy_auth_host_type() ->
     <<"dummy auth">>. %% specified in the TOML config file
 
 random_domain_name() ->
-    Suffix = list_to_binary(integer_to_list(rand:uniform(1000000000))),
-    <<"example.db", Suffix/binary>>.
+    Prefix = integer_to_binary(erlang:unique_integer([positive])),
+    <<Prefix/binary, ".example.db">>.
