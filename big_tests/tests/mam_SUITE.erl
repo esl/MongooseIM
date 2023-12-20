@@ -576,7 +576,7 @@ delete_users(Config) ->
 
 increase_limits(Config) ->
     Config1 = mongoose_helper:backup_and_set_config(Config, increased_limits()),
-    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]),
+    rpc_apply(mongoose_shaper, reset_all_shapers, [host_type()]),
     Config1.
 
 increased_limits() ->

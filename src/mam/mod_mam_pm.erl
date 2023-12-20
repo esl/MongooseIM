@@ -17,7 +17,7 @@
 %%%
 %%% This module should be started for each host.
 %%% Message archivation is not shaped here (use standard support for this).
-%%% MAM's IQs are shaped inside {@link shaper_srv}.
+%%% MAM's IQs are shaped inside {@link opuntia_srv}.
 %%%
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
@@ -142,7 +142,7 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
     case is_action_allowed(HostType, Action, From, To) of
         true  ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, Action, From) of
-                ok ->
+                continue ->
                     handle_error_iq(HostType, Acc, To, Action,
                                     handle_mam_iq(Action, From, To, IQ, Acc));
                 {error, max_delay_reached} ->

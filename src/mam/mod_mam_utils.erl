@@ -1022,13 +1022,15 @@ action_to_global_shaper_name(Action) ->
     list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 -spec wait_shaper(mongooseim:host_type(), jid:server(), mam_iq:action(), jid:jid()) ->
-    'ok' | {'error', 'max_delay_reached'}.
+    continue | {error, max_delay_reached}.
 wait_shaper(HostType, Host, Action, From) ->
-    case shaper_srv:wait(HostType, Host, action_to_shaper_name(Action), From, 1) of
-        ok ->
-            shaper_srv:wait(HostType, Host, action_to_global_shaper_name(Action), global, 1);
-        Err ->
-            Err
+    case mongoose_shaper:wait(
+           HostType, Host, action_to_shaper_name(Action), From, 1) of
+        continue ->
+            mongoose_shaper:wait(
+              global, Host, action_to_global_shaper_name(Action), From, 1);
+        {error, max_delay_reached} ->
+            {error, max_delay_reached}
     end.
 
 %% -----------------------------------------------------------------------
