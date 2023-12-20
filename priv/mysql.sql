@@ -322,7 +322,7 @@ CREATE TABLE muc_light_rooms(
     lserver VARCHAR(250)    NOT NULL,
     version VARCHAR(20)     NOT NULL,
     PRIMARY KEY (lserver, luser),
-    UNIQUE KEY k_id USING HASH (id)
+    UNIQUE KEY uk_muc_light_rooms_id USING BTREE (id)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
