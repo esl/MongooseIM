@@ -61,7 +61,7 @@ get_shaper_config(Name) ->
     case mongoose_config:lookup_opt([shaper, Name]) of
         {ok, #{max_rate := MaxRatePerSecond}} ->
             Rate = MaxRatePerSecond div 1000,
-            {MaxRatePerSecond, Rate, millisecond};
+            #{bucket_size => MaxRatePerSecond, rate => Rate, start_full => true};
         {error, not_found} ->
             0
     end.
