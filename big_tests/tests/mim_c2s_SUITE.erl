@@ -8,6 +8,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -define(BAD_RESOURCE, <<"\x{EFBB}"/utf8>>).
+-define(MAX_STANZA_SIZE, 1024).
 
 -import(distributed_helper, [mim/0]).
 
@@ -28,7 +29,8 @@ groups() ->
        client_sets_stream_from_server_answers_with_to,
        stream_from_does_not_match_sasl_jid_results_in_stream_error,
        two_users_can_log_and_chat,
-       too_big_stanza_rejected,
+       too_big_stanza_is_rejected,
+       too_big_opening_tag_is_rejected,
        message_sent_to_malformed_jid_results_in_error,
        verify_session_establishment_is_not_announced,
        invalid_resource_fails_to_log
@@ -60,7 +62,8 @@ init_per_group(basic, Config) ->
     Config1 = save_c2s_listener(Config),
     Config2 = escalus_users:update_userspec(Config1, alice, connection_steps, Steps),
     Config3 = escalus_users:update_userspec(Config2, bob, connection_steps, Steps),
-    configure_c2s_listener(Config3, #{backwards_compatible_session => false, max_stanza_size => 1024}),
+    configure_c2s_listener(Config3, #{backwards_compatible_session => false,
+                                      max_stanza_size => ?MAX_STANZA_SIZE}),
     Config3;
 init_per_group(backwards_compatible_session, Config) ->
     Config.
@@ -128,12 +131,23 @@ two_users_can_log_and_chat(Config) ->
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice))
     end).
 
-too_big_stanza_rejected(Config) ->
+too_big_stanza_is_rejected(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec),
-    BigBody = base16:encode(crypto:strong_rand_bytes(1024)),
+    BigBody = base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
     escalus_client:send(Alice, escalus_stanza:chat_to(Alice, BigBody)),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Alice)),
+    escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
+    true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
+
+too_big_opening_tag_is_rejected(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, []),
+    BigAttrs = [{<<"bigattr">>,  base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE))}],
+    escalus_client:send(Alice, #xmlel{name = <<"stream:stream">>, attrs = BigAttrs}),
+    escalus:assert(is_stream_start, escalus_client:wait_for_stanza(Alice)),
+    escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>],
+                   escalus_client:wait_for_stanza(Alice)),
     escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Alice)),
     true = escalus_connection:wait_for_close(Alice, timer:seconds(1)).
 
