@@ -45,6 +45,7 @@
 -export([auth_opts_with_password_format/1]).
 -export([get_listeners/2]).
 -export([restart_listener/2]).
+-export([change_listener_idle_timeout/2, restart_listener_on_port/1]).
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
 -export([print_debug_info_for_module/1]).
@@ -498,6 +499,22 @@ get_listeners(#{} = Spec, Pattern) ->
 restart_listener(Spec, Listener) ->
     rpc(Spec, mongoose_listener, stop_listener, [Listener]),
     rpc(Spec, mongoose_listener, start_listener, [Listener]).
+
+change_listener_idle_timeout(ListenerPort, Timeout) ->
+    ListenerConfig = get_listener_config_by_port(ListenerPort),
+    #{protocol := ProtocolOpts} = ListenerConfig,
+    % Chage the default idle_timeout to 5s to test if sse will override it
+    NewConfig = ListenerConfig#{protocol => ProtocolOpts#{idle_timeout => Timeout}},
+    restart_listener(mim(), NewConfig).
+
+restart_listener_on_port(ListenerPort) ->
+    ListenerConfig = get_listener_config_by_port(ListenerPort),
+    restart_listener(mim(), ListenerConfig).
+
+get_listener_config_by_port(ListenerPort) ->
+    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
+    [ListenerConfig] = [Opts || Opts = #{port := Port} <- Listeners, Port == ListenerPort],
+    ListenerConfig.
 
 should_minio_be_running(Config) ->
     DBs = ct_helper:get_preset_var(Config, dbs, []),

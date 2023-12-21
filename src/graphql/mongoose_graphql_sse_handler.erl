@@ -26,6 +26,10 @@
           {shutdown, cowboy:http_status(), cowboy:http_headers(), iodata(), req(), state()}.
 init(State, _LastEvtId, Req) ->
     process_flag(trap_exit, true), % needed for 'terminate' to be called
+    % set 1h timeout to prevent from frequent client disconections
+    cowboy_req:cast({set_options, #{
+        idle_timeout => 3600000
+    }}, Req),
     case cowboy_req:method(Req) of
         <<"GET">> ->
             case mongoose_graphql_handler:check_auth_header(Req, State) of

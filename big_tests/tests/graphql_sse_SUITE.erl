@@ -15,11 +15,13 @@ suite() ->
 
 all() ->
     [{group, admin},
-     {group, user}].
+     {group, user},
+     {group, timeout}].
 
 groups() ->
     [{admin, [parallel], admin_tests()},
-     {user, [parallel], user_tests()}].
+     {user, [parallel], user_tests()},
+     {timeout, [], [sse_should_not_get_timeout]}].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -32,12 +34,20 @@ end_per_suite(Config) ->
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config);
 init_per_group(admin, Config) ->
-    graphql_helper:init_admin_handler(Config).
+    graphql_helper:init_admin_handler(Config);
+init_per_group(timeout, Config) ->
+    % Chage the default idle_timeout on port 5561 to 1s to test if sse will override it
+    mongoose_helper:change_listener_idle_timeout(5561, 1000),
+    graphql_helper:init_user(Config).
 
 end_per_group(user, _Config) ->
     escalus_fresh:clean(),
     graphql_helper:clean();
 end_per_group(admin, _Config) ->
+    graphql_helper:clean();
+end_per_group(timeout, _Config) ->
+    mongoose_helper:restart_listener_on_port(5561),
+    escalus_fresh:clean(),
     graphql_helper:clean().
 
 init_per_testcase(CaseName, Config) ->
@@ -122,6 +132,19 @@ user_invalid_operation_type(Config) ->
 
 user_invalid_operation_type_story(Alice) ->
     get_bad_request(execute_sse(user, #{query => query_doc()}, make_creds(Alice))).
+
+sse_should_not_get_timeout(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = graphql_helper:execute_user_command_sse(<<"stanza">>, <<"subscribeForMessages">>, Alice, #{}, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        sse_helper:wait_for_event(Stream),
+        timer:sleep(2000),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello again!">>)),
+        sse_helper:wait_for_event(Stream),
+        sse_helper:stop_sse(Stream)
+    end).
 
 %% Helpers
 
