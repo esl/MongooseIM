@@ -56,8 +56,8 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
-        rdbms ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
+        {ok, rdbms} ->
             ensure_bad_node_unregistered(),
             escalus:end_per_suite(Config);
         _ ->
@@ -74,10 +74,10 @@ init_per_group(domain_admin_cets, Config) ->
     Config1 = graphql_helper:init_domain_admin_handler(Config),
     skip_if_cets_not_configured(Config1);
 init_per_group(cets_not_configured, Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets], undefined]) of
-        undefined ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets]]) of
+        {error, not_found} ->
             graphql_helper:init_admin_handler(Config);
-        _ ->
+        {ok, _} ->
             {skip, "CETS is configured"}
     end.
 
@@ -88,8 +88,8 @@ end_per_group(_, _Config) ->
     escalus_fresh:clean().
 
 skip_if_cets_not_configured(Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
-        rdbms ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
+        {ok, rdbms} ->
             Config;
         _ ->
             {skip, "CETS is not configured with RDBMS"}

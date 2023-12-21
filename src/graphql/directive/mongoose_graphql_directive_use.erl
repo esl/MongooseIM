@@ -45,6 +45,8 @@
       internal_databases := [binary()],
       arg => binary(),
       atom => term()}.
+-type dependency_type() :: internal_databases | modules | services.
+-type dependency_name() :: binary().
 
 %% @doc Check the collected modules and services and swap the field resolver if any of them
 %% is not loaded. The new field resolver returns the error that some modules or services
@@ -52,14 +54,14 @@
 handle_directive(#directive{id = <<"use">>, args = Args}, #schema_field{} = Field, Ctx) ->
     #{modules := Modules, services := Services, internal_databases := DB} =
         UseCtx = aggregate_use_ctx(Args, Ctx),
-    UnloadedServices = filter_unloaded_services(Services),
-    UnloadedModules = filter_unloaded_modules(UseCtx, Ctx, Modules),
-    UnloadedDBs = filter_unloaded_db(DB),
-    case {UnloadedModules, UnloadedServices, UnloadedDBs} of
-        {[], [], []} ->
+        Items = [{modules, filter_unloaded_modules(UseCtx, Ctx, Modules)},
+                 {services, filter_unloaded_services(Services)},
+                 {internal_databases, filter_unloaded_db(DB)}],
+    case lists:filter(fun({_, Names}) -> Names =/= [] end, Items) of
+        [] ->
             Field;
-        {_, _, _} ->
-            Fun = resolve_not_loaded_fun(UnloadedModules, UnloadedServices, UnloadedDBs),
+        NotLoaded ->
+            Fun = resolve_not_loaded_fun(NotLoaded),
             Field#schema_field{resolve = Fun}
     end.
 
@@ -80,14 +82,14 @@ get_arg_value(_UseCtx, #{admin := #jid{lserver = Domain}}) ->
 
 -spec aggregate_use_ctx(list(), ctx()) -> use_ctx().
 aggregate_use_ctx(Args, #{use_dir := #{modules := Modules0, services := Services0,
-                                       internal_databases := DB0}}) ->
-    #{modules := Modules, services := Services, internal_databases := DB} =
+                                       internal_databases := Databases0}}) ->
+    #{modules := Modules, services := Services, internal_databases := Databases} =
         UseCtx = prepare_use_dir_args(Args),
     UpdatedModules = Modules0 ++ Modules,
     UpdatedServices = Services0 ++ Services,
-    UpdatedDB = DB0 ++ DB,
+    UpdatedDatabases = Databases0 ++ Databases,
     UseCtx#{modules => UpdatedModules, services => UpdatedServices,
-            internal_databases => UpdatedDB};
+            internal_databases => UpdatedDatabases};
 aggregate_use_ctx(Args, _Ctx) ->
     prepare_use_dir_args(Args).
 
@@ -139,28 +141,30 @@ filter_unloaded_services(Services) ->
 
 -spec filter_unloaded_db([binary()]) -> [binary()].
 filter_unloaded_db(DBs) ->
-    lists:filter(fun(DB) ->
-                    mongoose_config:get_opt([internal_databases,
-                                             binary_to_existing_atom(DB)], undefined) == undefined
-                 end, DBs).
+    lists:filter(fun(DB) -> is_database_unloaded(DB) end, DBs).
 
--spec resolve_not_loaded_fun([binary()], [binary()], [binary()]) -> resolver().
-resolve_not_loaded_fun(Modules, Services, Databases) ->
-    NotLoadedDescs = lists:filtermap(
-        fun
-            ({[], _}) -> false;
-            ({List, Desc}) when List =/= [] -> {true, Desc}
-        end,
-        [{Modules, "modules"}, {Services, "services"}, {Databases, "internal databases"}]
-    ),
-    MsgPrefix = <<"Some of the required ">>,
-    MsgList = string:join(NotLoadedDescs, " and "),
-    MsgBinaryList = list_to_binary(MsgList),
-    Msg = <<MsgPrefix/binary, MsgBinaryList/binary, " are not loaded">>,
-    Extra = maps:from_list(
-        [{list_to_atom("not_loaded_" ++
-                       unicode:characters_to_list(string:replace(Desc, " ", "_"))), List} ||
-         {List, Desc} <- [{Modules, "modules"}, {Services, "services"},
-                          {Databases, "internal databases"}],
-         lists:member(Desc, NotLoadedDescs)]),
+-spec is_database_unloaded(binary()) -> boolean().
+is_database_unloaded(DB) ->
+    mongoose_config:lookup_opt([internal_databases,
+                                binary_to_existing_atom(DB)]) == {error, not_found}.
+
+-spec resolve_not_loaded_fun([{dependency_type(), [dependency_name()]}]) -> resolver().
+resolve_not_loaded_fun(NotLoaded) ->
+    Msg = not_loaded_message(NotLoaded),
+    Extra = maps:from_list([{error_key(Type), Names} || {Type, Names} <- NotLoaded]),
     fun(_, _, _, _) -> mongoose_graphql_helper:make_error(deps_not_loaded, Msg, Extra) end.
+
+-spec not_loaded_message([{dependency_type(), [dependency_name()]}]) -> binary().
+not_loaded_message(NotLoaded) ->
+    MsgPrefix = <<"Some of the required ">>,
+    MsgList = string:join([dependency_type_to_string(Item) || {Item, _} <- NotLoaded], " and "),
+    MsgBinaryList = list_to_binary(MsgList),
+    <<MsgPrefix/binary, MsgBinaryList/binary, " are not loaded">>.
+
+-spec dependency_type_to_string(dependency_type()) -> [string()].
+dependency_type_to_string(Type) ->
+    string:replace(atom_to_list(Type), "_", " ").
+
+-spec error_key(dependency_type()) -> atom().
+error_key(Type) ->
+    list_to_atom("not_loaded_" ++ atom_to_list(Type)).

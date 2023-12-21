@@ -99,10 +99,10 @@ init_per_group(domain_admin_mnesia, Config) ->
     Config1 = graphql_helper:init_domain_admin_handler(Config),
     skip_if_mnesia_not_configured(Config1);
 init_per_group(mnesia_not_configured, Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, mnesia], undefined]) of
-        undefined ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, mnesia]]) of
+        {error, not_found} ->
             graphql_helper:init_admin_handler(Config);
-        _ ->
+        {ok, _} ->
             {skip, "Mnesia is configured"}
     end.
 end_per_group(_, _Config) ->
@@ -110,10 +110,10 @@ end_per_group(_, _Config) ->
     escalus_fresh:clean().
 
 skip_if_mnesia_not_configured(Config) ->
-    case rpc_call(mongoose_config, get_opt, [[internal_databases, mnesia], undefined]) of
-        undefined ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, mnesia]]) of
+        {error, not_found} ->
             {skip, "Mnesia is not configured"};
-        _ ->
+        {ok, _} ->
             Config
     end.
 
