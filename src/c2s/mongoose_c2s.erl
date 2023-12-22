@@ -89,7 +89,7 @@ init({SocketModule, SocketOpts, LOpts}) ->
 handle_event(internal, {connect, {SocketModule, SocketOpts}}, connect,
              StateData = #c2s_data{listener_opts = #{shaper := ShaperName,
                                                      max_stanza_size := MaxStanzaSize} = LOpts}) ->
-    {ok, Parser} = exml_stream:new_parser([{max_child_size, MaxStanzaSize}]),
+    {ok, Parser} = exml_stream:new_parser([{max_element_size, MaxStanzaSize}]),
     Shaper = mongoose_shaper:new(ShaperName),
     C2SSocket = mongoose_c2s_socket:new(SocketModule, SocketOpts, LOpts),
     StateData1 = StateData#c2s_data{socket = C2SSocket, parser = Parser, shaper = Shaper},
@@ -112,7 +112,7 @@ handle_event(internal, #xmlstreamstart{}, _, StateData) ->
 handle_event(internal, #xmlstreamend{}, _, StateData) ->
     send_trailer(StateData),
     {stop, {shutdown, stream_end}};
-handle_event(internal, #xmlstreamerror{name = <<"child element too big">> = Err}, _, StateData) ->
+handle_event(internal, #xmlstreamerror{name = <<"element too big">> = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:policy_violation(StateData#c2s_data.lang, Err));
 handle_event(internal, #xmlstreamerror{name = Err}, _, StateData) ->
     c2s_stream_error(StateData, mongoose_xmpp_errors:xml_not_well_formed(StateData#c2s_data.lang, Err));

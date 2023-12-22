@@ -435,7 +435,7 @@ new_parser(MaxStanzaSize) ->
                   infinity -> 0;
                   _ -> MaxStanzaSize
               end,
-    {ok, NewParser} = exml_stream:new_parser([{max_child_size, MaxSize}]),
+    {ok, NewParser} = exml_stream:new_parser([{max_element_size, MaxSize}]),
     NewParser.
 
 -spec reset_parser(state()) -> state().

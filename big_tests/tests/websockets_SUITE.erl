@@ -20,11 +20,14 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
+-define(MAX_STANZA_SIZE, 200).
 
 all() ->
     [metrics_test,
@@ -38,7 +41,8 @@ groups() ->
 test_cases() ->
     [chat_msg,
      escape_chat_msg,
-     escape_attrs].
+     escape_attrs,
+     too_big_stanza_is_rejected].
 
 suite() ->
     escalus:suite().
@@ -49,9 +53,12 @@ suite() ->
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, geralt, geralt_s, carol])).
+    Config2 = setup_listeners(Config1),
+    escalus:create_users(Config2, escalus:get_users([alice, geralt, geralt_s, carol])).
 
 end_per_suite(Config) ->
+    Listeners = ?config(original_listeners, Config),
+    [mongoose_helper:restart_listener(mim(), Listener) || Listener <- Listeners],
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, geralt, geralt_s, carol])),
     escalus:end_per_suite(Config1).
 
@@ -63,7 +70,6 @@ init_per_group(GroupName, Config) ->
             [{user, geralt} | Config]
     end.
 
-
 end_per_group(_GroupName, _Config) ->
     ok.
 
@@ -72,6 +78,19 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+setup_listeners(Config) ->
+    Listeners = mongoose_helper:get_listeners(mim(), #{module => ejabberd_cowboy}),
+    [mongoose_helper:restart_listener(mim(), update_listener(Listener)) || Listener <- Listeners],
+    [{original_listeners, Listeners} | Config].
+
+update_listener(Listener = #{handlers := Handlers}) ->
+    Listener#{handlers := lists:map(fun update_handler/1, Handlers)}.
+
+update_handler(Handler = #{module := mod_websockets}) ->
+    Handler#{max_stanza_size := ?MAX_STANZA_SIZE};
+update_handler(Handler) ->
+    Handler.
 
 %%--------------------------------------------------------------------
 %% Message tests
@@ -95,6 +114,18 @@ metrics_test(Config) ->
         escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS))
 
         end).
+
+too_big_stanza_is_rejected(Config) ->
+    escalus:story(
+      Config, [{alice, 1}, {?config(user, Config), 1}],
+      fun(Alice, Geralt) ->
+              BigBody = base16:encode(crypto:strong_rand_bytes(?MAX_STANZA_SIZE)),
+              escalus_client:send(Geralt, escalus_stanza:chat_to(Alice, BigBody)),
+              escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>], escalus_client:wait_for_stanza(Geralt)),
+              escalus:assert(is_stream_end, escalus_client:wait_for_stanza(Geralt)),
+              true = escalus_connection:wait_for_close(Geralt, timer:seconds(1)),
+              escalus_assert:has_no_stanzas(Alice)
+      end).
 
 chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {carol, 1}],

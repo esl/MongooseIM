@@ -17,6 +17,7 @@
 -module(anonymous_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("jid/include/jid.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -67,7 +68,7 @@ connection_is_registered_with_sasl_anon(Config) ->
     escalus:story(Config, [{jon, 1}], fun(Jon) ->
         JID = jid:from_binary(escalus_client:short_jid(Jon)),
         OrigName = escalus_users:get_username(Config, jon),
-        ?assertNotEqual(OrigName, JID#jid.user),
+        ?assertNotEqual(OrigName, JID#jid.luser),
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Jon),
@@ -78,7 +79,7 @@ connection_is_registered_with_login(Config) ->
     escalus:story(Config, [{anna, 1}], fun(Anna) ->
         JID = jid:from_binary(escalus_client:short_jid(Anna)),
         OrigName = escalus_users:get_username(Config, anna),
-        ?assertEqual(OrigName, JID#jid.user),
+        ?assertEqual(OrigName, JID#jid.luser),
         F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
         true = F(),
         escalus_connection:kill(Anna),
