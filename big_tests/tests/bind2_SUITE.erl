@@ -4,6 +4,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("jid/include/jid.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
@@ -100,7 +101,7 @@ auth_and_bind_to_random_resource(Config) ->
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{resource = LResource} = jid:from_binary(Identifier),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
     ?assert(0 =< byte_size(LResource), LResource).
 
 auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
@@ -110,7 +111,7 @@ auth_and_bind_do_not_expose_user_agent_id_in_client(Config) ->
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{resource = LResource} = jid:from_binary(Identifier),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
     ?assertNotEqual(Uuid, LResource).
 
 auth_and_bind_contains_client_tag(Config) ->
@@ -120,7 +121,7 @@ auth_and_bind_contains_client_tag(Config) ->
     Bound = exml_query:path(Success, [{element_with_ns, <<"bound">>, ?NS_BIND_2}]),
     ?assertNotEqual(undefined, Bound),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{resource = LResource} = jid:from_binary(Identifier),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
     ResourceParts = binary:split(LResource, <<"/">>, [global]),
     ?assertMatch([Tag, _], ResourceParts).
 
@@ -180,7 +181,7 @@ stream_resumption_failing_does_bind_and_contains_sm_status(Config) ->
     Resumed = exml_query:path(Success, [{element_with_ns, <<"failed">>, ?NS_STREAM_MGNT_3}]),
     escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
     Identifier = exml_query:path(Success, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{resource = LResource} = jid:from_binary(Identifier),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
     ResourceParts = binary:split(LResource, <<"/">>, [global]),
     ?assertMatch([Tag, _], ResourceParts).
 
@@ -286,7 +287,7 @@ plain_auth(_Config, Client, Data, BindElems, Extra) ->
     escalus:send(Client, Authenticate),
     Answer = escalus_client:wait_for_stanza(Client),
     Identifier = exml_query:path(Answer, [{element, <<"authorization-identifier">>}, cdata]),
-    #jid{resource = LResource} = jid:from_binary(Identifier),
+    #jid{lresource = LResource} = jid:from_binary(Identifier),
     {Client, Data#{answer => Answer, client_1_jid => Identifier, bind2_resource => LResource}}.
 
 start_peer(Config, Client, Data) ->
