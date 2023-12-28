@@ -13,9 +13,13 @@ execute(_Ctx, _Obj, <<"id">>, #{<<"value">> := Value}) ->
 execute(_Ctx, _Obj, Cmd, _Attrs) when Cmd =:= <<"catA">>;
                                       Cmd =:= <<"catB">>;
                                       Cmd =:= <<"catC">>;
+                                      Cmd =:= <<"catD">>;
                                       Cmd =:= <<"command">>;
                                       Cmd =:= <<"command2">>;
-                                      Cmd =:= <<"command3">> ->
+                                      Cmd =:= <<"command3">>;
+                                      Cmd =:= <<"command4">>;
+                                      Cmd =:= <<"command5">>;
+                                      Cmd =:= <<"command6">> ->
     {ok, Cmd};
 execute(_Ctx, _Obj, Field, _Attrs) ->
     {error, {not_implemented, Field}}.
