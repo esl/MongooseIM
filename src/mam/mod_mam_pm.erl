@@ -44,6 +44,7 @@
 
 %% hook handlers
 -export([disco_local_features/3,
+         disco_sm_features/3,
          user_send_message/3,
          filter_packet/3,
          remove_user/3,
@@ -163,6 +164,13 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
 disco_local_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
+
+-spec disco_sm_features(mongoose_disco:feature_acc(),
+                        map(), map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_sm_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
+disco_sm_features(Acc, _, _) ->
     {ok, Acc}.
 
 %% @doc Handle an outgoing message.
@@ -667,6 +675,7 @@ is_archivable_message(HostType, Dir, Packet) ->
 hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+        {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 99},
         {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 60},
         {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},

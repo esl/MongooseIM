@@ -33,6 +33,7 @@
          muc_no_elements/1,
          muc_only_stanzaid/1,
          mam_service_discovery/1,
+         mam_service_discovery_to_client_bare_jid/1,
          muc_service_discovery/1,
          easy_archive_request/1,
          easy_archive_request_for_the_receiver/1,
@@ -365,7 +366,7 @@ basic_groups() ->
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
       [{mam06, [parallel], disabled_retract_cases() ++
-            [mam_service_discovery]}]},
+            [mam_service_discovery, mam_service_discovery_to_client_bare_jid]}]},
      {muc_disabled_retraction, [],
       [{muc06, [parallel], disabled_muc_retract_cases() ++
             [muc_service_discovery]}]}
@@ -381,6 +382,7 @@ mam_metrics_cases() ->
 
 mam_cases() ->
     [mam_service_discovery,
+     mam_service_discovery_to_client_bare_jid,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
@@ -2934,6 +2936,14 @@ mam_service_discovery(Config) ->
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
         discover_features(Config, Alice, Server)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}], F).
+
+mam_service_discovery_to_client_bare_jid(Config) ->
+    _P = ?config(props, Config),
+    F = fun(Alice) ->
+        Address = inbox_helper:to_bare_lower(Alice),
+        discover_features(Config, Alice, Address)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
