@@ -243,7 +243,7 @@ stop_online_rooms() ->
     end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
     %% That's a pretty dirty way
-    rpc(mim(), mongoose_muc_online_backend, clear_table, [HostType]),
+    rpc(mim(), mod_muc_online_backend, clear_table, [HostType]),
     ok.
 
 forget_persistent_rooms() ->

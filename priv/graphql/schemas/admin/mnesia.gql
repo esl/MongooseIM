@@ -1,44 +1,44 @@
 """
 Allow admin to acquire information about mnesia database
 """
-type MnesiaAdminQuery @protected{
+type MnesiaAdminQuery @use(internal_databases: ["mnesia"]) @protected{
   """
   Get the information about appropriate mnesia property for a specified key,
   if no keys are provided all the available properties will be returned
   """
   systemInfo(keys: [String!]): [MnesiaInfo]
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
 }
 
 """
 Allow admin to backup, dump, load, restore and modify mnesia database
 """
-type MnesiaAdminMutation @protected{
+type MnesiaAdminMutation @use(internal_databases: ["mnesia"]) @protected{
   "Set mnesia's master node"
   setMaster(node: NodeName!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Change nodename from 'fromString' to 'toString' in 'source' backup file and create new 'target' backup file"
   changeNodename(fromString: NodeName!, toString: NodeName!,
                  source: String!, target: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Save mnesia backup to file 'path'"
   backup(path: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Restore mnesia backup from file 'path'"
   restore(path: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Dump mnesia to file 'path'"
   dump(path: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Dump mnesia table 'table' to file 'path'"
   dumpTable(path: String!, table: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Load mnesia from file 'path' that was previously dumped"
   load(path: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
   "Install mnesia fallback"
   installFallback(path: String!): String
-    @protected(type: GLOBAL)
+    @protected(type: GLOBAL) @use
 }
 
 union MnesiaInfo =  MnesiaStringResponse | MnesiaListResponse | MnesiaIntResponse

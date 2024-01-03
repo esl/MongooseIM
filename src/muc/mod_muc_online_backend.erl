@@ -1,4 +1,4 @@
--module(mongoose_muc_online_backend).
+-module(mod_muc_online_backend).
 
 -export([start/2,
          stop/1,
@@ -12,7 +12,7 @@
 %% Used in tests
 -ignore_xref([clear_table/1]).
 
--define(MAIN_MODULE, mongoose_muc_online).
+-define(MAIN_MODULE, mod_muc_online).
 
 %% Callbacks
 

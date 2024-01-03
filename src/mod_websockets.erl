@@ -181,7 +181,7 @@ process_client_elements(Elements, #ws_state{fsm_pid = FSM} = State) ->
 process_parse_error(_Reason, #ws_state{fsm_pid = undefined} = State) ->
     {stop, State};
 process_parse_error(Reason, #ws_state{fsm_pid = FSM} = State) ->
-    send_to_fsm(FSM, {xmlstreamerror, Reason}),
+    send_to_fsm(FSM, #xmlstreamerror{name = iolist_to_binary(Reason)}),
     {ok, State}.
 
 send_to_fsm(FSM, Element) ->
@@ -271,14 +271,14 @@ replace_stream_ns(Element) ->
     end.
 
 get_parser_opts(Text, #ws_state{ max_stanza_size = infinity }) ->
-    [{max_child_size, 0} | get_parser_opts(Text)];
+    [{max_element_size, 0} | get_parser_opts(Text)];
 get_parser_opts(Text, #ws_state{ max_stanza_size = MaxStanzaSize }) ->
-    [{max_child_size, MaxStanzaSize} | get_parser_opts(Text)].
+    [{max_element_size, MaxStanzaSize} | get_parser_opts(Text)].
 
 get_parser_opts(<<"<open", _/binary>>) ->
-    [{infinite_stream, true}, {autoreset, true}]; % new-type WS
+    [{infinite_stream, true}]; % new-type WS
 get_parser_opts(_) ->
-    [{start_tag, <<"stream:stream">>}]. % old-type WS
+    []. % old-type WS
 
 %%--------------------------------------------------------------------
 %% Helpers

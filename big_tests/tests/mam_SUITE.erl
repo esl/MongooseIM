@@ -117,6 +117,8 @@
          muc_light_stored_in_pm_if_allowed_to/1,
          muc_light_chat_markers_are_archived_if_enabled/1,
          muc_light_chat_markers_are_not_archived_if_disabled/1,
+         muc_light_failed_to_decode_message_in_database/1,
+         pm_failed_to_decode_message_in_database/1,
          messages_filtered_when_prefs_default_policy_is_always/1,
          messages_filtered_when_prefs_default_policy_is_never/1,
          messages_filtered_when_prefs_default_policy_is_roster/1,
@@ -225,6 +227,7 @@
 
 -include("mam_helper.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
 %%--------------------------------------------------------------------
@@ -484,7 +487,8 @@ muc_light_cases() ->
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
      muc_light_chat_markers_are_archived_if_enabled,
-     muc_light_chat_markers_are_not_archived_if_disabled
+     muc_light_chat_markers_are_not_archived_if_disabled,
+     muc_light_failed_to_decode_message_in_database
     ].
 
 muc_rsm_cases() ->
@@ -544,7 +548,8 @@ prefs_cases() ->
      run_set_and_get_prefs_cases].
 
 impl_specific() ->
-    [check_user_exist].
+    [check_user_exist,
+     pm_failed_to_decode_message_in_database].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -577,7 +582,7 @@ delete_users(Config) ->
 
 increase_limits(Config) ->
     Config1 = mongoose_helper:backup_and_set_config(Config, increased_limits()),
-    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]),
+    rpc_apply(mongoose_shaper, reset_all_shapers, [host_type()]),
     Config1.
 
 increased_limits() ->
@@ -841,6 +846,15 @@ init_per_testcase(C=same_stanza_id, Config) ->
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
+                                  C =:= pm_failed_to_decode_message_in_database ->
+    case proplists:get_value(configuration, Config) of
+        elasticsearch ->
+            {skip, "elasticsearch does not support encodings"};
+        _ ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+            escalus:init_per_testcase(C, Config)
+    end;
 init_per_testcase(C, Config) when C =:= retract_muc_message;
                                   C =:= retract_muc_message_on_stanza_id;
                                   C =:= retract_wrong_muc_message ->
@@ -975,20 +989,6 @@ end_per_testcase(C=muc_no_elements, Config) ->
 end_per_testcase(C=muc_only_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = retract_message_on_stanza_id, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = no_elements, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = only_stanzaid, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = same_stanza_id, Config) ->
-    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -1006,6 +1006,14 @@ required_modules(muc_no_elements, Config) ->
     Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{muc := MUC#{no_stanzaid_element => true}},
     [{mod_mam, NewOpts}];
+required_modules(muc_light_failed_to_decode_message_in_database, Config) ->
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{db_message_format => mam_message_eterm}},
+    [{mod_mam, NewOpts}];
+required_modules(pm_failed_to_decode_message_in_database, Config) ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{db_message_format => mam_message_eterm}},
+    [{mod_mam, NewOpts}];
 required_modules(muc_only_stanzaid, Config) ->
     Opts = ?config(mam_meta_opts, Config),
     [{mod_mam, Opts}];
@@ -1022,6 +1030,16 @@ required_modules(CaseName, Config) when CaseName =:= same_stanza_id;
 required_modules(_, Config) ->
     Opts = ?config(mam_meta_opts, Config),
     [{mod_mam, Opts}].
+
+pm_with_db_message_format_xml(Config) ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{db_message_format => mam_message_xml}},
+    [{mod_mam, NewOpts}].
+
+muc_with_db_message_format_xml(Config) ->
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{db_message_format => mam_message_xml}},
+    [{mod_mam, NewOpts}].
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -1695,6 +1713,34 @@ muc_light_chat_markers_are_not_archived_if_disabled(Config) ->
             when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
             ExpectedResponse = [{create, [{Alice, owner}, {Bob, member}]}],
             then_archive_response_is(Bob, ExpectedResponse, Config)
+        end).
+
+muc_light_failed_to_decode_message_in_database(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, []),
+            M1 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Msg 1">>, <<"Id1">>),
+            then_muc_light_message_is_received_by([Alice], M1),
+            mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 2),
+            NewMods = muc_with_db_message_format_xml(Config),
+            %% Change the encoding format for messages in the database
+            dynamic_modules:ensure_modules(host_type(), NewMods),
+            when_archive_query_is_sent(Alice, muc_light_helper:room_bin_jid(Room), Config),
+            [ArcMsg | _] = respond_messages(assert_respond_size(2, wait_archive_respond(Alice))),
+            assert_failed_to_decode_message(ArcMsg)
+        end).
+
+pm_failed_to_decode_message_in_database(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
+            mam_helper:wait_for_archive_size(Alice, 1),
+            NewMods = pm_with_db_message_format_xml(Config),
+            %% Change the encoding format for messages in the database
+            dynamic_modules:ensure_modules(host_type(), NewMods),
+            when_archive_query_is_sent(Alice, undefined, Config),
+            [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
+            assert_failed_to_decode_message(ArcMsg)
         end).
 
 retrieve_form_fields(ConfigIn) ->
@@ -3197,3 +3243,15 @@ pagination_test(Name, RSM, Range, Config) ->
         wait_message_range(Alice, Range)
         end,
     parallel_story(Config, [{alice, 1}], F).
+
+assert_failed_to_decode_message(ArcMsg) ->
+    Forwarded = parse_forwarded_message(ArcMsg),
+    Err = <<"Failed to decode message in database">>,
+    ?assertMatch(#forwarded_message{message_body = Err}, Forwarded),
+    ?assertMatch(#forwarded_message{message_type = <<"error">>}, Forwarded),
+    #forwarded_message{message_children = [Msg]} = Forwarded,
+    ?assertMatch(#xmlel{
+        name = <<"error">>,
+        attrs = [{<<"code">>, <<"500">>}, {<<"type">>,<<"wait">>}],
+        children = [#xmlel{name = <<"internal-server-error">>},
+                    #xmlel{name = <<"text">>, children = [#xmlcdata{content = Err}]}]}, Msg).

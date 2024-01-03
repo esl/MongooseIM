@@ -33,12 +33,19 @@ supervisor_specs(#{backend := DiscoBackend, cluster_name := ClusterName} = Opts)
         backend_module => disco_backend_to_module(DiscoBackend),
         cluster_name => atom_to_binary(ClusterName),
         node_name_to_insert => atom_to_binary(node(), latin1),
+        node_ip_binary => get_node_ip_binary(),
         name => mongoose_cets_discovery, disco_file => DiscoFile},
-    CetsDisco =
-        {cets_discovery,
-          {?MODULE, start_link, [DiscoOpts]},
-          permanent, infinity, supervisor, [cets_discovery]},
+    CetsDisco = #{
+        id => cets_discovery,
+        start => {?MODULE, start_link, [DiscoOpts]},
+        restart => permanent,
+        type => worker,
+        shutdown => infinity,
+        modules => [cets_discovery]},
     [CetsDisco].
 
 disco_backend_to_module(rdbms) -> mongoose_cets_discovery_rdbms;
 disco_backend_to_module(file) -> cets_discovery_file.
+
+get_node_ip_binary() ->
+    list_to_binary(os:getenv("MIM_NODE_IP", "")).

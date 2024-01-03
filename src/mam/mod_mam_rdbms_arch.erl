@@ -399,8 +399,6 @@ extract_gdpr_messages(Env, ArcID) ->
     Acc :: {ok, mod_mam:lookup_result()},
     Params :: mam_iq:lookup_params(),
     Extra :: gen_hook:extra().
-lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
-    {ok, Result};
 lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),

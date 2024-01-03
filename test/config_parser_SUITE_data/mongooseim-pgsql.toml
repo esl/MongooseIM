@@ -36,6 +36,7 @@
   tls.certfile = "priv/cert.pem"
   tls.keyfile = "priv/dc1.pem"
   tls.password = ""
+  tls.verify_mode = "none"
 
   [[listen.http.handlers.mongoose_admin_api]]
     host = "localhost"
@@ -72,6 +73,7 @@
   tls.certfile = "priv/cert.pem"
   tls.keyfile = "priv/dc1.pem"
   tls.password = ""
+  tls.verify_mode = "none"
 
   [[listen.http.handlers.mongoose_client_api]]
     host = "_"

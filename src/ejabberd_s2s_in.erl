@@ -58,7 +58,7 @@
 
 -record(state, {socket                  :: mongoose_transport:socket_data(),
                 streamid                :: ejabberd_s2s:stream_id(),
-                shaper                  :: shaper:shaper(),
+                shaper                  :: mongoose_shaper:shaper(),
                 tls = false             :: boolean(),
                 tls_enabled = false     :: boolean(),
                 tls_required = false    :: boolean(),
@@ -84,7 +84,7 @@
           tls_enabled => boolean(),
           tls_options => mongoose_tls:options(),
           authenticated => boolean(),
-          shaper => shaper:shaper(),
+          shaper => mongoose_shaper:shaper(),
           domains => [jid:lserver()]}.
 
 -type statename() :: 'stream_established' | 'wait_for_feature_request'.

@@ -17,7 +17,7 @@
 %%%
 %%% This module should be started for each host.
 %%% Message archivation is not shaped here (use standard support for this).
-%%% MAM's IQs are shaped inside {@link shaper_srv}.
+%%% MAM's IQs are shaped inside {@link opuntia_srv}.
 %%%
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
@@ -143,7 +143,7 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
     case is_action_allowed(HostType, Action, From, To) of
         true  ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, Action, From) of
-                ok ->
+                continue ->
                     handle_error_iq(HostType, Acc, To, Action,
                                     handle_mam_iq(Action, From, To, IQ, Acc));
                 {error, max_delay_reached} ->
@@ -167,7 +167,7 @@ disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
 -spec disco_sm_features(mongoose_disco:feature_acc(),
-    map(), map()) -> {ok, mongoose_disco:feature_acc()}.
+                        map(), map()) -> {ok, mongoose_disco:feature_acc()}.
 disco_sm_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_sm_features(Acc, _, _) ->

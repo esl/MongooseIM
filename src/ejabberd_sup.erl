@@ -49,7 +49,7 @@ init([]) ->
     SMBackendSupervisor = supervisor_spec(ejabberd_sm_backend_sup),
     OutgoingPoolsSupervisor = supervisor_spec(mongoose_wpool_sup),
     Listener = supervisor_spec(mongoose_listener_sup),
-    ShaperSup = supervisor_spec(mongoose_shaper_sup),
+    ShaperSup = mongoose_shaper:child_spec(),
     DomainSup = supervisor_spec(mongoose_domain_sup),
     ReceiverSupervisor =
         ejabberd_tmp_sup_spec(mongoose_transport_sup, [mongoose_transport_sup, mongoose_transport]),

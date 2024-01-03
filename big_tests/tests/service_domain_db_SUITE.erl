@@ -30,66 +30,133 @@ suite() ->
 
 all() ->
     [
-     api_lookup_works,
-     api_lookup_not_found,
-     api_cannot_insert_static,
-     api_cannot_disable_static,
-     api_cannot_enable_static,
-     api_get_all_static,
-     api_get_domains_by_host_type,
+     {group, no_db},
      {group, db}
     ].
 
 groups() ->
-    [{db, [], db_cases()},
-     {rest_with_auth, [], [{group, rest_with_auth_parallel}|rest_cases()]},
-     {rest_without_auth, [], [{group, rest_without_auth_parallel}|rest_cases()]},
-     {rest_with_auth_parallel, [parallel], rest_auth_cases(true)},
-     {rest_without_auth_parallel, [parallel], rest_auth_cases(false)}].
+    ParallelConfig = parallel_config(),
+    [
+        {no_db, ParallelConfig, no_db_cases()},
+        {db, [], [
+            {group, plain_db},
+            {group, plain_db_sequential},
+            {group, rest_with_auth},
+            {group, rest_without_auth}
+        ]},
+        {rest_with_auth, [], [
+            {group, rest_with_auth_parallel},
+            {group, rest_service_disabled},
+            {group, rest_db_fails}
+        ]},
+        {rest_without_auth, [], [
+            {group, rest_without_auth_parallel},
+            {group, rest_service_disabled},
+            {group, rest_db_fails}
+        ]},
+        {plain_db, ParallelConfig, db_cases()},
+        {plain_db_sequential, [], db_sequential_cases()},
+        {rest_with_auth_parallel, ParallelConfig, rest_cases() ++ rest_auth_cases(true)},
+        {rest_without_auth_parallel, ParallelConfig, rest_cases() ++ rest_auth_cases(false)},
+        {rest_service_disabled, ParallelConfig, rest_service_disabled_cases()},
+        {rest_db_fails, [], rest_db_fails_cases()}
+    ].
+
+parallel_config() ->
+    %% These could be parallel but it seems like mssql CI can't handle the load
+    case distributed_helper:rpc(
+           distributed_helper:mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
+        odbc -> [];
+        _ -> [parallel]
+    end.
+
+no_db_cases() -> [
+    api_lookup_works,
+    api_lookup_not_found,
+    api_cannot_insert_static,
+    api_cannot_disable_static,
+    api_cannot_enable_static,
+    api_get_all_static,
+    api_get_domains_by_host_type
+].
 
 db_cases() -> [
-     db_inserted_domain_is_in_db,
-     db_inserted_domain_is_in_core,
-     db_deleted_domain_from_db,
-     db_deleted_domain_fails_with_wrong_host_type,
-     db_deleted_domain_from_core,
-     rest_cannot_enable_deleting,
-     db_disabled_domain_is_in_db,
-     db_disabled_domain_not_in_core,
-     db_reenabled_domain_is_in_db,
-     db_reenabled_domain_is_in_core,
-     db_cannot_insert_domain_twice_with_the_same_host_type,
-     db_cannot_insert_domain_twice_with_another_host_type,
-     db_cannot_insert_domain_with_unknown_host_type,
-     db_cannot_delete_domain_with_unknown_host_type,
-     db_cannot_enable_domain_with_unknown_host_type,
-     db_cannot_disable_domain_with_unknown_host_type,
-     db_domains_with_unknown_host_type_are_ignored_by_core,
-     db_can_insert_update_delete_dynamic_domain_password,
-     db_can_insert_update_delete_static_domain_password,
-     db_cannot_set_password_for_unknown_domain,
-     db_can_check_domain_password,
-     db_cannot_check_password_for_unknown_domain,
-     db_deleting_domain_deletes_domain_admin,
-     sql_select_from,
-     sql_find_gaps_between,
-     db_records_are_restored_on_mim_restart,
-     db_record_is_ignored_if_domain_static,
-     db_events_table_gets_truncated,
-     db_get_all_static,
-     db_get_all_dynamic,
-     db_could_sync_between_nodes,
-     db_deleted_from_one_node_while_service_disabled_on_another,
-     db_inserted_from_one_node_while_service_disabled_on_another,
-     db_reinserted_from_one_node_while_service_disabled_on_another,
-     db_out_of_sync_restarts_service,
-     db_crash_on_initial_load_restarts_service,
-     db_restarts_properly,
-     db_keeps_syncing_after_cluster_join,
-     db_gaps_are_getting_filled_automatically,
-     db_event_could_appear_with_lower_id,
-     {group, rest_with_auth},
-     {group, rest_without_auth}].
+    db_get_all_static,
+    db_get_all_dynamic,
+    db_inserted_domain_is_in_db,
+    db_inserted_domain_is_in_core,
+    db_deleted_domain_from_db,
+    db_deleted_domain_fails_with_wrong_host_type,
+    db_deleted_domain_from_core,
+    db_disabled_domain_is_in_db,
+    db_disabled_domain_not_in_core,
+    db_reenabled_domain_is_in_db,
+    db_reenabled_domain_is_in_core,
+    db_cannot_insert_domain_twice_with_the_same_host_type,
+    db_cannot_insert_domain_twice_with_another_host_type,
+    db_cannot_insert_domain_with_unknown_host_type,
+    db_cannot_delete_domain_with_unknown_host_type,
+    db_cannot_enable_domain_with_unknown_host_type,
+    db_cannot_disable_domain_with_unknown_host_type,
+    db_domains_with_unknown_host_type_are_ignored_by_core,
+    db_can_insert_update_delete_dynamic_domain_password,
+    db_cannot_set_password_for_unknown_domain,
+    db_can_check_domain_password,
+    db_cannot_check_password_for_unknown_domain,
+    db_deleting_domain_deletes_domain_admin,
+    sql_select_from,
+    db_could_sync_between_nodes,
+    db_gaps_are_getting_filled_automatically
+].
+
+db_sequential_cases() -> [
+    sql_find_gaps_between,
+    db_records_are_restored_on_mim_restart,
+    db_record_is_ignored_if_domain_static,
+    db_events_table_gets_truncated,
+    db_deleted_from_one_node_while_service_disabled_on_another,
+    db_inserted_from_one_node_while_service_disabled_on_another,
+    db_reinserted_from_one_node_while_service_disabled_on_another,
+    db_crash_on_initial_load_restarts_service,
+    db_out_of_sync_restarts_service,
+    db_restarts_properly,
+    db_keeps_syncing_after_cluster_join,
+    db_event_could_appear_with_lower_id,
+    db_can_insert_update_delete_static_domain_password,
+    rest_cannot_enable_deleting
+].
+
+rest_cases() ->[
+    rest_can_insert_domain,
+    rest_can_disable_domain,
+    rest_request_can_delete_domain,
+    rest_can_delete_domain,
+    rest_cannot_delete_domain_without_correct_type,
+    rest_cannot_delete_missing_domain,
+    rest_cannot_enable_missing_domain,
+    rest_cannot_insert_domain_twice_with_another_host_type,
+    rest_cannot_insert_domain_with_unknown_host_type,
+    rest_cannot_delete_domain_with_unknown_host_type,
+    rest_cannot_disable_missing_domain,
+    rest_can_enable_domain,
+    rest_can_select_domain,
+    rest_cannot_select_domain_if_domain_not_found,
+    rest_cannot_select_domain_when_it_is_static,
+    rest_cannot_put_domain_without_host_type,
+    rest_cannot_put_domain_without_body,
+    rest_cannot_put_domain_with_invalid_json,
+    rest_cannot_put_domain_with_invalid_name,
+    rest_cannot_put_domain_when_it_is_static,
+    rest_cannot_delete_domain_without_host_type,
+    rest_cannot_delete_domain_without_body,
+    rest_cannot_delete_domain_with_invalid_json,
+    rest_cannot_delete_domain_when_it_is_static,
+    rest_cannot_patch_domain_without_enabled_field,
+    rest_cannot_patch_domain_without_body,
+    rest_cannot_patch_domain_with_invalid_json,
+    rest_cannot_enable_domain_when_it_is_static,
+    rest_delete_domain_cleans_data_from_mam
+].
 
 rest_auth_cases(false) ->
     %% auth provided but not configured:
@@ -111,42 +178,18 @@ rest_auth_cases(true) ->
      rest_cannot_enable_domain_without_auth,
      rest_cannot_disable_domain_without_auth,
      rest_cannot_select_domain_without_auth].
-rest_cases() ->
-    [rest_can_insert_domain,
-     rest_can_disable_domain,
-     rest_can_delete_domain,
-     rest_request_can_delete_domain,
-     rest_cannot_delete_domain_without_correct_type,
-     rest_cannot_delete_missing_domain,
-     rest_cannot_insert_domain_twice_with_another_host_type,
-     rest_cannot_insert_domain_with_unknown_host_type,
-     rest_cannot_delete_domain_with_unknown_host_type,
-     rest_cannot_enable_missing_domain,
-     rest_cannot_disable_missing_domain,
-     rest_can_enable_domain,
-     rest_can_select_domain,
-     rest_cannot_select_domain_if_domain_not_found,
-     rest_cannot_select_domain_when_it_is_static,
-     rest_cannot_put_domain_without_host_type,
-     rest_cannot_put_domain_without_body,
-     rest_cannot_put_domain_with_invalid_json,
-     rest_cannot_put_domain_with_invalid_name,
-     rest_cannot_put_domain_when_it_is_static,
-     rest_cannot_delete_domain_without_host_type,
-     rest_cannot_delete_domain_without_body,
-     rest_cannot_delete_domain_with_invalid_json,
-     rest_cannot_delete_domain_when_it_is_static,
-     rest_cannot_patch_domain_without_enabled_field,
-     rest_cannot_patch_domain_without_body,
-     rest_cannot_patch_domain_with_invalid_json,
-     rest_cannot_enable_domain_when_it_is_static,
-     rest_insert_domain_fails_if_db_fails,
-     rest_insert_domain_fails_if_service_disabled,
-     rest_delete_domain_fails_if_db_fails,
-     rest_delete_domain_fails_if_service_disabled,
-     rest_enable_domain_fails_if_db_fails,
-     rest_enable_domain_fails_if_service_disabled,
-     rest_delete_domain_cleans_data_from_mam].
+
+rest_db_fails_cases() -> [
+    rest_insert_domain_fails_if_db_fails,
+    rest_delete_domain_fails_if_db_fails,
+    rest_enable_domain_fails_if_db_fails
+].
+
+rest_service_disabled_cases() -> [
+    rest_insert_domain_fails_if_service_disabled,
+    rest_delete_domain_fails_if_service_disabled,
+    rest_enable_domain_fails_if_service_disabled
+].
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -187,9 +230,13 @@ init_per_group(db, Config) ->
 init_per_group(rest_with_auth, Config) ->
     rest_helper:change_admin_creds({<<"admin">>, <<"secret">>}),
     [{auth_creds, valid}|Config];
+init_per_group(rest_service_disabled, Config) ->
+    service_disabled(mim()),
+    % setting this option prevents from enabling service in init_per_testase
+    lists:keystore(service_setup, 1, Config, {service_setup, per_group});
 init_per_group(GroupName, Config) ->
     Config1 = save_service_setup_option(GroupName, Config),
-    case ?config(service_setup, Config) of
+    case ?config(service_setup, Config1) of
         per_group -> setup_service(#{}, Config1);
         per_testcase -> ok
     end,
@@ -305,6 +352,8 @@ is_parallel_group(GroupName) ->
 %% Tests
 %%--------------------------------------------------------------------
 
+% no_db cases
+
 api_lookup_works(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.cfg">>).
 
@@ -334,9 +383,12 @@ api_get_domains_by_host_type(_) ->
     [<<"example.cfg">>] = get_domains_by_host_type(mim(), <<"type1">>),
     [] = get_domains_by_host_type(mim(), <<"type6">>).
 
+% plain_db cases
+
 %% Similar to as api_get_all_static, just with DB service enabled
 db_get_all_static(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     sync(),
     %% Could be in any order
     [{<<"erlang-solutions.com">>, <<"type2">>},
@@ -345,114 +397,121 @@ db_get_all_static(_) ->
         lists:sort(get_all_static(mim())).
 
 db_get_all_dynamic(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = insert_domain(mim(), <<"example2.db">>, <<"type1">>),
+    Domain1 = random_domain_name(),
+    Domain2 = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain1, <<"type1">>),
+    {ok, _} = insert_domain(mim(), Domain2, <<"type1">>),
     sync(),
-    [{<<"example.db">>, <<"type1">>},
-     {<<"example2.db">>, <<"type1">>}] =
-        lists:sort(get_all_dynamic(mim())).
+    ExpectedResult = sets:from_list([{Domain1, <<"type1">>}, {Domain2, <<"type1">>}]),
+    Result = sets:from_list(get_all_dynamic(mim())),
+    % Other test cases can insert their own domains thus we test is_subset
+    true = sets:is_subset(ExpectedResult, Result).
 
 db_inserted_domain_is_in_db(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
-       select_domain(mim(), <<"example.db">>).
+       select_domain(mim(), Domain).
 
 db_inserted_domain_is_in_core(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     sync(),
-    {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
-
-rest_cannot_enable_deleting(Config) ->
-    HostType = ?config(host_type, Config),
-    Domain = <<"example.db">>,
-    {ok, _} = insert_domain(mim(), Domain, HostType),
-    {ok, #{status := enabled}} = select_domain(mim(), Domain),
-    {ok, _} = request_delete_domain(mim(), Domain, HostType),
-    {ok, #{status := deleting}} = select_domain(mim(), Domain),
-    {deleted, _} = enable_domain(mim(), Domain),
-    Server = ?config(server, Config),
-    Server ! continue,
-    F = fun () -> select_domain(mim(), <<"example.db">>) end,
-    mongoose_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
+    {ok, <<"type1">>} = get_host_type(mim(), Domain).
 
 db_deleted_domain_from_db(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = delete_domain(mim(), <<"example.db">>, <<"type1">>),
-    {error, not_found} = select_domain(mim(), <<"example.db">>).
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = delete_domain(mim(), Domain, <<"type1">>),
+    {error, not_found} = select_domain(mim(), Domain).
 
 db_deleted_domain_fails_with_wrong_host_type(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     {wrong_host_type, _} =
-        delete_domain(mim(), <<"example.db">>, <<"type2">>),
+        delete_domain(mim(), Domain, <<"type2">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), <<"example.db">>).
+        select_domain(mim(), Domain).
 
 db_deleted_domain_from_core(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
     sync(),
-    {ok, _} = delete_domain(mim(), <<"example.db">>, <<"type1">>),
+    {ok, _} = delete_domain(mim(), Domain, <<"type1">>),
     sync(),
-    {error, not_found} = get_host_type(mim(), <<"example.db">>).
+    {error, not_found} = get_host_type(mim(), Domain).
 
 db_disabled_domain_is_in_db(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = disable_domain(mim(), <<"example.db">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = disable_domain(mim(), Domain),
     {ok, #{host_type := <<"type1">>, status := disabled}} =
-       select_domain(mim(), <<"example.db">>).
+       select_domain(mim(), Domain).
 
 db_disabled_domain_not_in_core(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = disable_domain(mim(), <<"example.db">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = disable_domain(mim(), Domain),
     sync(),
-    {error, not_found} = get_host_type(mim(), <<"example.db">>).
+    {error, not_found} = get_host_type(mim(), Domain).
 
 db_reenabled_domain_is_in_db(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = disable_domain(mim(), <<"example.db">>),
-    {ok, _} = enable_domain(mim(), <<"example.db">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = disable_domain(mim(), Domain),
+    {ok, _} = enable_domain(mim(), Domain),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
-       select_domain(mim(), <<"example.db">>).
+       select_domain(mim(), Domain).
 
 db_reenabled_domain_is_in_core(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {ok, _} = disable_domain(mim(), <<"example.db">>),
-    {ok, _} = enable_domain(mim(), <<"example.db">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {ok, _} = disable_domain(mim(), Domain),
+    {ok, _} = enable_domain(mim(), Domain),
     sync(),
-    {ok, <<"type1">>} = get_host_type(mim(), <<"example.db">>).
+    {ok, <<"type1">>} = get_host_type(mim(), Domain).
 
 db_cannot_insert_domain_twice_with_the_same_host_type(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {duplicate, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>).
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {duplicate, _} = insert_domain(mim(), Domain, <<"type1">>).
 
 db_cannot_insert_domain_twice_with_another_host_type(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    {duplicate, _} = insert_domain(mim(), <<"example.db">>, <<"type2">>).
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    {duplicate, _} = insert_domain(mim(), Domain, <<"type2">>).
 
 db_cannot_insert_domain_with_unknown_host_type(_) ->
-    {unknown_host_type, _} = insert_domain(mim(), <<"example.db">>, <<"type6">>).
+    Domain = random_domain_name(),
+    {unknown_host_type, _} = insert_domain(mim(), Domain, <<"type6">>).
 
 db_cannot_delete_domain_with_unknown_host_type(_) ->
-    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim2(), Domain, <<"mim2only">>),
     sync(),
-    {unknown_host_type, _} = delete_domain(mim(), <<"example.db">>, <<"mim2only">>).
+    {unknown_host_type, _} = delete_domain(mim(), Domain, <<"mim2only">>).
 
 db_cannot_enable_domain_with_unknown_host_type(_) ->
-    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
-    {ok, _} = disable_domain(mim2(), <<"example.db">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim2(), Domain, <<"mim2only">>),
+    {ok, _} = disable_domain(mim2(), Domain),
     sync(),
-    {unknown_host_type, _} = enable_domain(mim(), <<"example.db">>).
+    {unknown_host_type, _} = enable_domain(mim(), Domain).
 
 db_cannot_disable_domain_with_unknown_host_type(_) ->
-    {ok, _} = insert_domain(mim2(), <<"example.db">>, <<"mim2only">>),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim2(), Domain, <<"mim2only">>),
     sync(),
-    {unknown_host_type, _} = disable_domain(mim(), <<"example.db">>).
+    {unknown_host_type, _} = disable_domain(mim(), Domain).
 
 db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
-    {ok, _} = insert_domain(mim2(), <<"example.com">>, <<"mim2only">>),
-    {ok, _} = insert_domain(mim2(), <<"example.org">>, <<"type1">>),
+    Domain1 = random_domain_name(),
+    Domain2 = random_domain_name(),
+    {ok, _} = insert_domain(mim2(), Domain1, <<"mim2only">>),
+    {ok, _} = insert_domain(mim2(), Domain2, <<"type1">>),
     sync(),
-    {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
-    {error, not_found} = get_host_type(mim(), <<"example.com">>).
+    {ok, <<"type1">>} = get_host_type(mim(), Domain2), %% Counter-case
+    {error, not_found} = get_host_type(mim(), Domain1).
 
 db_can_insert_update_delete_dynamic_domain_password(_) ->
     Domain = <<"password-example.com">>,
@@ -464,15 +523,6 @@ db_can_insert_update_delete_dynamic_domain_password(_) ->
     ok = check_domain_password(mim(), Domain, <<"rocky2">>),
     {ok, _} = delete_domain_password(mim(), Domain),
     {error, not_found} = select_domain_admin(mim(), Domain).
-
-db_can_insert_update_delete_static_domain_password(_) ->
-    StaticDomain = <<"example.cfg">>,
-    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky1">>),
-    ok = check_domain_password(mim(), StaticDomain, <<"rocky1">>),
-    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky2">>),
-    ok = check_domain_password(mim(), StaticDomain, <<"rocky2">>),
-    {ok, _} = delete_domain_password(mim(), StaticDomain),
-    {error, not_found} = select_domain_admin(mim(), StaticDomain).
 
 db_cannot_set_password_for_unknown_domain(_) ->
     {not_found, _} = set_domain_password(mim(), <<"unknown_domain">>, <<>>).
@@ -495,9 +545,33 @@ db_deleting_domain_deletes_domain_admin(_) ->
     {error, not_found} = select_domain_admin(mim(), Domain).
 
 sql_select_from(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    [{_, <<"example.db">>, <<"type1">>}] =
-       rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    Result = rpc(mim(), mongoose_domain_sql, select_from, [0, 100]),
+    % Other test cases insert their own domains thus we check for existence in list
+    [_|_] = lists:filter(fun({_, D, _}) -> D == Domain end, Result).
+
+db_could_sync_between_nodes(_) ->
+    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
+    sync(),
+    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
+
+db_gaps_are_getting_filled_automatically(_Config) ->
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, <<"type1">>),
+    sync(),
+    Max = get_max_event_id(mim()),
+    %% Create a gap in events by manually adding an event
+    GapSize = 10,
+    {updated, 1} = insert_full_event(mim(), Max + GapSize, <<"something.else">>),
+    force_check_for_updates(mim()),
+    sync_local(mim()),
+    F = fun() -> get_event_ids_between(mim(), Max, Max + GapSize) end,
+    mongoose_helper:wait_until(F, lists:seq(Max, Max + GapSize),
+                               #{time_left => timer:seconds(15)}).
+
+% plain_db_sequential cases
+% these tests are hard to parallelise due to runtime changes to service
 
 sql_find_gaps_between(_) ->
     with_service_suspended(fun() ->
@@ -559,11 +633,6 @@ db_events_table_gets_truncated(_) ->
     %% The events table is not empty and the size of 1, eventually.
     F = fun() -> get_min_event_id(mim()) end,
     mongoose_helper:wait_until(F, Max, #{time_left => timer:seconds(15)}).
-
-db_could_sync_between_nodes(_) ->
-    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
-    sync(),
-    {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>).
 
 db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     {ok, _} = insert_domain(mim(), <<"example.com">>, <<"dbgroup">>),
@@ -673,19 +742,6 @@ db_keeps_syncing_after_cluster_join(Config) ->
     sync(),
     assert_domains_are_equal(HostType).
 
-db_gaps_are_getting_filled_automatically(_Config) ->
-    {ok, _} = insert_domain(mim(), <<"example.com">>, <<"type1">>),
-    sync(),
-    Max = get_max_event_id(mim()),
-    %% Create a gap in events by manually adding an event
-    GapSize = 10,
-    {updated, 1} = insert_full_event(mim(), Max + GapSize, <<"something.else">>),
-    force_check_for_updates(mim()),
-    sync_local(mim()),
-    F = fun() -> get_event_ids_between(mim(), Max, Max + GapSize) end,
-    mongoose_helper:wait_until(F, lists:seq(Max, Max + GapSize),
-                               #{time_left => timer:seconds(15)}).
-
 db_event_could_appear_with_lower_id(_Config) ->
     %% We use 40 and 50 as event ids
     %% We check two things:
@@ -713,143 +769,115 @@ db_event_could_appear_with_lower_id(_Config) ->
     mongoose_helper:wait_until(F, lists:seq(40, 50),
                                #{time_left => timer:seconds(15)}).
 
+db_can_insert_update_delete_static_domain_password(_) ->
+    StaticDomain = <<"example.cfg">>,
+    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky1">>),
+    ok = check_domain_password(mim(), StaticDomain, <<"rocky1">>),
+    {ok, _} = set_domain_password(mim(), StaticDomain, <<"rocky2">>),
+    ok = check_domain_password(mim(), StaticDomain, <<"rocky2">>),
+    {ok, _} = delete_domain_password(mim(), StaticDomain),
+    {error, not_found} = select_domain_admin(mim(), StaticDomain).
+
+rest_cannot_enable_deleting(Config) ->
+    HostType = ?config(host_type, Config),
+    Domain = random_domain_name(),
+    {ok, _} = insert_domain(mim(), Domain, HostType),
+    {ok, #{status := enabled}} = select_domain(mim(), Domain),
+    {ok, _} = request_delete_domain(mim(), Domain, HostType),
+    {ok, #{status := deleting}} = select_domain(mim(), Domain),
+    {deleted, _} = enable_domain(mim(), Domain),
+    Server = ?config(server, Config),
+    Server ! continue,
+    F = fun () -> select_domain(mim(), Domain) end,
+    mongoose_helper:wait_until(F, {error, not_found}, #{time_left => timer:seconds(15)}).
+
+% rest cases
+
 rest_can_insert_domain(Config) ->
+    Domain = random_domain_name(),
     {{<<"204">>, _}, _} =
-        rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+        rest_put_domain(Config, Domain, <<"type1">>),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), <<"example.db">>).
+        select_domain(mim(), Domain).
 
 rest_can_disable_domain(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    rest_patch_enabled(Config, <<"example.db">>, false),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
+    rest_patch_enabled(Config, Domain, false),
     {ok, #{host_type := <<"type1">>, status := disabled}} =
-        select_domain(mim(), <<"example.db">>).
+        select_domain(mim(), Domain).
 
 rest_request_can_delete_domain(Config) ->
+    Domain = random_domain_name(),
     %% Put a new domain to delete later
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    rest_put_domain(Config, Domain, <<"type1">>),
     %% Request delete domain
-    {{<<"202">>, _}, _} = domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>),
+    {{<<"202">>, _}, _} = domain_rest_helper:request_delete_domain(Config, Domain, <<"type1">>),
     %% Wait until it is not found anymore
     Return = {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>},
-    F1 = fun() -> rest_select_domain(Config, <<"example.db">>) end,
+    F1 = fun() -> rest_select_domain(Config, Domain) end,
     mongoose_helper:wait_until(F1, Return, #{time_left => timer:seconds(15)}),
     %% Double-check
-    F2 = fun() -> select_domain(mim(), <<"example.db">>) end,
+    F2 = fun() -> select_domain(mim(), Domain) end,
     mongoose_helper:wait_until(F2, {error, not_found}, #{time_left => timer:seconds(5)}).
 
 rest_can_delete_domain(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
     {{<<"204">>, _}, _} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>),
-    {error, not_found} = select_domain(mim(), <<"example.db">>).
+        rest_delete_domain(Config, Domain, <<"type1">>),
+    {error, not_found} = select_domain(mim(), Domain).
 
 rest_cannot_delete_domain_without_correct_type(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
     {{<<"403">>, <<"Forbidden">>}, <<"Wrong host type was provided">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type2">>),
-    {ok, _} = select_domain(mim(), <<"example.db">>).
+        rest_delete_domain(Config, Domain, <<"type2">>),
+    {ok, _} = select_domain(mim(), Domain).
 
 rest_cannot_delete_missing_domain(Config) ->
+    Domain = random_domain_name(),
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>),
+        rest_delete_domain(Config, Domain, <<"type1">>),
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
-        domain_rest_helper:request_delete_domain(Config, <<"example.db">>, <<"type1">>).
+        domain_rest_helper:request_delete_domain(Config, Domain, <<"type1">>).
 
 rest_cannot_enable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
     {{<<"409">>, <<"Conflict">>}, <<"Domain already exists">>} =
-        rest_put_domain(Config, <<"example.db">>, <<"type2">>).
+        rest_put_domain(Config, Domain, <<"type2">>).
 
 rest_cannot_insert_domain_with_unknown_host_type(Config) ->
+    Domain = random_domain_name(),
     {{<<"403">>,<<"Forbidden">>}, <<"Unknown host type">>} =
-        rest_put_domain(Config, <<"example.db">>, <<"type6">>).
+        rest_put_domain(Config, Domain, <<"type6">>).
 
 rest_cannot_delete_domain_with_unknown_host_type(Config) ->
+    Domain = random_domain_name(),
     {{<<"403">>,<<"Forbidden">>}, <<"Unknown host type">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type6">>).
-
-%% auth provided, but not configured:
-rest_cannot_insert_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_disable_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_if_auth_provided_but_not_configured(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_valid_creds(Config), <<"example.db">>).
-
-%% with wrong pass:
-rest_cannot_insert_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, true).
-
-rest_cannot_disable_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_with_wrong_pass(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_invalid_creds(Config), <<"example.db">>).
-
-%% without auth:
-rest_cannot_insert_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_put_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_delete_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_delete_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
-
-rest_cannot_enable_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, true).
-
-rest_cannot_disable_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
-
-rest_cannot_select_domain_without_auth(Config) ->
-    {{<<"401">>, <<"Unauthorized">>}, _} =
-        rest_select_domain(set_no_creds(Config), <<"example.db">>).
+        rest_delete_domain(Config, Domain, <<"type6">>).
 
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>}, <<"Given domain does not exist">>} =
         rest_patch_enabled(Config, <<"example.db">>, false).
 
 rest_can_enable_domain(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    rest_patch_enabled(Config, <<"example.db">>, false),
-    rest_patch_enabled(Config, <<"example.db">>, true),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
+    rest_patch_enabled(Config, Domain, false),
+    rest_patch_enabled(Config, Domain, true),
     {ok, #{host_type := <<"type1">>, status := enabled}} =
-        select_domain(mim(), <<"example.db">>).
+        select_domain(mim(), Domain).
 
 rest_can_select_domain(Config) ->
-    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
-    {HttpStatus, {Info}} = rest_select_domain(Config, <<"example.db">>),
+    Domain = random_domain_name(),
+    rest_put_domain(Config, Domain, <<"type1">>),
+    {HttpStatus, {Info}} = rest_select_domain(Config, Domain),
     SortedResult = {HttpStatus, {lists:sort(Info)}},
     {{<<"200">>, <<"OK">>},
      {[ {<<"host_type">>, <<"type1">>}, {<<"status">>, <<"enabled">>} ]}} =
@@ -913,34 +941,6 @@ rest_cannot_patch_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>}, <<"Invalid request body">>} =
         patch_custom(Config, admin, <<"/domains/example.db">>, <<"{kek">>).
 
-%% SQL query is mocked to fail
-rest_insert_domain_fails_if_db_fails(Config) ->
-    assert_rest_db_error(rest_put_domain(Config, <<"example.db">>, <<"type1">>)).
-
-rest_insert_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
-
-%% SQL query is mocked to fail
-rest_delete_domain_fails_if_db_fails(Config) ->
-    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
-    assert_rest_db_error(rest_delete_domain(Config, <<"example.db">>, <<"type1">>)).
-
-rest_delete_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
-
-%% SQL query is mocked to fail
-rest_enable_domain_fails_if_db_fails(Config) ->
-    assert_rest_db_error(rest_patch_enabled(Config, <<"example.db">>, true)).
-
-rest_enable_domain_fails_if_service_disabled(Config) ->
-    service_disabled(mim()),
-    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
-        rest_patch_enabled(Config, <<"example.db">>, true).
-
 rest_cannot_enable_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>}, <<"Domain is static">>} =
         rest_patch_enabled(Config, <<"example.cfg">>, true).
@@ -970,6 +970,94 @@ rest_delete_domain_cleans_data_from_mam(Config) ->
         escalus_cleaner:remove_client(FreshConfig, Bob)
         end,
     escalus:fresh_story_with_config(Config, [{alice3, 1}, {bob3, 1}], F).
+
+% rest_auth cases
+%% auth provided, but not configured:
+rest_cannot_insert_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_put_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_delete_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_disable_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_select_domain(set_valid_creds(Config), <<"example.db">>).
+
+%% with wrong pass:
+rest_cannot_insert_domain_with_wrong_pass(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_put_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_with_wrong_pass(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_delete_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_with_wrong_pass(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, true).
+
+rest_cannot_disable_domain_with_wrong_pass(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_with_wrong_pass(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_select_domain(set_invalid_creds(Config), <<"example.db">>).
+
+%% without auth:
+rest_cannot_insert_domain_without_auth(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_put_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_without_auth(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_delete_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_without_auth(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, true).
+
+rest_cannot_disable_domain_without_auth(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_without_auth(Config) ->
+    {{<<"401">>, <<"Unauthorized">>}, _} =
+        rest_select_domain(set_no_creds(Config), <<"example.db">>).
+
+% rest_db_fails cases, SQL query is mocked to fail
+rest_insert_domain_fails_if_db_fails(Config) ->
+    assert_rest_db_error(rest_put_domain(Config, <<"example.db">>, <<"type1">>)).
+
+rest_delete_domain_fails_if_db_fails(Config) ->
+    {ok, _} = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    assert_rest_db_error(rest_delete_domain(Config, <<"example.db">>, <<"type1">>)).
+
+rest_enable_domain_fails_if_db_fails(Config) ->
+    assert_rest_db_error(rest_patch_enabled(Config, <<"example.db">>, true)).
+
+% rest_service_disabled cases, service is disabled for the whole group
+rest_insert_domain_fails_if_service_disabled(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
+        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
+
+rest_delete_domain_fails_if_service_disabled(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
+
+rest_enable_domain_fails_if_service_disabled(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, <<"Dynamic domains service is disabled">>} =
+        rest_patch_enabled(Config, <<"example.db">>, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -1179,3 +1267,7 @@ assert_rest_db_error({Result, Msg}) ->
 
 dummy_auth_host_type() ->
     <<"dummy auth">>. %% specified in the TOML config file
+
+random_domain_name() ->
+    Prefix = integer_to_binary(erlang:unique_integer([positive])),
+    <<Prefix/binary, ".example.db">>.

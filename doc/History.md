@@ -1,12 +1,16 @@
 # MongooseIM history
 
-## 2023: C2S
+## 2023: C2S and CETS
+
+Created an alternative to Mnesia RAM-only tables - CETS.
+It allows to run MongooseIM without Mnesia completely in RDBMS+CETS setup.
 
 Moved the C2S implementation to state machine.
 Added Docker image for arm64.
 
-Release:
+Releases:
 
+* [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) in December 2023.
 * [MongooseIM 6.1.0](https://github.com/esl/MongooseIM/releases/tag/6.1.0) in May 2023.
 
 ## 2022: GraphQL

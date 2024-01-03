@@ -14,6 +14,8 @@
          process_general/1,
          process_listener/2,
          process_c2s_tls/1,
+         process_c2s_just_tls/1,
+         process_just_tls/1,
          process_fast_tls/1,
          process_sasl_external/1,
          process_sasl_mechanism/1,
@@ -263,10 +265,8 @@ listener_common() ->
             }.
 
 listener_extra(http) ->
-    %% options listed here are passed to ranch_ssl (with verify_mode translated to verify_fun)
-    TLSKeys = [verify_mode, certfile, cacertfile, ciphers, keyfile, password, versions, dhfile],
-    TLSSection = mongoose_config_utils:section_with_keys(TLSKeys, tls([server], [just_tls])),
-    #section{items = #{<<"tls">> => TLSSection,
+    %% tls options passed to ranch_ssl (with verify_mode translated to verify_fun)
+    #section{items = #{<<"tls">> => tls([server], [just_tls]),
                        <<"transport">> => http_transport(),
                        <<"protocol">> => http_protocol(),
                        <<"handlers">> => mongoose_http_handler:config_spec()}};
@@ -307,7 +307,7 @@ xmpp_listener_extra(c2s) ->
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
-                       <<"tls">> => c2s_tls()},
+                       <<"tls">> => tls([server, c2s], [fast_tls, just_tls])},
              defaults = #{<<"access">> => all,
                           <<"shaper">> => none,
                           <<"max_connections">> => infinity,
@@ -319,8 +319,7 @@ xmpp_listener_extra(s2s) ->
     TLSSection = tls([server], [fast_tls]),
     #section{items = #{<<"shaper">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"tls">> => TLSSection#section{include = always,
-                                                       process = fun ?MODULE:process_fast_tls/1}},
+                       <<"tls">> => TLSSection#section{include = always}},
              defaults = #{<<"shaper">> => none}
             };
 xmpp_listener_extra(service) ->
@@ -344,20 +343,6 @@ xmpp_listener_extra(service) ->
                           <<"hidden_components">> => false,
                           <<"conflict_behaviour">> => disconnect}
             }.
-
-%% path: listen.c2s[].tls
-c2s_tls() ->
-    mongoose_config_utils:merge_sections(tls([server], [fast_tls, just_tls]), c2s_tls_extra()).
-
-c2s_tls_extra() ->
-    #section{items = #{<<"module">> => #option{type = atom,
-                                               validate = {enum, [fast_tls, just_tls]}},
-                       <<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}
-                      },
-             defaults = #{<<"module">> => fast_tls,
-                          <<"mode">> => starttls},
-             process = fun ?MODULE:process_c2s_tls/1}.
 
 %% path: listen.http[].transport
 http_transport() ->
@@ -674,27 +659,40 @@ tls(common, common) ->
              defaults = #{<<"verify_mode">> => peer}};
 tls(common, fast_tls) ->
     #section{items = #{<<"protocol_options">> => #list{items = #option{type = string,
-                                                                       validate = non_empty}}}};
+                                                                       validate = non_empty}}},
+             process = fun ?MODULE:process_fast_tls/1};
 tls(common, just_tls) ->
     #section{items = #{<<"keyfile">> => #option{type = string,
                                                 validate = filename},
                        <<"password">> => #option{type = string},
-                       <<"versions">> => #list{items = #option{type = atom}}}};
+                       <<"versions">> => #list{items = #option{type = atom}}},
+             process = fun ?MODULE:process_just_tls/1};
 tls(server, common) ->
     #section{items = #{<<"dhfile">> => #option{type = string,
                                                validate = filename}}};
-tls(server, fast_tls) ->
+tls(server, _) ->
     #section{};
-tls(server, just_tls) ->
-    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
-                       <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}}};
 tls(client, common) ->
     #section{};
 tls(client, fast_tls) ->
     #section{};
 tls(client, just_tls) ->
-    #section{items = #{<<"server_name_indication">> => server_name_indication()}}.
+    #section{items = #{<<"server_name_indication">> => server_name_indication()}};
+tls(c2s, common) ->
+    #section{items = #{<<"module">> => #option{type = atom,
+                                               validate = {enum, [fast_tls, just_tls]}},
+                       <<"mode">> => #option{type = atom,
+                                             validate = {enum, [tls, starttls, starttls_required]}}},
+             defaults = #{<<"module">> => fast_tls,
+                          <<"mode">> => starttls},
+             process = fun ?MODULE:process_c2s_tls/1};
+tls(c2s, just_tls) ->
+    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
+                       <<"crl_files">> => #list{items = #option{type = string,
+                                                                validate = filename}}},
+             process = fun ?MODULE:process_c2s_just_tls/1};
+tls(c2s, fast_tls) ->
+    #section{}.
 
 server_name_indication() ->
     #section{items = #{<<"enabled">> => #option{type = boolean},
@@ -995,40 +993,48 @@ get_all_hosts_and_host_types(General) ->
                           []
                   end, General).
 
+%% User chooses just_tls or fast_tls, and this choice limits the allowed keys
 process_c2s_tls(M = #{module := Module}) ->
-    check_tls_keys(M, [module, mode]),
-    process_tls(Module, M).
-
-process_fast_tls(M) ->
-    process_tls(fast_tls, M).
-
-process_tls(Module, M) ->
-    check_tls_verify_mode(Module, M),
-    maps:merge(tls_defaults(Module), M).
-
-%% The user chooses just_tls or fast_tls, and this choice limits the allowed keys
-check_tls_keys(M = #{module := Module}, ExtraKeys) ->
-    AllowedItems = (tls([server], [Module]))#section.items,
-    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ ExtraKeys,
+    AllowedItems = (tls([server, c2s], [Module]))#section.items,
+    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ [module, mode],
     case maps:keys(M) -- AllowedKeys of
-        [] -> ok;
+        [] -> M;
         UnexpectedKeys -> error(#{what => unexpected_tls_options,
                                   tls_module => Module,
                                   unexpected_keys => UnexpectedKeys})
     end.
 
-tls_defaults(just_tls) ->
-    #{crl_files => [],
-      disconnect_on_failure => true};
-tls_defaults(fast_tls) ->
-    #{ciphers => mongoose_tls:default_ciphers(),
-      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
+process_c2s_just_tls(#{module := just_tls} = M) ->
+    maps:merge(just_tls_c2s_defaults(), M);
+process_c2s_just_tls(M) ->
+    M.
 
-check_tls_verify_mode(fast_tls, #{verify_mode := selfsigned_peer}) ->
+just_tls_c2s_defaults() ->
+    #{crl_files => [],
+      disconnect_on_failure => true}.
+
+process_just_tls(M = #{module := fast_tls}) ->
+    M;
+process_just_tls(M = #{cacertfile := _}) ->
+    M;
+process_just_tls(M = #{verify_mode := none}) ->
+    M;
+process_just_tls(_) ->
+    error(#{what => missing_cacertfile,
+            text => <<"You need to provide CA certificate (cacertfile) "
+                      "or disable peer verification (verify_mode)">>}).
+
+process_fast_tls(M = #{module := just_tls}) ->
+    M;
+process_fast_tls(#{verify_mode := selfsigned_peer}) ->
     error(#{what => invalid_tls_verify_mode,
             text => <<"fast_tls does not support self-signed certificate verification">>});
-check_tls_verify_mode(_Module, #{}) ->
-    ok.
+process_fast_tls(M) ->
+    maps:merge(fast_tls_defaults(), M).
+
+fast_tls_defaults() ->
+    #{ciphers => mongoose_tls:default_ciphers(),
+      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
 
 process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),

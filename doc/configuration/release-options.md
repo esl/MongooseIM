@@ -33,6 +33,17 @@ These options are inserted into the `rel/files/vm.args` template.
 * **Syntax:** command-line arguments
 * **Example:** `{highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.`
 
+### epmd_module
+
+Allows to set EPMD module to `mongoose_epmd` in case CETS is used with RDBMS backend
+to enable getting IP addresses of the remote nodes using RDBMS instead of the default
+resolver.
+
+* **Type:** parameter
+* **Option:** value of `-epmd_module` in [vm.args](configuration-files.md#vmargs)
+* **Syntax:** Erlang module name: `mongoose_epmd`
+* **Example:** `{epmd_module, "mongoose_epmd"}.`
+
 ## TOML Options
 
 These options are inserted into the `rel/files/mongooseim.toml` template.
