@@ -2856,7 +2856,6 @@ after_complete_true_after11(Config) ->
 %% ------------------------------------------------------------------
 
 prefs_set_request(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2906,7 +2905,6 @@ query_get_request(Config) ->
 %% without whitespaces. In the real world it is not true.
 %% Put "\n" between two jid elements.
 prefs_set_cdata_request(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2936,7 +2934,6 @@ prefs_set_cdata_request(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
         discover_features(Config, Alice, Server)
@@ -2944,7 +2941,6 @@ mam_service_discovery(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery_to_client_bare_jid(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         Address = inbox_helper:to_bare_lower(Alice),
         discover_features(Config, Alice, Address)
@@ -2952,7 +2948,6 @@ mam_service_discovery_to_client_bare_jid(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery_to_different_client_bare_jid_results_in_error(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Address = inbox_helper:to_bare_lower(Bob),
         escalus:send(Alice, escalus_stanza:disco_info(Address)),
@@ -2963,7 +2958,6 @@ mam_service_discovery_to_different_client_bare_jid_results_in_error(Config) ->
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         Domain = domain(),
         Server = escalus_client:server(Alice),
@@ -3069,7 +3063,6 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->
-    _P = ?config(props, ConfigIn),
     F = fun(Config, Alice, _Bob, _Kate) ->
         Namespace = mam_ns_binary_v04(),
         [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
