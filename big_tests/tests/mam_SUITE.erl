@@ -34,6 +34,7 @@
          muc_only_stanzaid/1,
          mam_service_discovery/1,
          mam_service_discovery_to_client_bare_jid/1,
+         mam_service_discovery_to_different_client_bare_jid_results_in_error/1,
          muc_service_discovery/1,
          easy_archive_request/1,
          easy_archive_request_for_the_receiver/1,
@@ -363,7 +364,9 @@ basic_groups() ->
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
       [{mam06, [parallel], disabled_retract_cases() ++
-            [mam_service_discovery, mam_service_discovery_to_client_bare_jid]}]},
+            [mam_service_discovery,
+             mam_service_discovery_to_client_bare_jid,
+             mam_service_discovery_to_different_client_bare_jid_results_in_error]}]},
      {muc_disabled_retraction, [],
       [{muc06, [parallel], disabled_muc_retract_cases() ++
             [muc_service_discovery]}]}
@@ -380,6 +383,7 @@ mam_metrics_cases() ->
 mam_cases() ->
     [mam_service_discovery,
      mam_service_discovery_to_client_bare_jid,
+     mam_service_discovery_to_different_client_bare_jid_results_in_error,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
@@ -2900,6 +2904,16 @@ mam_service_discovery_to_client_bare_jid(Config) ->
         discover_features(Config, Alice, Address)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
+
+mam_service_discovery_to_different_client_bare_jid_results_in_error(Config) ->
+    _P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Address = inbox_helper:to_bare_lower(Bob),
+        escalus:send(Alice, escalus_stanza:disco_info(Address)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
