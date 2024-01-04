@@ -155,8 +155,9 @@ init_per_group(muc_disabled = GN, Config) ->
     dynamic_modules:ensure_modules(HostType, required_modules(GN)),
     Config1;
 init_per_group(sse, Config) ->
-    % Chage the default idle_timeout on port 8089 to 1s to test if sse will override it
-    mongoose_helper:change_listener_idle_timeout(8089, 1000),
+    % Change the default idle_timeout for the listener to 1s to test if sse will override it
+    Listener = get_client_api_listner(),
+    mongoose_helper:change_listener_idle_timeout(Listener, 1000),
     Config;
 init_per_group(_GN, Config) ->
     Config.
@@ -164,7 +165,8 @@ init_per_group(_GN, Config) ->
 end_per_group(muc_disabled, Config) ->
     dynamic_modules:restore_modules(Config);
 end_per_group(sse, _Config) ->
-    mongoose_helper:restart_listener_on_port(8089);
+    Listener = get_client_api_listner(),
+    mongoose_helper:restart_listener(distributed_helper:mim(), Listener);
 end_per_group(_GN, _Config) ->
     ok.
 
@@ -1468,3 +1470,9 @@ verify_server_name_in_header(Server, ExpectedName) ->
 
 config_to_muc_host(Config) ->
     ?config(muc_light_host, Config).
+
+get_client_api_listner() ->
+    Handler = #{module => mongoose_client_api},
+    ListenerOpts = #{handlers => [Handler]},
+    [Listener] = mongoose_helper:get_listeners(distributed_helper:mim(), ListenerOpts),
+    Listener.

@@ -1083,7 +1083,8 @@ default_config([listen, http, handlers, mongoose_client_api]) ->
       module => mongoose_client_api};
 default_config([listen, http, handlers, mongoose_graphql_handler]) ->
     #{module => mongoose_graphql_handler,
-      schema_endpoint => admin};
+      schema_endpoint => admin,
+      sse_idle_timeout => 3600000};
 default_config([listen, http, handlers, Module]) ->
     #{module => Module};
 default_config([listen, http, transport]) ->

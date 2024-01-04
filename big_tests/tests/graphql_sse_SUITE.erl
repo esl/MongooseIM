@@ -36,8 +36,9 @@ init_per_group(user, Config) ->
 init_per_group(admin, Config) ->
     graphql_helper:init_admin_handler(Config);
 init_per_group(timeout, Config) ->
-    % Chage the default idle_timeout on port 5561 to 1s to test if sse will override it
-    mongoose_helper:change_listener_idle_timeout(5561, 1000),
+    % Change the default idle_timeout for the listener to 1s to test if sse will override it
+    Listener = get_graphql_user_listener(),
+    mongoose_helper:change_listener_idle_timeout(Listener, 1000),
     graphql_helper:init_user(Config).
 
 end_per_group(user, _Config) ->
@@ -46,7 +47,8 @@ end_per_group(user, _Config) ->
 end_per_group(admin, _Config) ->
     graphql_helper:clean();
 end_per_group(timeout, _Config) ->
-    mongoose_helper:restart_listener_on_port(5561),
+    Listener = get_graphql_user_listener(),
+    mongoose_helper:restart_listener(mim(), Listener),
     escalus_fresh:clean(),
     graphql_helper:clean().
 
@@ -147,6 +149,12 @@ sse_should_not_get_timeout(Config) ->
     end).
 
 %% Helpers
+
+get_graphql_user_listener() ->
+    Handler = #{module => mongoose_graphql_handler, schema_endpoint => user},
+    ListenerOpts = #{handlers => [Handler]},
+    [Listener] = mongoose_helper:get_listeners(mim(), ListenerOpts),
+    Listener.
 
 %% Subscription - works only with the SSE handler
 doc() ->

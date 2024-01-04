@@ -548,6 +548,14 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 By default, when the option is not included, all GraphQL categories are enabled, so you don't need to add this option.
 When this option is added, only listed GraphQL categories will be processed. For others, the error "category disabled" will be returned.
 
+#### `listen.http.handlers.mongoose_graphql_handler.sse_idle_timeout`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** 3600000
+* **Example:** `schema_endpoint = "admin"`
+
+This option specifies the time in milliseconds after which the sse connection is closed when idle.
+The default value is 1 hour.
+
 ### Handler types: REST API - Admin - `mongoose_admin_api`
 
 The recommended configuration is shown in [Example 5](#example-5-admin-rest-api) below.
