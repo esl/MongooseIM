@@ -60,8 +60,8 @@ get_shaper_name(HostType, Domain, Action, FromJID) ->
 get_shaper_config(Name) ->
     case mongoose_config:lookup_opt([shaper, Name]) of
         {ok, #{max_rate := MaxRatePerSecond}} ->
-            Rate = MaxRatePerSecond div 1000,
-            #{bucket_size => MaxRatePerSecond, rate => Rate, start_full => true};
+            #{bucket_size => MaxRatePerSecond, rate => MaxRatePerSecond,
+              time_unit => second, start_full => true};
         {error, not_found} ->
             0
     end.
