@@ -38,7 +38,8 @@ all() ->
      {group, roster},
      {group, messages_with_props},
      {group, messages_with_thread},
-     {group, security}].
+     {group, security},
+     {group, sse_timeout}].
 
 groups() ->
     [{messages_with_props, [parallel], message_with_props_test_cases()},
@@ -48,7 +49,8 @@ groups() ->
      {muc_config, [], muc_config_cases()},
      {muc_disabled, [parallel], muc_disabled_cases()},
      {roster, [parallel], roster_test_cases()},
-     {security, [], security_test_cases()}].
+     {security, [], security_test_cases()},
+     {sse_timeout, [], [sse_should_not_get_timeout]}].
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
@@ -152,11 +154,19 @@ init_per_group(muc_disabled = GN, Config) ->
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_modules(HostType, required_modules(GN)),
     Config1;
+init_per_group(sse_timeout, Config) ->
+    % Change the default idle_timeout for the listener to 1s to test if sse will override it
+    Listener = get_client_api_listener(),
+    mongoose_helper:change_listener_idle_timeout(Listener, 1000),
+    Config;
 init_per_group(_GN, Config) ->
     Config.
 
 end_per_group(muc_disabled, Config) ->
     dynamic_modules:restore_modules(Config);
+end_per_group(sse_timeout, _Config) ->
+    Listener = get_client_api_listener(),
+    mongoose_helper:restart_listener(distributed_helper:mim(), Listener);
 end_per_group(_GN, _Config) ->
     ok.
 
@@ -882,6 +892,19 @@ msg_without_thread_can_be_parsed(Config) ->
 				MsgID = maps:get(id, _Msg)
 		end).
 
+sse_should_not_get_timeout(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = connect_to_sse({alice, Alice}),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        sse_helper:wait_for_event(Stream),
+        timer:sleep(2000),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello again!">>)),
+        sse_helper:wait_for_event(Stream),
+        sse_helper:stop_sse(Stream)
+    end).
+
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
@@ -1447,3 +1470,9 @@ verify_server_name_in_header(Server, ExpectedName) ->
 
 config_to_muc_host(Config) ->
     ?config(muc_light_host, Config).
+
+get_client_api_listener() ->
+    Handler = #{module => mongoose_client_api},
+    ListenerOpts = #{handlers => [Handler]},
+    [Listener] = mongoose_helper:get_listeners(distributed_helper:mim(), ListenerOpts),
+    Listener.

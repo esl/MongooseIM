@@ -378,6 +378,7 @@ paths:
               "affiliation":"member"}
              ```
         For more details please refer to the [rooms API specifications](#/Rooms)
+        Note: The SSE connection will be closed after 1 hour of idle time.
       tags:
         - "Server Sent Events"
       produces:

@@ -21,6 +21,10 @@ init(_InitArgs, _LastEvtId, Req) ->
     ?LOG_DEBUG(#{what => client_api_sse_init, req => Req}),
     {cowboy_rest, Req1, State0} = mongoose_client_api:init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
+    % set 1h timeout to prevent client from frequent disconnections
+    cowboy_req:cast({set_options, #{
+        idle_timeout => 3600000
+    }}, Req),
     maybe_init(Authorization, Req2, State#{id => 1}).
 
 maybe_init(true, Req, #{jid := JID} = State) ->

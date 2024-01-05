@@ -45,13 +45,16 @@
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"username">> => #option{type = binary},
-                 <<"password">> => #option{type = binary},
-                 <<"schema_endpoint">> => #option{type = atom,
-                                                  validate = {enum, [admin, domain_admin, user]}},
-                 <<"allowed_categories">> => #list{items = #option{type = binary,
-                                                                   validate = {enum, allowed_categories()}},
-                                                   validate = unique_non_empty}},
+        items = #{<<"username">> => #option{type = binary},
+                  <<"password">> => #option{type = binary},
+                  <<"schema_endpoint">> => #option{type = atom,
+                                                   validate = {enum, [admin, domain_admin, user]}},
+                  <<"allowed_categories">> => #list{items = #option{type = binary,
+                                                                    validate = {enum, allowed_categories()}},
+                                                    validate = unique_non_empty},
+                  <<"sse_idle_timeout">> => #option{type = int_or_infinity,
+                                                    validate = positive}},
+        defaults = #{<<"sse_idle_timeout">> => 3600000}, % 1h
         format_items = map,
         required = [<<"schema_endpoint">>],
         process = fun ?MODULE:process_config/1}.

@@ -15,11 +15,13 @@ suite() ->
 
 all() ->
     [{group, admin},
-     {group, user}].
+     {group, user},
+     {group, timeout}].
 
 groups() ->
     [{admin, [parallel], admin_tests()},
-     {user, [parallel], user_tests()}].
+     {user, [parallel], user_tests()},
+     {timeout, [], [sse_should_not_get_timeout]}].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -32,12 +34,22 @@ end_per_suite(Config) ->
 init_per_group(user, Config) ->
     graphql_helper:init_user(Config);
 init_per_group(admin, Config) ->
-    graphql_helper:init_admin_handler(Config).
+    graphql_helper:init_admin_handler(Config);
+init_per_group(timeout, Config) ->
+    % Change the default idle_timeout for the listener to 1s to test if sse will override it
+    Listener = get_graphql_user_listener(),
+    mongoose_helper:change_listener_idle_timeout(Listener, 1000),
+    graphql_helper:init_user(Config).
 
 end_per_group(user, _Config) ->
     escalus_fresh:clean(),
     graphql_helper:clean();
 end_per_group(admin, _Config) ->
+    graphql_helper:clean();
+end_per_group(timeout, _Config) ->
+    Listener = get_graphql_user_listener(),
+    mongoose_helper:restart_listener(mim(), Listener),
+    escalus_fresh:clean(),
     graphql_helper:clean().
 
 init_per_testcase(CaseName, Config) ->
@@ -123,7 +135,26 @@ user_invalid_operation_type(Config) ->
 user_invalid_operation_type_story(Alice) ->
     get_bad_request(execute_sse(user, #{query => query_doc()}, make_creds(Alice))).
 
+sse_should_not_get_timeout(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun (Alice, Bob) ->
+        From = escalus_client:full_jid(Bob),
+        To = escalus_client:short_jid(Alice),
+        {200, Stream} = graphql_helper:execute_user_command_sse(<<"stanza">>, <<"subscribeForMessages">>, Alice, #{}, Config),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello!">>)),
+        sse_helper:wait_for_event(Stream),
+        timer:sleep(2000),
+        escalus:send(Bob, escalus_stanza:chat(From, To, <<"Hello again!">>)),
+        sse_helper:wait_for_event(Stream),
+        sse_helper:stop_sse(Stream)
+    end).
+
 %% Helpers
+
+get_graphql_user_listener() ->
+    Handler = #{module => mongoose_graphql_handler, schema_endpoint => user},
+    ListenerOpts = #{handlers => [Handler]},
+    [Listener] = mongoose_helper:get_listeners(mim(), ListenerOpts),
+    Listener.
 
 %% Subscription - works only with the SSE handler
 doc() ->

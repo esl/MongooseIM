@@ -616,8 +616,10 @@ listen_http_handlers_graphql(_Config) ->
     test_listen_http_handler_creds(P, T),
     ?cfg(P ++ [allowed_categories], [<<"muc">>, <<"inbox">>],
          T(#{<<"allowed_categories">> => [<<"muc">>, <<"inbox">>]})),
+    ?cfg(P ++ [sse_idle_timeout], 3600000, T(#{})),
     ?err(T(#{<<"allowed_categories">> => [<<"invalid">>]})),
     ?err(T(#{<<"schema_endpoint">> => <<"wrong_endpoint">>})),
+    ?err(T(#{<<"sse_idle_timeout">> => 0})),
     ?err(http_handler_raw(mongoose_graphql_handler, #{})).
 
 test_listen_http_handler_creds(P, T) ->
