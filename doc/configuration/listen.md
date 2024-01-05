@@ -553,7 +553,7 @@ When this option is added, only listed GraphQL categories will be processed. For
 * **Default:** 3600000
 * **Example:** `schema_endpoint = "admin"`
 
-This option specifies the time in milliseconds after which the sse connection is closed when idle.
+This option specifies the time in milliseconds after which the SSE connection is closed when idle.
 The default value is 1 hour.
 
 ### Handler types: REST API - Admin - `mongoose_admin_api`

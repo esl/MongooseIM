@@ -1471,7 +1471,7 @@ verify_server_name_in_header(Server, ExpectedName) ->
 config_to_muc_host(Config) ->
     ?config(muc_light_host, Config).
 
-get_client_api_listner() ->
+get_client_api_listener() ->
     Handler = #{module => mongoose_client_api},
     ListenerOpts = #{handlers => [Handler]},
     [Listener] = mongoose_helper:get_listeners(distributed_helper:mim(), ListenerOpts),
