@@ -39,7 +39,7 @@ all() ->
      {group, messages_with_props},
      {group, messages_with_thread},
      {group, security},
-     {group, sse}].
+     {group, sse_timeout}].
 
 groups() ->
     [{messages_with_props, [parallel], message_with_props_test_cases()},
@@ -50,7 +50,7 @@ groups() ->
      {muc_disabled, [parallel], muc_disabled_cases()},
      {roster, [parallel], roster_test_cases()},
      {security, [], security_test_cases()},
-     {sse, [], [sse_should_not_get_timeout]}].
+     {sse_timeout, [], [sse_should_not_get_timeout]}].
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
@@ -154,9 +154,9 @@ init_per_group(muc_disabled = GN, Config) ->
     Config1 = dynamic_modules:save_modules(HostType, Config),
     dynamic_modules:ensure_modules(HostType, required_modules(GN)),
     Config1;
-init_per_group(sse, Config) ->
+init_per_group(sse_timeout, Config) ->
     % Change the default idle_timeout for the listener to 1s to test if sse will override it
-    Listener = get_client_api_listner(),
+    Listener = get_client_api_listener(),
     mongoose_helper:change_listener_idle_timeout(Listener, 1000),
     Config;
 init_per_group(_GN, Config) ->
@@ -164,8 +164,8 @@ init_per_group(_GN, Config) ->
 
 end_per_group(muc_disabled, Config) ->
     dynamic_modules:restore_modules(Config);
-end_per_group(sse, _Config) ->
-    Listener = get_client_api_listner(),
+end_per_group(sse_timeout, _Config) ->
+    Listener = get_client_api_listener(),
     mongoose_helper:restart_listener(distributed_helper:mim(), Listener);
 end_per_group(_GN, _Config) ->
     ok.
