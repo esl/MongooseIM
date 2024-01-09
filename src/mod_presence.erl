@@ -32,7 +32,7 @@
          }).
 -type presences_state() :: #presences_state{}.
 
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, hooks/1, supported_features/0]).
 -export([
          user_send_presence/3,
          user_receive_presence/3,
@@ -52,12 +52,21 @@
         ]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, _Opts) ->
-    gen_hook:add_handlers(c2s_hooks(HostType)).
+start(_HostType, _Opts) ->
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
-stop(HostType) ->
-    gen_hook:delete_handlers(c2s_hooks(HostType)).
+stop(_HostType) ->
+    ok.
+
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
+hooks(HostType) ->
+    [
+     {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 50},
+     {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 50},
+     {user_terminate, HostType, fun ?MODULE:user_terminate/3, #{}, 90},
+     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
+    ].
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -74,15 +83,6 @@ get_subscribed(Pid) ->
 -spec set_presence(pid(), exml:element()) -> ok.
 set_presence(Pid, Message) ->
     mongoose_c2s:cast(Pid, ?MODULE, {set_presence, Message}).
-
--spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
-c2s_hooks(HostType) ->
-    [
-     {user_send_presence, HostType, fun ?MODULE:user_send_presence/3, #{}, 50},
-     {user_receive_presence, HostType, fun ?MODULE:user_receive_presence/3, #{}, 50},
-     {user_terminate, HostType, fun ?MODULE:user_terminate/3, #{}, 90},
-     {foreign_event, HostType, fun ?MODULE:foreign_event/3, #{}, 50}
-    ].
 
 -spec user_send_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
