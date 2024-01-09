@@ -7,7 +7,7 @@
 -behavior(gen_mod).
 
 -type jid_set() :: gb_sets:set(jid:jid()).
--type priority() :: -128..128.
+-type priority() :: -128..127.
 -type maybe_priority() :: priority() | undefined.
 -record(presences_state, {
           %% We have _subscription to_ these users' presence status;
@@ -643,7 +643,7 @@ get_mod_state(StateData) ->
 get_priority_from_presence(PresencePacket) ->
     MaybePriority = exml_query:path(PresencePacket, [{element, <<"priority">>}, cdata], undefined),
     case catch binary_to_integer(MaybePriority) of
-        P when is_integer(P), -128 =< P, P =< 128 -> P;
+        P when is_integer(P), -128 =< P, P =< 127 -> P;
         _ -> 0
     end.
 
