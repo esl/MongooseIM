@@ -1,31 +1,30 @@
 -module(mod_presence).
 
--include_lib("exml/include/exml.hrl").
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
 
 -behavior(gen_mod).
 
--type jid_set() :: gb_sets:set(jid:jid()).
+-type jid_set() :: sets:set(jid:jid()).
 -type priority() :: -128..127.
 -type maybe_priority() :: priority() | undefined.
 -record(presences_state, {
           %% We have _subscription to_ these users' presence status;
           %% i.e. they send us presence updates.
           %% This comes from the roster.
-          pres_t = gb_sets:new() :: jid_set(),
+          pres_t = sets:new([{version, 2}]) :: jid_set(),
           %% We have _subscription from_ these users,
           %% i.e. they have subscription to us.
           %% We send them presence updates.
           %% This comes from the roster, and also to ourself
-          pres_f = gb_sets:new() :: jid_set(),
+          pres_f = sets:new([{version, 2}]) :: jid_set(),
           %% We're _available_ to these users,
           %% i.e. we broadcast presence updates to them.
           %% This may change throughout the session.
-          pres_a = gb_sets:new() :: jid_set(),
+          pres_a = sets:new([{version, 2}]) :: jid_set(),
           %% We are _invisible_ to these users.
           %% This may change throughout the session.
-          pres_i = gb_sets:new() :: jid_set(),
+          pres_i = sets:new([{version, 2}]) :: jid_set(),
           pres_pri = 0 :: priority(),
           pres_last :: undefined | exml:element(),
           pres_timestamp :: undefined | integer(), % unix time in microseconds
@@ -168,7 +167,7 @@ foreign_event(Acc, #{c2s_data := StateData,
                      {error, not_found} ->
                          [];
                      #presences_state{pres_f = PresF} ->
-                         gb_sets:to_list(PresF)
+                         sets:to_list(PresF)
                  end,
     Acc1 = mongoose_c2s_acc:to_acc(Acc, actions, [{reply, From, Subscribed}]),
     {stop, Acc1};
@@ -206,18 +205,18 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
     To = jid:make(IJID),
     IsSubscribedToMe = (ISubscription == both) or (ISubscription == from),
     AmISubscribedTo = (ISubscription == both) or (ISubscription == to),
-    WasSubscribedToMe = gb_sets:is_element(To, Presences#presences_state.pres_f),
+    WasSubscribedToMe = sets:is_element(To, Presences#presences_state.pres_f),
     FSet = case IsSubscribedToMe of
                true ->
-                   gb_sets:add_element(To, Presences#presences_state.pres_f);
+                   sets:add_element(To, Presences#presences_state.pres_f);
                false ->
-                   gb_sets:del_element(To, Presences#presences_state.pres_f)
+                   sets:del_element(To, Presences#presences_state.pres_f)
            end,
     TSet = case AmISubscribedTo of
                true ->
-                   gb_sets:add_element(To, Presences#presences_state.pres_t);
+                   sets:add_element(To, Presences#presences_state.pres_t);
                false ->
-                   gb_sets:del_element(To, Presences#presences_state.pres_t)
+                   sets:del_element(To, Presences#presences_state.pres_t)
            end,
     case Presences#presences_state.pres_last of
         undefined ->
@@ -228,8 +227,8 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
                          acc => Acc, c2s_state => StateData}),
             From = mongoose_c2s:get_jid(StateData),
             IsntInvisible = not Presences#presences_state.pres_invis,
-            ImAvailableTo = gb_sets:is_element(To, Presences#presences_state.pres_a),
-            ImInvisibleTo = gb_sets:is_element(To, Presences#presences_state.pres_i),
+            ImAvailableTo = sets:is_element(To, Presences#presences_state.pres_a),
+            ImInvisibleTo = sets:is_element(To, Presences#presences_state.pres_i),
             BecomeAvailable = IsntInvisible and IsSubscribedToMe and not WasSubscribedToMe,
             BecomeUnavailable = not IsSubscribedToMe and WasSubscribedToMe
                                 and (ImAvailableTo or ImInvisibleTo),
@@ -238,7 +237,7 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
                     ?LOG_DEBUG(#{what => become_available_to, roster_jid => To,
                                  acc => Acc, c2s_state => StateData}),
                     ejabberd_router:route(From, To, Acc, P),
-                    A = gb_sets:add_element(To, Presences#presences_state.pres_a),
+                    A = sets:add_element(To, Presences#presences_state.pres_a),
                     NewPresences = Presences#presences_state{pres_a = A, pres_f = FSet, pres_t = TSet},
                     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences});
                 {_, true} ->
@@ -246,8 +245,8 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
                                  acc => Acc, c2s_state => StateData}),
                     PU = presence_unavailable_stanza(),
                     ejabberd_router:route(From, To, Acc, PU),
-                    I = gb_sets:del_element(To, Presences#presences_state.pres_i),
-                    A = gb_sets:del_element(To, Presences#presences_state.pres_a),
+                    I = sets:del_element(To, Presences#presences_state.pres_i),
+                    A = sets:del_element(To, Presences#presences_state.pres_a),
                     NewPresences = Presences#presences_state{pres_i = I, pres_a = A, pres_f = FSet, pres_t = TSet},
                     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences});
                 _ ->
@@ -321,7 +320,7 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
 -spec handle_received_error(mongoose_acc:t(), presences_state()) -> mongoose_acc:t().
 handle_received_error(Acc, Presences) ->
     FromJid = mongoose_acc:from_jid(Acc),
-    NewA = gb_sets:del_element(FromJid, Presences#presences_state.pres_a),
+    NewA = sets:del_element(FromJid, Presences#presences_state.pres_a),
     NewPresences = Presences#presences_state{pres_a = NewA},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
@@ -386,8 +385,8 @@ presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences)
                  text => <<"Presence changes from unavailable to available">>,
                  from_unavail => FromUnavail, acc => Acc2, c2s_state => StateData}),
     BareJid = jid:to_bare(Jid),
-    NewPresences = Presences#presences_state{pres_f = gb_sets:from_list([BareJid | Fs]),
-                                   pres_t = gb_sets:from_list([BareJid | Ts]),
+    NewPresences = Presences#presences_state{pres_f = sets:from_list([BareJid | Fs]),
+                                   pres_t = sets:from_list([BareJid | Ts]),
                                    pres_pri = NewPriority,
                                    pres_last = Packet,
                                    pres_timestamp = Timestamp,
@@ -409,8 +408,8 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     presence_broadcast(Acc1, Presences#presences_state.pres_i),
     NewPresences = Presences#presences_state{pres_last = undefined,
                                    pres_timestamp = undefined,
-                                   pres_a = gb_sets:new(),
-                                   pres_i = gb_sets:new(),
+                                   pres_a = sets:new([{version, 2}]),
+                                   pres_i = sets:new([{version, 2}]),
                                    pres_invis = false},
     mongoose_c2s_acc:to_acc(Acc1, state_mod, {?MODULE, NewPresences}).
 
@@ -426,8 +425,8 @@ presence_update_to_invisible(Acc, FromJid, _ToJid, Packet, StateData, Presences)
             presence_broadcast(Acc1, Presences#presences_state.pres_i),
             NewPresences = Presences#presences_state{pres_last = undefined,
                                            pres_timestamp = undefined,
-                                           pres_a = gb_sets:new(),
-                                           pres_i = gb_sets:new(),
+                                           pres_a = sets:new([{version, 2}]),
+                                           pres_i = sets:new([{version, 2}]),
                                            pres_invis = true},
             presence_broadcast_first(Acc1, FromJid, Packet, NewPresences, []);
         true ->
@@ -464,22 +463,22 @@ presence_track(Acc, FromJid, ToJid, Packet, _, <<"probe">>) ->
 
 process_presence_track_available(Acc, FromJid, ToJid, Packet, Presences) ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
-    I = gb_sets:del_element(ToJid, Presences#presences_state.pres_i),
-    A = gb_sets:add_element(ToJid, Presences#presences_state.pres_a),
+    I = sets:del_element(ToJid, Presences#presences_state.pres_i),
+    A = sets:add_element(ToJid, Presences#presences_state.pres_a),
     NewPresences = Presences#presences_state{pres_i = I, pres_a = A},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
 process_presence_track_unavailable(Acc, FromJid, ToJid, Packet, Presences) ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
-    I = gb_sets:del_element(ToJid, Presences#presences_state.pres_i),
-    A = gb_sets:del_element(ToJid, Presences#presences_state.pres_a),
+    I = sets:del_element(ToJid, Presences#presences_state.pres_i),
+    A = sets:del_element(ToJid, Presences#presences_state.pres_a),
     NewPresences = Presences#presences_state{pres_i = I, pres_a = A},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
 process_presence_track_invisible(Acc, FromJid, ToJid, Packet, Presences) ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
-    I = gb_sets:add_element(ToJid, Presences#presences_state.pres_i),
-    A = gb_sets:del_element(ToJid, Presences#presences_state.pres_a),
+    I = sets:add_element(ToJid, Presences#presences_state.pres_i),
+    A = sets:del_element(ToJid, Presences#presences_state.pres_a),
     NewPresences = Presences#presences_state{pres_i = I, pres_a = A},
     mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}).
 
@@ -491,7 +490,7 @@ process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type)
 -spec presence_broadcast(mongoose_acc:t(), jid_set()) -> mongoose_acc:t().
 presence_broadcast(Acc, JIDSet) ->
     From = mongoose_acc:from_jid(Acc),
-    gb_sets:fold(fun(JID, A) ->
+    sets:fold(fun(JID, A) ->
                          ejabberd_router:route(From, JID, A)
                  end, Acc, JIDSet).
 
@@ -527,9 +526,9 @@ presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences,
         mongoose_acc:t(), jid:jid(), jid_set(), jid_set(), exml:element()) ->
     mongoose_acc:t().
 presence_broadcast_to_trusted(Acc, FromJid, T, A, Packet) ->
-    gb_sets:fold(
+    sets:fold(
       fun(JID, Ac) ->
-              case gb_sets:is_element(JID, T) of
+              case sets:is_element(JID, T) of
                   true ->
                       ejabberd_router:route(FromJid, JID, Ac, Packet);
                   _ ->
@@ -567,17 +566,17 @@ strip_c2s_fields(Acc) ->
     mongoose_acc:t().
 presence_broadcast_first(Acc0, FromJid, Packet, Presences, SocketSend) ->
     Probe = presence_probe(),
-    _Acc1 = gb_sets:fold(fun(JID, Accum) ->
+    _Acc1 = sets:fold(fun(JID, Accum) ->
                                 ejabberd_router:route(FromJid, JID, Accum, Probe)
                          end, Acc0, Presences#presences_state.pres_t),
     case Presences#presences_state.pres_invis of
         true ->
             mongoose_c2s_acc:to_acc(Acc0, state_mod, {?MODULE, Presences});
         false ->
-            {As, _Acc2} = gb_sets:fold(
+            {As, _Acc2} = sets:fold(
                                fun(JID, {A, Accum}) ->
                                        Accum1 = ejabberd_router:route(FromJid, JID, Accum, Packet),
-                                       {gb_sets:add_element(JID, A), Accum1}
+                                       {sets:add_element(JID, A), Accum1}
                                end,
                                {Presences#presences_state.pres_a, Acc0}, Presences#presences_state.pres_f),
             NewPresences = Presences#presences_state{pres_a = As},
@@ -665,26 +664,26 @@ update_priority(Acc, Priority, Packet, StateData) ->
     ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info).
 
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->
-    gb_sets:is_element(LJID, S#presences_state.pres_t)
+    sets:is_element(LJID, S#presences_state.pres_t)
     orelse (LJID /= LBareJID)
-    andalso gb_sets:is_element(LBareJID, S#presences_state.pres_t).
+    andalso sets:is_element(LBareJID, S#presences_state.pres_t).
 
 -spec am_i_available_to(jid:jid(), jid:jid(), presences_state()) -> boolean().
 am_i_available_to(FromJid, BareJid, Presences) ->
-    gb_sets:is_element(FromJid, Presences#presences_state.pres_a)
+    sets:is_element(FromJid, Presences#presences_state.pres_a)
     orelse (FromJid /= BareJid)
-    andalso gb_sets:is_element(BareJid, Presences#presences_state.pres_a).
+    andalso sets:is_element(BareJid, Presences#presences_state.pres_a).
 
 -spec make_available_to(jid:jid(), jid:jid(), presences_state()) -> presences_state().
 make_available_to(FromJid, BareJid, Presences) ->
-    case gb_sets:is_element(FromJid, Presences#presences_state.pres_f) of
+    case sets:is_element(FromJid, Presences#presences_state.pres_f) of
         true ->
-            A = gb_sets:add_element(FromJid, Presences#presences_state.pres_a),
+            A = sets:add_element(FromJid, Presences#presences_state.pres_a),
             Presences#presences_state{pres_a = A};
         false ->
-            case gb_sets:is_element(BareJid, Presences#presences_state.pres_f) of
+            case sets:is_element(BareJid, Presences#presences_state.pres_f) of
                 true ->
-                    A = gb_sets:add_element(BareJid, Presences#presences_state.pres_a),
+                    A = sets:add_element(BareJid, Presences#presences_state.pres_a),
                     Presences#presences_state{pres_a = A};
                 false ->
                     Presences
@@ -700,21 +699,21 @@ should_retransmit_last_presence(FromJid, BareFromJid,
 
 -spec is_subscribed_to_my_presence(jid:jid(), jid:jid(), presences_state()) -> boolean().
 is_subscribed_to_my_presence(FromJid, BareFromJid, Presences) ->
-    gb_sets:is_element(FromJid, Presences#presences_state.pres_f)
+    sets:is_element(FromJid, Presences#presences_state.pres_f)
     orelse (FromJid /= BareFromJid)
-    andalso gb_sets:is_element(BareFromJid, Presences#presences_state.pres_f).
+    andalso sets:is_element(BareFromJid, Presences#presences_state.pres_f).
 
 -spec invisible_to(jid:jid(), jid:jid(), presences_state()) -> boolean().
 invisible_to(FromJid, BareFromJid, Presences) ->
-    gb_sets:is_element(FromJid, Presences#presences_state.pres_i)
+    sets:is_element(FromJid, Presences#presences_state.pres_i)
     orelse (FromJid /= BareFromJid)
-    andalso gb_sets:is_element(BareFromJid, Presences#presences_state.pres_i).
+    andalso sets:is_element(BareFromJid, Presences#presences_state.pres_i).
 
 -spec specifically_visible_to(jid:jid(), presences_state()) -> boolean().
 specifically_visible_to(FromJid, #presences_state{pres_invis = Invisible} = Presences) ->
     Invisible
-    andalso gb_sets:is_element(FromJid, Presences#presences_state.pres_f)
-    andalso gb_sets:is_element(FromJid, Presences#presences_state.pres_a).
+    andalso sets:is_element(FromJid, Presences#presences_state.pres_f)
+    andalso sets:is_element(FromJid, Presences#presences_state.pres_a).
 
 -spec get(presences_state(), s_to) -> jid_set();
          (presences_state(), s_from) -> jid_set();
