@@ -271,9 +271,9 @@ maybe_update_presence(Acc, StateData, OldList, NewList) ->
     % Our own jid is added to pres_f, even though we're not a "contact", so for
     % the purposes of this check we don't want it:
     SelfJID = jid:to_bare(Jid),
-    FromsExceptSelf = sets:del_element(SelfJID, FromS),
-    sets:fold(
-      fun(T, Ac) ->
+    FromsExceptSelf = maps:remove(SelfJID, FromS),
+    maps:fold(
+      fun(T, _, Ac) ->
               send_unavail_if_newly_blocked(Ac, Jid, T, OldList, NewList, StateData)
       end, Acc, FromsExceptSelf).
 
