@@ -362,8 +362,7 @@ presence_update(Acc, _, _, _, _, <<"unsubscribed">>) -> Acc.
 presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences) ->
     Jid = mongoose_c2s:get_jid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
-    Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc0, Jid),
-    {Subs, Pending} = build_subs_and_pendings(Acc1, Jid),
+    {Acc1, Subs, Pending} = build_subs_and_pendings(HostType, Acc0, Jid),
     OldPriority = get_old_priority(Presences),
     NewPriority = get_priority_from_presence(Packet),
     Acc2 = update_priority(Acc1, NewPriority, Packet, StateData),
@@ -637,14 +636,16 @@ get_old_priority(Presences) ->
         OldPresence -> get_priority_from_presence(OldPresence)
     end.
 
--spec build_subs_and_pendings(mongoose_acc:t(), jid:jid()) -> {subscriptions(), [exml:element()]}.
-build_subs_and_pendings(Acc1, Jid) ->
+-spec build_subs_and_pendings(mongooseim:host_type(), mongoose_acc:t(), jid:jid()) ->
+    {mongoose_acc:t(), subscriptions(), [exml:element()]}.
+build_subs_and_pendings(HostType, Acc0, Jid) ->
+    Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc0, Jid),
     {Fs0, Ts0, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     BareJid = jid:to_bare(Jid),
     Fs = maps:from_list([{jid:make(BJ), from} || BJ <- Fs0]),
     Ts = maps:from_list([{jid:make(BJ), to} || BJ <- Ts0]),
     Subs = maps:merge_with(fun(_, _, _) -> both end, Fs, Ts),
-    {Subs#{BareJid => both}, Pending}.
+    {Acc1, Subs#{BareJid => both}, Pending}.
 
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
