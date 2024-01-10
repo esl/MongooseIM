@@ -364,23 +364,18 @@ presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences)
     Jid = mongoose_c2s:get_jid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc0, Jid),
-    {Fs0, Ts0, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
+    {Subs, Pending} = build_subs_and_pendings(Acc1, Jid),
     OldPriority = get_old_priority(Presences),
     NewPriority = get_priority_from_presence(Packet),
-    Timestamp = erlang:system_time(microsecond),
     Acc2 = update_priority(Acc1, NewPriority, Packet, StateData),
-    FromUnavail = (Presences#presences_state.pres_last == undefined) or Presences#presences_state.pres_invis,
+    FromUnavail = (Presences#presences_state.pres_last == undefined) orelse (Presences#presences_state.pres_invis),
     ?LOG_DEBUG(#{what => presence_update_to_available,
                  text => <<"Presence changes from unavailable to available">>,
                  from_unavail => FromUnavail, acc => Acc2, c2s_state => StateData}),
-    BareJid = jid:to_bare(Jid),
-    Fs = maps:from_list([{jid:make(BJ), from} || BJ <- Fs0]),
-    Ts = maps:from_list([{jid:make(BJ), to} || BJ <- Ts0]),
-    Subs = maps:merge_with(fun(_, _, _) -> both end, Fs, Ts),
-    NewPresences = Presences#presences_state{subscriptions = Subs#{BareJid => both},
+    NewPresences = Presences#presences_state{subscriptions = Subs,
                                              pres_pri = NewPriority,
                                              pres_last = Packet,
-                                             pres_timestamp = Timestamp,
+                                             pres_timestamp = erlang:system_time(microsecond),
                                              pres_invis = false},
     presence_update_to_available(
       Acc2, FromJid, ToJid, Packet, StateData, NewPresences, Pending,
@@ -477,9 +472,9 @@ presence_broadcast(Acc, Statuses) ->
 
 -spec presence_update_to_available(
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(),
-        presences_state(), list(), maybe_priority(), priority(), boolean()) ->
+        presences_state(), [exml:element()], maybe_priority(), priority(), boolean()) ->
     mongoose_acc:t().
-presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, SocketSend,
+presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, Pending,
                              _OldPriority, NewPriority, true) ->
     Acc1 = mongoose_hooks:user_available_hook(Acc, FromJid),
     Acc2 = case NewPriority >= 0 of
@@ -488,7 +483,7 @@ presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences,
               false ->
                   Acc1
               end,
-    presence_broadcast_first(Acc2, FromJid, Packet, Presences, SocketSend);
+    presence_broadcast_first(Acc2, FromJid, Packet, Presences, Pending);
 presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, Pending,
                              OldPriority, NewPriority, false) ->
     presence_broadcast_to_trusted(
@@ -544,7 +539,7 @@ strip_c2s_fields(Acc) ->
 -spec presence_broadcast_first(
         mongoose_acc:t(), jid:jid(), exml:element(), presences_state(), [exml:element()]) ->
     mongoose_acc:t().
-presence_broadcast_first(Acc0, FromJid, Packet, Presences, SocketSend) ->
+presence_broadcast_first(Acc0, FromJid, Packet, Presences, Pending) ->
     Probe = presence_probe(),
     Fun = fun(ToJid, Sub) when both =:= Sub; to =:= Sub ->
                   ejabberd_router:route(FromJid, ToJid, Acc0, Probe);
@@ -569,16 +564,14 @@ presence_broadcast_first(Acc0, FromJid, Packet, Presences, SocketSend) ->
                                {Presences#presences_state.statuses, Acc0},
                                Presences#presences_state.subscriptions),
             NewPresences = Presences#presences_state{statuses = Ss},
-            Accs = create_route_accs(Acc0, FromJid, SocketSend),
+            Accs = create_route_accs(Acc0, FromJid, Pending),
             ToAcc = [{route, Accs}, {state_mod, {?MODULE, NewPresences}}],
             mongoose_c2s_acc:to_acc_many(Acc0, ToAcc)
     end.
 
+-spec create_route_accs(mongoose_acc:t(), jid:jid(), [exml:element()]) -> [mongoose_acc:t()].
 create_route_accs(Acc0, To, List) when is_list(List) ->
-    [ mongoose_acc:update_stanza(#{to_jid => To, element => P}, Acc0)
-      || P <- List ];
-create_route_accs(Acc0, To, El) ->
-    create_route_accs(Acc0, To, [El]).
+    [ mongoose_acc:update_stanza(#{to_jid => To, element => P}, Acc0) || P <- List ].
 
 -spec presence_probe() -> exml:element().
 presence_probe() ->
@@ -642,6 +635,15 @@ get_old_priority(Presences) ->
         OldPresence -> get_priority_from_presence(OldPresence)
     end.
 
+-spec build_subs_and_pendings(mongoose_acc:t(), jid:jid()) -> {subscriptions(), [exml:element()]}.
+build_subs_and_pendings(Acc1, Jid) ->
+    {Fs0, Ts0, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
+    BareJid = jid:to_bare(Jid),
+    Fs = maps:from_list([{jid:make(BJ), from} || BJ <- Fs0]),
+    Ts = maps:from_list([{jid:make(BJ), to} || BJ <- Ts0]),
+    Subs = maps:merge_with(fun(_, _, _) -> both end, Fs, Ts),
+    {Subs#{BareJid => both}, Pending}.
+
 -spec update_priority(Acc :: mongoose_acc:t(),
                       Priority :: integer(),
                       Packet :: exml:element(),
@@ -652,6 +654,7 @@ update_priority(Acc, Priority, Packet, StateData) ->
     Info = mongoose_c2s:get_info(StateData),
     ejabberd_sm:set_presence(Acc, Sid, Jid, Priority, Packet, Info).
 
+-spec am_i_subscribed_to_presence(jid:jid(), jid:jid(), state()) -> boolean().
 am_i_subscribed_to_presence(LJID, LBareJID, S) ->
     is_subscribed(S, LJID, to)
     orelse (LJID /= LBareJID)
