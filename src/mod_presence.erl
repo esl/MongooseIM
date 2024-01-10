@@ -538,34 +538,38 @@ strip_c2s_fields(Acc) ->
         mongoose_acc:t(), jid:jid(), exml:element(), state(), [exml:element()]) ->
     mongoose_acc:t().
 presence_broadcast_first(Acc0, FromJid, Packet, Presences, Pending) ->
-    Probe = presence_probe(),
-    Fun = fun(ToJid, Sub) when both =:= Sub; to =:= Sub ->
-                  ejabberd_router:route(FromJid, ToJid, Acc0, Probe);
-             (_, _) ->
-                  ok
-          end,
-    maps:foreach(Fun, Presences#presences_state.subscriptions),
+    broadcast_probe(Acc0, FromJid, Presences),
     case Presences#presences_state.pres_invis of
         true ->
             mongoose_c2s_acc:to_acc(Acc0, state_mod, {?MODULE, Presences});
         false ->
-            {Ss, _Acc2} = maps:fold(
-                               fun(JID, Sub, {S, Accum}) ->
-                                       case Sub of
-                                           _ when both =:= Sub; from =:= Sub ->
-                                               Accum1 = ejabberd_router:route(FromJid, JID, Accum, Packet),
-                                               {maps:put(JID, available, S), Accum1};
-                                           _ ->
-                                               {S, Accum}
-                                       end
-                               end,
-                               {Presences#presences_state.statuses, Acc0},
-                               Presences#presences_state.subscriptions),
+            Ss = maps:fold(
+                   fun(JID, Sub, S) ->
+                           case Sub of
+                               _ when both =:= Sub; from =:= Sub ->
+                                   ejabberd_router:route(FromJid, JID, Acc0, Packet),
+                                   maps:put(JID, available, S);
+                               _ ->
+                                   S
+                           end
+                   end,
+                   Presences#presences_state.statuses,
+                   Presences#presences_state.subscriptions),
             NewPresences = Presences#presences_state{statuses = Ss},
             Accs = create_route_accs(Acc0, FromJid, Pending),
             ToAcc = [{route, Accs}, {state_mod, {?MODULE, NewPresences}}],
             mongoose_c2s_acc:to_acc_many(Acc0, ToAcc)
     end.
+
+-spec broadcast_probe(mongoose_acc:t(), jid:jid(), state()) -> ok.
+broadcast_probe(Acc, FromJid, Presences) ->
+    Probe = presence_probe(),
+    Fun = fun(ToJid, Sub) when both =:= Sub; to =:= Sub ->
+                  ejabberd_router:route(FromJid, ToJid, Acc, Probe);
+             (_, _) ->
+                  ok
+          end,
+    maps:foreach(Fun, Presences#presences_state.subscriptions).
 
 -spec create_route_accs(mongoose_acc:t(), jid:jid(), [exml:element()]) -> [mongoose_acc:t()].
 create_route_accs(Acc0, To, List) when is_list(List) ->
