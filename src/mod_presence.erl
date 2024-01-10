@@ -22,7 +22,7 @@
           pres_timestamp :: undefined | integer(), % unix time in microseconds
           pres_invis = false :: boolean() %% Are we invisible?
          }).
--type presences_state() :: #presences_state{}.
+-type state() :: #presences_state{}.
 
 -export([start/2, stop/1, hooks/1, supported_features/0]).
 -export([
@@ -109,7 +109,7 @@ user_terminate(Acc, #{c2s_data := StateData, reason := Reason}, _Extra) ->
         Presences -> handle_user_terminate(Acc, StateData, Presences, Reason)
     end.
 
--spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:data(), presences_state(), term()) ->
+-spec handle_user_terminate(mongoose_acc:t(), mongoose_c2s:data(), state(), term()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
 handle_user_terminate(Acc, StateData, Presences, Reason) ->
     Jid = mongoose_c2s:get_jid(StateData),
@@ -190,8 +190,7 @@ get_statustag(undefined) ->
 get_statustag(Presence) ->
     xml:get_path_s(Presence, [{elem, <<"status">>}, cdata]).
 
--spec handle_subscription_change(
-        mongoose_acc:t(), mongoose_c2s:data(), term(), term(), presences_state()) ->
+-spec handle_subscription_change(mongoose_acc:t(), mongoose_c2s:data(), term(), term(), state()) ->
     mongoose_acc:t().
 handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
     To = jid:make(IJID),
@@ -246,7 +245,7 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
             end
     end.
 
--spec handle_user_received_presence(mongoose_acc:t(), presences_state(), binary()) ->
+-spec handle_user_received_presence(mongoose_acc:t(), state(), binary()) ->
     mongoose_c2s_hooks:result().
 handle_user_received_presence(Acc, Presences, <<"probe">>) ->
     {stop, handle_received_probe(Acc, Presences)};
@@ -265,7 +264,7 @@ handle_user_received_presence(Acc, _, <<"unsubscribed">>) ->
 handle_user_received_presence(Acc, Presences, _) ->
     {ok, handle_received_available(Acc, Presences)}.
 
--spec handle_received_probe(mongoose_acc:t(), presences_state()) -> mongoose_acc:t().
+-spec handle_received_probe(mongoose_acc:t(), state()) -> mongoose_acc:t().
 handle_received_probe(Acc, Presences) ->
     {FromJid, ToJid, _Packet} = mongoose_acc:packet(Acc),
     BareFromJid = jid:to_bare(FromJid),
@@ -276,7 +275,7 @@ handle_received_probe(Acc, Presences) ->
     Acc1 = mongoose_c2s_acc:to_acc(Acc, state_mod, {?MODULE, NewPresences}),
     process_presence_probe(Acc1, NewPresences, FromJid, BareFromJid, ToJid).
 
--spec process_presence_probe(mongoose_acc:t(), presences_state(), jid:jid(), jid:jid(), jid:jid()) -> mongoose_acc:t().
+-spec process_presence_probe(mongoose_acc:t(), state(), jid:jid(), jid:jid(), jid:jid()) -> mongoose_acc:t().
 process_presence_probe(Acc, #presences_state{pres_last = undefined}, _, _, _) ->
     Acc;
 process_presence_probe(Acc, Presences, FromJid, BareFromJid, ToJid) ->
@@ -291,7 +290,7 @@ process_presence_probe(Acc, Presences, FromJid, BareFromJid, ToJid) ->
             Acc
     end.
 
--spec route_probe(mongoose_acc:t(), presences_state(), jid:jid(), jid:jid()) -> mongoose_acc:t().
+-spec route_probe(mongoose_acc:t(), state(), jid:jid(), jid:jid()) -> mongoose_acc:t().
 route_probe(Acc, Presences, FromJid, ToJid) ->
     Packet0 = Presences#presences_state.pres_last,
     TS = Presences#presences_state.pres_timestamp,
@@ -308,7 +307,7 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
             Acc2
     end.
 
--spec handle_received_error(mongoose_acc:t(), presences_state()) -> mongoose_acc:t().
+-spec handle_received_error(mongoose_acc:t(), state()) -> mongoose_acc:t().
 handle_received_error(Acc, Presences) ->
     FromJid = mongoose_acc:from_jid(Acc),
     NewS = maps:remove(FromJid, Presences#presences_state.statuses),
@@ -324,7 +323,7 @@ handle_received_invisible(Acc) ->
     mongoose_acc:update_stanza(
       #{element => NewElement, from_jid => FromJid, to_jid => ToJid}, Acc).
 
--spec handle_received_available(mongoose_acc:t(), presences_state()) -> mongoose_acc:t().
+-spec handle_received_available(mongoose_acc:t(), state()) -> mongoose_acc:t().
 handle_received_available(Acc, Presences) ->
     FromJid = mongoose_acc:from_jid(Acc),
     BareJid = jid:to_bare(FromJid),
@@ -358,7 +357,7 @@ presence_update(Acc, _, _, _, _, <<"unsubscribe">>) -> Acc;
 presence_update(Acc, _, _, _, _, <<"unsubscribed">>) -> Acc.
 
 -spec presence_update_to_available(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), state()) ->
     mongoose_acc:t().
 presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences) ->
     Jid = mongoose_c2s:get_jid(StateData),
@@ -382,7 +381,7 @@ presence_update_to_available(Acc0, FromJid, ToJid, Packet, StateData, Presences)
       OldPriority, NewPriority, FromUnavail).
 
 -spec presence_update_to_unavailable(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), state()) ->
     mongoose_acc:t().
 presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presences) ->
     Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
@@ -397,7 +396,7 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
     mongoose_c2s_acc:to_acc(Acc1, state_mod, {?MODULE, NewPresences}).
 
 -spec presence_update_to_invisible(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presences_state()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), state()) ->
     mongoose_acc:t().
 presence_update_to_invisible(Acc, FromJid, _ToJid, Packet, StateData, Presences) ->
     NewPriority = get_priority_from_presence(Packet),
@@ -472,7 +471,7 @@ presence_broadcast(Acc, Statuses) ->
 
 -spec presence_update_to_available(
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(),
-        presences_state(), [exml:element()], maybe_priority(), priority(), boolean()) ->
+        state(), [exml:element()], maybe_priority(), priority(), boolean()) ->
     mongoose_acc:t().
 presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, Pending,
                              _OldPriority, NewPriority, true) ->
@@ -498,8 +497,7 @@ presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences,
     ToAcc = [{route, Accs}, {state_mod, {?MODULE, Presences}}],
     mongoose_c2s_acc:to_acc_many(Acc1, ToAcc).
 
--spec presence_broadcast_to_trusted(
-        mongoose_acc:t(), jid:jid(), presences_state(), exml:element()) -> ok.
+-spec presence_broadcast_to_trusted(mongoose_acc:t(), jid:jid(), state(), exml:element()) -> ok.
 presence_broadcast_to_trusted(Acc, FromJid, Presences, Packet) ->
     maps:foreach(
       fun(JID, Status) ->
@@ -537,7 +535,7 @@ strip_c2s_fields(Acc) ->
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
 
 -spec presence_broadcast_first(
-        mongoose_acc:t(), jid:jid(), exml:element(), presences_state(), [exml:element()]) ->
+        mongoose_acc:t(), jid:jid(), exml:element(), state(), [exml:element()]) ->
     mongoose_acc:t().
 presence_broadcast_first(Acc0, FromJid, Packet, Presences, Pending) ->
     Probe = presence_probe(),
@@ -606,14 +604,14 @@ close_session_status({shutdown, Reason}) when is_binary(Reason) ->
 close_session_status(_) ->
     <<"Unknown condition">>.
 
--spec maybe_get_handler(mongoose_c2s:data()) -> presences_state().
+-spec maybe_get_handler(mongoose_c2s:data()) -> state().
 maybe_get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {ok, #presences_state{} = Presences} -> Presences;
         {error, not_found} -> #presences_state{}
     end.
 
--spec get_mod_state(mongoose_c2s:data()) -> presences_state() | {error, not_found}.
+-spec get_mod_state(mongoose_c2s:data()) -> state() | {error, not_found}.
 get_mod_state(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
         {ok, Presence} -> Presence;
@@ -628,7 +626,7 @@ get_priority_from_presence(PresencePacket) ->
         _ -> 0
     end.
 
--spec get_old_priority(presences_state()) -> maybe_priority().
+-spec get_old_priority(state()) -> maybe_priority().
 get_old_priority(Presences) ->
     case Presences#presences_state.pres_last of
         undefined -> undefined;
@@ -660,13 +658,13 @@ am_i_subscribed_to_presence(LJID, LBareJID, S) ->
     orelse (LJID /= LBareJID)
     andalso is_subscribed(S, LBareJID, to).
 
--spec am_i_available_to(jid:jid(), jid:jid(), presences_state()) -> boolean().
+-spec am_i_available_to(jid:jid(), jid:jid(), state()) -> boolean().
 am_i_available_to(FromJid, BareJid, Presences) ->
     is_status(Presences, FromJid, available)
     orelse (FromJid /= BareJid)
     andalso is_status(Presences, BareJid, available).
 
--spec make_available_to(jid:jid(), jid:jid(), presences_state()) -> presences_state().
+-spec make_available_to(jid:jid(), jid:jid(), state()) -> state().
 make_available_to(FromJid, BareJid, Presences) ->
     case is_subscribed(Presences, FromJid, from) of
         true ->
@@ -682,58 +680,58 @@ make_available_to(FromJid, BareJid, Presences) ->
             end
     end.
 
--spec should_retransmit_last_presence(jid:jid(), jid:jid(), presences_state()) -> boolean().
+-spec should_retransmit_last_presence(jid:jid(), jid:jid(), state()) -> boolean().
 should_retransmit_last_presence(FromJid, BareFromJid,
                                 #presences_state{pres_invis = Invisible} = Presences) ->
     not Invisible
     andalso is_subscribed_to_my_presence(FromJid, BareFromJid, Presences)
     andalso not invisible_to(FromJid, BareFromJid, Presences).
 
--spec is_subscribed_to_my_presence(jid:jid(), jid:jid(), presences_state()) -> boolean().
+-spec is_subscribed_to_my_presence(jid:jid(), jid:jid(), state()) -> boolean().
 is_subscribed_to_my_presence(FromJid, BareFromJid, Presences) ->
     is_subscribed(Presences, FromJid, from)
     orelse (FromJid /= BareFromJid)
     andalso is_subscribed(Presences, BareFromJid, from).
 
--spec invisible_to(jid:jid(), jid:jid(), presences_state()) -> boolean().
+-spec invisible_to(jid:jid(), jid:jid(), state()) -> boolean().
 invisible_to(FromJid, BareFromJid, Presences) ->
     is_status(Presences, FromJid, invisible)
     orelse (FromJid /= BareFromJid)
     andalso is_status(Presences, BareFromJid, invisible).
 
--spec specifically_visible_to(jid:jid(), presences_state()) -> boolean().
+-spec specifically_visible_to(jid:jid(), state()) -> boolean().
 specifically_visible_to(FromJid, #presences_state{pres_invis = Invisible} = Presences) ->
     Invisible
     andalso is_subscribed(Presences, FromJid, from)
     andalso is_status(Presences, FromJid, available).
 
--spec is_status(presences_state(), jid:jid(), status()) -> boolean().
+-spec is_status(state(), jid:jid(), status()) -> boolean().
 is_status(#presences_state{statuses = Statuses}, Jid, DesiredStatus) ->
     DesiredStatus =:= maps:get(Jid, Statuses, '$imposible_status').
 
--spec is_subscribed(presences_state(), jid:jid(), subscription()) -> boolean().
+-spec is_subscribed(state(), jid:jid(), subscription()) -> boolean().
 is_subscribed(#presences_state{subscriptions = Subs}, Jid, DesiredSub) ->
     Sub = maps:get(Jid, Subs, '$imposible_status'),
     both =:= Sub orelse DesiredSub =:= Sub.
 
--spec get_by_status(presences_state(), status()) -> statuses().
+-spec get_by_status(state(), status()) -> statuses().
 get_by_status(#presences_state{statuses = Statuses}, DesiredStatus) ->
     Filter = fun(_, Status) -> DesiredStatus =:= Status end,
     maps:filter(Filter, Statuses).
 
--spec get_by_sub(presences_state(), subscription()) -> subscriptions().
+-spec get_by_sub(state(), subscription()) -> subscriptions().
 get_by_sub(#presences_state{subscriptions = Subs}, DesiredStatus) ->
     Filter = fun(_, Status) -> both =:= Status orelse DesiredStatus =:= Status end,
     maps:filter(Filter, Subs).
 
--spec get(presences_state(), s_to) -> subscriptions();
-         (presences_state(), s_from) -> subscriptions();
-         (presences_state(), s_available) -> statuses();
-         (presences_state(), s_invisible) -> statuses();
-         (presences_state(), priority) -> priority();
-         (presences_state(), last) -> undefined | exml:element();
-         (presences_state(), timestamp) -> undefined | integer();
-         (presences_state(), invisible) -> boolean().
+-spec get(state(), s_to) -> subscriptions();
+         (state(), s_from) -> subscriptions();
+         (state(), s_available) -> statuses();
+         (state(), s_invisible) -> statuses();
+         (state(), priority) -> priority();
+         (state(), last) -> undefined | exml:element();
+         (state(), timestamp) -> undefined | integer();
+         (state(), invisible) -> boolean().
 get(P, s_to) -> get_by_sub(P, to);
 get(P, s_from) -> get_by_sub(P, from);
 get(P, s_available) -> get_by_status(P, available);
