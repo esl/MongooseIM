@@ -362,7 +362,7 @@ item_to_xml(Item) ->
              end,
     SubEls1 = lists:map(fun (G) ->
                                 #xmlel{name = <<"group">>, attrs = [],
-                                       children = [{xmlcdata, G}]}
+                                       children = [#xmlcdata{content = G}]}
                         end,
                         Item#roster.groups),
     SubEls = SubEls1 ++ Item#roster.xs,
@@ -377,16 +377,14 @@ process_iq_set(HostType, From, To, #iq{sub_el = SubEl} = IQ) ->
     IQ#iq{type = result, sub_el = []}.
 
 -spec process_item_set(mongooseim:host_type(), jid:jid(), jid:jid(), exml:element()) -> ok.
-process_item_set(HostType, From, To, #xmlel{attrs = Attrs} = El) ->
-    JID1 = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
-    do_process_item_set(HostType, JID1, From, To, El);
-process_item_set(_HostType, _From, _To, _) -> ok.
+process_item_set(HostType, From, To, El) ->
+    Jid = jid:from_binary(exml_query:attr(El, <<"jid">>)),
+    do_process_item_set(HostType, From, To, El, Jid).
 
--spec do_process_item_set(mongooseim:host_type(), error | jid:jid(), jid:jid(), jid:jid(),
-                          exml:element()) -> ok.
-do_process_item_set(_, error, _, _, _) -> ok;
-do_process_item_set(HostType, #jid{} = JID1, #jid{} = From, #jid{} = To,
-                    #xmlel{attrs = Attrs, children = Els}) ->
+-spec do_process_item_set(
+        mongooseim:host_type(), jid:jid(), jid:jid(), exml:element(), error | jid:jid()) -> ok.
+do_process_item_set(_, _, _, _, error) -> ok;
+do_process_item_set(HostType, From, To, #xmlel{attrs = Attrs, children = Els}, JID1) ->
     MakeItem2 = fun(Item) ->
                     Item1 = process_item_attrs(Item, Attrs),
                     process_item_els(Item1, Els)
@@ -471,24 +469,20 @@ process_item_attrs(Item, [_ | Attrs]) ->
 process_item_attrs(Item, []) ->
     Item.
 
-process_item_els(Item,
-                 [#xmlel{name = Name, attrs = Attrs, children = SEls}
-                  | Els]) ->
+process_item_els(Item, [#xmlel{name = Name} = El | Els]) ->
     case Name of
         <<"group">> ->
-            Groups = [xml:get_cdata(SEls) | Item#roster.groups],
+            Groups = [exml_query:cdata(El) | Item#roster.groups],
             process_item_els(Item#roster{groups = Groups}, Els);
         _ ->
-            case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                <<"">> -> process_item_els(Item, Els);
+            case exml_query:attr(El, <<"xmlns">>, <<>>) of
+                <<>> -> process_item_els(Item, Els);
                 _ ->
-                    XEls = [#xmlel{name = Name, attrs = Attrs,
-                                   children = SEls}
-                            | Item#roster.xs],
+                    XEls = [El | Item#roster.xs],
                     process_item_els(Item#roster{xs = XEls}, Els)
             end
     end;
-process_item_els(Item, [{xmlcdata, _} | Els]) ->
+process_item_els(Item, [#xmlcdata{} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) -> Item.
 
@@ -905,11 +899,10 @@ remove_from_roster(HostType, UserJid, ContactJid) ->
     set_roster_item(HostType, ContactJid, UserJid, UserJid, UpdateF).
 
 process_item_set_t(HostType, LUser, LServer,
-                   #xmlel{attrs = Attrs, children = Els}) ->
-    JID1 = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
-    case JID1 of
+                   #xmlel{attrs = Attrs, children = Els} = El) ->
+    case jid:from_binary(exml_query:attr(El, <<"jid">>)) of
         error -> ok;
-        _ ->
+        JID1 ->
             LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             Item = #roster{usj = {LUser, LServer, LJID},
                            us = {LUser, LServer}, jid = LJID},
