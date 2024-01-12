@@ -341,33 +341,27 @@ get_user_roster(Acc, LUser, LServer, HostType) ->
             mongoose_acc:append(roster, items, Roster, Acc)
     end.
 
+-spec item_to_xml(roster()) -> exml:element().
 item_to_xml(Item) ->
-    Attrs1 = [{<<"jid">>,
-               jid:to_binary(Item#roster.jid)}],
-    Attrs2 = case Item#roster.name of
-                 <<"">> -> Attrs1;
-                 Name -> [{<<"name">>, Name} | Attrs1]
-             end,
-    Attrs3 = case Item#roster.subscription of
-                 none -> [{<<"subscription">>, <<"none">>} | Attrs2];
-                 from -> [{<<"subscription">>, <<"from">>} | Attrs2];
-                 to -> [{<<"subscription">>, <<"to">>} | Attrs2];
-                 both -> [{<<"subscription">>, <<"both">>} | Attrs2];
-                 remove -> [{<<"subscription">>, <<"remove">>} | Attrs2]
-             end,
-    Attrs4 = case ask_to_pending(Item#roster.ask) of
-                 out -> [{<<"ask">>, <<"subscribe">>} | Attrs3];
-                 both -> [{<<"ask">>, <<"subscribe">>} | Attrs3];
-                 _ -> Attrs3
-             end,
-    SubEls1 = lists:map(fun (G) ->
-                                #xmlel{name = <<"group">>, attrs = [],
-                                       children = [#xmlcdata{content = G}]}
-                        end,
-                        Item#roster.groups),
-    SubEls = SubEls1 ++ Item#roster.xs,
-    #xmlel{name = <<"item">>, attrs = Attrs4,
-           children = SubEls}.
+    Attrs0 = [{<<"jid">>, jid:to_binary(Item#roster.jid)},
+              {<<"subscription">>, subs_to_binary(Item#roster.subscription)}],
+    Attrs = case {Item#roster.name, Item#roster.ask} of
+                {<<>>, Ask} when Ask =:= subscribe; Ask =:= out; Ask =:= both ->
+                    [{<<"ask">>, <<"subscribe">>} | Attrs0];
+                {Name, Ask} when Ask =:= subscribe; Ask =:= out; Ask =:= both ->
+                    [{<<"name">>, Name}, {<<"ask">>, <<"subscribe">>} | Attrs0];
+                {<<>>, _} ->
+                    Attrs0;
+                {Name, _} ->
+                    [{<<"name">>, Name} | Attrs0]
+            end,
+    Fold = fun(G, Acc) -> [group_el(G) | Acc] end,
+    SubEls = lists:foldl(Fold, Item#roster.xs, Item#roster.groups),
+    #xmlel{name = <<"item">>, attrs = Attrs, children = SubEls}.
+
+-spec group_el(binary()) -> exml:element().
+group_el(Name) ->
+    #xmlel{name = <<"group">>, children = [#xmlcdata{content = Name}]}.
 
 -spec process_iq_set(mongooseim:host_type(), jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
 process_iq_set(HostType, From, To, #iq{sub_el = SubEl} = IQ) ->
@@ -570,9 +564,12 @@ build_pending(#roster{ask = Ask} = I, JID, P)
 build_pending(_, _, P) ->
     P.
 
-ask_to_pending(subscribe) -> out;
-ask_to_pending(unsubscribe) -> none;
-ask_to_pending(Ask) -> Ask.
+-spec subs_to_binary(subscription_state()) -> binary().
+subs_to_binary(none) -> <<"none">>;
+subs_to_binary(from) -> <<"from">>;
+subs_to_binary(to) -> <<"to">>;
+subs_to_binary(both) -> <<"both">>;
+subs_to_binary(remove) -> <<"remove">>.
 
 -spec in_subscription(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
