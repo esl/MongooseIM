@@ -215,10 +215,11 @@ get_statustag(undefined) ->
 get_statustag(Presence) ->
     xml:get_path_s(Presence, [{elem, <<"status">>}, cdata]).
 
--spec handle_subscription_change(mongoose_acc:t(), mongoose_c2s:data(), term(), term(), state()) ->
+-spec handle_subscription_change(
+        mongoose_acc:t(), mongoose_c2s:data(), mod_roster:contact(), term(), state()) ->
     mongoose_acc:t().
 handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
-    To = jid:make(IJID),
+    To = jid:make_noprep(IJID),
     IsSubscribedToMe = (ISubscription =:= both) or (ISubscription =:= from),
     AmISubscribedTo = (ISubscription =:= both) or (ISubscription =:= to),
     WasSubscribedToMe = is_subscribed(Presences, To, from),

@@ -264,7 +264,7 @@ roster_fields() ->
 %% Decode fields from `roster_fields()' into a record
 row_to_record(LServer, LUser,
               {BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}) ->
-    JID = parse_jid(BinJID),
+    JID = jid:from_binary_noprep(BinJID), %% We trust the DB has correct jids
     LJID = jid:to_lower(JID), %% Convert to tuple {U,S,R}
     Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
     Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
@@ -275,16 +275,6 @@ row_to_record(LServer, LUser,
 
 record_with_groups(Rec, Groups) ->
     Rec#roster{groups = Groups}.
-
-%% We require all DB jids to be parsable.
-%% They should be lowered too.
-parse_jid(BinJID) ->
-    case jid:from_binary(BinJID) of
-        error ->
-            error(#{what => parse_jid_failed, jid => BinJID});
-        JID ->
-            JID
-    end.
 
 decode_roster_rows(LServer, LUser, Rows, JIDGroups) ->
     GroupsDict = pairs_to_dict(JIDGroups),
