@@ -97,7 +97,7 @@
 
 %% Types used in the backend API
 
--type contact() :: jid:simple_jid().
+-type contact() :: jid:ljid().
 -type transaction_state() :: in_transaction | no_transaction.
 -type entry_format() :: full | short.
 -type version() :: binary().
@@ -415,11 +415,11 @@ set_roster_item(HostType, ContactJID, From, To, MakeItem) ->
 -spec set_roster_item_t(mongooseim:host_type(), jid:jid(), contact(),
                         fun((roster()) -> roster())) ->
           does_not_exist | {roster(), roster()}.
-set_roster_item_t(HostType, UserJid = #jid{luser = LUser, lserver = LServer},
+set_roster_item_t(HostType, UserJid = #jid{lserver = LServer},
                   ContactLJID, MakeItem) ->
     InitialItem = get_roster_entry_t(HostType, UserJid, ContactLJID, short),
     Item1 = case InitialItem of
-                does_not_exist -> new_roster_item(LUser, LServer, ContactLJID);
+                does_not_exist -> new_roster_item(UserJid, ContactLJID);
                 Item -> Item
             end,
     Item2 = MakeItem(Item1),
@@ -429,21 +429,21 @@ set_roster_item_t(HostType, UserJid = #jid{luser = LUser, lserver = LServer},
             does_not_exist;
         _ ->
             case Item2#roster.subscription of
-                remove -> del_roster_t(HostType, LUser, LServer, ContactLJID);
+                remove -> del_roster_t(HostType, UserJid, ContactLJID);
                 _ -> update_roster_t(HostType, Item2)
             end,
             Item3 = mongoose_hooks:roster_process_item(HostType, LServer, Item2),
             case roster_version_on_db(HostType) of
-                true -> write_roster_version_t(HostType, LUser, LServer);
+                true -> write_roster_version_t(HostType, UserJid);
                 false -> ok
             end,
             {Item1, Item3}
     end.
 
--spec new_roster_item(jid:luser(), jid:lserver(), jid:simple_jid()) -> roster().
-new_roster_item(LUser, LServer, ContactLJID) ->
-    #roster{usj = {LUser, LServer, ContactLJID},
-            us = {LUser, LServer},
+-spec new_roster_item(jid:jid(), jid:simple_jid()) -> roster().
+new_roster_item(UserJid, ContactLJID) ->
+    #roster{usj = {jid:to_lus(UserJid), ContactLJID},
+            us = jid:to_lus(UserJid),
             jid = ContactLJID}.
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
@@ -533,7 +533,7 @@ get_subscription_lists(Acc, #{jid := #jid{luser = LUser, lserver = LServer} = JI
     {ok, mongoose_acc:set(roster, subscription_lists, SubLists, Acc)}.
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
-    J = element(3, I#roster.usj),
+    J = I#roster.jid,
     NewP = build_pending(I, JID, P),
     case I#roster.subscription of
         both ->
@@ -633,12 +633,12 @@ autoreply_to_type(unsubscribed) -> <<"unsubscribed">>.
           {Push :: none | {push, roster()},
            AutoReply :: none | subscribed | unsubscribed}.
 process_subscription_t(HostType, Direction, JID, ContactJID, Type, Reason) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
+    US = jid:to_lus(JID),
     ContactLJID = jid:to_lower(ContactJID),
     Item = case get_roster_entry_t(HostType, JID, ContactLJID, full) of
                does_not_exist ->
-                   #roster{usj = {LUser, LServer, ContactLJID},
-                           us = {LUser, LServer},
+                   #roster{usj = {US, ContactLJID},
+                           us = US,
                            jid = ContactLJID};
                R -> R
            end,
@@ -666,14 +666,14 @@ process_subscription_t(HostType, Direction, JID, ContactJID, Type, Reason) ->
         {none, none}
           when Item#roster.subscription == none,
                Item#roster.ask == in ->
-            del_roster_t(HostType, LUser, LServer, ContactLJID), {none, AutoReply};
+            del_roster_t(HostType, JID, ContactLJID), {none, AutoReply};
         {Subscription, Pending} ->
             NewItem = Item#roster{subscription = Subscription,
                                   ask = Pending,
                                   askmessage = iolist_to_binary(AskMessage)},
             roster_subscribe_t(HostType, NewItem),
             case roster_version_on_db(HostType) of
-                true -> write_roster_version_t(HostType, LUser, LServer);
+                true -> write_roster_version_t(HostType, JID);
                 false -> ok
             end,
             {{push, NewItem}, AutoReply}
@@ -867,8 +867,8 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     {ok, Acc}.
 
 -spec set_items(mongooseim:host_type(), jid:jid(), exml:element()) -> ok | {error, any()}.
-set_items(HostType, #jid{luser = LUser, lserver = LServer}, SubEl) ->
-    F = fun() -> set_items_t(HostType, LUser, LServer, SubEl) end,
+set_items(HostType, Jid, SubEl) ->
+    F = fun() -> set_items_t(HostType, Jid, SubEl) end,
     case transaction(HostType, F) of
         {atomic, _} ->
             ok;
@@ -876,9 +876,9 @@ set_items(HostType, #jid{luser = LUser, lserver = LServer}, SubEl) ->
             {error, Result}
     end.
 
-set_items_t(HostType, LUser, LServer, #xmlel{children = Els}) ->
+set_items_t(HostType, JID, #xmlel{children = Els}) ->
     lists:foreach(fun(El) ->
-                          process_item_set_t(HostType, LUser, LServer, El)
+                          process_item_set_t(HostType, JID, El)
                   end, Els).
 
 %% @doc add a contact to roster, or update
@@ -895,22 +895,22 @@ remove_from_roster(HostType, UserJid, ContactJid) ->
     UpdateF = fun(Item) -> Item#roster{subscription = remove} end,
     set_roster_item(HostType, ContactJid, UserJid, UserJid, UpdateF).
 
-process_item_set_t(HostType, LUser, LServer,
+process_item_set_t(HostType, JID,
                    #xmlel{attrs = Attrs, children = Els} = El) ->
     case jid:from_binary(exml_query:attr(El, <<"jid">>)) of
         error -> ok;
         JID1 ->
-            LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            Item = #roster{usj = {LUser, LServer, LJID},
-                           us = {LUser, LServer}, jid = LJID},
+            LJID = jid:to_lower(JID1),
+            Item = #roster{usj = {jid:to_lus(JID), LJID},
+                           us = jid:to_lus(JID), jid = LJID},
             Item1 = process_item_attrs_ws(Item, Attrs),
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
-                remove -> del_roster_t(HostType, LUser, LServer, LJID);
+                remove -> del_roster_t(HostType, JID, LJID);
                 _ -> update_roster_t(HostType, Item2)
             end
     end;
-process_item_set_t(_HostType, _LUser, _LServer, _) -> ok.
+process_item_set_t(_HostType, _Jid, _) -> ok.
 
 process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
     case jid:from_binary(Val) of
@@ -999,8 +999,8 @@ read_roster_version(HostType, LUser, LServer) ->
 write_roster_version(HostType, LUser, LServer) ->
     write_roster_version(HostType, LUser, LServer, no_transaction).
 
--spec write_roster_version_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> version().
-write_roster_version_t(HostType, LUser, LServer) ->
+-spec write_roster_version_t(mongooseim:host_type(), jid:jid()) -> version().
+write_roster_version_t(HostType, #jid{luser = LUser, lserver = LServer}) ->
     write_roster_version(HostType, LUser, LServer, in_transaction).
 
 -spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
@@ -1032,6 +1032,6 @@ roster_subscribe_t(HostType, Item) ->
 update_roster_t(HostType, Item) ->
     mod_roster_backend:update_roster_t(HostType, Item).
 
--spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), contact()) -> ok.
-del_roster_t(HostType, LUser, LServer, LJID) ->
+-spec del_roster_t(mongooseim:host_type(), jid:jid(), contact()) -> ok.
+del_roster_t(HostType, #jid{luser = LUser, lserver = LServer}, LJID) ->
     mod_roster_backend:del_roster_t(HostType, LUser, LServer, LJID).

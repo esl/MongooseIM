@@ -18,9 +18,9 @@
 %%%
 %%%----------------------------------------------------------------------
 
--record(roster, {usj :: {jid:luser(), jid:lserver(), jid:ljid()},
-                 us :: {jid:luser(), jid:lserver()},
-                 jid :: jid:ljid(),
+-record(roster, {usj :: {jid:simple_bare_jid(), mod_roster:contact()},
+                 us :: jid:simple_bare_jid(),
+                 jid :: mod_roster:contact(),
                  name = <<>> :: binary(),
                  subscription = none :: both | from | to | none | remove,
                  ask = none :: subscribe | unsubscribe | in | out | both | none,

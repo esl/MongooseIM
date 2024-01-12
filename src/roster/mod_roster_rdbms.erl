@@ -270,8 +270,8 @@ row_to_record(LServer,
     LJID = jid:to_lower(JID), %% Convert to tuple {U,S,R}
     Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
     Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
-    USJ = {User, LServer, LJID},
     US = {User, LServer},
+    USJ = {US, LJID},
     #roster{usj = USJ, us = US, jid = LJID, name = Nick,
             subscription = Subscription, ask = Ask, askmessage = AskMessage}.
 

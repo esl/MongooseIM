@@ -156,15 +156,15 @@ process_ldap_options(Opts = #{groupattr := GroupAttr}) ->
      Acc :: mongoose_acc:t(),
      Params :: #{jid := jid:jid()},
      Extra :: gen_hook:extra().
-get_user_roster(Acc, #{jid := #jid{luser = U, lserver = S} = JID}, _) ->
+get_user_roster(Acc, #{jid := JID}, _) ->
     US = jid:to_lus(JID),
     Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
         lists:mapfoldl(
           fun (Item, SRUsers1) ->
-                  {_, _, {U1, S1, _}} = Item#roster.usj,
-                  US1 = {U1, S1},
+                  Contact = Item#roster.jid,
+                  US1 = jid:to_lus(Contact),
                   case dict:find(US1, SRUsers1) of
                       {ok, _GroupNames} ->
                           {Item#roster{subscription = both, ask = none},
@@ -174,8 +174,8 @@ get_user_roster(Acc, #{jid := #jid{luser = U, lserver = S} = JID}, _) ->
                   end
           end,
           SRUsers, Items),
-    SRItems = [#roster{usj = {U, S, {U1, S1, <<"">>}},
-                       us = US, jid = {U1, S1, <<"">>},
+    SRItems = [#roster{usj = {US, {U1, S1, <<>>}},
+                       us = US, jid = {U1, S1, <<>>},
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
