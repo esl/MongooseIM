@@ -85,13 +85,11 @@
 -include("mod_roster.hrl").
 -include("mongoose_config_spec.hrl").
 
--export_type([roster/0, sub_presence/0, subscription_state/0]).
-
 -type roster() :: #roster{}.
 
 -type sub_presence() :: subscribe | subscribed | unsubscribe | unsubscribed.
 
--type subscription_state() :: none  | from | to | both | remove.
+-type subscription_state() :: none | from | to | both | remove.
 
 -type get_user_roster_strategy() :: db_versioning | hash_versioning | no_versioning.
 
@@ -102,6 +100,7 @@
 -type entry_format() :: full | short.
 -type version() :: binary().
 
+-export_type([roster/0, sub_presence/0, subscription_state/0]).
 -export_type([contact/0, transaction_state/0, entry_format/0, version/0]).
 
 %%--------------------------------------------------------------------
@@ -492,7 +491,7 @@ push_item(HostType, JID, From, Item) ->
                           ejabberd_sm:get_user_resources(JID))
     end.
 
--spec broadcast_item(jid:jid(), jid:simple_jid(), subscription_state()) -> ok.
+-spec broadcast_item(jid:jid(), contact(), subscription_state()) -> ok.
 broadcast_item(#jid{luser = LUser, lserver = LServer}, ContactJid, Subscription) ->
     Item = {item, ContactJid, Subscription},
     UserPids = ejabberd_sm:get_user_present_pids(LUser, LServer),

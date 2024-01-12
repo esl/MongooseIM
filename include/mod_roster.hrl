@@ -22,11 +22,11 @@
                  us :: jid:simple_bare_jid(),
                  jid :: mod_roster:contact(),
                  name = <<>> :: binary(),
-                 subscription = none :: both | from | to | none | remove,
+                 subscription = none :: mod_roster:subscription_state(),
                  ask = none :: subscribe | unsubscribe | in | out | both | none,
-                 groups = [],
+                 groups = [] :: [binary()],
                  askmessage = <<>>,
-                 xs = []}).
+                 xs = [] :: [exml:element()]}).
 
 -record(roster_version, {us,
                         version}).
