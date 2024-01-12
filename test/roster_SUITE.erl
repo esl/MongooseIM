@@ -141,18 +141,17 @@ get_roster_old() ->
 
 get_roster_old(User) ->
     Acc = mongoose_acc:new(?ACC_PARAMS),
-    Params = #{jid => jid:make_bare(User, domain())},
+    Params = #{mongoose_acc => Acc, show_full_roster => false, jid => jid:make_bare(User, domain())},
     Extra = #{host_type => mongoose_acc:host_type(Acc)},
-    {ok, Acc1} = mod_roster:get_user_roster(Acc, Params, Extra),
-    mongoose_acc:get(roster, items, Acc1).
+    {ok, Roster} = mod_roster:get_user_roster([], Params, Extra),
+    Roster.
 
 get_full_roster() ->
-    Acc0 = mongoose_acc:new(?ACC_PARAMS),
-    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Params = #{jid => alice_jid()},
-    Extra = #{host_type => mongoose_acc:host_type(Acc1)},
-    {ok, Acc2} = mod_roster:get_user_roster(Acc1, Params, Extra),
-    mongoose_acc:get(roster, items, Acc2).
+    Acc = mongoose_acc:new(?ACC_PARAMS),
+    Params = #{mongoose_acc => Acc, show_full_roster => true, jid => alice_jid()},
+    Extra = #{host_type => mongoose_acc:host_type(Acc)},
+    {ok, Roster} = mod_roster:get_user_roster([], Params, Extra),
+    Roster.
 
 assert_state_old(Subscription, Ask) ->
     [Rentry] = get_roster_old(),

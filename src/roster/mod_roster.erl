@@ -315,30 +315,20 @@ create_sub_el(Items, Version) ->
             children = Items}].
 
 -spec get_user_roster(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: #{jid := jid:jid()},
+    Acc :: [roster()],
+    Params :: #{show_full_roster := boolean(), jid := jid:jid()},
     Extra :: gen_hook:extra().
-get_user_roster(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, #{host_type := HostType}) ->
-    NewAcc = get_user_roster(Acc, LUser, LServer, HostType),
-    {ok, NewAcc}.
+get_user_roster(Items, #{show_full_roster := Full, jid := JID}, #{host_type := HostType}) ->
+    NewItems = do_get_user_roster(HostType, JID, Full),
+    {ok, Items ++ NewItems}.
 
--spec get_user_roster(mongoose_acc:t(),
-                      jid:luser(),
-                      jid:lserver(),
-                      mongooseim:host_type()) -> mongoose_acc:t().
-get_user_roster(Acc, LUser, LServer, HostType) ->
-    case mongoose_acc:get(roster, show_full_roster, false, Acc) of
-        true ->
-            Roster = get_roster(HostType, LUser, LServer),
-            mongoose_acc:append(roster, items, Roster, Acc);
-        _ ->
-            Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
-                                          false;
-                                      (_) ->
-                                          true
-                                  end, get_roster(HostType, LUser, LServer)),
-            mongoose_acc:append(roster, items, Roster, Acc)
-    end.
+-spec do_get_user_roster(mongooseim:host_type(), jid:jid(), boolean()) -> [roster()].
+do_get_user_roster(HostType, #jid{luser = LUser, lserver = LServer}, true) ->
+    get_roster(HostType, LUser, LServer);
+do_get_user_roster(HostType, #jid{luser = LUser, lserver = LServer}, false) ->
+    Roster = get_roster(HostType, LUser, LServer),
+    Fun = fun(#roster{subscription = S, ask = A}) -> not (none =:= S andalso in =:= A) end,
+    lists:filter(Fun, Roster).
 
 -spec item_to_xml(roster()) -> exml:element().
 item_to_xml(Item) ->
@@ -815,13 +805,11 @@ try_send_unsubscription_to_rosteritems(Acc, JID) ->
 %% Both or To, send a "unsubscribe" presence stanza.
 -spec send_unsubscription_to_rosteritems(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 send_unsubscription_to_rosteritems(Acc, JID) ->
-    #jid{luser = LUser, lserver = LServer} = JID,
-    Acc1 = get_user_roster(Acc, LUser, LServer, mongoose_acc:host_type(Acc)),
-    RosterItems = mongoose_acc:get(roster, items, [], Acc1),
+    RosterItems = do_get_user_roster(mongoose_acc:host_type(Acc), JID, false),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(JID, RosterItem)
                   end, RosterItems),
-    Acc1.
+    Acc.
 
 -spec send_unsubscribing_presence(From :: jid:jid(), Item :: roster()) -> ok | mongoose_acc:t().
 send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
@@ -965,8 +953,7 @@ get_roster_old(HostType, DestServer, JID) ->
                             lserver => DestServer,
                             host_type => HostType,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(A, JID),
-    mongoose_acc:get(roster, items, [], A2).
+    mongoose_hooks:roster_get(A, JID, false).
 
 -spec item_to_map(roster()) -> map().
 item_to_map(#roster{} = Roster) ->

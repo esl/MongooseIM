@@ -438,16 +438,14 @@ remove_domain(Acc, #{domain := Domain}, #{host_type := HostType}) ->
     mongoose_domain_api:remove_domain_wrapper(Acc, F, ?MODULE).
 
 -spec add_rooms_to_roster(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: map(),
+    Acc :: [mod_roster:roster()],
+    Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
-add_rooms_to_roster(Acc, #{jid := UserJID}, _Extra) ->
-    Items = mongoose_acc:get(roster, items, [], Acc),
-    HostType = mongoose_acc:host_type(Acc),
+add_rooms_to_roster(Items, #{jid := UserJID}, #{host_type := HostType}) ->
     RoomList = mod_muc_light_db_backend:get_user_rooms(HostType, jid:to_lus(UserJID), undefined),
     Info = get_rooms_info(HostType, lists:sort(RoomList)),
-    NewItems = [make_roster_item(Item) || Item <- Info] ++ Items,
-    {ok, mongoose_acc:set(roster, items, NewItems, Acc)}.
+    NewItems = [make_roster_item(Item) || Item <- Info],
+    {ok, NewItems ++ Items}.
 
 make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
     JID = jid:make_noprep(RoomU, RoomS, <<>>),

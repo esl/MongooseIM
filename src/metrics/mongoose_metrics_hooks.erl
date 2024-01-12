@@ -179,7 +179,7 @@ user_open_session(Acc, _Params, #{host_type := HostType}) ->
 %% Roster
 
 -spec roster_get(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
+      Acc :: term(),
       Params :: map(),
       Extra :: #{host_type := mongooseim:host_type()}.
 roster_get(Acc, _, #{host_type := HostType}) ->

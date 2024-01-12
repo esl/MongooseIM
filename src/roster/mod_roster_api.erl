@@ -50,9 +50,8 @@ list_contacts(#jid{lserver = LServer} = CallerJID) ->
                                                host_type => HostType,
                                                lserver => LServer,
                                                element => undefined }),
-                    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-                    Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
-                    {ok, mongoose_acc:get(roster, items, Acc2)};
+                    Roster = mongoose_hooks:roster_get(Acc0, CallerJID, true),
+                    {ok, Roster};
                 false ->
                     {user_not_exist, io_lib:format("The user ~s does not exist",
                                                    [jid:to_binary(CallerJID)])}

@@ -153,12 +153,11 @@ process_ldap_options(Opts = #{groupattr := GroupAttr}) ->
 %% Hooks
 %%--------------------------------------------------------------------
 -spec get_user_roster(Acc, Params, Extra) -> {ok, Acc} when
-     Acc :: mongoose_acc:t(),
-     Params :: #{jid := jid:jid()},
+     Acc :: [mod_roster:roster()],
+     Params :: #{mongoose_acc := mongoose_acc:t(), jid := jid:jid()},
      Extra :: gen_hook:extra().
-get_user_roster(Acc, #{jid := JID}, _) ->
+get_user_roster(Items, #{jid := JID}, _) ->
     US = jid:to_lus(JID),
-    Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
         lists:mapfoldl(
@@ -179,7 +178,7 @@ get_user_roster(Acc, #{jid := JID}, _) ->
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
-    {ok, mongoose_acc:set(roster, items, SRItems ++ NewItems1, Acc)}.
+    {ok, SRItems ++ NewItems1}.
 
 %% This function in use to rewrite the roster entries when moving or renaming
 %% them in the user contact list.
