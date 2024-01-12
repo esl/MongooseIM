@@ -10,10 +10,8 @@
 %%%----------------------------------------------------------------------
 
 -module(mod_roster_rdbms).
+
 -include("mod_roster.hrl").
--include("jlib.hrl").
--include("mongoose.hrl").
--include("mongoose_logger.hrl").
 
 -behaviour(mod_roster_backend).
 
@@ -61,7 +59,7 @@ get_roster(HostType, LUser, LServer) ->
     {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
     {selected, GroupRows} =
         mongoose_rdbms:execute_successfully(HostType, roster_group_get, [LServer, LUser]),
-    decode_roster_rows(LServer, Rows, GroupRows).
+    decode_roster_rows(LServer, LUser, Rows, GroupRows).
 
 -spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
                            mod_roster:transaction_state(), mod_roster:entry_format()) ->
@@ -81,7 +79,7 @@ get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, short) ->
 get_subscription_lists(Acc, LUser, LServer) ->
     HostType = mongoose_acc:host_type(Acc),
     {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
-    [row_to_record(LServer, Row) || Row <- Rows].
+    [row_to_record(LServer, LUser, Row) || Row <- Rows].
 
 -spec roster_subscribe_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
 roster_subscribe_t(HostType, Item) ->
@@ -162,10 +160,6 @@ prepare_queries(HostType) ->
     prepare_version_upsert(HostType),
     ok.
 
-%% We don't care about `server, subscribe, type' fields
-roster_fields() ->
-    <<"username, jid, nick, subscription, ask, askmessage">>.
-
 prepare_roster_upsert(HostType) ->
     Fields = [<<"nick">>, <<"subscription">>, <<"ask">>, <<"askmessage">>],
     Filter = [<<"server">>, <<"username">>, <<"jid">>],
@@ -210,7 +204,7 @@ get_roster_entry(HostType, LUser, LServer, LJID) ->
                                                            [LServer, LUser, BinJID]),
     case Rows of
         [] -> does_not_exist;
-        [Row] -> row_to_record(LServer, Row)
+        [Row] -> row_to_record(LServer, LUser, Row)
     end.
 
 -spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
@@ -263,19 +257,21 @@ groups_to_rows(#roster{us = {LUser, LServer}, jid = JID, groups = Groups}) ->
                     (Group, Acc) -> [[LServer, LUser, BinJID, Group] | Acc]
                 end, [], Groups).
 
+%% We don't care about `server, subscribe, type' fields
+roster_fields() ->
+    <<"jid, nick, subscription, ask, askmessage">>.
+
 %% Decode fields from `roster_fields()' into a record
-row_to_record(LServer,
-              {User, BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}) ->
+row_to_record(LServer, LUser,
+              {BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}) ->
     JID = parse_jid(BinJID),
     LJID = jid:to_lower(JID), %% Convert to tuple {U,S,R}
     Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
     Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
-    US = {User, LServer},
+    US = {LUser, LServer},
     USJ = {US, LJID},
     #roster{usj = USJ, us = US, jid = LJID, name = Nick,
             subscription = Subscription, ask = Ask, askmessage = AskMessage}.
-
-row_to_binary_jid(Row) -> element(2, Row).
 
 record_with_groups(Rec, Groups) ->
     Rec#roster{groups = Groups}.
@@ -290,19 +286,22 @@ parse_jid(BinJID) ->
             JID
     end.
 
-decode_roster_rows(LServer, Rows, JIDGroups) ->
+decode_roster_rows(LServer, LUser, Rows, JIDGroups) ->
     GroupsDict = pairs_to_dict(JIDGroups),
-    [raw_to_record_with_group(LServer, Row, GroupsDict) || Row <- Rows].
+    [raw_to_record_with_group(LServer, LUser, Row, GroupsDict) || Row <- Rows].
 
 pairs_to_dict(Pairs) ->
     F = fun ({K, V}, Acc) -> dict:append(K, V, Acc) end,
     lists:foldl(F, dict:new(), Pairs).
 
-raw_to_record_with_group(LServer, Row, GroupsDict) ->
-    Rec = row_to_record(LServer, Row),
+raw_to_record_with_group(LServer, LUser, Row, GroupsDict) ->
+    Rec = row_to_record(LServer, LUser, Row),
     BinJID = row_to_binary_jid(Row),
     Groups = dict_get(BinJID, GroupsDict, []),
     record_with_groups(Rec, Groups).
+
+row_to_binary_jid(Row) ->
+    element(1, Row).
 
 dict_get(K, Dict, Default) ->
     case dict:find(K, Dict) of
