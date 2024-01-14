@@ -838,7 +838,8 @@ default_mod_config(mod_bosh) ->
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
-    #{cache_size => 1000,
+    #{backend => mnesia,
+      cache_size => 1000,
       cache_life_time => timer:hours(24) div 1000};
 default_mod_config(mod_csi) ->
     #{buffer_max => 20};

@@ -416,7 +416,10 @@ pubsub_required_modules(Plugins) ->
                                             host => HostPattern,
                                             nodetree => nodetree_tree,
                                             plugins => Plugins}),
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)}, {mod_pubsub, PubsubConfig}].
+    HostType = domain_helper:host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
+    [{mod_caps, config_parser_helper:mod_config(mod_caps, #{backend => Backend})},
+     {mod_pubsub, PubsubConfig}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),

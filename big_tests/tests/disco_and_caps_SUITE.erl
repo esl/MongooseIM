@@ -196,10 +196,14 @@ user_can_query_server_info(Config) ->
 %% Helpers
 
 required_modules(disco_with_caps) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    HostType = domain_helper:host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
+    [{mod_caps, config_parser_helper:mod_config(mod_caps, #{backend => Backend})},
      {mod_disco, default_mod_config(mod_disco)}];
 required_modules(disco_with_caps_and_extra_features) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    HostType = domain_helper:host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
+    [{mod_caps, config_parser_helper:mod_config(mod_caps, #{backend => Backend})},
      {mod_disco, mod_config(mod_disco, extra_disco_opts())}];
 required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].

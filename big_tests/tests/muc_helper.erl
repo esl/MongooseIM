@@ -66,7 +66,7 @@ load_muc(HostType) ->
              hibernated_room_timeout => 2000,
              access => muc, access_create => muc_create},
     LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
+    Res = dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
     dynamic_modules:start(HostType, mod_muc_log, make_log_opts(LogOpts)).
 
 unload_muc() ->
