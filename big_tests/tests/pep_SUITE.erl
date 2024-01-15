@@ -504,9 +504,7 @@ field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
-    HostType = domain_helper:host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    [{mod_caps, config_parser_helper:mod_config(mod_caps, #{backend => Backend})},
+    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
@@ -514,8 +512,7 @@ required_modules() ->
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
     HostType = domain_helper:host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    [{mod_caps, config_parser_helper:mod_config(mod_caps, #{backend => Backend})},
+    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),

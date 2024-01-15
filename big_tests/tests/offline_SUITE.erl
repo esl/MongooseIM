@@ -19,7 +19,7 @@
 
 -import(domain_helper, [host_type/0]).
 -import(mongoose_helper, [wait_for_n_offline_messages/2]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [mod_config/2, mod_config_with_auto_backend/1]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -60,15 +60,12 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
-    [{backend, Backend} |
-     escalus:init_per_suite(Config1)].
+    dynamic_modules:ensure_modules(HostType, create_config()),
+    escalus:init_per_suite(Config1).
 
--spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
-create_config(Backend) ->
-    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
+-spec create_config() -> [{mod_offline, gen_mod:module_opts()}].
+create_config() ->
+    [{mod_offline, mod_config_with_auto_backend(mod_offline)}].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
