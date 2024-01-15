@@ -120,8 +120,12 @@ init_per_suite(Config) ->
     case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, global_distrib]),
           rpc(asia_node, mongoose_wpool, get_worker, [redis, global, global_distrib])} of
         {{ok, _}, {ok, _}} ->
-            ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
-
+            case ct_helper:get_internal_database() of
+                mnesia ->
+                    ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]);
+                _ ->
+                    ok
+            end,
             enable_logging(),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
         Result ->
