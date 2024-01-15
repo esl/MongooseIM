@@ -111,8 +111,8 @@ config_spec() ->
                                               validate = positive},
                   <<"cache_life_time">> => #option{type = integer,
                                                    validate = positive},
-                 <<"backend">> => #option{type = atom,
-                                          validate = {module, ?MODULE}}
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, ?MODULE}}
                  },
         defaults = #{<<"cache_size">> => 1000,
                      <<"cache_life_time">> => timer:hours(24) div 1000,
