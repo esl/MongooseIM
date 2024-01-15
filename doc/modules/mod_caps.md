@@ -21,6 +21,11 @@ The size of a cache_tab (the amount of entries) holding the information about ca
 
 Time (in seconds) after which entries will be removed.
 
+### `modules.mod_caps.backend`
+* **Syntax:** string, one of `"mnesia"`, `"rdbms"`.
+* **Default:** "mnesia"
+* **Example:** `backend = "mnesia"`
+
 ## Example Configuration
 
 ```toml
