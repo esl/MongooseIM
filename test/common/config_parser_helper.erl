@@ -822,6 +822,15 @@ default_pool_conn_opts(_Type) ->
 mod_config(Module, ExtraOpts) ->
     maps:merge(default_mod_config(Module), ExtraOpts).
 
+%% Selects backend automatically depending on which databases are available
+mod_config_with_auto_backend(Module) ->
+    mod_config_with_auto_backend(Module, #{}).
+
+mod_config_with_auto_backend(Module, ExtraOpts) ->
+    HostType = domain_helper:host_type(),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
+    mod_config(Module, ExtraOpts#{backend => Backend}).
+
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
@@ -838,7 +847,8 @@ default_mod_config(mod_bosh) ->
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_caps) ->
-    #{cache_size => 1000,
+    #{backend => mnesia,
+      cache_size => 1000,
       cache_life_time => timer:hours(24) div 1000};
 default_mod_config(mod_csi) ->
     #{buffer_max => 20};

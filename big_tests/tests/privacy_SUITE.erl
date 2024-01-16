@@ -93,15 +93,9 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = [{mod_privacy, set_opts(Backend)}],
+    ModConfig = [{mod_privacy, config_parser_helper:mod_config_with_auto_backend(mod_privacy)}],
     dynamic_modules:ensure_modules(HostType, ModConfig),
-    [{escalus_no_stanzas_after_story, true},
-     {backend, Backend} |
-     escalus:init_per_suite(Config1)].
-
-set_opts(Backend) ->
-    config_parser_helper:mod_config(mod_privacy, #{backend => Backend}).
+    [{escalus_no_stanzas_after_story, true} | escalus:init_per_suite(Config1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),

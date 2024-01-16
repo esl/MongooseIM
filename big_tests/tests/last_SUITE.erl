@@ -20,6 +20,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(config_parser_helper, [mod_config_with_auto_backend/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -45,9 +47,8 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
-    escalus:init_per_suite([{backend, Backend} | Config1]).
+    dynamic_modules:ensure_modules(HostType, required_modules()),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -190,6 +191,5 @@ answer_last_activity(IQ = #xmlel{name = <<"iq">>}) ->
                                        {<<"seconds">>, <<"0">>}]}
                       ]}.
 
-required_modules(Backend) ->
-    [{mod_last, #{backend => Backend,
-                  iqdisc => one_queue}}].
+required_modules() ->
+    [{mod_last, mod_config_with_auto_backend(mod_last, #{iqdisc => one_queue})}].

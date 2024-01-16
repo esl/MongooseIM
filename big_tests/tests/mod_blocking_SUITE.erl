@@ -23,6 +23,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-import(config_parser_helper, [mod_config_with_auto_backend/1]).
+
 -define(SLEEP_TIME, 50).
 
 %%--------------------------------------------------------------------
@@ -99,14 +101,9 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = [{mod_blocking, set_opts(Backend)}],
+    ModConfig = [{mod_blocking, mod_config_with_auto_backend(mod_blocking)}],
     dynamic_modules:ensure_modules(HostType, ModConfig),
-    [{backend, Backend} |
-     escalus:init_per_suite(Config1)].
-
-set_opts(Backend) ->
-    #{backend => Backend}.
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),

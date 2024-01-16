@@ -1457,6 +1457,7 @@ mod_caps(_Config) ->
     P = [modules, mod_caps],
     ?cfgh(P ++ [cache_size], 10, T(<<"cache_size">>, 10)),
     ?cfgh(P ++ [cache_life_time], 10, T(<<"cache_life_time">>, 10)),
+    ?cfgh(P ++ [backend], mnesia, T(<<"backend">>, <<"mnesia">>)),
     ?errh(T(<<"cache_size">>, 0)),
     ?errh(T(<<"cache_size">>, <<"infinity">>)),
     ?errh(T(<<"cache_life_time">>, 0)),

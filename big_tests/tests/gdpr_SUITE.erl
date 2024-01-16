@@ -416,7 +416,8 @@ pubsub_required_modules(Plugins) ->
                                             host => HostPattern,
                                             nodetree => nodetree_tree,
                                             plugins => Plugins}),
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)}, {mod_pubsub, PubsubConfig}].
+    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
+     {mod_pubsub, PubsubConfig}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),

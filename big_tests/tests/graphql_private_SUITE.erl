@@ -5,6 +5,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1]).
 -import(graphql_helper, [execute_user_command/5, execute_command/4, get_ok_value/2, get_err_code/1,
                          user_to_bin/1, get_unauthorized/1, get_not_loaded/1, get_coercion_err_msg/1]).
+-import(config_parser_helper, [mod_config_with_auto_backend/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -67,11 +68,11 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Config2 = ejabberd_node_utils:init(mim(), Config1),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    escalus:init_per_suite([{backend, Backend} | Config2]).
+    escalus:init_per_suite(Config2).
 
-create_config(Backend) ->
-    [{mod_private, #{backend => Backend, iqdisc => one_queue}}].
+create_config() ->
+    [{mod_private,
+      mod_config_with_auto_backend(mod_private, #{iqdisc => one_queue})}].
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -95,9 +96,7 @@ init_per_group(Group, Config) when Group =:= admin_private_not_configured;
 
 ensure_private_started(Config) ->
     HostType = domain_helper:host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
+    dynamic_modules:ensure_modules(HostType, create_config()),
     Config.
 
 ensure_private_stopped(Config) ->

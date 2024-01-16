@@ -23,7 +23,7 @@
          generic_count/1]).
 
 -export([clear_last_activity/2,
-         clear_caps_cache/1]).
+         clear_caps_cache/2]).
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
@@ -154,8 +154,8 @@ new_mongoose_acc(Location, Server) ->
                                           host_type => HostType,
                                           element => undefined }]).
 
-clear_caps_cache(CapsNode) ->
-    ok = rpc(mim(), mod_caps, delete_caps, [CapsNode]).
+clear_caps_cache(HostType, CapsNode) ->
+    ok = rpc(mim(), mod_caps, delete_caps, [HostType, CapsNode]).
 
 get_backend(HostType, Module) ->
     try rpc(mim(), mongoose_backend, get_backend_module, [HostType, Module])
