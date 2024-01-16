@@ -47,7 +47,8 @@ groups() ->
                              available_direct_then_unavailable,
                              become_unavailable,
                              available_direct_then_disconnect,
-                             additions
+                             additions,
+                             invalid_presence
                             ]},
      {presence_priority, [parallel], [negative_priority_presence]},
      {roster, [parallel], [get_roster,
@@ -210,6 +211,14 @@ additions(Config) ->
         escalus:assert(is_presence_with_priority, [<<"1">>], Received)
 
         end).
+
+invalid_presence(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Presence = escalus_stanza:presence(<<"invalid-type">>),
+        escalus:send(Alice, Presence),
+        Received = escalus:wait_for_stanza(Alice),
+        escalus_assert:is_error(Received, <<"modify">>, <<"bad-request">>)
+    end).
 
 negative_priority_presence(Config) ->
     escalus:fresh_story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->

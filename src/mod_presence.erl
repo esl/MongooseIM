@@ -5,6 +5,17 @@
 
 -behavior(gen_mod).
 
+-type presence() ::
+         available
+         | unavailable
+         | error
+         | probe
+         | subscribe
+         | subscribed
+         | unsubscribe
+         | unsubscribed.
+-type maybe_presence() :: presence() | {error, invalid_presence}.
+
 -type priority() :: -128..127.
 -type maybe_priority() :: priority() | undefined.
 
@@ -77,25 +88,38 @@ set_presence(Pid, Message) ->
     mongoose_c2s_hooks:result().
 user_send_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc),
-    StanzaType = mongoose_acc:stanza_type(Acc),
-    case jid:are_bare_equal(FromJid, ToJid) of
-        true ->
-            Acc1 = presence_update(Acc, FromJid, ToJid, Packet, StateData, StanzaType),
+    case {get_presence_type(Acc), jid:are_bare_equal(FromJid, ToJid)} of
+        {{error, invalid_presence}, _} ->
+            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData);
+        {Type, true} ->
+            Acc1 = presence_update(Acc, FromJid, ToJid, Packet, StateData, Type),
             {ok, Acc1};
-        _ ->
-            Acc1 = presence_track(Acc, FromJid, ToJid, Packet, StateData, StanzaType),
+        {Type, false} ->
+            Acc1 = presence_track(Acc, FromJid, ToJid, Packet, StateData, Type),
             {ok, Acc1}
     end.
 
 -spec user_receive_presence(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
-    case get_mod_state(StateData) of
-        {error, not_found} ->
+    case {get_presence_type(Acc), get_mod_state(StateData)} of
+        {{error, invalid_presence}, _} ->
+            {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc),
+            handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData);
+        {_, {error, not_found}} ->
             {stop, Acc};
-        Presences ->
-            handle_user_received_presence(Acc, Presences, mongoose_acc:stanza_type(Acc))
+        {Type, Presences} ->
+            handle_user_received_presence(Acc, Presences, Type)
     end.
+
+-spec handle_invalid_presence_type(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data()) ->
+    mongoose_c2s_hooks:result().
+handle_invalid_presence_type(Acc, FromJid, ToJid, Packet, StateData) ->
+    Lang = mongoose_c2s:get_lang(StateData),
+    Error = mongoose_xmpp_errors:bad_request(Lang, <<"Invalid presence type">>),
+    Reply = jlib:make_error_reply(Packet, Error),
+    ejabberd_router:route(ToJid, FromJid, Acc, Reply),
+    {stop, Acc}.
 
 -spec user_terminate(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     gen_hook:hook_fn_ret(mongoose_acc:t()).
@@ -166,8 +190,12 @@ foreign_event(Acc, #{c2s_data := StateData,
                      event_content := {set_presence, Message}}, _Extra) ->
     Acc1 = mongoose_acc:update_stanza(#{element => Message}, Acc),
     {FromJid, ToJid, Packet} = mongoose_acc:packet(Acc1),
-    StanzaType = mongoose_acc:stanza_type(Acc1),
-    {stop, presence_update(Acc1, FromJid, ToJid, Packet, StateData, StanzaType)};
+    case get_presence_type(Acc) of
+        {error, invalid_presence} ->
+            {stop, Acc};
+        Type ->
+            {stop, presence_update(Acc1, FromJid, ToJid, Packet, StateData, Type)}
+    end;
 foreign_event(Acc, _Params, _Extra) ->
     {ok, Acc}.
 
@@ -239,22 +267,18 @@ handle_subscription_change(Acc, StateData, IJID, ISubscription, Presences) ->
             end
     end.
 
--spec handle_user_received_presence(mongoose_acc:t(), state(), binary()) ->
+-spec handle_user_received_presence(mongoose_acc:t(), state(), presence()) ->
     mongoose_c2s_hooks:result().
-handle_user_received_presence(Acc, Presences, <<"probe">>) ->
+handle_user_received_presence(Acc, Presences, available) ->
+    {ok, handle_received_available(Acc, Presences)};
+handle_user_received_presence(Acc, Presences, unavailable) ->
+    {ok, handle_received_unavailable(Acc, Presences)};
+handle_user_received_presence(Acc, Presences, error) ->
+    {ok, handle_received_unavailable(Acc, Presences)};
+handle_user_received_presence(Acc, Presences, probe) ->
     {stop, handle_received_probe(Acc, Presences)};
-handle_user_received_presence(Acc, Presences, <<"error">>) ->
-    {ok, handle_received_error(Acc, Presences)};
-handle_user_received_presence(Acc, _, <<"subscribe">>) ->
-    {ok, Acc};
-handle_user_received_presence(Acc, _, <<"subscribed">>) ->
-    {ok, Acc};
-handle_user_received_presence(Acc, _, <<"unsubscribe">>) ->
-    {ok, Acc};
-handle_user_received_presence(Acc, _, <<"unsubscribed">>) ->
-    {ok, Acc};
-handle_user_received_presence(Acc, Presences, _) ->
-    {ok, handle_received_available(Acc, Presences)}.
+handle_user_received_presence(Acc, _, _) ->
+    {ok, Acc}.
 
 -spec handle_received_probe(mongoose_acc:t(), state()) -> mongoose_acc:t().
 handle_received_probe(Acc, Presences) ->
@@ -299,8 +323,8 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
             Acc2
     end.
 
--spec handle_received_error(mongoose_acc:t(), state()) -> mongoose_acc:t().
-handle_received_error(Acc, Presences) ->
+-spec handle_received_unavailable(mongoose_acc:t(), state()) -> mongoose_acc:t().
+handle_received_unavailable(Acc, Presences) ->
     FromJid = mongoose_acc:from_jid(Acc),
     NewS = sets:del_element(FromJid, Presences#presences_state.available),
     NewPresences = Presences#presences_state{available = NewS},
@@ -320,21 +344,15 @@ handle_received_available(Acc, Presences) ->
 
 %% @doc User updates his presence (non-directed presence packet)
 -spec presence_update(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), undefined | binary()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presence()) ->
     mongoose_acc:t().
-presence_update(Acc, FromJid, ToJid, Packet, StateData, Available)
-  when Available =:= undefined; Available =:= <<"available">> ->
+presence_update(Acc, FromJid, ToJid, Packet, StateData, available) ->
     Presences = maybe_get_handler(StateData),
     presence_update_to_available(Acc, FromJid, ToJid, Packet, StateData, Presences);
-presence_update(Acc, FromJid, ToJid, Packet, StateData, <<"unavailable">>) ->
+presence_update(Acc, FromJid, ToJid, Packet, StateData, unavailable) ->
     Presences = maybe_get_handler(StateData),
     presence_update_to_unavailable(Acc, FromJid, ToJid, Packet, StateData, Presences);
-presence_update(Acc, _, _, _, _, <<"error">>) -> Acc;
-presence_update(Acc, _, _, _, _, <<"probe">>) -> Acc;
-presence_update(Acc, _, _, _, _, <<"subscribe">>) -> Acc;
-presence_update(Acc, _, _, _, _, <<"subscribed">>) -> Acc;
-presence_update(Acc, _, _, _, _, <<"unsubscribe">>) -> Acc;
-presence_update(Acc, _, _, _, _, <<"unsubscribed">>) -> Acc.
+presence_update(Acc, _, _, _, _, _) -> Acc.
 
 -spec presence_update_to_available(
         mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), state()) ->
@@ -374,28 +392,19 @@ presence_update_to_unavailable(Acc, _FromJid, _ToJid, Packet, StateData, Presenc
 
 %% @doc User sends a directed presence packet
 -spec presence_track(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), undefined | binary()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mongoose_c2s:data(), presence()) ->
     mongoose_acc:t().
-presence_track(Acc, FromJid, ToJid, Packet, StateData, undefined) ->
+presence_track(Acc, FromJid, ToJid, Packet, StateData, available) ->
     Presences = maybe_get_handler(StateData),
     process_presence_track_available(Acc, FromJid, ToJid, Packet, Presences);
-presence_track(Acc, FromJid, ToJid, Packet, StateData, <<"unavailable">>) ->
+presence_track(Acc, FromJid, ToJid, Packet, StateData, unavailable) ->
     Presences = maybe_get_handler(StateData),
     process_presence_track_unavailable(Acc, FromJid, ToJid, Packet, Presences);
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"subscribe">>) ->
-    process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, subscribe);
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"subscribed">>) ->
-    process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, subscribed);
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"unsubscribe">>) ->
-    process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, unsubscribe);
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"unsubscribed">>) ->
-    process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, unsubscribed);
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"error">>) ->
+presence_track(Acc, FromJid, ToJid, Packet, _, Type) when error =:= Type; probe =:= Type ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
     Acc;
-presence_track(Acc, FromJid, ToJid, Packet, _, <<"probe">>) ->
-    ejabberd_router:route(FromJid, ToJid, Acc, Packet),
-    Acc.
+presence_track(Acc, FromJid, ToJid, Packet, _, Type) ->
+    process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type).
 
 process_presence_track_available(Acc, FromJid, ToJid, Packet, Presences) ->
     ejabberd_router:route(FromJid, ToJid, Acc, Packet),
@@ -416,8 +425,8 @@ process_presence_track_subscription_and_route(Acc, FromJid, ToJid, Packet, Type)
 
 -spec presence_broadcast(mongoose_acc:t(), state()) -> ok.
 presence_broadcast(Acc, #presences_state{available = Available}) ->
-    From = mongoose_acc:from_jid(Acc),
-    Route = fun(JID, _) -> ejabberd_router:route(From, JID, Acc) end,
+    {FromJID, _, Packet} = mongoose_acc:packet(Acc),
+    Route = fun(ToJID, _) -> ejabberd_router:route(FromJID, ToJID, Acc, Packet) end,
     sets:fold(Route, undefined, Available).
 
 -spec presence_update_to_available(
@@ -557,6 +566,24 @@ close_session_status({shutdown, Reason}) when is_binary(Reason) ->
 close_session_status(_) ->
     <<"Unknown condition">>.
 
+-spec get_presence_type(mongoose_acc:t()) -> maybe_presence().
+get_presence_type(Acc) ->
+    case mongoose_acc:stanza_type(Acc) of
+        %% Note that according to https://www.rfc-editor.org/rfc/rfc6121.html#section-4.7.1
+        %% there is no default value nor "available" is considered a valid type.
+        %% However, we keep accepting this for compatibility reasons.
+        undefined -> available;
+        <<"available">> -> available;
+        <<"error">> -> error;
+        <<"probe">> -> probe;
+        <<"subscribe">> -> subscribe;
+        <<"subscribed">> -> subscribed;
+        <<"unsubscribe">> -> unsubscribe;
+        <<"unsubscribed">> -> unsubscribed;
+        <<"unavailable">> -> unavailable;
+        _ -> {error, invalid_presence}
+    end.
+
 -spec maybe_get_handler(mongoose_c2s:data()) -> state().
 maybe_get_handler(StateData) ->
     case mongoose_c2s:get_mod_state(StateData, ?MODULE) of
@@ -628,7 +655,7 @@ make_available_to(FromJid, BareJid, Presences) ->
         false ->
             case is_subscribed(Presences, BareJid, from) of
                 true ->
-                    S = sets:add_element(FromJid, Presences#presences_state.available),
+                    S = sets:add_element(BareJid, Presences#presences_state.available),
                     Presences#presences_state{available = S};
                 false ->
                     Presences
