@@ -149,7 +149,6 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> {ok, Acc};
         <<"probe">> -> {ok, Acc};
-        <<"invisible">> -> {ok, Acc};
         _ -> do_privacy_check_receive(Acc, StateData, ignore)
     end.
 

@@ -245,7 +245,7 @@ disco_sm_items(Acc, _, _) ->
     Params :: map(),
     Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
-    {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc)};
+    {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>], Acc)};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 

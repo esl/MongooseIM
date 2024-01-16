@@ -47,8 +47,8 @@ groups() ->
                              available_direct_then_unavailable,
                              become_unavailable,
                              available_direct_then_disconnect,
-                             additions,
-                             invisible_presence]},
+                             additions
+                            ]},
      {presence_priority, [parallel], [negative_priority_presence]},
      {roster, [parallel], [get_roster,
                            fail_to_get_another_users_roster,
@@ -235,62 +235,6 @@ negative_priority_presence(Config) ->
         %% any messages.
         timer:sleep(1000),
         escalus_assert:has_no_stanzas(Alice1)
-
-        end).
-
-invisible_presence(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        BobJid = escalus_client:short_jid(Bob),
-        AliceJid = escalus_client:short_jid(Alice),
-
-        %% Alice adds Bob as a contact
-        add_sample_contact(Alice, Bob),
-
-        %% She subscribes to his presences
-        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
-        PushReq = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_roster_set, PushReq),
-        escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
-
-        %% Bob receives subscription request
-        Received = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
-
-        %% Bob adds new contact to his roster
-        escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
-                                                            [<<"enemies">>],
-                                                             <<"Alice">>)),
-        PushReqB = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_roster_set, PushReqB),
-        escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-
-        %% Bob sends subscribed presence
-        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribed">>)),
-
-        %% Alice receives subscribed
-        Stanzas = escalus:wait_for_stanzas(Alice, 2),
-
-        check_subscription_stanzas(Stanzas, <<"subscribed">>),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
-
-        %% Bob receives roster push
-        PushReqB1 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_roster_set, PushReqB1),
-
-        %% Bob sends presence
-        escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
-
-        %% Bob becomes invisible
-        escalus:send(Bob, escalus_stanza:presence(<<"invisible">>)),
-
-        escalus:assert(is_presence_with_type, [<<"unavailable">>],
-                       escalus:wait_for_stanza(Alice)),
-
-        %% Return everything back
-        escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
-        escalus:assert(is_presence, escalus:wait_for_stanza(Alice))
 
         end).
 
