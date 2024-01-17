@@ -625,10 +625,10 @@ skip_bad_jids(MaybeJids) ->
 
 -spec form_borders_decode(mongoose_data_forms:kv_map()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(KVs) ->
-    AfterID  = form_field_mess_id(KVs, <<"after_id">>),
-    BeforeID = form_field_mess_id(KVs, <<"before_id">>),
-    FromID   = form_field_mess_id(KVs, <<"from_id">>),
-    ToID     = form_field_mess_id(KVs, <<"to_id">>),
+    AfterID  = form_field_mess_id(KVs, <<"after-id">>),
+    BeforeID = form_field_mess_id(KVs, <<"before-id">>),
+    FromID   = form_field_mess_id(KVs, <<"from-id">>),
+    ToID     = form_field_mess_id(KVs, <<"to-id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
 

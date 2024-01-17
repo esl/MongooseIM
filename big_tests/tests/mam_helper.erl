@@ -347,10 +347,10 @@ form_border_fields(undefined) ->
     [];
 form_border_fields(#rsm_in{
         before_id=BeforeId, after_id=AfterId, from_id=FromId, to_id=ToId}) ->
-    [form_field(<<"before_id">>, BeforeId),
-     form_field(<<"after_id">>, AfterId),
-     form_field(<<"from_id">>, FromId),
-     form_field(<<"to_id">>, ToId)].
+    [form_field(<<"before-id">>, BeforeId),
+     form_field(<<"after-id">>, AfterId),
+     form_field(<<"from-id">>, FromId),
+     form_field(<<"to-id">>, ToId)].
 
 form_field(_VarName, undefined) ->
     undefined;
