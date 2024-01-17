@@ -80,6 +80,7 @@
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
+         stanza_flip_page_archive_request/3,
          wait_empty_rset/2,
          wait_message_range/2,
          wait_message_range/3,
@@ -282,42 +283,48 @@ maybe_with_elem(BWithJID) ->
 stanza_archive_request(P, QueryId) ->
     stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
-                              undefined, undefined, undefined).
+                              undefined, undefined, undefined, undefined).
 
 stanza_date_range_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
-                              undefined, undefined, undefined).
+                              undefined, undefined, undefined, undefined).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
     stanza_lookup_messages_iq(P, undefined,
                               Start, Stop,
-                              undefined, undefined, undefined).
+                              undefined, undefined, undefined, undefined).
 
 stanza_limit_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
-                              undefined, undefined, #rsm_in{max=10}, undefined).
+                              undefined, undefined, #rsm_in{max=10}, undefined, undefined).
 
 stanza_page_archive_request(P, QueryId, RSM) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined, RSM, undefined).
+    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
+                              RSM, undefined, undefined).
+
+stanza_flip_page_archive_request(P, QueryId, RSM) ->
+    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
+                              RSM, undefined, true).
 
 stanza_filtered_by_jid_request(P, BWithJID) ->
     stanza_lookup_messages_iq(P, undefined, undefined,
-                              undefined, BWithJID, undefined, undefined).
+                              undefined, BWithJID, undefined, undefined, undefined).
 
 stanza_text_search_archive_request(P, QueryId, TextSearch) ->
     stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
-                              undefined, undefined, TextSearch).
+                              undefined, undefined, TextSearch, undefined).
 
-stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
+stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch, FlipPage) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
            form_x(BStart, BEnd, BWithJID, RSM, TextSearch),
-           maybe_rsm_elem(RSM)])
+           maybe_rsm_elem(RSM),
+           maybe_flip_page(FlipPage)])
     }]).
 
 form_x(undefined, undefined, undefined, undefined, undefined) ->
@@ -371,6 +378,11 @@ maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
                 maybe_rsm_max(Max),
                 maybe_rsm_index(Index),
                 maybe_rsm_direction(Direction, Id)])}.
+
+maybe_flip_page(undefined) ->
+    undefined;
+maybe_flip_page(_) ->
+    #xmlel{name = <<"flip-page">>}.
 
 rsm_id_children(undefined) -> [];
 rsm_id_children(Id) -> [#xmlcdata{content = Id}].
@@ -817,15 +829,22 @@ delete_offline_messages(Server, Username) ->
     HostType = domain_helper:host_type(),
     rpc_apply(mod_offline_backend, remove_user, [HostType, Username, Server]).
 
-wait_message_range(Client, FromN, ToN) ->
-    wait_message_range(Client, 15, FromN-1, FromN, ToN).
+wait_message_range(Client, FromN, ToN) when FromN =< ToN ->
+    wait_message_range(Client, 15, FromN-1, FromN, ToN, 1);
+wait_message_range(Client, FromN, ToN) when FromN > ToN ->
+    wait_message_range(Client, 15, FromN-1, FromN, ToN, -1).
 
-wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
+wait_message_range(Client, TotalCount, Offset, FromN, ToN) when FromN =< ToN ->
+    wait_message_range(Client, TotalCount, Offset, FromN, ToN, 1);
+wait_message_range(Client, TotalCount, Offset, FromN, ToN) when FromN > ToN ->
+    wait_message_range(Client, TotalCount, Offset, FromN, ToN, -1).
+
+wait_message_range(Client, TotalCount, Offset, FromN, ToN, Step) ->
     wait_message_range(Client, #{total_count => TotalCount, offset => Offset,
-                                 from => FromN, to => ToN}).
+                                 from => FromN, to => ToN, step => Step}).
 
 wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offset,
-                                      from := FromN, to := ToN}) ->
+                                      from := FromN, to := ToN, step := Step}) ->
     IsComplete = maps:get(is_complete, Params, undefined),
     Result = wait_archive_respond(Client),
     Messages = respond_messages(Result),
@@ -835,9 +854,12 @@ wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offse
     ParsedIQ = parse_result_iq(Result),
     try
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
-        ?assert_equal(Offset, ParsedIQ#result_iq.first_index),
+        case Step of
+            -1 -> ok;
+            _ -> ?assert_equal(Offset, ParsedIQ#result_iq.first_index)
+        end,
         %% Compare body of the messages.
-        ?assert_equal([generate_message_text(N) || N <- maybe_seq(FromN, ToN)],
+        ?assert_equal([generate_message_text(N) || N <- maybe_seq(FromN, ToN, Step)],
                       [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         case IsComplete of
             true      -> ?assert_equal(<<"true">>, ParsedIQ#result_iq.complete);
@@ -854,8 +876,8 @@ wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offse
         erlang:raise(Class, Reason, StackTrace)
     end.
 
-maybe_seq(undefined, undefined) -> [];
-maybe_seq(A, B) -> lists:seq(A, B).
+maybe_seq(undefined, undefined, _) -> [];
+maybe_seq(A, B, Step) -> lists:seq(A, B, Step).
 
 wait_empty_rset(Alice, TotalCount) ->
     Result = wait_archive_respond(Alice),

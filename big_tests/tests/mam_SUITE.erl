@@ -55,6 +55,7 @@
          muc_protected_message/1,
          muc_deny_protected_room_access/1,
          muc_allow_access_to_owner/1,
+         muc_sanitize_x_user_in_non_anon_rooms/1,
          muc_delete_x_user_in_anon_rooms/1,
          muc_show_x_user_to_moderators_in_anon_rooms/1,
          muc_show_x_user_for_your_own_messages_in_anon_rooms/1,
@@ -73,6 +74,7 @@
          pagination_offset5_max0/1,
          pagination_before10/1,
          pagination_after10/1,
+         pagination_flipped_page/1,
          pagination_simple_before10/1,
          pagination_simple_before3/1,
          pagination_simple_before6/1,
@@ -86,6 +88,7 @@
          pagination_empty_rset/1,
          pagination_first_page_after_id4/1,
          pagination_last_page_after_id4/1,
+         pagination_border_flipped_page/1,
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_invalid_id/1,
@@ -188,6 +191,7 @@
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
+         stanza_flip_page_archive_request/3,
          wait_empty_rset/2,
          wait_message_range/2,
          wait_message_range/3,
@@ -450,6 +454,7 @@ muc_cases() ->
      muc_protected_message,
      muc_deny_protected_room_access,
      muc_allow_access_to_owner,
+     muc_sanitize_x_user_in_non_anon_rooms,
      muc_delete_x_user_in_anon_rooms,
      muc_show_x_user_to_moderators_in_anon_rooms,
      muc_show_x_user_for_your_own_messages_in_anon_rooms,
@@ -507,11 +512,13 @@ rsm_cases() ->
        pagination_before10,
        pagination_after10,
        pagination_empty_rset,
+       pagination_flipped_page,
        %% Border cases
        pagination_last_after_id5,
        pagination_last_after_id5_before_id11,
        pagination_first_page_after_id4,
        pagination_last_page_after_id4,
+       pagination_border_flipped_page,
        %% Simple cases
        pagination_simple_before10,
        pagination_simple_before3,
@@ -875,6 +882,9 @@ init_per_testcase(C=muc_deny_protected_room_access, Config) ->
 init_per_testcase(C=muc_allow_access_to_owner, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_protected_room(Config1));
+init_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
@@ -958,6 +968,9 @@ end_per_testcase(C=muc_deny_protected_room_access, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_allow_access_to_owner, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
@@ -2213,6 +2226,59 @@ muc_allow_access_to_owner(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+muc_sanitize_x_user_in_non_anon_rooms(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {Room, _} = enter_room(Config, [Alice, Bob]),
+        Text = <<"Hi all!">>,
+        SpoofJid = <<"spoof@test.com">>,
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice received presences.
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice received the room's subject.
+        escalus:wait_for_stanzas(Alice, 1),
+
+        X = #xmlel{name = <<"x">>,
+                   attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}],
+                   children = [#xmlel{name = <<"item">>,
+                                      attrs = [{<<"affiliation">>, <<"owner">>},
+                                               {<<"jid">>, SpoofJid},
+                                               {<<"role">>, <<"moderator">>}]}]},
+        Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
+        Stanza = #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"groupchat">>}],
+                        children = [Body, X]},
+
+        %% Bob sends to the chat room.
+        escalus:send(Bob, stanza_to_room(Stanza, Room)),
+
+        %% Alice receives the message.
+        escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
+
+        maybe_wait_for_archive(Config),
+        Props = ?config(props, Config),
+
+        %% Alice requests the room's archive.
+        escalus:send(Alice, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
+
+        %% mod_mam_muc returns result.
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
+        Item = exml_query:path(ArcMsg, [{element, <<"result">>},
+                                        {element, <<"forwarded">>},
+                                        {element, <<"message">>},
+                                        {element, <<"x">>},
+                                        {element, <<"item">>}]),
+
+        Jid = exml_query:attr(Item, <<"jid">>),
+        ?assertNotEqual(Jid, SpoofJid),
+        ok
+    end).
+
 muc_delete_x_user_in_anon_rooms(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {Room, RoomAddr} = enter_room(Config, [Alice, Bob]),
@@ -2545,6 +2611,18 @@ pagination_before10(Config) ->
         end,
     parallel_story(Config, [{alice, 1}], F).
 
+pagination_flipped_page(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        rsm_send(Config, Alice,
+            stanza_flip_page_archive_request(P, <<"first5">>, RSM)),
+        wait_message_range(Alice, 5, 1),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
 pagination_simple_before10(Config) ->
     RSM = #rsm_in{max = 5, direction = before, id = message_id(10, Config), simple = true},
     pagination_test(before10, RSM, simple_range(5, 9, false), Config).
@@ -2648,6 +2726,20 @@ pagination_last_page_after_id4(Config) ->
         %% Messages 1, 2, 3, 4 are ignored in the result
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,          11,      6,     11,  15),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_border_flipped_page(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        RSM = #rsm_in{max=5, direction='before',
+                after_id=message_id(5, Config),
+                before_id=message_id(11, Config)},
+        rsm_send(Config, Alice,
+            stanza_flip_page_archive_request(P, <<"last_after_id5_before_id11">>, RSM)),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,           5,      0,     10,  6),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -3227,7 +3319,7 @@ origin_id() ->
 
 simple_range(From, To, IsComplete) ->
     #{total_count => undefined, offset => undefined,
-      from => From, to => To, is_complete => IsComplete}.
+      from => From, to => To, is_complete => IsComplete, step => 1}.
 
 pagination_test(Name, RSM, Range, Config) ->
     P = ?config(props, Config),
