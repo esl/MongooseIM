@@ -403,10 +403,12 @@ send_messages_and_iq_result(#{total_count := TotalCount, offset := Offset,
                             HostType, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
                             #{owner_jid := ArcJID} = Params) ->
+    %% Reverse order of messages if the client requested it
+    MessageRows1 = mod_mam_utils:maybe_reverse_messages(Params, MessageRows),
     %% Forward messages
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
-                                                 QueryID, MessageRows, true),
+                                                 QueryID, MessageRows1, true),
     %% Make fin iq
     IsStable = true,
     ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
@@ -541,10 +543,9 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
     Packet.
 
 %% From XEP-0313:
-%% When sending out the archives to a requesting client, the 'to' of the
-%% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
-%% of the sender of the archived message.
-%% However, Smack crashes if 'to' is present, so it is removed.
+%% When sending out the archives to a requesting client,
+%% the forwarded stanza MUST NOT have a 'to' attribute, and
+%% the 'from' MUST be the occupant JID of the sender of the archived message.
 replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
     NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), undefined, Attrs),
     Packet#xmlel{attrs = NewAttrs}.

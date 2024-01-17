@@ -397,9 +397,11 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
             return_error_iq(IQ, Reason);
         {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
                is_complete := IsComplete}} ->
+            %% Reverse order of messages if the client requested it
+            MessageRows1 = mod_mam_utils:maybe_reverse_messages(Params0, MessageRows),
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, true),
+                                                         QueryID, MessageRows1, true),
             %% Make fin iq
             IsStable = true,
             ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),

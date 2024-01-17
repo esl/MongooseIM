@@ -33,6 +33,8 @@
          has_message_retraction/2,
          get_retract_id/2,
          get_origin_id/1,
+         should_page_be_flipped/1,
+         maybe_reverse_messages/2,
          tombstone/2,
          wrap_message/6,
          wrap_message/7,
@@ -383,6 +385,17 @@ get_retract_id(Packet) ->
 get_origin_id(Packet) ->
     exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
                              {attr, <<"id">>}], none).
+
+-spec should_page_be_flipped(exml:element()) -> boolean().
+should_page_be_flipped(Packet) ->
+    case exml_query:path(Packet, [{element, <<"flip-page">>}], none) of
+        none -> false;
+        _ -> true
+    end.
+
+-spec maybe_reverse_messages(mam_iq:lookup_params(), list()) -> list().
+maybe_reverse_messages(#{flip_page := true}, Messages) -> lists:reverse(Messages);
+maybe_reverse_messages(#{flip_page := false}, Messages) -> Messages.
 
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.

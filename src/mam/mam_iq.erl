@@ -47,6 +47,8 @@
         %% Optimizations flags
         %% see form_to_lookup_params for more info
         is_simple => true | false,
+        %% Contains information whether the client requested to get the results in reversed order
+        flip_page => true | false,
         %% Can have more fields, added in maybe_add_extra_lookup_params function
         %% in runtime
         atom() => _
@@ -169,7 +171,8 @@ common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
       page_size => min(MaxResultLimit,
                        mod_mam_utils:maybe_integer(Limit, DefaultResultLimit)),
       limit_passed => Limit =/= <<>>,
-      ordering_direction => ordering_direction(RSM)}.
+      ordering_direction => ordering_direction(RSM),
+      flip_page => mod_mam_utils:should_page_be_flipped(QueryEl)}.
 
 -spec lookup_params_with_archive_details(lookup_params(), term(), jid:jid(), jid:jid()) ->
     lookup_params().
