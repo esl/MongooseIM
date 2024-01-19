@@ -149,7 +149,6 @@ user_receive_presence(Acc, #{c2s_data := StateData}, _Extra) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> {ok, Acc};
         <<"probe">> -> {ok, Acc};
-        <<"invisible">> -> {ok, Acc};
         _ -> do_privacy_check_receive(Acc, StateData, ignore)
     end.
 
@@ -271,9 +270,9 @@ maybe_update_presence(Acc, StateData, OldList, NewList) ->
     % Our own jid is added to pres_f, even though we're not a "contact", so for
     % the purposes of this check we don't want it:
     SelfJID = jid:to_bare(Jid),
-    FromsExceptSelf = gb_sets:del_element(SelfJID, FromS),
-    gb_sets:fold(
-      fun(T, Ac) ->
+    FromsExceptSelf = maps:remove(SelfJID, FromS),
+    maps:fold(
+      fun(T, _, Ac) ->
               send_unavail_if_newly_blocked(Ac, Jid, T, OldList, NewList, StateData)
       end, Acc, FromsExceptSelf).
 

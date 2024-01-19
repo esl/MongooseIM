@@ -167,7 +167,6 @@ user_can_query_server_features(Config) ->
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
-        escalus:assert(has_feature, [<<"presence-invisible">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
 
