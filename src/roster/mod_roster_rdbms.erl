@@ -56,23 +56,29 @@ write_roster_version(HostType, LUser, LServer, _TransactionState, Ver) ->
 -spec get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_roster(HostType, LUser, LServer) ->
     {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
-    {selected, GroupRows} =
-        mongoose_rdbms:execute_successfully(HostType, roster_group_get, [LServer, LUser]),
+    {selected, GroupRows} = execute_roster_group_get(HostType, LUser, LServer),
     decode_roster_rows(LServer, LUser, Rows, GroupRows).
 
 -spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
                        mod_roster:transaction_state(), mod_roster:entry_format()) ->
     mod_roster:roster() | does_not_exist.
-get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, full) ->
-    case get_roster_entry(HostType, LUser, LServer, LJID) of
-        does_not_exist ->
+get_roster_entry(HostType, LUser, LServer, LJID, _, full) ->
+    BinJID = jid:to_binary(LJID),
+    case execute_roster_get_by_jid(HostType, LUser, LServer, BinJID) of
+        {selected, []} ->
             does_not_exist;
-        Rec ->
-            Groups = get_groups_by_jid(HostType, LUser, LServer, LJID),
-            record_with_groups(Rec, Groups)
+        {selected, [Row]} ->
+            Groups = get_groups_by_jid(HostType, LUser, LServer, BinJID),
+            row_to_record(LServer, LUser, Row, #{BinJID => Groups})
     end;
 get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, short) ->
-    get_roster_entry(HostType, LUser, LServer, LJID).
+    BinJID = jid:to_binary(LJID),
+    case execute_roster_get_by_jid(HostType, LUser, LServer, BinJID) of
+        {selected, []} ->
+            does_not_exist;
+        {selected, [Row]} ->
+            row_to_record(LServer, LUser, Row, #{})
+    end.
 
 -spec get_subscription_lists(mongoose_acc:t(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_subscription_lists(Acc, LUser, LServer) ->
@@ -178,6 +184,21 @@ prepare_version_upsert(HostType) ->
 execute_roster_get(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(HostType, roster_get, [LServer, LUser]).
 
+-spec execute_roster_group_get(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          mongoose_rdbms:query_result().
+execute_roster_group_get(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, roster_group_get, [LServer, LUser]).
+
+-spec execute_roster_get_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_roster_get_by_jid(HostType, LUser, LServer, BinJID) ->
+    mongoose_rdbms:execute_successfully(HostType, roster_get_by_jid, [LServer, LUser, BinJID]).
+
+-spec execute_roster_get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
+    mongoose_rdbms:query_result().
+execute_roster_get_groups_by_jid(HostType, LUser, LServer, BinJID) ->
+    mongoose_rdbms:execute_successfully(HostType, roster_group_get_by_jid, [LServer, LUser, BinJID]).
+
 -spec roster_upsert(mongooseim:host_type(), list()) -> mongoose_rdbms:query_result().
 roster_upsert(HostType, [LServer, LUser, BinJID | Rest] = RosterRow) ->
     InsertParams = RosterRow,
@@ -195,23 +216,10 @@ version_upsert(HostType, LUser, LServer, Version) ->
     {updated, _} = rdbms_queries:execute_upsert(HostType, roster_version_upsert,
                                                 InsertParams, UpdateParams, UniqueKeyValues).
 
--spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
-          mod_roster:roster() | does_not_exist.
-get_roster_entry(HostType, LUser, LServer, LJID) ->
-    BinJID = jid:to_binary(LJID),
-    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, roster_get_by_jid,
-                                                           [LServer, LUser, BinJID]),
-    case Rows of
-        [] -> does_not_exist;
-        [Row] -> row_to_record(LServer, LUser, Row, #{})
-    end.
-
--spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
+-spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
           [binary()].
-get_groups_by_jid(HostType, LUser, LServer, LJID) ->
-    BinJID = jid:to_binary(LJID),
-    {selected, Rows} = mongoose_rdbms:execute_successfully(
-                         HostType, roster_group_get_by_jid, [LServer, LUser, BinJID]),
+get_groups_by_jid(HostType, LUser, LServer, BinJID) ->
+    {selected, Rows} = execute_roster_get_groups_by_jid(HostType, LUser, LServer, BinJID),
     [Group || {Group} <- Rows].
 
 %%==============================================================================
@@ -272,9 +280,6 @@ row_to_record(LServer, LUser,
     Groups = maps:get(BinJID, GroupsPerJID, []),
     #roster{usj = USJ, us = US, jid = LJID, name = Nick,
             subscription = Subscription, ask = Ask, groups = Groups, askmessage = AskMessage}.
-
-record_with_groups(Rec, Groups) ->
-    Rec#roster{groups = Groups}.
 
 decode_roster_rows(LServer, LUser, Rows, JIDGroups) ->
     GroupsPerJID = group_per_jid(JIDGroups),
