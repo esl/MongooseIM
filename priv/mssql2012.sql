@@ -278,12 +278,12 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[roster_version](
-        [server] [nvarchar](250) NOT NULL,
+    [server] [nvarchar](250) NOT NULL,
 	[username] [nvarchar](250) NOT NULL,
 	[version] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_roster_version_server_user] PRIMARY KEY CLUSTERED
 (
-        [server] ASC,
+    [server] ASC,
 	[username] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
@@ -302,13 +302,16 @@ CREATE TABLE [dbo].[rostergroups](
 	[server] [nvarchar](250) NOT NULL,
 	[username] [nvarchar](250) NOT NULL,
 	[jid] [nvarchar](250) NOT NULL,
-	[grp] [nvarchar](max) NOT NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
+	[grp] [nvarchar](250) NOT NULL,
+ CONSTRAINT [PK_rostergroups] PRIMARY KEY CLUSTERED
+(
+    [server] ASC,
+	[username] ASC,
+	[jid] ASC,
+	[grp] ASC
+))
 GO
 SET ANSI_PADDING OFF
-GO
-CREATE INDEX i_rosterg_server_user_jid ON rostergroups (server, username, jid)
 GO
 /****** Object:  Table [dbo].[rosterusers]    Script Date: 9/17/2014 6:20:03 AM ******/
 SET ANSI_NULLS ON
@@ -326,20 +329,15 @@ CREATE TABLE [dbo].[rosterusers](
 	[ask] [char](1) NOT NULL,
 	[askmessage] [nvarchar](max) NOT NULL,
 	[created_at] [datetime] NOT NULL,
- CONSTRAINT [rosterusers$i_rosteru_server_user_jid] UNIQUE CLUSTERED
+ CONSTRAINT [PK_rosterusers] PRIMARY KEY CLUSTERED
 (
-	[server] ASC,
+    [server] ASC,
 	[username] ASC,
 	[jid] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+))
+GO
 
-GO
 SET ANSI_PADDING OFF
-GO
-CREATE INDEX i_rosteru_server_user ON rosterusers (server, username)
-GO
-CREATE INDEX i_rosteru_jid ON rosterusers (jid)
 GO
 
 /****** Object:  Table [dbo].[users]    Script Date: 9/17/2014 6:20:03 AM ******/
