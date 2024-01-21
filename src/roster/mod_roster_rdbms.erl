@@ -8,7 +8,6 @@
 %%% MongooseIM, Copyright (C) 2015      Erlang Solutions Ltd.
 %%%
 %%%----------------------------------------------------------------------
-
 -module(mod_roster_rdbms).
 
 -include("mod_roster.hrl").
@@ -62,7 +61,7 @@ get_roster(HostType, LUser, LServer) ->
     decode_roster_rows(LServer, LUser, Rows, GroupRows).
 
 -spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
-                           mod_roster:transaction_state(), mod_roster:entry_format()) ->
+                       mod_roster:transaction_state(), mod_roster:entry_format()) ->
     mod_roster:roster() | does_not_exist.
 get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, full) ->
     case get_roster_entry(HostType, LUser, LServer, LJID) of
@@ -101,10 +100,10 @@ update_roster_t(HostType, Item) ->
 -spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact()) -> ok.
 del_roster_t(HostType, LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
-    mongoose_rdbms:execute_successfully(HostType, roster_delete_by_jid,
-                                        [LServer, LUser, BinJID]),
-    mongoose_rdbms:execute_successfully(HostType, roster_group_delete_by_jid,
-                                        [LServer, LUser, BinJID]),
+    mongoose_rdbms:execute_successfully(
+      HostType, roster_delete_by_jid, [LServer, LUser, BinJID]),
+    mongoose_rdbms:execute_successfully(
+      HostType, roster_group_delete_by_jid, [LServer, LUser, BinJID]),
     ok.
 
 -spec remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
@@ -130,16 +129,16 @@ prepare_queries(HostType) ->
                            <<"SELECT version FROM roster_version "
                              "WHERE server = ? AND username = ?">>),
     mongoose_rdbms:prepare(roster_get, rosterusers, [server, username],
-        <<"SELECT ", (roster_fields())/binary,
-           " FROM rosterusers WHERE server = ? AND username = ?">>),
-    mongoose_rdbms:prepare(roster_get_by_jid, rostergroups, [server, username, jid],
-        <<"SELECT ", (roster_fields())/binary,
-           " FROM rosterusers WHERE server = ? AND username = ? AND jid = ?">>),
+                           <<"SELECT ", (roster_fields())/binary,
+                             " FROM rosterusers WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_get_by_jid, rosterusers, [server, username, jid],
+                           <<"SELECT ", (roster_fields())/binary,
+                             " FROM rosterusers WHERE server = ? AND username = ? AND jid = ?">>),
     mongoose_rdbms:prepare(roster_group_get, rostergroups, [server, username],
-        <<"SELECT jid, grp FROM rostergroups WHERE server = ? AND username = ?">>),
+                           <<"SELECT jid, grp FROM rostergroups WHERE server = ? AND username = ?">>),
     mongoose_rdbms:prepare(roster_group_get_by_jid, rostergroups, [server, username, jid],
-        <<"SELECT grp FROM rostergroups "
-          "WHERE server = ? AND username = ? AND jid = ?">>),
+                           <<"SELECT grp FROM rostergroups "
+                             "WHERE server = ? AND username = ? AND jid = ?">>),
     mongoose_rdbms:prepare(roster_delete, rosterusers, [server, username],
                            <<"DELETE FROM rosterusers WHERE server = ? AND username = ?">>),
     mongoose_rdbms:prepare(roster_group_delete, rostergroups, [server, username],
@@ -151,7 +150,7 @@ prepare_queries(HostType) ->
                            <<"DELETE FROM rostergroups"
                              " WHERE server = ? AND username = ? AND jid = ?">>),
     mongoose_rdbms:prepare(rosterusers_remove_domain, rosterusers, [server],
-                          <<"DELETE FROM rosterusers WHERE server = ?">>),
+                           <<"DELETE FROM rosterusers WHERE server = ?">>),
     mongoose_rdbms:prepare(rostergroups_remove_domain, rostergroups, [server],
                            <<"DELETE FROM rostergroups WHERE server = ?">>),
     mongoose_rdbms:prepare(roster_version_remove_domain, roster_version, [server],
