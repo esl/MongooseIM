@@ -78,7 +78,7 @@ get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, short) ->
 get_subscription_lists(Acc, LUser, LServer) ->
     HostType = mongoose_acc:host_type(Acc),
     {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
-    [row_to_record(LServer, LUser, Row) || Row <- Rows].
+    [row_to_record(LServer, LUser, Row, #{}) || Row <- Rows].
 
 -spec roster_subscribe_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
 roster_subscribe_t(HostType, Item) ->
@@ -203,7 +203,7 @@ get_roster_entry(HostType, LUser, LServer, LJID) ->
                                                            [LServer, LUser, BinJID]),
     case Rows of
         [] -> does_not_exist;
-        [Row] -> row_to_record(LServer, LUser, Row)
+        [Row] -> row_to_record(LServer, LUser, Row, #{})
     end.
 
 -spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
@@ -262,38 +262,31 @@ roster_fields() ->
 
 %% Decode fields from `roster_fields()' into a record
 row_to_record(LServer, LUser,
-              {BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}) ->
+              {BinJID, Nick, ExtSubscription, ExtAsk, AskMessage}, GroupsPerJID) ->
     JID = jid:from_binary_noprep(BinJID), %% We trust the DB has correct jids
     LJID = jid:to_lower(JID), %% Convert to tuple {U,S,R}
     Subscription = decode_subscription(mongoose_rdbms:character_to_integer(ExtSubscription)),
     Ask = decode_ask(mongoose_rdbms:character_to_integer(ExtAsk)),
     US = {LUser, LServer},
     USJ = {US, LJID},
+    Groups = maps:get(BinJID, GroupsPerJID, []),
     #roster{usj = USJ, us = US, jid = LJID, name = Nick,
-            subscription = Subscription, ask = Ask, askmessage = AskMessage}.
+            subscription = Subscription, ask = Ask, groups = Groups, askmessage = AskMessage}.
 
 record_with_groups(Rec, Groups) ->
     Rec#roster{groups = Groups}.
 
 decode_roster_rows(LServer, LUser, Rows, JIDGroups) ->
-    GroupsDict = pairs_to_dict(JIDGroups),
-    [raw_to_record_with_group(LServer, LUser, Row, GroupsDict) || Row <- Rows].
+    GroupsPerJID = group_per_jid(JIDGroups),
+    [row_to_record(LServer, LUser, Row, GroupsPerJID) || Row <- Rows].
 
-pairs_to_dict(Pairs) ->
-    F = fun ({K, V}, Acc) -> dict:append(K, V, Acc) end,
-    lists:foldl(F, dict:new(), Pairs).
-
-raw_to_record_with_group(LServer, LUser, Row, GroupsDict) ->
-    Rec = row_to_record(LServer, LUser, Row),
-    BinJID = row_to_binary_jid(Row),
-    Groups = dict_get(BinJID, GroupsDict, []),
-    record_with_groups(Rec, Groups).
-
-row_to_binary_jid(Row) ->
-    element(1, Row).
-
-dict_get(K, Dict, Default) ->
-    case dict:find(K, Dict) of
-        {ok, Values} -> Values;
-        error -> Default
-    end.
+group_per_jid(Pairs) ->
+    F = fun ({Jid, Group}, Acc) ->
+                case Acc of
+                    #{Jid := Groups} ->
+                        Acc#{Jid := [Group | Groups]};
+                    _ ->
+                        Acc#{Jid => [Group]}
+                end
+        end,
+    lists:foldl(F, #{}, Pairs).
