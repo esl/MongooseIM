@@ -62,6 +62,12 @@
          range_archive_request/1,
          range_archive_request_not_empty/1,
          limit_archive_request/1,
+         metadata_archive_request/1,
+         metadata_archive_request_empty/1,
+         metadata_archive_request_one_message/1,
+         muc_metadata_archive_request/1,
+         muc_metadata_archive_request_empty/1,
+         muc_metadata_archive_request_one_message/1,
          prefs_set_request/1,
          retrieve_form_fields/1,
          prefs_set_cdata_request/1,
@@ -215,7 +221,8 @@
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host_type/0,
-         config_opts/1
+         config_opts/1,
+         stanza_metadata_request/0
         ]).
 
 -import(muc_light_helper,
@@ -337,7 +344,8 @@ basic_groups() ->
      {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
             {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
-            {mam06, [parallel], mam_cases() ++ stanzaid_cases() ++ retract_cases()},
+            {mam06, [parallel], mam_cases() ++ stanzaid_cases() ++ retract_cases()
+                                ++ metadata_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -356,7 +364,8 @@ basic_groups() ->
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
-            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()},
+            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
+                                ++ muc_metadata_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -420,6 +429,13 @@ disabled_complex_queries_cases() ->
      pagination_simple_enforced
     ].
 
+metadata_cases() ->
+    [
+     metadata_archive_request,
+     metadata_archive_request_empty,
+     metadata_archive_request_one_message
+    ].
+
 muc_text_search_cases() ->
     [
      muc_text_search_request
@@ -477,6 +493,13 @@ muc_configurable_archiveid_cases() ->
     [
      muc_no_elements,
      muc_only_stanzaid
+    ].
+
+muc_metadata_cases() ->
+    [
+     muc_metadata_archive_request,
+     muc_metadata_archive_request_empty,
+     muc_metadata_archive_request_one_message
     ].
 
 configurable_archiveid_cases() ->
@@ -903,6 +926,25 @@ init_per_testcase(C=range_archive_request_not_empty, Config) ->
 init_per_testcase(C=limit_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C=metadata_archive_request, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C=metadata_archive_request_empty, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, Config1);
+init_per_testcase(C=metadata_archive_request_one_message, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, Config1);
+init_per_testcase(C=muc_metadata_archive_request, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C,
+        muc_bootstrap_archive(start_alice_room(Config1)));
+init_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=easy_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
@@ -1000,6 +1042,15 @@ end_per_testcase(C=muc_no_elements, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_only_stanzaid, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_metadata_archive_request, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
@@ -2447,6 +2498,158 @@ limit_archive_request(Config) ->
         end,
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
+
+metadata_archive_request(Config) ->
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+
+        {{StartMsgId, _}, _, _, _, _} = hd(Msgs),
+        {{EndMsgId, _}, _, _, _, _} = lists:last(Msgs),
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {EndMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [EndMsgId]),
+
+        StartTime = list_to_binary(make_iso_time(StartMicro)),
+        EndTime = list_to_binary(make_iso_time(EndMicro)),
+        StartId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [StartMsgId]),
+        EndId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [EndMsgId]),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        ?assertEqual(StartId, exml_query:attr(Start, <<"id">>)),
+        ?assertEqual(StartTime, exml_query:attr(Start, <<"timestamp">>)),
+
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(EndId, exml_query:attr(End, <<"id">>)),
+        ?assertEqual(EndTime, exml_query:attr(End, <<"timestamp">>)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+metadata_archive_request_empty(Config) ->
+    F = fun(Alice) ->
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Metadata = exml_query:path(IQ, [{element, <<"metadata">>}]),
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+
+        ?assertNotEqual(Metadata, undefined),
+        ?assertEqual(Start, undefined),
+        ?assertEqual(End, undefined),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+metadata_archive_request_one_message(Config) ->
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(exml_query:attr(Start, <<"id">>), exml_query:attr(End, <<"id">>)),
+        ?assertEqual(exml_query:attr(Start, <<"timestamp">>),
+                     exml_query:attr(End, <<"timestamp">>)),
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_metadata_archive_request(Config) ->
+    F = fun(Alice) ->
+            Room = ?config(room, Config),
+            MucMsgs = ?config(pre_generated_muc_msgs, Config),
+
+            {{StartMsgId, _}, _, _, _, _} = hd(MucMsgs),
+            {{EndMsgId, _}, _, _, _, _} = lists:last(MucMsgs),
+            {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+            {EndMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [EndMsgId]),
+
+            StartTime = list_to_binary(make_iso_time(StartMicro)),
+            EndTime = list_to_binary(make_iso_time(EndMicro)),
+            StartId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [StartMsgId]),
+            EndId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [EndMsgId]),
+
+            Stanza = stanza_metadata_request(),
+            escalus:send(Alice, stanza_to_room(Stanza, Room)),
+            IQ = escalus:wait_for_stanza(Alice),
+
+            Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+            ?assertEqual(StartId, exml_query:attr(Start, <<"id">>)),
+            ?assertEqual(StartTime, exml_query:attr(Start, <<"timestamp">>)),
+
+            End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+            ?assertEqual(EndId, exml_query:attr(End, <<"id">>)),
+            ?assertEqual(EndTime, exml_query:attr(End, <<"timestamp">>)),
+            ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_metadata_archive_request_empty(Config) ->
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Metadata = exml_query:path(IQ, [{element, <<"metadata">>}]),
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+
+        ?assertNotEqual(Metadata, undefined),
+        ?assertEqual(Start, undefined),
+        ?assertEqual(End, undefined),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_metadata_archive_request_one_message(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"OH, HAI!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice received presences.
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice received the room's subject.
+        escalus:wait_for_stanzas(Alice, 1),
+
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+
+        mam_helper:wait_for_room_archive_size(muc_host(), Room, 1),
+        maybe_wait_for_archive(Config),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(exml_query:attr(Start, <<"id">>), exml_query:attr(End, <<"id">>)),
+        ?assertEqual(exml_query:attr(Start, <<"timestamp">>),
+                     exml_query:attr(End, <<"timestamp">>)),
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 archive_chat_markers(Config) ->
     P = ?config(props, Config),

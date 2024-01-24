@@ -81,6 +81,7 @@
          rsm_send/3,
          stanza_page_archive_request/3,
          stanza_flip_page_archive_request/3,
+         stanza_metadata_request/0,
          wait_empty_rset/2,
          wait_message_range/2,
          wait_message_range/3,
@@ -277,6 +278,11 @@ maybe_with_elem(BWithJID) ->
     #xmlel{
         name = <<"with">>,
         children = [#xmlcdata{content = BWithJID}]}.
+
+stanza_metadata_request() ->
+    escalus_stanza:iq(<<"get">>,
+                      [#xmlel{name = <<"metadata">>,
+                              attrs = [{<<"xmlns">>, mam_ns_binary_v06()}]}]).
 
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
