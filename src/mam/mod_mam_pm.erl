@@ -325,7 +325,9 @@ handle_mam_iq(Action, From, To, IQ, Acc) ->
         mam_set_message_form ->
             handle_set_message_form(From, To, IQ, Acc);
         mam_get_message_form ->
-            handle_get_message_form(From, To, IQ, Acc)
+            handle_get_message_form(From, To, IQ, Acc);
+        mam_get_metadata ->
+            handle_get_metadata(From, IQ, Acc)
     end.
 
 -spec handle_set_prefs(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
@@ -441,6 +443,27 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
     HostType = acc_to_host_type(Acc),
     return_message_form_iq(HostType, IQ).
+
+-spec handle_get_metadata(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
+                                 jlib:iq() | {error, term(), jlib:iq()}.
+handle_get_metadata(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
+    HostType = acc_to_host_type(Acc),
+    ArcID = archive_id_int(HostType, ArcJID),
+    case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, ArcJID,
+                                                      fun lookup_messages/2) of
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {FirstMsg, LastMsg} ->
+            {FirstMsgID, FirstMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(FirstMsg),
+            {LastMsgID, LastMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(LastMsg),
+            MetadataElement =
+                mod_mam_utils:make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS),
+            IQ#iq{type = result, sub_el = [MetadataElement]};
+        empty_archive ->
+            MetadataElement = mod_mam_utils:make_metadata_element(),
+            IQ#iq{type = result, sub_el = [MetadataElement]}
+    end.
 
 amp_deliver_strategy([none]) -> [stored, none];
 amp_deliver_strategy([direct, none]) -> [direct, stored, none].

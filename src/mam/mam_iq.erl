@@ -16,7 +16,8 @@
                  | 'mam_lookup_messages'
                  | 'mam_set_prefs'
                  | 'mam_set_message_form'
-                 | 'mam_get_message_form'.
+                 | 'mam_get_message_form'
+                 | 'mam_get_metadata'.
 
 -type lookup_params() :: #{
         archive_id => mod_mam:archive_id(),
@@ -69,7 +70,8 @@ action_v04plus(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_get_message_form;
-        {set, <<"query">>} -> mam_set_message_form
+        {set, <<"query">>} -> mam_set_message_form;
+        {get, <<"metadata">>} -> mam_get_metadata
     end.
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -77,7 +79,8 @@ action_type(mam_get_prefs) -> get;
 action_type(mam_set_prefs) -> set;
 action_type(mam_lookup_messages) -> get;
 action_type(mam_set_message_form) -> get;
-action_type(mam_get_message_form) -> get.
+action_type(mam_get_message_form) -> get;
+action_type(mam_get_metadata) -> get.
 
 %% @doc Convert id into internal format.
 -spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().

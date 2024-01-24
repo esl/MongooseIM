@@ -317,7 +317,9 @@ handle_mam_iq(HostType, Action, From, To, IQ) ->
         mam_set_message_form ->
             handle_set_message_form(HostType, From, To, IQ);
         mam_get_message_form ->
-            handle_get_message_form(HostType, From, To, IQ)
+            handle_get_message_form(HostType, From, To, IQ);
+        mam_get_metadata ->
+            handle_get_metadata(HostType, From, To, IQ)
     end.
 
 -spec handle_set_prefs(host_type(), jid:jid(), jlib:iq()) ->
@@ -442,6 +444,26 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 handle_get_message_form(HostType,
                         _From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
     return_message_form_iq(HostType, IQ).
+
+-spec handle_get_metadata(host_type(), jid:jid(), jid:jid(), jlib:iq()) ->
+                                     jlib:iq() | {error, term(), jlib:iq()}.
+handle_get_metadata(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
+    ArcID = archive_id_int(HostType, ArcJID),
+    case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, ArcJID,
+                                                      From, fun lookup_messages/2) of
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {FirstMsg, LastMsg} ->
+            {FirstMsgID, FirstMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(FirstMsg),
+            {LastMsgID, LastMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(LastMsg),
+            MetadataElement =
+                mod_mam_utils:make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS),
+            IQ#iq{type = result, sub_el = [MetadataElement]};
+        empty_archive ->
+            MetadataElement = mod_mam_utils:make_metadata_element(),
+            IQ#iq{type = result, sub_el = [MetadataElement]}
+    end.
 
 %% ----------------------------------------------------------------------
 %% Backend wrappers
