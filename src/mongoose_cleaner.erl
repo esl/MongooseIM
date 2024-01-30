@@ -78,9 +78,9 @@ cleanup_modules(Node) ->
     Retries = 1,
     case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
-            ?LOG_INFO(#{what => cleaner_trans_aborted,
-                        text => <<"mongoose_cleaner failed to get global lock">>,
-                        lock_key => LockKey}),
+            ?LOG_WARNING(#{what => cleaner_trans_aborted,
+                           text => <<"mongoose_cleaner failed to get global lock">>,
+                           lock_key => LockKey}),
             {ok, aborted};
         Result ->
             {ok, Result}
