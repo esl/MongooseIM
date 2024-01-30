@@ -475,8 +475,9 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
     HostType = acc_to_host_type(Acc),
+    MsgType = exml_query:attr(Packet, <<"type">>),
     case is_archivable_message(HostType, Dir, Packet)
-         andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>))
+         andalso should_archive_if_groupchat(HostType, MsgType)
          andalso should_archive_if_sent_to_yourself(LocJID, RemJID, Dir) of
         true ->
             ArcID = archive_id_int(HostType, LocJID),
@@ -484,6 +485,7 @@ handle_package(Dir, ReturnMessID,
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = mod_mam_utils:get_or_generate_mam_id(Acc),
+                    IsGroupChat = mod_mam_utils:is_groupchat(MsgType),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,
@@ -491,7 +493,8 @@ handle_package(Dir, ReturnMessID,
                                source_jid => SrcJID,
                                origin_id => OriginID,
                                direction => Dir,
-                               packet => Packet},
+                               packet => Packet,
+                               is_groupchat => IsGroupChat},
                     Result = archive_message(HostType, Params),
                     ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
                     {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc)};

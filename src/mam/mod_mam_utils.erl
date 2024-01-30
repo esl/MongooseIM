@@ -33,6 +33,7 @@
          has_message_retraction/2,
          get_retract_id/2,
          get_origin_id/1,
+         is_groupchat/1,
          should_page_be_flipped/1,
          tombstone/2,
          wrap_message/6,
@@ -391,6 +392,11 @@ get_origin_id(Packet) ->
     exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
                              {attr, <<"id">>}], none).
 
+is_groupchat(<<"groupchat">>) ->
+    true;
+is_groupchat(_) ->
+    false.
+
 -spec should_page_be_flipped(exml:element()) -> boolean().
 should_page_be_flipped(Packet) ->
     case exml_query:path(Packet, [{element, <<"flip-page">>}], none) of
@@ -721,19 +727,33 @@ retraction_features(Module, HostType) ->
                    HostType :: mongooseim:host_type(), binary()) ->
     exml:element().
 message_form(Module, HostType, MamNs) ->
-    Fields = message_form_fields(Module, HostType),
+    Fields = message_form_fields(Module, HostType, MamNs),
     Form = mongoose_data_forms:form(#{ns => MamNs, fields => Fields}),
     result_query(Form, MamNs).
 
-message_form_fields(Mod, HostType) ->
+message_form_fields(Mod, HostType, <<"urn:xmpp:mam:1">>) ->
     TextSearch =
         case has_full_text_search(Mod, HostType) of
-            true -> [#{type => <<"text-single">>, var => <<"full-text-search">>}];
+            true -> [#{type => <<"text-single">>,
+                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
             false -> []
         end,
     [#{type => <<"jid-single">>, var => <<"with">>},
      #{type => <<"text-single">>, var => <<"start">>},
-     #{type => <<"text-single">>, var => <<"end">>} | TextSearch].
+     #{type => <<"text-single">>, var => <<"end">>} | TextSearch];
+message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
+    TextSearch =
+        case has_full_text_search(Mod, HostType) of
+            true -> [#{type => <<"text-single">>,
+                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
+            false -> []
+        end,
+    [#{type => <<"jid-single">>, var => <<"with">>},
+     #{type => <<"text-single">>, var => <<"start">>},
+     #{type => <<"text-single">>, var => <<"end">>},
+     #{type => <<"text-single">>, var => <<"before-id">>},
+     #{type => <<"text-single">>, var => <<"after-id">>},
+     #{type => <<"boolean">>, var => <<"include-groupchat">>} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
@@ -1180,10 +1200,10 @@ lookup_first_and_last_messages(HostType, ArcID, ArcJID, F) ->
                                      jid:jid(),
                                      fun()) ->
     {mod_mam:message_row(), mod_mam:message_row()} | {error, term()}.
-lookup_first_and_last_messages(HostType, ArcID, ArcJID, OwnerJID, F) ->
-    FirstMsgParams = create_lookup_params(undefined, forward, ArcID, ArcJID, OwnerJID),
+lookup_first_and_last_messages(HostType, ArcID, CallerJID, OwnerJID, F) ->
+    FirstMsgParams = create_lookup_params(undefined, forward, ArcID, CallerJID, OwnerJID),
     LastMsgParams = create_lookup_params(#rsm_in{direction = before},
-                                         backward, ArcID, ArcJID, OwnerJID),
+                                         backward, ArcID, CallerJID, OwnerJID),
     case lookup(HostType, FirstMsgParams, F) of
         {ok, #{messages := [FirstMsg]}} ->
             case lookup(HostType, LastMsgParams, F) of
@@ -1199,7 +1219,7 @@ lookup_first_and_last_messages(HostType, ArcID, ArcJID, OwnerJID, F) ->
                     mod_mam:archive_id(),
                     jid:jid(),
                     jid:jid()) -> mam_iq:lookup_params().
-create_lookup_params(RSM, Direction, ArcID, ArcJID, OwnerJID) ->
+create_lookup_params(RSM, Direction, ArcID, CallerJID, OwnerJID) ->
     #{now => erlang:system_time(microsecond),
       is_simple => true,
       rsm => RSM,
@@ -1215,7 +1235,7 @@ create_lookup_params(RSM, Direction, ArcID, ArcJID, OwnerJID) ->
       flip_page => false,
       ordering_direction => Direction,
       limit_passed => true,
-      caller_jid => ArcJID}.
+      caller_jid => CallerJID}.
 
 patch_fun_to_make_result_as_map(F) ->
     fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.

@@ -22,6 +22,9 @@
 				"body": {
 					"type": "text",
 					"analyzer": "english"
+				},
+				"is_groupchat": {
+					"type": "boolean"
 				}
 			}
 		}

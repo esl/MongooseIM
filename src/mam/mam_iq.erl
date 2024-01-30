@@ -50,6 +50,9 @@
         is_simple => true | false,
         %% Contains information whether the client requested to get the results in reversed order
         flip_page => true | false,
+        %% If the groupchat messages are stored in the user's archive,
+        %% this parameter is used to decide whether to include them or not
+        include_groupchat => true | false,
         %% Can have more fields, added in maybe_add_extra_lookup_params function
         %% in runtime
         atom() => _
@@ -150,7 +153,8 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                %% - true - do not count records (useful during pagination, when we already
                %%          know how many messages we have from a previous query);
                %% - false - count messages (slow, according XEP-0313);
-               is_simple => maybe_enforce_simple(KVs, EnforceSimple)},
+               is_simple => maybe_enforce_simple(KVs, EnforceSimple),
+               include_groupchat => include_groupchat(KVs)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
 -spec query_to_map(exml:element()) -> mongoose_data_forms:kv_map().
@@ -196,3 +200,8 @@ maybe_enforce_simple(_, true) ->
     true;
 maybe_enforce_simple(KVs, _) ->
     mod_mam_utils:form_decode_optimizations(KVs).
+
+include_groupchat(#{<<"include-groupchat">> := [<<"false">>]}) ->
+    false;
+include_groupchat(_) ->
+    undefined.

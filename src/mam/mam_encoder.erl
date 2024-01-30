@@ -4,6 +4,7 @@
 -export([encode_direction/1]).
 -export([encode_packet/2]).
 -export([extend_lookup_params/2]).
+-export([encode_boolean/1]).
 
 -include("jlib.hrl").
 -include("mongoose_mam.hrl").
@@ -49,7 +50,9 @@ encode_value(jid_resource, #jid{lresource = Res}, _Env) ->
 encode_value(xml, Value, Env) ->
     encode_packet(Value, Env);
 encode_value(search, Value, Env) ->
-    encode_search_body(Value, Env).
+    encode_search_body(Value, Env);
+encode_value(bool, Value, _Env) ->
+    encode_boolean(Value).
 
 encode_direction(incoming) -> <<"I">>;
 encode_direction(outgoing) -> <<"O">>.
@@ -85,3 +88,6 @@ encode_packet(Packet, #{db_message_codec := Codec}) ->
 -spec encode_search_body(exml:element(), env_vars()) -> binary().
 encode_search_body(Packet, #{has_full_text_search := SearchEnabled}) ->
     mod_mam_utils:packet_to_search_body(SearchEnabled, Packet).
+
+encode_boolean(true) -> 1;
+encode_boolean(false) -> 0.

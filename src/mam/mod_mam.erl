@@ -69,6 +69,7 @@
                                     origin_id := binary() | none,
                                     direction := atom(),
                                     packet := exml:element(),
+                                    is_groupchat := binary(),
                                     %% Only in mod_mam_muc_rdbms_arch:retract_message/2
                                     sender_id => archive_id()}.
 
