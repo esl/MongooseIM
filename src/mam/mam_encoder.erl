@@ -4,7 +4,6 @@
 -export([encode_direction/1]).
 -export([encode_packet/2]).
 -export([extend_lookup_params/2]).
--export([encode_boolean/1]).
 
 -include("jlib.hrl").
 -include("mongoose_mam.hrl").

@@ -56,6 +56,7 @@
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
+         stanza_include_groupchat_request/3,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -98,6 +99,7 @@
          retract_ns/0,
          retract_esl_ns/0,
          retract_tombstone_ns/0,
+         groupchat_field_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -252,7 +254,8 @@ namespaces() ->
      mam_ns_binary_v06(),
      retract_ns(),
      retract_esl_ns(),
-     retract_tombstone_ns()].
+     retract_tombstone_ns(),
+     groupchat_field_ns()].
 
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
@@ -260,6 +263,7 @@ mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
+groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -287,59 +291,66 @@ stanza_metadata_request() ->
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(P, QueryId) ->
-    stanza_lookup_messages_iq(P, QueryId,
-                              undefined, undefined,
-                              undefined, undefined, undefined, undefined).
+    stanza_lookup_messages_iq(P, QueryId, undefined, undefined,
+                              undefined, undefined, undefined, undefined, undefined).
 
 stanza_date_range_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
-                              undefined, undefined, undefined, undefined).
+                              undefined, undefined, undefined, undefined, undefined).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
     stanza_lookup_messages_iq(P, undefined,
                               Start, Stop,
-                              undefined, undefined, undefined, undefined).
+                              undefined, undefined, undefined, undefined, undefined).
 
 stanza_limit_archive_request(P) ->
     stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
-                              undefined, undefined, #rsm_in{max=10}, undefined, undefined).
+                              undefined, undefined, #rsm_in{max=10},
+                              undefined, undefined, undefined).
 
 stanza_page_archive_request(P, QueryId, RSM) ->
     stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
-                              RSM, undefined, undefined).
+                              RSM, undefined, undefined, undefined).
 
 stanza_flip_page_archive_request(P, QueryId, RSM) ->
     stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
-                              RSM, undefined, true).
+                              RSM, undefined, true, undefined).
 
 stanza_filtered_by_jid_request(P, BWithJID) ->
     stanza_lookup_messages_iq(P, undefined, undefined,
-                              undefined, BWithJID, undefined, undefined, undefined).
+                              undefined, BWithJID, undefined, undefined, undefined, undefined).
 
 stanza_text_search_archive_request(P, QueryId, TextSearch) ->
     stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
-                              undefined, undefined, TextSearch, undefined).
+                              undefined, undefined, TextSearch, undefined, undefined).
 
-stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch, FlipPage) ->
+stanza_include_groupchat_request(P, QueryId, Groupchat) ->
+    stanza_lookup_messages_iq(P, QueryId,
+                              undefined, undefined,
+                              undefined, undefined, undefined, undefined, Groupchat).
+
+stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID,
+                          RSM, TextSearch, FlipPage, Groupchat) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM, TextSearch),
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, Groupchat),
            maybe_rsm_elem(RSM),
            maybe_flip_page(FlipPage)])
     }]).
 
-form_x(undefined, undefined, undefined, undefined, undefined) ->
+form_x(undefined, undefined, undefined, undefined, undefined, undefined) ->
     undefined;
-form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch, Groupchat) ->
     Fields = skip_undefined([form_field(<<"start">>, BStart),
                              form_field(<<"end">>, BEnd),
                              form_field(<<"with">>, BWithJID),
-                             form_field(<<"full-text-search">>, TextSearch)]
+                             form_field(<<"full-text-search">>, TextSearch),
+                             form_field(<<"include-groupchat">>, Groupchat)]
                             ++ form_extra_fields(RSM)
                             ++ form_border_fields(RSM)),
     form_helper:form(#{fields => Fields}).
@@ -998,10 +1009,10 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_, Source, _}, Packet}) ->
     Map1 = #{message_id => MsgIdOwner, archive_id => FromArcID,
              local_jid => FromJID, remote_jid => ToJID, source_jid => Source,
-             origin_id => none, direction => outgoing, packet => Packet},
+             origin_id => none, direction => outgoing, packet => Packet, is_groupchat => false},
     Map2 = #{message_id => MsgIdRemote, archive_id => ToArcID,
              local_jid => ToJID, remote_jid => FromJID, source_jid => Source,
-             origin_id => none, direction => incoming, packet => Packet},
+             origin_id => none, direction => incoming, packet => Packet, is_groupchat => false},
     archive_message(Map1),
     archive_message(Map2).
 

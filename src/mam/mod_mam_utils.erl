@@ -709,7 +709,8 @@ is_mam_namespace(NS) ->
     lists:member(NS, mam_features()).
 
 features(Module, HostType) ->
-    mam_features() ++ retraction_features(Module, HostType).
+    mam_features() ++ retraction_features(Module, HostType)
+        ++ groupchat_features(Module, HostType).
 
 mam_features() ->
     [?NS_MAM_04, ?NS_MAM_06].
@@ -719,6 +720,14 @@ retraction_features(Module, HostType) ->
         true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE, ?NS_ESL_RETRACT];
         false -> [?NS_RETRACT]
     end.
+
+groupchat_features(mod_mam_pm = Module, HostType) ->
+    case gen_mod:get_module_opt(HostType, Module, archive_groupchats) of
+        true -> [?NS_MAM_GC_FIELD, ?NS_MAM_GC_AVAILABLE];
+        false -> [?NS_MAM_GC_FIELD]
+    end;
+groupchat_features(_, _) ->
+    [].
 
 %% -----------------------------------------------------------------------
 %% Forms
@@ -1186,20 +1195,15 @@ process_lookup_with_complete_check(HostType, Params, F) ->
             Other
     end.
 
--spec lookup_first_and_last_messages(mongooseim:host_type(),
-                                     mod_mam:archive_id(),
-                                     jid:jid(),
-                                     fun()) ->
-    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()}.
+-spec lookup_first_and_last_messages(mongooseim:host_type(), mod_mam:archive_id(),
+                                     jid:jid(),fun()) ->
+    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()} | empty_archive.
 lookup_first_and_last_messages(HostType, ArcID, ArcJID, F) ->
     lookup_first_and_last_messages(HostType, ArcID, ArcJID, ArcJID, F).
 
--spec lookup_first_and_last_messages(mongooseim:host_type(),
-                                     mod_mam:archive_id(),
-                                     jid:jid(),
-                                     jid:jid(),
-                                     fun()) ->
-    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()}.
+-spec lookup_first_and_last_messages(mongooseim:host_type(), mod_mam:archive_id(), jid:jid(),
+                                     jid:jid(), fun()) ->
+    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()} | empty_archive.
 lookup_first_and_last_messages(HostType, ArcID, CallerJID, OwnerJID, F) ->
     FirstMsgParams = create_lookup_params(undefined, forward, ArcID, CallerJID, OwnerJID),
     LastMsgParams = create_lookup_params(#rsm_in{direction = before},
