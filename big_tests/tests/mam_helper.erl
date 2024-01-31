@@ -100,6 +100,7 @@
          retract_esl_ns/0,
          retract_tombstone_ns/0,
          groupchat_field_ns/0,
+         groupchat_available_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -254,8 +255,7 @@ namespaces() ->
      mam_ns_binary_v06(),
      retract_ns(),
      retract_esl_ns(),
-     retract_tombstone_ns(),
-     groupchat_field_ns()].
+     retract_tombstone_ns()].
 
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
@@ -264,6 +264,7 @@ retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
+groupchat_available_ns() -> <<"urn:xmpp:mam:2#groupchat-available">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].

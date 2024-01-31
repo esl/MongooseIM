@@ -722,9 +722,13 @@ retraction_features(Module, HostType) ->
     end.
 
 groupchat_features(mod_mam_pm = Module, HostType) ->
-    case gen_mod:get_module_opt(HostType, Module, archive_groupchats) of
-        true -> [?NS_MAM_GC_FIELD, ?NS_MAM_GC_AVAILABLE];
-        false -> [?NS_MAM_GC_FIELD]
+    case gen_mod:get_module_opt(HostType, mod_mam, backend) of
+        cassandra -> [];
+        _ ->
+            case gen_mod:get_module_opt(HostType, Module, archive_groupchats) of
+                true -> [?NS_MAM_GC_FIELD, ?NS_MAM_GC_AVAILABLE];
+                false -> [?NS_MAM_GC_FIELD]
+            end
     end;
 groupchat_features(_, _) ->
     [].

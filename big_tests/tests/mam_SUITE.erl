@@ -122,6 +122,7 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
+         muc_light_service_discovery_stored_in_pm/1,
          muc_light_easy/1,
          muc_light_shouldnt_modify_pm_archive/1,
          muc_light_stored_in_pm_if_allowed_to/1,
@@ -216,6 +217,7 @@
          retract_ns/0,
          retract_tombstone_ns/0,
          groupchat_field_ns/0,
+         groupchat_available_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -515,6 +517,7 @@ configurable_archiveid_cases() ->
 
 muc_light_cases() ->
     [
+     muc_light_service_discovery_stored_in_pm,
      muc_light_easy,
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
@@ -971,6 +974,9 @@ init_per_testcase(C=muc_text_search_request, Config) ->
         end,
 
     skip_if_cassandra(Config, Init);
+init_per_testcase(C = muc_light_service_discovery_stored_in_pm, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     escalus:init_per_testcase(C, Config);
@@ -1078,11 +1084,9 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per testcase
 
-required_modules(muc_light_stored_in_pm_if_allowed_to, Config) ->
-    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
-    NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
-    [{mod_mam, NewOpts}];
-required_modules(muc_light_include_groupchat_filter, Config) ->
+required_modules(CaseName, Config) when CaseName =:= muc_light_service_discovery_stored_in_pm;
+                                        CaseName =:= muc_light_stored_in_pm_if_allowed_to;
+                                        CaseName =:= muc_light_include_groupchat_filter ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
     [{mod_mam, NewOpts}];
@@ -1674,6 +1678,13 @@ muc_querying_for_all_messages_with_jid(Config) ->
             ok
         end,
     escalus:story(Config, [{alice, 1}], F).
+
+muc_light_service_discovery_stored_in_pm(Config) ->
+    F = fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        discover_features(Config, Alice, Server)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 muc_light_easy(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -3334,7 +3345,9 @@ discover_features(Config, Client, Service) ->
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
     escalus:assert(has_feature, [retract_ns()], Stanza),
-    escalus:assert(has_feature, [groupchat_field_ns()], Stanza),
+    check_include_groupchat_features(Stanza,
+                                     ?config(configuration, Config),
+                                     ?config(basic_group, Config)),
     ?assert_equal(message_retraction_is_enabled(Config),
                   escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
 
@@ -3522,6 +3535,19 @@ retraction_requested(Config) ->
 message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
     BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
+
+check_include_groupchat_features(Stanza, cassandra, _BasicGroup) ->
+    ?assertNot(escalus_pred:has_feature(groupchat_field_ns(), Stanza)),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza));
+check_include_groupchat_features(Stanza, _Configuration, muc_light) ->
+    escalus:assert(has_feature, [groupchat_field_ns()], Stanza),
+    escalus:assert(has_feature, [groupchat_available_ns()], Stanza);
+check_include_groupchat_features(Stanza, _Configuration, muc_all) ->
+    ?assertNot(escalus_pred:has_feature(groupchat_field_ns(), Stanza)),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza));
+check_include_groupchat_features(Stanza, _Configuration, _BasicGroup) ->
+    escalus:assert(has_feature, [groupchat_field_ns()], Stanza),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza)).
 
 expect_tombstone_and_retraction_message(Client, ApplyToElement) ->
     [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
