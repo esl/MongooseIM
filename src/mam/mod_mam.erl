@@ -17,7 +17,7 @@
 -module(mod_mam).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
--xep([{xep, 313}, {version, "0.6"}, {legacy_versions, ["0.5"]}]).
+-xep([{xep, 313}, {version, "1.1.0"}, {status, partial}, {legacy_versions, ["0.5"]}]).
 -xep([{xep, 424}, {version, "0.3.0"}]).
 
 -include("mod_mam.hrl").
@@ -69,7 +69,8 @@
                                     origin_id := binary() | none,
                                     direction := atom(),
                                     packet := exml:element(),
-                                    is_groupchat := binary(),
+                                    %% Only in mod_mam_pm
+                                    is_groupchat => boolean(),
                                     %% Only in mod_mam_muc_rdbms_arch:retract_message/2
                                     sender_id => archive_id()}.
 

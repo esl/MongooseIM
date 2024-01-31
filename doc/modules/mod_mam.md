@@ -143,7 +143,10 @@ To disable archive for one-to-one messages please remove PM section or any PM re
 * **Default:** `false`
 * **Example:** `modules.mod_mam.pm.archive_groupchats = true`
 
-When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
+When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results. Clients can use `include-groupchat` filter to filter out groupchat messages while querying the archive.
+
+!!! Warning
+    The `include-groupchat` filter doesn't work for Cassandra backend.
 
 #### `modules.mod_mam.pm.same_mam_id_for_peers`
 * **Syntax:** boolean
