@@ -127,6 +127,8 @@
          muc_light_shouldnt_modify_pm_archive/1,
          muc_light_stored_in_pm_if_allowed_to/1,
          muc_light_include_groupchat_filter/1,
+         muc_light_no_pm_stored_include_groupchat_filter/1,
+         muc_light_include_groupchat_messages_by_default/1,
          muc_light_chat_markers_are_archived_if_enabled/1,
          muc_light_chat_markers_are_not_archived_if_disabled/1,
          muc_light_failed_to_decode_message_in_database/1,
@@ -522,6 +524,8 @@ muc_light_cases() ->
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
      muc_light_include_groupchat_filter,
+     muc_light_no_pm_stored_include_groupchat_filter,
+     muc_light_include_groupchat_messages_by_default,
      muc_light_chat_markers_are_archived_if_enabled,
      muc_light_chat_markers_are_not_archived_if_disabled,
      muc_light_failed_to_decode_message_in_database
@@ -953,7 +957,9 @@ init_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
 init_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_light_include_groupchat_filter, Config) ->
+init_per_testcase(C, Config) when C =:= muc_light_include_groupchat_filter;
+                                  C =:= muc_light_no_pm_stored_include_groupchat_filter;
+                                  C =:= muc_light_include_groupchat_messages_by_default ->
     Init =
         fun() ->
             dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
@@ -1086,6 +1092,8 @@ end_per_testcase(CaseName, Config) ->
 
 required_modules(CaseName, Config) when CaseName =:= muc_light_service_discovery_stored_in_pm;
                                         CaseName =:= muc_light_stored_in_pm_if_allowed_to;
+                                        CaseName =:= muc_light_include_groupchat_messages_by_default;
+                                        CaseName =:= muc_light_no_pm_stored_include_groupchat_filter;
                                         CaseName =:= muc_light_include_groupchat_filter ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
@@ -1777,11 +1785,65 @@ muc_light_include_groupchat_filter(Config) ->
             then_pm_message_is_received(Bob, <<"private hi!">>),
 
             maybe_wait_for_archive(Config),
-            Stanza = stanza_include_groupchat_request(P, <<"no_groupchat">>, <<"false">>),
+
+            Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"false">>),
             escalus:send(Alice, Stanza),
             Res = wait_archive_respond(Alice),
             assert_respond_size(1, Res),
+
+            Stanza2 = stanza_include_groupchat_request(P, <<"q2">>, <<"true">>),
+            escalus:send(Alice, Stanza2),
+            Res2 = wait_archive_respond(Alice),
+            assert_respond_size(3, Res2),
             ok
+        end).
+
+muc_light_no_pm_stored_include_groupchat_filter(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            P = ?config(props, Config),
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            maybe_wait_for_archive(Config),
+
+            Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"false">>),
+            escalus:send(Alice, Stanza),
+            Res = wait_archive_respond(Alice),
+            assert_respond_size(0, Res),
+            ok
+        end).
+
+muc_light_include_groupchat_messages_by_default(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        P = ?config(props, Config),
+        MsgCount = 4,
+        Room = muc_helper:fresh_room_name(),
+        given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+        M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+        then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+        M2 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 2">>, <<"Id 2">>),
+        then_muc_light_message_is_received_by([Alice, Bob], M2),
+
+        when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
+        then_pm_message_is_received(Bob, <<"private hi!">>),
+
+        maybe_wait_for_archive(Config),
+
+        when_archive_query_is_sent(Alice, undefined, Config),
+        Res = wait_archive_respond(Alice),
+
+        Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"true">>),
+        escalus:send(Alice, Stanza),
+        Res2 = wait_archive_respond(Alice),
+
+        assert_respond_size(MsgCount, Res),
+        assert_respond_size(MsgCount, Res2),
+        ok
         end).
 
 muc_light_chat_markers_are_archived_if_enabled(Config) ->

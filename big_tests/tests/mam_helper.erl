@@ -327,31 +327,31 @@ stanza_text_search_archive_request(P, QueryId, TextSearch) ->
                               undefined, undefined,
                               undefined, undefined, TextSearch, undefined, undefined).
 
-stanza_include_groupchat_request(P, QueryId, Groupchat) ->
+stanza_include_groupchat_request(P, QueryId, IncludeGroupChat) ->
     stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
-                              undefined, undefined, undefined, undefined, Groupchat).
+                              undefined, undefined, undefined, undefined, IncludeGroupChat).
 
 stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID,
-                          RSM, TextSearch, FlipPage, Groupchat) ->
+                          RSM, TextSearch, FlipPage, IncludeGroupChat) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, Groupchat),
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat),
            maybe_rsm_elem(RSM),
            maybe_flip_page(FlipPage)])
     }]).
 
 form_x(undefined, undefined, undefined, undefined, undefined, undefined) ->
     undefined;
-form_x(BStart, BEnd, BWithJID, RSM, TextSearch, Groupchat) ->
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat) ->
     Fields = skip_undefined([form_field(<<"start">>, BStart),
                              form_field(<<"end">>, BEnd),
                              form_field(<<"with">>, BWithJID),
                              form_field(<<"full-text-search">>, TextSearch),
-                             form_field(<<"include-groupchat">>, Groupchat)]
+                             form_field(<<"include-groupchat">>, IncludeGroupChat)]
                             ++ form_extra_fields(RSM)
                             ++ form_border_fields(RSM)),
     form_helper:form(#{fields => Fields}).

@@ -74,7 +74,7 @@ CREATE TABLE [dbo].[mam_message](
 	[message] [varbinary](max) NOT NULL,
 	[search_body] [nvarchar](max) NOT NULL,
 	[origin_id] [nvarchar](250) NULL,
-    [is_groupchat] [smallint] NOT NULL,
+	[is_groupchat] [smallint] NOT NULL,
  CONSTRAINT [PK_mam_message_user_id] PRIMARY KEY CLUSTERED
 (
 	[user_id] ASC,
