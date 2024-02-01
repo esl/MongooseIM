@@ -355,7 +355,8 @@ resend_offline_messages_hook(Acc, JID) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, Params).
 
-%%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
+%%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session
+%%%      on nodedown
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
     Server :: jid:server(),
     Acc :: mongoose_acc:t(),
