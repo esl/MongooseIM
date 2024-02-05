@@ -143,7 +143,8 @@ get_status_test(Config) ->
     Result = get_ok_value([data, server, status], get_status(Config)),
     ?assertEqual(<<"RUNNING">>, maps:get(<<"statusCode">>, Result)),
     ?assert(is_binary(maps:get(<<"message">>, Result))),
-    ?assert(is_binary(maps:get(<<"version">>, Result))).
+    ?assert(is_binary(maps:get(<<"version">>, Result))),
+    ?assert(is_binary(maps:get(<<"commitHash">>, Result))).
 
 
 join_successful(Config) ->
@@ -292,7 +293,7 @@ ensure_node_started(Node) ->
     Timeout = timer:seconds(60),
     F = fun() ->
         case rpc(Node#{timeout => Timeout}, mongoose_server_api, status, []) of
-            {ok, {true, _, _}} -> true;
+            {ok, {true, _, _, _}} -> true;
             _Other -> false
         end
     end,
