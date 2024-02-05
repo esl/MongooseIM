@@ -46,7 +46,7 @@
 %%%
 -spec status() -> {ok, {boolean(), iolist()}}.
 status() ->
-    {ok, {Status, Message, _}} = mongoose_server_api:status(),
+    {ok, {Status, Message, _, _}} = mongoose_server_api:status(),
     {ok, {Status, Message}}.
 
 %%%
