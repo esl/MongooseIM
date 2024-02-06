@@ -1200,7 +1200,7 @@ process_lookup_with_complete_check(HostType, Params, F) ->
     end.
 
 -spec lookup_first_and_last_messages(mongooseim:host_type(), mod_mam:archive_id(),
-                                     jid:jid(),fun()) ->
+                                     jid:jid(), fun()) ->
     {mod_mam:message_row(), mod_mam:message_row()} | {error, term()} | empty_archive.
 lookup_first_and_last_messages(HostType, ArcID, ArcJID, F) ->
     lookup_first_and_last_messages(HostType, ArcID, ArcJID, ArcJID, F).

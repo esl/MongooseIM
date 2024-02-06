@@ -292,48 +292,73 @@ stanza_metadata_request() ->
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(P, QueryId) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined,
-                              undefined, undefined, undefined, undefined, undefined).
+    Params = #{query_id => QueryId},
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_date_range_archive_request(P) ->
-    stanza_lookup_messages_iq(P, undefined,
-                              "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
-                              undefined, undefined, undefined, undefined, undefined).
+    Params = #{
+        start => "2010-06-07T00:00:00Z",
+        stop => "2010-07-07T13:23:54Z"
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
-    stanza_lookup_messages_iq(P, undefined,
-                              Start, Stop,
-                              undefined, undefined, undefined, undefined, undefined).
+    Params = #{
+        start => Start,
+        stop => Stop
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_limit_archive_request(P) ->
-    stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
-                              undefined, undefined, #rsm_in{max=10},
-                              undefined, undefined, undefined).
+    Params = #{
+        start => "2010-08-07T00:00:00Z",
+        rsm => #rsm_in{max=10}
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_page_archive_request(P, QueryId, RSM) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
-                              RSM, undefined, undefined, undefined).
+    Params = #{
+        query_id => QueryId,
+        rsm => RSM
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_flip_page_archive_request(P, QueryId, RSM) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined,
-                              RSM, undefined, true, undefined).
+    Params = #{
+        query_id => QueryId,
+        rsm => RSM,
+        flip_page => true
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_filtered_by_jid_request(P, BWithJID) ->
-    stanza_lookup_messages_iq(P, undefined, undefined,
-                              undefined, BWithJID, undefined, undefined, undefined, undefined).
+    Params = #{with_jid => BWithJID},
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_text_search_archive_request(P, QueryId, TextSearch) ->
-    stanza_lookup_messages_iq(P, QueryId,
-                              undefined, undefined,
-                              undefined, undefined, TextSearch, undefined, undefined).
+    Params = #{
+        query_id => QueryId,
+        text_search => TextSearch
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_include_groupchat_request(P, QueryId, IncludeGroupChat) ->
-    stanza_lookup_messages_iq(P, QueryId,
-                              undefined, undefined,
-                              undefined, undefined, undefined, undefined, IncludeGroupChat).
+    Params = #{
+        query_id => QueryId,
+        include_group_chat => IncludeGroupChat
+    },
+    stanza_lookup_messages_iq(P, Params).
 
-stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID,
-                          RSM, TextSearch, FlipPage, IncludeGroupChat) ->
+stanza_lookup_messages_iq(P, Params) ->
+    QueryId = maps:get(query_id, Params, undefined),
+    BStart = maps:get(start, Params, undefined),
+    BEnd = maps:get(stop, Params, undefined),
+    BWithJID = maps:get(with_jid, Params, undefined),
+    RSM = maps:get(rsm, Params, undefined),
+    TextSearch = maps:get(text_search, Params, undefined),
+    FlipPage = maps:get(flip_page, Params, undefined),
+    IncludeGroupChat = maps:get(include_group_chat, Params, undefined),
+
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)

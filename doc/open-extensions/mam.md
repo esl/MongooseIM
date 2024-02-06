@@ -5,10 +5,10 @@
 The new fields allow to improve the performance of the counting queries for very big archives
 by changing how count and index functions work.
 
-- `from-id` - returns and counts messages with ids `id >= from_id` only (`from_id` is included into the set).
-- `to-id` - returns and counts messages with ids `id <= to_id` only (`to_id` is included into the set).
-- `after-id` - returns and counts messages with ids `id > after_id` only (`after_id` is not included into the set).
-- `before-id` - returns and counts messages with ids `id < before_id` only (`before_id` is not included into the set).
+- `from-id` - returns and counts messages with ids `id >= from-id` only (`from-id` is included into the set).
+- `to-id` - returns and counts messages with ids `id <= to-id` only (`to-id` is included into the set).
+- `after-id` - returns and counts messages with ids `id > after-id` only (`after-id` is not included into the set).
+- `before-id` - returns and counts messages with ids `id < before-id` only (`before-id` is not included into the set).
 - `simple` - do not return count and offset fields in the result.
 
 The fields could be combined together. If two filters are provided, both would
