@@ -193,7 +193,8 @@ db_mappings() ->
      #db_mapping{column = from_jid, param = source_jid, format = jid},
      #db_mapping{column = origin_id, param = origin_id, format = maybe_string},
      #db_mapping{column = message, param = packet, format = xml},
-     #db_mapping{column = search_body, param = packet, format = search}].
+     #db_mapping{column = search_body, param = packet, format = search},
+     #db_mapping{column = is_groupchat, param = is_groupchat, format = bool}].
 
 lookup_fields() ->
     %% Describe each possible filtering option
@@ -202,7 +203,8 @@ lookup_fields() ->
      #lookup_field{op = le, column = id, param = end_id},
      #lookup_field{op = equal, column = remote_bare_jid, param = remote_bare_jid},
      #lookup_field{op = equal, column = remote_resource, param = remote_resource},
-     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words},
+     #lookup_field{op = equal, column = is_groupchat, param = include_groupchat}].
 
 -spec env_vars(host_type(), jid:jid()) -> env_vars().
 env_vars(HostType, ArcJID) ->
@@ -239,7 +241,8 @@ column_to_id(id) -> "i";
 column_to_id(user_id) -> "u";
 column_to_id(remote_bare_jid) -> "b";
 column_to_id(remote_resource) -> "r";
-column_to_id(search_body) -> "s".
+column_to_id(search_body) -> "s";
+column_to_id(is_groupchat) -> "g".
 
 column_names(Mappings) ->
      [Column || #db_mapping{column = Column} <- Mappings].

@@ -33,6 +33,8 @@
          has_message_retraction/2,
          get_retract_id/2,
          get_origin_id/1,
+         is_groupchat/1,
+         should_page_be_flipped/1,
          tombstone/2,
          wrap_message/6,
          wrap_message/7,
@@ -44,6 +46,8 @@
          form_borders_decode/1,
          form_decode_optimizations/1,
          is_mam_result_message/1,
+         make_metadata_element/0,
+         make_metadata_element/4,
          features/2]).
 
 %% Forms
@@ -78,6 +82,8 @@
          maybe_encode_compact_uuid/2,
          wait_shaper/4,
          check_for_item_not_found/3,
+         maybe_reverse_messages/2,
+         get_msg_id_and_timestamp/1,
          is_mam_muc_enabled/2]).
 
 %% Ejabberd
@@ -88,6 +94,8 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2,
          lookup/3,
+         lookup_first_and_last_messages/4,
+         lookup_first_and_last_messages/5,
          incremental_delete_domain/5,
          db_message_codec/2, db_jid_codec/2]).
 
@@ -384,6 +392,30 @@ get_origin_id(Packet) ->
     exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
                              {attr, <<"id">>}], none).
 
+is_groupchat(<<"groupchat">>) ->
+    true;
+is_groupchat(_) ->
+    false.
+
+-spec should_page_be_flipped(exml:element()) -> boolean().
+should_page_be_flipped(Packet) ->
+    case exml_query:path(Packet, [{element, <<"flip-page">>}], none) of
+        none -> false;
+        _ -> true
+    end.
+
+-spec maybe_reverse_messages(mam_iq:lookup_params(), [mod_mam:message_row()]) ->
+    [mod_mam:message_row()].
+maybe_reverse_messages(#{flip_page := true}, Messages) -> lists:reverse(Messages);
+maybe_reverse_messages(#{flip_page := false}, Messages) -> Messages.
+
+-spec get_msg_id_and_timestamp(mod_mam:message_row()) -> {binary(), binary()}.
+get_msg_id_and_timestamp(#{id := MsgID}) ->
+    {Microseconds, _NodeMessID} = decode_compact_uuid(MsgID),
+    TS = calendar:system_time_to_rfc3339(Microseconds, [{offset, "Z"}, {unit, microsecond}]),
+    ExtID = mess_id_to_external_binary(MsgID),
+    {ExtID, list_to_binary(TS)}.
+
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
 
@@ -567,6 +599,23 @@ maybe_transform_fin_elem(undefined, _HostType, _Params, FinEl) ->
 maybe_transform_fin_elem(Module, HostType, Params, FinEl) ->
     Module:extra_fin_element(HostType, Params, FinEl).
 
+-spec make_metadata_element() -> exml:element().
+make_metadata_element() ->
+    #xmlel{
+        name = <<"metadata">>,
+        attrs = [{<<"xmlns">>, ?NS_MAM_06}]}.
+
+-spec make_metadata_element(binary(), binary(), binary(), binary()) -> exml:element().
+make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS) ->
+    #xmlel{
+        name = <<"metadata">>,
+        attrs = [{<<"xmlns">>, ?NS_MAM_06}],
+        children = [#xmlel{name = <<"start">>,
+                          attrs = [{<<"id">>, FirstMsgID}, {<<"timestamp">>, FirstMsgTS}]},
+                    #xmlel{name = <<"end">>,
+                          attrs = [{<<"id">>, LastMsgID}, {<<"timestamp">>, LastMsgTS}]}]
+    }.
+
 -spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().
 parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->
     Default = exml_query:attr(El, <<"default">>),
@@ -612,10 +661,10 @@ skip_bad_jids(MaybeJids) ->
 
 -spec form_borders_decode(mongoose_data_forms:kv_map()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(KVs) ->
-    AfterID  = form_field_mess_id(KVs, <<"after_id">>),
-    BeforeID = form_field_mess_id(KVs, <<"before_id">>),
-    FromID   = form_field_mess_id(KVs, <<"from_id">>),
-    ToID     = form_field_mess_id(KVs, <<"to_id">>),
+    AfterID  = form_field_mess_id(KVs, <<"after-id">>),
+    BeforeID = form_field_mess_id(KVs, <<"before-id">>),
+    FromID   = form_field_mess_id(KVs, <<"from-id">>),
+    ToID     = form_field_mess_id(KVs, <<"to-id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
 
@@ -660,7 +709,8 @@ is_mam_namespace(NS) ->
     lists:member(NS, mam_features()).
 
 features(Module, HostType) ->
-    mam_features() ++ retraction_features(Module, HostType).
+    mam_features() ++ retraction_features(Module, HostType)
+        ++ groupchat_features(Module, HostType).
 
 mam_features() ->
     [?NS_MAM_04, ?NS_MAM_06].
@@ -671,6 +721,18 @@ retraction_features(Module, HostType) ->
         false -> [?NS_RETRACT]
     end.
 
+groupchat_features(mod_mam_pm = Module, HostType) ->
+    case gen_mod:get_module_opt(HostType, mod_mam, backend) of
+        cassandra -> [];
+        _ ->
+            case gen_mod:get_module_opt(HostType, Module, archive_groupchats) of
+                true -> [?NS_MAM_GC_FIELD, ?NS_MAM_GC_AVAILABLE];
+                false -> [?NS_MAM_GC_FIELD]
+            end
+    end;
+groupchat_features(_, _) ->
+    [].
+
 %% -----------------------------------------------------------------------
 %% Forms
 
@@ -678,19 +740,33 @@ retraction_features(Module, HostType) ->
                    HostType :: mongooseim:host_type(), binary()) ->
     exml:element().
 message_form(Module, HostType, MamNs) ->
-    Fields = message_form_fields(Module, HostType),
+    Fields = message_form_fields(Module, HostType, MamNs),
     Form = mongoose_data_forms:form(#{ns => MamNs, fields => Fields}),
     result_query(Form, MamNs).
 
-message_form_fields(Mod, HostType) ->
+message_form_fields(Mod, HostType, <<"urn:xmpp:mam:1">>) ->
     TextSearch =
         case has_full_text_search(Mod, HostType) of
-            true -> [#{type => <<"text-single">>, var => <<"full-text-search">>}];
+            true -> [#{type => <<"text-single">>,
+                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
             false -> []
         end,
     [#{type => <<"jid-single">>, var => <<"with">>},
      #{type => <<"text-single">>, var => <<"start">>},
-     #{type => <<"text-single">>, var => <<"end">>} | TextSearch].
+     #{type => <<"text-single">>, var => <<"end">>} | TextSearch];
+message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
+    TextSearch =
+        case has_full_text_search(Mod, HostType) of
+            true -> [#{type => <<"text-single">>,
+                       var => <<"{https://erlang-solutions.com/}full-text-search">>}];
+            false -> []
+        end,
+    [#{type => <<"jid-single">>, var => <<"with">>},
+     #{type => <<"text-single">>, var => <<"start">>},
+     #{type => <<"text-single">>, var => <<"end">>},
+     #{type => <<"text-single">>, var => <<"before-id">>},
+     #{type => <<"text-single">>, var => <<"after-id">>},
+     #{type => <<"boolean">>, var => <<"include-groupchat">>} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
@@ -1122,6 +1198,52 @@ process_lookup_with_complete_check(HostType, Params, F) ->
         Other ->
             Other
     end.
+
+-spec lookup_first_and_last_messages(mongooseim:host_type(), mod_mam:archive_id(),
+                                     jid:jid(), fun()) ->
+    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()} | empty_archive.
+lookup_first_and_last_messages(HostType, ArcID, ArcJID, F) ->
+    lookup_first_and_last_messages(HostType, ArcID, ArcJID, ArcJID, F).
+
+-spec lookup_first_and_last_messages(mongooseim:host_type(), mod_mam:archive_id(), jid:jid(),
+                                     jid:jid(), fun()) ->
+    {mod_mam:message_row(), mod_mam:message_row()} | {error, term()} | empty_archive.
+lookup_first_and_last_messages(HostType, ArcID, CallerJID, OwnerJID, F) ->
+    FirstMsgParams = create_lookup_params(undefined, forward, ArcID, CallerJID, OwnerJID),
+    LastMsgParams = create_lookup_params(#rsm_in{direction = before},
+                                         backward, ArcID, CallerJID, OwnerJID),
+    case lookup(HostType, FirstMsgParams, F) of
+        {ok, #{messages := [FirstMsg]}} ->
+            case lookup(HostType, LastMsgParams, F) of
+                {ok, #{messages := [LastMsg]}} -> {FirstMsg, LastMsg};
+                ErrorLast -> ErrorLast
+            end;
+        {ok, #{messages := []}} -> empty_archive;
+        ErrorFirst -> ErrorFirst
+    end.
+
+-spec create_lookup_params(jlib:rsm_in() | undefined,
+                    backward | forward,
+                    mod_mam:archive_id(),
+                    jid:jid(),
+                    jid:jid()) -> mam_iq:lookup_params().
+create_lookup_params(RSM, Direction, ArcID, CallerJID, OwnerJID) ->
+    #{now => erlang:system_time(microsecond),
+      is_simple => true,
+      rsm => RSM,
+      max_result_limit => 1,
+      archive_id => ArcID,
+      owner_jid => OwnerJID,
+      search_text => undefined,
+      with_jid => undefined,
+      start_ts => undefined,
+      page_size => 1,
+      end_ts => undefined,
+      borders => undefined,
+      flip_page => false,
+      ordering_direction => Direction,
+      limit_passed => true,
+      caller_jid => CallerJID}.
 
 patch_fun_to_make_result_as_map(F) ->
     fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.

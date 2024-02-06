@@ -74,6 +74,7 @@ CREATE TABLE [dbo].[mam_message](
 	[message] [varbinary](max) NOT NULL,
 	[search_body] [nvarchar](max) NOT NULL,
 	[origin_id] [nvarchar](250) NULL,
+	[is_groupchat] [smallint] NOT NULL,
  CONSTRAINT [PK_mam_message_user_id] PRIMARY KEY CLUSTERED
 (
 	[user_id] ASC,
@@ -214,8 +215,8 @@ CREATE TABLE [dbo].[privacy_list](
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [PK_privacy_list] PRIMARY KEY CLUSTERED
 (
-	[server] ASC, 
-	[username] ASC, 
+	[server] ASC,
+	[username] ASC,
 	[name] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]

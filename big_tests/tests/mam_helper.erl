@@ -56,6 +56,7 @@
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
+         stanza_include_groupchat_request/3,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -80,6 +81,8 @@
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
+         stanza_flip_page_archive_request/3,
+         stanza_metadata_request/0,
          wait_empty_rset/2,
          wait_message_range/2,
          wait_message_range/3,
@@ -96,6 +99,8 @@
          retract_ns/0,
          retract_esl_ns/0,
          retract_tombstone_ns/0,
+         groupchat_field_ns/0,
+         groupchat_available_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -258,6 +263,8 @@ mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
+groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
+groupchat_available_ns() -> <<"urn:xmpp:mam:2#groupchat-available">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -277,56 +284,99 @@ maybe_with_elem(BWithJID) ->
         name = <<"with">>,
         children = [#xmlcdata{content = BWithJID}]}.
 
+stanza_metadata_request() ->
+    escalus_stanza:iq(<<"get">>,
+                      [#xmlel{name = <<"metadata">>,
+                              attrs = [{<<"xmlns">>, mam_ns_binary_v06()}]}]).
+
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(P, QueryId) ->
-    stanza_lookup_messages_iq(P, QueryId,
-                              undefined, undefined,
-                              undefined, undefined, undefined).
+    Params = #{query_id => QueryId},
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_date_range_archive_request(P) ->
-    stanza_lookup_messages_iq(P, undefined,
-                              "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
-                              undefined, undefined, undefined).
+    Params = #{
+        start => "2010-06-07T00:00:00Z",
+        stop => "2010-07-07T13:23:54Z"
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
-    stanza_lookup_messages_iq(P, undefined,
-                              Start, Stop,
-                              undefined, undefined, undefined).
+    Params = #{
+        start => Start,
+        stop => Stop
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_limit_archive_request(P) ->
-    stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
-                              undefined, undefined, #rsm_in{max=10}, undefined).
+    Params = #{
+        start => "2010-08-07T00:00:00Z",
+        rsm => #rsm_in{max=10}
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_page_archive_request(P, QueryId, RSM) ->
-    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined, RSM, undefined).
+    Params = #{
+        query_id => QueryId,
+        rsm => RSM
+    },
+    stanza_lookup_messages_iq(P, Params).
+
+stanza_flip_page_archive_request(P, QueryId, RSM) ->
+    Params = #{
+        query_id => QueryId,
+        rsm => RSM,
+        flip_page => true
+    },
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_filtered_by_jid_request(P, BWithJID) ->
-    stanza_lookup_messages_iq(P, undefined, undefined,
-                              undefined, BWithJID, undefined, undefined).
+    Params = #{with_jid => BWithJID},
+    stanza_lookup_messages_iq(P, Params).
 
 stanza_text_search_archive_request(P, QueryId, TextSearch) ->
-    stanza_lookup_messages_iq(P, QueryId,
-                              undefined, undefined,
-                              undefined, undefined, TextSearch).
+    Params = #{
+        query_id => QueryId,
+        text_search => TextSearch
+    },
+    stanza_lookup_messages_iq(P, Params).
 
-stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
+stanza_include_groupchat_request(P, QueryId, IncludeGroupChat) ->
+    Params = #{
+        query_id => QueryId,
+        include_group_chat => IncludeGroupChat
+    },
+    stanza_lookup_messages_iq(P, Params).
+
+stanza_lookup_messages_iq(P, Params) ->
+    QueryId = maps:get(query_id, Params, undefined),
+    BStart = maps:get(start, Params, undefined),
+    BEnd = maps:get(stop, Params, undefined),
+    BWithJID = maps:get(with_jid, Params, undefined),
+    RSM = maps:get(rsm, Params, undefined),
+    TextSearch = maps:get(text_search, Params, undefined),
+    FlipPage = maps:get(flip_page, Params, undefined),
+    IncludeGroupChat = maps:get(include_group_chat, Params, undefined),
+
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM, TextSearch),
-           maybe_rsm_elem(RSM)])
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat),
+           maybe_rsm_elem(RSM),
+           maybe_flip_page(FlipPage)])
     }]).
 
-form_x(undefined, undefined, undefined, undefined, undefined) ->
+form_x(undefined, undefined, undefined, undefined, undefined, undefined) ->
     undefined;
-form_x(BStart, BEnd, BWithJID, RSM, TextSearch) ->
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat) ->
     Fields = skip_undefined([form_field(<<"start">>, BStart),
                              form_field(<<"end">>, BEnd),
                              form_field(<<"with">>, BWithJID),
-                             form_field(<<"full-text-search">>, TextSearch)]
+                             form_field(<<"full-text-search">>, TextSearch),
+                             form_field(<<"include-groupchat">>, IncludeGroupChat)]
                             ++ form_extra_fields(RSM)
                             ++ form_border_fields(RSM)),
     form_helper:form(#{fields => Fields}).
@@ -340,10 +390,10 @@ form_border_fields(undefined) ->
     [];
 form_border_fields(#rsm_in{
         before_id=BeforeId, after_id=AfterId, from_id=FromId, to_id=ToId}) ->
-    [form_field(<<"before_id">>, BeforeId),
-     form_field(<<"after_id">>, AfterId),
-     form_field(<<"from_id">>, FromId),
-     form_field(<<"to_id">>, ToId)].
+    [form_field(<<"before-id">>, BeforeId),
+     form_field(<<"after-id">>, AfterId),
+     form_field(<<"from-id">>, FromId),
+     form_field(<<"to-id">>, ToId)].
 
 form_field(_VarName, undefined) ->
     undefined;
@@ -371,6 +421,11 @@ maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
                 maybe_rsm_max(Max),
                 maybe_rsm_index(Index),
                 maybe_rsm_direction(Direction, Id)])}.
+
+maybe_flip_page(undefined) ->
+    undefined;
+maybe_flip_page(_) ->
+    #xmlel{name = <<"flip-page">>}.
 
 rsm_id_children(undefined) -> [];
 rsm_id_children(Id) -> [#xmlcdata{content = Id}].
@@ -817,15 +872,22 @@ delete_offline_messages(Server, Username) ->
     HostType = domain_helper:host_type(),
     rpc_apply(mod_offline_backend, remove_user, [HostType, Username, Server]).
 
-wait_message_range(Client, FromN, ToN) ->
-    wait_message_range(Client, 15, FromN-1, FromN, ToN).
+wait_message_range(Client, FromN, ToN) when FromN =< ToN ->
+    wait_message_range(Client, 15, FromN-1, FromN, ToN, 1);
+wait_message_range(Client, FromN, ToN) when FromN > ToN ->
+    wait_message_range(Client, 15, FromN-1, FromN, ToN, -1).
 
-wait_message_range(Client, TotalCount, Offset, FromN, ToN) ->
+wait_message_range(Client, TotalCount, Offset, FromN, ToN) when FromN =< ToN ->
+    wait_message_range(Client, TotalCount, Offset, FromN, ToN, 1);
+wait_message_range(Client, TotalCount, Offset, FromN, ToN) when FromN > ToN ->
+    wait_message_range(Client, TotalCount, Offset, FromN, ToN, -1).
+
+wait_message_range(Client, TotalCount, Offset, FromN, ToN, Step) ->
     wait_message_range(Client, #{total_count => TotalCount, offset => Offset,
-                                 from => FromN, to => ToN}).
+                                 from => FromN, to => ToN, step => Step}).
 
 wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offset,
-                                      from := FromN, to := ToN}) ->
+                                      from := FromN, to := ToN, step := Step}) ->
     IsComplete = maps:get(is_complete, Params, undefined),
     Result = wait_archive_respond(Client),
     Messages = respond_messages(Result),
@@ -835,9 +897,12 @@ wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offse
     ParsedIQ = parse_result_iq(Result),
     try
         ?assert_equal(TotalCount, ParsedIQ#result_iq.count),
-        ?assert_equal(Offset, ParsedIQ#result_iq.first_index),
+        case Step of
+            -1 -> ok;
+            _ -> ?assert_equal(Offset, ParsedIQ#result_iq.first_index)
+        end,
         %% Compare body of the messages.
-        ?assert_equal([generate_message_text(N) || N <- maybe_seq(FromN, ToN)],
+        ?assert_equal([generate_message_text(N) || N <- maybe_seq(FromN, ToN, Step)],
                       [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         case IsComplete of
             true      -> ?assert_equal(<<"true">>, ParsedIQ#result_iq.complete);
@@ -854,8 +919,8 @@ wait_message_range(Client, Params = #{total_count := TotalCount, offset := Offse
         erlang:raise(Class, Reason, StackTrace)
     end.
 
-maybe_seq(undefined, undefined) -> [];
-maybe_seq(A, B) -> lists:seq(A, B).
+maybe_seq(undefined, undefined, _) -> [];
+maybe_seq(A, B, Step) -> lists:seq(A, B, Step).
 
 wait_empty_rset(Alice, TotalCount) ->
     Result = wait_archive_respond(Alice),
@@ -970,10 +1035,10 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_, Source, _}, Packet}) ->
     Map1 = #{message_id => MsgIdOwner, archive_id => FromArcID,
              local_jid => FromJID, remote_jid => ToJID, source_jid => Source,
-             origin_id => none, direction => outgoing, packet => Packet},
+             origin_id => none, direction => outgoing, packet => Packet, is_groupchat => false},
     Map2 = #{message_id => MsgIdRemote, archive_id => ToArcID,
              local_jid => ToJID, remote_jid => FromJID, source_jid => Source,
-             origin_id => none, direction => incoming, packet => Packet},
+             origin_id => none, direction => incoming, packet => Packet, is_groupchat => false},
     archive_message(Map1),
     archive_message(Map2).
 

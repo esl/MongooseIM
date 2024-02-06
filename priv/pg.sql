@@ -213,6 +213,7 @@ CREATE TABLE mam_message(
   message bytea NOT NULL,
   search_body text,
   origin_id varchar,
+  is_groupchat boolean NOT NULL,
   PRIMARY KEY(user_id, id)
 );
 CREATE INDEX i_mam_message_username_jid_id

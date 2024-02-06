@@ -325,7 +325,9 @@ handle_mam_iq(Action, From, To, IQ, Acc) ->
         mam_set_message_form ->
             handle_set_message_form(From, To, IQ, Acc);
         mam_get_message_form ->
-            handle_get_message_form(From, To, IQ, Acc)
+            handle_get_message_form(From, To, IQ, Acc);
+        mam_get_metadata ->
+            handle_get_metadata(From, IQ, Acc)
     end.
 
 -spec handle_set_prefs(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
@@ -397,9 +399,11 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
             return_error_iq(IQ, Reason);
         {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
                is_complete := IsComplete}} ->
+            %% Reverse order of messages if the client requested it
+            MessageRows1 = mod_mam_utils:maybe_reverse_messages(Params0, MessageRows),
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, true),
+                                                         QueryID, MessageRows1, true),
             %% Make fin iq
             IsStable = true,
             ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
@@ -440,6 +444,27 @@ handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
     HostType = acc_to_host_type(Acc),
     return_message_form_iq(HostType, IQ).
 
+-spec handle_get_metadata(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
+                                 jlib:iq() | {error, term(), jlib:iq()}.
+handle_get_metadata(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
+    HostType = acc_to_host_type(Acc),
+    ArcID = archive_id_int(HostType, ArcJID),
+    case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, ArcJID,
+                                                      fun lookup_messages/2) of
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {FirstMsg, LastMsg} ->
+            {FirstMsgID, FirstMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(FirstMsg),
+            {LastMsgID, LastMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(LastMsg),
+            MetadataElement =
+                mod_mam_utils:make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS),
+            IQ#iq{type = result, sub_el = [MetadataElement]};
+        empty_archive ->
+            MetadataElement = mod_mam_utils:make_metadata_element(),
+            IQ#iq{type = result, sub_el = [MetadataElement]}
+    end.
+
 amp_deliver_strategy([none]) -> [stored, none];
 amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 
@@ -450,8 +475,9 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
     HostType = acc_to_host_type(Acc),
+    MsgType = exml_query:attr(Packet, <<"type">>),
     case is_archivable_message(HostType, Dir, Packet)
-         andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>))
+         andalso should_archive_if_groupchat(HostType, MsgType)
          andalso should_archive_if_sent_to_yourself(LocJID, RemJID, Dir) of
         true ->
             ArcID = archive_id_int(HostType, LocJID),
@@ -459,6 +485,7 @@ handle_package(Dir, ReturnMessID,
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = mod_mam_utils:get_or_generate_mam_id(Acc),
+                    IsGroupChat = mod_mam_utils:is_groupchat(MsgType),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,
@@ -466,7 +493,8 @@ handle_package(Dir, ReturnMessID,
                                source_jid => SrcJID,
                                origin_id => OriginID,
                                direction => Dir,
-                               packet => Packet},
+                               packet => Packet,
+                               is_groupchat => IsGroupChat},
                     Result = archive_message(HostType, Params),
                     ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
                     {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc)};
