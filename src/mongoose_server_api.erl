@@ -31,7 +31,7 @@ status() ->
                 {true,
                  String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version]),
                  lists:nth(1, string:tokens(Version, "-")),
-                 lists:nth(3, string:tokens(Version, "-"))}
+                 string:slice(lists:nth(3, string:tokens(Version, "-")), 1)}
         end,
     {ok, Result}.
 
