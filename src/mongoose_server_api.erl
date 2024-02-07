@@ -17,7 +17,7 @@ set_loglevel(Level) ->
             {invalid_level, io_lib:format("Log level ~p does not exist.", [Level])}
     end.
 
--spec status() -> {ok, {boolean(), iolist(), iolist()}}.
+-spec status() -> {ok, {boolean(), iolist(), iolist(), iolist()}}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     String1 = io_lib:format("The node ~p is ~p. Status: ~p.",
@@ -26,11 +26,12 @@ status() ->
         case lists:keysearch(mongooseim, 1, application:which_applications()) of
             false ->
                 {false, String1 ++ " MongooseIM is not running in that node.",
-                 "MongooseIM is not running in that node"};
+                 "MongooseIM is not running in that node", "MongooseIM is not running in that node"};
             {value, {_, _, Version}} ->
                 {true,
                  String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version]),
-                 lists:nth(1, string:split(Version, "-"))}
+                 lists:nth(1, string:tokens(Version, "-")),
+                 string:slice(lists:nth(3, string:tokens(Version, "-")), 1)}
         end,
     {ok, Result}.
 
