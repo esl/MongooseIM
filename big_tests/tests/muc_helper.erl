@@ -317,7 +317,12 @@ story_with_room(Config, RoomOpts, [{Owner, _}|_] = UserSpecs, StoryFun) ->
         StoryFun2 = fun(Args) -> apply(StoryFun, [Config2 | Args]) end,
         escalus_story:story_with_client_list(Config2, UserSpecs, StoryFun2)
     after
-        mam_helper:destroy_room(Config2)
+        case dynamic_modules:get_current_modules(domain_helper:host_type()) of
+            #{mod_mam_muc := _} ->
+                mam_helper:destroy_room(Config2);
+            #{} ->
+                ok
+        end
     end.
 
 %%--------------------------------------------------------------------
