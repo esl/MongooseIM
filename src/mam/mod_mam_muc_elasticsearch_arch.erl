@@ -97,7 +97,7 @@ archive_message(_Result, Params, #{host_type := HostType}) ->
                        #{what => archive_muc_message_failed, reason => Reason,
                          server => HostType, room => Room, source => SourceBinJid,
                          message_id => MessageId})),
-            mongoose_metrics:update(HostType, modMamDropped, 1),
+            mongoose_instrument:execute(mod_mam_dropped, #{host_type => HostType}, #{count => 1}),
             {ok, Err}
     end.
 
