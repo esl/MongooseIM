@@ -57,6 +57,7 @@ all() ->
      {group, s2s},
      {group, modules},
      {group, services},
+     {group, instrumentation},
      {group, logs}].
 
 groups() ->
@@ -233,6 +234,7 @@ groups() ->
                             incorrect_module]},
      {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]},
+     {instrumentation, [parallel], [instrumentation]},
      {logs, [], [no_warning_about_subdomain_patterns,
                  no_warning_for_resolvable_domain]}
     ].
@@ -2908,6 +2910,19 @@ service_mongoose_system_metrics(_Config) ->
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => "Secret"}})),
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666, <<"id">> => 666}})),
     ?err(T(#{<<"report">> => <<"maybe">>})).
+
+%% Instrumentation
+
+instrumentation(_Config) ->
+    P = [instrumentation],
+    T = fun(Opts) -> #{<<"instrumentation">> => Opts} end,
+    ?cfg(P, #{}, T(#{})),
+    ?cfg(P, #{prometheus => #{}}, T(#{<<"prometheus">> => #{}})),
+    ?cfg(P, #{exometer => #{}}, T(#{<<"exometer">> => #{}})),
+    ?err(T(#{<<"prometheus">> => #{<<"fire">> => 1}})),
+    ?err(T(#{<<"bad_module">> => #{}})).
+
+%% Logs
 
 no_warning_about_subdomain_patterns(_Config) ->
     check_module_defaults(mod_vcard),
