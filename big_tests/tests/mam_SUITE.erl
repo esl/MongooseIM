@@ -825,7 +825,9 @@ init_metrics(muc_archive_request, Config) ->
     %% Check that metric is incremented on MUC flushed
     case ?config(configuration, Config) of
         rdbms_async_pool ->
-            MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
+            HostType = domain_helper:host_type(mim),
+            HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
+            MongooseMetrics = [{[HostTypePrefix, mod_mam_muc_flushed, count], changed}],
             [{mongoose_metrics, MongooseMetrics} | Config];
         _ ->
             Config
@@ -3303,7 +3305,7 @@ metric_incremented_on_archive_request(ConfigIn) ->
         end,
     HostType = domain_helper:host_type(mim),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[HostTypePrefix, backends, mod_mam_pm, lookup], changed}],
+    MongooseMetrics = [{[HostTypePrefix, mod_mam_pm_lookup, count], changed}],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}], F).
 
