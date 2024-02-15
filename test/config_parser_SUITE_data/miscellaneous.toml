@@ -79,3 +79,7 @@
 [internal_databases.mnesia]
 
 [internal_databases.cets]
+
+[instrumentation.prometheus]
+
+[instrumentation.exometer]
