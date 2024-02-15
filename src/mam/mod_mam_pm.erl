@@ -40,7 +40,7 @@
          archive_id/2]).
 
 %% gen_mod handlers
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, supported_features/0, hooks/1, instrumentation/1]).
 
 %% hook handlers
 -export([disco_local_features/3,
@@ -109,15 +109,12 @@ archive_id(Server, User)
 -spec start(host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
-    ensure_metrics(HostType),
-    gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
 
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
-    gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
 
@@ -150,11 +147,13 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
                     ?LOG_WARNING(#{what => mam_max_delay_reached,
                                    text => <<"Return max_delay_reached error IQ from MAM">>,
                                    action => Action, acc => Acc}),
-                    mongoose_metrics:update(HostType, modMamDroppedIQ, 1),
+                    mongoose_instrument:execute(mod_mam_pm_dropped_iq,
+                                                #{host_type => HostType}, #{count => 1}),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         false ->
-            mongoose_metrics:update(HostType, modMamDroppedIQ, 1),
+            mongoose_instrument:execute(mod_mam_pm_dropped_iq,
+                                        #{host_type => HostType}, #{count => 1}),
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
@@ -565,20 +564,24 @@ get_behaviour(HostType, ArcID,  LocJID=#jid{}, RemJID=#jid{}) ->
                 DefaultMode :: atom(), AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    mongoose_hooks:mam_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
-                                 AlwaysJIDs, NeverJIDs).
+    Result = mongoose_hooks:mam_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
+                                          AlwaysJIDs, NeverJIDs),
+    mongoose_instrument:execute(mod_mam_pm_set_prefs, #{host_type => HostType}, #{count => 1}),
+    Result.
 
 %% @doc Load settings from the database.
 -spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour()
                ) -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
-    mongoose_hooks:mam_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID).
+    Result = mongoose_hooks:mam_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID),
+    mongoose_instrument:execute(mod_mam_pm_get_prefs, #{host_type => HostType}, #{count => 1}),
+    Result.
 
--spec remove_archive_hook(host_type(), mod_mam:archive_id(), jid:jid()) -> 'ok'.
+-spec remove_archive_hook(host_type(), mod_mam:archive_id(), jid:jid()) -> ok.
 remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_remove_archive(HostType, ArcID, ArcJID),
-    ok.
+    mongoose_instrument:execute(mod_mam_pm_remove_archive, #{host_type => HostType}, #{count => 1}).
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
@@ -598,12 +601,19 @@ lookup_messages_without_policy_violation_check(
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            StartT = erlang:monotonic_time(microsecond),
-            R = mongoose_hooks:mam_lookup_messages(HostType, Params),
-            Diff = erlang:monotonic_time(microsecond) - StartT,
-            mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
-            R
+            mongoose_instrument:span(mod_mam_pm_lookup, #{host_type => HostType},
+                                     fun mongoose_hooks:mam_lookup_messages/2, [HostType, Params],
+                                     fun(Time, Result) -> measure_lookup(Params, Time, Result) end)
     end.
+
+measure_lookup(Params, Time, {ok, {_TotalCount, _Offset, MessageRows}}) ->
+    M = case Params of
+            #{is_simple := true} -> #{simple => 1};
+            #{} -> #{}
+        end,
+    M#{count => 1, time => Time, size => length(MessageRows)};
+measure_lookup(_, _, _OtherResult) ->
+    #{}.
 
 archive_message_from_ct(Params = #{local_jid := JID}) ->
     HostType = jid_to_host_type(JID),
@@ -612,11 +622,9 @@ archive_message_from_ct(Params = #{local_jid := JID}) ->
 -spec archive_message(host_type(), mod_mam:archive_message_params()) ->
     ok | {error, timeout}.
 archive_message(HostType, Params) ->
-    StartT = erlang:monotonic_time(microsecond),
-    R = mongoose_hooks:mam_archive_message(HostType, Params),
-    Diff = erlang:monotonic_time(microsecond) - StartT,
-    mongoose_metrics:update(HostType, [backends, ?MODULE, archive], Diff),
-    R.
+    mongoose_instrument:span(mod_mam_pm_archive_message, #{host_type => HostType},
+                             fun mongoose_hooks:mam_archive_message/2, [HostType, Params],
+                             fun(Time, _Result) -> #{time => Time, count => 1} end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -636,7 +644,7 @@ message_row_to_ext_id(#{id := MessID}) ->
     mod_mam_utils:mess_id_to_external_binary(MessID).
 
 handle_error_iq(HostType, Acc, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_metrics:update(HostType, modMamDroppedIQ, 1),
+    mongoose_instrument:execute(mod_mam_pm_dropped_iq, #{host_type => HostType}, #{count => 1}),
     {Acc, IQ};
 handle_error_iq(_Host, Acc, _To, _Action, IQ) ->
     {Acc, IQ}.
@@ -711,7 +719,6 @@ hooks(HostType) ->
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
         {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
-        | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)
     ].
 
 add_iq_handlers(HostType, Opts) ->
@@ -732,22 +739,19 @@ remove_iq_handlers(HostType) ->
      || Namespace <- [?NS_MAM_04, ?NS_MAM_06]],
     ok.
 
-ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:ensure_metric(HostType, [modMamLookups, simple], spiral),
-    mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, archive], histogram),
-    lists:foreach(fun(Name) ->
-                      mongoose_metrics:ensure_metric(HostType, Name, spiral)
-                  end,
-                  spirals()).
-
-spirals() ->
-    [modMamPrefsSets,
-     modMamPrefsGets,
-     modMamArchiveRemoved,
-     modMamLookups,
-     modMamForwarded,
-     modMamArchived,
-     modMamFlushed,
-     modMamDropped,
-     modMamDroppedIQ].
+-spec instrumentation(host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_mam_pm_archive_message, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {mod_mam_pm_lookup, #{host_type => HostType},
+      #{metrics => #{count => spiral, simple => spiral, size => histogram, time => histogram}}},
+     {mod_mam_pm_dropped_iq, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_pm_dropped, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_pm_remove_archive, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_pm_get_prefs, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_pm_set_prefs, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
