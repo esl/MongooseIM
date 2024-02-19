@@ -67,9 +67,9 @@
 -type opt_value() :: mongoose_config:value().
 -type module_opts() ::  #{opt_key() => opt_value()}.
 
--callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
--callback stop(HostType :: host_type()) -> any().
--callback hooks(HostType :: host_type()) -> gen_hook:hook_list().
+-callback start(host_type(), module_opts()) -> any().
+-callback stop(host_type()) -> any().
+-callback hooks(host_type()) -> gen_hook:hook_list().
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
 -callback instrumentation(host_type()) -> [mongoose_instrument:spec()].
@@ -205,13 +205,14 @@ stop_module_for_host_type(HostType, Module) ->
         {wait, Process} ->
             wait_for_process(Process);
         _ ->
-            run_for_instrumentation(HostType, fun mongoose_instrument:tear_down/1, Module)
+            ok
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => module_stopping_failed,
                          host_type => HostType, stop_module => Module,
                          class => Class, reason => Reason, stacktrace => Stacktrace}),
             erlang:raise(Class, Reason, Stacktrace)
-    end.
+    end,
+    run_for_instrumentation(HostType, fun mongoose_instrument:tear_down/1, Module).
 
 -spec does_module_support(module(), module_feature()) -> boolean().
 does_module_support(Module, Feature) ->
