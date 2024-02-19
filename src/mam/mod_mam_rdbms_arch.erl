@@ -204,7 +204,8 @@ lookup_fields() ->
      #lookup_field{op = equal, column = remote_bare_jid, param = remote_bare_jid},
      #lookup_field{op = equal, column = remote_resource, param = remote_resource},
      #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words},
-     #lookup_field{op = equal, column = is_groupchat, param = include_groupchat}].
+     #lookup_field{op = equal, column = is_groupchat, param = include_groupchat},
+     #lookup_field{op = equal, column = id, param = message_id}].
 
 -spec env_vars(host_type(), jid:jid()) -> env_vars().
 env_vars(HostType, ArcJID) ->

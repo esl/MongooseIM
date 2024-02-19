@@ -118,12 +118,17 @@ lookup_messages(Result,
 lookup_messages(Result, Params, #{host_type := HostType}) ->
     {ok, do_lookup_messages(Result, HostType, Params)}.
 
-lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->
+lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, #{message_id := MsgID} = Params) ->
     PageSize = maps:get(page_size, Params),
     case do_lookup_messages(AccResult, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
         {ok, LookupResult} ->
-            mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult)
+            case MsgID of
+                undefined ->
+                    mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult);
+                _ ->
+                    {ok, LookupResult}
+            end
     end.
 
 do_lookup_messages(_Result, Host, Params) ->
@@ -213,6 +218,7 @@ build_filters(Params) ->
     Builders = [fun owner_filter/1,
                 fun with_jid_filter/1,
                 fun is_groupchat_filter/1,
+                fun specific_message_filter/1,
                 fun range_filter/1],
     lists:flatmap(fun(F) -> F(Params) end, Builders).
 
@@ -231,6 +237,12 @@ with_jid_filter(_) ->
 is_groupchat_filter(#{include_groupchat := false}) ->
     [#{term => #{is_groupchat => <<"false">>}}];
 is_groupchat_filter(_) ->
+    [].
+
+-spec specific_message_filter(map()) -> [map()].
+specific_message_filter(#{message_id := ID}) when is_integer(ID) ->
+    [#{term => #{mam_id => ID}}];
+specific_message_filter(_) ->
     [].
 
 -spec range_filter(map()) -> [map()].

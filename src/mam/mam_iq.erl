@@ -40,6 +40,8 @@
         search_text => binary() | undefined,
         %% Filtering Result Set based on message ids
         borders =>  mod_mam:borders() | undefined,
+        %% Filtering Result Set based on specific message ids
+        message_ids => [mod_mam:message_id()] | undefined,
         %% Affects 'policy-violation' for a case when:
         %% - user does not use forms to query archive
         %% - user does not provide "set" element
@@ -145,6 +147,7 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                search_text => mod_mam_utils:form_to_text(KVs),
 
                borders => mod_mam_utils:form_borders_decode(KVs),
+               message_ids => form_to_msg_ids(KVs),
                %% Whether or not the client query included a <set/> element,
                %% the server MAY simply return its limited results.
                %% So, disable 'policy-violation'.
@@ -204,4 +207,9 @@ maybe_enforce_simple(KVs, _) ->
 include_groupchat(#{<<"include-groupchat">> := [<<"false">>]}) ->
     false;
 include_groupchat(_) ->
+    undefined.
+
+form_to_msg_ids(#{<<"ids">> := IDs}) ->
+    [mod_mam_utils:external_binary_to_mess_id(ID) || ID <- IDs];
+form_to_msg_ids(_) ->
     undefined.

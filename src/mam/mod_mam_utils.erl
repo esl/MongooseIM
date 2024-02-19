@@ -84,6 +84,7 @@
          check_for_item_not_found/3,
          maybe_reverse_messages/2,
          get_msg_id_and_timestamp/1,
+         lookup_specific_messages/4,
          is_mam_muc_enabled/2]).
 
 %% Ejabberd
@@ -415,6 +416,34 @@ get_msg_id_and_timestamp(#{id := MsgID}) ->
     TS = calendar:system_time_to_rfc3339(Microseconds, [{offset, "Z"}, {unit, microsecond}]),
     ExtID = mess_id_to_external_binary(MsgID),
     {ExtID, list_to_binary(TS)}.
+
+-spec lookup_specific_messages(mongooseim:host_type(),
+                               mam_iq:lookup_params(),
+                               [mod_mam:message_id()],
+                               fun()) -> [mod_mam:message_row()] | {error, item_not_found}.
+lookup_specific_messages(HostType, Params, IDs, FetchFun) ->
+    {FinalOffset, AccumulatedMessages} = lists:foldl(
+        fun(ID, {_AccOffset, AccMsgs}) ->
+            {ok, {_, OffsetForID, MessagesForID}} = FetchFun(HostType, Params#{message_id => ID}),
+            {OffsetForID, AccMsgs ++ MessagesForID}
+        end,
+        {0, []}, IDs),
+
+    Result = determine_result(Params, FinalOffset, AccumulatedMessages),
+
+    case length(IDs) == length(AccumulatedMessages) of
+        true -> Result;
+        false -> {error, item_not_found}
+    end.
+
+determine_result(Params, Offset, Messages) ->
+    case maps:get(is_simple, Params, false) of
+        true ->
+            {ok, {undefined, undefined, Messages}};
+        false ->
+            {ok, {length(Messages), Offset, Messages}}
+    end.
+
 
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
@@ -1243,7 +1272,8 @@ create_lookup_params(RSM, Direction, ArcID, CallerJID, OwnerJID) ->
       flip_page => false,
       ordering_direction => Direction,
       limit_passed => true,
-      caller_jid => CallerJID}.
+      caller_jid => CallerJID,
+      message_ids => undefined}.
 
 patch_fun_to_make_result_as_map(F) ->
     fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.

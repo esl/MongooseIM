@@ -599,7 +599,14 @@ lookup_messages_without_policy_violation_check(
             {error, 'not-supported'};
         false ->
             StartT = erlang:monotonic_time(microsecond),
-            R = mongoose_hooks:mam_lookup_messages(HostType, Params),
+            R = case maps:get(message_ids, Params) of
+                    undefined ->
+                        mongoose_hooks:mam_lookup_messages(HostType,
+                            Params#{message_id => undefined});
+                    IDs ->
+                        mod_mam_utils:lookup_specific_messages(HostType, Params, IDs,
+                            fun mongoose_hooks:mam_lookup_messages/2)
+                end,
             Diff = erlang:monotonic_time(microsecond) - StartT,
             mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
             R
