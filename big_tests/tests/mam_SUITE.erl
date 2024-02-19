@@ -99,6 +99,8 @@
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_invalid_id/1,
+         server_returns_item_not_found_for_ids_filter_with_nonexistent_id/1,
+         muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id/1,
          %% complete_flag_cases tests
          before_complete_false_last5/1,
          before_complete_false_before10/1,
@@ -120,6 +122,10 @@
          offline_message/1,
          nostore_hint/1,
          querying_for_all_messages_with_jid/1,
+         query_messages_by_ids/1,
+         simple_query_messages_by_ids/1,
+         muc_query_messages_by_ids/1,
+         muc_simple_query_messages_by_ids/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
          muc_light_service_discovery_stored_in_pm/1,
@@ -181,6 +187,8 @@
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
          stanza_include_groupchat_request/3,
+         stanza_fetch_by_id_request/3,
+         stanza_fetch_by_id_request/4,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -209,6 +217,8 @@
          wait_message_range/3,
          wait_message_range/5,
          message_id/2,
+         get_pre_generated_msgs_ids/2,
+         get_received_msgs_ids/1,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -353,7 +363,8 @@ basic_groups() ->
            [{mam_metrics, [], mam_metrics_cases()},
             {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
             {mam06, [parallel], mam_cases() ++ [retrieve_form_fields_extra_features]
-                                ++ stanzaid_cases() ++ retract_cases() ++ metadata_cases()},
+                                ++ stanzaid_cases() ++ retract_cases()
+                                ++ metadata_cases() ++ fetch_specific_msgs_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -373,7 +384,7 @@ basic_groups() ->
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
-                                ++ muc_metadata_cases()},
+                                ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -444,6 +455,13 @@ metadata_cases() ->
      metadata_archive_request_one_message
     ].
 
+fetch_specific_msgs_cases() ->
+    [
+     query_messages_by_ids,
+     simple_query_messages_by_ids,
+     server_returns_item_not_found_for_ids_filter_with_nonexistent_id
+    ].
+
 muc_text_search_cases() ->
     [
      muc_text_search_request
@@ -508,6 +526,13 @@ muc_metadata_cases() ->
      muc_metadata_archive_request,
      muc_metadata_archive_request_empty,
      muc_metadata_archive_request_one_message
+    ].
+
+muc_fetch_specific_msgs_cases() ->
+    [
+     muc_query_messages_by_ids,
+     muc_simple_query_messages_by_ids,
+     muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id
     ].
 
 configurable_archiveid_cases() ->
@@ -828,6 +853,11 @@ init_per_testcase(C=filter_forwarded, Config) ->
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
+init_per_testcase(C, Config) when C =:= query_messages_by_ids;
+                                  C =:= simple_query_messages_by_ids;
+                                  C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
+    escalus:init_per_testcase(C, bootstrap_archive(Config1));
 init_per_testcase(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -846,6 +876,11 @@ init_per_testcase(C=offline_message, Config) ->
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=nostore_hint, Config) ->
     escalus:init_per_testcase(C, Config);
+init_per_testcase(C, Config) when C =:= muc_query_messages_by_ids;
+                                  C =:= muc_simple_query_messages_by_ids;
+                                  C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, muc_bootstrap_archive(start_alice_room(Config1)));
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C,
@@ -1054,6 +1089,15 @@ end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_query_messages_by_ids, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_simple_query_messages_by_ids, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -1644,6 +1688,130 @@ querying_for_all_messages_with_jid(Config) ->
         CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(P, BWithJID)),
         assert_respond_size(CountWithBob, wait_archive_respond(Alice)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-msgs-by-ids">>, IDs),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, Stanza),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        maybe_wait_for_archive(Config),
+
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-muc-msgs-by-ids">>, IDs),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        maybe_wait_for_archive(Config),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        maybe_wait_for_archive(Config),
+
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        maybe_wait_for_archive(Config),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        maybe_wait_for_archive(Config),
+
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        maybe_wait_for_archive(Config),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).

@@ -617,7 +617,7 @@ prepare_filter(RoomJID, Borders, Start, End, WithNick, MsgID) ->
     EndID = maybe_encode_compact_uuid(End, 255),
     %% In Cassandra, a column cannot be restricted by both an equality and an inequality relation.
     %% When MsgID is defined, it is used as both StartID2 and EndID2 to comply with this limitation.
-    %% This means that the `ids` filter effectively overrides filters like 'before-id' or 'after-id'.
+    %% This means that the `ids` filter effectively overrides any "before" or "after" filters.
     {StartID2, EndID2} = case MsgID of
                             undefined ->
                                 {apply_start_border(Borders, StartID),

@@ -57,6 +57,8 @@
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
          stanza_include_groupchat_request/3,
+         stanza_fetch_by_id_request/3,
+         stanza_fetch_by_id_request/4,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -88,6 +90,8 @@
          wait_message_range/3,
          wait_message_range/5,
          message_id/2,
+         get_pre_generated_msgs_ids/2,
+         get_received_msgs_ids/1,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -297,21 +301,21 @@ stanza_archive_request(P, QueryId) ->
 
 stanza_date_range_archive_request(P) ->
     Params = #{
-        start => "2010-06-07T00:00:00Z",
-        stop => "2010-07-07T13:23:54Z"
+        start => <<"2010-06-07T00:00:00Z">>,
+        stop => <<"2010-07-07T13:23:54Z">>
     },
     stanza_lookup_messages_iq(P, Params).
 
 stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
     Params = #{
-        start => Start,
-        stop => Stop
+        start => list_to_binary(Start),
+        stop => list_to_binary(Stop)
     },
     stanza_lookup_messages_iq(P, Params).
 
 stanza_limit_archive_request(P) ->
     Params = #{
-        start => "2010-08-07T00:00:00Z",
+        start => <<"2010-08-07T00:00:00Z">>,
         rsm => #rsm_in{max=10}
     },
     stanza_lookup_messages_iq(P, Params).
@@ -349,6 +353,17 @@ stanza_include_groupchat_request(P, QueryId, IncludeGroupChat) ->
     },
     stanza_lookup_messages_iq(P, Params).
 
+stanza_fetch_by_id_request(P, QueryId, IDs) ->
+    stanza_fetch_by_id_request(P, QueryId, IDs, undefined).
+
+stanza_fetch_by_id_request(P, QueryId, IDs, RSM) ->
+    Params = #{
+        query_id => QueryId,
+        messages_ids => IDs,
+        rsm => RSM
+    },
+    stanza_lookup_messages_iq(P, Params).
+
 stanza_lookup_messages_iq(P, Params) ->
     QueryId = maps:get(query_id, Params, undefined),
     BStart = maps:get(start, Params, undefined),
@@ -358,25 +373,27 @@ stanza_lookup_messages_iq(P, Params) ->
     TextSearch = maps:get(text_search, Params, undefined),
     FlipPage = maps:get(flip_page, Params, undefined),
     IncludeGroupChat = maps:get(include_group_chat, Params, undefined),
+    MessagesIDs = maps:get(messages_ids, Params, undefined),
 
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
-           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat),
+           form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs),
            maybe_rsm_elem(RSM),
            maybe_flip_page(FlipPage)])
     }]).
 
-form_x(undefined, undefined, undefined, undefined, undefined, undefined) ->
+form_x(undefined, undefined, undefined, undefined, undefined, undefined, undefined) ->
     undefined;
-form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat) ->
+form_x(BStart, BEnd, BWithJID, RSM, TextSearch, IncludeGroupChat, MessagesIDs) ->
     Fields = skip_undefined([form_field(<<"start">>, BStart),
                              form_field(<<"end">>, BEnd),
                              form_field(<<"with">>, BWithJID),
                              form_field(<<"full-text-search">>, TextSearch),
-                             form_field(<<"include-groupchat">>, IncludeGroupChat)]
+                             form_field(<<"include-groupchat">>, IncludeGroupChat),
+                             form_field(<<"ids">>, MessagesIDs)]
                             ++ form_extra_fields(RSM)
                             ++ form_border_fields(RSM)),
     form_helper:form(#{fields => Fields}).
@@ -397,6 +414,8 @@ form_border_fields(#rsm_in{
 
 form_field(_VarName, undefined) ->
     undefined;
+form_field(VarName, VarValues) when is_list(VarValues) ->
+    #{var => VarName, values => VarValues};
 form_field(VarName, VarValue) ->
     #{var => VarName, values => [VarValue]}.
 
@@ -584,6 +603,21 @@ message_id(Num, Config) ->
     AllMessages = proplists:get_value(all_messages, Config),
     #forwarded_message{result_id=Id} = lists:nth(Num, AllMessages),
     Id.
+
+get_pre_generated_msgs_ids(Msgs, Nums) ->
+    lists:map(fun(N) ->
+                 Msg = lists:nth(N, Msgs),
+                 {{MsgID, _}, _, _, _, _} = Msg,
+                 rpc_apply(mod_mam_utils, mess_id_to_external_binary, [MsgID])
+              end, Nums).
+
+get_received_msgs_ids(Response) ->
+    Msgs = respond_messages(Response),
+    lists:map(fun(M) ->
+                 Parsed = parse_forwarded_message(M),
+                 Parsed#forwarded_message.result_id
+              end, Msgs).
+
 
 %% @doc Result query iq.
 %%

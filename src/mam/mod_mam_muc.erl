@@ -524,7 +524,7 @@ lookup_messages_without_policy_violation_check(HostType,
             {error, 'not-supported'};
         false ->
             StartT = erlang:monotonic_time(microsecond),
-            R = case maps:get(message_ids, Params) of
+            R = case maps:get(message_ids, Params, undefined) of
                     undefined ->
                         mongoose_hooks:mam_muc_lookup_messages(HostType,
                             Params#{message_id => undefined});

@@ -606,7 +606,7 @@ prepare_filter(UserJID, Borders, Start, End, WithJID, MsgID) ->
     BUserJID = bare_jid(UserJID),
     %% In Cassandra, a column cannot be restricted by both an equality and an inequality relation.
     %% When MsgID is defined, it is used as both StartID and EndID to comply with this limitation.
-    %% This means that the `ids` filter effectively overrides filters like 'before-id' or 'after-id'.
+    %% This means that the `ids` filter effectively overrides any "before" or "after" filters.
     {StartID, EndID} = case MsgID of
                             undefined ->
                                 mod_mam_utils:calculate_msg_id_borders(Borders, Start, End);
