@@ -169,7 +169,8 @@ lookup_fields() ->
      #lookup_field{op = ge, column = id, param = start_id},
      #lookup_field{op = le, column = id, param = end_id},
      #lookup_field{op = equal, column = nick_name, param = remote_resource},
-     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words},
+     #lookup_field{op = equal, column = id, param = message_id}].
 
 -spec env_vars(host_type(), jid:jid()) -> env_vars().
 env_vars(HostType, ArcJID) ->
