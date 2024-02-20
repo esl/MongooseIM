@@ -100,11 +100,13 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         mam_ns_binary_extended/0,
          retract_ns/0,
          retract_esl_ns/0,
          retract_tombstone_ns/0,
          groupchat_field_ns/0,
          groupchat_available_ns/0,
+         data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -257,6 +259,7 @@ nick(User) ->
 namespaces() ->
     [mam_ns_binary_v04(),
      mam_ns_binary_v06(),
+     mam_ns_binary_extended(),
      retract_ns(),
      retract_esl_ns(),
      retract_tombstone_ns()].
@@ -264,11 +267,13 @@ namespaces() ->
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
+mam_ns_binary_extended() -> <<"urn:xmpp:mam:2#extended">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
 retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
 groupchat_available_ns() -> <<"urn:xmpp:mam:2#groupchat-available">>.
+data_validate_ns() -> <<"http://jabber.org/protocol/xdata-validate">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].

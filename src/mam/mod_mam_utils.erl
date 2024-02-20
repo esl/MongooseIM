@@ -742,7 +742,7 @@ features(Module, HostType) ->
         ++ groupchat_features(Module, HostType).
 
 mam_features() ->
-    [?NS_MAM_04, ?NS_MAM_06].
+    [?NS_MAM_04, ?NS_MAM_06, ?NS_MAM_EXTENDED].
 
 retraction_features(Module, HostType) ->
     case has_message_retraction(Module, HostType) of
@@ -795,13 +795,21 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
      #{type => <<"text-single">>, var => <<"end">>},
      #{type => <<"text-single">>, var => <<"before-id">>},
      #{type => <<"text-single">>, var => <<"after-id">>},
-     #{type => <<"boolean">>, var => <<"include-groupchat">>} | TextSearch].
+     #{type => <<"boolean">>, var => <<"include-groupchat">>},
+     #{type => <<"list-multi">>, var => <<"ids">>, children => [validate_element()]} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
     Text;
 form_to_text(#{}) ->
     undefined.
+
+-spec validate_element() -> exml:element().
+validate_element() ->
+    #xmlel{name = <<"validate">>,
+           attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}, {<<"datatype">>, <<"xs:string">>}],
+           children = [#xmlel{name = <<"open">>}]}.
+    % #xmlel{name = <<"enable">>, attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}]}.
 
 %% -----------------------------------------------------------------------
 %% Text search tokenization

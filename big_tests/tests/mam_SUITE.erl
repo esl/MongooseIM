@@ -226,10 +226,12 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         mam_ns_binary_extended/0,
          retract_ns/0,
          retract_tombstone_ns/0,
          groupchat_field_ns/0,
          groupchat_available_ns/0,
+         data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -2111,9 +2113,13 @@ retrieve_form_fields_extra_features(ConfigIn) ->
         escalus:assert(is_iq_with_ns, [Namespace], Res),
         QueryEl = exml_query:subelement(Res, <<"query">>),
         XEl = exml_query:subelement(QueryEl, <<"x">>),
+        IDsEl = exml_query:subelement_with_attr(XEl, <<"var">>, <<"ids">>),
+        ValidateEl = exml_query:path(IDsEl, [{element_with_ns, <<"validate">>, data_validate_ns()},
+                                             {element, <<"open">>}]),
         escalus:assert(has_field_with_type, [<<"before-id">>, <<"text-single">>], XEl),
         escalus:assert(has_field_with_type, [<<"after-id">>, <<"text-single">>], XEl),
-        escalus:assert(has_field_with_type, [<<"include-groupchat">>, <<"boolean">>], XEl)
+        escalus:assert(has_field_with_type, [<<"include-groupchat">>, <<"boolean">>], XEl),
+        ?assertNotEqual(ValidateEl, undefined)
     end).
 
 archived(Config) ->
@@ -3574,6 +3580,7 @@ discover_features(Config, Client, Service) ->
     escalus:assert(is_iq_result, Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_extended()], Stanza),
     escalus:assert(has_feature, [retract_ns()], Stanza),
     check_include_groupchat_features(Stanza,
                                      ?config(configuration, Config),

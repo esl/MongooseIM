@@ -128,10 +128,12 @@ form_type_field(NS) when is_binary(NS) ->
 
 -spec form_field(field()) -> exml:element().
 form_field(M) when is_map(M) ->
+    Children = maps:get(children, M, []),
     Values = [form_field_value(Value) || Value <- maps:get(values, M, [])],
     Options = [form_field_option(Option) || Option <- maps:get(options, M, [])],
-    Attrs = [{atom_to_binary(K), V} || {K, V} <- maps:to_list(M), K =/= values, K =/= options],
-    #xmlel{name = <<"field">>, attrs = Attrs, children = Values ++ Options}.
+    Attrs = [{atom_to_binary(K), V}
+             || {K, V} <- maps:to_list(M), K =/= values, K =/= options, K =/= children],
+    #xmlel{name = <<"field">>, attrs = Attrs, children = Values ++ Options ++ Children}.
 
 -spec form_title(binary()) -> exml:element().
 form_title(Title) ->
