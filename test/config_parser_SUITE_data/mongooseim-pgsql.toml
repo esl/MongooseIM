@@ -198,6 +198,8 @@
 
 [modules.mod_carboncopy]
 
+[instrumentation.exometer]
+
 [shaper.normal]
   max_rate = 1000
 
