@@ -36,7 +36,12 @@ set_up(EventName, Labels, Config) ->
     AllModules = handler_modules(),
     UsedModules = lists:filter(fun(Mod) -> Mod:set_up(EventName, Labels, Config) end, AllModules),
     HandlerFuns = [fun Mod:handle_event/4 || Mod <- UsedModules],
-    mongoose_instrument_registry:attach(EventName, Labels, {HandlerFuns, Config}).
+    case mongoose_instrument_registry:attach(EventName, Labels, {HandlerFuns, Config}) of
+        ok ->
+            ok;
+        {error, already_attached} ->
+            error(#{what => event_already_registered, event_name => EventName, labels => Labels})
+    end.
 
 -spec tear_down(event_name(), labels()) -> ok.
 tear_down(EventName, Labels) ->
@@ -48,15 +53,24 @@ span(Event, Labels, F, MeasureF) ->
 
 -spec span(event_name(), labels(), fun((...) -> Result), list(), measure_fun(Result)) -> Result.
 span(Event, Labels, F, Args, MeasureF) ->
-    {ok, Handlers} = mongoose_instrument_registry:lookup(Event, Labels),
+    Handlers = get_handlers(Event, Labels),
     {Time, Result} = timer:tc(F, Args),
     handle_event(Event, Labels, MeasureF(Time, Result), Handlers),
     Result.
 
 -spec execute(event_name(), labels(), measurements()) -> ok.
 execute(Event, Labels, Measurements) ->
-    {ok, Handlers} = mongoose_instrument_registry:lookup(Event, Labels),
+    Handlers = get_handlers(Event, Labels),
     handle_event(Event, Labels, Measurements, Handlers).
+
+-spec get_handlers(event_name(), labels()) -> handlers().
+get_handlers(EventName, Labels) ->
+    case mongoose_instrument_registry:lookup(EventName, Labels) of
+        {ok, Handlers} ->
+            Handlers;
+        {error, not_found} ->
+            error(#{what => event_not_registered, event_name => EventName, labels => Labels})
+    end.
 
 -spec handle_event(event_name(), labels(), measurements(), handlers()) -> ok.
 handle_event(Event, Labels, Measurements, {EventHandlers, Config}) ->
