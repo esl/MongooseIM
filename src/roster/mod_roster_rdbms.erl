@@ -62,7 +62,7 @@ get_roster(HostType, LUser, LServer) ->
 -spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
                        mod_roster:transaction_state(), mod_roster:entry_format()) ->
     mod_roster:roster() | does_not_exist.
-get_roster_entry(HostType, LUser, LServer, LJID, _, full) ->
+get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, full) ->
     BinJID = jid:to_binary(LJID),
     case execute_roster_get_by_jid(HostType, LUser, LServer, BinJID) of
         {selected, []} ->
