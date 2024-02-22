@@ -8,10 +8,12 @@ start() ->
     ok.
 
 -spec attach(mongoose_instrument:event_name(), mongoose_instrument:labels(),
-             mongoose_instrument:handlers()) -> ok.
+             mongoose_instrument:handlers()) -> ok | {error, already_attached}.
 attach(Event, Labels, Val) ->
-    ets:insert_new(?MODULE, {{Event, Labels}, Val}),
-    ok.
+    case ets:insert_new(?MODULE, {{Event, Labels}, Val}) of
+        true -> ok;
+        false -> {error, already_attached}
+    end.
 
 -spec detach(mongoose_instrument:event_name(), mongoose_instrument:labels()) -> ok.
 detach(Event, Labels) ->

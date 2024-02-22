@@ -5,7 +5,7 @@
 -export([set_up/3, handle_event/4]).
 
 -spec set_up(mongoose_instrument:event_name(), mongoose_instrument:labels(),
-            mongoose_instrument:config()) -> boolean().
+             mongoose_instrument:config()) -> boolean().
 set_up(EventName, Labels, #{metrics := Metrics}) ->
     maps:foreach(fun(MetricName, MetricType) ->
                          set_up_metric(EventName, Labels, MetricName, MetricType)
