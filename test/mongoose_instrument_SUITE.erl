@@ -13,37 +13,61 @@
 %% Setup and teardown
 
 all() ->
-    [{group, api}].
+    [{group, persistent},
+     {group, not_persistent}
+    ].
 
 groups() ->
-    [{api, [parallel], [set_up_and_execute,
-                        set_up_multiple_and_execute_one,
-                        set_up_crashes_when_repeated,
-                        set_up_and_tear_down,
-                        set_up_and_tear_down_multiple,
-                        execute_crashes_when_not_set_up,
-                        set_up_and_span,
-                        set_up_and_span_with_arg,
-                        set_up_and_span_with_error,
-                        span_crashes_when_not_set_up]}
-    ].
+    [{persistent, [parallel], api_test_cases()},
+     {not_persistent, [parallel], api_test_cases()}].
+
+api_test_cases() ->
+    [set_up_and_execute,
+     set_up_multiple_and_execute_one,
+     set_up_fails_when_already_registered,
+     set_up_fails_for_inconsistent_labels,
+     set_up_and_tear_down,
+     set_up_and_tear_down_multiple,
+     execute_fails_when_not_set_up,
+     set_up_and_span,
+     set_up_and_span_with_arg,
+     set_up_and_span_with_error,
+     span_fails_when_not_set_up,
+     unexpected_events].
 
 init_per_suite(Config) ->
     mongoose_config:set_opts(opts()),
     mock_handler(?HANDLER, true),
     mock_handler(?INACTIVE_HANDLER, false),
-    async_helper:start(Config, mongoose_instrument_registry, start, []).
+    Config.
 
 mock_handler(Module, SetUpResult) ->
     meck:new(Module, [non_strict, no_link]),
     meck:expect(Module, set_up, fun(_Event, #{}, #{}) -> SetUpResult end),
     meck:expect(Module, handle_event, fun(_Event, #{}, #{}, #{}) -> ok end).
 
-end_per_suite(Config) ->
-    async_helper:stop_all(Config),
+end_per_suite(_Config) ->
     meck:unload(?HANDLER),
     meck:unload(?INACTIVE_HANDLER),
     mongoose_config:erase_opts().
+
+init_per_group(Group, Config) ->
+    meck:reset(?HANDLER),
+    meck:reset(?INACTIVE_HANDLER),
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    set_up_persistence(Group),
+    Config1.
+
+set_up_persistence(persistent) ->
+    mongoose_instrument:persist(),
+    ?assertEqual(#{}, persistent_term:get(mongoose_instrument));
+set_up_persistence(not_persistent) ->
+    ?assertError(badarg, persistent_term:get(mongoose_instrument)).
+
+end_per_group(_Group, Config) ->
+    async_helper:stop_all(Config),
+    mongoose_helper:wait_until(fun() -> whereis(mongoose_instrument) end, undefined),
+    ?assertError(badarg, persistent_term:get(mongoose_instrument)).
 
 init_per_testcase(Case, Config) ->
     [{event, event_name(Case)} | Config].
@@ -62,27 +86,42 @@ event_name(Case) ->
 set_up_and_execute(Config) ->
     Event = ?config(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
-    ?assertEqual([{Event, ?LABELS, ?CFG, true}], history(?HANDLER, set_up)),
-    ?assertEqual([{Event, ?LABELS, ?CFG, false}], history(?INACTIVE_HANDLER, set_up)),
+    ?assertEqual([{[Event, ?LABELS, ?CFG], true}], history(?HANDLER, set_up, Event)),
+    ?assertEqual([{[Event, ?LABELS, ?CFG], false}], history(?INACTIVE_HANDLER, set_up, Event)),
     ok = mongoose_instrument:execute(Event, ?LABELS, ?MEASUREMENTS),
-    ?assertEqual([{Event, ?LABELS, ?CFG, ?MEASUREMENTS}], history(?HANDLER, handle_event)),
-    ?assertEqual([], history(?INACTIVE_HANDLER, handle_event)).
+    ?assertEqual([{[Event, ?LABELS, ?CFG, ?MEASUREMENTS], ok}],
+                 history(?HANDLER, handle_event, Event)),
+    ?assertEqual([], history(?INACTIVE_HANDLER, handle_event, Event)).
 
 set_up_multiple_and_execute_one(Config) ->
     Event = ?config(event, Config),
-    Specs = [{Event, Labels1 = #{key1 => value1}, ?CFG},
-             {Event, Labels2 = #{key2 => value2}, ?CFG}],
+    Specs = [{Event, Labels1 = #{key => value1}, ?CFG},
+             {Event, Labels2 = #{key => value2}, ?CFG}],
     ok = mongoose_instrument:set_up(Specs),
-    ?assertEqual([{Event, Labels1, ?CFG, true},
-                  {Event, Labels2, ?CFG, true}], history(?HANDLER, set_up)),
+    ?assertEqual([{[Event, Labels1, ?CFG], true}, {[Event, Labels2, ?CFG], true}],
+                 history(?HANDLER, set_up, Event)),
     ok = mongoose_instrument:execute(Event, Labels1, ?MEASUREMENTS),
-    ?assertEqual([{Event, Labels1, ?CFG, ?MEASUREMENTS}], history(?HANDLER, handle_event)).
+    ?assertEqual([{[Event, Labels1, ?CFG, ?MEASUREMENTS], ok}],
+                 history(?HANDLER, handle_event, Event)).
 
-set_up_crashes_when_repeated(Config) ->
+set_up_fails_when_already_registered(Config) ->
     Event = ?config(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
     ?assertError(#{what := event_already_registered},
-                 mongoose_instrument:set_up(Event, ?LABELS, ?CFG)).
+                 mongoose_instrument:set_up(Event, ?LABELS, ?CFG)),
+    ?assertError(#{what := event_already_registered},
+                 mongoose_instrument:set_up(Event, ?LABELS, #{})).
+
+set_up_fails_for_inconsistent_labels(Config) ->
+    Event = ?config(event, Config),
+    Labels = ?LABELS,
+    ok = mongoose_instrument:set_up(Event, Labels, ?CFG),
+    ?assertError(#{what := inconsistent_labels},
+                 mongoose_instrument:set_up(Event, #{}, ?CFG)),
+    ?assertError(#{what := inconsistent_labels},
+                 mongoose_instrument:set_up(Event, Labels#{additional_key => value}, ?CFG)),
+    ?assertError(#{what := inconsistent_labels},
+                 mongoose_instrument:set_up(Event, #{different_key => value}, ?CFG)).
 
 set_up_and_tear_down(Config) ->
     Event = ?config(event, Config),
@@ -90,49 +129,51 @@ set_up_and_tear_down(Config) ->
     ok = mongoose_instrument:tear_down(Event, ?LABELS),
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:execute(Event, ?LABELS, ?MEASUREMENTS)),
-    [] = history(?HANDLER, handle_event),
+    [] = history(?HANDLER, handle_event, Event),
     ok = mongoose_instrument:tear_down(Event, ?LABELS). % idempotent
 
 set_up_and_tear_down_multiple(Config) ->
     Event = ?config(event, Config),
-    Specs = [{Event, Labels1 = #{key1 => value1}, ?CFG},
-             {Event, Labels2 = #{key2 => value2}, ?CFG}],
+    Specs = [{Event, Labels1 = #{key => value1}, ?CFG},
+             {Event, Labels2 = #{key => value2}, ?CFG}],
     ok = mongoose_instrument:set_up(Specs),
     ok = mongoose_instrument:tear_down(Specs),
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:execute(Event, Labels1, ?MEASUREMENTS)),
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:execute(Event, Labels2, ?MEASUREMENTS)),
-    [] = history(?HANDLER, handle_event).
+    [] = history(?HANDLER, handle_event, Event).
 
-execute_crashes_when_not_set_up(Config) ->
+execute_fails_when_not_set_up(Config) ->
     Event = ?config(event, Config),
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:execute(Event, ?LABELS, ?MEASUREMENTS)),
-    [] = history(?HANDLER, handle_event).
+    [] = history(?HANDLER, handle_event, Event).
 
 set_up_and_span(Config) ->
     {Event, Labels, InstrConfig} = {?config(event, Config), ?LABELS, ?CFG},
     ok = mongoose_instrument:set_up(Event, Labels, InstrConfig),
     ok = mongoose_instrument:span(Event, Labels, fun test_op/0, fun measure_test_op/2),
-    [{Event, Labels, InstrConfig, #{time := Time, result := ok}}] = history(?HANDLER, handle_event),
-    ?assert(Time > 1000).
+    [{[Event, Labels, InstrConfig, #{time := Time, result := ok}], ok}] =
+        history(?HANDLER, handle_event, Event),
+    ?assert(Time >= 1000).
 
 set_up_and_span_with_arg(Config) ->
     {Event, Labels, InstrConfig} = {?config(event, Config), ?LABELS, ?CFG},
     ok = mongoose_instrument:set_up(Event, Labels, InstrConfig),
     ok = mongoose_instrument:span(Event, Labels, fun test_op/1, [2], fun measure_test_op/2),
-    [{Event, Labels, InstrConfig, #{time := Time, result := ok}}] = history(?HANDLER, handle_event),
-    ?assert(Time > 2000).
+    [{[Event, Labels, InstrConfig, #{time := Time, result := ok}], ok}] =
+        history(?HANDLER, handle_event, Event),
+    ?assert(Time >= 2000).
 
 set_up_and_span_with_error(Config) ->
     Event = ?config(event, Config),
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
     ?assertError(simulated_error,
                  mongoose_instrument:span(Event, ?LABELS, fun crashing_op/0, fun measure_test_op/2)),
-    [] = history(?HANDLER, handle_event).
+    [] = history(?HANDLER, handle_event, Event).
 
-span_crashes_when_not_set_up(Config) ->
+span_fails_when_not_set_up(Config) ->
     Event = ?config(event, Config),
     Labels = #{key => value},
     ?assertError(#{what := event_not_registered},
@@ -140,19 +181,20 @@ span_crashes_when_not_set_up(Config) ->
     %% Also checks that the function is not executed - otherwise 'simulated_error' would be raised
     ?assertError(#{what := event_not_registered},
                  mongoose_instrument:span(Event, Labels, fun crashing_op/0, fun measure_test_op/2)),
-    [] = history(?HANDLER, handle_event).
+    [] = history(?HANDLER, handle_event, Event).
+
+unexpected_events(_Config) ->
+    Pid = whereis(mongoose_instrument),
+    {error, #{what := unexpected_call}} = gen_server:call(mongoose_instrument, bad_call),
+    gen_server:cast(mongoose_instrument, bad_cast),
+    mongoose_instrument ! bad_info,
+    ?assertEqual(Pid, whereis(mongoose_instrument)). %% It should be still working
 
 %% Helpers
 
-history(HandlerMod, WantedF) ->
-    [process_history(CalledF, Args, Result) ||
-        {_Pid, {_M, CalledF, Args}, Result} <- meck:history(HandlerMod, self()),
-        WantedF =:= CalledF].
-
-process_history(set_up, [Event, Labels, InstrConfig], Result) ->
-    {Event, Labels, InstrConfig, Result};
-process_history(handle_event, [Event, Labels, InstrConfig, Measurements], ok) ->
-    {Event, Labels, InstrConfig, Measurements}.
+history(HandlerMod, WantedF, WantedEvent) ->
+    [{Args, Result} || {_Pid, {_M, CalledF, [Event|_] = Args}, Result} <- meck:history(HandlerMod),
+                       WantedF =:= CalledF andalso WantedEvent =:= Event].
 
 test_op(Delay) ->
     timer:sleep(Delay).
