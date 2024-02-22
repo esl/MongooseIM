@@ -39,6 +39,7 @@ start_link() ->
 
 init([]) ->
     Hooks = worker_spec(gen_hook),
+    Instrument = worker_spec(mongoose_instrument),
     Cleaner = worker_spec(mongoose_cleaner),
     Router = worker_spec(ejabberd_router),
     S2S = worker_spec(ejabberd_s2s),
@@ -67,6 +68,7 @@ init([]) ->
           [StartIdServer,
            PG,
            Hooks,
+           Instrument,
            Cleaner,
            SMBackendSupervisor,
            OutgoingPoolsSupervisor
