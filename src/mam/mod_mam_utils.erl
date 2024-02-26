@@ -430,20 +430,15 @@ lookup_specific_messages(HostType, Params, IDs, FetchFun) ->
         {0, []}, IDs),
 
     Result = determine_result(Params, FinalOffset, AccumulatedMessages),
-
     case length(IDs) == length(AccumulatedMessages) of
         true -> Result;
         false -> {error, item_not_found}
     end.
 
-determine_result(Params, Offset, Messages) ->
-    case maps:get(is_simple, Params, false) of
-        true ->
-            {ok, {undefined, undefined, Messages}};
-        false ->
-            {ok, {length(Messages), Offset, Messages}}
-    end.
-
+determine_result(#{is_simple := true}, _Offset, Messages) ->
+    {ok, {undefined, undefined, Messages}};
+determine_result(#{}, Offset, Messages) ->
+    {ok, {length(Messages), Offset, Messages}}.
 
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
@@ -796,20 +791,14 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
      #{type => <<"text-single">>, var => <<"before-id">>},
      #{type => <<"text-single">>, var => <<"after-id">>},
      #{type => <<"boolean">>, var => <<"include-groupchat">>},
-     #{type => <<"list-multi">>, var => <<"ids">>, children => [validate_element()]} | TextSearch].
+     #{type => <<"list-multi">>, var => <<"ids">>,
+       validate => #{method => open, datatype => <<"xs:string">>}} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
     Text;
 form_to_text(#{}) ->
     undefined.
-
--spec validate_element() -> exml:element().
-validate_element() ->
-    #xmlel{name = <<"validate">>,
-           attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}, {<<"datatype">>, <<"xs:string">>}],
-           children = [#xmlel{name = <<"open">>}]}.
-    % #xmlel{name = <<"enable">>, attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}]}.
 
 %% -----------------------------------------------------------------------
 %% Text search tokenization

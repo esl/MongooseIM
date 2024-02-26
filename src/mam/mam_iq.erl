@@ -38,7 +38,7 @@
         with_jid => jid:jid() | undefined,
         %% Filtering by body text
         search_text => binary() | undefined,
-        %% Filtering Result Set based on message ids
+        %% Filtering Result Set before/after specific message ids
         borders =>  mod_mam:borders() | undefined,
         %% Filtering Result Set based on specific message ids
         message_ids => [mod_mam:message_id()] | undefined,

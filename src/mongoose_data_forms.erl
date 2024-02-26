@@ -16,13 +16,14 @@
 -type form() :: #{type => binary(), title => binary(), instructions => binary(), ns => binary(),
                   fields => [field()], reported => [field()], items => [[field()]]}.
 -type field() :: #{var => binary(), type => binary(), label => binary(),
-                   values => [binary()], options => [option()]}.
+                   values => [binary()], options => [option()], validate => validate()}.
 -type option() :: binary() | {binary(), binary()}.
+-type validate() :: #{method => atom(), datatype => binary()}.
 
 -type parsed_form() :: #{type => binary(), ns => binary(), kvs := kv_map()}.
 -type kv_map() :: #{binary() => [binary()]}.
 
--export_type([form/0, field/0, option/0, kv_map/0]).
+-export_type([form/0, field/0, option/0, validate/0, kv_map/0]).
 
 -ignore_xref([is_form/1]). % exported for consistency, might be used later
 
@@ -128,12 +129,12 @@ form_type_field(NS) when is_binary(NS) ->
 
 -spec form_field(field()) -> exml:element().
 form_field(M) when is_map(M) ->
-    Children = maps:get(children, M, []),
+    Validate = form_field_validate(maps:get(validate, M, [])),
     Values = [form_field_value(Value) || Value <- maps:get(values, M, [])],
     Options = [form_field_option(Option) || Option <- maps:get(options, M, [])],
     Attrs = [{atom_to_binary(K), V}
-             || {K, V} <- maps:to_list(M), K =/= values, K =/= options, K =/= children],
-    #xmlel{name = <<"field">>, attrs = Attrs, children = Values ++ Options ++ Children}.
+             || {K, V} <- maps:to_list(M), K =/= values, K =/= options, K =/= validate],
+    #xmlel{name = <<"field">>, attrs = Attrs, children = Values ++ Options ++ Validate}.
 
 -spec form_title(binary()) -> exml:element().
 form_title(Title) ->
@@ -162,3 +163,16 @@ form_field_option(Option) ->
 -spec form_field_value(binary()) -> exml:element().
 form_field_value(Value) ->
     #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
+
+-spec form_field_validate(validate()) -> [exml:element()] | [].
+form_field_validate(#{method := Method, datatype := Datatype}) ->
+    [#xmlel{name = <<"validate">>,
+            attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}, {<<"datatype">>, Datatype}],
+            children = form_field_validation_method(Method)}];
+form_field_validate(_) -> [].
+
+-spec form_field_validation_method(atom()) -> [exml:element()] | [].
+form_field_validation_method(open) ->
+    [#xmlel{name = <<"open">>}];
+form_field_validation_method(_) ->
+    [].

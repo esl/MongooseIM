@@ -623,7 +623,6 @@ get_received_msgs_ids(Response) ->
                  Parsed#forwarded_message.result_id
               end, Msgs).
 
-
 %% @doc Result query iq.
 %%
 %% [{xmlel,<<"iq">>,

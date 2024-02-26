@@ -1093,13 +1093,9 @@ end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
 end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_query_messages_by_ids, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_simple_query_messages_by_ids, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id, Config) ->
+end_per_testcase(C, Config) when C =:= muc_query_messages_by_ids;
+                                 C =:= muc_simple_query_messages_by_ids;
+                                 C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -1753,15 +1749,12 @@ server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
 muc_query_messages_by_ids(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        maybe_wait_for_archive(Config),
-
         Room = ?config(room, Config),
         Msgs = ?config(pre_generated_muc_msgs, Config),
         IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
 
         Stanza = stanza_fetch_by_id_request(P, <<"fetch-muc-msgs-by-ids">>, IDs),
         escalus:send(Alice, stanza_to_room(Stanza, Room)),
-        maybe_wait_for_archive(Config),
 
         Result = wait_archive_respond(Alice),
         ResultIDs = get_received_msgs_ids(Result),
@@ -1775,8 +1768,6 @@ muc_query_messages_by_ids(Config) ->
 muc_simple_query_messages_by_ids(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        maybe_wait_for_archive(Config),
-
         Room = ?config(room, Config),
         Msgs = ?config(pre_generated_muc_msgs, Config),
         [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
@@ -1784,7 +1775,6 @@ muc_simple_query_messages_by_ids(Config) ->
         RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
         Stanza = stanza_fetch_by_id_request(P, <<"muc-simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
         escalus:send(Alice, stanza_to_room(Stanza, Room)),
-        maybe_wait_for_archive(Config),
 
         Result = wait_archive_respond(Alice),
         ParsedIQ = parse_result_iq(Result),
@@ -1800,8 +1790,6 @@ muc_simple_query_messages_by_ids(Config) ->
 muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        maybe_wait_for_archive(Config),
-
         Room = ?config(room, Config),
         Msgs = ?config(pre_generated_muc_msgs, Config),
         IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
@@ -1809,7 +1797,6 @@ muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
 
         Stanza = stanza_fetch_by_id_request(P, <<"muc-ids-not-found">>, IDs ++ [NonexistentID]),
         escalus:send(Alice, stanza_to_room(Stanza, Room)),
-        maybe_wait_for_archive(Config),
         Result = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_iq_error, [Stanza], Result),
