@@ -17,6 +17,7 @@
 -module(rdbms_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% We need assert from it
@@ -91,13 +92,18 @@ init_per_suite(Config) ->
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
         true ->
+            Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
+            GlobalRdbmsPool = stop_global_default_pool(Pools),
+            start_local_host_type_pool(Pools),
             %% Warning: inject_module does not really work well with --rerun-big-tests flag
             mongoose_helper:inject_module(?MODULE),
-            escalus:init_per_suite(Config)
+            escalus:init_per_suite([{global_default_rdbms_pool, GlobalRdbmsPool} | Config])
     end.
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[GlobalRdbmsPool]]).
 
 init_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
@@ -325,7 +331,7 @@ read_prep_boolean_case(Config) ->
 
 select_current_timestamp_case(Config) ->
     ok = rpc(mim(), mongoose_rdbms_timestamp, prepare, []),
-    assert_is_integer(rpc(mim(), mongoose_rdbms_timestamp, select, [])).
+    assert_is_integer(rpc(mim(), mongoose_rdbms_timestamp, select, [host_type(), tag()])).
 
 assert_is_integer(X) when is_integer(X) ->
     X.
@@ -590,9 +596,11 @@ select_like_prep_case(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+tag() ->
+    extra_tag.
 
 sql_query(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query, [host_type(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query, [host_type(), tag(), Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
@@ -601,38 +609,38 @@ sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
     escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
 
 sql_execute(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute, [host_type(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute, [host_type(), tag(), Name, Parameters]).
 
 sql_execute_cast(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute_cast, [host_type(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute_cast, [host_type(), tag(), Name, Parameters]).
 
 sql_query_cast(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query_cast, [host_type(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query_cast, [host_type(), tag(), Query]).
 
 sql_execute_request(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute_request, [host_type(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute_request, [host_type(), tag(), Name, Parameters]).
 
 sql_execute_wrapped_request(_Config, Name, Parameters, WrapperFun) ->
-    slow_rpc(mongoose_rdbms, execute_wrapped_request, [host_type(), Name, Parameters, WrapperFun]).
+    slow_rpc(mongoose_rdbms, execute_wrapped_request, [host_type(), tag(), Name, Parameters, WrapperFun]).
 
 sql_execute_wrapped_request_and_wait_response(_Config, Name, Parameters, WrapperFun) ->
-    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, [host_type(), Name, Parameters, WrapperFun]).
+    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, [host_type(), tag(), Name, Parameters, WrapperFun]).
 
-execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun) ->
-    RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Name, Parameters, WrapperFun),
+execute_wrapped_request_and_wait_response(HostType, Tag, Name, Parameters, WrapperFun) ->
+    RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Tag, Name, Parameters, WrapperFun),
     gen_server:wait_response(RequestId, 100).
 
 sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
-    slow_rpc(rdbms_queries, execute_upsert, [host_type(), Name, Insert, Update, Unique]).
+    slow_rpc(rdbms_queries, execute_upsert, [host_type(), tag(), Name, Insert, Update, Unique]).
 
 sql_query_request(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), tag(), Query]).
 
 sql_transaction_request(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), Query]).
+    slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), tag(), Query]).
 
 sql_transaction(_Config, F) ->
-    slow_rpc(mongoose_rdbms, sql_transaction, [host_type(), F]).
+    slow_rpc(mongoose_rdbms, sql_transaction, [host_type(), tag(), F]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
@@ -1117,6 +1125,16 @@ is_pgsql() ->
 
 is_mysql() ->
     db_engine() == mysql.
+
+stop_global_default_pool(Pools) ->
+    [GlobalRdbmsPool] = [Pool || Pool = #{type := rdbms, scope := global, tag := default} <- Pools],
+    ok = rpc(mim(), mongoose_wpool, stop, [rdbms, global, default]),
+    GlobalRdbmsPool.
+
+start_local_host_type_pool(Pools) ->
+    [GlobalRdbmsPool] = [Pool || Pool = #{type := rdbms, scope := global, tag := default} <- Pools],
+    LocalHostTypePool = GlobalRdbmsPool#{scope := host_type(), tag := tag()},
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[LocalHostTypePool], [host_type()]]).
 
 escape_column(Name) ->
     case is_mysql() of

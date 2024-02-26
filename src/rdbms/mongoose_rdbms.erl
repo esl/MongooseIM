@@ -158,7 +158,7 @@
                }).
 -type state() :: #state{}.
 
--define(DEFAULT_POOL, default).
+-define(DEFAULT_POOL_NAME, default).
 -define(STATE_KEY, mongoose_rdbms_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
@@ -240,7 +240,7 @@ prepared(Name) ->
 -spec execute(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
 execute(HostType, Name, Parameters) ->
-    execute(HostType, ?DEFAULT_POOL, Name, Parameters).
+    execute(HostType, ?DEFAULT_POOL_NAME, Name, Parameters).
 
 -spec execute(HostType :: server(), PoolName :: atom(), Name :: atom(), Parameters :: [term()]) ->
     query_result().
@@ -250,7 +250,7 @@ execute(HostType, PoolName, Name, Parameters) when is_atom(PoolName), is_atom(Na
 -spec execute_cast(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
     query_result().
 execute_cast(HostType, Name, Parameters) ->
-    execute_cast(HostType, ?DEFAULT_POOL, Name, Parameters).
+    execute_cast(HostType, ?DEFAULT_POOL_NAME, Name, Parameters).
 
 -spec execute_cast(HostType :: server(), PoolName :: atom(), Name :: atom(), Parameters :: [term()]) ->
     query_result().
@@ -260,7 +260,7 @@ execute_cast(HostType, PoolName, Name, Parameters) when is_atom(PoolName), is_at
 -spec execute_request(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
     request_id().
 execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
-    execute_request(HostType, ?DEFAULT_POOL, Name, Parameters).
+    execute_request(HostType, ?DEFAULT_POOL_NAME, Name, Parameters).
 
 -spec execute_request(HostType :: server(), PoolName :: atom(), Name :: atom(), Parameters :: [term()]) ->
     request_id().
@@ -273,7 +273,7 @@ execute_request(HostType, PoolName, Name, Parameters) when is_atom(PoolName), is
     Parameters :: [term()],
     Wrapper :: request_wrapper()) -> request_id().
 execute_wrapped_request(HostType, Name, Parameters, Wrapper) ->
-    execute_wrapped_request(HostType, ?DEFAULT_POOL, Name, Parameters, Wrapper).
+    execute_wrapped_request(HostType, ?DEFAULT_POOL_NAME, Name, Parameters, Wrapper).
 
 -spec execute_wrapped_request(
     HostType :: server(),
@@ -289,7 +289,7 @@ execute_wrapped_request(HostType, PoolName, Name, Parameters, Wrapper)
 -spec execute_successfully(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
     query_result().
 execute_successfully(HostType, Name, Parameters) ->
-    execute_successfully(HostType, ?DEFAULT_POOL, Name, Parameters).
+    execute_successfully(HostType, ?DEFAULT_POOL_NAME, Name, Parameters).
 
 -spec execute_successfully(HostType :: server(), PoolName :: atom(), Name :: atom(), Parameters :: [term()]) ->
     query_result().
@@ -324,7 +324,7 @@ query_name_to_string(Name) ->
 
 -spec sql_query(HostType :: server(), Query :: any()) -> query_result().
 sql_query(HostType, Query) ->
-    sql_query(HostType, ?DEFAULT_POOL, Query).
+    sql_query(HostType, ?DEFAULT_POOL_NAME, Query).
 
 -spec sql_query(HostType :: server(), PoolName :: atom(), Query :: any()) -> query_result().
 sql_query(HostType, PoolName, Query) ->
@@ -332,7 +332,7 @@ sql_query(HostType, PoolName, Query) ->
 
 -spec sql_query_request(HostType :: server(), Query :: any()) -> request_id().
 sql_query_request(HostType, Query) ->
-    sql_query_request(HostType, ?DEFAULT_POOL, Query).
+    sql_query_request(HostType, ?DEFAULT_POOL_NAME, Query).
 
 -spec sql_query_request(HostType :: server(), PoolName :: atom(), Query :: any()) -> request_id().
 sql_query_request(HostType, PoolName, Query) ->
@@ -340,7 +340,7 @@ sql_query_request(HostType, PoolName, Query) ->
 
 -spec sql_query_cast(HostType :: server(), Query :: any()) -> query_result().
 sql_query_cast(HostType, Query) ->
-    sql_query_cast(HostType, ?DEFAULT_POOL, Query).
+    sql_query_cast(HostType, ?DEFAULT_POOL_NAME, Query).
 
 -spec sql_query_cast(HostType :: server(), PoolName :: atom(), Query :: any()) -> query_result().
 sql_query_cast(HostType, PoolName, Query) ->
@@ -349,7 +349,7 @@ sql_query_cast(HostType, PoolName, Query) ->
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction(server(), fun() | maybe_improper_list()) -> transaction_result().
 sql_transaction(HostType, Msg) ->
-    sql_transaction(HostType, ?DEFAULT_POOL, Msg).
+    sql_transaction(HostType, ?DEFAULT_POOL_NAME, Msg).
 
 -spec sql_transaction(server(), atom(), fun() | maybe_improper_list()) -> transaction_result().
 sql_transaction(HostType, PoolName, Queries) when is_atom(PoolName), is_list(Queries) ->
@@ -362,7 +362,7 @@ sql_transaction(HostType, PoolName, F) when is_atom(PoolName), is_function(F) ->
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction_request(server(), fun() | maybe_improper_list()) -> request_id().
 sql_transaction_request(HostType, Queries) ->
-    sql_transaction_request(HostType, ?DEFAULT_POOL, Queries).
+    sql_transaction_request(HostType, ?DEFAULT_POOL_NAME, Queries).
 
 -spec sql_transaction_request(server(), atom(), fun() | maybe_improper_list()) -> request_id().
 sql_transaction_request(HostType, PoolName, Queries) when is_atom(PoolName), is_list(Queries) ->
@@ -400,7 +400,7 @@ do_transaction_with_delayed_retry(HostType, F, Retries, Delay, Info) ->
 
 -spec sql_dirty(server(), fun()) -> any() | no_return().
 sql_dirty(HostType, F) ->
-    sql_dirty(HostType, ?DEFAULT_POOL, F).
+    sql_dirty(HostType, ?DEFAULT_POOL_NAME, F).
 
 -spec sql_dirty(server(), atom(), fun()) -> any() | no_return().
 sql_dirty(HostType, PoolName, F) when is_function(F) ->
