@@ -47,7 +47,7 @@
                      | rabbit | ldap.
 
 %% Config scope
--type scope() :: global | host | mongooseim:host_type().
+-type scope() :: global | host_type | mongooseim:host_type().
 -type host_type_or_global() :: mongooseim:host_type_or_global().
 
 -type tag() :: atom().
@@ -361,9 +361,9 @@ make_callback_module_name(PoolType) ->
 expand_pools(Pools, HostTypes) ->
     %% First we select only pools for a specific vhost
     HostSpecific = [{Type, HT, Tag} || #{type := Type, scope := HT, tag := Tag} <- Pools, is_binary(HT)],
-    %% Then we expand all pools with `host` as HostType parameter but using host specific configs
+    %% Then we expand all pools with `host_type` as HostType parameter but using host_type specific configs
     %% if they were provided
-    F = fun(M = #{type := PoolType, scope := host, tag := Tag}) ->
+    F = fun(M = #{type := PoolType, scope := host_type, tag := Tag}) ->
                 [M#{scope => HostType} || HostType <- HostTypes,
                                           not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]

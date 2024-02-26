@@ -476,8 +476,12 @@ wpool(ExtraDefaults) ->
 
 outgoing_pool_extra(Type) ->
     #section{items = #{<<"scope">> => #option{type = atom,
-                                              validate = {enum, [global, host, single_host]}},
-                       <<"host">> => #option{type = binary,
+                                              validate = {enum, [global,
+                                                                 host_type, single_host_type,
+                                                                 host, single_host]}}, %% TODO deprecated
+                       <<"host_type">> => #option{type = binary,
+                                                  validate = non_empty},
+                       <<"host">> => #option{type = binary, %% TODO deprecated
                                              validate = non_empty},
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
@@ -1078,7 +1082,7 @@ check_auth_method(Method, Opts) ->
     end.
 
 process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
-    Scope = pool_scope(ScopeIn, maps:get(host, AllOpts, none)),
+    Scope = pool_scope(ScopeIn, maps:get(host_type, AllOpts, maps:get(host, AllOpts, none))),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
@@ -1086,11 +1090,16 @@ process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connecti
       opts => Opts,
       conn_opts => Connection}.
 
+pool_scope(single_host_type, none) ->
+    error(#{what => pool_single_host_not_specified,
+            text => <<"\"host_type\" option is required if \"single_host_type\" is used.">>});
 pool_scope(single_host, none) ->
     error(#{what => pool_single_host_not_specified,
             text => <<"\"host\" option is required if \"single_host\" is used.">>});
+pool_scope(single_host_type, Host) -> Host;
 pool_scope(single_host, Host) -> Host;
-pool_scope(host, none) -> host;
+pool_scope(host, none) -> host_type;
+pool_scope(host_type, none) -> host_type;
 pool_scope(global, none) -> global.
 
 process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;

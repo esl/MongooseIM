@@ -84,7 +84,7 @@ init_per_suite(Config) ->
     Config.
 
 pool_opts() ->
-   #{scope => host,
+   #{scope => host_type,
      opts => #{strategy => random_worker, call_timeout => 5000, workers => 20},
      conn_opts => #{host => ?AUTH_HOST, path_prefix => <<"/auth/">>}}.
 
