@@ -164,15 +164,13 @@ form_field_option(Option) ->
 form_field_value(Value) ->
     #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
--spec form_field_validate(validate()) -> [exml:element()] | [].
+-spec form_field_validate(validate()) -> [exml:element()].
 form_field_validate(#{method := Method, datatype := Datatype}) ->
     [#xmlel{name = <<"validate">>,
             attrs = [{<<"xmlns">>, ?NS_DATA_VALIDATE}, {<<"datatype">>, Datatype}],
             children = form_field_validation_method(Method)}];
 form_field_validate(_) -> [].
 
--spec form_field_validation_method(atom()) -> [exml:element()] | [].
+-spec form_field_validation_method(atom()) -> [exml:element()].
 form_field_validation_method(open) ->
-    [#xmlel{name = <<"open">>}];
-form_field_validation_method(_) ->
-    [].
+    [#xmlel{name = <<"open">>}].
