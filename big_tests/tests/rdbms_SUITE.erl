@@ -32,10 +32,16 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, rdbms_queries}].
+    [
+     {group, global_rdbms_queries},
+     {group, tagged_rdbms_queries}
+    ].
 
 groups() ->
-    [{rdbms_queries, [], rdbms_queries_cases()}].
+    [
+     {global_rdbms_queries, [], rdbms_queries_cases()},
+     {tagged_rdbms_queries, [], rdbms_queries_cases()}
+    ].
 
 rdbms_queries_cases() ->
     [select_one_works_case,
@@ -92,18 +98,27 @@ init_per_suite(Config) ->
          orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
         true ->
-            Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
-            GlobalRdbmsPool = stop_global_default_pool(Pools),
-            start_local_host_type_pool(Pools),
             %% Warning: inject_module does not really work well with --rerun-big-tests flag
             mongoose_helper:inject_module(?MODULE),
-            escalus:init_per_suite([{global_default_rdbms_pool, GlobalRdbmsPool} | Config])
+            escalus:init_per_suite(Config)
     end.
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config),
+    escalus:end_per_suite(Config).
+
+init_per_group(tagged_rdbms_queries, Config) ->
+    Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
+    GlobalRdbmsPool = stop_global_default_pool(Pools),
+    start_local_host_type_pool(GlobalRdbmsPool),
+    [{tag, tag()}, {global_default_rdbms_pool, GlobalRdbmsPool} | Config];
+init_per_group(global_rdbms_queries, Config) ->
+    [{tag, global} | Config].
+
+end_per_group(tagged_rdbms_queries, Config) ->
     GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
-    rpc(mim(), mongoose_wpool, start_configured_pools, [[GlobalRdbmsPool]]).
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[GlobalRdbmsPool]]);
+end_per_group(global_rdbms_queries, Config) ->
+    Config.
 
 init_per_testcase(test_incremental_upsert, Config) ->
     erase_inbox(Config),
@@ -331,7 +346,13 @@ read_prep_boolean_case(Config) ->
 
 select_current_timestamp_case(Config) ->
     ok = rpc(mim(), mongoose_rdbms_timestamp, prepare, []),
-    assert_is_integer(rpc(mim(), mongoose_rdbms_timestamp, select, [host_type(), tag()])).
+    Res = case ?config(tag, Config) of
+              global ->
+                  rpc(mim(), mongoose_rdbms_timestamp, select, []);
+              Tag ->
+                  rpc(mim(), mongoose_rdbms_timestamp, select, [host_type(), Tag])
+          end,
+    assert_is_integer(Res).
 
 assert_is_integer(X) when is_integer(X) ->
     X.
@@ -528,7 +549,8 @@ test_failed_wrapper_transaction(Config) ->
     end,
 
     % when
-    F = fun() -> sql_execute_wrapped_request(Config, insert_one, [<<"check1">>], WrapperFun) end,
+    ScopeAndTag = scope_and_tag(Config),
+    F = fun() -> sql_execute_wrapped_request(ScopeAndTag, insert_one, [<<"check1">>], WrapperFun) end,
     sql_transaction(Config, F),
 
     % then
@@ -599,8 +621,15 @@ select_like_prep_case(Config) ->
 tag() ->
     extra_tag.
 
-sql_query(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query, [host_type(), tag(), Query]).
+scope_and_tag(Config) ->
+    case ?config(tag, Config) of
+        global -> [host_type()];
+        Tag -> [host_type(), Tag]
+    end.
+
+sql_query(Config, Query) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, sql_query, ScopeAndTag ++ [Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
@@ -608,39 +637,52 @@ sql_prepare(_Config, Name, Table, Fields, Query) ->
 sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
     escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
 
-sql_execute(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute, [host_type(), tag(), Name, Parameters]).
+sql_execute(Config, Name, Parameters) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, execute, ScopeAndTag ++ [Name, Parameters]).
 
-sql_execute_cast(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute_cast, [host_type(), tag(), Name, Parameters]).
+sql_execute_cast(Config, Name, Parameters) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, execute_cast, ScopeAndTag ++ [Name, Parameters]).
 
-sql_query_cast(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query_cast, [host_type(), tag(), Query]).
+sql_query_cast(Config, Query) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, sql_query_cast, ScopeAndTag ++ [Query]).
 
-sql_execute_request(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute_request, [host_type(), tag(), Name, Parameters]).
+sql_execute_request(Config, Name, Parameters) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, execute_request, ScopeAndTag ++ [Name, Parameters]).
 
-sql_execute_wrapped_request(_Config, Name, Parameters, WrapperFun) ->
-    slow_rpc(mongoose_rdbms, execute_wrapped_request, [host_type(), tag(), Name, Parameters, WrapperFun]).
+sql_execute_wrapped_request(ScopeAndTag, Name, Parameters, WrapperFun) ->
+    slow_rpc(mongoose_rdbms, execute_wrapped_request, ScopeAndTag ++ [Name, Parameters, WrapperFun]).
 
-sql_execute_wrapped_request_and_wait_response(_Config, Name, Parameters, WrapperFun) ->
-    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, [host_type(), tag(), Name, Parameters, WrapperFun]).
+sql_execute_wrapped_request_and_wait_response(Config, Name, Parameters, WrapperFun) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(?MODULE, execute_wrapped_request_and_wait_response, ScopeAndTag ++ [Name, Parameters, WrapperFun]).
 
 execute_wrapped_request_and_wait_response(HostType, Tag, Name, Parameters, WrapperFun) ->
     RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Tag, Name, Parameters, WrapperFun),
     gen_server:wait_response(RequestId, 100).
 
-sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
-    slow_rpc(rdbms_queries, execute_upsert, [host_type(), tag(), Name, Insert, Update, Unique]).
+execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun) ->
+    RequestId = mongoose_rdbms:execute_wrapped_request(HostType, Name, Parameters, WrapperFun),
+    gen_server:wait_response(RequestId, 100).
 
-sql_query_request(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), tag(), Query]).
+sql_execute_upsert(Config, Name, Insert, Update, Unique) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(rdbms_queries, execute_upsert, ScopeAndTag ++ [Name, Insert, Update, Unique]).
 
-sql_transaction_request(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_transaction_request, [host_type(), tag(), Query]).
+sql_query_request(Config, Query) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, sql_query_request, ScopeAndTag ++ [Query]).
 
-sql_transaction(_Config, F) ->
-    slow_rpc(mongoose_rdbms, sql_transaction, [host_type(), tag(), F]).
+sql_transaction_request(Config, Query) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, sql_transaction_request, ScopeAndTag ++ [Query]).
+
+sql_transaction(Config, F) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(mongoose_rdbms, sql_transaction, ScopeAndTag ++ [F]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
@@ -1131,8 +1173,7 @@ stop_global_default_pool(Pools) ->
     ok = rpc(mim(), mongoose_wpool, stop, [rdbms, global, default]),
     GlobalRdbmsPool.
 
-start_local_host_type_pool(Pools) ->
-    [GlobalRdbmsPool] = [Pool || Pool = #{type := rdbms, scope := global, tag := default} <- Pools],
+start_local_host_type_pool(GlobalRdbmsPool) ->
     LocalHostTypePool = GlobalRdbmsPool#{scope := host_type(), tag := tag()},
     rpc(mim(), mongoose_wpool, start_configured_pools, [[LocalHostTypePool], [host_type()]]).
 
