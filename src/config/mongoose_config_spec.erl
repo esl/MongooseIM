@@ -236,10 +236,10 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    Keys = [c2s, s2s, service, http],
+    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"service">>, <<"http">>],
     #section{
-       items = maps:from_list([{atom_to_binary(Key), #list{items = listener(Key), wrap = none}}
-                               || Key <- Keys]),
+       items = maps:from_list([{Listener, #list{items = listener(Listener), wrap = none}}
+                               || Listener <- ListenerTypes]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config,
        format_items = list
@@ -264,7 +264,7 @@ listener_common() ->
              process = fun ?MODULE:process_listener/2
             }.
 
-listener_extra(http) ->
+listener_extra(<<"http">>) ->
     %% tls options passed to ranch_ssl (with verify_mode translated to verify_fun)
     #section{items = #{<<"tls">> => tls([server], [just_tls]),
                        <<"transport">> => http_transport(),
@@ -292,7 +292,7 @@ xmpp_listener_common() ->
                           <<"num_acceptors">> => 100}
             }.
 
-xmpp_listener_extra(c2s) ->
+xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
@@ -315,14 +315,14 @@ xmpp_listener_extra(c2s) ->
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
-xmpp_listener_extra(s2s) ->
+xmpp_listener_extra(<<"s2s">>) ->
     TLSSection = tls([server], [fast_tls]),
     #section{items = #{<<"shaper">> => #option{type = atom,
                                                validate = non_empty},
                        <<"tls">> => TLSSection#section{include = always}},
              defaults = #{<<"shaper">> => none}
             };
-xmpp_listener_extra(service) ->
+xmpp_listener_extra(<<"service">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper_rule">> => #option{type = atom,
