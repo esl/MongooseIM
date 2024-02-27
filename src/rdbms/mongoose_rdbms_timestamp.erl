@@ -21,10 +21,10 @@ select_query() ->
            error({prepare_timestamp_query_failed, Other})
    end.
 
--spec select(mongooseim:host_type_or_global(), atom()) -> integer().
+-spec select(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> integer().
 select() ->
     select(global, default).
 
-select(HostType, PoolName) ->
-    Res = mongoose_rdbms:execute_successfully(HostType, PoolName, mim_timestamp, []),
+select(HostType, PoolTag) ->
+    Res = mongoose_rdbms:execute_successfully(HostType, PoolTag, mim_timestamp, []),
     mongoose_rdbms:selected_to_integer(Res). %% ensure it is an integer

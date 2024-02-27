@@ -83,70 +83,70 @@ join([H|T], Sep) ->
 get_db_type() ->
     ?RDBMS_TYPE.
 
--spec execute_upsert(Host :: mongoose_rdbms:server(),
+-spec execute_upsert(HostType :: mongooseim:host_type_or_global(),
                      Name :: atom(),
                      InsertParams :: [any()],
                      UpdateParams :: [any()],
                      UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    execute_upsert(Host, default, Name, InsertParams, UpdateParams, UniqueKeyValues).
+execute_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+    execute_upsert(HostType, default, Name, InsertParams, UpdateParams, UniqueKeyValues).
 
--spec execute_upsert(Host :: mongoose_rdbms:server(),
-                     PoolName :: atom(),
+-spec execute_upsert(HostType :: mongooseim:host_type_or_global(),
+                     PoolTag :: mongoose_wpool:tag(),
                      Name :: atom(),
                      InsertParams :: [any()],
                      UpdateParams :: [any()],
                      UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert(Host, PoolName, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
+execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
-            mongoose_rdbms:execute(Host, PoolName, Name, InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {pgsql, _} ->
-            mongoose_rdbms:execute(Host, PoolName, Name, InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
-            mongoose_rdbms:execute(Host, PoolName, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute(HostType, PoolTag, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
--spec request_upsert(Host :: mongoose_rdbms:server(),
+-spec request_upsert(HostType :: mongooseim:host_type_or_global(),
                      Name :: atom(),
                      InsertParams :: [any()],
                      UpdateParams :: [any()],
                      UniqueKeyValues :: [any()]) -> request_id().
-request_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
+request_upsert(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
-            mongoose_rdbms:execute_request(Host, Name, InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
         {pgsql, _} ->
-            mongoose_rdbms:execute_request(Host, Name, InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute_request(HostType, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
-            mongoose_rdbms:execute_request(Host, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute_request(HostType, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
 %% @doc
 %% This functions prepares query for inserting a row or updating it if already exists
 %% Updates can be either fields or literal expressions like "column = tab.column + 1"
--spec prepare_upsert(Host :: mongoose_rdbms:server(),
-                     QueryName :: atom(),
+-spec prepare_upsert(HostType :: mongooseim:host_type_or_global(),
+                     QueryName :: mongoose_rdbms:query_name(),
                      TableName :: atom(),
                      InsertFields :: [binary()],
                      Updates :: [binary() | {assignment | expression, binary(), binary()}],
                      UniqueKeyFields :: [binary()]) ->
-    {ok, QueryName :: atom()} | {error, already_exists}.
-prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
-    prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields, none).
+    {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
+prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
+    prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields, none).
 
--spec prepare_upsert(Host :: mongoose_rdbms:server(),
-                     QueryName :: atom(),
+-spec prepare_upsert(HostType :: mongooseim:host_type_or_global(),
+                     QueryName :: mongoose_rdbms:query_name(),
                      TableName :: atom(),
                      InsertFields :: [ColumnName :: binary()],
                      Updates :: [binary() | {assignment | expression, binary(), binary()}],
                      UniqueKeyFields :: [binary()],
                      IncrementalField :: none | binary()) ->
-    {ok, QueryName :: atom()} | {error, already_exists}.
-prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    SQL = upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField),
+    {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
+prepare_upsert(HostType, Name, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
+    SQL = upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField),
     Query = iolist_to_binary(SQL),
     ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
     Fields = prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields),
@@ -160,8 +160,8 @@ prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
         _ -> InsertFields ++ UpdateFields
     end.
 
-upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
+upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
+    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
         {pgsql, _} ->
