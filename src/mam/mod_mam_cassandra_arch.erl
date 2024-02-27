@@ -119,7 +119,7 @@ prepared_queries() ->
     Extra :: gen_hook:extra().
 archive_size(Size, #{owner := UserJID}, #{host_type := HostType}) when is_integer(Size) ->
     Borders = Start = End = WithJID = undefined,
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID, undefined),
     {ok, calc_count(pool_name(HostType), UserJID, HostType, Filter)}.
 
 
@@ -229,13 +229,13 @@ lookup_messages(_Result,
                 #{owner_jid := UserJID, rsm := RSM, borders := Borders,
                   start_ts := Start, end_ts := End, with_jid := WithJID,
                   search_text := undefined, page_size := PageSize,
-                  is_simple := IsSimple},
+                  is_simple := IsSimple, message_id := MsgID},
                 #{host_type := HostType}) ->
     try
         {ok, lookup_messages2(pool_name(HostType), HostType,
                               UserJID, RSM, Borders,
                               Start, End, WithJID,
-                              PageSize, IsSimple)}
+                              PageSize, MsgID, IsSimple)}
     catch _Type:Reason:S ->
             {ok, {error, {Reason, S}}}
     end.
@@ -243,20 +243,20 @@ lookup_messages(_Result,
 lookup_messages2(PoolName, HostType,
                  UserJID = #jid{}, RSM, Borders,
                  Start, End, WithJID,
-                 PageSize, _IsSimple = true) ->
+                 PageSize, MsgID, _IsSimple = true) ->
     %% Simple query without calculating offset and total count
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID, MsgID),
     lookup_messages_simple(PoolName, HostType, UserJID, RSM, PageSize, Filter);
 lookup_messages2(PoolName, HostType,
                  UserJID = #jid{}, RSM, Borders,
                  Start, End, WithJID,
-                 PageSize, _IsSimple) ->
+                 PageSize, MsgID, _IsSimple) ->
     %% Query with offset calculation
     %% We cannot just use RDBMS code because "LIMIT X, Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID, MsgID),
     case Strategy of
         last_page ->
             lookup_messages_last_page(PoolName, HostType, UserJID, RSM, PageSize, Filter);
@@ -602,9 +602,17 @@ prev_offset_query_cql() ->
 insert_offset_hint_query_cql() ->
     "INSERT INTO mam_message_offset(user_jid, with_jid, id, offset) VALUES(?, ?, ?, ?)".
 
-prepare_filter(UserJID, Borders, Start, End, WithJID) ->
+prepare_filter(UserJID, Borders, Start, End, WithJID, MsgID) ->
     BUserJID = bare_jid(UserJID),
-    {StartID, EndID} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
+    %% In Cassandra, a column cannot be restricted by both an equality and an inequality relation.
+    %% When MsgID is defined, it is used as both StartID and EndID to comply with this limitation.
+    %% This means that the `ids` filter effectively overrides any "before" or "after" filters.
+    {StartID, EndID} = case MsgID of
+                            undefined ->
+                                mod_mam_utils:calculate_msg_id_borders(Borders, Start, End);
+                            ID ->
+                                {ID, ID}
+                       end,
     BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
     prepare_filter_params(BUserJID, BWithJID, StartID, EndID).
 

@@ -58,6 +58,7 @@
 -define(NS_SERVERINFO,          <<"http://jabber.org/network/serverinfo">>).
 -define(NS_MAM_04,              <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
 -define(NS_MAM_06,              <<"urn:xmpp:mam:2">>).  % MAM 0.6
+-define(NS_MAM_EXTENDED,        <<"urn:xmpp:mam:2#extended">>).
 -define(NS_MAM_GC_FIELD,        <<"urn:xmpp:mam:2#groupchat-field">>).
 -define(NS_MAM_GC_AVAILABLE,    <<"urn:xmpp:mam:2#groupchat-available">>).
 -define(NS_HTTP_UPLOAD_030,     <<"urn:xmpp:http:upload:0">>).
@@ -107,6 +108,8 @@
 -define(NS_RETRACT_TOMBSTONE,   <<"urn:xmpp:message-retract:0#tombstone">>).
 
 -define(JINGLE_NS, <<"urn:xmpp:jingle:1">>).
+
+-define(NS_DATA_VALIDATE, <<"http://jabber.org/protocol/xdata-validate">>).
 
 %% Custom extension to accept stanza-ids as retraction IDs
 -define(NS_ESL_RETRACT,         <<"urn:esl:message-retract-by-stanza-id:0">>).
