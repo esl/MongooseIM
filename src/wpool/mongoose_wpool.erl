@@ -27,9 +27,7 @@
          get_pool_settings/3, get_pools/0, stats/3]).
 
 -export([start_sup_pool/3]).
--export([start_configured_pools/0]).
--export([start_configured_pools/1]).
--export([start_configured_pools/2]).
+-export([start_configured_pools/0, start_configured_pools/1, start_configured_pools/2]).
 -export([is_configured/1]).
 -export([make_pool_name/3]).
 -export([call_start_callback/2]).
@@ -43,14 +41,13 @@
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
 
--type pool_type() :: redis | http | rdbms | cassandra | elastic | generic
-                     | rabbit | ldap.
+-type pool_type() :: redis | http | rdbms | cassandra | elastic | generic | rabbit | ldap.
 
 %% Config scope
 -type scope() :: global | host_type | mongooseim:host_type().
 -type host_type_or_global() :: mongooseim:host_type_or_global().
-
 -type tag() :: atom().
+
 %% Name of a process
 -type proc_name() :: atom().
 
@@ -80,13 +77,7 @@
 -type start_result() :: {ok, pid()} | {error, term()}.
 -type stop_result() :: ok | term().
 
--export_type([pool_type/0]).
--export_type([tag/0]).
--export_type([scope/0]).
--export_type([proc_name/0]).
--export_type([pool_name/0]).
--export_type([pool_opts/0]).
--export_type([conn_opts/0]).
+-export_type([pool_type/0, tag/0, scope/0, proc_name/0, pool_name/0, pool_opts/0, conn_opts/0]).
 
 -type callback_fun() :: init | start | is_supported_strategy | stop.
 
