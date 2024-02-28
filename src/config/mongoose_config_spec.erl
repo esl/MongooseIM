@@ -475,10 +475,9 @@ wpool(ExtraDefaults) ->
                                      <<"call_timeout">> => 5000}, ExtraDefaults)}.
 
 outgoing_pool_extra(Type) ->
+    Scopes = [global, host_type, single_host_type, host, single_host], %% TODO deprecated
     #section{items = #{<<"scope">> => #option{type = atom,
-                                              validate = {enum, [global,
-                                                                 host_type, single_host_type,
-                                                                 host, single_host]}}, %% TODO deprecated
+                                              validate = {enum, Scopes}},
                        <<"host_type">> => #option{type = binary,
                                                   validate = non_empty},
                        <<"host">> => #option{type = binary, %% TODO deprecated
