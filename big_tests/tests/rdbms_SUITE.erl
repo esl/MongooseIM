@@ -107,16 +107,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(tagged_rdbms_queries, Config) ->
-    Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
-    GlobalRdbmsPool = stop_global_default_pool(Pools),
-    start_local_host_type_pool(GlobalRdbmsPool),
-    [{tag, tag()}, {global_default_rdbms_pool, GlobalRdbmsPool} | Config];
+    ExtraConfig = stop_global_default_pool(),
+    start_local_host_type_pool(ExtraConfig),
+    ExtraConfig ++ Config;
 init_per_group(global_rdbms_queries, Config) ->
     [{tag, global} | Config].
 
 end_per_group(tagged_rdbms_queries, Config) ->
-    GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
-    rpc(mim(), mongoose_wpool, start_configured_pools, [[GlobalRdbmsPool]]);
+    restart_global_default_pool(Config);
 end_per_group(global_rdbms_queries, Config) ->
     Config.
 
@@ -1168,12 +1166,37 @@ is_pgsql() ->
 is_mysql() ->
     db_engine() == mysql.
 
-stop_global_default_pool(Pools) ->
+stop_global_default_pool() ->
+    Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
     [GlobalRdbmsPool] = [Pool || Pool = #{type := rdbms, scope := global, tag := default} <- Pools],
     ok = rpc(mim(), mongoose_wpool, stop, [rdbms, global, default]),
-    GlobalRdbmsPool.
+    Extra = maybe_stop_service_domain_db(),
+    [{tag, tag()}, {global_default_rdbms_pool, GlobalRdbmsPool} | Extra].
 
-start_local_host_type_pool(GlobalRdbmsPool) ->
+restart_global_default_pool(Config) ->
+    GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[GlobalRdbmsPool]]),
+    maybe_restart_service_domain_db(Config).
+
+maybe_stop_service_domain_db() ->
+    case rpc(mim(), erlang, whereis, [service_domain_db]) of
+        undefined ->
+            [];
+        ServiceDomainDB when is_pid(ServiceDomainDB) ->
+            ok = rpc(mim(), sys, suspend, [ServiceDomainDB]),
+            [{service_domain_db, ServiceDomainDB}]
+    end.
+
+maybe_restart_service_domain_db(Config) ->
+    case ?config(service_domain_db, Config) of
+        undefined ->
+            ok;
+        ServiceDomainDB ->
+            ok = rpc(mim(), sys, resume, [ServiceDomainDB])
+    end.
+
+start_local_host_type_pool(Config) ->
+    GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
     LocalHostTypePool = GlobalRdbmsPool#{scope := host_type(), tag := tag()},
     rpc(mim(), mongoose_wpool, start_configured_pools, [[LocalHostTypePool], [host_type()]]).
 
