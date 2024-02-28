@@ -38,7 +38,7 @@
 -export([expand_pools/2]).
 
 -ignore_xref([call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
-              send_request/2, send_request/4, send_request/5,
+              send_request/2, send_request/3, send_request/4, send_request/5,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
