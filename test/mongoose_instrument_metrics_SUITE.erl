@@ -34,7 +34,9 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    async_helper:start(Config, mongoose_instrument_registry, start, []).
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    mongoose_instrument:persist(),
+    Config1.
 
 end_per_suite(Config) ->
     async_helper:stop_all(Config).

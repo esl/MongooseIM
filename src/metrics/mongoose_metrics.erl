@@ -66,7 +66,6 @@
 
 -spec init() -> ok.
 init() ->
-    mongoose_instrument_registry:start(), % TODO move it out of this module
     prepare_prefixes(),
     create_vm_metrics(),
     create_global_metrics(?GLOBAL_COUNTERS),
