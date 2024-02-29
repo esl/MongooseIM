@@ -891,7 +891,7 @@ pool_scope(_Config) ->
     ?err(T(#{<<"host">> => <<"localhost">>})), % missing scope
     ?err(T(#{<<"host_type">> => <<"localhost">>})), % missing scope
     ?err(T(#{<<"scope">> => <<"single_host">>})), % missing host
-    ?err(T(#{<<"scope">> => <<"single_host_type">>})), % missing host
+    ?err(T(#{<<"scope">> => <<"single_host_type">>})), % missing host type
     ?err(T(#{<<"scope">> => <<"whatever">>})).
 
 pool_rdbms(_Config) ->

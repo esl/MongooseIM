@@ -1091,12 +1091,12 @@ process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connecti
       conn_opts => Connection}.
 
 pool_scope(single_host_type, none) ->
-    error(#{what => pool_single_host_not_specified,
+    error(#{what => pool_single_host_type_not_specified,
             text => <<"\"host_type\" option is required if \"single_host_type\" is used.">>});
 pool_scope(single_host, none) ->
     error(#{what => pool_single_host_not_specified,
             text => <<"\"host\" option is required if \"single_host\" is used.">>});
-pool_scope(single_host_type, Host) -> Host;
+pool_scope(single_host_type, HostType) -> HostType;
 pool_scope(single_host, Host) -> Host;
 pool_scope(host, none) -> host_type;
 pool_scope(host_type, none) -> host_type;

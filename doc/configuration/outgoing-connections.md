@@ -21,7 +21,7 @@ This allows you to create multiple dedicated pools of the same type.
 
 ### `outgoing_pools.*.*.host_type`
 * **Syntax:** string
-* **Default:** no default; required if `"single_host"` scope is specified
+* **Default:** no default; required if `"single_host_type"` scope is specified
 * **Example:** `host_type = "basic_host_type"`
 
 ### `outgoing_pools.*.*.host`
@@ -40,7 +40,7 @@ This allows you to create multiple dedicated pools of the same type.
         If a global default pool is not configured, these services will fail.
 
     !!! Note
-        `host` and `single_host` are still supported and behave equivalent to `host_type` and `single_host_type` respectively; however, they are deprecated in favour of the former.
+        `host` and `single_host` are still supported and behave equivalent to `host_type` and `single_host_type` respectively; however, they are deprecated in favour of the latter.
 
 ## Worker pool options
 
