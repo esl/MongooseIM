@@ -44,7 +44,7 @@
 -define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
 -define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
--define(WPOOL_CFG, #{scope => host_type,
+-define(WPOOL_CFG, #{tag => event_pusher, scope => host_type,
                      opts => #{workers => 20, strategy => best_worker, call_timeout => 5000}}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
@@ -614,7 +614,7 @@ start_rabbit_wpool(Host) ->
 
 start_rabbit_wpool(Host, WpoolConfig) ->
     rpc(mim(), mongoose_wpool, ensure_started, []),
-    Pool = config([outgoing_pools, rabbit, event_pusher], WpoolConfig),
+    Pool = config([outgoing_pools, rabbit], WpoolConfig),
     [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool], [Host]]).
 
 stop_rabbit_wpool({Pool, Host, Tag}) ->

@@ -82,6 +82,7 @@
 root() ->
     General = general(),
     Listen = listen(),
+    Pools = outgoing_pools(),
     Auth = auth(),
     Modules = modules(),
     S2S = s2s(),
@@ -91,7 +92,7 @@ root() ->
                                                   defaults = general_defaults()},
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
-                 <<"outgoing_pools">> => outgoing_pools(),
+                 <<"outgoing_pools">> => Pools#section{include = always},
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
@@ -440,16 +441,16 @@ internal_database_mnesia() ->
 outgoing_pools() ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>],
-    Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
-                             validate_keys = non_empty,
-                             wrap = none,
-                             format_items = list}} || Type <- PoolTypes],
-    #section{items = maps:from_list(Items),
-             format_items = list,
-             wrap = global_config,
-             include = always}.
+    Items = maps:from_list([{PoolType, #list{items = outgoing_pool(PoolType), wrap = none}}
+                            || PoolType <- PoolTypes]),
+    #section{
+       items = Items,
+       process = fun mongoose_wpool:verify_unique_pools/1,
+       wrap = global_config,
+       format_items = list
+      }.
 
-%% path: outgoing_pools.*.*
+%% path: outgoing_pools.*[]
 outgoing_pool(Type) ->
     ExtraDefaults = extra_wpool_defaults(Type),
     Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), outgoing_pool_extra(Type)),
@@ -476,7 +477,9 @@ wpool(ExtraDefaults) ->
 
 outgoing_pool_extra(Type) ->
     Scopes = [global, host_type, single_host_type, host, single_host], %% TODO deprecated
-    #section{items = #{<<"scope">> => #option{type = atom,
+    #section{items = #{<<"tag">> => #option{type = atom,
+                                            validate = non_empty},
+                       <<"scope">> => #option{type = atom,
                                               validate = {enum, Scopes}},
                        <<"host_type">> => #option{type = binary,
                                                   validate = non_empty},
@@ -485,10 +488,11 @@ outgoing_pool_extra(Type) ->
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
              process = fun ?MODULE:process_pool/2,
-             defaults = #{<<"scope">> => global}
+             defaults = #{<<"tag">> => default,
+                          <<"scope">> => global}
             }.
 
-%% path: outgoing_pools.*.*.connection
+%% path: outgoing_pools.*[].connection
 outgoing_pool_connection(<<"cassandra">>) ->
     #section{
        items = #{<<"servers">> => #list{items = cassandra_server(),
@@ -629,7 +633,7 @@ cassandra_server() ->
        defaults = #{<<"port">> => 9042}
       }.
 
-%% path: outgoing_pools.cassandra.*.connection.auth.plain
+%% path: outgoing_pools.cassandra.connection.auth.plain
 cassandra_auth_plain() ->
     #section{
        items = #{<<"username">> => #option{type = binary},
@@ -637,7 +641,7 @@ cassandra_auth_plain() ->
        required = all
       }.
 
-%% path: outgoing_pools.rdbms.*.connection.tls
+%% path: outgoing_pools.rdbms.connection.tls
 sql_tls() ->
     mongoose_config_utils:merge_sections(tls([client], [just_tls]), sql_tls_extra()).
 
@@ -1080,12 +1084,12 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
+process_pool([item, Type | _], AllOpts = #{tag := Tag, scope := ScopeIn, connection := Connection}) ->
     Scope = pool_scope(ScopeIn, maps:get(host_type, AllOpts, maps:get(host, AllOpts, none))),
-    Opts = maps:without([scope, host, connection], AllOpts),
+    Opts = maps:without([tag, scope, host, host_type, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
-      tag => b2a(Tag),
+      tag => Tag,
       opts => Opts,
       conn_opts => Connection}.
 

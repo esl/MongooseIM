@@ -131,16 +131,17 @@
 
   [auth.rdbms]
 
-[outgoing_pools.redis.global_distrib]
+[[outgoing_pools.redis]]
+  tag = "global_distrib"
   scope = "single_host"
   host = "localhost"
   workers = 10
 
-[outgoing_pools.rdbms.default]
+[[outgoing_pools.rdbms]]
+  tag = "default"
   scope = "global"
   workers = 5
-
-  [outgoing_pools.rdbms.default.connection]
+  [outgoing_pools.rdbms.connection]
     driver = "pgsql"
     host = "localhost"
     database = "mongooseim"

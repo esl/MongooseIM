@@ -135,7 +135,7 @@ init_per_suite(Config) ->
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts = #{host => "https://localhost:" ++ integer_to_list(Port), request_timeout => 2000,
                  tls => #{verify_mode => none}},
-    Pool = config([outgoing_pools, http, mongoose_push_http], #{opts => PoolOpts, conn_opts => ConnOpts}),
+    Pool = config([outgoing_pools, http], #{tag => mongoose_push_http, opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools, [[Pool]]),
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     escalus:init_per_suite(ConfigWithModules).

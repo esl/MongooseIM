@@ -170,7 +170,7 @@ get_prefix(Config) ->
 start_pool() ->
     PoolOpts = #{strategy => available_worker, workers => 5},
     ConnOpts = #{host => http_notifications_host(), request_timeout => 2000},
-    Pool = config([outgoing_pools, http, http_pool], #{opts => PoolOpts, conn_opts => ConnOpts}),
+    Pool = config([aoutgoing_pools, http], #{tag => http_pool, opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mim(), mongoose_wpool, start_configured_pools, [[Pool]]).
 
 stop_pool() ->

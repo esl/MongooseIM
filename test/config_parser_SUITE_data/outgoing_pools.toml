@@ -6,16 +6,17 @@
   ]
   default_server_domain = "localhost"
 
-[outgoing_pools.redis.global_distrib]
+[[outgoing_pools.redis]]
+  tag = "global_distrib"
   scope = "single_host_type"
   host = "localhost"
   workers = 10
 
-[outgoing_pools.rdbms.default]
+[[outgoing_pools.rdbms]]
+  tag = "default"
   scope = "global"
   workers = 5
-
-  [outgoing_pools.rdbms.default.connection]
+  [outgoing_pools.rdbms.connection]
     driver = "pgsql"
     host = "localhost"
     database = "mongooseim"
@@ -26,34 +27,35 @@
     tls.cacertfile = "priv/ca.pem"
     tls.server_name_indication.enabled = false
 
-[outgoing_pools.http.mongoose_push_http]
+[[outgoing_pools.http]]
+  tag = "mongoose_push_http"
   scope = "global"
   workers = 50
-
-  [outgoing_pools.http.mongoose_push_http.connection]
+  [outgoing_pools.http.connection]
     host = "https://localhost:8443"
     path_prefix = "/"
     request_timeout = 2000
 
-[outgoing_pools.cassandra.default]
+[[outgoing_pools.cassandra]]
+  tag = "default"
   scope = "global"
-
-  [outgoing_pools.cassandra.default.connection]
+  [outgoing_pools.cassandra.connection]
     servers = [
       {host = "cassandra_server1.example.com", port = 9042},
       {host = "cassandra_server2.example.com", port = 9042}
     ]
     keyspace = "big_mongooseim"
 
-[outgoing_pools.elastic.default]
+[[outgoing_pools.elastic]]
+  tag = "default"
   scope = "global"
   connection.host = "localhost"
 
-[outgoing_pools.rabbit.event_pusher]
+[[outgoing_pools.rabbit]]
+  tag = "event_pusher"
   scope = "host_type"
   workers = 20
-
-  [outgoing_pools.rabbit.event_pusher.connection]
+  [outgoing_pools.rabbit.connection]
     host = "localhost"
     port = 5672
     username = "guest"
@@ -61,11 +63,11 @@
     confirms_enabled = true
     max_worker_queue_len = 100
 
-[outgoing_pools.ldap.default]
+[[outgoing_pools.ldap]]
+  tag = "default"
   scope = "host_type"
   workers = 5
-
-  [outgoing_pools.ldap.default.connection]
+  [outgoing_pools.ldap.connection]
     servers = ["ldap-server.example.com"]
     root_dn = "cn=admin,dc=example,dc=com"
     password = "ldap-admin-password"

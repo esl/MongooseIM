@@ -902,7 +902,7 @@ pool_rdbms_connection_odbc(_Config) ->
     Required = #{<<"driver">> => <<"odbc">>, <<"settings">> => <<"DSN=mydb">>},
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Opts) end,
     test_pool_rdbms_connection_common_opts(P, T, Required),
-    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts],
+    ?cfg(P, config([outgoing_pools, rdbms, conn_opts],
                    #{driver => odbc, settings => "DSN=mydb"}), T(Required)),
     ?err(T(Required#{<<"settings">> => true})),
     [?err(T(maps:remove(K, Required))) || K <- maps:keys(Required)].
@@ -919,7 +919,7 @@ pool_rdbms_connection_tls_pgsql(_Config) ->
     Required = raw_sql_opts(pgsql),
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
     M = tls_ca_raw(),
-    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts, tls], (tls_ca())#{required => false}),
+    ?cfg(P, config([outgoing_pools, rdbms, conn_opts, tls], (tls_ca())#{required => false}),
          T(M)),
     ?cfg(P ++ [required], true, T(M#{<<"required">> => true})),
     ?err(T(M#{<<"required">> => <<"maybe">>})),
@@ -937,12 +937,12 @@ pool_rdbms_connection_tls_mysql(_Config) ->
     Required = raw_sql_opts(mysql),
     T = fun(Opts) -> pool_conn_raw(<<"rdbms">>, Required#{<<"tls">> => Opts}) end,
     M = tls_ca_raw(),
-    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts, tls], tls_ca()), T(M)),
+    ?cfg(P, config([outgoing_pools, rdbms, conn_opts, tls], tls_ca()), T(M)),
     ?err(T(M#{<<"required">> => true})), % only for pgsql
     test_just_tls_client(P, T).
 
 test_pool_rdbms_connection_sql_opts(P, T, Required, Expected) ->
-    ?cfg(P, config([outgoing_pools, rdbms, default, conn_opts], Expected), T(Required)),
+    ?cfg(P, config([outgoing_pools, rdbms, conn_opts], Expected), T(Required)),
     ?cfg(P ++ [port], 1234, T(Required#{<<"port">> => 1234})),
     ?err(T(Required#{<<"host">> => <<>>})),
     ?err(T(Required#{<<"port">> => -1})),
@@ -981,7 +981,7 @@ pool_http_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"http">>, Opts) end,
     Required = #{<<"host">> => <<"https://localhost:8443">>},
-    ?cfg(P, config([outgoing_pools, http, default, conn_opts], #{host => "https://localhost:8443"}),
+    ?cfg(P, config([outgoing_pools, http, conn_opts], #{host => "https://localhost:8443"}),
          T(Required)),
     ?cfg(P ++ [path_prefix], <<"/my_path/">>, T(Required#{<<"path_prefix">> => <<"/my_path/">>})),
     ?cfg(P ++ [request_timeout], 999, T(Required#{<<"request_timeout">> => 999})),
@@ -994,7 +994,7 @@ pool_http_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
     T = fun(Opts) -> pool_conn_raw(<<"http">>, #{<<"host">> => <<"http://localhost">>,
                                                  <<"tls">> => Opts}) end,
-    ?cfg(P, config([outgoing_pools, http, default, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
+    ?cfg(P, config([outgoing_pools, http, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
     test_just_tls_client(P, T).
 
 pool_redis(_Config) ->
@@ -1003,7 +1003,7 @@ pool_redis(_Config) ->
 pool_redis_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"redis">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, redis, default, conn_opts]), T(#{})),
+    ?cfg(P, default_config([outgoing_pools, redis, conn_opts]), T(#{})),
     ?cfg(P ++ [host], "my_host", T(#{<<"host">> => <<"my_host">>})),
     ?cfg(P ++ [port], 9999, T(#{<<"port">> => 9999})),
     ?cfg(P ++ [database], 1, T(#{<<"database">> => 1})),
@@ -1019,7 +1019,7 @@ pool_cassandra(_Config) ->
 pool_cassandra_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"cassandra">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, cassandra, default, conn_opts]), T(#{})),
+    ?cfg(P, default_config([outgoing_pools, cassandra, conn_opts]), T(#{})),
     ?cfg(P ++ [keyspace], big_mongooseim, T(#{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(T(#{<<"keyspace">> => <<>>})).
 
@@ -1045,7 +1045,7 @@ pool_cassandra_connection_servers(_Config) ->
 pool_cassandra_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
     T = fun(Opts) -> pool_conn_raw(<<"cassandra">>, #{<<"tls">> => Opts}) end,
-    ?cfg(P, config([outgoing_pools, cassandra, default, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
+    ?cfg(P, config([outgoing_pools, cassandra, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
     test_just_tls_client(P, T).
 
 pool_elastic(_Config) ->
@@ -1054,7 +1054,7 @@ pool_elastic(_Config) ->
 pool_elastic_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"elastic">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, elastic, default, conn_opts]), T(#{})),
+    ?cfg(P, default_config([outgoing_pools, elastic, conn_opts]), T(#{})),
     ?cfg(P ++ [host], <<"my_host">>, T(#{<<"host">> => <<"my_host">>})),
     ?cfg(P ++ [port], 9999, T(#{<<"port">> => 9999})),
     ?err(T(#{<<"host">> => <<>>})),
@@ -1066,7 +1066,7 @@ pool_rabbit(_Config) ->
 pool_rabbit_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"rabbit">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, rabbit, default, conn_opts]), T(#{})),
+    ?cfg(P, default_config([outgoing_pools, rabbit, conn_opts]), T(#{})),
     ?cfg(P ++ [host], "my_host", T(#{<<"host">> => <<"my_host">>})),
     ?cfg(P ++ [port], 9999, T(#{<<"port">> => 9999})),
     ?cfg(P ++ [username], <<"user">>, T(#{<<"username">> => <<"user">>})),
@@ -1086,7 +1086,7 @@ pool_ldap(_Config) ->
 pool_ldap_connection(_Config) ->
     P = [outgoing_pools, 1, conn_opts],
     T = fun(Opts) -> pool_conn_raw(<<"ldap">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, ldap, default, conn_opts]), T(#{})),
+    ?cfg(P, default_config([outgoing_pools, ldap, conn_opts]), T(#{})),
     ?cfg(P ++ [servers], ["server1.example.com", "server2.example.com"],
          T(#{<<"servers">> => [<<"server1.example.com">>, <<"server2.example.com">>]})),
     ?cfg(P ++ [port], 999, T(#{<<"port">> => 999})),
@@ -1104,13 +1104,13 @@ pool_ldap_connection(_Config) ->
 pool_ldap_connection_tls(_Config) ->
     P = [outgoing_pools, 1, conn_opts, tls],
     T = fun(Opts) -> pool_conn_raw(<<"ldap">>, #{<<"tls">> => Opts}) end,
-    ?cfg(P, config([outgoing_pools, ldap, default, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
+    ?cfg(P, config([outgoing_pools, ldap, conn_opts, tls], tls_ca()), T(tls_ca_raw())),
     test_just_tls_client(P, T).
 
 test_pool_opts(Type, Required) ->
     P = [outgoing_pools, 1, opts],
-    T = fun(Opts) -> pool_raw(atom_to_binary(Type), <<"default">>, Opts) end,
-    ?cfg(P, default_config([outgoing_pools, Type, default, opts]), T(Required)),
+    T = fun(Opts) -> pool_raw(atom_to_binary(Type), Opts) end,
+    ?cfg(P, default_config([outgoing_pools, Type, opts]), T(Required)),
     ?cfg(P ++ [workers], 11, T(Required#{<<"workers">> => 11})),
     ?cfg(P ++ [strategy], random_worker, T(Required#{<<"strategy">> => <<"random_worker">>})),
     ?cfg(P ++ [call_timeout], 999, T(Required#{<<"call_timeout">> => 999})),
@@ -3032,11 +3032,14 @@ auth_raw(Method, Opts) ->
 
 %% helpers for 'pool' tests
 
+pool_raw(Type, Opts) ->
+    #{<<"outgoing_pools">> => #{Type => [Opts]}}.
+
 pool_raw(Type, Tag, Opts) ->
-    #{<<"outgoing_pools">> => #{Type => #{Tag => Opts}}}.
+    #{<<"outgoing_pools">> => #{Type => [Opts#{<<"tag">> => Tag}]}}.
 
 pool_conn_raw(Type, Opts) ->
-    #{<<"outgoing_pools">> => #{Type => #{<<"default">> => #{<<"connection">> => Opts}}}}.
+    #{<<"outgoing_pools">> => #{Type => [#{<<"tag">> => <<"default">>, <<"connection">> => Opts}]}}.
 
 %% helpers for 'access' tests
 

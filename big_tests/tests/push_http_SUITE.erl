@@ -170,8 +170,8 @@ check_default_format(From, To, Body, Msg) ->
 start_pool() ->
     PoolOpts = #{strategy => random_worker, call_timeout => 5000, workers => 10},
     ConnOpts = #{host => http_notifications_host(), request_timeout => 5000},
-    Pool = config([outgoing_pools, http, http_pool],
-                  #{scope => host_type, opts => PoolOpts, conn_opts => ConnOpts}),
+    Pool = config([outgoing_pools, http],
+                  #{tag => http_pool, scope => host_type, opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mongoose_wpool, start_configured_pools, [[Pool], [<<"localhost">>]]).
 
 stop_pool() ->

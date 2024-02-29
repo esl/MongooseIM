@@ -31,6 +31,7 @@
 -export([is_configured/1]).
 -export([make_pool_name/3]).
 -export([call_start_callback/2]).
+-export([verify_unique_pools/1]).
 
 %% Mostly for tests
 -export([expand_pools/2]).
@@ -88,6 +89,26 @@
 -callback stop(host_type_or_global(), tag()) -> ok.
 
 -optional_callbacks([is_supported_strategy/1]).
+
+%% @doc Verify that all outgoing_pools have unique type, tag and scope
+-spec verify_unique_pools([pool_map_in()]) -> [pool_map()].
+verify_unique_pools(Pools) ->
+    PoolKeys = lists:map(fun pool_id/1, Pools),
+    case {lists:usort(PoolKeys), lists:sort(PoolKeys)} of
+        {SortedPool, SortedPool} -> Pools;
+        {Uniques, ContainsDuplicates} ->
+            Dups = lists:subtract(ContainsDuplicates, Uniques),
+            error(#{what => duplicate_pools, duplicates => Dups,
+                            text => <<"Some pools are duplicated">>})
+    end.
+
+
+%% @doc Create a unique ID based on the configuration identifiers
+-spec pool_id(pool_map_in()) -> {scope(), pool_type(), tag()}.
+pool_id(#{scope := HostType, type := Type, tag := Tag}) when is_binary(HostType) ->
+    {host_type, Type, Tag};
+pool_id(#{scope := Scope, type := Type, tag := Tag}) ->
+    {Scope, Type, Tag}.
 
 ensure_started() ->
     wpool:start(),

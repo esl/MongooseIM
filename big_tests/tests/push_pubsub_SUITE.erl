@@ -78,8 +78,8 @@ init_per_testcase(CaseName, Config) ->
     PoolOpts = #{strategy => available_worker, workers => 20},
     ConnOpts = #{host => "http://localhost:" ++ integer_to_list(MongoosePushMockPort),
                  request_timeout => 2000},
-    Pool = config([outgoing_pools, http, mongoose_push_http],
-                  #{opts => PoolOpts, conn_opts => ConnOpts}),
+    Pool = config([outgoing_pools, http],
+                  #{tag => mongoose_push_http, opts => PoolOpts, conn_opts => ConnOpts}),
     [{ok, _Pid}] = rpc(mongoose_wpool, start_configured_pools, [[Pool]]),
     escalus:init_per_testcase(CaseName, Config).
 

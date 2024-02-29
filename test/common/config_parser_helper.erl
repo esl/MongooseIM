@@ -240,7 +240,8 @@ options("mongooseim-pgsql") ->
      {outgoing_pools,
       lists:map(
         fun pool_config/1,
-        [#{type => rdbms,
+        [#{tag => default,
+           type => rdbms,
            opts => #{workers => 5},
            conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "mongooseim",
                           username => "mongooseim", password => "mongooseim_secret",
@@ -249,7 +250,7 @@ options("mongooseim-pgsql") ->
                                    server_name_indication => #{enabled => false}}
                          }
           },
-         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+         #{tag => global_distrib, type => redis, scope => <<"localhost">>,
            opts => #{workers => 10}, conn_opts => #{}}
         ])},
      {rdbms_server_type, generic},
@@ -769,7 +770,7 @@ pgsql_access() ->
       s2s_shaper => [#{acl => all, value => fast}]}.
 
 pool_config(PoolIn = #{type := Type}) ->
-    config([outgoing_pools, Type, maps:get(tag, PoolIn, default)], PoolIn).
+    config([outgoing_pools, Type], PoolIn).
 
 default_pool_wpool_opts(cassandra) ->
     #{workers => 20,
@@ -783,7 +784,7 @@ default_pool_wpool_opts(_) ->
     default_wpool_opts().
 
 default_wpool_opts() ->
-     #{workers => 10,
+    #{workers => 10,
       strategy => best_worker,
       call_timeout => 5000}.
 
@@ -1243,20 +1244,20 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
                           {<<"Organization Unit">>, <<"ORGUNIT">>}],
       search_operator => 'and',
       binary_search_fields => []};
-default_config([outgoing_pools, Type, Tag] = P) ->
+default_config([outgoing_pools, Type] = P) ->
     #{type => Type,
-      tag => Tag,
+      tag => default,
       scope => global,
       opts => default_config(P ++ [opts]),
       conn_opts => default_config(P ++ [conn_opts])};
-default_config([outgoing_pools, Type, _Tag, opts]) ->
+default_config([outgoing_pools, Type, opts]) ->
     default_pool_wpool_opts(Type);
-default_config([outgoing_pools, Type, _Tag, conn_opts]) ->
+default_config([outgoing_pools, Type, conn_opts]) ->
     default_pool_conn_opts(Type);
-default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
+default_config([outgoing_pools, _Type, conn_opts, tls] = P) ->
     #{verify_mode => peer,
       server_name_indication => default_config(P ++ [server_name_indication])};
-default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
+default_config([outgoing_pools, _Type, conn_opts, tls, server_name_indication]) ->
     #{enabled => true, protocol => default};
 default_config([services, service_domain_db]) ->
     #{event_cleaning_interval => 1800,
