@@ -128,7 +128,7 @@ two_distinct_redis_pools_are_started(_C) ->
     ?assertMatch(#{host := "localhost2", port := 1806}, proplists:to_map(Props2)).
 
 generic_pools_are_started_for_all_vhosts(_C) ->
-    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}}],
+    Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}}],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
     ?assertMatch([_, _, _], StartRes),
     ?assertMatch([{generic, <<"a.com">>, default},
@@ -137,7 +137,7 @@ generic_pools_are_started_for_all_vhosts(_C) ->
                  ordsets:from_list(mongoose_wpool:get_pools())).
 
 host_specific_pools_are_preserved(_C) ->
-    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}},
+    Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}},
              #{type => generic, scope => <<"b.com">>, tag => default,
                opts => #{workers => 12}, conn_opts => #{}}],
     Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
@@ -150,10 +150,10 @@ host_specific_pools_are_preserved(_C) ->
                  Expanded).
 
 pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
-    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}},
+    Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}},
              #{type => generic, scope => <<"b.com">>, tag => default,
                opts => #{workers => 12}, conn_opts => #{}},
-             #{type => generic, scope => host, tag => other_tag, opts => #{}, conn_opts => #{}}],
+             #{type => generic, scope => host_type, tag => other_tag, opts => #{}, conn_opts => #{}}],
     Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
     ?assertMatch([#{type := generic, host_type := <<"a.com">>, tag := default,
                     opts := [], conn_opts := #{}},

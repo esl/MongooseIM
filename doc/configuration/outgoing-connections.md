@@ -15,9 +15,14 @@ This allows you to create multiple dedicated pools of the same type.
 ## General pool options
 
 ### `outgoing_pools.*.*.scope`
-* **Syntax:** string, one of:`"global"`, `"host"`, `"single_host"`
+* **Syntax:** string, one of:`"global"`, `"host_type"`, `"single_host_type"`
 * **Default:** `"global"`
-* **Example:** `scope = "host"`
+* **Example:** `scope = "host_type"`
+
+### `outgoing_pools.*.*.host_type`
+* **Syntax:** string
+* **Default:** no default; required if `"single_host_type"` scope is specified
+* **Example:** `host_type = "basic_host_type"`
 
 ### `outgoing_pools.*.*.host`
 * **Syntax:** string
@@ -27,12 +32,15 @@ This allows you to create multiple dedicated pools of the same type.
 `scope` can be set to:
 
 * `global` - meaning that the pool will be started once no matter how many XMPP hosts are served by MongooseIM
-* `host` - the pool will be started for each XMPP host or host type served by MongooseIM
-* `single_host` - the pool will be started for the selected host or host type only (you must provide the name).
+* `host_type` - the pool will be started for each XMPP host or host type served by MongooseIM
+* `single_host_type` - the pool will be started for the selected host or host type only (you must provide the name).
 
     !!! Note
         A pool with scope `global` and tag `default` is used by services that are not configured by host_type, like `service_domain_db` or `service_mongoose_system_metrics`, or by modules that don't support dynamic domains, like `mod_pubsub`.
         If a global default pool is not configured, these services will fail.
+
+    !!! Note
+        `host` and `single_host` are still supported and behave equivalent to `host_type` and `single_host_type` respectively; however, they are deprecated in favour of the latter.
 
 ## Worker pool options
 

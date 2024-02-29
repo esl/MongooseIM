@@ -7,7 +7,7 @@
   default_server_domain = "localhost"
 
 [outgoing_pools.redis.global_distrib]
-  scope = "single_host"
+  scope = "single_host_type"
   host = "localhost"
   workers = 10
 
@@ -50,7 +50,7 @@
   connection.host = "localhost"
 
 [outgoing_pools.rabbit.event_pusher]
-  scope = "host"
+  scope = "host_type"
   workers = 20
 
   [outgoing_pools.rabbit.event_pusher.connection]
@@ -62,7 +62,7 @@
     max_worker_queue_len = 100
 
 [outgoing_pools.ldap.default]
-  scope = "host"
+  scope = "host_type"
   workers = 5
 
   [outgoing_pools.ldap.default.connection]
