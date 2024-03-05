@@ -34,6 +34,7 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
+    mongoose_dist_blocker:add_cleaner(self()),
     case net_kernel:monitor_nodes(true) of
         ok ->
             {ok, #state{}};
@@ -56,6 +57,7 @@ handle_info({nodedown, Node}, State) ->
                    text => <<"mongoose_cleaner received nodenown event">>,
                    down_node => Node}),
     cleanup_modules(Node),
+    mongoose_dist_blocker:cleaning_done(self(), Node),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -78,10 +80,12 @@ cleanup_modules(Node) ->
     Retries = 1,
     case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
-            ?LOG_INFO(#{what => cleaner_trans_aborted,
-                        text => <<"mongoose_cleaner failed to get global lock">>,
-                        lock_key => LockKey}),
-            {ok, aborted};
+            ?LOG_ERROR(#{what => cleaner_trans_aborted,
+                         text => <<"mongoose_cleaner failed to get global lock">>,
+                         lock_key => LockKey}),
+            %% Wait and retry
+            timer:sleep(rand:uniform(1000)),
+            cleanup_modules(Node);
         Result ->
             {ok, Result}
     end.
