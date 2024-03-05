@@ -112,8 +112,8 @@ start_configured_pools(PoolsIn) ->
     start_configured_pools(PoolsIn, ?ALL_HOST_TYPES).
 
 start_configured_pools(PoolsIn, HostTypes) ->
-    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
     Pools = expand_pools(PoolsIn, HostTypes),
+    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
     [start(Pool) || Pool <- Pools].
 
 -spec start(pool_map()) -> start_result().
