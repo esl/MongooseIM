@@ -21,6 +21,7 @@
          process_sasl_mechanism/1,
          process_auth/1,
          process_pool/2,
+         process_host_config_pool/2,
          process_ldap_connection/1,
          process_iqdisc/1,
          process_acl_condition/1,
@@ -136,6 +137,7 @@ host_config() ->
                  <<"general">> => general(),
                  <<"auth">> => auth(),
                  <<"modules">> => modules(),
+                 <<"outgoing_pools">> => host_config_outgoing_pools(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
@@ -438,21 +440,34 @@ internal_database_mnesia() ->
 
 %% path: outgoing_pools
 outgoing_pools() ->
+    outgoing_pools(global_config).
+
+%% path: (host_config[].)outgoing_pools
+host_config_outgoing_pools() ->
+    outgoing_pools(host_config).
+
+outgoing_pools(Scope) ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>],
-    Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
+    Items = [{Type, #section{items = #{default => outgoing_pool(Scope, Type)},
                              validate_keys = non_empty,
                              wrap = none,
                              format_items = list}} || Type <- PoolTypes],
     #section{items = maps:from_list(Items),
              format_items = list,
-             wrap = global_config,
-             include = always}.
+             wrap = Scope,
+             include = include_only_on_global_config(Scope)}.
+
+include_only_on_global_config(global_config) ->
+    always;
+include_only_on_global_config(host_config) ->
+    when_present.
 
 %% path: outgoing_pools.*.*
-outgoing_pool(Type) ->
+outgoing_pool(Scope, Type) ->
     ExtraDefaults = extra_wpool_defaults(Type),
-    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), outgoing_pool_extra(Type)),
+    ExtraConfig = outgoing_pool_extra(Scope, Type),
+    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), ExtraConfig),
     Pool#section{wrap = item}.
 
 extra_wpool_defaults(<<"cassandra">>) ->
@@ -474,7 +489,11 @@ wpool(ExtraDefaults) ->
                                      <<"strategy">> => best_worker,
                                      <<"call_timeout">> => 5000}, ExtraDefaults)}.
 
-outgoing_pool_extra(Type) ->
+outgoing_pool_extra(host_config, Type) ->
+    #section{items = #{<<"connection">> => outgoing_pool_connection(Type)},
+             process = fun ?MODULE:process_host_config_pool/2
+            };
+outgoing_pool_extra(global_config, Type) ->
     Scopes = [global, host_type, single_host_type, host, single_host], %% TODO deprecated
     #section{items = #{<<"scope">> => #option{type = atom,
                                               validate = {enum, Scopes}},
@@ -1080,13 +1099,20 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
+process_pool([Tag, Type | _], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
     Scope = pool_scope(ScopeIn, maps:get(host_type, AllOpts, maps:get(host, AllOpts, none))),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
       tag => b2a(Tag),
       opts => Opts,
+      conn_opts => Connection}.
+
+process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connection := Connection}) ->
+    #{type => b2a(Type),
+      scope => HT,
+      tag => b2a(Tag),
+      opts => maps:remove(connection, AllOpts),
       conn_opts => Connection}.
 
 pool_scope(single_host_type, none) ->

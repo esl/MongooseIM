@@ -69,3 +69,8 @@
     servers = ["ldap-server.example.com"]
     root_dn = "cn=admin,dc=example,dc=com"
     password = "ldap-admin-password"
+
+[[host_config]]
+  host = "localhost.bis"
+  [host_config.outgoing_pools.redis.global_distrib]
+    workers = 10

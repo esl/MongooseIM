@@ -307,7 +307,16 @@
 
 [[host_config]]
   host = "anonymous.localhost"
-
   [host_config.auth.anonymous]
     allow_multiple_connections = true
     protocol = "both"
+  [host_config.outgoing_pools.rdbms.special]
+    workers = 5
+    connection.driver = "pgsql"
+    connection.host = "localhost"
+    connection.database = "mongooseim"
+    connection.username = "mongooseim"
+    connection.password = "mongooseim_secret"
+    connection.tls.required = true
+    connection.tls.cacertfile = "priv/ca.pem"
+    connection.tls.server_name_indication.enabled = false

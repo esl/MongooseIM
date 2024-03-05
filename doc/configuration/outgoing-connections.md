@@ -15,32 +15,24 @@ This allows you to create multiple dedicated pools of the same type.
 ## General pool options
 
 ### `outgoing_pools.*.*.scope`
-* **Syntax:** string, one of:`"global"`, `"host_type"`, `"single_host_type"`
+* **Syntax:** string, one of:`"global"`, `"host_type"`.
 * **Default:** `"global"`
 * **Example:** `scope = "host_type"`
 
-### `outgoing_pools.*.*.host_type`
-* **Syntax:** string
-* **Default:** no default; required if `"single_host_type"` scope is specified
-* **Example:** `host_type = "basic_host_type"`
-
-### `outgoing_pools.*.*.host`
-* **Syntax:** string
-* **Default:** no default; required if `"single_host"` scope is specified
-* **Example:** `host = "anotherhost.com"`
-
 `scope` can be set to:
 
-* `global` - meaning that the pool will be started once no matter how many XMPP hosts are served by MongooseIM
-* `host_type` - the pool will be started for each XMPP host or host type served by MongooseIM
-* `single_host_type` - the pool will be started for the selected host or host type only (you must provide the name).
+* `global` - meaning that the pool will be started once no matter how many XMPP hosts are served by MongooseIM.
+* `host_type` - the pool will be started for each static XMPP host or host type served by MongooseIM.
 
     !!! Note
         A pool with scope `global` and tag `default` is used by services that are not configured by host_type, like `service_domain_db` or `service_mongoose_system_metrics`, or by modules that don't support dynamic domains, like `mod_pubsub`.
         If a global default pool is not configured, these services will fail.
 
     !!! Note
-        `host` and `single_host` are still supported and behave equivalent to `host_type` and `single_host_type` respectively; however, they are deprecated in favour of the latter.
+        The option `host` is still supported and behaves equivalent to `host_type`; however, it is deprecated in favour of the latter.
+
+    !!! Warning
+        The options `single_host` and `single_host_type` for the scope has been deprecated, in favour of configuring the specified pools within the [`host_config`](host_config.md) section.
 
 ## Worker pool options
 
