@@ -20,14 +20,24 @@
 
 -ignore_xref([start_link/0]).
 
+-type cleaner_pid() :: pid().
+-type waiting() :: [{node(), cleaner_pid()}].
+
+-type state() :: #{
+        cleaners := [cleaner_pid()],
+        waiting := waiting()
+    }.
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% Register Pid as a cleaner.
+-spec add_cleaner(pid()) -> ok.
 add_cleaner(CleanerPid) ->
     gen_server:call(?MODULE, {add_cleaner, CleanerPid}).
 
 %% Cleaner calls must call this function.
+-spec cleaning_done(pid(), node()) -> ok.
 cleaning_done(CleanerPid, Node) ->
     gen_server:call(?MODULE, {cleaning_done, CleanerPid, Node}).
 
@@ -72,6 +82,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% internal functions
 %%--------------------------------------------------------------------
 
+-spec handle_nodeup(node(), state()) -> state().
 handle_nodeup(Node, State) ->
     %% We change the cookie as soon as the node is connected.
     %% Alternative is to do it on nodedown, but because nodedown-s are async,
@@ -81,40 +92,47 @@ handle_nodeup(Node, State) ->
     State.
 
 %% Make cookie, that would prevent node from connecting
+-spec blocking_cookie() -> atom().
 blocking_cookie() ->
     list_to_atom(atom_to_list(erlang:get_cookie()) ++ "_blocked_by_" ++ atom_to_list(node())).
 
 %% Allow the node to connect to us again
-unblock_node(Node) ->
-    erlang:set_cookie(Node, erlang:get_cookie()).
+-spec unblock_node(node(), state()) -> state().
+unblock_node(Node, State) ->
+    erlang:set_cookie(Node, erlang:get_cookie()),
+    State.
 
+-spec handle_nodedown(node(), state()) -> state().
 handle_nodedown(Node, State = #{cleaners := []}) ->
     %% Skip waiting when no cleaners
-    unblock_node(Node),
-    State;
+    unblock_node(Node, State);
 handle_nodedown(Node, State = #{cleaners := Cleaners, waiting := Waiting}) ->
     New = [{Node, CleanerPid} || CleanerPid <- Cleaners],
     State#{waiting := lists:usort(New ++ Waiting)}.
 
+-spec handle_add_cleaner(cleaner_pid(), state()) -> state().
 handle_add_cleaner(CleanerPid, State = #{cleaners := Cleaners}) ->
     erlang:monitor(process, CleanerPid),
     State#{cleaners := lists:usort([CleanerPid | Cleaners])}.
 
+-spec handle_cleaning_done(cleaner_pid(), node(), state()) -> state().
 handle_cleaning_done(CleanerPid, Node, State = #{waiting := Waiting}) ->
     State#{waiting := lists:delete({Node, CleanerPid}, Waiting)}.
 
+-spec handle_cleaner_down(cleaner_pid(), state()) -> state().
 handle_cleaner_down(CleanerPid, State = #{cleaners := Cleaners, waiting := Waiting}) ->
     State#{cleaners := lists:delete(CleanerPid, Cleaners),
            waiting := [X || {_Node, CleanerPid2} = X <- Waiting, CleanerPid =/= CleanerPid2]}.
 
 %% Unblock nodes when the last cleaner confirms the cleaning is done.
 %% Call this function each time you remove entries from the waiting list.
+-spec maybe_unblock(state(), state()) -> state().
 maybe_unblock(_OldState = #{waiting := OldWaiting}, NewState = #{waiting := NewWaiting}) ->
     OldNodes = cast_waiting_to_nodes(OldWaiting),
     NewNodes = cast_waiting_to_nodes(NewWaiting),
     CleanedNodes = OldNodes -- NewNodes,
-    [unblock_node(Node) || Node <- CleanedNodes],
-    NewState.
+    lists:foldl(fun unblock_node/2, NewState, CleanedNodes).
 
+-spec cast_waiting_to_nodes(waiting()) -> [node()].
 cast_waiting_to_nodes(Waiting) ->
     lists:usort([Node || {Node, _CleanerPid} <- Waiting]).
