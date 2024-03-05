@@ -494,7 +494,7 @@ outgoing_pool_extra(host_config, Type) ->
              process = fun ?MODULE:process_host_config_pool/2
             };
 outgoing_pool_extra(global_config, Type) ->
-    Scopes = [global, host_type, single_host_type, host, single_host], %% TODO deprecated
+    Scopes = [global, host_type, host], %% TODO deprecated
     #section{items = #{<<"scope">> => #option{type = atom,
                                               validate = {enum, Scopes}},
                        <<"host_type">> => #option{type = binary,
@@ -1115,14 +1115,6 @@ process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connec
       opts => maps:remove(connection, AllOpts),
       conn_opts => Connection}.
 
-pool_scope(single_host_type, none) ->
-    error(#{what => pool_single_host_type_not_specified,
-            text => <<"\"host_type\" option is required if \"single_host_type\" is used.">>});
-pool_scope(single_host, none) ->
-    error(#{what => pool_single_host_not_specified,
-            text => <<"\"host\" option is required if \"single_host\" is used.">>});
-pool_scope(single_host_type, HostType) -> HostType;
-pool_scope(single_host, Host) -> Host;
 pool_scope(host, none) -> host_type;
 pool_scope(host_type, none) -> host_type;
 pool_scope(global, none) -> global.

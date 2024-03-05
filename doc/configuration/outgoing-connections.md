@@ -31,9 +31,6 @@ This allows you to create multiple dedicated pools of the same type.
     !!! Note
         The option `host` is still supported and behaves equivalent to `host_type`; however, it is deprecated in favour of the latter.
 
-    !!! Warning
-        The options `single_host` and `single_host_type` for the scope has been deprecated, in favour of configuring the specified pools within the [`host_config`](host_config.md) section.
-
 ## Worker pool options
 
 All pools are managed by the [inaka/worker_pool](https://github.com/inaka/worker_pool) library.

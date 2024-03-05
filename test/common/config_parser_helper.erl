@@ -248,9 +248,7 @@ options("mongooseim-pgsql") ->
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
                          }
-          },
-         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}
+          }
         ])},
      {rdbms_server_type, generic},
      {registration_timeout, infinity},
@@ -365,15 +363,13 @@ options("outgoing_pools") ->
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
                          }
-          },
-         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}
+          }
         ])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
-     {{outgoing_pools, <<"localhost.bis">>},
+     {{outgoing_pools, <<"localhost">>},
       lists:map(
         fun host_pool_config/1,
         [#{type => redis, scope => <<"localhost">>, tag => global_distrib,

@@ -886,12 +886,8 @@ pool_scope(_Config) ->
     T = fun(Opts) -> pool_raw(<<"http">>, <<"default">>, maps:merge(Required, Opts)) end,
     ?cfg(P, host_type, T(#{<<"scope">> => <<"host">>})),
     ?cfg(P, host_type, T(#{<<"scope">> => <<"host_type">>})),
-    ?cfg(P, <<"localhost">>, T(#{<<"scope">> => <<"single_host">>, <<"host">> => <<"localhost">>})),
-    ?cfg(P, <<"localhost">>, T(#{<<"scope">> => <<"single_host_type">>, <<"host_type">> => <<"localhost">>})),
     ?err(T(#{<<"host">> => <<"localhost">>})), % missing scope
     ?err(T(#{<<"host_type">> => <<"localhost">>})), % missing scope
-    ?err(T(#{<<"scope">> => <<"single_host">>})), % missing host
-    ?err(T(#{<<"scope">> => <<"single_host_type">>})), % missing host type
     ?err(T(#{<<"scope">> => <<"whatever">>})).
 
 pool_rdbms(_Config) ->
