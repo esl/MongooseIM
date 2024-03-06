@@ -34,7 +34,7 @@ start_link() ->
 %%%===================================================================
 
 init([]) ->
-    mongoose_dist_blocker:add_cleaner(self()),
+    cets_dist_blocker:add_cleaner(self()),
     case net_kernel:monitor_nodes(true) of
         ok ->
             {ok, #state{}};
@@ -57,7 +57,7 @@ handle_info({nodedown, Node}, State) ->
                    text => <<"mongoose_cleaner received nodenown event">>,
                    down_node => Node}),
     cleanup_modules(Node),
-    mongoose_dist_blocker:cleaning_done(self(), Node),
+    cets_dist_blocker:cleaning_done(self(), Node),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.

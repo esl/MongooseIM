@@ -38,7 +38,7 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    DistBlocker = worker_spec(mongoose_dist_blocker),
+    DistBlocker = worker_spec(cets_dist_blocker),
     Hooks = worker_spec(gen_hook),
     Cleaner = worker_spec(mongoose_cleaner),
     Router = worker_spec(ejabberd_router),

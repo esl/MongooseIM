@@ -124,10 +124,10 @@ opts() ->
       {auth, ?HOST} => config_parser_helper:extra_auth(),
       {modules, ?HOST} => #{}}.
 
-meck_mods(bosh) -> [exometer, mod_bosh_socket, mongoose_dist_blocker];
-meck_mods(s2s) -> [exometer, mongoose_bin, mongoose_dist_blocker];
-meck_mods(component) -> [exometer, mongoose_dist_blocker];
-meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, mongoose_dist_blocker].
+meck_mods(bosh) -> [exometer, mod_bosh_socket, cets_dist_blocker];
+meck_mods(s2s) -> [exometer, mongoose_bin, cets_dist_blocker];
+meck_mods(component) -> [exometer, cets_dist_blocker];
+meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, cets_dist_blocker].
 
 %% -----------------------------------------------------
 %% Tests
@@ -306,10 +306,10 @@ setup_meck([mod_bosh_socket | R]) ->
     meck:new(mod_bosh_socket, [passthrough]),
     meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end),
     setup_meck(R);
-setup_meck([mongoose_dist_blocker | R]) ->
-    meck:new(mongoose_dist_blocker, [passthrough]),
-    meck:expect(mongoose_dist_blocker, add_cleaner, fun(_Pid) -> ok end),
-    meck:expect(mongoose_dist_blocker, cleaning_done, fun(_Pid, _Node) -> ok end),
+setup_meck([cets_dist_blocker | R]) ->
+    meck:new(cets_dist_blocker, [passthrough]),
+    meck:expect(cets_dist_blocker, add_cleaner, fun(_Pid) -> ok end),
+    meck:expect(cets_dist_blocker, cleaning_done, fun(_Pid, _Node) -> ok end),
     setup_meck(R);
 setup_meck([]) ->
     ok.
