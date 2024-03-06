@@ -1,5 +1,4 @@
 -module(graphql_SUITE).
-
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -26,6 +25,7 @@ all() ->
      {group, admin_handler},
      {group, domain_admin_handler},
      {group, user_handler},
+     {group, tls_enabled},
      {group, categories_disabled}].
 
 groups() ->
@@ -33,6 +33,7 @@ groups() ->
      {user_handler, [parallel], user_handler()},
      {domain_admin_handler, [parallel], domain_admin_handler()},
      {admin_handler, [parallel], admin_handler()},
+     {tls_enabled, [parallel], tls_enabled()},
      {categories_disabled, [parallel], categories_disabled_tests()}].
 
 cowboy_handler() ->
@@ -52,6 +53,17 @@ domain_admin_handler() ->
 
 common_tests() ->
     [can_load_graphiql].
+
+tls_enabled() ->
+    [tls_connect_domain_admin_no_certificate,
+     tls_connect_user_no_certificate,
+     tls_connect_user_unknown_certificate,
+     tls_connect_user_selfsigned_certificate,
+     tls_connect_user_signed_certificate,
+     tls_connect_admin_no_certificate,
+     tls_connect_admin_unknown_certificate,
+     tls_connect_admin_selfsigned_certificate,
+     tls_connect_admin_signed_certificate].
 
 categories_disabled_tests() ->
     [category_disabled_error_test,
@@ -90,6 +102,12 @@ init_per_group(categories_disabled, Config) ->
     mongoose_helper:restart_listener(mim(), UpdatedListenerConfig),
     Config1 = [{admin_listener_config, CowboyGraphqlListenerConfig} | Config],
     graphql_helper:init_admin_handler(Config1);
+init_per_group(tls_enabled, Config) ->
+    Config0 = add_tls_to_listener(Config, admin, admin_listener_config, peer),
+    Config1 = add_tls_to_listener(Config0, domain_admin, domain_admin_listener_config, none),
+    Config2 = add_tls_to_listener(Config1, user, user_listener_config, selfsigned_peer),
+    Config3 = generate_certificate_signed(Config2),
+    generate_certificate_selfsigned(Config3);
 init_per_group(cowboy_handler, Config) ->
     Config.
 
@@ -101,6 +119,10 @@ end_per_group(categories_disabled, Config) ->
     ListenerConfig = ?config(admin_listener_config, Config),
     mongoose_helper:restart_listener(mim(), ListenerConfig),
     Config;
+end_per_group(tls_enabled, Config) ->
+    restore_listener(admin_listener_config, Config),
+    restore_listener(domain_admin_listener_config, Config),
+    restore_listener(user_listener_config, Config);
 end_per_group(_, _Config) ->
     ok.
 
@@ -132,8 +154,7 @@ user_checks_auth(Config) ->
 
 auth_user_checks_auth(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}],
-        fun(Alice) ->
+        Config, [{alice, 1}], fun(Alice) ->
             AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
             StatusData = execute_user(user_check_auth_body(), Alice, Config),
             ?assertUserAuth(AliceJID, 'AUTHORIZED', StatusData)
@@ -185,7 +206,118 @@ multiple_categories_query_test(Config) ->
     ?assertEqual([<<"server">>], get_value([path], ErrorMsg)),
     ?assertEqual(<<"AUTHORIZED">>, get_value([checkAuth, authStatus], DataMsg)).
 
+tls_connect_domain_admin_no_certificate(Config) ->
+    Opts = [{connect_options, [{verify, verify_none}]}],
+    Port = get_listener_port(Config, domain_admin_listener_config),
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
+                                    get_headers(), <<>>, 2, 10000),
+    fusco_cp:stop(Client),
+    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+
+tls_connect_user_no_certificate(Config) ->
+    Opts = [{connect_options, [{verify, verify_none}]}],
+    Port = get_listener_port(Config, user_listener_config),
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
+                                    get_headers(), <<>>, 2, 10000),
+    ?assertMatch(ok, assert_match_result(Result)).
+
+tls_connect_user_unknown_certificate(Config) ->
+    Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
+    Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
+    ?assertMatch({error, {tls_alert, {unknown_ca, _}}}, Result).
+
+tls_connect_user_selfsigned_certificate(Config) ->
+    Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
+    Key = maps:get(key, ?config(certificate_selfsigned, Config)),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
+    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+
+tls_connect_user_signed_certificate(Config) ->
+    Cert = maps:get(cert, ?config(certificate_signed, Config)),
+    Key = maps:get(key, ?config(certificate_signed, Config)),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
+    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+
+tls_connect_admin_no_certificate(Config) ->
+    Opts = [{connect_options, [{verify, verify_none}]}],
+    Port = get_listener_port(Config, admin_listener_config),
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
+                                    get_headers(), <<>>, 2, 10000),
+    ?assertMatch(ok, assert_match_result(Result)).
+
+tls_connect_admin_unknown_certificate(Config) ->
+    Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
+    Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
+    ?assertMatch({error, {tls_alert, {unknown_ca, _}}}, Result).
+
+tls_connect_admin_selfsigned_certificate(Config) ->
+    Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
+    Key = maps:get(key, ?config(certificate_selfsigned, Config)),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
+    ?assertMatch({error, {tls_alert, {bad_certificate, _}}}, Result).
+
+tls_connect_admin_signed_certificate(Config) ->
+    Cert = maps:get(cert, ?config(certificate_signed, Config)),
+    Key = maps:get(key, ?config(certificate_signed, Config)),
+    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
+    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+
 %% Helpers
+
+assert_match_result({error, {tls_alert, {certificate_required, _}}}) ->
+    ok;
+assert_match_result({error, connection_closed}) ->
+    ok;
+assert_match_result(_) ->
+    wrong_pattern.
+
+send_request_with_cert(Cert, Key, Port) ->
+    Opts = [{connect_options, [{verify, verify_none}, {certfile, Cert}, {keyfile, Key}]}],
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
+    fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, get_headers(), <<>>, 2, 10000).
+
+get_listener_port(Config, Listener) ->
+    ListenerConfig = ?config(Listener, Config),
+    maps:get(port, ListenerConfig).
+
+generate_certificate_signed(Config) ->
+    CertSpec =#{cn => "signed_cert", signed => ca}, 
+    Filenames = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
+    [{certificate_signed, Filenames} | Config].
+
+generate_certificate_selfsigned(Config) ->
+    CertSpec =#{cn => "selfsigned_cert", signed => self}, 
+    Filenames = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
+    [{certificate_selfsigned, Filenames} | Config].
+
+get_headers() ->
+    [{<<"Content-Type">>, <<"application/json">>},
+     {<<"Request-Id">>, rest_helper:random_request_id()}].
+
+tls_config(VerifyMode, Config) ->
+    CACert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "ca-clients", "cacert.pem"]),
+    #{tls =>
+        #{password => [],
+          certfile => "priv/ssl/fake_cert.pem",
+          keyfile => "priv/ssl/fake_key.pem",
+          cacertfile => CACert,
+          verify_mode => VerifyMode}}.
+
+add_tls_to_listener(Config, ListenerType, ListenerName, VerifyMode) ->
+    #{node := Node} = mim(),
+    Listener = graphql_helper:get_listener_config(Node, ListenerType),
+    NewListener = maps:merge(Listener, tls_config(VerifyMode, Config)),
+    mongoose_helper:restart_listener(mim(), NewListener),
+    [{ListenerName, Listener} | Config].
+
+restore_listener(ListenerName, Config) ->
+    Listener = ?config(ListenerName, Config),
+    mongoose_helper:restart_listener(mim(), Listener).
 
 assert_auth(Auth, {Status, Data}) ->
     ?assertEqual({<<"200">>, <<"OK">>}, Status),
