@@ -356,8 +356,10 @@ nostore_cases() ->
      nostore_hint].
 
 muc_cases() ->
-    [muc_service_discovery,
-     muc_archive_request,
+    [muc_service_discovery | muc_cases_with_room()].
+
+muc_cases_with_room() ->
+    [muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -367,8 +369,7 @@ muc_cases() ->
      muc_show_x_user_to_moderators_in_anon_rooms,
      muc_show_x_user_for_your_own_messages_in_anon_rooms,
      muc_querying_for_all_messages,
-     muc_querying_for_all_messages_with_jid
-     ].
+     muc_querying_for_all_messages_with_jid].
 
 muc_stanzaid_cases() ->
     [muc_message_with_stanzaid].
@@ -695,157 +696,18 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase_extra(C=metrics_incremented_for_async_pools, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase_extra(C=metric_incremented_when_store_message, ConfigIn) ->
-    Config = case ?config(configuration, ConfigIn) of
-                 rdbms_async_pool ->
-                     MongooseMetrics = [
-                                        {[global, data, rdbms, default],
-                                         [{recv_oct, '>'}, {send_oct, '>'}]}
-                                       ],
-                     [{mongoose_metrics, MongooseMetrics} | ConfigIn];
-                 _ ->
-                     ConfigIn
-             end,
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase_extra(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase_extra(C=querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C, Config) when C =:= query_messages_by_ids;
-                                  C =:= simple_query_messages_by_ids;
-                                  C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C=archived, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=offline_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase_extra(C, Config) when C =:= muc_query_messages_by_ids;
-                                  C =:= muc_simple_query_messages_by_ids;
-                                  C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase_extra(C=muc_querying_for_all_messages, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase_extra(C=muc_querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase_extra(C=muc_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    Config2 = %% Check that metric is incremented on MUC flushed
-        case ?config(configuration, Config1) of
-            rdbms_async_pool ->
-                MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
-                [{mongoose_metrics, MongooseMetrics} | Config1];
-            _ ->
-                Config1
-        end,
-    escalus:init_per_testcase(C, start_alice_room(Config2));
-init_per_testcase_extra(C=muc_no_elements, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_only_stanzaid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=no_elements, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=only_stanzaid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=same_stanza_id, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_message_with_stanzaid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C, Config) when C =:= retract_muc_message;
-                                  C =:= retract_muc_message_on_stanza_id;
-                                  C =:= retract_wrong_muc_message ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_multiple_devices, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_protected_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_deny_protected_room_access, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase_extra(C=muc_allow_access_to_owner, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase_extra(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase_extra(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase_extra(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase_extra(C=pagination_simple_enforced, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C=range_archive_request_not_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C=limit_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C=metadata_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase_extra(C=metadata_archive_request_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=metadata_archive_request_one_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=muc_metadata_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase_extra(C=muc_metadata_archive_request_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_metadata_archive_request_one_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=muc_text_search_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C=archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=dont_archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
-
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
             dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
-            init_per_testcase_extra(CaseName, Config);
+            lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
         {skip, Msg} ->
             {skip, Msg}
     end.
+
+init_steps() ->
+    [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
+     fun escalus:init_per_testcase/2].
 
 maybe_skip(metrics_incremented_for_async_pools, Config) ->
     skip_if(?config(configuration, Config) =/= rdbms_async_pool,
@@ -881,72 +743,109 @@ maybe_skip(_C, _Config) ->
 skip_if(false, _Msg) -> ok;
 skip_if(true, Msg) -> {skip, Msg}.
 
-end_per_testcase(C=muc_text_search_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_multiple_devices, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_protected_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C, Config) when C =:= muc_query_messages_by_ids;
-                                 C =:= muc_simple_query_messages_by_ids;
-                                 C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_message_with_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C, Config) when C =:= retract_muc_message;
-                                 C =:= retract_muc_message_on_stanza_id;
-                                 C =:= retract_wrong_muc_message ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_no_elements, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_only_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
+init_users(CaseName, Config) ->
+    case fresh_users(CaseName) of
+        [] ->
+            Config;
+        UserSpecs ->
+            escalus_fresh:create_users(Config, UserSpecs)
+    end.
+
+-define(requires_pm_archive(C),
+        C =:= querying_for_all_messages_with_jid;
+        C =:= query_messages_by_ids;
+        C =:= simple_query_messages_by_ids;
+        C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= pagination_simple_enforced;
+        C =:= range_archive_request_not_empty;
+        C =:= limit_archive_request;
+        C =:= metadata_archive_request).
+
+-define(requires_muc_archive(C),
+        C =:= muc_query_messages_by_ids;
+        C =:= muc_simple_query_messages_by_ids;
+        C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= muc_querying_for_all_messages;
+        C =:= muc_querying_for_all_messages_with_jid;
+        C =:= muc_metadata_archive_request).
+
+fresh_users(C) when ?requires_pm_archive(C) ->
+    [{alice, 1}, {bob, 1}, {carol, 1}];
+fresh_users(C) when C =:= offline_message;
+                    C =:= archived;
+                    C =:= no_elements;
+                    C =:= only_stanzaid;
+                    C =:= same_stanza_id;
+                    C =:= metadata_archive_request_empty;
+                    C =:= metadata_archive_request_one_message;
+                    C =:= archive_chat_markers;
+                    C =:= dont_archive_chat_markers ->
+    [{alice, 1}, {bob, 1}];
+fresh_users(C) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> [{alice, 1}, {bob, 1}];
+        false -> []
+    end.
+
+init_archive(C, Config) when C =:= metrics_incremented_for_async_pools;
+                             C =:= metric_incremented_when_store_message ->
+    clean_archives(Config);
+init_archive(C, Config) when ?requires_pm_archive(C) ->
+    bootstrap_archive(Config);
+init_archive(C, Config) when ?requires_muc_archive(C) ->
+    muc_bootstrap_archive(start_alice_room(Config));
+init_archive(_CaseName, Config) ->
+    Config.
+
+start_room(C, Config) when C =:= muc_deny_protected_room_access;
+                           C =:= muc_allow_access_to_owner ->
+    start_alice_protected_room(Config);
+start_room(C, Config) when C =:= muc_delete_x_user_in_anon_rooms;
+                           C =:= muc_show_x_user_to_moderators_in_anon_rooms;
+                           C =:= muc_show_x_user_for_your_own_messages_in_anon_rooms ->
+    start_alice_anonymous_room(Config);
+start_room(C, Config) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> start_alice_room(Config);
+        false -> Config
+    end.
+
+init_metrics(metric_incremented_when_store_message, ConfigIn) ->
+    case ?config(configuration, ConfigIn) of
+        rdbms_async_pool ->
+            MongooseMetrics = [
+                               {[global, data, rdbms, default],
+                                [{recv_oct, '>'}, {send_oct, '>'}]}
+                              ],
+            [{mongoose_metrics, MongooseMetrics} | ConfigIn];
+        _ ->
+            ConfigIn
+    end;
+init_metrics(muc_archive_request, Config) ->
+    %% Check that metric is incremented on MUC flushed
+    case ?config(configuration, Config) of
+        rdbms_async_pool ->
+            MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
+            [{mongoose_metrics, MongooseMetrics} | Config];
+        _ ->
+            Config
+    end;
+init_metrics(_CaseName, Config) ->
+    Config.
+
 end_per_testcase(CaseName, Config) ->
+    maybe_destroy_room(CaseName, Config),
     escalus:end_per_testcase(CaseName, Config).
+
+maybe_destroy_room(CaseName, Config) ->
+    case lists:member(CaseName, all_cases_with_room()) of
+        true -> destroy_room(Config);
+        false -> ok
+    end.
+
+all_cases_with_room() ->
+    muc_cases_with_room() ++ muc_fetch_specific_msgs_cases() ++ muc_configurable_archiveid_cases() ++
+        muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++ muc_text_search_cases().
 
 %% Module configuration per testcase
 
