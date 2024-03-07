@@ -261,9 +261,8 @@ options("mongooseim-pgsql") ->
      {component_backend, mnesia},
      {s2s_backend, mnesia},
      {{outgoing_pools, <<"anonymous.localhost">>},
-      lists:map(
-        fun host_pool_config/1,
-        [#{tag => special,
+      [host_pool_config(
+         #{tag => special,
            scope => <<"anonymous.localhost">>,
            type => rdbms,
            opts => #{workers => 5},
@@ -274,7 +273,7 @@ options("mongooseim-pgsql") ->
                                    server_name_indication => #{enabled => false}}
                          }
           }
-        ])},
+        )]},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{backend => mnesia,
                                        allow_multiple_connections => true,
@@ -299,10 +298,9 @@ options("mongooseim-pgsql") ->
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost.bis">>}, 2000},
      {{outgoing_pools, <<"localhost">>},
-      lists:map(
-        fun host_pool_config/1,
-        [#{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}])},
+      [host_pool_config(
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}})]},
      {{s2s, <<"anonymous.localhost">>}, pgsql_s2s()},
      {{s2s, <<"localhost">>}, pgsql_s2s()},
      {{s2s, <<"localhost.bis">>}, pgsql_s2s()},
@@ -370,10 +368,9 @@ options("outgoing_pools") ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
      {{outgoing_pools, <<"localhost">>},
-      lists:map(
-        fun host_pool_config/1,
-        [#{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}])},
+      [host_pool_config(
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}})]},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"localhost.bis">>}, default_s2s()},

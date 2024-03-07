@@ -118,7 +118,7 @@ start_configured_pools(PoolsIn, HostTypes) ->
 
 start_configured_pools(PoolsIn, HostTypeSpecific, HostTypes) ->
     Pools = expand_pools(PoolsIn, HostTypeSpecific, HostTypes),
-    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
+    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn, HostTypeSpecific)],
     [start(Pool) || Pool <- Pools].
 
 -spec start(pool_map()) -> start_result().
@@ -379,9 +379,9 @@ prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
     Pool1 = maps:remove(scope, Pool),
     Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
 
--spec get_unique_types([pool_map_in()]) -> [pool_type()].
-get_unique_types(Pools) ->
-    lists:usort([maps:get(type, Pool) || Pool <- Pools]).
+-spec get_unique_types([pool_map_in()], [pool_map_in()]) -> [pool_type()].
+get_unique_types(Pools, HostTypeSpecific) ->
+    lists:usort([maps:get(type, Pool) || Pool <- Pools ++ HostTypeSpecific]).
 
 -spec get_pool(pool_type(), host_type_or_global(), tag()) -> pool_record_result().
 get_pool(PoolType, HostType, Tag) ->

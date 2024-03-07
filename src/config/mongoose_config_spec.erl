@@ -92,7 +92,7 @@ root() ->
                                                   defaults = general_defaults()},
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
-                 <<"outgoing_pools">> => outgoing_pools(),
+                 <<"outgoing_pools">> => outgoing_pools(global_config),
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
@@ -137,7 +137,7 @@ host_config() ->
                  <<"general">> => general(),
                  <<"auth">> => auth(),
                  <<"modules">> => modules(),
-                 <<"outgoing_pools">> => host_config_outgoing_pools(),
+                 <<"outgoing_pools">> => outgoing_pools(host_config),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
@@ -439,13 +439,7 @@ internal_database_mnesia() ->
     #section{}.
 
 %% path: outgoing_pools
-outgoing_pools() ->
-    outgoing_pools(global_config).
-
 %% path: (host_config[].)outgoing_pools
-host_config_outgoing_pools() ->
-    outgoing_pools(host_config).
-
 outgoing_pools(Scope) ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>],
@@ -494,13 +488,8 @@ outgoing_pool_extra(host_config, Type) ->
              process = fun ?MODULE:process_host_config_pool/2
             };
 outgoing_pool_extra(global_config, Type) ->
-    Scopes = [global, host_type, host], %% TODO deprecated
-    #section{items = #{<<"scope">> => #option{type = atom,
-                                              validate = {enum, Scopes}},
-                       <<"host_type">> => #option{type = binary,
-                                                  validate = non_empty},
-                       <<"host">> => #option{type = binary, %% TODO deprecated
-                                             validate = non_empty},
+    Scopes = [global, host_type, host], %% TODO host is deprecated
+    #section{items = #{<<"scope">> => #option{type = atom, validate = {enum, Scopes}},
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
              process = fun ?MODULE:process_pool/2,
@@ -1100,7 +1089,7 @@ check_auth_method(Method, Opts) ->
     end.
 
 process_pool([Tag, Type | _], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
-    Scope = pool_scope(ScopeIn, maps:get(host_type, AllOpts, maps:get(host, AllOpts, none))),
+    Scope = pool_scope(ScopeIn),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
@@ -1115,9 +1104,9 @@ process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connec
       opts => maps:remove(connection, AllOpts),
       conn_opts => Connection}.
 
-pool_scope(host, none) -> host_type;
-pool_scope(host_type, none) -> host_type;
-pool_scope(global, none) -> global.
+pool_scope(host) -> host_type;
+pool_scope(host_type) -> host_type;
+pool_scope(global) -> global.
 
 process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;
 process_ldap_connection(ConnOpts = #{tls := _}) -> ConnOpts#{port => 636};
