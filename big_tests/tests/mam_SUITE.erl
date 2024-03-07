@@ -695,14 +695,9 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(C=metrics_incremented_for_async_pools, Config) ->
-    case ?config(configuration, Config) of
-        rdbms_async_pool ->
-            escalus:init_per_testcase(C, clean_archives(Config));
-        _ ->
-            {skip, "Not an async-pool test"}
-    end;
-init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
+init_per_testcase_extra(C=metrics_incremented_for_async_pools, Config) ->
+    escalus:init_per_testcase(C, clean_archives(Config));
+init_per_testcase_extra(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  rdbms_async_pool ->
                      MongooseMetrics = [
@@ -714,48 +709,41 @@ init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
                      ConfigIn
              end,
     escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=filter_forwarded, Config) ->
+init_per_testcase_extra(C=filter_forwarded, Config) ->
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
+init_per_testcase_extra(C=querying_for_all_messages_with_jid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C, Config) when C =:= query_messages_by_ids;
+init_per_testcase_extra(C, Config) when C =:= query_messages_by_ids;
                                   C =:= simple_query_messages_by_ids;
                                   C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=archived, Config) ->
+init_per_testcase_extra(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C, Config) when C =:= retract_message;
-                                  C =:= retract_wrong_message;
-                                  C =:= ignore_bad_retraction ->
-    skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=retract_message_on_stanza_id, Config) ->
-    Init = fun() ->
-                   dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-                   escalus:init_per_testcase(C, Config)
-        end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=offline_message, Config) ->
+init_per_testcase_extra(C=retract_message_on_stanza_id, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+    escalus:init_per_testcase(C, Config);
+init_per_testcase_extra(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=nostore_hint, Config) ->
+init_per_testcase_extra(C=nostore_hint, Config) ->
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_query_messages_by_ids;
+init_per_testcase_extra(C, Config) when C =:= muc_query_messages_by_ids;
                                   C =:= muc_simple_query_messages_by_ids;
                                   C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_querying_for_all_messages, Config) ->
+init_per_testcase_extra(C=muc_querying_for_all_messages, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
+init_per_testcase_extra(C=muc_querying_for_all_messages_with_jid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_archive_request, Config) ->
+init_per_testcase_extra(C=muc_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     Config2 = %% Check that metric is incremented on MUC flushed
         case ?config(configuration, Config1) of
@@ -766,166 +754,160 @@ init_per_testcase(C=muc_archive_request, Config) ->
                 Config1
         end,
     escalus:init_per_testcase(C, start_alice_room(Config2));
-init_per_testcase(C=muc_no_elements, Config) ->
+init_per_testcase_extra(C=muc_no_elements, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_only_stanzaid, Config) ->
+init_per_testcase_extra(C=muc_only_stanzaid, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=no_elements, Config) ->
+init_per_testcase_extra(C=no_elements, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=only_stanzaid, Config) ->
+init_per_testcase_extra(C=only_stanzaid, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=same_stanza_id, Config) ->
+init_per_testcase_extra(C=same_stanza_id, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_message_with_stanzaid, Config) ->
+init_per_testcase_extra(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
+init_per_testcase_extra(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
                                   C =:= pm_failed_to_decode_message_in_database ->
-    case proplists:get_value(configuration, Config) of
-        elasticsearch ->
-            {skip, "elasticsearch does not support encodings"};
-        _ ->
-            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-            escalus:init_per_testcase(C, Config)
-    end;
-init_per_testcase(C, Config) when C =:= retract_muc_message;
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+    escalus:init_per_testcase(C, Config);
+init_per_testcase_extra(C, Config) when C =:= retract_muc_message;
                                   C =:= retract_muc_message_on_stanza_id;
                                   C =:= retract_wrong_muc_message ->
-    Init = fun() ->
-                   Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-                   escalus:init_per_testcase(C, start_alice_room(Config1))
-           end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_protected_message, Config) ->
+init_per_testcase_extra(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_deny_protected_room_access, Config) ->
+init_per_testcase_extra(C=muc_protected_message, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase_extra(C=muc_deny_protected_room_access, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_allow_access_to_owner, Config) ->
+init_per_testcase_extra(C=muc_allow_access_to_owner, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
+init_per_testcase_extra(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
+init_per_testcase_extra(C=muc_delete_x_user_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
+init_per_testcase_extra(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
+init_per_testcase_extra(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=pagination_simple_enforced, Config) ->
+init_per_testcase_extra(C=pagination_simple_enforced, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=range_archive_request_not_empty, Config) ->
+init_per_testcase_extra(C=range_archive_request_not_empty, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=limit_archive_request, Config) ->
+init_per_testcase_extra(C=limit_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=metadata_archive_request, Config) ->
+init_per_testcase_extra(C=metadata_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=metadata_archive_request_empty, Config) ->
+init_per_testcase_extra(C=metadata_archive_request_empty, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=metadata_archive_request_one_message, Config) ->
+init_per_testcase_extra(C=metadata_archive_request_one_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=muc_metadata_archive_request, Config) ->
+init_per_testcase_extra(C=muc_metadata_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
+init_per_testcase_extra(C=muc_metadata_archive_request_empty, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
+init_per_testcase_extra(C=muc_metadata_archive_request_one_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C, Config) when C =:= muc_light_include_groupchat_filter;
+init_per_testcase_extra(C, Config) when C =:= muc_light_include_groupchat_filter;
                                   C =:= muc_light_no_pm_stored_include_groupchat_filter;
                                   C =:= muc_light_include_groupchat_messages_by_default ->
-    Init =
-        fun() ->
-            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-            escalus:init_per_testcase(C, Config)
-        end,
-    skip_if_include_groupchat_not_supported(Config, Init);
-init_per_testcase(C=easy_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=long_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=save_unicode_messages, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=muc_text_search_request, Config) ->
-    Init =
-        fun() ->
-            Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-            escalus:init_per_testcase(C, start_alice_room(Config1))
-        end,
-
-    skip_if_cassandra(Config, Init);
-init_per_testcase(C = muc_light_service_discovery_stored_in_pm, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
+init_per_testcase_extra(C=muc_text_search_request, Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase_extra(C = muc_light_service_discovery_stored_in_pm, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_light_easy;
+init_per_testcase_extra(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+    escalus:init_per_testcase(C, Config);
+init_per_testcase_extra(C, Config) when C =:= muc_light_easy;
                                   C =:= muc_light_shouldnt_modify_pm_archive;
                                   C =:= muc_light_chat_markers_are_archived_if_enabled;
                                   C =:= muc_light_chat_markers_are_not_archived_if_disabled->
     dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     escalus:init_per_testcase(C, Config);
-init_per_testcase(C=archive_chat_markers, Config) ->
+init_per_testcase_extra(C=archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=dont_archive_chat_markers, Config) ->
+init_per_testcase_extra(C=dont_archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase(CaseName, Config) ->
+init_per_testcase_extra(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-skip_if_include_groupchat_not_supported(Config, Init) ->
-    case ?config(configuration, Config) of
-        cassandra ->
-            {skip, "include_groupchat field is not supported for cassandra backend"};
-        _ ->
-            Init()
+init_per_testcase(CaseName, Config) ->
+    case maybe_skip(CaseName, Config) of
+        ok ->
+            init_per_testcase_extra(CaseName, Config);
+        {skip, Msg} ->
+            {skip, Msg}
     end.
 
-skip_if_retraction_not_supported(Config, Init) ->
+maybe_skip(metrics_incremented_for_async_pools, Config) ->
+    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
+            "Not an async-pool test");
+maybe_skip(C, Config) when C =:= retract_message;
+                           C =:= retract_wrong_message;
+                           C =:= ignore_bad_retraction;
+                           C =:= retract_message_on_stanza_id;
+                           C =:= retract_muc_message;
+                           C =:= retract_muc_message_on_stanza_id;
+                           C =:= retract_wrong_muc_message ->
     ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
-    case lists:member(?config(configuration, Config), ConfList) of
-        false ->
-            {skip, "message retraction not supported"};
-        true ->
-            Init()
-    end.
+    skip_if(not lists:member(?config(configuration, Config), ConfList),
+            "message retraction not supported");
+maybe_skip(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
+                           C =:= pm_failed_to_decode_message_in_database ->
+    skip_if(?config(configuration, Config) =:= elasticsearch,
+            "elasticsearch does not support encodings");
+maybe_skip(C, Config) when C =:= muc_light_include_groupchat_filter;
+                           C =:= muc_light_no_pm_stored_include_groupchat_filter;
+                           C =:= muc_light_include_groupchat_messages_by_default ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "include_groupchat field is not supported for cassandra backend");
+maybe_skip(C, Config) when C =:= easy_text_search_request;
+                           C =:= long_text_search_request;
+                           C =:= save_unicode_messages;
+                           C =:= muc_text_search_request ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "full text search is not implemented for cassandra backend");
+maybe_skip(_C, _Config) ->
+    ok.
 
-skip_if_cassandra(Config, Init) ->
-    case ?config(configuration, Config) of
-        cassandra ->
-            {skip, "full text search is not implemented for cassandra backend"};
-        _ ->
-            Init()
-    end.
+skip_if(false, _Msg) -> ok;
+skip_if(true, Msg) -> {skip, Msg}.
 
 end_per_testcase(C=muc_text_search_request, Config) ->
     destroy_room(Config),
