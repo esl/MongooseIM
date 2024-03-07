@@ -722,9 +722,6 @@ init_per_testcase_extra(C, Config) when C =:= query_messages_by_ids;
 init_per_testcase_extra(C=archived, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
-init_per_testcase_extra(C=retract_message_on_stanza_id, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
 init_per_testcase_extra(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -755,32 +752,23 @@ init_per_testcase_extra(C=muc_archive_request, Config) ->
         end,
     escalus:init_per_testcase(C, start_alice_room(Config2));
 init_per_testcase_extra(C=muc_no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase_extra(C=muc_only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase_extra(C=no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase_extra(C=only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase_extra(C=same_stanza_id, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase_extra(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
-                                  C =:= pm_failed_to_decode_message_in_database ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
 init_per_testcase_extra(C, Config) when C =:= retract_muc_message;
                                   C =:= retract_muc_message_on_stanza_id;
                                   C =:= retract_wrong_muc_message ->
@@ -838,26 +826,9 @@ init_per_testcase_extra(C=muc_metadata_archive_request_empty, Config) ->
 init_per_testcase_extra(C=muc_metadata_archive_request_one_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C, Config) when C =:= muc_light_include_groupchat_filter;
-                                  C =:= muc_light_no_pm_stored_include_groupchat_filter;
-                                  C =:= muc_light_include_groupchat_messages_by_default ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
 init_per_testcase_extra(C=muc_text_search_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase_extra(C = muc_light_service_discovery_stored_in_pm, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase_extra(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase_extra(C, Config) when C =:= muc_light_easy;
-                                  C =:= muc_light_shouldnt_modify_pm_archive;
-                                  C =:= muc_light_chat_markers_are_archived_if_enabled;
-                                  C =:= muc_light_chat_markers_are_not_archived_if_disabled->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
 init_per_testcase_extra(C=archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -870,6 +841,7 @@ init_per_testcase_extra(CaseName, Config) ->
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
             init_per_testcase_extra(CaseName, Config);
         {skip, Msg} ->
             {skip, Msg}
