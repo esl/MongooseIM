@@ -137,37 +137,40 @@ generic_pools_are_started_for_all_vhosts(_C) ->
                  ordsets:from_list(mongoose_wpool:get_pools())).
 
 host_specific_pools_are_preserved(_C) ->
-    Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}},
-             #{type => generic, scope => <<"b.com">>, tag => default,
-               opts => #{workers => 12}, conn_opts => #{}}],
-    Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
-    ?assertMatch([#{type := generic, host_type := <<"a.com">>, tag := default,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"c.eu">>, tag := default,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"b.com">>, tag := default,
-                    opts := [{workers, 12}], conn_opts := #{}}],
-                 Expanded).
+    Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}}],
+    HostSpecific = [#{type => generic, scope => <<"b.com">>, tag => default,
+                      opts => #{workers => 12}, conn_opts => #{}}],
+    Expanded = mongoose_wpool:expand_pools(
+                 Pools, HostSpecific, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
+    Expected = lists:sort([#{type => generic, host_type => <<"a.com">>, tag => default,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"c.eu">>, tag => default,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"b.com">>, tag => default,
+                             opts => [{workers, 12}], conn_opts => #{}}]),
+    ?assertMatch(Expected, lists:sort(Expanded)).
 
 pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
     Pools = [#{type => generic, scope => host_type, tag => default, opts => #{}, conn_opts => #{}},
-             #{type => generic, scope => <<"b.com">>, tag => default,
-               opts => #{workers => 12}, conn_opts => #{}},
-             #{type => generic, scope => host_type, tag => other_tag, opts => #{}, conn_opts => #{}}],
-    Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
-    ?assertMatch([#{type := generic, host_type := <<"a.com">>, tag := default,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"c.eu">>, tag := default,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"b.com">>, tag := default,
-                    opts := [{workers, 12}], conn_opts := #{}},
-                  #{type := generic, host_type := <<"a.com">>, tag := other_tag,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"b.com">>, tag := other_tag,
-                    opts := [], conn_opts := #{}},
-                  #{type := generic, host_type := <<"c.eu">>, tag := other_tag,
-                    opts := [], conn_opts := #{}}],
-                 Expanded).
+             #{type => generic, scope => host_type, tag => other_tag,
+               opts => #{}, conn_opts => #{}}],
+    HostSpecific = [#{type => generic, scope => <<"b.com">>, tag => default,
+                      opts => #{workers => 12}, conn_opts => #{}}],
+    Expanded = mongoose_wpool:expand_pools(
+                 Pools, HostSpecific, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
+    Expected = lists:sort([#{type => generic, host_type => <<"a.com">>, tag => default,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"c.eu">>, tag => default,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"b.com">>, tag => default,
+                             opts => [{workers, 12}], conn_opts => #{}},
+                           #{type => generic, host_type => <<"a.com">>, tag => other_tag,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"b.com">>, tag => other_tag,
+                             opts => [], conn_opts => #{}},
+                           #{type => generic, host_type => <<"c.eu">>, tag => other_tag,
+                             opts => [], conn_opts => #{}}]),
+    ?assertMatch(Expected, lists:sort(Expanded)).
 
 global_pool_is_used_by_default(_C) ->
     Pools = [#{type => generic, scope => global, tag => default, opts => #{}, conn_opts => #{}},

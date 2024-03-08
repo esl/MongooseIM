@@ -21,6 +21,7 @@
          process_sasl_mechanism/1,
          process_auth/1,
          process_pool/2,
+         process_host_config_pool/2,
          process_ldap_connection/1,
          process_iqdisc/1,
          process_acl_condition/1,
@@ -91,7 +92,7 @@ root() ->
                                                   defaults = general_defaults()},
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
-                 <<"outgoing_pools">> => outgoing_pools(),
+                 <<"outgoing_pools">> => outgoing_pools(global_config),
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
@@ -136,6 +137,7 @@ host_config() ->
                  <<"general">> => general(),
                  <<"auth">> => auth(),
                  <<"modules">> => modules(),
+                 <<"outgoing_pools">> => outgoing_pools(host_config),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
@@ -236,10 +238,10 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    Keys = [c2s, s2s, service, http],
+    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"service">>, <<"http">>],
     #section{
-       items = maps:from_list([{atom_to_binary(Key), #list{items = listener(Key), wrap = none}}
-                               || Key <- Keys]),
+       items = maps:from_list([{Listener, #list{items = listener(Listener), wrap = none}}
+                               || Listener <- ListenerTypes]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config,
        format_items = list
@@ -264,7 +266,7 @@ listener_common() ->
              process = fun ?MODULE:process_listener/2
             }.
 
-listener_extra(http) ->
+listener_extra(<<"http">>) ->
     %% tls options passed to ranch_ssl (with verify_mode translated to verify_fun)
     #section{items = #{<<"tls">> => tls([server], [just_tls]),
                        <<"transport">> => http_transport(),
@@ -292,7 +294,7 @@ xmpp_listener_common() ->
                           <<"num_acceptors">> => 100}
             }.
 
-xmpp_listener_extra(c2s) ->
+xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
@@ -315,14 +317,14 @@ xmpp_listener_extra(c2s) ->
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
-xmpp_listener_extra(s2s) ->
+xmpp_listener_extra(<<"s2s">>) ->
     TLSSection = tls([server], [fast_tls]),
     #section{items = #{<<"shaper">> => #option{type = atom,
                                                validate = non_empty},
                        <<"tls">> => TLSSection#section{include = always}},
              defaults = #{<<"shaper">> => none}
             };
-xmpp_listener_extra(service) ->
+xmpp_listener_extra(<<"service">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper_rule">> => #option{type = atom,
@@ -437,22 +439,29 @@ internal_database_mnesia() ->
     #section{}.
 
 %% path: outgoing_pools
-outgoing_pools() ->
+%% path: (host_config[].)outgoing_pools
+outgoing_pools(Scope) ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>],
-    Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
+    Items = [{Type, #section{items = #{default => outgoing_pool(Scope, Type)},
                              validate_keys = non_empty,
                              wrap = none,
                              format_items = list}} || Type <- PoolTypes],
     #section{items = maps:from_list(Items),
              format_items = list,
-             wrap = global_config,
-             include = always}.
+             wrap = Scope,
+             include = include_only_on_global_config(Scope)}.
+
+include_only_on_global_config(global_config) ->
+    always;
+include_only_on_global_config(host_config) ->
+    when_present.
 
 %% path: outgoing_pools.*.*
-outgoing_pool(Type) ->
+outgoing_pool(Scope, Type) ->
     ExtraDefaults = extra_wpool_defaults(Type),
-    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), outgoing_pool_extra(Type)),
+    ExtraConfig = outgoing_pool_extra(Scope, Type),
+    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), ExtraConfig),
     Pool#section{wrap = item}.
 
 extra_wpool_defaults(<<"cassandra">>) ->
@@ -474,15 +483,13 @@ wpool(ExtraDefaults) ->
                                      <<"strategy">> => best_worker,
                                      <<"call_timeout">> => 5000}, ExtraDefaults)}.
 
-outgoing_pool_extra(Type) ->
-    #section{items = #{<<"scope">> => #option{type = atom,
-                                              validate = {enum, [global,
-                                                                 host_type, single_host_type,
-                                                                 host, single_host]}}, %% TODO deprecated
-                       <<"host_type">> => #option{type = binary,
-                                                  validate = non_empty},
-                       <<"host">> => #option{type = binary, %% TODO deprecated
-                                             validate = non_empty},
+outgoing_pool_extra(host_config, Type) ->
+    #section{items = #{<<"connection">> => outgoing_pool_connection(Type)},
+             process = fun ?MODULE:process_host_config_pool/2
+            };
+outgoing_pool_extra(global_config, Type) ->
+    Scopes = [global, host_type, host], %% TODO host is deprecated
+    #section{items = #{<<"scope">> => #option{type = atom, validate = {enum, Scopes}},
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
              process = fun ?MODULE:process_pool/2,
@@ -1081,8 +1088,8 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
-    Scope = pool_scope(ScopeIn, maps:get(host_type, AllOpts, maps:get(host, AllOpts, none))),
+process_pool([Tag, Type | _], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
+    Scope = pool_scope(ScopeIn),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
@@ -1090,17 +1097,16 @@ process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connecti
       opts => Opts,
       conn_opts => Connection}.
 
-pool_scope(single_host_type, none) ->
-    error(#{what => pool_single_host_type_not_specified,
-            text => <<"\"host_type\" option is required if \"single_host_type\" is used.">>});
-pool_scope(single_host, none) ->
-    error(#{what => pool_single_host_not_specified,
-            text => <<"\"host\" option is required if \"single_host\" is used.">>});
-pool_scope(single_host_type, HostType) -> HostType;
-pool_scope(single_host, Host) -> Host;
-pool_scope(host, none) -> host_type;
-pool_scope(host_type, none) -> host_type;
-pool_scope(global, none) -> global.
+process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connection := Connection}) ->
+    #{type => b2a(Type),
+      scope => HT,
+      tag => b2a(Tag),
+      opts => maps:remove(connection, AllOpts),
+      conn_opts => Connection}.
+
+pool_scope(host) -> host_type;
+pool_scope(host_type) -> host_type;
+pool_scope(global) -> global.
 
 process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;
 process_ldap_connection(ConnOpts = #{tls := _}) -> ConnOpts#{port => 636};

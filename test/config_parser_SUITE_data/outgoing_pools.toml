@@ -6,11 +6,6 @@
   ]
   default_server_domain = "localhost"
 
-[outgoing_pools.redis.global_distrib]
-  scope = "single_host_type"
-  host = "localhost"
-  workers = 10
-
 [outgoing_pools.rdbms.default]
   scope = "global"
   workers = 5
@@ -69,3 +64,8 @@
     servers = ["ldap-server.example.com"]
     root_dn = "cn=admin,dc=example,dc=com"
     password = "ldap-admin-password"
+
+[[host_config]]
+  host = "localhost"
+  [host_config.outgoing_pools.redis.global_distrib]
+    workers = 10

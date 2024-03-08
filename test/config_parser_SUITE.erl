@@ -877,6 +877,8 @@ pool_basics(_Config) ->
     Required = #{<<"connection">> => #{<<"host">> => <<"http://localhost">>}},
     ?cfg(P ++ [type], http, pool_raw(<<"http">>, <<"default">>, Required)),
     ?cfg(P ++ [tag], default, pool_raw(<<"http">>, <<"default">>, Required)),
+    ?cfg(host_opts([{P ++ [tag], default}]),
+         host_config(pool_raw(<<"http">>, <<"default">>, Required))),
     ?err(pool_raw(<<"swimming_pool">>, <<"default">>, Required)),
     ?err(pool_raw(<<"http">>, 1000, Required)).
 
@@ -886,13 +888,8 @@ pool_scope(_Config) ->
     T = fun(Opts) -> pool_raw(<<"http">>, <<"default">>, maps:merge(Required, Opts)) end,
     ?cfg(P, host_type, T(#{<<"scope">> => <<"host">>})),
     ?cfg(P, host_type, T(#{<<"scope">> => <<"host_type">>})),
-    ?cfg(P, <<"localhost">>, T(#{<<"scope">> => <<"single_host">>, <<"host">> => <<"localhost">>})),
-    ?cfg(P, <<"localhost">>, T(#{<<"scope">> => <<"single_host_type">>, <<"host_type">> => <<"localhost">>})),
-    ?err(T(#{<<"host">> => <<"localhost">>})), % missing scope
-    ?err(T(#{<<"host_type">> => <<"localhost">>})), % missing scope
-    ?err(T(#{<<"scope">> => <<"single_host">>})), % missing host
-    ?err(T(#{<<"scope">> => <<"single_host_type">>})), % missing host type
-    ?err(T(#{<<"scope">> => <<"whatever">>})).
+    ?err(T(#{<<"scope">> => <<"whatever">>})),
+    ?err(host_config(T(#{<<"scope">> => <<"global">>}))). %% scope is not allowed in host_config
 
 pool_rdbms(_Config) ->
     test_pool_opts(rdbms, #{<<"connection">> => raw_sql_opts(pgsql)}).
