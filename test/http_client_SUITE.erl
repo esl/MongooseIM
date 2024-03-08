@@ -57,7 +57,7 @@ end_per_suite(_Config) ->
 
 init_per_testcase(TC, Config) ->
     Pool = config([outgoing_pools, http, pool()], pool_opts(TC)),
-    mongoose_wpool:start_configured_pools([Pool], [<<"a.com">>]),
+    mongoose_wpool:start_configured_pools([Pool], [], [<<"a.com">>]),
     Config.
 
 pool_opts(request_timeout_test) ->

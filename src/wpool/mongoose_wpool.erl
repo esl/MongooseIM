@@ -27,30 +27,28 @@
          get_pool_settings/3, get_pools/0, stats/3]).
 
 -export([start_sup_pool/3]).
--export([start_configured_pools/0]).
--export([start_configured_pools/1]).
--export([start_configured_pools/2]).
+-export([start_configured_pools/0, start_configured_pools/1,
+         start_configured_pools/2, start_configured_pools/3]).
 -export([is_configured/1]).
 -export([make_pool_name/3]).
 -export([call_start_callback/2]).
 
 %% Mostly for tests
--export([expand_pools/2]).
+-export([expand_pools/3]).
 
--ignore_xref([call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
-              send_request/2, send_request/4, send_request/5,
+-ignore_xref([call/2, cast/2, cast/3, expand_pools/3, get_worker/2,
+              send_request/2, send_request/3, send_request/4, send_request/5,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
-              start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
-              stop/1, stop/2]).
+              start/5, start_configured_pools/1, start_configured_pools/2, start_configured_pools/3,
+              stats/3, stop/1, stop/2]).
 
--type pool_type() :: redis | http | rdbms | cassandra | elastic | generic
-                     | rabbit | ldap.
+-type pool_type() :: redis | http | rdbms | cassandra | elastic | generic | rabbit | ldap.
 
 %% Config scope
--type scope() :: global | host | mongooseim:host_type().
+-type scope() :: global | host_type | mongooseim:host_type().
 -type host_type_or_global() :: mongooseim:host_type_or_global().
-
 -type tag() :: atom().
+
 %% Name of a process
 -type proc_name() :: atom().
 
@@ -80,13 +78,7 @@
 -type start_result() :: {ok, pid()} | {error, term()}.
 -type stop_result() :: ok | term().
 
--export_type([pool_type/0]).
--export_type([tag/0]).
--export_type([scope/0]).
--export_type([proc_name/0]).
--export_type([pool_name/0]).
--export_type([pool_opts/0]).
--export_type([conn_opts/0]).
+-export_type([pool_type/0, tag/0, scope/0, proc_name/0, pool_name/0, pool_opts/0, conn_opts/0]).
 
 -type callback_fun() :: init | start | is_supported_strategy | stop.
 
@@ -121,8 +113,12 @@ start_configured_pools(PoolsIn) ->
     start_configured_pools(PoolsIn, ?ALL_HOST_TYPES).
 
 start_configured_pools(PoolsIn, HostTypes) ->
-    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
-    Pools = expand_pools(PoolsIn, HostTypes),
+    HostTypeSpecific = get_host_type_specific_pools(HostTypes),
+    start_configured_pools(PoolsIn, HostTypeSpecific, HostTypes).
+
+start_configured_pools(PoolsIn, HostTypeSpecific, HostTypes) ->
+    Pools = expand_pools(PoolsIn, HostTypeSpecific, HostTypes),
+    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn, HostTypeSpecific)],
     [start(Pool) || Pool <- Pools].
 
 -spec start(pool_map()) -> start_result().
@@ -357,19 +353,25 @@ make_callback_module_name(PoolType) ->
     Name = "mongoose_wpool_" ++ atom_to_list(PoolType),
     list_to_atom(Name).
 
--spec expand_pools([pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
-expand_pools(Pools, HostTypes) ->
-    %% First we select only pools for a specific vhost
-    HostSpecific = [{Type, HT, Tag} || #{type := Type, scope := HT, tag := Tag} <- Pools, is_binary(HT)],
-    %% Then we expand all pools with `host` as HostType parameter but using host specific configs
-    %% if they were provided
-    F = fun(M = #{type := PoolType, scope := host, tag := Tag}) ->
+-spec get_host_type_specific_pools([mongooseim:host_type()]) -> [pool_map_in()].
+get_host_type_specific_pools(HostTypes) ->
+    lists:append([ mongoose_config:get_opt({outgoing_pools, HostType}, [])
+                   || HostType <- HostTypes ]).
+
+-spec expand_pools([pool_map_in()], [pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
+expand_pools(Pools, PerHostType, HostTypes) ->
+    %% First we select only vhost/host_type specific pools
+    HostSpecific = [ {Type, HT, Tag}
+                     || #{type := Type, scope := HT, tag := Tag} <- PerHostType ],
+    %% Then we expand all pools with `host_type` as scope
+    %% but using host_type specific configs if they were provided
+    F = fun(M = #{type := PoolType, scope := host_type, tag := Tag}) ->
                 [M#{scope => HostType} || HostType <- HostTypes,
                                           not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]
         end,
     Pools1 = lists:flatmap(F, Pools),
-    lists:map(fun prepare_pool_map/1, Pools1).
+    lists:map(fun prepare_pool_map/1, PerHostType ++ Pools1).
 
 -spec prepare_pool_map(pool_map_in()) -> pool_map().
 prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
@@ -377,9 +379,9 @@ prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
     Pool1 = maps:remove(scope, Pool),
     Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
 
--spec get_unique_types([pool_map_in()]) -> [pool_type()].
-get_unique_types(Pools) ->
-    lists:usort([maps:get(type, Pool) || Pool <- Pools]).
+-spec get_unique_types([pool_map_in()], [pool_map_in()]) -> [pool_type()].
+get_unique_types(Pools, HostTypeSpecific) ->
+    lists:usort([maps:get(type, Pool) || Pool <- Pools ++ HostTypeSpecific]).
 
 -spec get_pool(pool_type(), host_type_or_global(), tag()) -> pool_record_result().
 get_pool(PoolType, HostType, Tag) ->

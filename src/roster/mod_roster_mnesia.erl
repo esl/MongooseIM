@@ -11,7 +11,6 @@
 -module(mod_roster_mnesia).
 
 -include("mod_roster.hrl").
--include("jlib.hrl").
 
 -behaviour(mod_roster_backend).
 
@@ -62,9 +61,7 @@ write_roster_version(_HostType, LUser, LServer, TransactionState, Ver) ->
 -spec get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_roster(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_index_read(roster, US,
-                                       #roster.us)
-    of
+    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items  when is_list(Items)-> Items;
         _ -> []
     end.
@@ -74,7 +71,7 @@ get_roster(_HostType, LUser, LServer) ->
     mod_roster:roster() | does_not_exist.
 get_roster_entry(_HostType, LUser, LServer, LJID, TransactionState, _Format) ->
     LowerJID = jid:to_lower(LJID),
-    case read({roster, {LUser, LServer, LowerJID}}, TransactionState) of
+    case read({roster, {{LUser, LServer}, LowerJID}}, TransactionState) of
         [] ->
             does_not_exist;
         [I] ->
@@ -99,7 +96,7 @@ update_roster_t(_HostType, Item) ->
 
 -spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact()) -> ok.
 del_roster_t(_HostType, LUser, LServer, LJID) ->
-    mnesia:delete({roster, {LUser, LServer, LJID}}).
+    mnesia:delete({roster, {{LUser, LServer}, LJID}}).
 
 -spec remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user_t(_HostType, LUser, LServer) ->

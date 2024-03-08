@@ -251,9 +251,7 @@ options("mongooseim-pgsql") ->
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
                          }
-          },
-         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}
+          }
         ])},
      {rdbms_server_type, generic},
      {registration_timeout, infinity},
@@ -266,6 +264,20 @@ options("mongooseim-pgsql") ->
      {component_backend, mnesia},
      {s2s_backend, mnesia},
      {instrumentation, #{exometer => #{}}},
+     {{outgoing_pools, <<"anonymous.localhost">>},
+      [host_pool_config(
+         #{tag => special,
+           scope => <<"anonymous.localhost">>,
+           type => rdbms,
+           opts => #{workers => 5},
+           conn_opts => #{driver => pgsql, host => "localhost", port => 5432, database => "mongooseim",
+                          username => "mongooseim", password => "mongooseim_secret",
+                          tls => #{required => true,
+                                   cacertfile => "priv/ca.pem",
+                                   server_name_indication => #{enabled => false}}
+                         }
+          }
+        )]},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{backend => mnesia,
                                        allow_multiple_connections => true,
@@ -289,6 +301,10 @@ options("mongooseim-pgsql") ->
      {{replaced_wait_timeout, <<"anonymous.localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost.bis">>}, 2000},
+     {{outgoing_pools, <<"localhost">>},
+      [host_pool_config(
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}})]},
      {{s2s, <<"anonymous.localhost">>}, pgsql_s2s()},
      {{s2s, <<"localhost">>}, pgsql_s2s()},
      {{s2s, <<"localhost.bis">>}, pgsql_s2s()},
@@ -331,12 +347,12 @@ options("outgoing_pools") ->
            opts => #{workers => 50},
            conn_opts => #{host => "https://localhost:8443",
                           request_timeout => 2000}},
-         #{type => ldap, scope => host, tag => default,
+         #{type => ldap, scope => host_type, tag => default,
            opts => #{workers => 5},
            conn_opts => #{password => <<"ldap-admin-password">>,
                           root_dn => <<"cn=admin,dc=example,dc=com">>,
                           servers => ["ldap-server.example.com"]}},
-         #{type => rabbit, scope => host, tag => event_pusher,
+         #{type => rabbit, scope => host_type, tag => event_pusher,
            opts => #{workers => 20},
            conn_opts => #{confirms_enabled => true,
                           max_worker_queue_len => 100}},
@@ -349,14 +365,16 @@ options("outgoing_pools") ->
                                    cacertfile => "priv/ca.pem",
                                    server_name_indication => #{enabled => false}}
                          }
-          },
-         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-           opts => #{workers => 10}, conn_opts => #{}}
+          }
         ])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
+     {{outgoing_pools, <<"localhost">>},
+      [host_pool_config(
+         #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+           opts => #{workers => 10}, conn_opts => #{}})]},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"localhost.bis">>}, default_s2s()},
@@ -776,6 +794,9 @@ pgsql_access() ->
 
 pool_config(PoolIn = #{type := Type}) ->
     config([outgoing_pools, Type, maps:get(tag, PoolIn, default)], PoolIn).
+
+host_pool_config(PoolIn = #{type := Type}) ->
+    config([host_config, outgoing_pools, Type, maps:get(tag, PoolIn, default)], PoolIn).
 
 default_pool_wpool_opts(cassandra) ->
     #{workers => 20,
@@ -1264,6 +1285,9 @@ default_config([outgoing_pools, _Type, _Tag, conn_opts, tls] = P) ->
       server_name_indication => default_config(P ++ [server_name_indication])};
 default_config([outgoing_pools, _Type, _Tag, conn_opts, tls, server_name_indication]) ->
     #{enabled => true, protocol => default};
+default_config([host_config, outgoing_pools | Path]) ->
+    Default = default_config([outgoing_pools | Path]),
+    maps:remove(scope, Default);
 default_config([services, service_domain_db]) ->
     #{event_cleaning_interval => 1800,
       event_max_age => 7200,

@@ -75,7 +75,7 @@ It is used to synchronise dynamic domains between nodes after starting.
 * **Example:** `db_pool = "my_host_type"`
 
 By default, this service uses the RDBMS connection pool configured with the scope `"global"`.
-You can put a specific host type there to use the pool with the `"host"` or `"single_host"` scope for that particular host type. See the [outgoing connections docs](outgoing-connections.md) for more information about pool scopes.
+You can put a specific host type there to use the `default` pool with the `host_type` scope for that particular host type. See the [outgoing connections docs](outgoing-connections.md) for more information about pool scopes.
 
 ### `services.service_domain_db.event_cleaning_interval`
 

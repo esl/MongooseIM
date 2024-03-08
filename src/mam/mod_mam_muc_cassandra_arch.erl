@@ -120,7 +120,7 @@ prepared_queries() ->
 archive_size(Size, #{room := RoomJID}, #{host_type := HostType}) when is_integer(Size) ->
     PoolName = pool_name(HostType),
     Borders = Start = End = WithNick = undefined,
-    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick, undefined),
     {ok, calc_count(PoolName, RoomJID, HostType, Filter)}.
 
 
@@ -228,7 +228,7 @@ lookup_messages(_Result,
                 #{owner_jid := RoomJID, rsm := RSM, borders := Borders,
                   start_ts := Start, end_ts := End, with_jid := WithJID,
                   search_text := undefined, page_size := PageSize,
-                  is_simple := IsSimple},
+                  is_simple := IsSimple, message_id := MsgID},
                 #{host_type := HostType}) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
@@ -236,7 +236,7 @@ lookup_messages(_Result,
         {ok, lookup_messages2(PoolName, HostType,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
-                         PageSize, IsSimple)}
+                         PageSize, MsgID, IsSimple)}
     catch _Type:Reason:Stacktrace ->
             {ok, {error, {Reason, {stacktrace, Stacktrace}}}}
     end.
@@ -248,20 +248,20 @@ maybe_jid_to_nick(undefined) -> undefined.
 lookup_messages2(PoolName, HostType,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
-                 PageSize, _IsSimple = true) ->
+                 PageSize, MsgID, _IsSimple = true) ->
     %% Simple query without calculating offset and total count
-    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick, MsgID),
     lookup_messages_simple(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
 lookup_messages2(PoolName, HostType,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
-                 PageSize, _IsSimple) ->
+                 PageSize, MsgID, _IsSimple) ->
     %% Query with offset calculation
     %% We cannot just use RDBMS code because "LIMIT X, Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
-    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick, MsgID),
     case Strategy of
         last_page ->
             lookup_messages_last_page(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
@@ -611,12 +611,20 @@ prev_offset_query_cql() ->
 insert_offset_hint_query_cql() ->
     "INSERT INTO mam_muc_message_offset(room_jid, with_nick, id, offset) VALUES(?, ?, ?, ?)".
 
-prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
+prepare_filter(RoomJID, Borders, Start, End, WithNick, MsgID) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2 = apply_end_border(Borders, EndID),
+    %% In Cassandra, a column cannot be restricted by both an equality and an inequality relation.
+    %% When MsgID is defined, it is used as both StartID2 and EndID2 to comply with this limitation.
+    %% This means that the `ids` filter effectively overrides any "before" or "after" filters.
+    {StartID2, EndID2} = case MsgID of
+                            undefined ->
+                                {apply_start_border(Borders, StartID),
+                                 apply_end_border(Borders, EndID)};
+                            ID ->
+                                {ID, ID}
+                        end,
     BWithNick = maybe_nick(WithNick),
     prepare_filter_params(BRoomJID, BWithNick, StartID2, EndID2).
 

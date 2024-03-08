@@ -65,24 +65,27 @@ CREATE TABLE rosterusers (
     subscription character(1) NOT NULL,
     ask character(1) NOT NULL,
     askmessage text NOT NULL,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (server, username, jid)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
-CREATE UNIQUE INDEX i_rosteru_server_user_jid ON rosterusers (server, username, jid);
-CREATE INDEX i_rosteru_server_user ON rosterusers(server, username);
-CREATE INDEX i_rosteru_jid ON rosterusers(jid);
 
 CREATE TABLE rostergroups (
     server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid varchar(250) NOT NULL,
-    grp text NOT NULL
+    grp varchar(250) NOT NULL,
+    PRIMARY KEY (server(150), username(200), jid, grp(150))
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX i_rosterg_server_user_jid ON rostergroups(server, username, jid);
-
+CREATE TABLE roster_version (
+    server varchar(250),
+    username varchar(250),
+    version text NOT NULL,
+    PRIMARY KEY (server, username)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE vcard (
     username varchar(150),
@@ -177,14 +180,6 @@ CREATE TABLE private_storage (
     data text NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(server, username, namespace)
-) CHARACTER SET utf8mb4
-  ROW_FORMAT=DYNAMIC;
-
-CREATE TABLE roster_version (
-    server varchar(250),
-    username varchar(250),
-    version text NOT NULL,
-    PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 

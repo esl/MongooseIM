@@ -78,7 +78,7 @@ init_redis_group(true, Config) ->
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
                   Pool = default_config([outgoing_pools, redis, default]),
-                  mongoose_wpool:start_configured_pools([Pool], []),
+                  mongoose_wpool:start_configured_pools([Pool], [], []),
                   Self ! ready,
                   receive stop -> ok end
           end),

@@ -84,6 +84,7 @@
          check_for_item_not_found/3,
          maybe_reverse_messages/2,
          get_msg_id_and_timestamp/1,
+         lookup_specific_messages/4,
          is_mam_muc_enabled/2]).
 
 %% Ejabberd
@@ -416,6 +417,29 @@ get_msg_id_and_timestamp(#{id := MsgID}) ->
     ExtID = mess_id_to_external_binary(MsgID),
     {ExtID, list_to_binary(TS)}.
 
+-spec lookup_specific_messages(mongooseim:host_type(),
+                               mam_iq:lookup_params(),
+                               [mod_mam:message_id()],
+                               fun()) -> [mod_mam:message_row()] | {error, item_not_found}.
+lookup_specific_messages(HostType, Params, IDs, FetchFun) ->
+    {FinalOffset, AccumulatedMessages} = lists:foldl(
+        fun(ID, {_AccOffset, AccMsgs}) ->
+            {ok, {_, OffsetForID, MessagesForID}} = FetchFun(HostType, Params#{message_id => ID}),
+            {OffsetForID, AccMsgs ++ MessagesForID}
+        end,
+        {0, []}, IDs),
+
+    Result = determine_result(Params, FinalOffset, AccumulatedMessages),
+    case length(IDs) == length(AccumulatedMessages) of
+        true -> Result;
+        false -> {error, item_not_found}
+    end.
+
+determine_result(#{is_simple := true}, _Offset, Messages) ->
+    {ok, {undefined, undefined, Messages}};
+determine_result(#{}, Offset, Messages) ->
+    {ok, {length(Messages), Offset, Messages}}.
+
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
 
@@ -713,7 +737,7 @@ features(Module, HostType) ->
         ++ groupchat_features(Module, HostType).
 
 mam_features() ->
-    [?NS_MAM_04, ?NS_MAM_06].
+    [?NS_MAM_04, ?NS_MAM_06, ?NS_MAM_EXTENDED].
 
 retraction_features(Module, HostType) ->
     case has_message_retraction(Module, HostType) of
@@ -766,7 +790,9 @@ message_form_fields(Mod, HostType, <<"urn:xmpp:mam:2">>) ->
      #{type => <<"text-single">>, var => <<"end">>},
      #{type => <<"text-single">>, var => <<"before-id">>},
      #{type => <<"text-single">>, var => <<"after-id">>},
-     #{type => <<"boolean">>, var => <<"include-groupchat">>} | TextSearch].
+     #{type => <<"boolean">>, var => <<"include-groupchat">>},
+     #{type => <<"list-multi">>, var => <<"ids">>,
+       validate => #{method => open, datatype => <<"xs:string">>}} | TextSearch].
 
 -spec form_to_text(_) -> 'undefined' | binary().
 form_to_text(#{<<"full-text-search">> := [Text]}) ->
@@ -1243,7 +1269,8 @@ create_lookup_params(RSM, Direction, ArcID, CallerJID, OwnerJID) ->
       flip_page => false,
       ordering_direction => Direction,
       limit_passed => true,
-      caller_jid => CallerJID}.
+      caller_jid => CallerJID,
+      message_ids => undefined}.
 
 patch_fun_to_make_result_as_map(F) ->
     fun(HostType, Params) -> result_to_map(F(HostType, Params)) end.

@@ -15,137 +15,7 @@
 %%==============================================================================
 -module(mam_SUITE).
 
-%% CT callbacks
--export([all/0,
-         groups/0,
-         suite/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2]).
-
-%% Tests
--export([no_elements/1,
-         only_stanzaid/1,
-         same_stanza_id/1,
-         muc_no_elements/1,
-         muc_only_stanzaid/1,
-         mam_service_discovery/1,
-         mam_service_discovery_to_client_bare_jid/1,
-         mam_service_discovery_to_different_client_bare_jid_results_in_error/1,
-         muc_service_discovery/1,
-         easy_archive_request/1,
-         easy_archive_request_for_the_receiver/1,
-         message_sent_to_yourself/1,
-         text_search_query_fails_if_disabled/1,
-         pagination_simple_enforced/1,
-         text_search_is_not_available/1,
-         easy_text_search_request/1,
-         long_text_search_request/1,
-         text_search_is_available/1,
-         muc_message_with_stanzaid/1,
-         retract_muc_message/1,
-         retract_muc_message_on_stanza_id/1,
-         retract_wrong_muc_message/1,
-         muc_text_search_request/1,
-         muc_archive_request/1,
-         muc_multiple_devices/1,
-         muc_protected_message/1,
-         muc_deny_protected_room_access/1,
-         muc_allow_access_to_owner/1,
-         muc_sanitize_x_user_in_non_anon_rooms/1,
-         muc_delete_x_user_in_anon_rooms/1,
-         muc_show_x_user_to_moderators_in_anon_rooms/1,
-         muc_show_x_user_for_your_own_messages_in_anon_rooms/1,
-         range_archive_request/1,
-         range_archive_request_not_empty/1,
-         limit_archive_request/1,
-         metadata_archive_request/1,
-         metadata_archive_request_empty/1,
-         metadata_archive_request_one_message/1,
-         muc_metadata_archive_request/1,
-         muc_metadata_archive_request_empty/1,
-         muc_metadata_archive_request_one_message/1,
-         prefs_set_request/1,
-         retrieve_form_fields/1,
-         retrieve_form_fields_extra_features/1,
-         prefs_set_cdata_request/1,
-         query_get_request/1,
-         pagination_first5/1,
-         pagination_last5/1,
-         pagination_offset5/1,
-         pagination_first0/1,
-         pagination_last0/1,
-         pagination_offset5_max0/1,
-         pagination_before10/1,
-         pagination_after10/1,
-         pagination_flipped_page/1,
-         pagination_simple_before10/1,
-         pagination_simple_before3/1,
-         pagination_simple_before6/1,
-         pagination_simple_before1_pagesize0/1,
-         pagination_simple_before2_pagesize0/1,
-         pagination_simple_after5/1,
-         pagination_simple_after10/1,
-         pagination_simple_after12/1,
-         pagination_last_after_id5/1,
-         pagination_last_after_id5_before_id11/1,
-         pagination_empty_rset/1,
-         pagination_first_page_after_id4/1,
-         pagination_last_page_after_id4/1,
-         pagination_border_flipped_page/1,
-         server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
-         server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
-         server_returns_item_not_found_for_after_filter_with_invalid_id/1,
-         %% complete_flag_cases tests
-         before_complete_false_last5/1,
-         before_complete_false_before10/1,
-         before_complete_true_before1/1,
-         before_complete_true_before5/1,
-         before_complete_true_before6/1,
-         after_complete_false_first_page/1,
-         after_complete_false_after2/1,
-         after_complete_false_after9/1,
-         after_complete_true_after10/1,
-         after_complete_true_after11/1,
-         archived/1,
-         message_with_stanzaid/1,
-         retract_message/1,
-         retract_message_on_stanza_id/1,
-         retract_wrong_message/1,
-         ignore_bad_retraction/1,
-         filter_forwarded/1,
-         offline_message/1,
-         nostore_hint/1,
-         querying_for_all_messages_with_jid/1,
-         muc_querying_for_all_messages/1,
-         muc_querying_for_all_messages_with_jid/1,
-         muc_light_service_discovery_stored_in_pm/1,
-         muc_light_easy/1,
-         muc_light_shouldnt_modify_pm_archive/1,
-         muc_light_stored_in_pm_if_allowed_to/1,
-         muc_light_include_groupchat_filter/1,
-         muc_light_no_pm_stored_include_groupchat_filter/1,
-         muc_light_include_groupchat_messages_by_default/1,
-         muc_light_chat_markers_are_archived_if_enabled/1,
-         muc_light_chat_markers_are_not_archived_if_disabled/1,
-         muc_light_failed_to_decode_message_in_database/1,
-         pm_failed_to_decode_message_in_database/1,
-         messages_filtered_when_prefs_default_policy_is_always/1,
-         messages_filtered_when_prefs_default_policy_is_never/1,
-         messages_filtered_when_prefs_default_policy_is_roster/1,
-         run_set_and_get_prefs_cases/1,
-         check_user_exist/1,
-         metric_incremented_on_archive_request/1,
-         metric_incremented_when_store_message/1,
-         metrics_incremented_for_async_pools/1,
-         archive_chat_markers/1,
-         dont_archive_chat_markers/1,
-         save_unicode_messages/1,
-         unicode_messages_can_be_extracted/1,
-         stanza_id_is_appended_to_carbons/1]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -181,6 +51,8 @@
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
          stanza_include_groupchat_request/3,
+         stanza_fetch_by_id_request/3,
+         stanza_fetch_by_id_request/4,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -209,6 +81,8 @@
          wait_message_range/3,
          wait_message_range/5,
          message_id/2,
+         get_pre_generated_msgs_ids/2,
+         get_received_msgs_ids/1,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -216,10 +90,12 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         mam_ns_binary_extended/0,
          retract_ns/0,
          retract_tombstone_ns/0,
          groupchat_field_ns/0,
          groupchat_available_ns/0,
+         data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -353,7 +229,8 @@ basic_groups() ->
            [{mam_metrics, [], mam_metrics_cases()},
             {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
             {mam06, [parallel], mam_cases() ++ [retrieve_form_fields_extra_features]
-                                ++ stanzaid_cases() ++ retract_cases() ++ metadata_cases()},
+                                ++ stanzaid_cases() ++ retract_cases()
+                                ++ metadata_cases() ++ fetch_specific_msgs_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -373,7 +250,7 @@ basic_groups() ->
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
-                                ++ muc_metadata_cases()},
+                                ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -444,6 +321,13 @@ metadata_cases() ->
      metadata_archive_request_one_message
     ].
 
+fetch_specific_msgs_cases() ->
+    [
+     query_messages_by_ids,
+     simple_query_messages_by_ids,
+     server_returns_item_not_found_for_ids_filter_with_nonexistent_id
+    ].
+
 muc_text_search_cases() ->
     [
      muc_text_search_request
@@ -472,8 +356,10 @@ nostore_cases() ->
      nostore_hint].
 
 muc_cases() ->
-    [muc_service_discovery,
-     muc_archive_request,
+    [muc_service_discovery | muc_cases_with_room()].
+
+muc_cases_with_room() ->
+    [muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -483,8 +369,7 @@ muc_cases() ->
      muc_show_x_user_to_moderators_in_anon_rooms,
      muc_show_x_user_for_your_own_messages_in_anon_rooms,
      muc_querying_for_all_messages,
-     muc_querying_for_all_messages_with_jid
-     ].
+     muc_querying_for_all_messages_with_jid].
 
 muc_stanzaid_cases() ->
     [muc_message_with_stanzaid].
@@ -508,6 +393,13 @@ muc_metadata_cases() ->
      muc_metadata_archive_request,
      muc_metadata_archive_request_empty,
      muc_metadata_archive_request_one_message
+    ].
+
+muc_fetch_specific_msgs_cases() ->
+    [
+     muc_query_messages_by_ids,
+     muc_simple_query_messages_by_ids,
+     muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id
     ].
 
 configurable_archiveid_cases() ->
@@ -804,289 +696,156 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(C=metrics_incremented_for_async_pools, Config) ->
+init_per_testcase(CaseName, Config) ->
+    case maybe_skip(CaseName, Config) of
+        ok ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
+            lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
+        {skip, Msg} ->
+            {skip, Msg}
+    end.
+
+init_steps() ->
+    [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
+     fun escalus:init_per_testcase/2].
+
+maybe_skip(metrics_incremented_for_async_pools, Config) ->
+    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
+            "Not an async-pool test");
+maybe_skip(C, Config) when C =:= retract_message;
+                           C =:= retract_wrong_message;
+                           C =:= ignore_bad_retraction;
+                           C =:= retract_message_on_stanza_id;
+                           C =:= retract_muc_message;
+                           C =:= retract_muc_message_on_stanza_id;
+                           C =:= retract_wrong_muc_message ->
+    ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
+    skip_if(not lists:member(?config(configuration, Config), ConfList),
+            "message retraction not supported");
+maybe_skip(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
+                           C =:= pm_failed_to_decode_message_in_database ->
+    skip_if(?config(configuration, Config) =:= elasticsearch,
+            "elasticsearch does not support encodings");
+maybe_skip(C, Config) when C =:= muc_light_include_groupchat_filter;
+                           C =:= muc_light_no_pm_stored_include_groupchat_filter;
+                           C =:= muc_light_include_groupchat_messages_by_default ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "include_groupchat field is not supported for cassandra backend");
+maybe_skip(C, Config) when C =:= easy_text_search_request;
+                           C =:= long_text_search_request;
+                           C =:= save_unicode_messages;
+                           C =:= muc_text_search_request ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "full text search is not implemented for cassandra backend");
+maybe_skip(_C, _Config) ->
+    ok.
+
+skip_if(false, _Msg) -> ok;
+skip_if(true, Msg) -> {skip, Msg}.
+
+init_users(CaseName, Config) ->
+    case fresh_users(CaseName) of
+        [] ->
+            Config;
+        UserSpecs ->
+            escalus_fresh:create_users(Config, UserSpecs)
+    end.
+
+-define(requires_pm_archive(C),
+        C =:= querying_for_all_messages_with_jid;
+        C =:= query_messages_by_ids;
+        C =:= simple_query_messages_by_ids;
+        C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= pagination_simple_enforced;
+        C =:= range_archive_request_not_empty;
+        C =:= limit_archive_request;
+        C =:= metadata_archive_request).
+
+-define(requires_muc_archive(C),
+        C =:= muc_query_messages_by_ids;
+        C =:= muc_simple_query_messages_by_ids;
+        C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= muc_querying_for_all_messages;
+        C =:= muc_querying_for_all_messages_with_jid;
+        C =:= muc_metadata_archive_request).
+
+fresh_users(C) when ?requires_pm_archive(C) ->
+    [{alice, 1}, {bob, 1}, {carol, 1}];
+fresh_users(C) when C =:= offline_message;
+                    C =:= archived;
+                    C =:= no_elements;
+                    C =:= only_stanzaid;
+                    C =:= same_stanza_id;
+                    C =:= metadata_archive_request_empty;
+                    C =:= metadata_archive_request_one_message;
+                    C =:= archive_chat_markers;
+                    C =:= dont_archive_chat_markers ->
+    [{alice, 1}, {bob, 1}];
+fresh_users(C) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> [{alice, 1}, {bob, 1}];
+        false -> []
+    end.
+
+init_archive(C, Config) when C =:= metrics_incremented_for_async_pools;
+                             C =:= metric_incremented_when_store_message ->
+    clean_archives(Config);
+init_archive(C, Config) when ?requires_pm_archive(C) ->
+    bootstrap_archive(Config);
+init_archive(C, Config) when ?requires_muc_archive(C) ->
+    muc_bootstrap_archive(start_alice_room(Config));
+init_archive(_CaseName, Config) ->
+    Config.
+
+start_room(C, Config) when C =:= muc_deny_protected_room_access;
+                           C =:= muc_allow_access_to_owner ->
+    start_alice_protected_room(Config);
+start_room(C, Config) when C =:= muc_delete_x_user_in_anon_rooms;
+                           C =:= muc_show_x_user_to_moderators_in_anon_rooms;
+                           C =:= muc_show_x_user_for_your_own_messages_in_anon_rooms ->
+    start_alice_anonymous_room(Config);
+start_room(C, Config) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> start_alice_room(Config);
+        false -> Config
+    end.
+
+init_metrics(metric_incremented_when_store_message, ConfigIn) ->
+    case ?config(configuration, ConfigIn) of
+        rdbms_async_pool ->
+            MongooseMetrics = [
+                               {[global, data, rdbms, default],
+                                [{recv_oct, '>'}, {send_oct, '>'}]}
+                              ],
+            [{mongoose_metrics, MongooseMetrics} | ConfigIn];
+        _ ->
+            ConfigIn
+    end;
+init_metrics(muc_archive_request, Config) ->
+    %% Check that metric is incremented on MUC flushed
     case ?config(configuration, Config) of
         rdbms_async_pool ->
-            escalus:init_per_testcase(C, clean_archives(Config));
+            MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
+            [{mongoose_metrics, MongooseMetrics} | Config];
         _ ->
-            {skip, "Not an async-pool test"}
+            Config
     end;
-init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
-    Config = case ?config(configuration, ConfigIn) of
-                 rdbms_async_pool ->
-                     MongooseMetrics = [
-                                        {[global, data, rdbms, default],
-                                         [{recv_oct, '>'}, {send_oct, '>'}]}
-                                       ],
-                     [{mongoose_metrics, MongooseMetrics} | ConfigIn];
-                 _ ->
-                     ConfigIn
-             end,
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=archived, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C, Config) when C =:= retract_message;
-                                  C =:= retract_wrong_message;
-                                  C =:= ignore_bad_retraction ->
-    skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=retract_message_on_stanza_id, Config) ->
-    Init = fun() ->
-                   dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-                   escalus:init_per_testcase(C, Config)
-        end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=offline_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    Config2 = %% Check that metric is incremented on MUC flushed
-        case ?config(configuration, Config1) of
-            rdbms_async_pool ->
-                MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
-                [{mongoose_metrics, MongooseMetrics} | Config1];
-            _ ->
-                Config1
-        end,
-    escalus:init_per_testcase(C, start_alice_room(Config2));
-init_per_testcase(C=muc_no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=same_stanza_id, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_message_with_stanzaid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
-                                  C =:= pm_failed_to_decode_message_in_database ->
-    case proplists:get_value(configuration, Config) of
-        elasticsearch ->
-            {skip, "elasticsearch does not support encodings"};
-        _ ->
-            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-            escalus:init_per_testcase(C, Config)
-    end;
-init_per_testcase(C, Config) when C =:= retract_muc_message;
-                                  C =:= retract_muc_message_on_stanza_id;
-                                  C =:= retract_wrong_muc_message ->
-    Init = fun() ->
-                   Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-                   escalus:init_per_testcase(C, start_alice_room(Config1))
-           end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=muc_multiple_devices, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_protected_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=pagination_simple_enforced, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=limit_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=metadata_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=metadata_archive_request_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=metadata_archive_request_one_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=muc_metadata_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C, Config) when C =:= muc_light_include_groupchat_filter;
-                                  C =:= muc_light_no_pm_stored_include_groupchat_filter;
-                                  C =:= muc_light_include_groupchat_messages_by_default ->
-    Init =
-        fun() ->
-            dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-            escalus:init_per_testcase(C, Config)
-        end,
-    skip_if_include_groupchat_not_supported(Config, Init);
-init_per_testcase(C=easy_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=long_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=save_unicode_messages, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=muc_text_search_request, Config) ->
-    Init =
-        fun() ->
-            Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-            escalus:init_per_testcase(C, start_alice_room(Config1))
-        end,
+init_metrics(_CaseName, Config) ->
+    Config.
 
-    skip_if_cassandra(Config, Init);
-init_per_testcase(C = muc_light_service_discovery_stored_in_pm, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_light_easy;
-                                  C =:= muc_light_shouldnt_modify_pm_archive;
-                                  C =:= muc_light_chat_markers_are_archived_if_enabled;
-                                  C =:= muc_light_chat_markers_are_not_archived_if_disabled->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=dont_archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
-
-skip_if_include_groupchat_not_supported(Config, Init) ->
-    case ?config(configuration, Config) of
-        cassandra ->
-            {skip, "include_groupchat field is not supported for cassandra backend"};
-        _ ->
-            Init()
-    end.
-
-skip_if_retraction_not_supported(Config, Init) ->
-    ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
-    case lists:member(?config(configuration, Config), ConfList) of
-        false ->
-            {skip, "message retraction not supported"};
-        true ->
-            Init()
-    end.
-
-skip_if_cassandra(Config, Init) ->
-    case ?config(configuration, Config) of
-        cassandra ->
-            {skip, "full text search is not implemented for cassandra backend"};
-        _ ->
-            Init()
-    end.
-
-end_per_testcase(C=muc_text_search_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_multiple_devices, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_protected_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_sanitize_x_user_in_non_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_message_with_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C, Config) when C =:= retract_muc_message;
-                                 C =:= retract_muc_message_on_stanza_id;
-                                 C =:= retract_wrong_muc_message ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_no_elements, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_only_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request_empty, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_metadata_archive_request_one_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
+    maybe_destroy_room(CaseName, Config),
     escalus:end_per_testcase(CaseName, Config).
+
+maybe_destroy_room(CaseName, Config) ->
+    case lists:member(CaseName, all_cases_with_room()) of
+        true -> destroy_room(Config);
+        false -> ok
+    end.
+
+all_cases_with_room() ->
+    muc_cases_with_room() ++ muc_fetch_specific_msgs_cases() ++ muc_configurable_archiveid_cases() ++
+        muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++ muc_text_search_cases().
 
 %% Module configuration per testcase
 
@@ -1648,6 +1407,121 @@ querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-msgs-by-ids">>, IDs),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, Stanza),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-muc-msgs-by-ids">>, IDs),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -1943,9 +1817,13 @@ retrieve_form_fields_extra_features(ConfigIn) ->
         escalus:assert(is_iq_with_ns, [Namespace], Res),
         QueryEl = exml_query:subelement(Res, <<"query">>),
         XEl = exml_query:subelement(QueryEl, <<"x">>),
+        IDsEl = exml_query:subelement_with_attr(XEl, <<"var">>, <<"ids">>),
+        ValidateEl = exml_query:path(IDsEl, [{element_with_ns, <<"validate">>, data_validate_ns()},
+                                             {element, <<"open">>}]),
         escalus:assert(has_field_with_type, [<<"before-id">>, <<"text-single">>], XEl),
         escalus:assert(has_field_with_type, [<<"after-id">>, <<"text-single">>], XEl),
-        escalus:assert(has_field_with_type, [<<"include-groupchat">>, <<"boolean">>], XEl)
+        escalus:assert(has_field_with_type, [<<"include-groupchat">>, <<"boolean">>], XEl),
+        ?assertNotEqual(ValidateEl, undefined)
     end).
 
 archived(Config) ->
@@ -3406,6 +3284,7 @@ discover_features(Config, Client, Service) ->
     escalus:assert(is_iq_result, Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_extended()], Stanza),
     escalus:assert(has_feature, [retract_ns()], Stanza),
     check_include_groupchat_features(Stanza,
                                      ?config(configuration, Config),

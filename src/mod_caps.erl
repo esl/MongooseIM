@@ -399,8 +399,7 @@ hooks(HostType) ->
      {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {s2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 1},
-     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1},
-     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}
+     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1}
     ].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
