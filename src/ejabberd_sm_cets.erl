@@ -16,11 +16,14 @@
          total_count/0,
          unique_count/0]).
 
+%% CETS callbacks
+-export([cets_handle_down/1]).
+
 -define(TABLE, cets_session).
 
 -spec init(map()) -> any().
 init(_Opts) ->
-    cets:start(?TABLE, #{}),
+    cets:start(?TABLE, #{handle_down => fun ?MODULE:cets_handle_down/1}),
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE).
 
 -spec get_sessions() -> [ejabberd_sm:session()].
@@ -70,19 +73,39 @@ set_session(_User, _Server, _Resource, Session) ->
 delete_session(SID, User, Server, Resource) ->
     cets:delete(?TABLE, make_key(User, Server, Resource, SID)).
 
-%% cleanup is called on each node in the cluster, when Node is down
 -spec cleanup(atom()) -> any().
-cleanup(Node) ->
+cleanup(_Node) ->
+    ok.
+
+%% cleanup is called on each node in the cluster, when Node is down.
+%% run_session_cleanup_hook should be called once per session, per cluster.
+cets_handle_down(#{remote_node := Node, is_leader := IsLeader}) ->
     KeyPattern = {'_', '_', '_', {'_', '$1'}},
     Guard = {'==', {node, '$1'}, Node},
     R = {KeyPattern, '_', '_'},
-    cets:ping_all(?TABLE),
-    %% This is a full table scan, but cleanup is rare.
-    Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
-    lists:foreach(fun({_Key, _, _} = Tuple) ->
-                          Session = tuple_to_session(Tuple),
-                          ejabberd_sm:run_session_cleanup_hook(Session)
-                  end, Tuples),
+    case IsLeader of
+        true ->
+            %% Do cleaning async,
+            %% spawn a process to reduce copying.
+            %% Writing all timestamps for mod_last could be pretty slow.
+            Self = self(),
+            Pid = spawn_link(fun() ->
+                %% This is a full table scan, but cleanup is rare.
+                %% run_session_cleanup_hook is used by mod_last.
+                Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
+                Self ! {data_selected, self()},
+                lists:foreach(fun({_Key, _, _} = Tuple) ->
+                                      Session = tuple_to_session(Tuple),
+                                      ejabberd_sm:run_session_cleanup_hook(Session)
+                              end, Tuples)
+                 end),
+             receive
+                 {data_selected, Pid} ->
+                     ok
+             end;
+        false ->
+            ok
+    end,
     %% We don't need to replicate deletes
     %% We remove the local content here
     ets:select_delete(?TABLE, [{R, [Guard], [true]}]).

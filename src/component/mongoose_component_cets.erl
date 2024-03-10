@@ -9,15 +9,21 @@
          lookup_component/2,
          get_all_components/1]).
 
+%% CETS callbacks
+-export([cets_handle_down/1]).
+
 -include("external_component.hrl").
 -define(TABLE, cets_external_component).
 
 init(_) ->
-    cets:start(?TABLE, #{type => bag, keypos => 2}),
+    cets:start(?TABLE, #{type => bag, keypos => 2, handle_down => fun ?MODULE:cets_handle_down/1}),
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE).
 
 node_cleanup(Node) ->
-    ets:match_delete(?TABLE, #external_component{node = Node, _ = '_'}),
+    ok.
+
+cets_handle_down(#{remote_pid := Pid}) ->
+    ets:match_delete(?TABLE, #external_component{node = node(Pid), _ = '_'}),
     ok.
 
 register_components(Components) ->

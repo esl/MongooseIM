@@ -586,6 +586,10 @@ do_handle_resume(StateData, _C2SState, SMID, H, {sid, {_TS, Pid}}) ->
 do_handle_resume(StateData, _C2SState, SMID, _H, {stale_h, StaleH}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => session_resumption_timed_out,
                    smid => SMID, stale_h => StaleH, c2s_state => StateData}),
+     %% Stream timed out
+     %% If the server recogizes the 'previd' as an earlier session that has timed out the server
+     %% MAY also include a 'h' attribute indicating the number of stanzas received before the timeout.
+     %% (Note: For this to work the server has to store the SM-ID/sequence number tuple past the time out of the actual session.)
     {stream_mgmt_error, mod_stream_management_stanzas:stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(StaleH)}])};
 do_handle_resume(StateData, _C2SState, SMID, _H, {error, smid_not_found}) ->
     ?LOG_WARNING(#{what => resumption_error, reason => no_previous_session_for_smid,
@@ -740,6 +744,7 @@ get_previd(El) ->
 c2s_stream_features(Acc, _, _) ->
     {ok, lists:keystore(<<"sm">>, #xmlel.name, Acc, mod_stream_management_stanzas:sm())}.
 
+%% TODO do not need to handle it for CETS backend.
 -spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{sid := ejabberd_sm:sid()},
