@@ -210,8 +210,7 @@ tls_connect_domain_admin_no_certificate(Config) ->
     Opts = [{connect_options, [{verify, verify_none}]}],
     Port = get_listener_port(Config, domain_admin_listener_config),
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
-                                    get_headers(), <<>>, 2, 10000),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
     fusco_cp:stop(Client),
     ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
 
@@ -219,8 +218,7 @@ tls_connect_user_no_certificate(Config) ->
     Opts = [{connect_options, [{verify, verify_none}]}],
     Port = get_listener_port(Config, user_listener_config),
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
-                                    get_headers(), <<>>, 2, 10000),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
     ?assertMatch(ok, assert_match_result(Result)).
 
 tls_connect_user_unknown_certificate(Config) ->
@@ -245,8 +243,7 @@ tls_connect_admin_no_certificate(Config) ->
     Opts = [{connect_options, [{verify, verify_none}]}],
     Port = get_listener_port(Config, admin_listener_config),
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>,
-                                    get_headers(), <<>>, 2, 10000),
+    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
     ?assertMatch(ok, assert_match_result(Result)).
 
 tls_connect_admin_unknown_certificate(Config) ->
@@ -279,7 +276,7 @@ assert_match_result(_) ->
 send_request_with_cert(Cert, Key, Port) ->
     Opts = [{connect_options, [{verify, verify_none}, {certfile, Cert}, {keyfile, Key}]}],
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, get_headers(), <<>>, 2, 10000).
+    fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000).
 
 get_listener_port(Config, Listener) ->
     ListenerConfig = ?config(Listener, Config),
@@ -295,7 +292,7 @@ generate_certificate_selfsigned(Config) ->
     Filenames = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
     [{certificate_selfsigned, Filenames} | Config].
 
-get_headers() ->
+headers() ->
     [{<<"Content-Type">>, <<"application/json">>},
      {<<"Request-Id">>, rest_helper:random_request_id()}].
 

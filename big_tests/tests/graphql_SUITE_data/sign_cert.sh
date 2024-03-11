@@ -19,11 +19,10 @@ while true; do
 done
 
 openssl ca -config openssl-ca-clients.cnf \
-              -policy signing_policy \
-	      -extensions signing_req \
-              -out $out_file \
-              -in $req_file <<EOF
-y
-y
+           -policy signing_policy \
+           -extensions signing_req \
+           -out $out_file \
+           -batch \
+           -in $req_file <<EOF
 EOF
 

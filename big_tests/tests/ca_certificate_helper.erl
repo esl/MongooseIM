@@ -26,11 +26,11 @@ prepare_template_values(User, XMPPAddrsIn) ->
 maybe_prepare_xmpp_addresses(undefined) ->
     "";
 maybe_prepare_xmpp_addresses(Addrs) when is_list(Addrs) ->
-    AddrsWithSeq = lists:zip(Addrs, lists:seq(1, length(Addrs))),
-    Entries = [make_xmpp_addr_entry(Addr, I) || {Addr, I} <- AddrsWithSeq],
+    AddrsWithSeq = lists:enumerate(Addrs),
+    Entries = [make_xmpp_addr_entry(I, Addr) || {I, Addr} <- AddrsWithSeq],
     string:join(Entries, "\n").
 
-make_xmpp_addr_entry(Addr, I) ->
+make_xmpp_addr_entry(I, Addr) ->
     % id-on-xmppAddr OID is specified in the openssl-user.cnf config file
     "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
