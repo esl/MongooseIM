@@ -73,29 +73,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 cleanup_modules(Node) ->
-    cleanup_modules(Node, 100).
-
-cleanup_modules(Node, 0) ->
-    ?LOG_ERROR(#{what => cleaning_without_lock,
-                 text => <<"mongoose_cleaner failed to get lock for the node, perform cleaning anyway">>,
-                 remote_node => Node}),
-    run_node_cleanup(Node),
-    ok;
-cleanup_modules(Node, Retries) ->
     LockKey = ?NODE_CLEANUP_LOCK(Node),
     LockRequest = {LockKey, self()},
     C = fun () -> run_node_cleanup(Node) end,
     Nodes = [node() | nodes()],
-    case global:trans(LockRequest, C, Nodes, 1) of
+    Retries = 10,
+    case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
             ?LOG_ERROR(#{what => cleaner_trans_aborted,
-                         text => <<"mongoose_cleaner failed to get global lock">>,
+                         text => <<"mongoose_cleaner failed to get the global lock, run cleanup anyway">>,
                          remote_node => Node, lock_key => LockKey, retries => Retries}),
-            %% Wait and retry
-            timer:sleep(rand:uniform(1000)),
-            cleanup_modules(Node, Retries - 1);
+            C();
         Result ->
-            {ok, Result}
+            Result
     end.
 
 run_node_cleanup(Node) ->
