@@ -2,6 +2,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("log_helper.hrl").
 
 -define(HOST, <<"example.com">>).
 
@@ -235,8 +236,7 @@ groups() ->
      {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]},
      {instrumentation, [parallel], [instrumentation]},
-     {logs, [], [no_warning_about_subdomain_patterns,
-                 no_warning_for_resolvable_domain]}
+     {logs, [], log_cases()}
     ].
 
 init_per_suite(Config) ->
@@ -261,11 +261,22 @@ end_per_group(dynamic_domains, _Config) ->
 end_per_group(_, _Config) ->
     ok.
 
-init_per_testcase(_, Config) ->
+init_per_testcase(CaseName, Config) ->
+    case lists:member(CaseName, log_cases()) of
+        true -> log_helper:set_up();
+        false -> ok
+    end,
     Config.
 
-end_per_testcase(_, _Config) ->
-    ok.
+end_per_testcase(CaseName, _Config) ->
+    case lists:member(CaseName, log_cases()) of
+        true -> log_helper:tear_down();
+        false -> ok
+    end.
+
+log_cases() ->
+    [no_warning_about_subdomain_patterns,
+     no_warning_for_resolvable_domain].
 
 sample_pgsql(Config) ->
     test_config_file(Config,  "mongooseim-pgsql").
@@ -2930,59 +2941,26 @@ no_warning_about_subdomain_patterns(_Config) ->
     check_iqdisc(mod_vcard),
     P = [modules, mod_vcard],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
-
-    Node = #{node => mongooseim@localhost},
-    logger_ct_backend:start(Node),
-    logger_ct_backend:capture(warning, Node),
-
     ?cfgh(P ++ [host], {prefix, <<"vjud.">>},
           T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?assertNoLog(warning, #{what := cfg_validate_domain}),
+
     ?cfgh(P ++ [host], {fqdn, <<"vjud.test">>},
           T(#{<<"host">> => <<"vjud.test">>})),
-
-    logger_ct_backend:stop_capture(Node),
-    logger_ct_backend:stop(Node),
-
-    FilterFun = fun(_, Msg) ->
-                        re:run(Msg, "test") /= nomatch orelse
-                        re:run(Msg, "example.com") /= nomatch
-                end,
-    Logs = logger_ct_backend:recv(FilterFun),
-
-    ?assertNotEqual(0, length(Logs)),
-    AnyContainsExampleCom = lists:any(fun({_, Msg}) ->
-                                               re:run(Msg, "example.com") /= nomatch
-                                      end, Logs),
-    ?eq(false, AnyContainsExampleCom).
+    ?assertLog(warning, #{what := cfg_validate_domain, reason := nxdomain, domain := "vjud.test"}).
 
 no_warning_for_resolvable_domain(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
     P = [modules, mod_http_upload],
     RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
-
-    Node = #{node => mongooseim@localhost},
-    logger_ct_backend:start(Node),
-    logger_ct_backend:capture(warning, Node),
-
     ?cfgh(P ++ [host], {fqdn, <<"example.org">>},
           T(RequiredOpts#{<<"host">> => <<"example.org">>})),
+    ?assertNoLog(_, #{what := cfg_validate_domain}),
+
     ?cfgh(P ++ [host], {fqdn, <<"something.invalid">>},
           T(RequiredOpts#{<<"host">> => <<"something.invalid">>})),
-
-    logger_ct_backend:stop_capture(Node),
-    logger_ct_backend:stop(Node),
-
-    FilterFun = fun(_, Msg) ->
-                    re:run(Msg, "example.org") /= nomatch orelse
-                    re:run(Msg, "something.invalid") /= nomatch
-                end,
-    Logs = logger_ct_backend:recv(FilterFun),
-
-    ?assertNotEqual(0, length(Logs)),
-    ResolvableDomainInLogs = lists:any(fun({_, Msg}) ->
-                                                re:run(Msg, "example.org") /= nomatch
-                                       end, Logs),
-    ?eq(false, ResolvableDomainInLogs).
+    ?assertLog(warning, #{what := cfg_validate_domain, reason := nxdomain,
+                          domain := "something.invalid"}).
 
 %% Helpers for module tests
 
