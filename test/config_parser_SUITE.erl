@@ -251,24 +251,28 @@ init_per_group(dynamic_domains, Config) ->
     meck:expect(ejabberd_auth_http, supported_features, fun() -> [] end),
     meck:expect(mod_test, supported_features, fun() -> [] end),
     Config;
+init_per_group(logs, _Config) ->
+    log_helper:set_up();
 init_per_group(_, Config) ->
     Config.
 
 end_per_group(dynamic_domains, _Config) ->
     meck:unload();
+end_per_group(logs, _Config) ->
+    log_helper:tear_down();
 end_per_group(_, _Config) ->
     ok.
 
 init_per_testcase(CaseName, Config) ->
     case lists:member(CaseName, log_cases()) of
-        true -> log_helper:set_up();
+        true -> log_helper:subscribe();
         false -> ok
     end,
     Config.
 
 end_per_testcase(CaseName, _Config) ->
     case lists:member(CaseName, log_cases()) of
-        true -> log_helper:tear_down();
+        true -> log_helper:unsubscribe();
         false -> ok
     end.
 
