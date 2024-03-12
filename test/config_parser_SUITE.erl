@@ -235,7 +235,8 @@ groups() ->
                             incorrect_module]},
      {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]},
-     {instrumentation, [parallel], [instrumentation]},
+     {instrumentation, [parallel], [instrumentation,
+                                    instrumentation_log]},
      {logs, [], log_cases()}
     ].
 
@@ -2937,6 +2938,13 @@ instrumentation(_Config) ->
     ?cfg(P, #{exometer => #{}}, T(#{<<"exometer">> => #{}})),
     ?err(T(#{<<"prometheus">> => #{<<"fire">> => 1}})),
     ?err(T(#{<<"bad_module">> => #{}})).
+
+instrumentation_log(_Config) ->
+    P = [instrumentation, log],
+    T = fun(Opts) -> #{<<"instrumentation">> => #{<<"log">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [level], info, T(#{<<"level">> => <<"info">>})),
+    ?err(T(#{<<"level">> => <<"insane">>})).
 
 %% Logs
 
