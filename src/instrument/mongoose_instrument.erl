@@ -3,7 +3,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, persist/0,
+-export([config_spec/0,
+         start_link/0, persist/0,
          set_up/1, set_up/3,
          tear_down/1, tear_down/2,
          span/4, span/5,
@@ -15,6 +16,7 @@
 -ignore_xref([start_link/0, set_up/3, tear_down/2, span/4, span/5, execute/3]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type()}. % to be extended
@@ -22,17 +24,29 @@
 -type measurements() :: #{atom() => integer() | atom() | binary()}.
 -type spec() :: {event_name(), labels(), config()}.
 -type config() :: #{metrics => metrics()}. % to be extended
+-type handler_key() :: atom(). % key in the `instrumentation' section of the config file
 -type handler_fun() :: fun((event_name(), labels(), config(), measurements()) -> any()).
 -type handlers() :: {[handler_fun()], config()}.
 -type execution_time() :: integer().
 -type measure_fun(Result) :: fun((execution_time(), Result) -> measurements()).
 
+-callback config_spec() -> mongoose_config_spec:config_section().
 -callback set_up(event_name(), labels(), config()) -> boolean().
 -callback handle_event(event_name(), labels(), config(), measurements()) -> any().
+
+-optional_callbacks([config_spec/0]).
 
 -export_type([event_name/0, labels/0, config/0, measurements/0, spec/0, handlers/0]).
 
 %% API
+
+%% @doc Specifies the `instrumentation' section of the config file
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    Items = [{atom_to_binary(Key), config_spec(Key)} || Key <- all_handler_keys()],
+    #section{items = maps:from_list(Items),
+             wrap = global_config,
+             include = always}.
 
 -spec start_link() -> gen_server:start_ret().
 start_link() ->
@@ -244,5 +258,20 @@ handle_event(Event, Labels, Measurements, {EventHandlers, Config}) ->
 
 -spec handler_modules() -> [module()].
 handler_modules() ->
-    [list_to_existing_atom("mongoose_instrument_" ++ atom_to_list(Key))
-     || Key <- maps:keys(mongoose_config:get_opt(instrumentation))].
+    [handler_module(Key) || Key <- maps:keys(mongoose_config:get_opt(instrumentation))].
+
+-spec handler_module(handler_key()) -> module().
+handler_module(Key) ->
+    list_to_existing_atom("mongoose_instrument_" ++ atom_to_list(Key)).
+
+-spec config_spec(handler_key()) -> mongoose_config_spec:config_section().
+config_spec(Key) ->
+    Module = handler_module(Key),
+    case mongoose_lib:is_exported(Module, config_spec, 0) of
+        true -> Module:config_spec();
+        false -> #section{}
+    end.
+
+-spec all_handler_keys() -> [handler_key()].
+all_handler_keys() ->
+    [prometheus, exometer, log].
