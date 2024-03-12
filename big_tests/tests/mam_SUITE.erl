@@ -1551,28 +1551,26 @@ querying_for_all_messages_with_jid_after(Config) ->
         KateJid = escalus_client:short_jid(Kate),
         Params = #{
             with_jid => KateJid,
-            rsm => #rsm_in{max=50, direction='after', id=MamId3}
+            rsm => #rsm_in{max = 50, direction = 'after', id = MamId3}
         },
         escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
         WithRes = wait_archive_respond(Alice),
         assert_respond_size(1, WithRes),
         [WithMsg] = respond_messages(WithRes),
         #forwarded_message{message_body = <<"How are you?">>} =
-            parse_forwarded_message(WithMsg),
-        ok
-        end,
+            parse_forwarded_message(WithMsg)
+    end,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 querying_with_invalid_mam_id_in_after(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        Params = #{
-            rsm => #rsm_in{max = 50, direction = 'after', id = <<"PURPLEFE965CC9">>}
-        },
+        Params = #{rsm => #rsm_in{max = 50, direction = 'after', id = <<"PURPLEFE965CC9">>}},
         escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
-        WithRes = wait_archive_respond(Alice),
-        ok
-        end,
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [], Result),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Result)
+    end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages(Config) ->
