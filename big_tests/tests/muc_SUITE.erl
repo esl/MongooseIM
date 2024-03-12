@@ -341,7 +341,6 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-
 init_per_group(room_registration_race_condition, Config) ->
     escalus_fresh:create_users(Config, [{alice, 1}]);
 
