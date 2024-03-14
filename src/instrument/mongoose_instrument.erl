@@ -21,7 +21,7 @@
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type()}. % to be extended
 -type metrics() :: #{atom() => spiral | histogram}. % to be extended
--type measurements() :: #{atom() => integer() | atom() | binary()}.
+-type measurements() :: #{atom() => term()}.
 -type spec() :: {event_name(), labels(), config()}.
 -type config() :: #{metrics => metrics()}. % to be extended
 -type handler_key() :: atom(). % key in the `instrumentation' section of the config file

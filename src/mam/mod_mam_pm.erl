@@ -566,7 +566,8 @@ get_behaviour(HostType, ArcID,  LocJID=#jid{}, RemJID=#jid{}) ->
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Result = mongoose_hooks:mam_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
                                           AlwaysJIDs, NeverJIDs),
-    mongoose_instrument:execute(mod_mam_pm_set_prefs, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_pm_set_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
     Result.
 
 %% @doc Load settings from the database.
@@ -575,13 +576,15 @@ set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                ) -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
     Result = mongoose_hooks:mam_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID),
-    mongoose_instrument:execute(mod_mam_pm_get_prefs, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_pm_get_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
     Result.
 
 -spec remove_archive_hook(host_type(), mod_mam:archive_id(), jid:jid()) -> ok.
 remove_archive_hook(HostType, ArcID, ArcJID=#jid{}) ->
     mongoose_hooks:mam_remove_archive(HostType, ArcID, ArcJID),
-    mongoose_instrument:execute(mod_mam_pm_remove_archive, #{host_type => HostType}, #{count => 1}).
+    mongoose_instrument:execute(mod_mam_pm_remove_archive, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}).
 
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
@@ -620,7 +623,7 @@ measure_lookup(Params, Time, {ok, {_TotalCount, _Offset, MessageRows}}) ->
             #{is_simple := true} -> #{simple => 1};
             #{} -> #{}
         end,
-    M#{count => 1, time => Time, size => length(MessageRows)};
+    M#{params => Params, count => 1, time => Time, size => length(MessageRows)};
 measure_lookup(_, _, _OtherResult) ->
     #{}.
 
@@ -633,7 +636,7 @@ archive_message_from_ct(Params = #{local_jid := JID}) ->
 archive_message(HostType, Params) ->
     mongoose_instrument:span(mod_mam_pm_archive_message, #{host_type => HostType},
                              fun mongoose_hooks:mam_archive_message/2, [HostType, Params],
-                             fun(Time, _Result) -> #{time => Time, count => 1} end).
+                             fun(Time, _Result) -> #{params => Params, time => Time, count => 1} end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -653,7 +656,8 @@ message_row_to_ext_id(#{id := MessID}) ->
     mod_mam_utils:mess_id_to_external_binary(MessID).
 
 handle_error_iq(HostType, Acc, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_instrument:execute(mod_mam_pm_dropped_iq, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_pm_dropped_iq, #{host_type => HostType},
+                                #{acc => Acc, count => 1}),
     {Acc, IQ};
 handle_error_iq(_Host, Acc, _To, _Action, IQ) ->
     {Acc, IQ}.

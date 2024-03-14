@@ -227,7 +227,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
                                     handle_mam_iq(HostType, Action, From, To, IQ));
                 {error, max_delay_reached} ->
                     mongoose_instrument:execute(mod_mam_muc_dropped_iq,
-                                                #{host_type => HostType}, #{count => 1}),
+                                                #{host_type => HostType}, #{acc => Acc, count => 1}),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         {error, Reason} ->
@@ -488,7 +488,8 @@ get_behaviour(HostType, ArcID, LocJID = #jid{}, RemJID = #jid{}) ->
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Result = mongoose_hooks:mam_muc_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
                                      AlwaysJIDs, NeverJIDs),
-    mongoose_instrument:execute(mod_mam_muc_set_prefs, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_muc_set_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
     Result.
 
 %% @doc Load settings from the database.
@@ -497,14 +498,16 @@ set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
     Result = mongoose_hooks:mam_muc_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID),
-    mongoose_instrument:execute(mod_mam_muc_get_prefs, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_muc_get_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
     Result.
 
 -spec remove_archive(host_type(), mod_mam:archive_id() | undefined,
                      jid:jid()) -> ok.
 remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
-    mongoose_instrument:execute(mod_mam_muc_remove_archive, #{host_type => HostType}, #{count => 1}).
+    mongoose_instrument:execute(mod_mam_muc_remove_archive, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}).
 
 %% See description in mod_mam_pm.
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
@@ -526,7 +529,8 @@ lookup_messages_without_policy_violation_check(HostType,
             {error, 'not-supported'};
         false ->
             mongoose_instrument:span(mod_mam_muc_lookup, #{host_type => HostType},
-                                     fun perform_lookup/2, [HostType, Params], fun measure_lookup/2)
+                                     fun perform_lookup/2, [HostType, Params],
+                                     fun(Time, Result) -> measure_lookup(Params, Time, Result) end)
     end.
 
 perform_lookup(HostType, Params) ->
@@ -538,9 +542,9 @@ perform_lookup(HostType, Params) ->
                                                    fun mongoose_hooks:mam_muc_lookup_messages/2)
     end.
 
-measure_lookup(Time, {ok, {_TotalCount, _Offset, MessageRows}}) ->
-    #{count => 1, time => Time, size => length(MessageRows)};
-measure_lookup(_, _OtherResult) ->
+measure_lookup(Params, Time, {ok, {_TotalCount, _Offset, MessageRows}}) ->
+    #{params => Params, count => 1, time => Time, size => length(MessageRows)};
+measure_lookup(_Params, _Time, _OtherResult) ->
     #{}.
 
 archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
@@ -551,7 +555,7 @@ archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
 archive_message(HostType, Params) ->
     mongoose_instrument:span(mod_mam_muc_archive_message, #{host_type => HostType},
                              fun mongoose_hooks:mam_muc_archive_message/2, [HostType, Params],
-                             fun(Time, _Result) -> #{time => Time, count => 1} end).
+                             fun(Time, _Result) -> #{params => Params, time => Time, count => 1} end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -594,7 +598,8 @@ message_row_to_ext_id(#{id := MessID}) ->
 -spec handle_error_iq(mongoose_acc:t(), host_type(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 handle_error_iq(Acc, HostType, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_instrument:execute(mod_mam_muc_dropped_iq, #{host_type => HostType}, #{count => 1}),
+    mongoose_instrument:execute(mod_mam_muc_dropped_iq, #{host_type => HostType},
+                                #{acc => Acc, count => 1}),
     {Acc, IQ};
 handle_error_iq(Acc, _HostType, _To, _Action, IQ) ->
     {Acc, IQ}.
