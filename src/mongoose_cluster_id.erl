@@ -150,6 +150,7 @@ init_cache(cets) ->
     cets_discovery:add_table(mongoose_cets_discovery, cets_cluster_id).
 
 -spec maybe_prepare_queries(mongoose_backend()) -> ok.
+maybe_prepare_queries(cets) -> ok;
 maybe_prepare_queries(mnesia) -> ok;
 maybe_prepare_queries(rdbms) ->
     mongoose_rdbms:prepare(cluster_insert_new, mongoose_cluster_id, [v],
