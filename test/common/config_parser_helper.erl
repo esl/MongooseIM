@@ -93,7 +93,9 @@ options("miscellaneous") ->
                                               id => "G-12345678",
                                               secret => "Secret"
                                              }}}},
-     {instrumentation, #{prometheus => #{}, exometer => #{}}},
+     {instrumentation, #{prometheus => #{},
+                         exometer => #{},
+                         log => #{level => info}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
@@ -263,7 +265,8 @@ options("mongooseim-pgsql") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{exometer => #{}}},
+     {instrumentation, #{exometer => #{},
+                         log => default_config([instrumentation, log])}},
      {{outgoing_pools, <<"anonymous.localhost">>},
       [host_pool_config(
          #{tag => special,
@@ -1099,6 +1102,10 @@ extra_service_listener_config() ->
       conflict_behaviour => disconnect,
       connection_type => component}.
 
+default_config([instrumentation, log]) ->
+    #{level => debug};
+default_config([instrumentation, _]) ->
+    #{};
 default_config([listen, http]) ->
     (common_listener_config())#{module => ejabberd_cowboy,
                                 transport => default_config([listen, http, transport]),

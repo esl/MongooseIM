@@ -96,7 +96,7 @@ root() ->
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
-                 <<"instrumentation">> => instrumentation(),
+                 <<"instrumentation">> => mongoose_instrument:config_spec(),
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
@@ -795,14 +795,6 @@ iqdisc() ->
 
 process_iqdisc(#{type := Type, workers := N}) -> {queues = Type, N};
 process_iqdisc(#{type := Type}) -> Type.
-
-%% path: instrumentation
-instrumentation() ->
-    #section{items = #{default => #section{}},
-             validate_keys = {module, mongoose_instrument},
-             wrap = global_config,
-             include = always
-            }.
 
 %% path: shaper
 shaper() ->

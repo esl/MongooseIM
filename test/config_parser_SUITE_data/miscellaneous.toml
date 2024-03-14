@@ -83,3 +83,6 @@
 [instrumentation.prometheus]
 
 [instrumentation.exometer]
+
+[instrumentation.log]
+  level = "info"
