@@ -266,6 +266,10 @@ tls_connect_admin_signed_certificate(Config) ->
 
 %% Helpers
 
+% The proper error should be the first one, {error, {tls_alert, {certificate_required, _}}}.
+% Sometimes for unknown reasons, the result is {error, connection_closed}. This test is important
+% to check if the server does not allow the connection when the certificate is not attached.
+%  Therefore, to prevent the creation of a flaky test, the function below was created.
 assert_match_result({error, {tls_alert, {certificate_required, _}}}) ->
     ok;
 assert_match_result({error, connection_closed}) ->
