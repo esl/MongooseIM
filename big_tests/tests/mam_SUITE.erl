@@ -106,7 +106,12 @@
          muc_light_host/0,
          host_type/0,
          config_opts/1,
-         stanza_metadata_request/0
+         stanza_metadata_request/0,
+         assert_archive_message_event/2,
+         assert_lookup_event/2,
+         assert_flushed_event_if_async/2,
+         assert_dropped_iq_event/2,
+         assert_event_with_jid/2
         ]).
 
 -import(muc_light_helper,
@@ -285,6 +290,7 @@ mam_cases() ->
     [mam_service_discovery,
      mam_service_discovery_to_client_bare_jid,
      mam_service_discovery_to_different_client_bare_jid_results_in_error,
+     archive_is_instrumented,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
@@ -359,7 +365,8 @@ muc_cases() ->
     [muc_service_discovery | muc_cases_with_room()].
 
 muc_cases_with_room() ->
-    [muc_archive_request,
+    [muc_archive_is_instrumented,
+     muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -489,11 +496,18 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrument_helper:declared_events(instrumented_modules())),
     muc_helper:load_muc(),
     mam_helper:prepare_for_suite(
       increase_limits(
         delete_users([{escalus_user_db, {module, escalus_ejabberd}}
                   | escalus:init_per_suite(Config)]))).
+
+instrumented_modules() ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        true -> [mod_mam_rdbms_arch_async, mod_mam_muc_rdbms_arch_async];
+        false -> []
+    end ++ [mod_mam_pm, mod_mam_muc].
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
@@ -503,7 +517,8 @@ end_per_suite(Config) ->
     mongoose_helper:kick_everyone(),
     %% so we don't have sessions anymore and other tests will not fail
     mongoose_helper:restore_config(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 user_names() ->
     [alice, bob, kate, carol].
@@ -1057,6 +1072,19 @@ same_stanza_id(Config) ->
     end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+archive_is_instrumented(Config) ->
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+        assert_archive_message_event(mod_mam_pm_archive_message, escalus_utils:get_jid(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        assert_flushed_event_if_async(mod_mam_pm_flushed, Config),
+        {S, U} = {escalus_utils:get_server(Alice), escalus_utils:get_username(Alice)},
+        mam_helper:delete_archive(S, U),
+        assert_event_with_jid(mod_mam_pm_remove_archive, escalus_utils:get_short_jid(Alice))
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
 %% Querying the archive for messages
 easy_archive_request(Config) ->
     P = ?config(props, Config),
@@ -1072,6 +1100,7 @@ easy_archive_request(Config) ->
         mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(Alice),
+        assert_lookup_event(mod_mam_pm_lookup, escalus_utils:get_jid(Alice)),
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
         ok
@@ -2086,6 +2115,26 @@ test_retract_muc_message(Config) ->
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+muc_archive_is_instrumented(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob received presences, the room's subject and the message.
+        escalus:wait_for_stanzas(Bob, 4),
+        assert_archive_message_event(mod_mam_muc_archive_message, RoomAddr),
+        maybe_wait_for_archive(Config),
+        assert_flushed_event_if_async(mod_mam_muc_flushed, Config),
+
+        mam_helper:delete_room_archive(muc_host(), ?config(room, Config)),
+        assert_event_with_jid(mod_mam_muc_remove_archive, RoomAddr)
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
 muc_archive_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -2141,6 +2190,7 @@ muc_archive_request(Config) ->
         ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
+        assert_lookup_event(mod_mam_muc_lookup, escalus_utils:get_jid(Bob)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2991,7 +3041,7 @@ server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Conditio
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [IQ], Res),
         escalus:assert(is_error, Condition, Res),
-        ok
+        assert_dropped_iq_event(Config, escalus_utils:get_jid(Alice))
         end,
     parallel_story(Config, [{alice, 1}], F).
 
@@ -3184,9 +3234,11 @@ prefs_set_request(Config) ->
                                                      [<<"montague@montague.net">>],
                                                      mam_ns_binary())),
         ReplySet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_pm_set_prefs, escalus_utils:get_short_jid(Alice)),
 
         escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary())),
         ReplyGet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_pm_get_prefs, escalus_utils:get_short_jid(Alice)),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
         ResultIQ2 = parse_prefs_result_iq(ReplyGet),

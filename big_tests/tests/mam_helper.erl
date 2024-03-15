@@ -1336,3 +1336,50 @@ rewrite_nodename($.) -> <<"-">>;
 rewrite_nodename(X)  -> <<X>>.
 
 assert_list_size(N, List) when N =:= length(List) -> List.
+
+%% Assertions for instrumentation events
+
+assert_archive_message_event(EventName, BinJid) ->
+    assert_event(EventName,
+                 fun(#{count := 1, time := T, params := #{local_jid := LocalJid}}) ->
+                         eq_bjid(LocalJid, BinJid) andalso pos_int(T)
+                 end).
+
+assert_lookup_event(EventName, BinJid) ->
+    assert_event(EventName,
+                 fun(#{count := 1, size := 1, time := T, params := #{caller_jid := CallerJid}}) ->
+                         eq_bjid(CallerJid, BinJid) andalso pos_int(T)
+                 end).
+
+%% The event might originate from a different test case running in parallel,
+%% but there is no easy way around it other than adding all flushed messages to measurements.
+assert_flushed_event_if_async(EventName, Config) ->
+    case ?config(configuration, Config) of
+        C when C =:= rdbms_async_pool;
+               C =:= rdbms_async_cache ->
+            assert_event(EventName,
+                         fun(#{count := Count, time := T, time_per_message := T1}) ->
+                                 pos_int(Count) andalso pos_int(T) andalso pos_int(T1) andalso T >= T1
+                         end);
+        _ ->
+            ok
+    end.
+
+assert_dropped_iq_event(Config, BinJid) ->
+    EventName = case ?config(room, Config) of
+                    undefined -> mod_mam_pm_dropped_iq;
+                    _ -> mod_mam_muc_dropped_iq
+                end,
+    assert_event(EventName, fun(#{acc := #{stanza := #{from_jid := FromJid}}}) ->
+                                    eq_bjid(FromJid, BinJid)
+                            end).
+
+assert_event_with_jid(EventName, BinJid) ->
+    assert_event(EventName, fun(#{count := 1, jid := Jid}) -> eq_bjid(Jid, BinJid) end).
+
+assert_event(EventName, F) ->
+    instrument_helper:assert(EventName, #{host_type => host_type()}, F).
+
+pos_int(T) -> is_integer(T) andalso T > 0.
+
+eq_bjid(Jid, BinJid) -> Jid =:= jid:from_binary(BinJid).
