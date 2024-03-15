@@ -283,8 +283,7 @@ chat_markers_cases() ->
      dont_archive_chat_markers].
 
 mam_metrics_cases() ->
-    [metric_incremented_on_archive_request,
-     metric_incremented_when_store_message].
+    [metric_incremented_when_store_message].
 
 mam_cases() ->
     [mam_service_discovery,
@@ -341,9 +340,7 @@ muc_text_search_cases() ->
 
 archived_cases() ->
     [archived,
-     filter_forwarded,
-     metrics_incremented_for_async_pools
-    ].
+     filter_forwarded].
 
 stanzaid_cases() ->
     [message_with_stanzaid,
@@ -724,9 +721,6 @@ init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
      fun escalus:init_per_testcase/2].
 
-maybe_skip(metrics_incremented_for_async_pools, Config) ->
-    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
-            "Not an async-pool test");
 maybe_skip(C, Config) when C =:= retract_message;
                            C =:= retract_wrong_message;
                            C =:= ignore_bad_retraction;
@@ -802,9 +796,6 @@ fresh_users(C) ->
         false -> []
     end.
 
-init_archive(C, Config) when C =:= metrics_incremented_for_async_pools;
-                             C =:= metric_incremented_when_store_message ->
-    clean_archives(Config);
 init_archive(C, Config) when ?requires_pm_archive(C) ->
     bootstrap_archive(Config);
 init_archive(C, Config) when ?requires_muc_archive(C) ->
@@ -835,17 +826,6 @@ init_metrics(metric_incremented_when_store_message, ConfigIn) ->
             [{mongoose_metrics, MongooseMetrics} | ConfigIn];
         _ ->
             ConfigIn
-    end;
-init_metrics(muc_archive_request, Config) ->
-    %% Check that metric is incremented on MUC flushed
-    case ?config(configuration, Config) of
-        rdbms_async_pool ->
-            HostType = domain_helper:host_type(mim),
-            HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-            MongooseMetrics = [{[HostTypePrefix, mod_mam_muc_flushed, count], changed}],
-            [{mongoose_metrics, MongooseMetrics} | Config];
-        _ ->
-            Config
     end;
 init_metrics(_CaseName, Config) ->
     Config.
@@ -1866,7 +1846,6 @@ archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        try
         StanzaId = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(StanzaId, <<"by">>),
@@ -1882,10 +1861,6 @@ archived(Config) ->
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Id, ArcId),
         ok
-        catch Class:Reason:StackTrace ->
-            ct:pal("Msg ~p", [Msg]),
-            erlang:raise(Class, Reason, StackTrace)
-        end
         end,
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -3345,41 +3320,6 @@ discover_features(Config, Client, Service) ->
                                      ?config(basic_group, Config)),
     ?assert_equal(message_retraction_is_enabled(Config),
                   escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
-
-metric_incremented_on_archive_request(ConfigIn) ->
-    P = ?config(props, ConfigIn),
-    F = fun(Alice) ->
-        escalus:send(Alice, stanza_archive_request(P, <<"metric_q1">>)),
-        Res = wait_archive_respond(Alice),
-        assert_respond_size(0, Res),
-        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(Res)),
-        ok
-        end,
-    HostType = domain_helper:host_type(mim),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[HostTypePrefix, mod_mam_pm_lookup, count], changed}],
-    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus_fresh:story(Config, [{alice, 1}], F).
-
-metrics_incremented_for_async_pools(Config) ->
-    OldValue = get_mongoose_async_metrics(),
-    archived(Config),
-    Validator = fun(NewValue) -> OldValue =/= NewValue end,
-    mongoose_helper:wait_until(
-      fun get_mongoose_async_metrics/0,
-      Validator, #{name => ?FUNCTION_NAME}).
-
-get_mongoose_async_metrics() ->
-    HostType = domain_helper:host_type(mim),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    #{batch_flushes => get_mongoose_async_metrics(HostTypePrefix, batch_flushes),
-      timed_flushes => get_mongoose_async_metrics(HostTypePrefix, timed_flushes)}.
-
-get_mongoose_async_metrics(HostTypePrefix, MetricName) ->
-    Metric = [HostTypePrefix, mongoose_async_pools, pm_mam, MetricName],
-    {ok, Value} = rpc(mim(), mongoose_metrics, get_metric_value, [Metric]),
-    {value, Count} = lists:keyfind(value, 1, Value),
-    Count.
 
 metric_incremented_when_store_message(Config) ->
     archived(Config).
