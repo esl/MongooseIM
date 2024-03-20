@@ -6,6 +6,7 @@
 
 -define(HANDLER, mongoose_instrument_test_handler).
 -define(INACTIVE_HANDLER, mongoose_instrument_inactive_handler).
+-define(ADDED_HANDLER, mongoose_instrument_added_handler).
 -define(LABELS, #{key => value}).
 -define(CFG, #{metrics => #{time => histogram}}).
 -define(MEASUREMENTS, #{count => 1}).
@@ -33,12 +34,16 @@ api_test_cases() ->
      set_up_and_span_with_arg,
      set_up_and_span_with_error,
      span_fails_when_not_set_up,
-     unexpected_events].
+     unexpected_events,
+     add_and_remove_handler,
+     cannot_add_existing_handler,
+     cannot_remove_non_existing_handler].
 
 init_per_suite(Config) ->
     mongoose_config:set_opts(opts()),
     mock_handler(?HANDLER, true),
     mock_handler(?INACTIVE_HANDLER, false),
+    mock_handler(?ADDED_HANDLER, true),
     Config.
 
 mock_handler(Module, SetUpResult) ->
@@ -49,11 +54,13 @@ mock_handler(Module, SetUpResult) ->
 end_per_suite(_Config) ->
     meck:unload(?HANDLER),
     meck:unload(?INACTIVE_HANDLER),
+    meck:unload(?ADDED_HANDLER),
     mongoose_config:erase_opts().
 
 init_per_group(Group, Config) ->
     meck:reset(?HANDLER),
     meck:reset(?INACTIVE_HANDLER),
+    meck:reset(?ADDED_HANDLER),
     Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
     set_up_persistence(Group),
     Config1.
@@ -189,6 +196,38 @@ unexpected_events(_Config) ->
     gen_server:cast(mongoose_instrument, bad_cast),
     mongoose_instrument ! bad_info,
     ?assertEqual(Pid, whereis(mongoose_instrument)). %% It should be still working
+
+add_and_remove_handler(Config) ->
+    Event = ?config(event, Config),
+    ok = mongoose_instrument:set_up(Event, Labels1 = #{key => value1}, ?CFG),
+
+    %% Add handler
+    ok = mongoose_instrument:add_handler(added_handler, #{cfg_key => cfg_val}),
+    ?assertEqual(#{cfg_key => cfg_val}, mongoose_config:get_opt([instrumentation, added_handler])),
+    ?assertEqual([{[Event, Labels1, ?CFG], true}], history(?ADDED_HANDLER, set_up, Event)),
+    %% Make sure it's still possible to set up new events
+    ok = mongoose_instrument:set_up(Event, Labels2 = #{key => value2}, ?CFG),
+
+    ok = mongoose_instrument:execute(Event, Labels1, ?MEASUREMENTS),
+    ok = mongoose_instrument:execute(Event, Labels2, ?MEASUREMENTS),
+    History = history(?ADDED_HANDLER, handle_event, Event),
+    ?assertEqual([{[Event, Labels1, ?CFG, ?MEASUREMENTS], ok},
+                  {[Event, Labels2, ?CFG, ?MEASUREMENTS], ok}], History),
+
+    %% Remove handler
+    ok = mongoose_instrument:remove_handler(added_handler),
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt([instrumentation, added_handler])),
+    ok = mongoose_instrument:execute(Event, Labels1, ?MEASUREMENTS),
+    ok = mongoose_instrument:execute(Event, Labels2, ?MEASUREMENTS),
+    ?assertEqual(History, history(?ADDED_HANDLER, handle_event, Event)). % no new events
+
+cannot_add_existing_handler(_Config) ->
+    ?assertError(#{what := handler_already_configured},
+                 mongoose_instrument:add_handler(test_handler, #{})).
+
+cannot_remove_non_existing_handler(_Config) ->
+    ?assertError(#{what := handler_not_configured},
+                 mongoose_instrument:remove_handler(unknown_handler)).
 
 %% Helpers
 
