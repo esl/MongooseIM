@@ -52,7 +52,7 @@
                   segmented_cache,
                   opuntia
                  ]},
-  {included_applications, [mnesia, cets]},
+  {included_applications, [mnesia, cets, erlang_doctor]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 
