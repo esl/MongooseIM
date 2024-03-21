@@ -10,10 +10,13 @@
          span/4, span/5,
          execute/3]).
 
+%% Test API
+-export([add_handler/2, remove_handler/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, code_change/3, handle_info/2, terminate/2]).
 
--ignore_xref([start_link/0, set_up/3, tear_down/2, span/4]).
+-ignore_xref([start_link/0, set_up/3, tear_down/2, span/4, add_handler/2, remove_handler/1]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
@@ -113,6 +116,22 @@ execute(EventName, Labels, Measurements) ->
     Handlers = get_handlers(EventName, Labels),
     handle_event(EventName, Labels, Measurements, Handlers).
 
+%% Test API
+
+-spec add_handler(handler_key(), mongoose_config:value()) -> ok.
+add_handler(Key, ConfigVal) ->
+    case gen_server:call(?MODULE, {add_handler, Key, ConfigVal}) of
+        ok -> ok;
+        {error, ErrorMap} -> error(ErrorMap)
+    end.
+
+-spec remove_handler(handler_key()) -> ok.
+remove_handler(Key) ->
+    case gen_server:call(?MODULE, {remove_handler, Key}) of
+        ok -> ok;
+        {error, ErrorMap} -> error(ErrorMap)
+    end.
+
 %% gen_server callbacks
 
 -type state() :: #{event_name() => #{labels() => handlers()}}.
@@ -137,6 +156,28 @@ handle_call({tear_down, EventName, Labels}, _From, State) ->
     NewState = deregister(EventName, Labels, State),
     update_if_persisted(State, NewState),
     {reply, ok, NewState};
+handle_call({add_handler, Key, ConfigOpts}, _From, State) ->
+    case mongoose_config:lookup_opt([instrumentation, Key]) of
+        {error, not_found} ->
+            mongoose_config:set_opt([instrumentation, Key], ConfigOpts),
+            NewState = update_handlers(State, [], [handler_module(Key)]),
+            update_if_persisted(State, NewState),
+            {reply, ok, NewState};
+        {ok, ExistingConfig} ->
+            {reply, {error, #{what => handler_already_configured, handler_key => Key,
+                              existing_config => ExistingConfig}},
+             State}
+    end;
+handle_call({remove_handler, Key}, _From, State) ->
+    case mongoose_config:lookup_opt([instrumentation, Key]) of
+        {error, not_found} ->
+            {reply, {error, #{what => handler_not_configured, handler_key => Key}}, State};
+        {ok, _} ->
+            mongoose_config:unset_opt([instrumentation, Key]),
+            NewState = update_handlers(State, [handler_module(Key)], []),
+            update_if_persisted(State, NewState),
+            {reply, ok, NewState}
+    end;
 handle_call(persist, _From, State) ->
     persistent_term:put(?MODULE, State),
     {reply, ok, State};
@@ -200,9 +241,30 @@ set_up_and_register(EventName, Labels, Config, State) ->
 
 -spec do_set_up(event_name(), labels(), config()) -> handlers().
 do_set_up(EventName, Labels, Config) ->
-    AllModules = handler_modules(),
-    UsedModules = lists:filter(fun(Mod) -> Mod:set_up(EventName, Labels, Config) end, AllModules),
-    {[fun Mod:handle_event/4 || Mod <- UsedModules], Config}.
+    HandlerFuns = set_up_handlers(EventName, Labels, Config, handler_modules()),
+    {HandlerFuns, Config}.
+
+-spec update_handlers(state(), [module()], [module()]) -> state().
+update_handlers(State, ToRemove, ToAdd) ->
+    maps:map(fun(EventName, HandlerMap) ->
+                     maps:map(fun(Labels, Handlers) ->
+                                      update_event_handlers(EventName, Labels, Handlers,
+                                                            ToRemove, ToAdd)
+                              end, HandlerMap)
+             end, State).
+
+-spec update_event_handlers(event_name(), labels(), handlers(), [module()], [module()]) ->
+          handlers().
+update_event_handlers(EventName, Labels, {HandlerFuns, Config}, ToRemove, ToAdd) ->
+    FunsToRemove = modules_to_funs(ToRemove),
+    FunsToAdd = set_up_handlers(EventName, Labels, Config, ToAdd),
+    HandlerFuns = HandlerFuns -- FunsToAdd, % sanity check to prevent duplicates
+    {(HandlerFuns -- FunsToRemove) ++ FunsToAdd, Config}.
+
+-spec set_up_handlers(event_name(), labels(), config(), [module()]) -> [handler_fun()].
+set_up_handlers(EventName, Labels, Config, Modules) ->
+    UsedModules = lists:filter(fun(Mod) -> Mod:set_up(EventName, Labels, Config) end, Modules),
+    modules_to_funs(UsedModules).
 
 -spec deregister(event_name(), labels(), state()) -> state().
 deregister(EventName, Labels, State) ->
@@ -255,6 +317,10 @@ get_handlers(EventName, Labels) ->
 -spec handle_event(event_name(), labels(), measurements(), handlers()) -> ok.
 handle_event(Event, Labels, Measurements, {EventHandlers, Config}) ->
     lists:foreach(fun(Handler) -> Handler(Event, Labels, Config, Measurements) end, EventHandlers).
+
+-spec modules_to_funs([module()]) -> [handler_fun()].
+modules_to_funs(Modules) ->
+    [fun Module:handle_event/4 || Module <- Modules].
 
 -spec handler_modules() -> [module()].
 handler_modules() ->

@@ -10,6 +10,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(STATUS_TABLE, instrument_event_status_table).
+-define(HANDLER_MODULE, mongoose_instrument_event_table).
 
 -type event_name() :: atom().
 -type labels() :: #{atom() => term()}.
@@ -29,16 +30,16 @@ declared_events(Module) ->
 -spec start([{event_name(), labels()} | module()]) -> ok.
 start(DeclaredEvents) ->
     mongoose_helper:inject_module(ets_helper),
-    mongoose_helper:inject_module(instrument_event_table),
+    mongoose_helper:inject_module(?HANDLER_MODULE),
     ets_helper:new(?STATUS_TABLE),
     [ets:insert(?STATUS_TABLE, {Event, untested}) || Event <- DeclaredEvents],
-    ok = rpc(mim(), instrument_event_table, set_up, [DeclaredEvents]).
+    ok = rpc(mim(), ?HANDLER_MODULE, start, [DeclaredEvents]).
 
 -spec stop() -> ok.
 stop() ->
     #{tested := Tested, untested := Untested} = classify_events(),
     ets_helper:delete(?STATUS_TABLE),
-    {ok, Logged} = rpc(mim(), instrument_event_table, tear_down, []),
+    {ok, Logged} = rpc(mim(), ?HANDLER_MODULE, stop, []),
     ct:log("Tested instrumentation events:~n ~p", [lists:sort(Tested)]),
     verify_unlogged(Untested -- Logged),
     verify_logged_but_untested(Logged -- Tested).
@@ -47,7 +48,7 @@ stop() ->
 %% This is for convenience - you only have to code one clause.
 -spec assert(event_name(), labels(), fun((measurements()) -> boolean())) -> ok.
 assert(EventName, Labels, CheckF) ->
-    Events = rpc(mim(), instrument_event_table, get_events, [EventName, Labels]),
+    Events = rpc(mim(), ?HANDLER_MODULE, get_events, [EventName, Labels]),
     case lists:filter(fun({_, Measurements}) ->
                               try CheckF(Measurements) catch error:function_clause -> false end
                       end, Events) of
