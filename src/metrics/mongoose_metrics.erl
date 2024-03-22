@@ -42,8 +42,7 @@
          get_mnesia_running_db_nodes_count/0,
          remove_host_type_metrics/1,
          remove_all_metrics/0,
-         get_report_interval/0,
-         get_host_type_prefix/1
+         get_report_interval/0
         ]).
 
 -ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
