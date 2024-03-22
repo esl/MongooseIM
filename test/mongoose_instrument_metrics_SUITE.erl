@@ -49,7 +49,7 @@ end_per_group(_Group, Config) ->
     mongoose_config:erase_opts().
 
 init_per_testcase(Case, Config) ->
-    [{event, concat(Case, event)} | Config].
+    [{event, join_atoms(Case, event)} | Config].
 
 end_per_testcase(_Case, _Config) ->
     ok.
@@ -77,13 +77,13 @@ prometheus_skips_non_metric_event(Config) ->
 
 prometheus_counter_is_created_but_not_initialized(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, count),
+    Metric = prom_name(Event, count),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
     ?assertEqual(undefined, prometheus_counter:value(Metric, [?HOST_TYPE])).
 
 prometheus_counter_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, count),
+    Metric = prom_name(Event, count),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => spiral}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
@@ -93,13 +93,13 @@ prometheus_counter_is_updated_separately_for_different_labels(Config) ->
 
 prometheus_histogram_is_created_but_not_initialized(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, time),
+    Metric = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
     ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])).
 
 prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, time),
+    Metric = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
@@ -109,8 +109,8 @@ prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
 
 multiple_prometheus_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
-    Counter = concat(Event, count),
-    Histogram = concat(Event, time),
+    Counter = prom_name(Event, count),
+    Histogram = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral,
                                                                    time => histogram}}),
     %% Update both metrics
@@ -197,10 +197,16 @@ prometheus_and_exometer_metrics_are_updated(Config) ->
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1, time => 2}),
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value([?HOST_TYPE, Event, count], count)),
     ?assertEqual({ok, [{mean, 2}]}, exometer:get_value([?HOST_TYPE, Event, time], mean)),
-    ?assertEqual(1, prometheus_counter:value(concat(Event, count), [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(concat(Event, time), [?HOST_TYPE])).
+    ?assertEqual(1, prometheus_counter:value(prom_name(Event, count), [?HOST_TYPE])),
+    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(prom_name(Event, time), [?HOST_TYPE])).
 
 %% Helpers
 
-concat(A1, A2) ->
-    list_to_atom(atom_to_list(A1) ++ "_" ++ atom_to_list(A2)).
+join_atoms(A1, A2) ->
+    list_to_atom(join_atoms_to_list(A1, A2)).
+
+prom_name(EventName, MetricName) ->
+    join_atoms_to_list(EventName, MetricName).
+
+join_atoms_to_list(A1, A2) ->
+    atom_to_list(A1) ++ "_" ++ atom_to_list(A2).
