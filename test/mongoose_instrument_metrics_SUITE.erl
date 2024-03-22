@@ -14,6 +14,7 @@
 all() ->
     [{group, prometheus},
      {group, exometer},
+     {group, exometer_global},
      {group, prometheus_and_exometer}
     ].
 
@@ -30,23 +31,21 @@ groups() ->
                              exometer_histogram_is_created_and_initialized,
                              exometer_histogram_is_updated_separately_for_different_labels,
                              multiple_exometer_metrics_are_updated]},
+     {exometer_global, [parallel], [multiple_exometer_metrics_are_updated]},
      {prometheus_and_exometer, [parallel], [prometheus_and_exometer_metrics_are_updated]}
     ].
 
-init_per_suite(Config) ->
-    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
-    mongoose_instrument:persist(),
-    Config1.
-
-end_per_suite(Config) ->
-    async_helper:stop_all(Config).
-
 init_per_group(Group, Config) ->
     [application:ensure_all_started(App) || App <- apps(Group)],
-    mongoose_config:set_opts(#{instrumentation => opts(Group)}),
-    Config.
+    mongoose_config:set_opts(#{hosts => [?HOST_TYPE],
+                               host_types => [?HOST_TYPE2],
+                               instrumentation => opts(Group)}),
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    mongoose_instrument:persist(),
+    Config1 ++ extra_config(Group).
 
-end_per_group(_Group, _Config) ->
+end_per_group(_Group, Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts().
 
 init_per_testcase(Case, Config) ->
@@ -57,11 +56,17 @@ end_per_testcase(_Case, _Config) ->
 
 apps(prometheus) -> [prometheus];
 apps(exometer) -> [exometer_core];
+apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).
 
 opts(prometheus) -> #{prometheus => #{}};
-opts(exometer) -> #{exometer => #{}};
+opts(exometer) -> #{exometer => #{all_metrics_are_global => false}};
+opts(exometer_global) -> #{exometer => #{all_metrics_are_global => true}};
 opts(prometheus_and_exometer) -> maps:merge(opts(prometheus), opts(exometer)).
+
+extra_config(exometer) -> [{prefix, ?HOST_TYPE}];
+extra_config(exometer_global) -> [{prefix, global}];
+extra_config(_Group) -> [].
 
 %% Test cases
 
@@ -165,8 +170,9 @@ exometer_histogram_is_updated_separately_for_different_labels(Config) ->
 
 multiple_exometer_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
-    Counter = [?HOST_TYPE, Event, count],
-    Histogram = [?HOST_TYPE, Event, time],
+    Prefix = ?config(prefix, Config),
+    Counter = [Prefix, Event, count],
+    Histogram = [Prefix, Event, time],
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral,
                                                                    time => histogram}}),
     %% Update both metrics

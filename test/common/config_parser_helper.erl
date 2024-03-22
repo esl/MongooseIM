@@ -94,7 +94,7 @@ options("miscellaneous") ->
                                               secret => "Secret"
                                              }}}},
      {instrumentation, #{prometheus => #{},
-                         exometer => #{},
+                         exometer => #{all_metrics_are_global => true},
                          log => #{level => info}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
@@ -265,7 +265,7 @@ options("mongooseim-pgsql") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{exometer => #{},
+     {instrumentation, #{exometer => default_config([instrumentation, exometer]),
                          log => default_config([instrumentation, log])}},
      {{outgoing_pools, <<"anonymous.localhost">>},
       [host_pool_config(
@@ -1104,6 +1104,8 @@ extra_service_listener_config() ->
 
 default_config([instrumentation, log]) ->
     #{level => debug};
+default_config([instrumentation, exometer]) ->
+    #{all_metrics_are_global => false};
 default_config([instrumentation, _]) ->
     #{};
 default_config([listen, http]) ->
