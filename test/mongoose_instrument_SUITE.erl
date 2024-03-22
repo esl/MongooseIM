@@ -1,12 +1,14 @@
 -module(mongoose_instrument_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include("log_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -define(HANDLER, mongoose_instrument_test_handler).
 -define(INACTIVE_HANDLER, mongoose_instrument_inactive_handler).
 -define(ADDED_HANDLER, mongoose_instrument_added_handler).
+-define(FAILING_HANDLER, mongoose_instrument_failing_handler).
 -define(LABELS, #{key => value}).
 -define(CFG, #{metrics => #{time => histogram}}).
 -define(MEASUREMENTS, #{count => 1}).
@@ -40,30 +42,39 @@ api_test_cases() ->
      cannot_remove_non_existing_handler].
 
 init_per_suite(Config) ->
+    log_helper:set_up(),
     mongoose_config:set_opts(opts()),
-    mock_handler(?HANDLER, true),
-    mock_handler(?INACTIVE_HANDLER, false),
-    mock_handler(?ADDED_HANDLER, true),
+    maps:map(fun mock_handler/2, mocked_handlers()),
     Config.
 
-mock_handler(Module, SetUpResult) ->
+mock_handler(Module, {SetUpResult, HandleEventF}) ->
     meck:new(Module, [non_strict, no_link]),
     meck:expect(Module, set_up, fun(_Event, #{}, #{}) -> SetUpResult end),
-    meck:expect(Module, handle_event, fun(_Event, #{}, #{}, #{}) -> ok end).
+    meck:expect(Module, handle_event, fun(_Event, #{}, #{}, #{}) -> HandleEventF() end).
 
 end_per_suite(_Config) ->
-    meck:unload(?HANDLER),
-    meck:unload(?INACTIVE_HANDLER),
-    meck:unload(?ADDED_HANDLER),
-    mongoose_config:erase_opts().
+    lists:foreach(fun meck:unload/1, maps:keys(mocked_handlers())),
+    mongoose_config:erase_opts(),
+    log_helper:tear_down().
 
 init_per_group(Group, Config) ->
-    meck:reset(?HANDLER),
-    meck:reset(?INACTIVE_HANDLER),
-    meck:reset(?ADDED_HANDLER),
+    lists:foreach(fun meck:reset/1, maps:keys(mocked_handlers())),
     Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
     set_up_persistence(Group),
     Config1.
+
+init_per_testcase(Case, Config) ->
+    log_helper:subscribe(),
+    [{event, event_name(Case)} | Config].
+
+end_per_testcase(_Case, _Config) ->
+    log_helper:unsubscribe().
+
+mocked_handlers() ->
+    #{?HANDLER => {true, fun() -> ok end},
+      ?INACTIVE_HANDLER => {false, fun() -> ok end},
+      ?ADDED_HANDLER => {true, fun() -> ok end},
+      ?FAILING_HANDLER => {true, fun() -> error(failed) end}}.
 
 set_up_persistence(persistent) ->
     mongoose_instrument:persist(),
@@ -76,14 +87,8 @@ end_per_group(_Group, Config) ->
     mongoose_helper:wait_until(fun() -> whereis(mongoose_instrument) end, undefined),
     ?assertError(badarg, persistent_term:get(mongoose_instrument)).
 
-init_per_testcase(Case, Config) ->
-    [{event, event_name(Case)} | Config].
-
-end_per_testcase(_Case, _Config) ->
-    ok.
-
 opts() ->
-    #{instrumentation => #{test_handler => #{}, inactive_handler => #{}}}.
+    #{instrumentation => #{test_handler => #{}, inactive_handler => #{}, failing_handler => #{}}}.
 
 event_name(Case) ->
     list_to_atom(atom_to_list(Case) ++ "_event").
@@ -92,13 +97,22 @@ event_name(Case) ->
 
 set_up_and_execute(Config) ->
     Event = ?config(event, Config),
+    Measurements = ?MEASUREMENTS,
+    Labels = ?LABELS,
     ok = mongoose_instrument:set_up(Event, ?LABELS, ?CFG),
-    ?assertEqual([{[Event, ?LABELS, ?CFG], true}], history(?HANDLER, set_up, Event)),
-    ?assertEqual([{[Event, ?LABELS, ?CFG], false}], history(?INACTIVE_HANDLER, set_up, Event)),
-    ok = mongoose_instrument:execute(Event, ?LABELS, ?MEASUREMENTS),
-    ?assertEqual([{[Event, ?LABELS, ?CFG, ?MEASUREMENTS], ok}],
+    ?assertEqual([{[Event, Labels, ?CFG], true}], history(?HANDLER, set_up, Event)),
+    ?assertEqual([{[Event, Labels, ?CFG], false}], history(?INACTIVE_HANDLER, set_up, Event)),
+    ?assertEqual([{[Event, Labels, ?CFG], true}], history(?FAILING_HANDLER, set_up, Event)),
+
+    ok = mongoose_instrument:execute(Event, Labels, Measurements),
+    ?assertEqual([{[Event, Labels, ?CFG, Measurements], ok}],
                  history(?HANDLER, handle_event, Event)),
-    ?assertEqual([], history(?INACTIVE_HANDLER, handle_event, Event)).
+    ?assertEqual([], history(?INACTIVE_HANDLER, handle_event, Event)),
+    HandlerFun = fun ?FAILING_HANDLER:handle_event/4,
+    ?assertLog(error, #{what := event_handler_failed,
+                        class := error, reason := failed, stacktrace := _,
+                        event_name := Event, labels := Labels, measurements := Measurements,
+                        handler_fun := HandlerFun}).
 
 set_up_multiple_and_execute_one(Config) ->
     Event = ?config(event, Config),
