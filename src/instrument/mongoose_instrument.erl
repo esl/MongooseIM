@@ -315,8 +315,10 @@ get_handlers(EventName, Labels) ->
     end.
 
 -spec handle_event(event_name(), labels(), measurements(), handlers()) -> ok.
-handle_event(Event, Labels, Measurements, {EventHandlers, Config}) ->
-    lists:foreach(fun(Handler) -> Handler(Event, Labels, Config, Measurements) end, EventHandlers).
+handle_event(EventName, Labels, Measurements, {EventHandlers, Config}) ->
+    lists:foreach(fun(HandlerFun) ->
+                          call_handler(HandlerFun, EventName, Labels, Config, Measurements)
+                  end, EventHandlers).
 
 -spec modules_to_funs([module()]) -> [handler_fun()].
 modules_to_funs(Modules) ->
@@ -341,3 +343,16 @@ config_spec(Key) ->
 -spec all_handler_keys() -> [handler_key()].
 all_handler_keys() ->
     [prometheus, exometer, log].
+
+-spec call_handler(handler_fun(), event_name(), labels(), config(), measurements()) -> any().
+call_handler(HandlerFun, EventName, Labels, Config, Measurements) ->
+    try
+        HandlerFun(EventName, Labels, Config, Measurements)
+    catch
+        Class:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => event_handler_failed,
+                         handler_fun => HandlerFun,
+                         event_name => EventName, labels => Labels, config => Config,
+                         measurements => Measurements,
+                         class => Class, reason => Reason, stacktrace => StackTrace})
+    end.
