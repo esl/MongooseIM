@@ -23,7 +23,11 @@
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type()}. % to be extended
--type metrics() :: #{atom() => spiral | histogram}. % to be extended
+-type label_key() :: host_type. % to be extended
+-type label_value() :: mongooseim:host_type(). % to be extended
+-type metrics() :: #{metric_name() => metric_type()}.
+-type metric_name() :: atom().
+-type metric_type() :: spiral | histogram. % to be extended
 -type measurements() :: #{atom() => term()}.
 -type spec() :: {event_name(), labels(), config()}.
 -type config() :: #{metrics => metrics()}. % to be extended
@@ -41,7 +45,8 @@
 
 -optional_callbacks([config_spec/0, start/0, stop/0]).
 
--export_type([event_name/0, labels/0, config/0, measurements/0, spec/0, handlers/0]).
+-export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
+              spec/0, handlers/0, metric_name/0, metric_type/0]).
 
 %% API
 
