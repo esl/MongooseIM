@@ -6,20 +6,16 @@
 -define(TABLE, ?MODULE).
 
 %% API
--export([start/1, stop/0, get_events/2]).
+-export([get_events/2, all_keys/0]).
 
 %% mongoose_instrument callbacks
--export([set_up/3, handle_event/4]).
+-export([start/0, stop/0, set_up/3, handle_event/4]).
 
-start(DeclaredEvents) ->
-    ets_helper:new(?TABLE, [bag]), % repeating measurements are stored only once
-    mongoose_instrument:add_handler(event_table, #{declared_events => DeclaredEvents}).
+start() ->
+    ets_helper:new(?TABLE, [bag]). % repeating measurements are stored only once
 
 stop() ->
-    mongoose_instrument:remove_handler(event_table),
-    Logged = all_keys(?TABLE),
-    ets_helper:delete(?TABLE),
-    {ok, Logged}.
+    ets_helper:delete(?TABLE).
 
 set_up(EventName, Labels, _Config) ->
     DeclaredEvents = mongoose_config:get_opt([instrumentation, event_table, declared_events]),
@@ -30,6 +26,9 @@ handle_event(EventName, Labels, _Config, Measurements) ->
 
 get_events(EventName, Labels) ->
     ets:lookup(?TABLE, {EventName, Labels}).
+
+all_keys() ->
+    all_keys(?TABLE).
 
 all_keys(Tab) ->
     all_keys(Tab, ets:first(Tab), []).

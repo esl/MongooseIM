@@ -14,6 +14,7 @@
 all() ->
     [{group, prometheus},
      {group, exometer},
+     {group, exometer_global},
      {group, prometheus_and_exometer}
     ].
 
@@ -30,38 +31,42 @@ groups() ->
                              exometer_histogram_is_created_and_initialized,
                              exometer_histogram_is_updated_separately_for_different_labels,
                              multiple_exometer_metrics_are_updated]},
+     {exometer_global, [parallel], [multiple_exometer_metrics_are_updated]},
      {prometheus_and_exometer, [parallel], [prometheus_and_exometer_metrics_are_updated]}
     ].
 
-init_per_suite(Config) ->
-    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
-    mongoose_instrument:persist(),
-    Config1.
-
-end_per_suite(Config) ->
-    async_helper:stop_all(Config).
-
 init_per_group(Group, Config) ->
     [application:ensure_all_started(App) || App <- apps(Group)],
-    mongoose_config:set_opts(#{instrumentation => opts(Group)}),
-    Config.
+    mongoose_config:set_opts(#{hosts => [?HOST_TYPE],
+                               host_types => [?HOST_TYPE2],
+                               instrumentation => opts(Group)}),
+    Config1 = async_helper:start(Config, mongoose_instrument, start_link, []),
+    mongoose_instrument:persist(),
+    Config1 ++ extra_config(Group).
 
-end_per_group(_Group, _Config) ->
+end_per_group(_Group, Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts().
 
 init_per_testcase(Case, Config) ->
-    [{event, concat(Case, event)} | Config].
+    [{event, join_atoms(Case, event)} | Config].
 
 end_per_testcase(_Case, _Config) ->
     ok.
 
 apps(prometheus) -> [prometheus];
 apps(exometer) -> [exometer_core];
+apps(exometer_global) -> [exometer_core];
 apps(prometheus_and_exometer) -> apps(prometheus) ++ apps(exometer).
 
 opts(prometheus) -> #{prometheus => #{}};
-opts(exometer) -> #{exometer => #{}};
+opts(exometer) -> #{exometer => #{all_metrics_are_global => false}};
+opts(exometer_global) -> #{exometer => #{all_metrics_are_global => true}};
 opts(prometheus_and_exometer) -> maps:merge(opts(prometheus), opts(exometer)).
+
+extra_config(exometer) -> [{prefix, ?HOST_TYPE}];
+extra_config(exometer_global) -> [{prefix, global}];
+extra_config(_Group) -> [].
 
 %% Test cases
 
@@ -72,13 +77,13 @@ prometheus_skips_non_metric_event(Config) ->
 
 prometheus_counter_is_created_but_not_initialized(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, count),
+    Metric = prom_name(Event, count),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
     ?assertEqual(undefined, prometheus_counter:value(Metric, [?HOST_TYPE])).
 
 prometheus_counter_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, count),
+    Metric = prom_name(Event, count),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => spiral}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
@@ -88,13 +93,13 @@ prometheus_counter_is_updated_separately_for_different_labels(Config) ->
 
 prometheus_histogram_is_created_but_not_initialized(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, time),
+    Metric = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
     ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])).
 
 prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
-    Metric = concat(Event, time),
+    Metric = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{time => histogram}}),
     ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
@@ -104,8 +109,8 @@ prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
 
 multiple_prometheus_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
-    Counter = concat(Event, count),
-    Histogram = concat(Event, time),
+    Counter = prom_name(Event, count),
+    Histogram = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral,
                                                                    time => histogram}}),
     %% Update both metrics
@@ -165,8 +170,9 @@ exometer_histogram_is_updated_separately_for_different_labels(Config) ->
 
 multiple_exometer_metrics_are_updated(Config) ->
     Event = ?config(event, Config),
-    Counter = [?HOST_TYPE, Event, count],
-    Histogram = [?HOST_TYPE, Event, time],
+    Prefix = ?config(prefix, Config),
+    Counter = [Prefix, Event, count],
+    Histogram = [Prefix, Event, time],
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral,
                                                                    time => histogram}}),
     %% Update both metrics
@@ -191,10 +197,16 @@ prometheus_and_exometer_metrics_are_updated(Config) ->
     ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1, time => 2}),
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value([?HOST_TYPE, Event, count], count)),
     ?assertEqual({ok, [{mean, 2}]}, exometer:get_value([?HOST_TYPE, Event, time], mean)),
-    ?assertEqual(1, prometheus_counter:value(concat(Event, count), [?HOST_TYPE])),
-    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(concat(Event, time), [?HOST_TYPE])).
+    ?assertEqual(1, prometheus_counter:value(prom_name(Event, count), [?HOST_TYPE])),
+    ?assertMatch({[0, 1|_], 2}, prometheus_histogram:value(prom_name(Event, time), [?HOST_TYPE])).
 
 %% Helpers
 
-concat(A1, A2) ->
-    list_to_atom(atom_to_list(A1) ++ "_" ++ atom_to_list(A2)).
+join_atoms(A1, A2) ->
+    list_to_atom(join_atoms_to_list(A1, A2)).
+
+prom_name(EventName, MetricName) ->
+    join_atoms_to_list(EventName, MetricName).
+
+join_atoms_to_list(A1, A2) ->
+    atom_to_list(A1) ++ "_" ++ atom_to_list(A2).

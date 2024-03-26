@@ -33,14 +33,16 @@ start(DeclaredEvents) ->
     mongoose_helper:inject_module(?HANDLER_MODULE),
     ets_helper:new(?STATUS_TABLE),
     [ets:insert(?STATUS_TABLE, {Event, untested}) || Event <- DeclaredEvents],
-    ok = rpc(mim(), ?HANDLER_MODULE, start, [DeclaredEvents]).
+    rpc(mim(), mongoose_instrument, add_handler,
+        [event_table, #{declared_events => DeclaredEvents}]).
 
 -spec stop() -> ok.
 stop() ->
     #{tested := Tested, untested := Untested} = classify_events(),
     ets_helper:delete(?STATUS_TABLE),
-    {ok, Logged} = rpc(mim(), ?HANDLER_MODULE, stop, []),
-    ct:log("Tested instrumentation events:~n ~p", [lists:sort(Tested)]),
+    Logged = rpc(mim(), ?HANDLER_MODULE, all_keys, []),
+    rpc(mim(), mongoose_instrument, remove_handler, [event_table]),
+    ct:log("Tested instrumentation events:~n~p", [lists:sort(Tested)]),
     verify_unlogged(Untested -- Logged),
     verify_logged_but_untested(Logged -- Tested).
 

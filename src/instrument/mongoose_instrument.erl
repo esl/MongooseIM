@@ -23,7 +23,11 @@
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type()}. % to be extended
--type metrics() :: #{atom() => spiral | histogram}. % to be extended
+-type label_key() :: host_type. % to be extended
+-type label_value() :: mongooseim:host_type(). % to be extended
+-type metrics() :: #{metric_name() => metric_type()}.
+-type metric_name() :: atom().
+-type metric_type() :: spiral | histogram. % to be extended
 -type measurements() :: #{atom() => term()}.
 -type spec() :: {event_name(), labels(), config()}.
 -type config() :: #{metrics => metrics()}. % to be extended
@@ -34,12 +38,15 @@
 -type measure_fun(Result) :: fun((execution_time(), Result) -> measurements()).
 
 -callback config_spec() -> mongoose_config_spec:config_section().
+-callback start() -> ok.
+-callback stop() -> ok.
 -callback set_up(event_name(), labels(), config()) -> boolean().
 -callback handle_event(event_name(), labels(), config(), measurements()) -> any().
 
--optional_callbacks([config_spec/0]).
+-optional_callbacks([config_spec/0, start/0, stop/0]).
 
--export_type([event_name/0, labels/0, config/0, measurements/0, spec/0, handlers/0]).
+-export_type([event_name/0, labels/0, label_key/0, label_value/0, config/0, measurements/0,
+              spec/0, handlers/0, metric_name/0, metric_type/0]).
 
 %% API
 
@@ -138,6 +145,7 @@ remove_handler(Key) ->
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
+    lists:foreach(fun start_handler/1, handler_modules()),
     erlang:process_flag(trap_exit, true), % Make sure that terminate is called
     persistent_term:erase(?MODULE), % Prevent inconsistency when restarted after a kill
     {ok, #{}}.
@@ -160,7 +168,9 @@ handle_call({add_handler, Key, ConfigOpts}, _From, State) ->
     case mongoose_config:lookup_opt([instrumentation, Key]) of
         {error, not_found} ->
             mongoose_config:set_opt([instrumentation, Key], ConfigOpts),
-            NewState = update_handlers(State, [], [handler_module(Key)]),
+            Module = handler_module(Key),
+            start_handler(Module),
+            NewState = update_handlers(State, [], [Module]),
             update_if_persisted(State, NewState),
             {reply, ok, NewState};
         {ok, ExistingConfig} ->
@@ -174,8 +184,10 @@ handle_call({remove_handler, Key}, _From, State) ->
             {reply, {error, #{what => handler_not_configured, handler_key => Key}}, State};
         {ok, _} ->
             mongoose_config:unset_opt([instrumentation, Key]),
-            NewState = update_handlers(State, [handler_module(Key)], []),
+            Module = handler_module(Key),
+            NewState = update_handlers(State, [Module], []),
             update_if_persisted(State, NewState),
+            stop_handler(Module),
             {reply, ok, NewState}
     end;
 handle_call(persist, _From, State) ->
@@ -200,7 +212,7 @@ handle_info(Info, State) ->
 -spec terminate(any(), state()) -> ok.
 terminate(_Reason, _State) ->
     persistent_term:erase(?MODULE),
-    ok.
+    lists:foreach(fun stop_handler/1, handler_modules()).
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
@@ -315,8 +327,10 @@ get_handlers(EventName, Labels) ->
     end.
 
 -spec handle_event(event_name(), labels(), measurements(), handlers()) -> ok.
-handle_event(Event, Labels, Measurements, {EventHandlers, Config}) ->
-    lists:foreach(fun(Handler) -> Handler(Event, Labels, Config, Measurements) end, EventHandlers).
+handle_event(EventName, Labels, Measurements, {EventHandlers, Config}) ->
+    lists:foreach(fun(HandlerFun) ->
+                          call_handler(HandlerFun, EventName, Labels, Config, Measurements)
+                  end, EventHandlers).
 
 -spec modules_to_funs([module()]) -> [handler_fun()].
 modules_to_funs(Modules) ->
@@ -341,3 +355,30 @@ config_spec(Key) ->
 -spec all_handler_keys() -> [handler_key()].
 all_handler_keys() ->
     [prometheus, exometer, log].
+
+-spec start_handler(module()) -> ok.
+start_handler(Module) ->
+    case mongoose_lib:is_exported(Module, start, 0) of
+        true -> Module:start();
+        false -> ok
+    end.
+
+-spec stop_handler(module()) -> ok.
+stop_handler(Module) ->
+    case mongoose_lib:is_exported(Module, stop, 0) of
+        true -> Module:stop();
+        false -> ok
+    end.
+
+-spec call_handler(handler_fun(), event_name(), labels(), config(), measurements()) -> any().
+call_handler(HandlerFun, EventName, Labels, Config, Measurements) ->
+    try
+        HandlerFun(EventName, Labels, Config, Measurements)
+    catch
+        Class:Reason:StackTrace ->
+            ?LOG_ERROR(#{what => event_handler_failed,
+                         handler_fun => HandlerFun,
+                         event_name => EventName, labels => Labels, config => Config,
+                         measurements => Measurements,
+                         class => Class, reason => Reason, stacktrace => StackTrace})
+    end.

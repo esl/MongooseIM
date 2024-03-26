@@ -83,6 +83,7 @@
 [instrumentation.prometheus]
 
 [instrumentation.exometer]
+  all_metrics_are_global = true
 
 [instrumentation.log]
   level = "info"
