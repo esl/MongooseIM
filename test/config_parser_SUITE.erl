@@ -58,6 +58,7 @@ all() ->
      {group, s2s},
      {group, modules},
      {group, services},
+     {group, instrumentation},
      {group, logs}].
 
 groups() ->
@@ -234,6 +235,9 @@ groups() ->
                             incorrect_module]},
      {services, [parallel], [service_domain_db,
                              service_mongoose_system_metrics]},
+     {instrumentation, [parallel], [instrumentation,
+                                    instrumentation_exometer,
+                                    instrumentation_log]},
      {logs, [], log_cases()}
     ].
 
@@ -2924,6 +2928,30 @@ service_mongoose_system_metrics(_Config) ->
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => "Secret"}})),
     ?err(T(#{<<"tracking_id">> => #{<<"secret">> => 666, <<"id">> => 666}})),
     ?err(T(#{<<"report">> => <<"maybe">>})).
+
+%% Instrumentation
+
+instrumentation(_Config) ->
+    P = [instrumentation],
+    T = fun(Opts) -> #{<<"instrumentation">> => Opts} end,
+    ?cfg(P, #{}, T(#{})),
+    ?cfg(P, #{prometheus => #{}}, T(#{<<"prometheus">> => #{}})),
+    ?err(T(#{<<"prometheus">> => #{<<"fire">> => 1}})),
+    ?err(T(#{<<"bad_module">> => #{}})).
+
+instrumentation_log(_Config) ->
+    P = [instrumentation, log],
+    T = fun(Opts) -> #{<<"instrumentation">> => #{<<"log">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [level], info, T(#{<<"level">> => <<"info">>})),
+    ?err(T(#{<<"level">> => <<"insane">>})).
+
+instrumentation_exometer(_Config) ->
+    P = [instrumentation, exometer],
+    T = fun(Opts) -> #{<<"instrumentation">> => #{<<"exometer">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [all_metrics_are_global], true, T(#{<<"all_metrics_are_global">> => true})),
+    ?err(T(#{<<"all_metrics_are_global">> => "yes"})).
 
 %% Logs
 

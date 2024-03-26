@@ -96,6 +96,7 @@ root() ->
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
+                 <<"instrumentation">> => mongoose_instrument:config_spec(),
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),

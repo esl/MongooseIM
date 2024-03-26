@@ -186,7 +186,8 @@ minimal_config_opts() ->
       {auth, <<"localhost">>} => config_parser_helper:default_auth(),
       {modules, <<"localhost">>} => #{},
       {replaced_wait_timeout, <<"localhost">>} => 2000,
-      {s2s, <<"localhost">>} => config_parser_helper:default_s2s()}.
+      {s2s, <<"localhost">>} => config_parser_helper:default_s2s(),
+      instrumentation => #{}}.
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

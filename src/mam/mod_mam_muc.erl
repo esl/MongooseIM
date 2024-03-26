@@ -28,6 +28,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc).
+-behaviour(gen_mod).
 %% ----------------------------------------------------------------------
 %% Exports
 
@@ -37,7 +38,7 @@
          archive_id/2]).
 
 %% gen_mod handlers
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, supported_features/0, hooks/1, instrumentation/1]).
 
 %% ejabberd room handlers
 -export([disco_muc_features/3,
@@ -54,8 +55,7 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
--ignore_xref([archive_id/2, archive_message_for_ct/1, archive_size/2, delete_archive/2,
-              start/2, stop/1, supported_features/0]).
+-ignore_xref([archive_id/2, archive_message_for_ct/1, archive_size/2, delete_archive/2]).
 
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
@@ -117,15 +117,12 @@ archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
 -spec start(host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
-    ensure_metrics(HostType),
-    gen_hook:add_handlers(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
     ok.
 
 -spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    gen_hook:delete_handlers(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
 
@@ -229,7 +226,8 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
                     handle_error_iq(Acc, HostType, To, Action,
                                     handle_mam_iq(HostType, Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
+                    mongoose_instrument:execute(mod_mam_muc_dropped_iq,
+                                                #{host_type => HostType}, #{acc => Acc, count => 1}),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
         {error, Reason} ->
@@ -488,21 +486,28 @@ get_behaviour(HostType, ArcID, LocJID = #jid{}, RemJID = #jid{}) ->
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    mongoose_hooks:mam_muc_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
-                                     AlwaysJIDs, NeverJIDs).
+    Result = mongoose_hooks:mam_muc_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
+                                     AlwaysJIDs, NeverJIDs),
+    mongoose_instrument:execute(mod_mam_muc_set_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
+    Result.
 
 %% @doc Load settings from the database.
 -spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
-    mongoose_hooks:mam_muc_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID).
+    Result = mongoose_hooks:mam_muc_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID),
+    mongoose_instrument:execute(mod_mam_muc_get_prefs, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}),
+    Result.
 
 -spec remove_archive(host_type(), mod_mam:archive_id() | undefined,
                      jid:jid()) -> ok.
 remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
-    ok.
+    mongoose_instrument:execute(mod_mam_muc_remove_archive, #{host_type => HostType},
+                                #{jid => ArcJID, count => 1}).
 
 %% See description in mod_mam_pm.
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
@@ -523,19 +528,24 @@ lookup_messages_without_policy_violation_check(HostType,
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            StartT = erlang:monotonic_time(microsecond),
-            R = case maps:get(message_ids, Params, undefined) of
-                    undefined ->
-                        mongoose_hooks:mam_muc_lookup_messages(HostType,
-                            Params#{message_id => undefined});
-                    IDs ->
-                        mod_mam_utils:lookup_specific_messages(HostType, Params, IDs,
-                            fun mongoose_hooks:mam_muc_lookup_messages/2)
-                end,
-            Diff = erlang:monotonic_time(microsecond) - StartT,
-            mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
-            R
+            mongoose_instrument:span(mod_mam_muc_lookup, #{host_type => HostType},
+                                     fun perform_lookup/2, [HostType, Params],
+                                     fun(Time, Result) -> measure_lookup(Params, Time, Result) end)
     end.
+
+perform_lookup(HostType, Params) ->
+    case maps:get(message_ids, Params, undefined) of
+        undefined ->
+            mongoose_hooks:mam_muc_lookup_messages(HostType, Params#{message_id => undefined});
+        IDs ->
+            mod_mam_utils:lookup_specific_messages(HostType, Params, IDs,
+                                                   fun mongoose_hooks:mam_muc_lookup_messages/2)
+    end.
+
+measure_lookup(Params, Time, {ok, {_TotalCount, _Offset, MessageRows}}) ->
+    #{params => Params, count => 1, time => Time, size => length(MessageRows)};
+measure_lookup(_Params, _Time, _OtherResult) ->
+    #{}.
 
 archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
     HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJid),
@@ -543,7 +553,9 @@ archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
 
 -spec archive_message(host_type(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
 archive_message(HostType, Params) ->
-    mongoose_hooks:mam_muc_archive_message(HostType, Params).
+    mongoose_instrument:span(mod_mam_muc_archive_message, #{host_type => HostType},
+                             fun mongoose_hooks:mam_muc_archive_message/2, [HostType, Params],
+                             fun(Time, _Result) -> #{params => Params, time => Time, count => 1} end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -586,7 +598,8 @@ message_row_to_ext_id(#{id := MessID}) ->
 -spec handle_error_iq(mongoose_acc:t(), host_type(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 handle_error_iq(Acc, HostType, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
+    mongoose_instrument:execute(mod_mam_muc_dropped_iq, #{host_type => HostType},
+                                #{acc => Acc, count => 1}),
     {Acc, IQ};
 handle_error_iq(Acc, _HostType, _To, _Action, IQ) ->
     {Acc, IQ}.
@@ -660,8 +673,7 @@ hooks(HostType) ->
     [{disco_muc_features, HostType, fun ?MODULE:disco_muc_features/3, #{}, 99},
      {filter_room_packet, HostType, fun ?MODULE:filter_room_packet/3, #{}, 60},
      {forget_room, HostType, fun ?MODULE:forget_room/3, #{}, 90},
-     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}
-     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
+     {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
@@ -685,20 +697,19 @@ remove_iq_handlers(HostType) ->
                                                    ?NS_MAM_06, mod_muc_iq),
     ok.
 
-ensure_metrics(HostType) ->
-    mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, lookup], histogram),
-    lists:foreach(fun(Name) ->
-                      mongoose_metrics:ensure_metric(HostType, Name, spiral)
-                  end,
-                  spirals()).
-
-spirals() ->
-    [modMucMamPrefsSets,
-     modMucMamPrefsGets,
-     modMucMamArchiveRemoved,
-     modMucMamLookups,
-     modMucMamForwarded,
-     modMucMamArchived,
-     modMucMamFlushed,
-     modMucMamDropped,
-     modMucMamDroppedIQ].
+-spec instrumentation(host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_mam_muc_archive_message, #{host_type => HostType},
+      #{metrics => #{count => spiral, time => histogram}}},
+     {mod_mam_muc_lookup, #{host_type => HostType},
+      #{metrics => #{count => spiral, size => histogram, time => histogram}}},
+     {mod_mam_muc_dropped_iq, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_muc_dropped, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_muc_remove_archive, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_muc_get_prefs, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_mam_muc_set_prefs, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].

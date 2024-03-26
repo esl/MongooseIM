@@ -97,7 +97,7 @@ archive_message(_Result,
             ?LOG_ERROR(#{what => archive_message_failed,
                          user => Owner, server => Host, remote => Remote,
                          message_id => MessageId, reason => Reason}),
-            mongoose_metrics:update(Host, modMamDropped, 1),
+            mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => Host}, #{count => 1}),
             {ok, Err}
     end.
 
