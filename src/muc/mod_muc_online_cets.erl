@@ -105,10 +105,10 @@ get_online_rooms(HostType, MucHost) ->
 -spec node_cleanup(mongooseim:host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
     Tab = table_name(HostType),
-    Pattern = {'_', '$1'},
-    Guard = {'==', {node, '$1'}, Node},
-    ets:select_delete(Tab, [{Pattern, [Guard], [true]}]),
-    ok.
+    Pattern = {'$1', '$2'},
+    Guard = {'==', {node, '$2'}, Node},
+    Keys = ets:select(Tab, [{Pattern, [Guard], ['$1']}]),
+    cets:delete_many(Tab, Keys).
 
 %% Clear table for tests
 -spec clear_table(mongooseim:host_type()) -> ok.
