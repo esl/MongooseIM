@@ -1,6 +1,7 @@
 -module(mongoose_cleanup_SUITE).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 -include("mongoose.hrl").
 
 -export([all/0, groups/0,
@@ -39,14 +40,18 @@ all() ->
      stream_management,
      s2s,
      bosh,
-     [{group, Group} || {Group, _, _} <- groups()]
+     [{group, cets},
+      {group, mnesia}]
     ].
 
 groups() ->
-    [{component_cets, [], component_cases()},
-     {component_mnesia, [], component_cases()},
-     {muc_cets, [], muc_cases()},
-     {muc_mnesia, [], muc_cases()}].
+    [{cets, [], backend_tests()},
+     {mnesia, [], backend_tests()},
+     {component, [], component_cases()},
+     {muc, [], muc_cases()}].
+
+backend_tests() ->
+    [{group, component}, {group, muc}].
 
 component_cases() ->
     [component, component_from_other_node_remains].
@@ -59,42 +64,42 @@ init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     mongoose_config:set_opts(opts()),
-    Config.
+    setup_meck(meck_mods()),
+    async_helper:start(Config, [{mim_ct_sup, start_link, [ejabberd_sup]},
+                                {mongooseim_helper, start_link_loaded_hooks, []},
+                                {mongoose_domain_sup, start_link, []}]).
 
 end_per_suite(Config) ->
     mongoose_config:erase_opts(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
+    unload_meck(meck_mods()),
+    async_helper:stop_all(Config).
+
+init_per_group(cets, Config) ->
+    [{backend, cets} | start_cets_disco(Config)];
+init_per_group(mnesia, Config) ->
+    [{backend, mnesia} | Config];
+init_per_group(component, Config) ->
+    mongoose_config:set_opt(component_backend, ?config(backend, Config)),
+    Config;
+init_per_group(Group, Config) ->
+    mongoose_modules:replace_modules(?HOST, [], required_modules(Group, Config)),
     Config.
 
-init_per_group(component_mnesia, Config) ->
-    mongoose_config:set_opt(component_backend, mnesia),
-    Config;
-init_per_group(component_cets, Config) ->
-    mongoose_config:set_opt(component_backend, cets),
-    start_cets_disco(Config);
-init_per_group(muc_mnesia, Config) ->
-    [{muc_backend, mnesia} | Config];
-init_per_group(muc_cets, Config) ->
-    [{muc_backend, cets} | start_cets_disco(Config)].
-
-end_per_group(_Group, Config) ->
-    stop_cets_disco(Config).
+end_per_group(cets, Config) ->
+    stop_cets_disco(Config);
+end_per_group(mnesia, _Config) ->
+    ok;
+end_per_group(Group, Config) ->
+    mongoose_modules:replace_modules(?HOST, maps:keys(required_modules(Group, Config)), #{}).
 
 init_per_testcase(TestCase, Config) ->
-    mim_ct_sup:start_link(ejabberd_sup),
-    {ok, _HooksServer} = mongooseim_helper:start_link_loaded_hooks(),
-    {ok, _DomainSup} = mongoose_domain_sup:start_link(),
-    setup_meck(meck_mods(TestCase)),
     start_component(TestCase),
-    start_muc(TestCase, Config),
     Config.
 
 end_per_testcase(TestCase, _Config) ->
-    stop_component(TestCase),
-    mongoose_modules:stop(),
-    mongoose_config:set_opt({modules, ?HOST}, #{}),
-    unload_meck(meck_mods(TestCase)).
+    stop_component(TestCase).
 
 start_component(TestCase) ->
     case needs_component(TestCase) of
@@ -124,10 +129,9 @@ opts() ->
       {auth, ?HOST} => config_parser_helper:extra_auth(),
       {modules, ?HOST} => #{}}.
 
-meck_mods(bosh) -> [exometer, mod_bosh_socket, cets_dist_blocker];
-meck_mods(s2s) -> [exometer, mongoose_bin, cets_dist_blocker];
-meck_mods(component) -> [exometer, cets_dist_blocker];
-meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, cets_dist_blocker].
+meck_mods() ->
+    [exometer, mod_bosh_socket, cets_dist_blocker,
+     mongoose_bin, ejabberd_sm, ejabberd_local].
 
 %% -----------------------------------------------------
 %% Tests
@@ -283,31 +287,31 @@ muc_room_from_other_node_remains(_Config) ->
 %% -----------------------------------------------------
 
 setup_meck([exometer | R]) ->
-    meck:new(exometer),
+    meck:new(exometer, [no_link]),
     meck:expect(exometer, info, fun(_, _) -> undefined end),
     meck:expect(exometer, new, fun(_, _) -> ok end),
     meck:expect(exometer, update, fun(_, _) -> ok end),
     setup_meck(R);
 setup_meck([ejabberd_sm | R]) ->
-    meck:new(ejabberd_sm),
+    meck:new(ejabberd_sm, [no_link]),
     meck:expect(ejabberd_sm, register_iq_handler,
                 fun(_A1, _A2, _A3) -> ok end),
     setup_meck(R);
 setup_meck([ejabberd_local | R]) ->
-    meck:new(ejabberd_local),
+    meck:new(ejabberd_local, [no_link]),
     meck:expect(ejabberd_local, register_iq_handler,
                 fun(_A1, _A2, _A3) -> ok end),
     setup_meck(R);
 setup_meck([mongoose_bin | R]) ->
-    meck:new(mongoose_bin, [passthrough]),
+    meck:new(mongoose_bin, [passthrough, no_link]),
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end),
     setup_meck(R);
 setup_meck([mod_bosh_socket | R]) ->
-    meck:new(mod_bosh_socket, [passthrough]),
+    meck:new(mod_bosh_socket, [passthrough, no_link]),
     meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end),
     setup_meck(R);
 setup_meck([cets_dist_blocker | R]) ->
-    meck:new(cets_dist_blocker, [passthrough]),
+    meck:new(cets_dist_blocker, [passthrough, no_link]),
     meck:expect(cets_dist_blocker, add_cleaner, fun(_Pid) -> ok end),
     meck:expect(cets_dist_blocker, cleaning_done, fun(_Pid, _Node) -> ok end),
     setup_meck(R);
@@ -368,25 +372,8 @@ remote_pid_binary() ->
 remote_pid() ->
     binary_to_term(remote_pid_binary()).
 
-start_muc(TestCase, Config) ->
-    case proplists:get_value(muc_backend, Config) of
-        undefined -> ok;
-        Backend ->
-            case should_start_full_muc_module(TestCase) of
-                true ->
-                    start_muc_module(Backend);
-                false ->
-                    start_muc_backend(Backend)
-            end
-    end.
-
-start_muc_backend(Backend) ->
-    mod_muc_online_backend:start(?HOST, #{online_backend => Backend}).
-
-start_muc_module(Backend) ->
-    ExtraOpts = #{online_backend => Backend, backend => mnesia},
-    Opts = config_parser_helper:mod_config(mod_muc, ExtraOpts),
-    {started, ok} = start(?HOST, mod_muc, Opts).
-
-should_start_full_muc_module(TestCase) ->
-    lists:member(TestCase, [muc_node_cleanup_for_host_type]).
+required_modules(muc, Config) ->
+    ExtraOpts = #{online_backend => ?config(backend, Config), backend => mnesia},
+    #{mod_muc => config_parser_helper:mod_config(mod_muc, ExtraOpts)};
+required_modules(_Group, _Config) ->
+    #{}.
