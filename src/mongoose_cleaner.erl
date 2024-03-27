@@ -36,6 +36,7 @@ start_link() ->
 init([]) ->
     case net_kernel:monitor_nodes(true) of
         ok ->
+            sync(), % If the node was just restarted, wait for the cleanup to finish
             {ok, #state{}};
         Error ->
             ?LOG_ERROR(#{what => cleaner_monitor_failed,
@@ -71,17 +72,22 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 cleanup_modules(Node) ->
+    global_trans(Node, fun() -> run_node_cleanup(Node) end).
+
+sync() ->
+    global_trans(node(), fun() -> ok end).
+
+global_trans(Node, Fun) ->
     LockKey = ?NODE_CLEANUP_LOCK(Node),
     LockRequest = {LockKey, self()},
-    C = fun () -> run_node_cleanup(Node) end,
     Nodes = [node() | nodes()],
     Retries = 10,
-    case global:trans(LockRequest, C, Nodes, Retries) of
+    case global:trans(LockRequest, Fun, Nodes, Retries) of
         aborted ->
             ?LOG_WARNING(#{what => cleaner_trans_aborted,
                            text => <<"mongoose_cleaner failed to get the global lock, run cleanup anyway">>,
                            remote_node => Node, lock_key => LockKey, retries => Retries}),
-            C();
+            Fun();
         Result ->
             Result
     end.
