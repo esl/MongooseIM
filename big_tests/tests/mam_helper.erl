@@ -1377,6 +1377,9 @@ assert_dropped_iq_event(Config, BinJid) ->
 assert_event_with_jid(EventName, BinJid) ->
     assert_event(EventName, fun(#{count := 1, jid := Jid}) -> eq_bjid(Jid, BinJid) end).
 
+assert_dropped_msg_event(EventName) ->
+    assert_event(EventName, fun(#{count := 1}) -> true end).
+
 assert_event(EventName, F) ->
     instrument_helper:assert(EventName, #{host_type => host_type()}, F).
 

@@ -39,6 +39,7 @@
          full_jid/1
          ]).
 
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
@@ -138,7 +139,11 @@ insert_query_cql() ->
 archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
+        ?LOG_ERROR(#{what => archive_message_failed,
+                    host_type => HostType, mam_params => Params,
+                    reason => Reason, stacktrace => StackTrace}),
+        mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => HostType}, #{count => 1}),
         {ok, {error, Reason}}
     end.
 
@@ -161,7 +166,7 @@ archive_message2(#{message_id := MessID,
                 },
     WithJIDs = lists:usort([<<>>, BRemFullJID, BRemBareJID]),
     Messages = [Message#mam_message{with_jid = BWithJID} || BWithJID <- WithJIDs],
-    write_messages(HostType, LocJID, Messages).
+    ok = write_messages(HostType, LocJID, Messages).
 
 write_messages(HostType, UserJID, Messages) ->
     MultiParams = [message_to_params(M) || M <- Messages],
