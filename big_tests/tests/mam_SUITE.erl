@@ -109,6 +109,7 @@
          stanza_metadata_request/0,
          assert_archive_message_event/2,
          assert_lookup_event/2,
+         assert_dropped_msg_event/1,
          assert_flushed_event_if_async/2,
          assert_dropped_iq_event/2,
          assert_event_with_jid/2
@@ -239,6 +240,7 @@ basic_groups() ->
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
+            {drop_msg, [], [message_dropped]},
             {rsm_all, [], %% not parallel, because we want to limit concurrency
              [
               %% Functions mod_mam_utils:make_fin_element_v03/5 and make_fin_element/5
@@ -493,6 +495,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
+    mongoose_helper:inject_module(?MODULE, reload),
     instrument_helper:start(instrument_helper:declared_events(instrumented_modules())),
     muc_helper:load_muc(),
     mam_helper:prepare_for_suite(
@@ -558,6 +561,8 @@ init_per_group(archived, Config) ->
     Config;
 init_per_group(mam_metrics, Config) ->
     Config;
+init_per_group(drop_msg, Config) ->
+    Config;
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 init_per_group(muc06, Config) ->
@@ -599,8 +604,7 @@ do_init_per_group(C, ConfigIn) ->
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
-    G == muc06; G == mam06;
-    G == archived; G == mam_metrics ->
+    G == muc06; G == mam06; G == archived; G == mam_metrics; G == drop_msg ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -711,11 +715,40 @@ end_state(_, _, Config) ->
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
+            maybe_setup_meck(CaseName, ?config(configuration, Config)),
             dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
             lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
         {skip, Msg} ->
             {skip, Msg}
     end.
+
+maybe_setup_meck(message_dropped, elasticsearch) ->
+    ok = rpc(mim(), meck, expect,
+             [mongoose_elasticsearch, insert_document, 4, {error, simulated}]);
+maybe_setup_meck(message_dropped, cassandra) ->
+    ok = rpc(mim(), meck, expect,
+             [mongoose_cassandra, cql_write_async, 5, {error, simulated}]);
+maybe_setup_meck(message_dropped, C) when C =:= rdbms_async_pool;
+                                    C =:= rdbms_async_cache ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute,
+              fun (_HostType, insert_mam_message, _Parameters) ->
+                      {error, simulated};
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]);
+maybe_setup_meck(message_dropped, _) ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute_successfully,
+              fun (_HostType, insert_mam_message, _Parameters) ->
+                      error(#{what => simulated_error});
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]);
+maybe_setup_meck(_, _) ->
+    ok.
 
 init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
@@ -831,8 +864,12 @@ init_metrics(_CaseName, Config) ->
     Config.
 
 end_per_testcase(CaseName, Config) ->
+    maybe_teardown_meck(CaseName),
     maybe_destroy_room(CaseName, Config),
     escalus:end_per_testcase(CaseName, Config).
+
+maybe_teardown_meck(_) ->
+    rpc(mim(), meck, unload, []).
 
 maybe_destroy_room(CaseName, Config) ->
     case lists:member(CaseName, all_cases_with_room()) of
@@ -1062,6 +1099,19 @@ archive_is_instrumented(Config) ->
         {S, U} = {escalus_utils:get_server(Alice), escalus_utils:get_username(Alice)},
         mam_helper:delete_archive(S, U),
         assert_event_with_jid(mod_mam_pm_remove_archive, escalus_utils:get_short_jid(Alice))
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+message_dropped(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        maybe_wait_for_archive(Config),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Res = wait_archive_respond(Alice),
+        assert_respond_size(0, Res),
+        assert_dropped_msg_event(mod_mam_pm_dropped),
+        ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
