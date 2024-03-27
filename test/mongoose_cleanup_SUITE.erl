@@ -97,7 +97,7 @@ opts() ->
       {modules, ?HOST} => #{}}.
 
 meck_mods() ->
-    [exometer, mod_bosh_socket, cets_dist_blocker, mongoose_bin, ejabberd_sm, ejabberd_local].
+    [exometer, mod_bosh_socket, mongoose_bin, ejabberd_sm, ejabberd_local].
 
 required_modules(muc, Config) ->
     required_module(mod_muc, #{online_backend => ?config(backend, Config), backend => mnesia});
@@ -291,11 +291,7 @@ setup_meck(mongoose_bin) ->
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end);
 setup_meck(mod_bosh_socket) ->
     meck:new(mod_bosh_socket, [passthrough, no_link]),
-    meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end);
-setup_meck(cets_dist_blocker) ->
-    meck:new(cets_dist_blocker, [passthrough, no_link]),
-    meck:expect(cets_dist_blocker, add_cleaner, fun(_Pid) -> ok end),
-    meck:expect(cets_dist_blocker, cleaning_done, fun(_Pid, _Node) -> ok end).
+    meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end).
 
 unload_meck(Module) ->
     meck:validate(Module),
