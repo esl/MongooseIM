@@ -140,10 +140,10 @@ archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
     catch _Type:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => archive_message_failed,
-                    host_type => HostType, mam_params => Params,
-                    reason => Reason, stacktrace => StackTrace}),
         mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => HostType}, #{count => 1}),
+        ?LOG_ERROR(#{what => archive_message_failed,
+                     host_type => HostType, mam_params => Params,
+                     reason => Reason, stacktrace => StackTrace}),
         {ok, {error, Reason}}
     end.
 

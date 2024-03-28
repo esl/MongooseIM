@@ -240,6 +240,7 @@ basic_groups() ->
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
+            % Due to the mocking of the DB, the message_dropped test cannot be run in parallel
             {drop_msg, [], [message_dropped]},
             {rsm_all, [], %% not parallel, because we want to limit concurrency
              [
@@ -259,6 +260,7 @@ basic_groups() ->
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
                                 ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
+            {muc_drop_msg, [], [muc_message_dropped]},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {muc_light,        [], muc_light_cases()},
@@ -495,6 +497,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
+    %% Inject module for mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE, reload),
     instrument_helper:start(instrument_helper:declared_events(instrumented_modules())),
     muc_helper:load_muc(),
@@ -561,7 +564,9 @@ init_per_group(archived, Config) ->
     Config;
 init_per_group(mam_metrics, Config) ->
     Config;
-init_per_group(drop_msg, Config) ->
+init_per_group(G, Config) when G =:= drop_msg;
+                               G =:= muc_drop_msg ->
+    setup_meck(G, ?config(configuration, Config)),
     Config;
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
@@ -604,8 +609,12 @@ do_init_per_group(C, ConfigIn) ->
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
-    G == muc06; G == mam06; G == archived; G == mam_metrics; G == drop_msg ->
+    G == muc06; G == mam06; G == archived; G == mam_metrics ->
       Config;
+end_per_group(G, Config) when G == drop_msg;
+                              G == muc_drop_msg ->
+    teardown_meck(),
+    Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
     Config;
@@ -715,21 +724,20 @@ end_state(_, _, Config) ->
 init_per_testcase(CaseName, Config) ->
     case maybe_skip(CaseName, Config) of
         ok ->
-            maybe_setup_meck(CaseName, ?config(configuration, Config)),
             dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
             lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
         {skip, Msg} ->
             {skip, Msg}
     end.
 
-maybe_setup_meck(message_dropped, elasticsearch) ->
+setup_meck(_, elasticsearch) ->
     ok = rpc(mim(), meck, expect,
              [mongoose_elasticsearch, insert_document, 4, {error, simulated}]);
-maybe_setup_meck(message_dropped, cassandra) ->
+setup_meck(_, cassandra) ->
     ok = rpc(mim(), meck, expect,
              [mongoose_cassandra, cql_write_async, 5, {error, simulated}]);
-maybe_setup_meck(message_dropped, C) when C =:= rdbms_async_pool;
-                                    C =:= rdbms_async_cache ->
+setup_meck(drop_msg, Config) when Config =:= rdbms_async_pool;
+                                  Config =:= rdbms_async_cache ->
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute,
@@ -738,7 +746,17 @@ maybe_setup_meck(message_dropped, C) when C =:= rdbms_async_pool;
                   (HostType, Name, Parameters) ->
                       meck:passthrough([HostType, Name, Parameters])
               end]);
-maybe_setup_meck(message_dropped, _) ->
+setup_meck(muc_drop_msg, Config) when Config =:= rdbms_async_pool;
+                                      Config =:= rdbms_async_cache ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute,
+              fun (_HostType, insert_mam_muc_message, _Parameters) ->
+                      {error, simulated};
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]);
+setup_meck(drop_msg, _) ->
     ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
     ok = rpc(mim(), meck, expect,
              [mongoose_rdbms, execute_successfully,
@@ -747,8 +765,15 @@ maybe_setup_meck(message_dropped, _) ->
                   (HostType, Name, Parameters) ->
                       meck:passthrough([HostType, Name, Parameters])
               end]);
-maybe_setup_meck(_, _) ->
-    ok.
+setup_meck(muc_drop_msg, _) ->
+    ok = rpc(mim(), meck, new, [mongoose_rdbms, [no_link, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [mongoose_rdbms, execute_successfully,
+              fun (_HostType, insert_mam_muc_message, _Parameters) ->
+                      error(#{what => simulated_error});
+                  (HostType, Name, Parameters) ->
+                      meck:passthrough([HostType, Name, Parameters])
+              end]).
 
 init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
@@ -864,11 +889,10 @@ init_metrics(_CaseName, Config) ->
     Config.
 
 end_per_testcase(CaseName, Config) ->
-    maybe_teardown_meck(CaseName),
     maybe_destroy_room(CaseName, Config),
     escalus:end_per_testcase(CaseName, Config).
 
-maybe_teardown_meck(_) ->
+teardown_meck() ->
     rpc(mim(), meck, unload, []).
 
 maybe_destroy_room(CaseName, Config) ->
@@ -879,7 +903,8 @@ maybe_destroy_room(CaseName, Config) ->
 
 all_cases_with_room() ->
     muc_cases_with_room() ++ muc_fetch_specific_msgs_cases() ++ muc_configurable_archiveid_cases() ++
-        muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++ muc_text_search_cases().
+        muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++
+        muc_text_search_cases() ++ [muc_message_dropped].
 
 %% Module configuration per testcase
 
@@ -1621,6 +1646,30 @@ muc_querying_for_all_messages_with_jid(Config) ->
             ok
         end,
     escalus:story(Config, [{alice, 1}], F).
+
+muc_message_dropped(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"OH, HAI!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanzas(Alice, 3),
+
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+        maybe_wait_for_archive(Config),
+
+        Stanza = stanza_archive_request(P, <<"q1">>),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        assert_respond_size(0, wait_archive_respond(Alice)),
+        assert_dropped_msg_event(mod_mam_muc_dropped),
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_light_service_discovery_stored_in_pm(Config) ->
     F = fun(Alice) ->

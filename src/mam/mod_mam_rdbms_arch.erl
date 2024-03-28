@@ -280,10 +280,10 @@ archive_message(_Result, #{local_jid := ArcJID} = Params, #{host_type := HostTyp
         retract_message(HostType, Params, Env),
         {ok, ok}
     catch error:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => archive_message_failed,
-                    host_type => HostType, mam_params => Params,
-                    reason => Reason, stacktrace => StackTrace}),
         mongoose_instrument:execute(mod_mam_pm_dropped, #{host_type => HostType}, #{count => 1}),
+        ?LOG_ERROR(#{what => archive_message_failed,
+                     host_type => HostType, mam_params => Params,
+                     reason => Reason, stacktrace => StackTrace}),
         erlang:raise(error, Reason, StackTrace)
     end.
 

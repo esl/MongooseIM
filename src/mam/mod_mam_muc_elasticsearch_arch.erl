@@ -93,11 +93,11 @@ archive_message(_Result, Params, #{host_type := HostType}) ->
         {ok, _} ->
             {ok, ok};
         {error, Reason} = Err ->
+            mongoose_instrument:execute(mod_mam_muc_dropped, #{host_type => HostType}, #{count => 1}),
             ?LOG_ERROR(maps:merge(Params,
                        #{what => archive_muc_message_failed, reason => Reason,
                          server => HostType, room => Room, source => SourceBinJid,
                          message_id => MessageId})),
-            mongoose_instrument:execute(mod_mam_dropped, #{host_type => HostType}, #{count => 1}),
             {ok, Err}
     end.
 

@@ -36,6 +36,7 @@
          apply_start_border/2,
          apply_end_border/2]).
 
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
@@ -139,7 +140,11 @@ insert_query_cql() ->
 archive_message(_Result, Params, #{host_type := HostType}) ->
     try
         {ok, archive_message2(Params, HostType)}
-    catch _Type:Reason ->
+    catch _Type:Reason:StackTrace ->
+        mongoose_instrument:execute(mod_mam_muc_dropped, #{host_type => HostType}, #{count => 1}),
+        ?LOG_ERROR(#{what => archive_muc_message_failed,
+                     host_type => HostType, mam_params => Params,
+                     reason => Reason, stacktrace => StackTrace}),
         {ok, {error, Reason}}
     end.
 
@@ -159,7 +164,7 @@ archive_message2(#{message_id := MessID,
                  message   = BPacket,
                  with_nick = BWithNick
                 } || {BWithNick, BWithFromJID} <- [{<<>>, BFromJID}, {BNick, <<>>}]],
-    write_messages(HostType, Messages).
+    ok = write_messages(HostType, Messages).
 
 write_messages(HostType, Messages) ->
     PoolName = pool_name(HostType),
