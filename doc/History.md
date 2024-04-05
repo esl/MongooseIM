@@ -1,6 +1,6 @@
 # MongooseIM history
 
-## 2023: C2S and CETS
+## 2023-2024: C2S and CETS
 
 Created an alternative to Mnesia RAM-only tables - CETS.
 It allows to run MongooseIM without Mnesia completely in RDBMS+CETS setup.
@@ -8,8 +8,11 @@ It allows to run MongooseIM without Mnesia completely in RDBMS+CETS setup.
 Moved the C2S implementation to state machine.
 Added Docker image for arm64.
 
+Enhanced CETS, configurable pools, and traffic shaping updates.
+
 Releases:
 
+* [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) in April 2024.
 * [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) in December 2023.
 * [MongooseIM 6.1.0](https://github.com/esl/MongooseIM/releases/tag/6.1.0) in May 2023.
 

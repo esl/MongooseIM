@@ -1,3 +1,60 @@
+# [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) - 2024-04-11
+
+## Highlights
+
+- Enhanced CETS
+- Pools configuration
+- Traffic shapers update
+- Support for MAM v1.1.0
+- More reliable testing
+- Various improvements and fixes
+
+## All changes
+
+### Added
+- RDBMS backend for `mod_caps` (#4211)
+- Commit hash to GraphQL server status (#4221)
+- Erlang Doctor debugging tool (#4248)
+- Pools:
+  - By host type (#4229)
+  - By host config (#4235)
+  - Names to `mongoose_rdbms` (#4231)
+
+### Changed
+- Improved shapers (#4187, #4203, #4213)
+- Enhanced discovery requests handling (#4194)
+- User-friendly errors for internal databases in the GraphQL API (#4192)
+- Increase `idle_timeout` for SSE (#4196)
+- Presence management refactor (#4207)
+- MAM implementation update to version 1.1.0 (#4218, #4225)
+- Roster management refactor (#4209)
+
+### Fixed
+- CETS improvements:
+  - Pause on all nodes (#4204)
+  - Node cleanup (#4234, #4250, #4251)
+  - Unnecessary logs removal (#4205)
+  - Node discovery (#4255, #4256)
+- MAM lookup error handling (#4191)
+- MUC Light `id` definition for MariaDB (#4195)
+- `max_stanza_size` issue (#4197)
+- Duplicate migration files (#4230)
+- Invalid MAM IDs parsing and overflow (#4242)
+- Certificate options verification on HTTPS (#4236)
+
+### Other
+- Testing improvements/fixes (#4176, #4202, #4212, #4237, #4239, #4243, #4241, #4246, #4257, #4259, #4260)
+- Update migration guide (#4258)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.2.1)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2023-12-13..2024-04-11)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2023-12-13&to=2024-04-11&type=c)
+
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222023-12-13..2024-04-11%22+sort%3Acreated-asc+)
+
 # [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) - 2023-12-13
 
 ## Highlights
