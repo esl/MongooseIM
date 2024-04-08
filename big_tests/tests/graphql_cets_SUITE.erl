@@ -251,9 +251,8 @@ register_bad_node() ->
     {updated, 1} = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, InsertArgs).
 
 ensure_bad_node_unregistered() ->
-    ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
-    DeleteArgs = [ClusterName, Node],
+    DeleteArgs = [Node],
     %% Ensure the node is removed
     {updated, _} = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, DeleteArgs).
 
