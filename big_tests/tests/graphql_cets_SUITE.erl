@@ -16,7 +16,7 @@ all() ->
 
 groups() ->
     [{admin_cets_http, [parallel], admin_cets_tests()},
-     {admin_cets_cli, [parallel], admin_cets_tests()},
+     {admin_cets_cli, [], admin_cets_tests()},
      {domain_admin_cets, [], domain_admin_tests()},
      {cets_not_configured, [parallel], cets_not_configured_test()}].
 
