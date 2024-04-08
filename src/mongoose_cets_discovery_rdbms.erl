@@ -4,8 +4,8 @@
 -export([init/1, get_nodes/1]).
 
 %% these functions are exported for testing purposes only.
--export([select/1, insert_new/5, update_existing/4, delete_node_from_db/2]).
--ignore_xref([select/1, insert_new/5, update_existing/4, delete_node_from_db/2]).
+-export([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
+-ignore_xref([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
 
 -include("mongoose_logger.hrl").
 
@@ -73,11 +73,12 @@ try_register(ClusterName, Node, State = #{node_ip_binary := Address})
     NodeNum =
         case AlreadyRegistered of
             true ->
-                 update_existing(ClusterName, Node, Address, Timestamp),
+                 update_existing(Node, Address, Timestamp),
                  {value, {_, Num, _Addr, _TS}} = lists:keysearch(Node, 1, Rows),
                  Num;
             false ->
                  Num = first_free_num(lists:usort(Nums)),
+                 delete_node_from_db(Node), % Delete node if it was a member of another cluster
                  %% Could fail with duplicate node_num reason.
                  %% In this case just wait for the next get_nodes call.
                  case insert_new(ClusterName, Node, Num, Address, Timestamp) of
@@ -85,7 +86,7 @@ try_register(ClusterName, Node, State = #{node_ip_binary := Address})
                      {updated, 1} -> Num
                  end
         end,
-    RunCleaningResult = run_cleaning(ClusterName, Timestamp, Rows, State),
+    RunCleaningResult = run_cleaning(Timestamp, Rows, State),
     %% This could be used for debugging
     Info = #{already_registered => AlreadyRegistered, timestamp => Timestamp,
              address => Address,
@@ -95,12 +96,12 @@ try_register(ClusterName, Node, State = #{node_ip_binary := Address})
 skip_expired_nodes(Nodes, {removed, ExpiredNodes}) ->
     (Nodes -- ExpiredNodes).
 
-run_cleaning(ClusterName, Timestamp, Rows, State) ->
+run_cleaning(Timestamp, Rows, State) ->
     #{expire_time := ExpireTime, node_name_to_insert := CurrentNode} = State,
     ExpiredNodes = [DbNode || {DbNode, _Num, _Addr, DbTS} <- Rows,
                               is_expired(DbTS, Timestamp, ExpireTime),
                               DbNode =/= CurrentNode],
-    [delete_node_from_db(ClusterName, DbNode) || DbNode <- ExpiredNodes],
+    [delete_node_from_db(DbNode) || DbNode <- ExpiredNodes],
     case ExpiredNodes of
         [] -> ok;
         [_ | _] ->
@@ -122,9 +123,9 @@ prepare() ->
     mongoose_rdbms:prepare(cets_disco_insert_new, T,
                            [cluster_name, node_name, node_num, address, updated_timestamp], insert_new()),
     mongoose_rdbms:prepare(cets_disco_update_existing, T,
-                           [updated_timestamp, address, cluster_name, node_name], update_existing()),
+                           [updated_timestamp, address, node_name], update_existing()),
     mongoose_rdbms:prepare(cets_delete_node_from_db, T,
-                           [cluster_name, node_name], delete_node_from_db()).
+                           [node_name], delete_node_from_db()).
 
 select() ->
     <<"SELECT node_name, node_num, address, updated_timestamp FROM discovery_nodes WHERE cluster_name = ?">>.
@@ -141,16 +142,16 @@ insert_new(ClusterName, NodeName, NodeNum, Address, UpdatedTimestamp) ->
                            [ClusterName, NodeName, NodeNum, Address, UpdatedTimestamp]).
 
 update_existing() ->
-    <<"UPDATE discovery_nodes SET updated_timestamp = ?, address = ? WHERE cluster_name = ? AND node_name = ?">>.
+    <<"UPDATE discovery_nodes SET updated_timestamp = ?, address = ? WHERE node_name = ?">>.
 
-update_existing(ClusterName, NodeName, Address, UpdatedTimestamp) ->
-    mongoose_rdbms:execute(global, cets_disco_update_existing, [UpdatedTimestamp, Address, ClusterName, NodeName]).
+update_existing(NodeName, Address, UpdatedTimestamp) ->
+    mongoose_rdbms:execute(global, cets_disco_update_existing, [UpdatedTimestamp, Address, NodeName]).
 
 delete_node_from_db() ->
-    <<"DELETE FROM discovery_nodes WHERE cluster_name = ? AND node_name = ?">>.
+    <<"DELETE FROM discovery_nodes WHERE node_name = ?">>.
 
-delete_node_from_db(ClusterName, Node) ->
-    mongoose_rdbms:execute_successfully(global, cets_delete_node_from_db, [ClusterName, Node]).
+delete_node_from_db(Node) ->
+    mongoose_rdbms:execute_successfully(global, cets_delete_node_from_db, [Node]).
 
 %% in seconds
 timestamp() ->
