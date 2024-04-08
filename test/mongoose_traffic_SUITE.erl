@@ -39,7 +39,7 @@ mongoose_debug(_) ->
     % this is how mongoose_debug is meant to be used
     1 = recon_trace:calls({mongoose_debug, traffic, '_'}, 10, [{scope, local}, {formatter, Fmtr}]),
     mongoose_debug:start(localhost, []),
-    call_hooks(),
+    call_hooks_in(),
     ?assertMatch({trace, _ ,call, {mongoose_debug,
                                    traffic,
                                    ["a@localhost/c"," C >>>> MiM "," ", _]}},
@@ -49,19 +49,27 @@ mongoose_debug(_) ->
 mongoose_traffic(_) ->
     mongoose_traffic:start(localhost, #{standalone => true}),
     gen_server:call(mongoose_traffic, {register, self()}),
-    call_hooks(),
+    call_hooks_in(),
     ?assertMatch({message,client_to_server, _, #jid{}, _},
                  receive_msg()),
     gen_server:call(mongoose_traffic, {unregister, self()}),
-    call_hooks(),
+    call_hooks_in(),
+    call_hooks_out(),
     no_new_msg(),
     ok.
 
-call_hooks() ->
+call_hooks_in() ->
     Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => localhost}),
     From = jid:from_binary(<<"a@localhost/c">>),
     El = #xmlel{name = <<"testelement">>},
     mongoose_hooks:c2s_debug(Acc, {client_to_server, From, El}),
+    ok.
+
+call_hooks_out() ->
+    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => localhost}),
+    From = jid:from_binary(<<"a@localhost/c">>),
+    El = #xmlel{name = <<"testelement">>},
+    mongoose_hooks:c2s_debug(Acc, {server_to_client, From, El}),
     ok.
 
 receive_msg() ->
