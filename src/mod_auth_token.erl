@@ -4,7 +4,6 @@
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
--include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
 -include("mongoose_config_spec.hrl").
@@ -32,9 +31,6 @@
 -export([deserialize/1,
          serialize/1]).
 
-%% Command-line interface
--export([revoke_token_command/1]).
-
 %% Test only!
 -export([datetime_to_seconds/1,
          seconds_to_datetime/1]).
@@ -52,7 +48,7 @@
 -ignore_xref([
     behaviour_info/1, datetime_to_seconds/1, deserialize/1,
     expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
-    revoke/2, revoke_token_command/1, seconds_to_datetime/1,
+    revoke/2, seconds_to_datetime/1,
     serialize/1, token/3, token_with_mac/2
 ]).
 
@@ -82,7 +78,6 @@ start(HostType, #{iqdisc := IQDisc} = Opts) ->
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
       fun ?MODULE:process_iq/5, #{}, IQDisc),
-    ejabberd_commands:register_commands(commands()),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
@@ -127,13 +122,6 @@ validity_period_spec() ->
                 },
        required = all
       }.
-
--spec commands() -> [ejabberd_commands:cmd()].
-commands() ->
-    [#ejabberd_commands{ name = revoke_token, tags = [tokens],
-                         desc = "Revoke REFRESH token",
-                         module = ?MODULE, function = revoke_token_command,
-                         args = [{owner, binary}], result = {res, restuple} }].
 
 %%
 %% Other stuff
@@ -413,17 +401,6 @@ get_key_for_host_type(HostType, TokenType) ->
 key_name(access)    -> token_secret;
 key_name(refresh)   -> token_secret;
 key_name(provision) -> provision_pre_shared.
-
--spec revoke_token_command(Owner) -> ResTuple when
-      Owner :: binary(),
-      ResCode :: ok | not_found | error,
-      ResTuple :: {ResCode, string()}.
-revoke_token_command(Owner) ->
-    JID = jid:from_binary(Owner),
-    case mod_auth_token_api:revoke_token_command(JID) of
-        {ok, _} = Result -> Result;
-        Error -> Error
-    end.
 
 -spec clean_tokens(Acc, Params, Extra) -> {ok, Acc} when
       Acc :: mongoose_acc:t(),

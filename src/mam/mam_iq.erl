@@ -16,7 +16,8 @@
                  | 'mam_lookup_messages'
                  | 'mam_set_prefs'
                  | 'mam_set_message_form'
-                 | 'mam_get_message_form'.
+                 | 'mam_get_message_form'
+                 | 'mam_get_metadata'.
 
 -type lookup_params() :: #{
         archive_id => mod_mam:archive_id(),
@@ -37,8 +38,10 @@
         with_jid => jid:jid() | undefined,
         %% Filtering by body text
         search_text => binary() | undefined,
-        %% Filtering Result Set based on message ids
+        %% Filtering Result Set before/after specific message ids
         borders =>  mod_mam:borders() | undefined,
+        %% Filtering Result Set based on specific message ids
+        message_ids => [mod_mam:message_id()] | undefined,
         %% Affects 'policy-violation' for a case when:
         %% - user does not use forms to query archive
         %% - user does not provide "set" element
@@ -47,6 +50,11 @@
         %% Optimizations flags
         %% see form_to_lookup_params for more info
         is_simple => true | false,
+        %% Contains information whether the client requested to get the results in reversed order
+        flip_page => true | false,
+        %% If the groupchat messages are stored in the user's archive,
+        %% this parameter is used to decide whether to include them or not
+        include_groupchat => true | false,
         %% Can have more fields, added in maybe_add_extra_lookup_params function
         %% in runtime
         atom() => _
@@ -67,7 +75,8 @@ action_v04plus(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
         {get, <<"query">>} -> mam_get_message_form;
-        {set, <<"query">>} -> mam_set_message_form
+        {set, <<"query">>} -> mam_set_message_form;
+        {get, <<"metadata">>} -> mam_get_metadata
     end.
 
 -spec action_type(action()) -> 'get' | 'set'.
@@ -75,7 +84,8 @@ action_type(mam_get_prefs) -> get;
 action_type(mam_set_prefs) -> set;
 action_type(mam_lookup_messages) -> get;
 action_type(mam_set_message_form) -> get;
-action_type(mam_get_message_form) -> get.
+action_type(mam_get_message_form) -> get;
+action_type(mam_get_metadata) -> get.
 
 %% @doc Convert id into internal format.
 -spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().
@@ -137,6 +147,7 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                search_text => mod_mam_utils:form_to_text(KVs),
 
                borders => mod_mam_utils:form_borders_decode(KVs),
+               message_ids => form_to_msg_ids(KVs),
                %% Whether or not the client query included a <set/> element,
                %% the server MAY simply return its limited results.
                %% So, disable 'policy-violation'.
@@ -145,7 +156,8 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                %% - true - do not count records (useful during pagination, when we already
                %%          know how many messages we have from a previous query);
                %% - false - count messages (slow, according XEP-0313);
-               is_simple => maybe_enforce_simple(KVs, EnforceSimple)},
+               is_simple => maybe_enforce_simple(KVs, EnforceSimple),
+               include_groupchat => include_groupchat(KVs)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
 -spec query_to_map(exml:element()) -> mongoose_data_forms:kv_map().
@@ -169,7 +181,8 @@ common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
       page_size => min(MaxResultLimit,
                        mod_mam_utils:maybe_integer(Limit, DefaultResultLimit)),
       limit_passed => Limit =/= <<>>,
-      ordering_direction => ordering_direction(RSM)}.
+      ordering_direction => ordering_direction(RSM),
+      flip_page => mod_mam_utils:should_page_be_flipped(QueryEl)}.
 
 -spec lookup_params_with_archive_details(lookup_params(), term(), jid:jid(), jid:jid()) ->
     lookup_params().
@@ -190,3 +203,13 @@ maybe_enforce_simple(_, true) ->
     true;
 maybe_enforce_simple(KVs, _) ->
     mod_mam_utils:form_decode_optimizations(KVs).
+
+include_groupchat(#{<<"include-groupchat">> := [<<"false">>]}) ->
+    false;
+include_groupchat(_) ->
+    undefined.
+
+form_to_msg_ids(#{<<"ids">> := IDs}) ->
+    [mod_mam_utils:external_binary_to_mess_id(ID) || ID <- IDs];
+form_to_msg_ids(_) ->
+    undefined.

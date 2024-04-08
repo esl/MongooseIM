@@ -504,14 +504,15 @@ field_spec({Var, Value}) when is_list(Value) -> #{var => Var, values => Value};
 field_spec({Var, Value}) -> #{var => Var, values => [Value]}.
 
 required_modules() ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    HostType = domain_helper:host_type(),
+    [{mod_caps, config_parser_helper:mod_config_with_auto_backend(mod_caps)},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
                                            nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),

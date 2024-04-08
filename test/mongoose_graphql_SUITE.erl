@@ -113,12 +113,19 @@ use_directive() ->
      use_dir_all_modules_loaded,
      use_dir_all_modules_and_services_loaded,
      use_dir_module_and_service_not_loaded,
-     use_dir_object_module_and_service_not_loaded,
-     use_dir_object_all_modules_and_services_loaded,
-     use_dir_auth_admin_all_modules_and_services_loaded,
-     use_dir_auth_user_all_modules_and_services_loaded,
-     use_dir_auth_admin_module_and_service_not_loaded,
-     use_dir_auth_user_module_and_service_not_loaded
+     use_dir_module_service_and_db_loaded,
+     use_dir_db_not_loaded,
+     use_dir_module_service_and_db_not_loaded,
+     use_dir_object_module_service_and_db_loaded,
+     use_dir_object_all_modules_services_and_dbs_loaded,
+     use_dir_object_module_and_db_not_loaded,
+     use_dir_object_service_and_db_not_loaded,
+     use_dir_auth_admin_all_modules_services_and_dbs_loaded,
+     use_dir_auth_user_all_modules_services_and_dbs_loaded,
+     use_dir_auth_admin_module_service_and_db_not_loaded,
+     use_dir_auth_user_module_service_and_db_not_loaded,
+     use_dir_auth_admin_db_not_loaded,
+     use_dir_auth_user_db_not_loaded
     ].
 
 user_listener() ->
@@ -154,7 +161,7 @@ common_tests() ->
 
 init_per_suite(Config) ->
     %% Register atoms for `binary_to_existing_atom`
-    [mod_x, mod_z, service_x, service_d],
+    [mod_x, mod_z, service_x, service_d, db_x],
     application:ensure_all_started(cowboy),
     application:ensure_all_started(jid),
     Config.
@@ -205,6 +212,7 @@ init_per_group(domain_permissions, Config) ->
     [{domains, Domains} | Config];
 init_per_group(use_directive, Config) ->
     Config1 = meck_domain_api(Config),
+    mongoose_config:set_opts(#{internal_databases => #{db_a => #{}}}),
     meck_module_and_service_checking(Config1);
 init_per_group(_G, Config) ->
     Config.
@@ -226,7 +234,8 @@ end_per_group(domain_permissions, _Config) ->
     meck:unload(mongoose_domain_api);
 end_per_group(use_directive, Config) ->
     unmeck_domain_api(Config),
-    unmeck_module_and_service_checking(Config);
+    unmeck_module_and_service_checking(Config),
+    mongoose_config:erase_opts();
 end_per_group(_, Config) ->
     Config.
 
@@ -276,13 +285,20 @@ init_per_testcase(C, Config) when C =:= check_object_permissions;
 init_per_testcase(C, Config) when C =:= use_dir_module_not_loaded;
                                   C =:= use_dir_all_modules_loaded;
                                   C =:= use_dir_module_and_service_not_loaded;
+                                  C =:= use_dir_module_service_and_db_loaded;
+                                  C =:= use_dir_db_not_loaded;
+                                  C =:= use_dir_module_service_and_db_not_loaded;
                                   C =:= use_dir_all_modules_and_services_loaded;
-                                  C =:= use_dir_object_module_and_service_not_loaded;
-                                  C =:= use_dir_object_all_modules_and_services_loaded;
-                                  C =:= use_dir_auth_user_all_modules_and_services_loaded;
-                                  C =:= use_dir_auth_admin_all_modules_and_services_loaded;
-                                  C =:= use_dir_auth_user_module_and_service_not_loaded;
-                                  C =:= use_dir_auth_admin_module_and_service_not_loaded ->
+                                  C =:= use_dir_object_module_service_and_db_loaded;
+                                  C =:= use_dir_object_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_object_module_and_db_not_loaded;
+                                  C =:= use_dir_object_service_and_db_not_loaded;
+                                  C =:= use_dir_auth_user_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_auth_admin_all_modules_services_and_dbs_loaded;
+                                  C =:= use_dir_auth_user_module_service_and_db_not_loaded;
+                                  C =:= use_dir_auth_admin_module_service_and_db_not_loaded;
+                                  C =:= use_dir_auth_admin_db_not_loaded;
+                                  C =:= use_dir_auth_user_db_not_loaded ->
     {Mapping, Pattern} = example_directives_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -681,8 +697,7 @@ use_directive_can_use_auth_user_domain(Config) ->
         execute(Ep, Body, {<<"alice@localhost">>, <<"makota">>}),
     #{<<"extensions">> :=
         #{<<"code">> := <<"deps_not_loaded">>,
-          <<"not_loaded_modules">> := [<<"mod_x">>],
-          <<"not_loaded_services">> := []}
+          <<"not_loaded_modules">> := [<<"mod_x">>]}
      } = Error.
 
 no_creds_defined_admin_can_access_protected(_Config) ->
@@ -712,8 +727,7 @@ use_directive_can_use_auth_domain_admin_domain(Config) ->
         execute(Ep, Body, {<<"admin@localhost">>, <<"makota">>}),
     #{<<"extensions">> :=
         #{<<"code">> := <<"deps_not_loaded">>,
-          <<"not_loaded_modules">> := [<<"mod_x">>],
-          <<"not_loaded_services">> := []}
+          <<"not_loaded_modules">> := [<<"mod_x">>]}
      } = Error.
 
 auth_domain_admin_wrong_password_error(Config) ->
@@ -846,10 +860,9 @@ use_dir_module_not_loaded(Config) ->
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_b">>],
-          not_loaded_services := []
+          not_loaded_modules := [<<"mod_b">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message := <<"Some of the required modules are not loaded">>,
       path := [<<"catA">>, <<"command">>]
      } = Error.
 
@@ -870,18 +883,80 @@ use_dir_module_and_service_not_loaded(Config) ->
           not_loaded_modules := [<<"mod_z">>],
           not_loaded_services := [<<"service_d">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message := <<"Some of the required modules and services are not loaded">>,
       path := [<<"catA">>, <<"command3">>]
      } = Error.
 
-use_dir_object_all_modules_and_services_loaded(Config) ->
+use_dir_module_service_and_db_loaded(Config) ->
+    Doc = <<"{catA { command4(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    Res = execute_ast(Config, Ctx2, Ast),
+    ?assertEqual(#{data => #{<<"catA">> => #{<<"command4">> => <<"command4">>}}}, Res).
+
+use_dir_db_not_loaded(Config) ->
+    Doc = <<"{catA { command5(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message :=
+        <<"Some of the required internal databases are not loaded">>,
+      path := [<<"catA">>, <<"command5">>]
+     } = Error.
+
+use_dir_module_service_and_db_not_loaded(Config) ->
+    Doc = <<"{catA { command6(domain: \"localhost\")} }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
+      path := [<<"catA">>, <<"command6">>]
+     } = Error.
+
+use_dir_object_all_modules_services_and_dbs_loaded(Config) ->
     Doc = <<"{ catC { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     Res = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command">> => <<"command">>}}}, Res).
 
-use_dir_object_module_and_service_not_loaded(Config) ->
+use_dir_object_module_and_db_not_loaded(Config) ->
+    Doc = <<"{ catD { command(domain: \"localhost\") } }">>,
+    Ctx = #{},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_modules := [<<"mod_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message :=
+        <<"Some of the required modules and internal databases are not loaded">>,
+      path := [<<"catD">>, <<"command">>]
+     } = Error.
+
+use_dir_object_service_and_db_not_loaded(Config) ->
+    Doc = <<"{ catD { command3 } }">>,
+    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
+    #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
+    #{extensions :=
+        #{code := deps_not_loaded,
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message := <<"Some of the required services and internal databases are not loaded">>,
+      path := [<<"catD">>, <<"command3">>]
+     } = Error.
+
+use_dir_object_module_service_and_db_loaded(Config) ->
     Doc = <<"{ catB { command(domain: \"localhost\") } }">>,
     Ctx = #{},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
@@ -889,53 +964,66 @@ use_dir_object_module_and_service_not_loaded(Config) ->
     #{extensions :=
         #{code := deps_not_loaded,
           not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
       path := [<<"catB">>, <<"command">>]
      } = Error.
 
-use_dir_auth_user_all_modules_and_services_loaded(Config) ->
+use_dir_auth_all_modules_services_and_dbs_loaded(UserRole, Config) ->
     Doc = <<"{ catC { command2 } }">>,
-    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    Ctx = #{user => jid:make_bare(UserRole, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     Res = execute_ast(Config, Ctx2, Ast),
     ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
 
-use_dir_auth_admin_all_modules_and_services_loaded(Config) ->
-    Doc = <<"{ catC { command2 } }">>,
-    Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
-    {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
-    Res = execute_ast(Config, Ctx2, Ast),
-    ?assertEqual(#{data => #{<<"catC">> => #{<<"command2">> => <<"command2">>}}}, Res).
+use_dir_auth_user_all_modules_services_and_dbs_loaded(Config) ->
+    use_dir_auth_all_modules_services_and_dbs_loaded(<<"user">>, Config).
 
-use_dir_auth_user_module_and_service_not_loaded(Config) ->
+use_dir_auth_admin_all_modules_services_and_dbs_loaded(Config) ->
+    use_dir_auth_all_modules_services_and_dbs_loaded(<<"admin">>, Config).
+
+use_dir_auth_module_service_and_db_not_loaded(UserRole, Config) ->
     Doc = <<"{ catB { command2 } }">>,
-    Ctx = #{user => jid:make_bare(<<"user">>, <<"localhost">>)},
+    Ctx = #{user => jid:make_bare(UserRole, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
           not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
+          not_loaded_services := [<<"service_x">>],
+          not_loaded_internal_databases := [<<"db_x">>]
          },
-      message := <<"Some of required modules or services are not loaded">>,
+      message :=
+        <<"Some of the required modules and services and internal databases are not loaded">>,
       path := [<<"catB">>, <<"command2">>]
      } = Error.
 
-use_dir_auth_admin_module_and_service_not_loaded(Config) ->
-    Doc = <<"{ catB { command2 } }">>,
-    Ctx = #{user => jid:make_bare(<<"admin">>, <<"localhost">>)},
+use_dir_auth_user_module_service_and_db_not_loaded(Config) ->
+    use_dir_auth_module_service_and_db_not_loaded(<<"user">>, Config).
+
+use_dir_auth_admin_module_service_and_db_not_loaded(Config) ->
+    use_dir_auth_module_service_and_db_not_loaded(<<"admin">>, Config).
+
+use_dir_auth_db_not_loaded(UserRole, Config) ->
+    Doc = <<"{ catD { command2 } }">>,
+    Ctx = #{user => jid:make_bare(UserRole, <<"localhost">>)},
     {Ast, Ctx2} = check_directives(Config, Ctx, Doc),
     #{errors := [Error]} = execute_ast(Config, Ctx2, Ast),
     #{extensions :=
         #{code := deps_not_loaded,
-          not_loaded_modules := [<<"mod_x">>],
-          not_loaded_services := [<<"service_x">>]
-         },
-      message := <<"Some of required modules or services are not loaded">>,
-      path := [<<"catB">>, <<"command2">>]
+          not_loaded_internal_databases := [<<"db_x">>]},
+      message := <<"Some of the required internal databases are not loaded">>,
+      path := [<<"catD">>, <<"command2">>]
      } = Error.
+
+use_dir_auth_user_db_not_loaded(Config) ->
+    use_dir_auth_db_not_loaded(<<"user">>, Config).
+
+use_dir_auth_admin_db_not_loaded(Config) ->
+    use_dir_auth_db_not_loaded(<<"admin">>, Config).
 
 %% Helpers
 
@@ -1153,4 +1241,5 @@ meck_module_and_service_checking(Config) ->
 
 unmeck_module_and_service_checking(_Config) ->
     meck:unload(gen_mod),
-    meck:unload(mongoose_service).
+    meck:unload(mongoose_service),
+    mongoose_config:erase_opts().

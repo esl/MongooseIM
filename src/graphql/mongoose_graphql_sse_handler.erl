@@ -24,8 +24,11 @@
 -spec init(state(), any(), cowboy_req:req()) ->
           {ok, req(), state()} |
           {shutdown, cowboy:http_status(), cowboy:http_headers(), iodata(), req(), state()}.
-init(State, _LastEvtId, Req) ->
+init(#{sse_idle_timeout := Timeout} = State, _LastEvtId, Req) ->
     process_flag(trap_exit, true), % needed for 'terminate' to be called
+    cowboy_req:cast({set_options, #{
+        idle_timeout => Timeout
+    }}, Req),
     case cowboy_req:method(Req) of
         <<"GET">> ->
             case mongoose_graphql_handler:check_auth_header(Req, State) of

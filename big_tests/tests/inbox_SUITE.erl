@@ -188,7 +188,7 @@ init_per_group(muclight_config, Config) ->
     Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
     escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 init_per_group(muc, Config) ->
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
 init_per_group(limit_result, Config) ->
     OptKey = [{modules, domain_helper:host_type()}, mod_inbox, max_result_limit],

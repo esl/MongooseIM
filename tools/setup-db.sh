@@ -49,8 +49,8 @@ function setup_db(){
             -p $MYSQL_PORT:3306 \
             -e SQL_TEMP_DIR=/tmp/sql \
             -e MYSQL_ROOT_PASSWORD=secret \
-            -e MYSQL_DATABASE=ejabberd \
-            -e MYSQL_USER=ejabberd \
+            -e MYSQL_DATABASE=mongooseim \
+            -e MYSQL_USER=mongooseim \
             -e MYSQL_PASSWORD=mongooseim_secret \
             -e OLD_ENTRYPOINT="./entrypoint.sh mysqld" \
             -e ENV_FILE_CFG_PATH="/etc/mysql/conf.d/mysql.cnf" \
@@ -240,7 +240,7 @@ function setup_db(){
             --user root \
             -e "ACCEPT_EULA=Y" \
             -e "SA_PASSWORD=mongooseim_secret+ESL123" \
-            -e "DB_NAME=ejabberd" \
+            -e "DB_NAME=mongooseim" \
             -e "SQL_FILE=/tmp/mongoose.sql" \
             -e SCHEMA_READY_PORT=1434 \
             -e SQL_FILE="/tmp/mongoose.sql" \

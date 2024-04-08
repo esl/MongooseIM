@@ -52,15 +52,15 @@ foreach_recipient(Users, VerifyFun) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
 
-load_muc(Config) ->
-    load_muc(Config, domain_helper:host_type()).
+load_muc() ->
+    load_muc(domain_helper:host_type()).
 
-load_muc(Config, HostType) ->
+load_muc(HostType) ->
     Backend = muc_backend(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
     Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
-             online_backend => muc_online_backend(Config),
+             online_backend => muc_online_backend(),
              hibernate_timeout => 2000,
              hibernated_room_check_interval => 1000,
              hibernated_room_timeout => 2000,
@@ -87,8 +87,8 @@ muc_host_pattern() ->
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
 
-muc_online_backend(Config) when is_list(Config) ->
-    ct_helper:get_preset_var(Config, muc_online_backend, mnesia).
+muc_online_backend() ->
+    ct_helper:get_internal_database().
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
@@ -182,7 +182,7 @@ destroy_room(Config) ->
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     HostType = domain_helper:host_type(),
     Room1 = jid:nodeprep(Room),
-    case rpc(mim(), mongoose_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
+    case rpc(mim(), mod_muc_online_backend, find_room_pid, [HostType, Host, Room1]) of
         {ok, Pid} ->
             %% @TODO related to gen_fsm_compat: after migration to gen_statem
             %%       should be replaced to - gen_statem:call(Pid, destroy).

@@ -16,8 +16,8 @@ containers:
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - MYSQL_ROOT_PASSWORD: secret
-      - MYSQL_DATABASE: ejabberd
-      - MYSQL_USER: ejabberd
+      - MYSQL_DATABASE: mongooseim
+      - MYSQL_USER: mongooseim
       - MYSQL_PASSWORD: mongooseim_secret
       - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
       - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
@@ -80,7 +80,7 @@ containers:
     environment:
       - ACCEPT_EULA: Y
       - SA_PASSWORD: "mongooseim_secret+ESL123"
-      - DB_NAME: ejabberd
+      - DB_NAME: mongooseim
       - SCHEMA_READY_PORT: 1434
         # We are not running as root in this container,
         # so we can only write into some directories (in this case, /tmp)
@@ -478,7 +478,7 @@ jobs:
                   ssh-keyscan github.com >> ~/.ssh/known_hosts
                   git fetch git@github.com:esl/MongooseDocs.git gh-pages:gh-pages
                   pip3 install mike
-                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
+                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push
 
   build_in_docker:
     executor: << parameters.executor >>

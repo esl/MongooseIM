@@ -78,7 +78,7 @@ init_redis_group(true, Config) ->
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
                   Pool = default_config([outgoing_pools, redis, default]),
-                  mongoose_wpool:start_configured_pools([Pool], []),
+                  mongoose_wpool:start_configured_pools([Pool], [], []),
                   Self ! ready,
                   receive stop -> ok end
           end),
@@ -400,7 +400,6 @@ unique_count_while_removing_entries(C) ->
 unload_meck() ->
     meck:unload(acl),
     meck:unload(gen_hook),
-    meck:unload(ejabberd_commands),
     meck:unload(mongoose_domain_api),
     catch ets:delete(test_c2s_info),
     catch meck:unload(mongoose_c2s).
@@ -647,7 +646,4 @@ sm_backend(ejabberd_sm_cets) -> cets.
 set_meck() ->
     meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
     meck:expect(gen_hook, add_handlers, fun(_) -> ok end),
-    meck:new(ejabberd_commands, []),
-    meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
-    meck:expect(ejabberd_commands, unregister_commands, fun(_) -> ok end),
     ok.

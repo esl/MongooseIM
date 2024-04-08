@@ -23,7 +23,7 @@
          generic_count/1]).
 
 -export([clear_last_activity/2,
-         clear_caps_cache/1]).
+         clear_caps_cache/2]).
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
@@ -45,6 +45,7 @@
 -export([auth_opts_with_password_format/1]).
 -export([get_listeners/2]).
 -export([restart_listener/2]).
+-export([change_listener_idle_timeout/2]).
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
 -export([print_debug_info_for_module/1]).
@@ -153,8 +154,8 @@ new_mongoose_acc(Location, Server) ->
                                           host_type => HostType,
                                           element => undefined }]).
 
-clear_caps_cache(CapsNode) ->
-    ok = rpc(mim(), mod_caps, delete_caps, [CapsNode]).
+clear_caps_cache(HostType, CapsNode) ->
+    ok = rpc(mim(), mod_caps, delete_caps, [HostType, CapsNode]).
 
 get_backend(HostType, Module) ->
     try rpc(mim(), mongoose_backend, get_backend_module, [HostType, Module])
@@ -243,7 +244,7 @@ stop_online_rooms() ->
     end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
     %% That's a pretty dirty way
-    rpc(mim(), mongoose_muc_online_backend, clear_table, [HostType]),
+    rpc(mim(), mod_muc_online_backend, clear_table, [HostType]),
     ok.
 
 forget_persistent_rooms() ->
@@ -490,14 +491,28 @@ build_new_password_opts(Type) ->
     #{format => Type}.
 
 get_listeners(#{} = Spec, Pattern) ->
-    Keys = maps:keys(Pattern),
     Listeners = rpc(Spec, mongoose_config, get_opt, [listen]),
-    lists:filter(fun(Listener) -> maps:with(Keys, Listener) =:= Pattern end, Listeners).
+    lists:filter(fun(Listener) -> matches_pattern(Listener, Pattern) end, Listeners).
+
+matches_pattern(Map, Pattern) when is_map(Map), is_map(Pattern) ->
+    Keys = maps:keys(Pattern),
+    lists:all(fun(Key) -> matches_pattern(maps:get(Key, Map, undefined), maps:get(Key, Pattern)) end, Keys);
+matches_pattern([Head1 | List], [Head2 | Pattern]) ->
+    matches_pattern(Head1, Head2) andalso matches_pattern(List, Pattern);
+matches_pattern(undefined, _) ->
+    false;
+matches_pattern(Value, Pattern) ->
+    Value =:= Pattern.
 
 %% 'port', 'ip_tuple' and 'proto' options need to stay unchanged for a successful restart
 restart_listener(Spec, Listener) ->
     rpc(Spec, mongoose_listener, stop_listener, [Listener]),
     rpc(Spec, mongoose_listener, start_listener, [Listener]).
+
+change_listener_idle_timeout(Listener, Timeout) ->
+    #{protocol := ProtocolOpts} = Listener,
+    NewConfig = Listener#{protocol => ProtocolOpts#{idle_timeout => Timeout}},
+    restart_listener(mim(), NewConfig).
 
 should_minio_be_running(Config) ->
     DBs = ct_helper:get_preset_var(Config, dbs, []),

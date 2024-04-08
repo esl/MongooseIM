@@ -169,7 +169,8 @@ lookup_fields() ->
      #lookup_field{op = ge, column = id, param = start_id},
      #lookup_field{op = le, column = id, param = end_id},
      #lookup_field{op = equal, column = nick_name, param = remote_resource},
-     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
+     #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words},
+     #lookup_field{op = equal, column = id, param = message_id}].
 
 -spec env_vars(host_type(), jid:jid()) -> env_vars().
 env_vars(HostType, ArcJID) ->
@@ -378,8 +379,6 @@ extract_gdpr_messages(HostType, SenderID) ->
     Acc :: {ok, mod_mam:lookup_result()},
     Params :: mam_iq:lookup_params(),
     Extra :: gen_hook:extra().
-lookup_messages({error, _Reason} = Result, _Params, _Extra) ->
-    {ok, Result};
 lookup_messages(_Result, #{owner_jid := ArcJID} = Params, #{host_type := HostType}) ->
     Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),

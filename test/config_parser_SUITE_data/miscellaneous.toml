@@ -14,10 +14,6 @@
   replaced_wait_timeout = 2000
   hide_service_name = true
 
-  [general.mongooseimctl_access_commands.local]
-    commands = ["join_cluster"]
-    argument_restrictions.node = "mongooseim@prime"
-
   [[general.domain_certfile]]
     domain = "example.com"
     certfile = "priv/cert.pem"

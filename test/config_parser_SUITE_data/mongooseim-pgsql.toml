@@ -36,6 +36,7 @@
   tls.certfile = "priv/cert.pem"
   tls.keyfile = "priv/dc1.pem"
   tls.password = ""
+  tls.verify_mode = "none"
 
   [[listen.http.handlers.mongoose_admin_api]]
     host = "localhost"
@@ -72,6 +73,7 @@
   tls.certfile = "priv/cert.pem"
   tls.keyfile = "priv/dc1.pem"
   tls.password = ""
+  tls.verify_mode = "none"
 
   [[listen.http.handlers.mongoose_client_api]]
     host = "_"
@@ -129,11 +131,6 @@
 
   [auth.rdbms]
 
-[outgoing_pools.redis.global_distrib]
-  scope = "single_host"
-  host = "localhost"
-  workers = 10
-
 [outgoing_pools.rdbms.default]
   scope = "global"
   workers = 5
@@ -141,16 +138,12 @@
   [outgoing_pools.rdbms.default.connection]
     driver = "pgsql"
     host = "localhost"
-    database = "ejabberd"
-    username = "ejabberd"
+    database = "mongooseim"
+    username = "mongooseim"
     password = "mongooseim_secret"
     tls.required = true
     tls.cacertfile = "priv/ca.pem"
     tls.server_name_indication.enabled = false
-
-[services.service_admin_extra]
-  submods = ["node", "accounts", "sessions", "vcard", "gdpr", "upload",
-             "roster", "last", "private", "stanza", "stats"]
 
 [services.service_mongoose_system_metrics]
   initial_report = 300_000
@@ -308,8 +301,22 @@
     ip_address = "127.0.0.1"
 
 [[host_config]]
-  host = "anonymous.localhost"
+  host = "localhost"
+  [host_config.outgoing_pools.redis.global_distrib]
+    workers = 10
 
+[[host_config]]
+  host = "anonymous.localhost"
   [host_config.auth.anonymous]
     allow_multiple_connections = true
     protocol = "both"
+  [host_config.outgoing_pools.rdbms.special]
+    workers = 5
+    connection.driver = "pgsql"
+    connection.host = "localhost"
+    connection.database = "mongooseim"
+    connection.username = "mongooseim"
+    connection.password = "mongooseim_secret"
+    connection.tls.required = true
+    connection.tls.cacertfile = "priv/ca.pem"
+    connection.tls.server_name_indication.enabled = false

@@ -6,11 +6,6 @@
   ]
   default_server_domain = "localhost"
 
-[outgoing_pools.redis.global_distrib]
-  scope = "single_host"
-  host = "localhost"
-  workers = 10
-
 [outgoing_pools.rdbms.default]
   scope = "global"
   workers = 5
@@ -18,8 +13,8 @@
   [outgoing_pools.rdbms.default.connection]
     driver = "pgsql"
     host = "localhost"
-    database = "ejabberd"
-    username = "ejabberd"
+    database = "mongooseim"
+    username = "mongooseim"
     password = "mongooseim_secret"
     keepalive_interval = 30
     tls.required = true
@@ -50,7 +45,7 @@
   connection.host = "localhost"
 
 [outgoing_pools.rabbit.event_pusher]
-  scope = "host"
+  scope = "host_type"
   workers = 20
 
   [outgoing_pools.rabbit.event_pusher.connection]
@@ -62,10 +57,15 @@
     max_worker_queue_len = 100
 
 [outgoing_pools.ldap.default]
-  scope = "host"
+  scope = "host_type"
   workers = 5
 
   [outgoing_pools.ldap.default.connection]
     servers = ["ldap-server.example.com"]
     root_dn = "cn=admin,dc=example,dc=com"
     password = "ldap-admin-password"
+
+[[host_config]]
+  host = "localhost"
+  [host_config.outgoing_pools.redis.global_distrib]
+    workers = 10

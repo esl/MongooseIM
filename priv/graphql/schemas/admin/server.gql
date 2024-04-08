@@ -48,6 +48,8 @@ type Status {
   message: String
   "MongooseIM version"
   version: String
+  "The hash of the commit that MongooseIM is running"
+  commitHash: String
 }
 
 "Specifies status of the server"

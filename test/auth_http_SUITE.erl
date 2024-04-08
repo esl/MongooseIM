@@ -77,14 +77,14 @@ init_per_suite(Config) ->
               % This would be started via outgoing_pools in normal case
               Pool = config([outgoing_pools, http, auth], pool_opts()),
               HostTypes = [?HOST_TYPE, <<"another host type">>],
-              mongoose_wpool:start_configured_pools([Pool], HostTypes),
+              mongoose_wpool:start_configured_pools([Pool], [], HostTypes),
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)
       end),
     Config.
 
 pool_opts() ->
-   #{scope => host,
+   #{scope => host_type,
      opts => #{strategy => random_worker, call_timeout => 5000, workers => 20},
      conn_opts => #{host => ?AUTH_HOST, path_prefix => <<"/auth/">>}}.
 

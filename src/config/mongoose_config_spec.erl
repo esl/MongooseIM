@@ -14,11 +14,14 @@
          process_general/1,
          process_listener/2,
          process_c2s_tls/1,
+         process_c2s_just_tls/1,
+         process_just_tls/1,
          process_fast_tls/1,
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
          process_pool/2,
+         process_host_config_pool/2,
          process_ldap_connection/1,
          process_iqdisc/1,
          process_acl_condition/1,
@@ -89,7 +92,7 @@ root() ->
                                                   defaults = general_defaults()},
                  <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
-                 <<"outgoing_pools">> => outgoing_pools(),
+                 <<"outgoing_pools">> => outgoing_pools(global_config),
                  <<"internal_databases">> => internal_databases(),
                  <<"services">> => services(),
                  <<"modules">> => Modules#section{include = always},
@@ -134,6 +137,7 @@ host_config() ->
                  <<"general">> => general(),
                  <<"auth">> => auth(),
                  <<"modules">> => modules(),
+                 <<"outgoing_pools">> => outgoing_pools(host_config),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
@@ -189,9 +193,6 @@ general() ->
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    wrap = host_config},
-                 <<"mongooseimctl_access_commands">> => #section{
-                                                           items = #{default => ctl_access_rule()},
-                                                           wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
                                                 process = fun xmpp_router:expand_routing_modules/1,
@@ -220,21 +221,9 @@ general_defaults() ->
       <<"component_backend">> => mnesia,
       <<"s2s_backend">> => mnesia,
       <<"rdbms_server_type">> => generic,
-      <<"mongooseimctl_access_commands">> => #{},
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
-
-ctl_access_rule() ->
-    #section{
-       items = #{<<"commands">> => #list{items = #option{type = atom,
-                                                         validate = non_empty}},
-                 <<"argument_restrictions">> =>
-                     #section{items = #{default => #option{type = string}}}
-                },
-       defaults = #{<<"commands">> => all,
-                    <<"argument_restrictions">> => #{}}
-      }.
 
 %% path: general.domain_certfile
 domain_cert() ->
@@ -249,10 +238,10 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    Keys = [c2s, s2s, service, http],
+    ListenerTypes = [<<"c2s">>, <<"s2s">>, <<"service">>, <<"http">>],
     #section{
-       items = maps:from_list([{atom_to_binary(Key), #list{items = listener(Key), wrap = none}}
-                               || Key <- Keys]),
+       items = maps:from_list([{Listener, #list{items = listener(Listener), wrap = none}}
+                               || Listener <- ListenerTypes]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config,
        format_items = list
@@ -277,11 +266,9 @@ listener_common() ->
              process = fun ?MODULE:process_listener/2
             }.
 
-listener_extra(http) ->
-    %% options listed here are passed to ranch_ssl (with verify_mode translated to verify_fun)
-    TLSKeys = [verify_mode, certfile, cacertfile, ciphers, keyfile, password, versions, dhfile],
-    TLSSection = mongoose_config_utils:section_with_keys(TLSKeys, tls([server], [just_tls])),
-    #section{items = #{<<"tls">> => TLSSection,
+listener_extra(<<"http">>) ->
+    %% tls options passed to ranch_ssl (with verify_mode translated to verify_fun)
+    #section{items = #{<<"tls">> => tls([server], [just_tls]),
                        <<"transport">> => http_transport(),
                        <<"protocol">> => http_protocol(),
                        <<"handlers">> => mongoose_http_handler:config_spec()}};
@@ -307,7 +294,7 @@ xmpp_listener_common() ->
                           <<"num_acceptors">> => 100}
             }.
 
-xmpp_listener_extra(c2s) ->
+xmpp_listener_extra(<<"c2s">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper">> => #option{type = atom,
@@ -322,7 +309,7 @@ xmpp_listener_extra(c2s) ->
                            #list{items = #option{type = atom,
                                                  validate = {module, ejabberd_auth}},
                                  validate = unique},
-                       <<"tls">> => c2s_tls()},
+                       <<"tls">> => tls([server, c2s], [fast_tls, just_tls])},
              defaults = #{<<"access">> => all,
                           <<"shaper">> => none,
                           <<"max_connections">> => infinity,
@@ -330,15 +317,14 @@ xmpp_listener_extra(c2s) ->
                           <<"reuse_port">> => false,
                           <<"backwards_compatible_session">> => true}
             };
-xmpp_listener_extra(s2s) ->
+xmpp_listener_extra(<<"s2s">>) ->
     TLSSection = tls([server], [fast_tls]),
     #section{items = #{<<"shaper">> => #option{type = atom,
                                                validate = non_empty},
-                       <<"tls">> => TLSSection#section{include = always,
-                                                       process = fun ?MODULE:process_fast_tls/1}},
+                       <<"tls">> => TLSSection#section{include = always}},
              defaults = #{<<"shaper">> => none}
             };
-xmpp_listener_extra(service) ->
+xmpp_listener_extra(<<"service">>) ->
     #section{items = #{<<"access">> => #option{type = atom,
                                                validate = non_empty},
                        <<"shaper_rule">> => #option{type = atom,
@@ -359,20 +345,6 @@ xmpp_listener_extra(service) ->
                           <<"hidden_components">> => false,
                           <<"conflict_behaviour">> => disconnect}
             }.
-
-%% path: listen.c2s[].tls
-c2s_tls() ->
-    mongoose_config_utils:merge_sections(tls([server], [fast_tls, just_tls]), c2s_tls_extra()).
-
-c2s_tls_extra() ->
-    #section{items = #{<<"module">> => #option{type = atom,
-                                               validate = {enum, [fast_tls, just_tls]}},
-                       <<"mode">> => #option{type = atom,
-                                             validate = {enum, [tls, starttls, starttls_required]}}
-                      },
-             defaults = #{<<"module">> => fast_tls,
-                          <<"mode">> => starttls},
-             process = fun ?MODULE:process_c2s_tls/1}.
 
 %% path: listen.http[].transport
 http_transport() ->
@@ -467,22 +439,29 @@ internal_database_mnesia() ->
     #section{}.
 
 %% path: outgoing_pools
-outgoing_pools() ->
+%% path: (host_config[].)outgoing_pools
+outgoing_pools(Scope) ->
     PoolTypes = [<<"cassandra">>, <<"elastic">>, <<"http">>, <<"ldap">>,
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>],
-    Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
+    Items = [{Type, #section{items = #{default => outgoing_pool(Scope, Type)},
                              validate_keys = non_empty,
                              wrap = none,
                              format_items = list}} || Type <- PoolTypes],
     #section{items = maps:from_list(Items),
              format_items = list,
-             wrap = global_config,
-             include = always}.
+             wrap = Scope,
+             include = include_only_on_global_config(Scope)}.
+
+include_only_on_global_config(global_config) ->
+    always;
+include_only_on_global_config(host_config) ->
+    when_present.
 
 %% path: outgoing_pools.*.*
-outgoing_pool(Type) ->
+outgoing_pool(Scope, Type) ->
     ExtraDefaults = extra_wpool_defaults(Type),
-    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), outgoing_pool_extra(Type)),
+    ExtraConfig = outgoing_pool_extra(Scope, Type),
+    Pool = mongoose_config_utils:merge_sections(wpool(ExtraDefaults), ExtraConfig),
     Pool#section{wrap = item}.
 
 extra_wpool_defaults(<<"cassandra">>) ->
@@ -504,11 +483,13 @@ wpool(ExtraDefaults) ->
                                      <<"strategy">> => best_worker,
                                      <<"call_timeout">> => 5000}, ExtraDefaults)}.
 
-outgoing_pool_extra(Type) ->
-    #section{items = #{<<"scope">> => #option{type = atom,
-                                              validate = {enum, [global, host, single_host]}},
-                       <<"host">> => #option{type = binary,
-                                             validate = non_empty},
+outgoing_pool_extra(host_config, Type) ->
+    #section{items = #{<<"connection">> => outgoing_pool_connection(Type)},
+             process = fun ?MODULE:process_host_config_pool/2
+            };
+outgoing_pool_extra(global_config, Type) ->
+    Scopes = [global, host_type, host], %% TODO host is deprecated
+    #section{items = #{<<"scope">> => #option{type = atom, validate = {enum, Scopes}},
                        <<"connection">> => outgoing_pool_connection(Type)
                       },
              process = fun ?MODULE:process_pool/2,
@@ -689,27 +670,40 @@ tls(common, common) ->
              defaults = #{<<"verify_mode">> => peer}};
 tls(common, fast_tls) ->
     #section{items = #{<<"protocol_options">> => #list{items = #option{type = string,
-                                                                       validate = non_empty}}}};
+                                                                       validate = non_empty}}},
+             process = fun ?MODULE:process_fast_tls/1};
 tls(common, just_tls) ->
     #section{items = #{<<"keyfile">> => #option{type = string,
                                                 validate = filename},
                        <<"password">> => #option{type = string},
-                       <<"versions">> => #list{items = #option{type = atom}}}};
+                       <<"versions">> => #list{items = #option{type = atom}}},
+             process = fun ?MODULE:process_just_tls/1};
 tls(server, common) ->
     #section{items = #{<<"dhfile">> => #option{type = string,
                                                validate = filename}}};
-tls(server, fast_tls) ->
+tls(server, _) ->
     #section{};
-tls(server, just_tls) ->
-    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
-                       <<"crl_files">> => #list{items = #option{type = string,
-                                                                validate = filename}}}};
 tls(client, common) ->
     #section{};
 tls(client, fast_tls) ->
     #section{};
 tls(client, just_tls) ->
-    #section{items = #{<<"server_name_indication">> => server_name_indication()}}.
+    #section{items = #{<<"server_name_indication">> => server_name_indication()}};
+tls(c2s, common) ->
+    #section{items = #{<<"module">> => #option{type = atom,
+                                               validate = {enum, [fast_tls, just_tls]}},
+                       <<"mode">> => #option{type = atom,
+                                             validate = {enum, [tls, starttls, starttls_required]}}},
+             defaults = #{<<"module">> => fast_tls,
+                          <<"mode">> => starttls},
+             process = fun ?MODULE:process_c2s_tls/1};
+tls(c2s, just_tls) ->
+    #section{items = #{<<"disconnect_on_failure">> => #option{type = boolean},
+                       <<"crl_files">> => #list{items = #option{type = string,
+                                                                validate = filename}}},
+             process = fun ?MODULE:process_c2s_just_tls/1};
+tls(c2s, fast_tls) ->
+    #section{}.
 
 server_name_indication() ->
     #section{items = #{<<"enabled">> => #option{type = boolean},
@@ -733,8 +727,7 @@ services() ->
       }.
 
 configurable_services() ->
-    [service_admin_extra,
-     service_mongoose_system_metrics,
+    [service_mongoose_system_metrics,
      service_domain_db].
 
 %% path: (host_config[].)modules
@@ -1011,40 +1004,48 @@ get_all_hosts_and_host_types(General) ->
                           []
                   end, General).
 
+%% User chooses just_tls or fast_tls, and this choice limits the allowed keys
 process_c2s_tls(M = #{module := Module}) ->
-    check_tls_keys(M, [module, mode]),
-    process_tls(Module, M).
-
-process_fast_tls(M) ->
-    process_tls(fast_tls, M).
-
-process_tls(Module, M) ->
-    check_tls_verify_mode(Module, M),
-    maps:merge(tls_defaults(Module), M).
-
-%% The user chooses just_tls or fast_tls, and this choice limits the allowed keys
-check_tls_keys(M = #{module := Module}, ExtraKeys) ->
-    AllowedItems = (tls([server], [Module]))#section.items,
-    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ ExtraKeys,
+    AllowedItems = (tls([server, c2s], [Module]))#section.items,
+    AllowedKeys = [binary_to_atom(Key) || Key <- maps:keys(AllowedItems)] ++ [module, mode],
     case maps:keys(M) -- AllowedKeys of
-        [] -> ok;
+        [] -> M;
         UnexpectedKeys -> error(#{what => unexpected_tls_options,
                                   tls_module => Module,
                                   unexpected_keys => UnexpectedKeys})
     end.
 
-tls_defaults(just_tls) ->
-    #{crl_files => [],
-      disconnect_on_failure => true};
-tls_defaults(fast_tls) ->
-    #{ciphers => mongoose_tls:default_ciphers(),
-      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
+process_c2s_just_tls(#{module := just_tls} = M) ->
+    maps:merge(just_tls_c2s_defaults(), M);
+process_c2s_just_tls(M) ->
+    M.
 
-check_tls_verify_mode(fast_tls, #{verify_mode := selfsigned_peer}) ->
+just_tls_c2s_defaults() ->
+    #{crl_files => [],
+      disconnect_on_failure => true}.
+
+process_just_tls(M = #{module := fast_tls}) ->
+    M;
+process_just_tls(M = #{cacertfile := _}) ->
+    M;
+process_just_tls(M = #{verify_mode := none}) ->
+    M;
+process_just_tls(_) ->
+    error(#{what => missing_cacertfile,
+            text => <<"You need to provide CA certificate (cacertfile) "
+                      "or disable peer verification (verify_mode)">>}).
+
+process_fast_tls(M = #{module := just_tls}) ->
+    M;
+process_fast_tls(#{verify_mode := selfsigned_peer}) ->
     error(#{what => invalid_tls_verify_mode,
             text => <<"fast_tls does not support self-signed certificate verification">>});
-check_tls_verify_mode(_Module, #{}) ->
-    ok.
+process_fast_tls(M) ->
+    maps:merge(fast_tls_defaults(), M).
+
+fast_tls_defaults() ->
+    #{ciphers => mongoose_tls:default_ciphers(),
+      protocol_options => ["no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1"]}.
 
 process_listener([item, Type | _], Opts) ->
     mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type),
@@ -1087,8 +1088,8 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
-    Scope = pool_scope(ScopeIn, maps:get(host, AllOpts, none)),
+process_pool([Tag, Type | _], AllOpts = #{scope := ScopeIn, connection := Connection}) ->
+    Scope = pool_scope(ScopeIn),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
       scope => Scope,
@@ -1096,12 +1097,16 @@ process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn, connection := Connecti
       opts => Opts,
       conn_opts => Connection}.
 
-pool_scope(single_host, none) ->
-    error(#{what => pool_single_host_not_specified,
-            text => <<"\"host\" option is required if \"single_host\" is used.">>});
-pool_scope(single_host, Host) -> Host;
-pool_scope(host, none) -> host;
-pool_scope(global, none) -> global.
+process_host_config_pool([Tag, Type, _Pools, {host, HT} | _], AllOpts = #{connection := Connection}) ->
+    #{type => b2a(Type),
+      scope => HT,
+      tag => b2a(Tag),
+      opts => maps:remove(connection, AllOpts),
+      conn_opts => Connection}.
+
+pool_scope(host) -> host_type;
+pool_scope(host_type) -> host_type;
+pool_scope(global) -> global.
 
 process_ldap_connection(ConnOpts = #{port := _}) -> ConnOpts;
 process_ldap_connection(ConnOpts = #{tls := _}) -> ConnOpts#{port => 636};

@@ -50,7 +50,7 @@ end_per_suite(C) ->
     escalus:end_per_suite(C).
 
 init_per_group(muc, Config) ->
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     Config;
 init_per_group(_GroupName, Config) ->
     Config.

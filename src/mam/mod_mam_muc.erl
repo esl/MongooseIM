@@ -17,7 +17,7 @@
 %%%
 %%% This module should be started for each host.
 %%% Message archivation is not shaped here (use standard support for this).
-%%% MAM's IQs are shaped inside {@link shaper_srv}.
+%%% MAM's IQs are shaped inside {@link opuntia_srv}.
 %%%
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
@@ -225,7 +225,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
     case check_action_allowed(HostType, Acc, To#jid.lserver, Action, MucAction, From, To) of
         ok ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, MucAction, From) of
-                ok ->
+                continue ->
                     handle_error_iq(Acc, HostType, To, Action,
                                     handle_mam_iq(HostType, Action, From, To, IQ));
                 {error, max_delay_reached} ->
@@ -317,7 +317,9 @@ handle_mam_iq(HostType, Action, From, To, IQ) ->
         mam_set_message_form ->
             handle_set_message_form(HostType, From, To, IQ);
         mam_get_message_form ->
-            handle_get_message_form(HostType, From, To, IQ)
+            handle_get_message_form(HostType, From, To, IQ);
+        mam_get_metadata ->
+            handle_get_metadata(HostType, From, To, IQ)
     end.
 
 -spec handle_set_prefs(host_type(), jid:jid(), jlib:iq()) ->
@@ -403,10 +405,12 @@ send_messages_and_iq_result(#{total_count := TotalCount, offset := Offset,
                             HostType, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
                             #{owner_jid := ArcJID} = Params) ->
+    %% Reverse order of messages if the client requested it
+    MessageRows1 = mod_mam_utils:maybe_reverse_messages(Params, MessageRows),
     %% Forward messages
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
-                                                 QueryID, MessageRows, true),
+                                                 QueryID, MessageRows1, true),
     %% Make fin iq
     IsStable = true,
     ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
@@ -440,6 +444,26 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 handle_get_message_form(HostType,
                         _From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
     return_message_form_iq(HostType, IQ).
+
+-spec handle_get_metadata(host_type(), jid:jid(), jid:jid(), jlib:iq()) ->
+                                     jlib:iq() | {error, term(), jlib:iq()}.
+handle_get_metadata(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
+    ArcID = archive_id_int(HostType, ArcJID),
+    case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, From,
+                                                      ArcJID, fun lookup_messages/2) of
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {FirstMsg, LastMsg} ->
+            {FirstMsgID, FirstMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(FirstMsg),
+            {LastMsgID, LastMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(LastMsg),
+            MetadataElement =
+                mod_mam_utils:make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS),
+            IQ#iq{type = result, sub_el = [MetadataElement]};
+        empty_archive ->
+            MetadataElement = mod_mam_utils:make_metadata_element(),
+            IQ#iq{type = result, sub_el = [MetadataElement]}
+    end.
 
 %% ----------------------------------------------------------------------
 %% Backend wrappers
@@ -500,7 +524,14 @@ lookup_messages_without_policy_violation_check(HostType,
             {error, 'not-supported'};
         false ->
             StartT = erlang:monotonic_time(microsecond),
-            R = mongoose_hooks:mam_muc_lookup_messages(HostType, Params),
+            R = case maps:get(message_ids, Params, undefined) of
+                    undefined ->
+                        mongoose_hooks:mam_muc_lookup_messages(HostType,
+                            Params#{message_id => undefined});
+                    IDs ->
+                        mod_mam_utils:lookup_specific_messages(HostType, Params, IDs,
+                            fun mongoose_hooks:mam_muc_lookup_messages/2)
+                end,
             Diff = erlang:monotonic_time(microsecond) - StartT,
             mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
             R
@@ -541,10 +572,9 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
     Packet.
 
 %% From XEP-0313:
-%% When sending out the archives to a requesting client, the 'to' of the
-%% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
-%% of the sender of the archived message.
-%% However, Smack crashes if 'to' is present, so it is removed.
+%% When sending out the archives to a requesting client,
+%% the forwarded stanza MUST NOT have a 'to' attribute, and
+%% the 'from' MUST be the occupant JID of the sender of the archived message.
 replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
     NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), undefined, Attrs),
     Packet#xmlel{attrs = NewAttrs}.

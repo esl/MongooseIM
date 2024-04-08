@@ -222,6 +222,7 @@ groups() ->
                                  change_nickname,
                                  deny_nickname_change_conflict,
                                  change_availability_status,
+                                 direct_invite,
                                  mediated_invite,
                                  one2one_chat_to_muc,
                                  exit_room,
@@ -329,7 +330,7 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
     dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.
 
@@ -339,7 +340,6 @@ end_per_suite(Config) ->
     muc_helper:unload_muc(),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
-
 
 init_per_group(room_registration_race_condition, Config) ->
     escalus_fresh:create_users(Config, [{alice, 1}]);
@@ -2667,7 +2667,26 @@ change_availability_status(ConfigIn) ->
     end).
 
 
-%Missing Direct Invitations (no examples)
+% Direct Invitations (example 1 from XEP-0249)
+% This test only checks if the server routes properly such invitation.
+% There is no server-side logic for this XEP, but we want to advertise
+% that clients which supports this can work with MIM in such way.
+
+direct_invite(ConfigIn) ->
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
+        escalus:send(Alice, stanza_direct_invitation(?config(room, Config), Alice, Bob)),
+        escalus:send(Alice, stanza_direct_invitation(?config(room, Config), Alice, Kate)),
+        %Bob ignores the invitation, Kate accepts
+        is_direct_invitation(escalus:wait_for_stanza(Bob)),
+        is_direct_invitation(escalus:wait_for_stanza(Kate)),
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), nick(Kate))),
+        [S1, S2] = escalus:wait_for_stanzas(Kate, 2),
+        is_presence_with_affiliation(S1, <<"owner">>),
+        is_presence_with_affiliation(S2, <<"none">>)
+    end).
 
 %Example 56-59
 mediated_invite(ConfigIn) ->
@@ -2987,18 +3006,20 @@ disco_features(Config) ->
                                   ?NS_DISCO_ITEMS,
                                   ?NS_MUC,
                                   ?NS_MUC_UNIQUE,
-                                  <<"jabber:iq:register">>,
+                                  ?NS_INBAND_REGISTER,
                                   ?NS_RSM,
-                                  <<"vcard-temp">>]).
+                                  ?NS_VCARD,
+                                  ?NS_JABBER_X_CONF]).
 
 disco_features_with_mam(Config) ->
     disco_features_story(Config, [?NS_DISCO_INFO,
                                   ?NS_DISCO_ITEMS,
                                   ?NS_MUC,
                                   ?NS_MUC_UNIQUE,
-                                  <<"jabber:iq:register">>,
+                                  ?NS_INBAND_REGISTER,
                                   ?NS_RSM,
-                                  <<"vcard-temp">> |
+                                  ?NS_VCARD,
+                                  ?NS_JABBER_X_CONF |
                                   mam_helper:namespaces()]).
 
 disco_rooms(Config) ->
@@ -4942,6 +4963,22 @@ stanza_room_subject(Room, Subject) ->
         }]
     }, Room).
 
+stanza_direct_invitation(Room, Inviter, Invited) ->
+    #xmlel{
+        name = <<"message">>,
+        attrs = [
+            {<<"from">>, escalus_utils:get_jid(Inviter)},
+            {<<"to">>, escalus_utils:get_short_jid(Invited)}
+        ],
+        children = [#xmlel{
+            name = <<"x">>,
+            attrs = [
+                {<<"xmlns">>, ?NS_JABBER_X_CONF},
+                {<<"jid">>, room_address(Room)}
+            ]
+        }]
+    }.
+
 stanza_mediated_invitation(Room, Invited) ->
     stanza_mediated_invitation_multi(Room, [Invited]).
 
@@ -5181,6 +5218,10 @@ is_invitation(Stanza) ->
 is_invitation_decline(Stanza) ->
     escalus:assert(is_message, Stanza),
     #xmlel{} = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"decline">>}]).
+
+is_direct_invitation(Stanza) ->
+    escalus:assert(is_message, Stanza),
+    #xmlel{} = exml_query:path(Stanza, [{element_with_ns, <<"x">>, ?NS_JABBER_X_CONF}]).
 
 is_presence_with_role(Stanza, Role) ->
     is_with_role(exml_query:subelement(Stanza, <<"x">>), Role).

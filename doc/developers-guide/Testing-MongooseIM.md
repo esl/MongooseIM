@@ -206,6 +206,11 @@ cd $MONGOOSEIM
 make devrel
 ```
 
+If databases are needed, for example PostgreSQL, you can run:
+```sh
+DB="pgsql" ./tools/setup-db.sh
+```
+
 In shell #2:
 
 ```sh

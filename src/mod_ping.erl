@@ -29,6 +29,7 @@
 -export([user_send_packet/3,
          user_send_iq/3,
          user_ping_response/3,
+         filter_local_packet/3,
          iq_ping/5]).
 
 %% Record that will be stored in the c2s state when the server pings the client,
@@ -40,7 +41,8 @@
 %%====================================================================
 
 hooks(HostType) ->
-    [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100}
+    [{user_ping_response, HostType, fun ?MODULE:user_ping_response/3, #{}, 100},
+     {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 100}
      | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -120,27 +122,50 @@ iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
 %% Hook callbacks
 %%====================================================================
 
+-spec filter_local_packet(Acc, Params, Extra) -> {ok, Acc} | {stop, drop} when
+      Acc :: mongoose_hooks:filter_packet_acc(),
+      Params :: map(),
+      Extra :: gen_hook:extra().
+filter_local_packet({_, _, _, Stanza} = Acc, _Params, _Extra) ->
+    case is_ping_error(Stanza) of
+        true ->
+            ?LOG_DEBUG(#{what => ping_error_received, acc => Acc}),
+            {stop, drop};
+        false ->
+            {ok, Acc}
+    end.
+
 -spec user_send_iq(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
 user_send_iq(Acc, #{c2s_data := StateData}, #{host_type := HostType}) ->
-    case {mongoose_acc:stanza_type(Acc),
-          mongoose_c2s:get_mod_state(StateData, ?MODULE)} of
-        {<<"result">>, {ok, #ping_handler{id = PingId, time = T0}}} ->
-            IqResponse = mongoose_acc:element(Acc),
-            IqId = exml_query:attr(IqResponse, <<"id">>),
-            case {IqId, PingId} of
-                {Id, Id} ->
-                    Jid = mongoose_c2s:get_jid(StateData),
-                    TDelta = erlang:monotonic_time(millisecond) - T0,
-                    mongoose_hooks:user_ping_response(HostType, #{}, Jid, IqResponse, TDelta),
-                    Action = {{timeout, ping_timeout}, cancel},
-                    {stop, mongoose_c2s_acc:to_acc(Acc, actions, Action)};
-                _ ->
-                    {ok, Acc}
-            end;
+    StanzaType = mongoose_acc:stanza_type(Acc),
+    ModState = mongoose_c2s:get_mod_state(StateData, ?MODULE),
+    handle_stanza(StanzaType, ModState, Acc, StateData, HostType).
+
+handle_stanza(Type, {ok, PingHandler}, Acc, StateData, HostType) when Type == <<"result">>;
+                                                                      Type == <<"error">> ->
+    handle_ping_response(Type, PingHandler, Acc, StateData, HostType);
+handle_stanza(_, _, Acc, _, _) ->
+    {ok, Acc}.
+
+handle_ping_response(Type, #ping_handler{id = PingId, time = T0}, Acc, StateData, HostType) ->
+    IqResponse = mongoose_acc:element(Acc),
+    IqId = exml_query:attr(IqResponse, <<"id">>),
+    case IqId of
+        PingId ->
+            Jid = mongoose_c2s:get_jid(StateData),
+            TDelta = erlang:monotonic_time(millisecond) - T0,
+            mongoose_hooks:user_ping_response(HostType, #{}, Jid, IqResponse, TDelta),
+            Action = determine_action(Type),
+            {stop, mongoose_c2s_acc:to_acc(Acc, actions, Action)};
         _ ->
             {ok, Acc}
     end.
+
+determine_action(<<"result">>) ->
+    {{timeout, ping_timeout}, cancel};
+determine_action(<<"error">>) ->
+    [{{timeout, ping_timeout}, cancel}, {{timeout, ping_error}, 0, fun ping_c2s_handler/2}].
 
 -spec user_send_packet(mongoose_acc:t(), mongoose_c2s_hooks:params(), gen_hook:extra()) ->
     mongoose_c2s_hooks:result().
@@ -174,8 +199,15 @@ ping_c2s_handler(ping_timeout, StateData) ->
     Jid = mongoose_c2s:get_jid(StateData),
     HostType = mongoose_c2s:get_host_type(StateData),
     mongoose_hooks:user_ping_response(HostType, #{}, Jid, timeout, 0),
-    case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action) of
-        kill -> mongoose_c2s_acc:new(#{stop => {shutdown, ping_timeout}});
+    handle_ping_action(HostType, ping_timeout);
+ping_c2s_handler(ping_error, StateData) ->
+    HostType = mongoose_c2s:get_host_type(StateData),
+    handle_ping_action(HostType, ping_error).
+
+handle_ping_action(HostType, Reason) ->
+    TimeoutAction = gen_mod:get_module_opt(HostType, ?MODULE, timeout_action),
+    case TimeoutAction of
+        kill -> mongoose_c2s_acc:new(#{stop => {shutdown, Reason}});
         _ -> mongoose_c2s_acc:new()
     end.
 
@@ -200,3 +232,14 @@ ping_get(Id) ->
     #xmlel{name = <<"iq">>,
            attrs = [{<<"type">>, <<"get">>}, {<<"id">>, Id}],
            children = [#xmlel{name = <<"ping">>, attrs = [{<<"xmlns">>, ?NS_PING}]}]}.
+
+-spec is_ping_error(exml:element()) -> boolean().
+is_ping_error(Stanza) ->
+    case exml_query:attr(Stanza, <<"type">>) of
+        <<"error">> ->
+            undefined =/= exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, ?NS_PING)
+            andalso
+            undefined =/= exml_query:subelement(Stanza, <<"error">>);
+        _ ->
+            false
+    end.

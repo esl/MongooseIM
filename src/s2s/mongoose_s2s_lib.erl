@@ -13,12 +13,10 @@
          choose_pid/2,
          need_more_connections/2,
          needed_extra_connections_number_if_allowed/2,
-         allow_host/1,
-         commands/0]).
+         allow_host/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("ejabberd_commands.hrl").
 
 -type fromto() :: ejabberd_s2s:fromto().
 -type s2s_pids() :: ejabberd_s2s:s2s_pids().
@@ -198,20 +196,3 @@ parent_domains(<<$., Rest/binary>>, Acc) ->
     parent_domains(Rest, [Rest | Acc]);
 parent_domains(<<_, Rest/binary>>, Acc) ->
     parent_domains(Rest, Acc).
-
--spec commands() -> [ejabberd_commands:cmd()].
-commands() ->
-    [
-     #ejabberd_commands{name = incoming_s2s_number,
-                       tags = [stats, s2s],
-                       desc = "Number of incoming s2s connections on the node",
-                       module = stats_api, function = incoming_s2s_number,
-                       args = [],
-                       result = {s2s_incoming, integer}},
-     #ejabberd_commands{name = outgoing_s2s_number,
-                       tags = [stats, s2s],
-                       desc = "Number of outgoing s2s connections on the node",
-                       module = stats_api, function = outgoing_s2s_number,
-                       args = [],
-                       result = {s2s_outgoing, integer}}
-    ].

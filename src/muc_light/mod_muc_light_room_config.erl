@@ -23,7 +23,8 @@
 -module(mod_muc_light_room_config).
 
 %% API
--export([from_binary_kv_diff/2, from_binary_kv/2, to_binary_kv/2]).
+-export([from_binary_kv_diff/2, from_binary_kv/2,
+         to_binary_kv_diff/2, to_binary_kv/2]).
 
 -include("mod_muc_light.hrl").
 
@@ -40,8 +41,7 @@
 -type binary_kv() :: [{Key :: binary(), Value :: binary()}].
 
 %% User definition processing
--type schema_item() :: {FieldName :: binary(), DefaultValue :: value(),
-                                     key(), value_type()}.
+-type schema_item() :: {FieldName :: binary(), DefaultValue :: value(), key(), value_type()}.
 -type schema() :: [schema_item()]. % has to be sorted
 
 %%====================================================================
@@ -52,35 +52,39 @@
 -spec from_binary_kv_diff(RawConfig :: binary_kv(), ConfigSchema :: schema()) ->
     {ok, kv()} | validation_error().
 from_binary_kv_diff(RawConfig, ConfigSchema) ->
-    from_binary_kv_diff(lists:ukeysort(1, RawConfig), ConfigSchema, []).
-
-from_binary_kv_diff([], [], Config) ->
-    {ok, Config};
-from_binary_kv_diff(RawConfig, ConfigSchema, Config) ->
-    case take_next_kv(RawConfig, ConfigSchema) of
-        {error, Reason} ->
-            {error, Reason};
-        {value, RRawConfig, RConfigSchema, KV} ->
-            from_binary_kv(RRawConfig, RConfigSchema, [KV | Config]);
-        {default, _, _, _} ->
-            % do not populate the diff with default values
-            from_binary_kv(RawConfig, ConfigSchema, Config)
-    end.
+    take_next(lists:ukeysort(1, RawConfig), ConfigSchema, true, fun take_next_kv/2, []).
 
 -spec from_binary_kv(RawConfig :: binary_kv(), ConfigSchema :: schema()) ->
-          {ok, kv()} | validation_error().
+    {ok, kv()} | validation_error().
 from_binary_kv(RawConfig, ConfigSchema) ->
-    from_binary_kv(lists:ukeysort(1, RawConfig), ConfigSchema, []).
+    take_next(lists:ukeysort(1, RawConfig), ConfigSchema, false, fun take_next_kv/2, []).
 
-from_binary_kv([], [], Config) ->
+-spec to_binary_kv_diff(RawConfig :: kv(), ConfigSchema :: schema()) ->
+    {ok, binary_kv()} | validation_error().
+to_binary_kv_diff(RawConfig, ConfigSchema) ->
+    take_next(lists:ukeysort(1, RawConfig), ConfigSchema, true, fun take_next_binary_kv/2, []).
+
+-spec to_binary_kv(Config :: kv(), ConfigSchema :: schema()) ->
+    {ok, binary_kv()} | validation_error().
+to_binary_kv(RawConfig, ConfigSchema) ->
+    take_next(lists:ukeysort(1, RawConfig), ConfigSchema, false, fun take_next_binary_kv/2, []).
+
+take_next([], [], _, _, Config) ->
     {ok, Config};
-from_binary_kv(RawConfig, ConfigSchema, Config) ->
-    case take_next_kv(RawConfig, ConfigSchema) of
-        {error, Reason} ->
-            {error, Reason};
-        {_, RRawConfig, RConfigSchema, KV} ->
-            from_binary_kv(RRawConfig, RConfigSchema, [KV | Config])
+take_next(RawConfig, ConfigSchema, DropDefaults, TakeNext, Config) ->
+    case {DropDefaults, TakeNext(RawConfig, ConfigSchema)} of
+        {true, {default, RRawConfig, RConfigSchema, _}} ->
+            % do not populate the diff with default values
+            take_next(RRawConfig, RConfigSchema, DropDefaults, TakeNext, Config);
+        {_, {_, RRawConfig, RConfigSchema, KV}} ->
+            take_next(RRawConfig, RConfigSchema, DropDefaults, TakeNext, [KV | Config]);
+        {_, {error, Reason}} ->
+            {error, Reason}
     end.
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
 
 take_next_kv([{KeyBin, ValBin} | RRawConfig], [{KeyBin, _Default, Key, Type} | RSchema]) ->
     try {value, RRawConfig, RSchema, {Key, b2value(ValBin, Type)}}
@@ -91,14 +95,14 @@ take_next_kv(RawConfig, [{_KeyBin, Default, Key, _Type} | RSchema]) ->
 take_next_kv([{KeyBin, _} | _], _) ->
     {error, {KeyBin, not_found}}.
 
--spec to_binary_kv(Config :: kv(), ConfigSchema :: schema()) -> binary_kv().
-to_binary_kv(Config, ConfigSchema) ->
-    ConfigWithSchema = lists:zip(lists:sort(Config), lists:keysort(3, ConfigSchema)),
-    [{KeyBin, value2b(Val, Type)} || {{Key, Val}, {KeyBin, _Default, Key, Type}} <- ConfigWithSchema].
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
+take_next_binary_kv([{Key, ValBin} | RRawConfig], [{KeyBin, _Default, Key, Type} | RSchema]) ->
+    try {value, RRawConfig, RSchema, {KeyBin, value2b(ValBin, Type)}}
+    catch _:_ -> {error, {KeyBin, type_error}}
+    end;
+take_next_binary_kv(RawConfig, [{KeyBin, Default, _Key, _Type} | RSchema]) ->
+    {default, RawConfig, RSchema, {KeyBin, Default}};
+take_next_binary_kv([{KeyBin, _} | _], _) ->
+    {error, {KeyBin, not_found}}.
 
 -spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
 b2value(ValBin, binary) when is_binary(ValBin) -> ValBin;

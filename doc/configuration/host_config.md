@@ -112,6 +112,26 @@ If we wanted to enable `mod_roster`, it would need to be repeated in `host_confi
   [host_config.modules.mod_stream_management]
 ```
 
+### `host_config.outgoing_pools`
+
+This section overrides any pool with the same type and tag that was defined in the top-level [`outgoing_pools`](outgoing-connections.md) section.
+If we wanted to enable a `default` `rdbms` pool only for `"host-type-basic"` for example, we could do so as follows:
+
+```toml
+[general]
+  host_type = ["host-type-basic", "host-type-advanced", "host-type-privacy"]
+
+[[host_config]]
+  host = "host-type-basic"
+
+  [outgoing_pools.rdbms.default]
+    workers = 5
+    [outgoing_pools.rdbms.default.connection]
+    ...
+```
+
+Configuration for such pools is all the same, except that the `scope` key is here disallowed.
+
 ### `host_config.acl`
 
 The access classes defined here are merged with the ones defined in the top-level [`acl`](acl.md) section - when a class is defined in both places, the result is a union of both classes.

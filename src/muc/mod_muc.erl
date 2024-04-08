@@ -26,6 +26,7 @@
 -module(mod_muc).
 -author('alexey@process-one.net').
 -xep([{xep, 45}, {version, "1.34.5"}]).
+-xep([{xep, 249}, {version, "1.2"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -136,7 +137,7 @@
                     access,
                     history_size        :: integer(),
                     default_room_opts   :: list(),
-                    room_shaper         :: shaper:shaper(),
+                    room_shaper         :: mongoose_shaper:shaper(),
                     http_auth_pool      :: mongoose_http_client:pool(),
                     hibernated_room_check_interval :: timeout(),
                     hibernated_room_timeout :: timeout() }).
@@ -163,7 +164,7 @@ start_link(HostType, Opts) ->
 
 -spec start(host_type(), _) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
-    mongoose_muc_online_backend:start(HostType, Opts),
+    mod_muc_online_backend:start(HostType, Opts),
     ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
@@ -174,7 +175,7 @@ start(HostType, Opts) when is_map(Opts) ->
 stop(HostType) ->
     stop_supervisor(HostType),
     stop_gen_server(HostType),
-    mongoose_muc_online_backend:stop(HostType),
+    mod_muc_online_backend:stop(HostType),
     ok.
 
 -spec supported_features() -> [atom()].
@@ -201,7 +202,7 @@ config_spec() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
                  <<"online_backend">> => #option{type = atom,
-                                                 validate = {module, mongoose_muc_online}},
+                                                 validate = {module, mod_muc_online}},
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -370,7 +371,7 @@ stop_gen_server(HostType) ->
 %%    So the message sending must be catched
 -spec room_destroyed(host_type(), jid:server(), room(), pid()) -> 'ok'.
 room_destroyed(HostType, MucHost, Room, Pid) ->
-    mongoose_muc_online_backend:room_destroyed(HostType, MucHost, Room, Pid).
+    mod_muc_online_backend:room_destroyed(HostType, MucHost, Room, Pid).
 
 %% @doc Create a room.
 %% If Opts = default, the default room options are used.
@@ -872,7 +873,7 @@ check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
 
 -spec start_room(HostType :: host_type(), ServerHost :: jid:lserver(),
         MucHost :: muc_host(), Access :: access(), room(),
-        HistorySize :: undefined | integer(), RoomShaper :: shaper:shaper(),
+        HistorySize :: undefined | integer(), RoomShaper :: mongoose_shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
         DefRoomOpts :: undefined | [any()], Acc :: mongoose_acc:t())
             -> {error, {failed_to_restore, Reason :: term()}} | {ok, pid()}.
@@ -913,7 +914,7 @@ register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid) ->
 -spec register_room(HostType :: host_type(), jid:server(), room(),
                     pid()) -> ok | {exists, pid()} | {error, term()}.
 register_room(HostType, MucHost, Room, Pid) ->
-    mongoose_muc_online_backend:register_room(HostType, MucHost, Room, Pid).
+    mod_muc_online_backend:register_room(HostType, MucHost, Room, Pid).
 
 -spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser = Room, lserver = MucHost}) ->
@@ -925,7 +926,7 @@ room_jid_to_pid(#jid{luser = Room, lserver = MucHost}) ->
     end.
 
 find_room_pid(HostType, MucHost, Room) ->
-    mongoose_muc_online_backend:find_room_pid(HostType, MucHost, Room).
+    mod_muc_online_backend:find_room_pid(HostType, MucHost, Room).
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
@@ -937,7 +938,7 @@ identity(Lang) ->
       name => translate:translate(Lang, <<"Chatrooms">>)}.
 
 features() ->
-    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].
+    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD, ?NS_CONFERENCE].
 
 %% Disco for rooms
 -spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
@@ -1161,7 +1162,7 @@ broadcast_service_message(MucHost, Msg) ->
 -spec get_vh_rooms(muc_host()) -> [muc_online_room()].
 get_vh_rooms(MucHost) ->
     {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
-    mongoose_muc_online_backend:get_online_rooms(HostType, MucHost).
+    mod_muc_online_backend:get_online_rooms(HostType, MucHost).
 
 -spec get_persistent_vh_rooms(muc_host()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
@@ -1175,7 +1176,7 @@ get_persistent_vh_rooms(MucHost) ->
 
 -spec node_cleanup(host_type(), node()) -> ok.
 node_cleanup(HostType, Node) ->
-    mongoose_muc_online_backend:node_cleanup(HostType, Node).
+    mod_muc_online_backend:node_cleanup(HostType, Node).
 
 %%====================================================================
 %% Hooks handlers
@@ -1320,7 +1321,7 @@ ensure_metrics(_Host) ->
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend]).
 
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},

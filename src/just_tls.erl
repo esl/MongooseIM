@@ -31,7 +31,7 @@
          close/1]).
 
 % API
--export([make_ssl_opts/1]).
+-export([make_ssl_opts/1, make_cowboy_ssl_opts/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
@@ -41,7 +41,7 @@
           {ok, mongoose_tls:tls_socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
-    {Ref, SSLOpts} = format_opts_with_ref(Options),
+    {Ref, SSLOpts} = format_opts_with_ref(Options, false),
     Ret = case Options of
               #{connect := true} ->
                   % Currently unused as ejabberd_s2s_out uses fast_tls,
@@ -110,19 +110,25 @@ close(#tls_socket{ssl_socket = SSLSocket}) -> ssl:close(SSLSocket).
 %% The `disconnect_on_failure' option is not supported
 -spec make_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
 make_ssl_opts(Opts) ->
-    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts),
+    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, false),
+    SSLOpts.
+
+-spec make_cowboy_ssl_opts(mongoose_tls:options()) -> [ssl:tls_option()].
+make_cowboy_ssl_opts(Opts) ->
+    FailIfNoPeerCert = fail_if_no_peer_cert_opt(Opts),
+    {dummy_ref, SSLOpts} = format_opts_with_ref(Opts, FailIfNoPeerCert),
     SSLOpts.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% local functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-format_opts_with_ref(Opts) ->
+format_opts_with_ref(Opts, FailIfNoPeerCert) ->
     Verify = verify_opt(Opts),
     {Ref, VerifyFun} = verify_fun_opt(Opts),
     SNIOpts = sni_opts(Opts),
     SSLOpts = maps:to_list(maps:with(ssl_option_keys(), Opts)),
-    {Ref, [{fail_if_no_peer_cert, false}, {verify, Verify}, {verify_fun, VerifyFun}] ++
+    {Ref, [{fail_if_no_peer_cert, FailIfNoPeerCert}, {verify, Verify}, {verify_fun, VerifyFun}] ++
      SNIOpts ++ SSLOpts}.
 
 ssl_option_keys() ->
@@ -149,6 +155,10 @@ error_to_list(_Error) ->
 
 verify_opt(#{verify_mode := none}) -> verify_none;
 verify_opt(#{}) -> verify_peer.
+
+fail_if_no_peer_cert_opt(#{verify_mode := peer}) -> true;
+fail_if_no_peer_cert_opt(#{verify_mode := selfsigned_peer}) -> true;
+fail_if_no_peer_cert_opt(#{}) -> false.
 
 %% This function translates TLS options to the function
 %% which will later be used when TCP socket is upgraded to TLS

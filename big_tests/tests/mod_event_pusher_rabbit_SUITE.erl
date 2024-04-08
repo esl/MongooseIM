@@ -44,7 +44,7 @@
 -define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
 -define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
--define(WPOOL_CFG, #{scope => host,
+-define(WPOOL_CFG, #{scope => host_type,
                      opts => #{workers => 20, strategy => best_worker, call_timeout => 5000}}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
@@ -110,7 +110,7 @@ init_per_suite(Config) ->
         true ->
             start_rabbit_wpool(domain()),
             {ok, _} = application:ensure_all_started(amqp_client),
-            muc_helper:load_muc(Config),
+            muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}
@@ -178,7 +178,7 @@ end_per_testcase(CaseName, Config) ->
 rabbit_pool_starts_with_default_config(_Config) ->
     %% GIVEN
     Domain = domain(),
-    DefaultWpoolConfig = #{type => rabbit, scope => host, tag => rabbit_event_pusher_default,
+    DefaultWpoolConfig = #{type => rabbit, scope => host_type, tag => rabbit_event_pusher_default,
                            opts => #{workers => 10, strategy => best_worker, call_timeout => 5000},
                            conn_opts => #{amqp_port => 5672, confirms_enabled => false, max_worker_queue_len => 1000}},
     RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},

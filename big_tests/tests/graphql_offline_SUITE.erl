@@ -7,7 +7,7 @@
 -import(domain_helper, [host_type/0, domain/0]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_err_code/1, user_to_bin/1,
                          get_unauthorized/1, get_not_loaded/1, get_coercion_err_msg/1]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [mod_config_with_auto_backend/1]).
 -import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -70,9 +70,9 @@ init_per_suite(Config) ->
     Config2 = ejabberd_node_utils:init(mim(), Config1),
     escalus:init_per_suite(Config2).
 
--spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
-create_config(Backend) ->
-    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
+-spec create_config() -> [{mod_offline, gen_mod:module_opts()}].
+create_config() ->
+    [{mod_offline, mod_config_with_auto_backend(mod_offline)}].
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -87,10 +87,8 @@ init_per_group(domain_admin, Config) ->
 init_per_group(GroupName, Config) when GroupName =:= admin_offline;
                                        GroupName =:= domain_admin_offline ->
     HostType = host_type(),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
-    [{backend, Backend} | escalus:init_per_suite(Config)];
+    dynamic_modules:ensure_modules(HostType, create_config()),
+    escalus:init_per_suite(Config);
 init_per_group(admin_offline_not_configured, Config) ->
     dynamic_modules:ensure_modules(host_type(), [{mod_offline, stopped}]),
     Config;

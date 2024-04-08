@@ -120,15 +120,15 @@ packet(To, Body) ->
 %% Generates mod_mam:archive_message_params()
 params() ->
     ?LET({MessId, ArcId, LocalJid, RemoteJid,
-          OriginId, Dir, Body, SenderId},
+          OriginId, Dir, Body, SenderId, IsGroupChat},
          {non_neg_integer(), non_neg_integer(), jid(), jid(),
-          origin_id(), direction(), body(), non_neg_integer()},
+          origin_id(), direction(), body(), non_neg_integer(), boolean()},
          #{message_id => MessId, archive_id => ArcId,
            local_jid => LocalJid, remote_jid => RemoteJid,
            source_jid => choose_source_jid(Dir, LocalJid, RemoteJid),
            origin_id => OriginId, direction => Dir,
            packet => packet(choose_dest_jid(Dir, LocalJid, RemoteJid), Body),
-           sender_id => SenderId}).
+           sender_id => SenderId, is_groupchat => IsGroupChat}).
 
 choose_source_jid(incoming, _LocalJid, RemoteJid) -> RemoteJid;
 choose_source_jid(outgoing, LocalJid, _RemoteJid) -> LocalJid.

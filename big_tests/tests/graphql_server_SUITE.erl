@@ -45,6 +45,7 @@ clustering_tests() ->
      join_unsuccessful,
      leave_but_no_cluster,
      join_twice,
+     leave_twice,
      remove_dead_from_cluster,
      remove_alive_from_cluster,
      remove_node_test,
@@ -108,7 +109,8 @@ end_per_testcase(set_and_get_loglevel_test = CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == join_successful
                                    orelse CaseName == join_successful_http
-                                   orelse CaseName == join_twice ->
+                                   orelse CaseName == join_twice
+                                   orelse CaseName == leave_twice ->
     remove_node_from_cluster(mim2(), Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
@@ -141,7 +143,8 @@ get_status_test(Config) ->
     Result = get_ok_value([data, server, status], get_status(Config)),
     ?assertEqual(<<"RUNNING">>, maps:get(<<"statusCode">>, Result)),
     ?assert(is_binary(maps:get(<<"message">>, Result))),
-    ?assert(is_binary(maps:get(<<"version">>, Result))).
+    ?assert(is_binary(maps:get(<<"version">>, Result))),
+    ?assert(is_binary(maps:get(<<"commitHash">>, Result))).
 
 
 join_successful(Config) ->
@@ -171,6 +174,13 @@ join_twice(Config) ->
     get_ok_value([], join_cluster(atom_to_binary(Node2), Config)),
     ?assertEqual(<<"already_joined">>, get_err_code(join_cluster(atom_to_binary(Node2), Config))),
     distributed_helper:verify_result(RPCSpec2, add).
+
+leave_twice(Config) ->
+    #{node := Node2} = RPCSpec2 = mim2(),
+    join_cluster(atom_to_binary(Node2), Config),
+    get_ok_value([], leave_cluster(Config)),
+    distributed_helper:verify_result(RPCSpec2, remove),
+    ?assertEqual(<<"not_in_cluster">>, get_err_code(leave_cluster(Config))).
 
 remove_dead_from_cluster(Config) ->
     % given
@@ -247,7 +257,7 @@ remove_dead_from_cluster_http(Config) ->
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
     distributed_helper:stop_node(Node3Nodename, Config),
-    F2 = fun() -> 
+    F2 = fun() ->
         test == rpc(Node1#{timeout => Timeout}, mongoose_config, get_opt, [listen, test])
     end,
     mongoose_helper:wait_until(F2, false, #{sleep_time => 200, name => wait_for_mim1,
@@ -281,9 +291,9 @@ remove_alive_from_cluster_http(Config) ->
 
 ensure_node_started(Node) ->
     Timeout = timer:seconds(60),
-    F = fun() -> 
-        case rpc(Node#{timeout => Timeout}, mongoose_server_api, status, []) of 
-            {ok, {true, _, _}} -> true;
+    F = fun() ->
+        case rpc(Node#{timeout => Timeout}, mongoose_server_api, status, []) of
+            {ok, {true, _, _, _}} -> true;
             _Other -> false
         end
     end,

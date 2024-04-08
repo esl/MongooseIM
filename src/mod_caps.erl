@@ -51,8 +51,8 @@
          filter_pep_recipient/3]).
 
 %% for test cases
--export([delete_caps/1, make_disco_hash/2]).
--ignore_xref([delete_caps/1, make_disco_hash/2, read_caps/1, start_link/2]).
+-export([delete_caps/2, make_disco_hash/2]).
+-ignore_xref([delete_caps/2, make_disco_hash/2, read_caps/1, start_link/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
@@ -74,17 +74,11 @@
 -type caps() :: #caps{}.
 -type caps_resources() :: gb_trees:tree(jid:simple_jid(), caps()).
 
--export_type([caps/0]).
+-export_type([caps/0, node_pair/0, maybe_pending_features/0]).
 
 -type features() :: [binary()].
 -type maybe_pending_features() :: features() | pos_integer().
--type node_pair() :: {binary(), binary()}.
-
--record(caps_features,
-        {
-          node_pair = {<<>>, <<>>} :: node_pair(),
-          features = [] :: maybe_pending_features()
-        }).
+-type node_pair() :: {Node :: binary(), SubNode :: binary()}.
 
 -record(state, {host_type :: mongooseim:host_type()}).
 
@@ -92,6 +86,7 @@
 
 -spec start_link(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_link(HostType, Opts) ->
+    mod_caps_backend:init(HostType, Opts),
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE,
                           [HostType, Opts], []).
@@ -115,10 +110,13 @@ config_spec() ->
         items = #{<<"cache_size">> => #option{type = integer,
                                               validate = positive},
                   <<"cache_life_time">> => #option{type = integer,
-                                                   validate = positive}
+                                                   validate = positive},
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, ?MODULE}}
                  },
         defaults = #{<<"cache_size">> => 1000,
-                     <<"cache_life_time">> => timer:hours(24) div 1000}
+                     <<"cache_life_time">> => timer:hours(24) div 1000,
+                     <<"backend">> => mnesia}
        }.
 
 supported_features() -> [dynamic_domains].
@@ -369,23 +367,8 @@ filter_pep_recipient(InAcc, #{c2s_data := C2SData, feature := Feature, to := To}
         _ -> {ok, InAcc}
     end.
 
-init_db(mnesia) ->
-    case catch mnesia:table_info(caps_features, storage_type) of
-        {'EXIT', _} ->
-            ok;
-        disc_only_copies ->
-            ok;
-        _ ->
-            mnesia:delete_table(caps_features)
-    end,
-    mongoose_mnesia:create_table(caps_features,
-        [{disc_only_copies, [node()]},
-         {local_content, true},
-         {attributes, record_info(fields, caps_features)}]).
-
 -spec init(list()) -> {ok, state()}.
 init([HostType, #{cache_size := MaxSize, cache_life_time := LifeTime}]) ->
-    init_db(db_type(HostType)),
     cache_tab:new(caps_features, [{max_size, MaxSize}, {life_time, LifeTime}]),
     gen_hook:add_handlers(hooks(HostType)),
     {ok, #state{host_type = HostType}}.
@@ -416,8 +399,7 @@ hooks(HostType) ->
      {c2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {s2s_stream_features, HostType, fun ?MODULE:caps_stream_features/3, #{}, 75},
      {disco_local_identity, HostType, fun ?MODULE:disco_local_identity/3, #{}, 1},
-     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1},
-     {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 1}
+     {disco_info, HostType, fun ?MODULE:disco_info/3, #{}, 1}
     ].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
@@ -493,37 +475,25 @@ feature_response(Acc, _IQResult, LServer, From, Caps, [_SubNode | SubNodes]) ->
 -spec caps_read_fun(mongooseim:host_type(), node_pair()) ->
           fun(() -> {ok, maybe_pending_features()} | error).
 caps_read_fun(HostType, Node) ->
-    DBType = db_type(HostType),
-    caps_read_fun(HostType, Node, DBType).
-
-caps_read_fun(_HostType, Node, mnesia) ->
     fun () ->
-            case mnesia:dirty_read({caps_features, Node}) of
-                [#caps_features{features = Features}] -> {ok, Features};
-                _ -> error
-            end
+            mod_caps_backend:read(HostType, Node)
     end.
 
 -spec caps_write_fun(mongooseim:host_type(), node_pair(), maybe_pending_features()) ->
           fun(() -> ok).
 caps_write_fun(HostType, Node, Features) ->
-    DBType = db_type(HostType),
-    caps_write_fun(HostType, Node, Features, DBType).
-
-caps_write_fun(_HostType, Node, Features, mnesia) ->
     fun () ->
-            mnesia:dirty_write(#caps_features{node_pair = Node,
-                                              features = Features})
+            mod_caps_backend:write(HostType, Node, Features)
     end.
 
--spec delete_caps(node_pair()) -> ok.
-delete_caps(Node) ->
-    cache_tab:delete(caps_features, Node, caps_delete_fun(Node)).
+-spec delete_caps(mongooseim:host_type(), node_pair()) -> ok.
+delete_caps(HostType, Node) ->
+    cache_tab:delete(caps_features, Node, caps_delete_fun(HostType, Node)).
 
--spec caps_delete_fun(node_pair()) -> fun(() -> ok).
-caps_delete_fun(Node) ->
+-spec caps_delete_fun(mongooseim:host_type(), node_pair()) -> fun(() -> ok).
+caps_delete_fun(HostType, Node) ->
     fun () ->
-            mnesia:dirty_delete(caps_features, Node)
+            mod_caps_backend:delete_node(HostType, Node)
     end.
 
 -spec make_my_disco_hash(mongooseim:host_type(), jid:lserver()) -> binary().
@@ -625,6 +595,3 @@ is_valid_node(Node) ->
         _ ->
             false
     end.
-
-db_type(_HostType) ->
-    mnesia.

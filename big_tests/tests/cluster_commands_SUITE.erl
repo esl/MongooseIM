@@ -37,21 +37,20 @@
 
 all() ->
     [{group, clustered},
-     {group, mnesia},
      {group, clustering_two},
      {group, clustering_three}].
 
 groups() ->
     [{clustered, [], [one_to_one_message]},
      {clustering_two, [], clustering_two_tests()},
-     {clustering_three, [], clustering_three_tests()},
-     {mnesia, [], [set_master_test]}].
+     {clustering_three, [], clustering_three_tests()}].
 
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
-    [join_successful_prompt,
+    [commands_without_args,
+     join_successful_prompt,
      join_successful_force,
      leave_successful_prompt,
      leave_successful_force,
@@ -184,33 +183,16 @@ one_to_one_message(ConfigIn) ->
         Stanza2 = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
     end).
-%%--------------------------------------------------------------------
-%% mnesia tests
-%%--------------------------------------------------------------------
-
-set_master_test(ConfigIn) ->
-    %% To ensure that passwd table exists.
-    %% We also need at least two nodes for set_master to work.
-    catch distributed_helper:rpc(mim(), ejabberd_auth_internal, start, [host_type(mim1)]),
-    catch distributed_helper:rpc(mim2(), ejabberd_auth_internal, start, [host_type(mim2)]),
-
-    TableName = passwd,
-    NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
-    mongooseimctl("set_master", ["self"], ConfigIn),
-    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-    true = lists:member(MasterNode, NodeList),
-    RestNodesList = lists:delete(MasterNode, NodeList),
-    OtherNode = hd(RestNodesList),
-    mongooseimctl("set_master", [atom_to_list(OtherNode)], ConfigIn),
-    [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-    mongooseimctl("set_master", ["self"], ConfigIn),
-    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
-
 
 %%--------------------------------------------------------------------
 %% Manage cluster commands tests
 %%--------------------------------------------------------------------
 
+commands_without_args(Config) ->
+    {Res1, 1} = mongooseimctl_interactive("join_cluster", [], "yes\n", Config),
+    ?assertMatch({match, _}, re:run(Res1, "This command requires one argument: other node's name")),
+    {Res2, 1} = mongooseimctl_interactive("remove_from_cluster", [], "yes\n",Config),
+    ?assertMatch({match, _}, re:run(Res2, "This command requires one argument: other node's name")).
 
 join_successful_prompt(Config) ->
     %% given

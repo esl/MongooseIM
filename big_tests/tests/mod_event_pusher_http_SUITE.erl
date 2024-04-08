@@ -22,7 +22,7 @@
 
 -import(domain_helper, [host_type/0]).
 
--import(config_parser_helper, [config/2, mod_config/2, mod_event_pusher_http_handler/0]).
+-import(config_parser_helper, [config/2, mod_config_with_auto_backend/1, mod_event_pusher_http_handler/0]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -178,16 +178,15 @@ stop_pool() ->
 
 set_modules(Config0, ExtraHandlerOpts) ->
     Config = dynamic_modules:save_modules(host_type(), Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(host_type()),
-    ModOffline = create_offline_config(Backend),
+    ModOffline = create_offline_config(),
     Handler = maps:merge(mod_event_pusher_http_handler(), ExtraHandlerOpts),
     ModOpts = #{http => #{handlers => [Handler]}},
     dynamic_modules:ensure_modules(host_type(), [{mod_event_pusher, ModOpts} | ModOffline]),
     Config.
 
--spec create_offline_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
-create_offline_config(Backend) ->
-    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
+-spec create_offline_config() -> [{mod_offline, gen_mod:module_opts()}].
+create_offline_config() ->
+    [{mod_offline, mod_config_with_auto_backend(mod_offline)}].
 
 start_http_listener(simple_message, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1);

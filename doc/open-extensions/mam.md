@@ -5,10 +5,10 @@
 The new fields allow to improve the performance of the counting queries for very big archives
 by changing how count and index functions work.
 
-- `from_id` - returns and counts messages with ids `id >= from_id` only (`from_id` is included into the set).
-- `to_id` - returns and counts messages with ids `id <= to_id` only (`to_id` is included into the set).
-- `after_id` - returns and counts messages with ids `id > after_id` only (`after_id` is not included into the set).
-- `before_id` - returns and counts messages with ids `id < before_id` only (`before_id` is not included into the set).
+- `from-id` - returns and counts messages with ids `id >= from-id` only (`from-id` is included into the set).
+- `to-id` - returns and counts messages with ids `id <= to-id` only (`to-id` is included into the set).
+- `after-id` - returns and counts messages with ids `id > after-id` only (`after-id` is not included into the set).
+- `before-id` - returns and counts messages with ids `id < before-id` only (`before-id` is not included into the set).
 - `simple` - do not return count and offset fields in the result.
 
 The fields could be combined together. If two filters are provided, both would
@@ -21,7 +21,7 @@ Example from `pagination_first_page_after_id4` testcase:
 The client has downloaded his archive and got disconnected.
 He knows, that the last message he has on his device has id=BO7CH1JOF801.
 He wants to receive new messages that were sent while he has been disconnected
-using a page size 5. 
+using a page size 5.
 
 In this mode, the client would get the oldest messages first.
 
@@ -32,7 +32,7 @@ Testcase: the client has messages 1-15 in his archive.
 <iq type='set' id='req1'>
     <query xmlns='urn:xmpp:mam:1' queryid='first_page_after_id4'>
         <x xmlns='jabber:x:data'>
-            <field var='after_id'>
+            <field var='after-id'>
                 <value>BO7CH1JOF801</value> <!-- id of the Message #4 -->
             </field>
         </x>
@@ -85,7 +85,7 @@ more messages.
 <iq type='set' id='req2'>
     <query xmlns='urn:xmpp:mam:1' queryid='first_page_after_id9'>
         <x xmlns='jabber:x:data'>
-            <field var='after_id'>
+            <field var='after-id'>
                 <value>BO7CH1K3TU01</value> <!-- id of the Message #9 -->
             </field>
         </x>
@@ -112,7 +112,7 @@ Example `pagination_last_page_after_id4`.
 <iq type='set' id='req3'>
     <query xmlns='urn:xmpp:mam:1' queryid='last_page_after_id4'>
         <x xmlns='jabber:x:data'>
-            <field var='after_id'>
+            <field var='after-id'>
                 <value>BO7CUCVVS6O1</value>
             </field>
         </x>

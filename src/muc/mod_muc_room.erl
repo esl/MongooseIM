@@ -156,7 +156,7 @@
 
 -spec start_new(HostType :: mongooseim:host_type(), Host :: jid:lserver(), ServerHost :: jid:lserver(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
+            RoomShaper :: mongoose_shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Creator :: jid:jid(), Nick :: mod_muc:nick(),
             DefRoomOpts :: list()) -> {ok, pid()}.
 start_new(HostType, Host, ServerHost, Access, Room,
@@ -171,7 +171,7 @@ start_new(HostType, Host, ServerHost, Access, Room,
 
 -spec start_restored(HostType :: mongooseim:host_type(), Host :: jid:lserver(), ServerHost :: jid:lserver(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
-            RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
+            RoomShaper :: mongoose_shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Opts :: list()) -> {ok, pid()}.
 start_restored(HostType, Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, Opts)
@@ -305,7 +305,7 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
            http_auth_pool := HttpAuthPool, creator := Creator, nick := _Nick,
            def_opts := DefRoomOpts}) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
-    Shaper = shaper:new(RoomShaper),
+    Shaper = mongoose_shaper:new(RoomShaper),
     State = #state{host = Host, host_type = HostType, server_host = ServerHost,
                    access = Access,
                    room = Room,
@@ -345,7 +345,7 @@ init_restored(#{init_type := start_restored,
                 room_shaper := RoomShaper, http_auth_pool := HttpAuthPool,
                 opts := Opts}) ->
     process_flag(trap_exit, true),
-    Shaper = shaper:new(RoomShaper),
+    Shaper = mongoose_shaper:new(RoomShaper),
     State = set_opts(Opts, #state{host = Host, host_type = HostType,
                                   server_host = ServerHost,
                                   access = Access,
@@ -1545,8 +1545,8 @@ get_user_activity(JID, StateData) ->
     case treap:lookup(jid:to_lower(JID), StateData#state.activity) of
     {ok, _P, A} -> A;
     error ->
-        MessageShaper = shaper:new(get_opt(StateData, user_message_shaper)),
-        PresenceShaper = shaper:new(get_opt(StateData, user_presence_shaper)),
+        MessageShaper = mongoose_shaper:new(get_opt(StateData, user_message_shaper)),
+        PresenceShaper = mongoose_shaper:new(get_opt(StateData, user_presence_shaper)),
         #activity{message_shaper = MessageShaper,
                   presence_shaper = PresenceShaper}
     end.
@@ -1581,10 +1581,10 @@ store_user_activity(JID, UserActivity, StateData) ->
             (UserActivity#activity.presence == undefined) of
             true ->
             {_, MessageShaperInterval} =
-                shaper:update(UserActivity#activity.message_shaper,
+                mongoose_shaper:update(UserActivity#activity.message_shaper,
                       100000),
             {_, PresenceShaperInterval} =
-                shaper:update(UserActivity#activity.presence_shaper,
+                mongoose_shaper:update(UserActivity#activity.presence_shaper,
                       100000),
             Delay = lists:max([MessageShaperInterval,
                        PresenceShaperInterval,
@@ -1632,7 +1632,7 @@ prepare_room_queue(StateData) ->
         Packet = Activity#activity.message,
         Size = element_size(Packet),
         {RoomShaper, RoomShaperInterval} =
-        shaper:update(StateData#state.room_shaper, Size),
+        mongoose_shaper:update(StateData#state.room_shaper, Size),
         erlang:send_after(
           RoomShaperInterval, self(),
           process_room_queue),
@@ -1643,7 +1643,7 @@ prepare_room_queue(StateData) ->
         {_Nick, Packet} = Activity#activity.presence,
         Size = element_size(Packet),
         {RoomShaper, RoomShaperInterval} =
-        shaper:update(StateData#state.room_shaper, Size),
+        mongoose_shaper:update(StateData#state.room_shaper, Size),
         erlang:send_after(
           RoomShaperInterval, self(),
           process_room_queue),
@@ -4220,7 +4220,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
     Now = os:system_time(microsecond),
     MinMessageInterval = trunc(get_opt(StateData, min_message_interval) * 1000000),
     Size = element_size(Packet),
-    {MessageShaper, MessageShaperInterval} = shaper:update(Activity#activity.message_shaper, Size),
+    {MessageShaper, MessageShaperInterval} = mongoose_shaper:update(Activity#activity.message_shaper, Size),
     case {Activity#activity.message /= undefined,
           Now >= Activity#activity.message_time + MinMessageInterval,
           MessageShaperInterval} of
@@ -4230,7 +4230,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
             ejabberd_router:route(StateData#state.jid, From, Err),
             StateData;
         {false, true, 0} ->
-            {RoomShaper, RoomShaperInterval} = shaper:update(StateData#state.room_shaper, Size),
+            {RoomShaper, RoomShaperInterval} = mongoose_shaper:update(StateData#state.room_shaper, Size),
             RoomQueueEmpty = queue:is_empty(StateData#state.room_queue),
             case {RoomShaperInterval, RoomQueueEmpty} of
                 {0, true} ->
@@ -4310,7 +4310,7 @@ route_message(#routed_message{from = From, packet = Packet, lang = Lang},
     StateData.
 
 -spec schedule_queue_processing_when_empty(RoomQueueEmpty :: boolean(),
-                                           RoomShaper :: shaper:shaper(),
+                                           RoomShaper :: mongoose_shaper:shaper(),
                                            RoomShaperInterval :: non_neg_integer(),
                                            StateData :: state()) -> state().
 schedule_queue_processing_when_empty(true, RoomShaper, RoomShaperInterval, StateData) ->

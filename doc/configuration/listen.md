@@ -193,7 +193,7 @@ By default the TLS library used for C2S connections is `fast_tls`, which uses Op
 Specifies the way client certificate verification works:
 
 * `peer` - makes sure the client certificate is valid and signed by a trusted CA. Requires a valid `cacertfile`.
-* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`.
+* `selfsigned_peer` - makes sure the client certificate is valid, but allows self-signed certificates; supported only by `just_tls`. Requires a valid `cacertfile`.
 * `none` - client certificate is not checked.
 
 ### `listen.c2s.tls.certfile`
@@ -547,6 +547,14 @@ When set, enables authentication for the admin API, otherwise it is disabled. Re
 
 By default, when the option is not included, all GraphQL categories are enabled, so you don't need to add this option.
 When this option is added, only listed GraphQL categories will be processed. For others, the error "category disabled" will be returned.
+
+#### `listen.http.handlers.mongoose_graphql_handler.sse_idle_timeout`
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** 3600000
+* **Example:** `schema_endpoint = "admin"`
+
+This option specifies the time in milliseconds after which the SSE connection is closed when idle.
+The default value is 1 hour.
 
 ### Handler types: REST API - Admin - `mongoose_admin_api`
 

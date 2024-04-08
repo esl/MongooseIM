@@ -30,7 +30,10 @@ groups() ->
 domain_tests() ->
     [create_domain,
      unknown_host_type_error_formatting,
-     static_domain_error_formatting,
+     add_static_domain_error_formatting,
+     remove_static_domain_error_formatting,
+     enable_static_domain_error_formatting,
+     disable_static_domain_error_formatting,
      domain_duplicate_error_formatting,
      domain_not_found_error_formatting_after_mutation_disable_domain,
      domain_not_found_error_formatting_after_mutation_enable_domain,
@@ -116,9 +119,24 @@ unknown_host_type_error_formatting(Config) ->
     Result2 = get_domains_by_host_type(HostType, Config),
     ?assertEqual(<<"Unknown host type">>, get_err_msg(Result2)).
 
-static_domain_error_formatting(Config) ->
+add_static_domain_error_formatting(Config) ->
     DomainName = <<"localhost">>,
     Result = add_domain(DomainName, ?HOST_TYPE, Config),
+    ?assertEqual(<<"Domain is static">>, get_err_msg(Result)).
+
+remove_static_domain_error_formatting(Config) ->
+    DomainName = <<"localhost">>,
+    Result = remove_domain(DomainName, ?HOST_TYPE, Config),
+    ?assertEqual(<<"Domain is static">>, get_err_msg(Result)).
+
+enable_static_domain_error_formatting(Config) ->
+    DomainName = <<"localhost">>,
+    Result = enable_domain(DomainName, Config),
+    ?assertEqual(<<"Domain is static">>, get_err_msg(Result)).
+
+disable_static_domain_error_formatting(Config) ->
+    DomainName = <<"localhost">>,
+    Result = disable_domain(DomainName, Config),
     ?assertEqual(<<"Domain is static">>, get_err_msg(Result)).
 
 domain_duplicate_error_formatting(Config) ->

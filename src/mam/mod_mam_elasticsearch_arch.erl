@@ -81,13 +81,15 @@ archive_message(_Result,
                   local_jid := LocalJid,
                   remote_jid := RemoteJid,
                   source_jid := SourceJid,
-                  packet := Packet},
+                  packet := Packet,
+                  is_groupchat := IsGroupChat},
                 #{host_type := Host}) ->
     Owner = mod_mam_utils:bare_jid(LocalJid),
     Remote = mod_mam_utils:bare_jid(RemoteJid),
     SourceBinJid = mod_mam_utils:full_jid(SourceJid),
     DocId = make_document_id(Owner, MessageId),
-    Doc = make_document(MessageId, Owner, Remote, SourceBinJid, Packet),
+    IsGroupChatBin = atom_to_binary(IsGroupChat),
+    Doc = make_document(MessageId, Owner, Remote, SourceBinJid, Packet, IsGroupChatBin),
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
             {ok, ok};
@@ -116,12 +118,17 @@ lookup_messages(Result,
 lookup_messages(Result, Params, #{host_type := HostType}) ->
     {ok, do_lookup_messages(Result, HostType, Params)}.
 
-lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, Params) ->
+lookup_message_page(AccResult, Host, #rsm_in{id = _ID} = RSM, #{message_id := MsgID} = Params) ->
     PageSize = maps:get(page_size, Params),
     case do_lookup_messages(AccResult, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
         {ok, LookupResult} ->
-            mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult)
+            case MsgID of
+                undefined ->
+                    mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult);
+                _ ->
+                    {ok, LookupResult}
+            end
     end.
 
 do_lookup_messages(_Result, Host, Params) ->
@@ -184,15 +191,17 @@ hooks(Host) ->
 make_document_id(Owner, MessageId) ->
     <<Owner/binary, $$, (integer_to_binary(MessageId))/binary>>.
 
--spec make_document(mod_mam:message_id(), binary(), binary(), binary(), exml:element()) ->
+-spec make_document(mod_mam:message_id(), binary(), binary(),
+                    binary(), exml:element(), binary()) ->
     map().
-make_document(MessageId, Owner, Remote, SourceBinJid, Packet) ->
+make_document(MessageId, Owner, Remote, SourceBinJid, Packet, IsGroupChat) ->
     #{mam_id     => MessageId,
       owner      => Owner,
       remote     => Remote,
       source_jid => SourceBinJid,
       message    => exml:to_binary(Packet),
-      body       => exml_query:path(Packet, [{element, <<"body">>}, cdata])
+      body       => exml_query:path(Packet, [{element, <<"body">>}, cdata]),
+      is_groupchat => IsGroupChat
      }.
 
 -spec build_search_query(map()) -> mongoose_elasticsearch:query().
@@ -208,6 +217,8 @@ build_search_query(Params) ->
 build_filters(Params) ->
     Builders = [fun owner_filter/1,
                 fun with_jid_filter/1,
+                fun is_groupchat_filter/1,
+                fun specific_message_filter/1,
                 fun range_filter/1],
     lists:flatmap(fun(F) -> F(Params) end, Builders).
 
@@ -220,6 +231,18 @@ owner_filter(#{owner_jid := Owner}) ->
 with_jid_filter(#{with_jid := #jid{} = WithJid}) ->
     [#{term => #{remote => mod_mam_utils:bare_jid(WithJid)}}];
 with_jid_filter(_) ->
+    [].
+
+-spec is_groupchat_filter(map()) -> [map()].
+is_groupchat_filter(#{include_groupchat := false}) ->
+    [#{term => #{is_groupchat => <<"false">>}}];
+is_groupchat_filter(_) ->
+    [].
+
+-spec specific_message_filter(map()) -> [map()].
+specific_message_filter(#{message_id := ID}) when is_integer(ID) ->
+    [#{term => #{mam_id => ID}}];
+specific_message_filter(_) ->
     [].
 
 -spec range_filter(map()) -> [map()].

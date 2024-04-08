@@ -65,24 +65,27 @@ CREATE TABLE rosterusers (
     subscription character(1) NOT NULL,
     ask character(1) NOT NULL,
     askmessage text NOT NULL,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (server, username, jid)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
-CREATE UNIQUE INDEX i_rosteru_server_user_jid ON rosterusers (server, username, jid);
-CREATE INDEX i_rosteru_server_user ON rosterusers(server, username);
-CREATE INDEX i_rosteru_jid ON rosterusers(jid);
 
 CREATE TABLE rostergroups (
     server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid varchar(250) NOT NULL,
-    grp text NOT NULL
+    grp varchar(250) NOT NULL,
+    PRIMARY KEY (server(150), username(200), jid, grp(150))
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX i_rosterg_server_user_jid ON rostergroups(server, username, jid);
-
+CREATE TABLE roster_version (
+    server varchar(250),
+    username varchar(250),
+    version text NOT NULL,
+    PRIMARY KEY (server, username)
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE vcard (
     username varchar(150),
@@ -180,14 +183,6 @@ CREATE TABLE private_storage (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE TABLE roster_version (
-    server varchar(250),
-    username varchar(250),
-    version text NOT NULL,
-    PRIMARY KEY (server, username)
-) CHARACTER SET utf8mb4
-  ROW_FORMAT=DYNAMIC;
-
 -- To update from 1.x:
 -- ALTER TABLE rosterusers ADD COLUMN askmessage text AFTER ask;
 -- UPDATE rosterusers SET askmessage = '';
@@ -244,6 +239,7 @@ CREATE TABLE mam_message(
   message mediumblob NOT NULL,
   search_body mediumtext,
   origin_id varchar(250) CHARACTER SET binary,
+  is_groupchat boolean NOT NULL,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 ) CHARACTER SET utf8mb4
@@ -322,7 +318,7 @@ CREATE TABLE muc_light_rooms(
     lserver VARCHAR(250)    NOT NULL,
     version VARCHAR(20)     NOT NULL,
     PRIMARY KEY (lserver, luser),
-    UNIQUE KEY k_id USING HASH (id)
+    UNIQUE KEY uk_muc_light_rooms_id USING BTREE (id)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
@@ -546,10 +542,18 @@ CREATE TABLE domain_events (
 CREATE INDEX i_domain_events_domain ON domain_events(domain);
 
 CREATE TABLE discovery_nodes (
-    node_name varchar(250),
-    cluster_name varchar(250),
-    updated_timestamp BIGINT NOT NULL, -- in seconds
+    cluster_name varchar(250) NOT NULL,
+    node_name varchar(250) NOT NULL,
     node_num INT UNSIGNED NOT NULL,
+    address varchar(250) NOT NULL DEFAULT '', -- empty means we should ask DNS
+    updated_timestamp BIGINT NOT NULL, -- in seconds
     PRIMARY KEY (cluster_name, node_name)
 );
 CREATE UNIQUE INDEX i_discovery_nodes_node_num USING BTREE ON discovery_nodes(cluster_name, node_num);
+
+CREATE TABLE caps (
+    node varchar(250) NOT NULL,
+    sub_node varchar(250) NOT NULL,
+    features text NOT NULL,
+    PRIMARY KEY (node, sub_node)
+);

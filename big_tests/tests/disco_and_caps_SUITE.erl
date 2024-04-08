@@ -5,7 +5,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(domain_helper, [host_type/0, domain/0]).
--import(config_parser_helper, [default_mod_config/1, mod_config/2]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2, mod_config_with_auto_backend/1]).
 
 all() ->
     [{group, disco_with_caps},
@@ -167,7 +167,6 @@ user_can_query_server_features(Config) ->
         escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
-        escalus:assert(has_feature, [<<"presence-invisible">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
 
@@ -196,10 +195,10 @@ user_can_query_server_info(Config) ->
 %% Helpers
 
 required_modules(disco_with_caps) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    [{mod_caps, mod_config_with_auto_backend(mod_caps)},
      {mod_disco, default_mod_config(mod_disco)}];
 required_modules(disco_with_caps_and_extra_features) ->
-    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
+    [{mod_caps, mod_config_with_auto_backend(mod_caps)},
      {mod_disco, mod_config(mod_disco, extra_disco_opts())}];
 required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].

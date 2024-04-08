@@ -1,19 +1,8 @@
 -module(mongoose_server_api).
 
--export([get_loglevel_mongooseimctl/0]).
-
 -export([status/0, get_cookie/0, join_cluster/1, leave_cluster/0,
          remove_from_cluster/1, stop/0, restart/0, remove_node/1, set_loglevel/1,
          get_loglevel/0]).
-
--ignore_xref([get_loglevel_mongooseimctl/0]).
-
--spec get_loglevel_mongooseimctl() -> {ok, iolist()}.
-get_loglevel_mongooseimctl() ->
-    Level = mongoose_logs:get_global_loglevel(),
-    Number = mongoose_logs:loglevel_keyword_to_number(Level),
-    String = io_lib:format("global loglevel is ~p, which means '~p'", [Number, Level]),
-    {ok, String}.
 
 -spec get_loglevel() -> {ok, mongoose_logs:atom_log_level()}.
 get_loglevel() ->
@@ -28,7 +17,7 @@ set_loglevel(Level) ->
             {invalid_level, io_lib:format("Log level ~p does not exist.", [Level])}
     end.
 
--spec status() -> {ok, {boolean(), iolist(), iolist()}}.
+-spec status() -> {ok, {boolean(), iolist(), iolist(), iolist()}}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     String1 = io_lib:format("The node ~p is ~p. Status: ~p.",
@@ -37,11 +26,12 @@ status() ->
         case lists:keysearch(mongooseim, 1, application:which_applications()) of
             false ->
                 {false, String1 ++ " MongooseIM is not running in that node.",
-                 "MongooseIM is not running in that node"};
+                 "MongooseIM is not running in that node", "MongooseIM is not running in that node"};
             {value, {_, _, Version}} ->
                 {true,
                  String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version]),
-                 lists:nth(1, string:split(Version, "-"))}
+                 lists:nth(1, string:tokens(Version, "-")),
+                 string:slice(lists:nth(3, string:tokens(Version, "-")), 1)}
         end,
     {ok, Result}.
 

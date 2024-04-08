@@ -10,8 +10,7 @@ init() ->
             %% Ensure mnesia is stopped when applying the test presets from the big tests.
             %% So, we accidentually do not test with mnesia enabled, when starting the
             %% test cases from the clean test build.
-            %% TODO Stopping here would break a lot of tests, stop here once tests are fixed.
-            % mnesia:stop(),
+            mnesia:stop(),
             ok
     end.
 

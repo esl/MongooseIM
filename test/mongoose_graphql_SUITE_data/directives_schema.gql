@@ -12,12 +12,14 @@ enum ProtectionType{
   DEFAULT
 }
 
-directive @use(modules: [String!] = [], services: [String!] = [], arg: String) on FIELD_DEFINITION | OBJECT
+directive @use(modules: [String!] = [], services: [String!] = [],
+               internal_databases: [String!] = [], arg: String) on FIELD_DEFINITION | OBJECT
 
 type UserQuery {
   catA: Category
   catB: CategoryB
   catC: CategoryC
+  catD: CategoryD
 }
 
 type Category @protected {
@@ -27,10 +29,16 @@ type Category @protected {
     @use(modules: ["mod_b"], services: ["service_a", "service_b"], arg: "domain")
   command3(domain: String): String
     @use(modules: ["mod_a", "mod_z"], services: ["service_a", "service_d"], arg: "domain")
+  command4(domain: String): String
+    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_a"], arg: "domain")
+  command5(domain: String): String
+    @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"], arg: "domain")
+  command6(domain: String): String
+    @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"], arg: "domain")
 }
 
 type CategoryB
-  @use(modules: ["mod_x"], services: ["service_x"])
+  @use(modules: ["mod_x"], services: ["service_x"], internal_databases: ["db_x"])
   @protected {
   command(domain: String): String
     @use(modules: ["mod_a"], arg: "domain")
@@ -39,7 +47,7 @@ type CategoryB
 }
 
 type CategoryC
-  @use(modules: ["mod_a"], services: ["service_a"])
+  @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_a"])
   @protected {
   command(domain: String): String
     @use(modules: ["mod_b"], arg: "domain")
@@ -47,7 +55,17 @@ type CategoryC
     @use(modules: ["mod_b"])
 }
 
+type CategoryD
+  @use(modules: ["mod_a"], services: ["service_a"], internal_databases: ["db_x"])
+  @protected {
+  command(domain: String): String
+    @use(modules: ["mod_x"], arg: "domain")
+  command2: String
+    @use
+  command3: String
+    @use(services: ["service_x"])
+}
+
 type UserMutation @protected{
   field: String
 }
-

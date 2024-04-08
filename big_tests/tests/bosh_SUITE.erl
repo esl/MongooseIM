@@ -154,8 +154,9 @@ end_per_testcase(CaseName, Config) ->
 required_modules(without_bosh) ->
     [{mod_bosh, stopped}];
 required_modules(GroupName) ->
-    [{mod_bosh, maps:merge(config_parser_helper:default_mod_config(mod_bosh),
-                           required_bosh_opts(GroupName))}].
+    Backend = ct_helper:get_internal_database(),
+    ModOpts = config_parser_helper:mod_config(mod_bosh, #{backend => Backend}),
+    [{mod_bosh, maps:merge(ModOpts, required_bosh_opts(GroupName))}].
 
 required_bosh_opts(time) ->
     #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
@@ -941,7 +942,7 @@ wait_until_user_has_no_stanzas(User) ->
 
 wait_for_zero_bosh_sessions() ->
     mongoose_helper:wait_until(fun() ->
-                                       length(get_bosh_sessions())
+                                       get_bosh_sessions()
                                end,
-                               0,
+                               [],
                                #{name => get_bosh_sessions}).

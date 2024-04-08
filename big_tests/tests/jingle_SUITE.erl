@@ -59,7 +59,7 @@ init_per_suite(Config) ->
     case rpc(mim(), application, get_application, [nksip]) of
         {ok, nksip} ->
             distributed_helper:add_node_to_cluster(mim2(), Config),
-            start_nksip_in_mim_nodes(Config),
+            start_nksip_in_mim_nodes(),
             application:ensure_all_started(esip),
             spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
                            ets:new(jingle_sip_translator_bindings, [public, named_table]),
@@ -71,9 +71,9 @@ init_per_suite(Config) ->
             {skip, build_was_not_configured_with_jingle_sip}
     end.
 
-start_nksip_in_mim_nodes(Config) ->
-    Pid1 = start_nskip_in_parallel(Config, mim(), #{}),
-    Pid2 = start_nskip_in_parallel(Config, mim2(), #{listen_port => 12346}),
+start_nksip_in_mim_nodes() ->
+    Pid1 = start_nskip_in_parallel(mim(), #{}),
+    Pid2 = start_nskip_in_parallel(mim2(), #{listen_port => 12346}),
     wait_for_process_to_stop(Pid1),
     wait_for_process_to_stop(Pid2).
 
@@ -85,11 +85,11 @@ wait_for_process_to_stop(Pid) ->
               ct:fail(wait_for_process_to_stop_timeout)
     end.
 
-start_nskip_in_parallel(Config, NodeSpec, ExtraOpts) ->
+start_nskip_in_parallel(NodeSpec, ExtraOpts) ->
     Domain = domain(),
     Opts = #{proxy_host => <<"localhost">>,
              proxy_port => 12345,
-             backend => ct_helper:get_preset_var(Config, jingle_sip_backend, mnesia)},
+             backend => ct_helper:get_internal_database()},
     OptsWithExtra = maps:merge(Opts, ExtraOpts),
     AllOpts = config_parser_helper:mod_config(mod_jingle_sip, OptsWithExtra),
     RPCSpec = NodeSpec#{timeout => timer:seconds(60)},

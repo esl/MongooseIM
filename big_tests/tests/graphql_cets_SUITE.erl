@@ -6,17 +6,19 @@
 -import(distributed_helper, [mim/0, mim2/0, rpc/4]).
 -import(domain_helper, [host_type/1]).
 -import(mongooseimctl_helper, [rpc_call/3]).
--import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2]).
+-import(graphql_helper, [execute_command/4, get_unauthorized/1, get_ok_value/2, get_not_loaded/1]).
 
 all() ->
     [{group, admin_cets_cli},
      {group, admin_cets_http},
-     {group, domain_admin_cets}].
+     {group, domain_admin_cets},
+     {group, cets_not_configured}].
 
 groups() ->
     [{admin_cets_http, [parallel], admin_cets_tests()},
      {admin_cets_cli, [parallel], admin_cets_tests()},
-     {domain_admin_cets, [], domain_admin_tests()}].
+     {domain_admin_cets, [], domain_admin_tests()},
+     {cets_not_configured, [parallel], cets_not_configured_test()}].
 
 admin_cets_tests() ->
     [has_sm_table_in_info,
@@ -37,6 +39,10 @@ domain_admin_tests() ->
     [domain_admin_get_table_info_test,
      domain_admin_get_system_info_test].
 
+cets_not_configured_test() ->
+    [get_table_info_not_configured_test,
+     get_system_info_not_configured_test].
+
 init_per_suite(Config) ->
     case rpc_call(mongoose_config, get_opt, [[internal_databases, cets, backend], undefined]) of
         rdbms ->
@@ -46,23 +52,48 @@ init_per_suite(Config) ->
             ok = rpc_call(cets_discovery, wait_for_ready, [mongoose_cets_discovery, 5000]),
             Config2 ++ distributed_helper:require_rpc_nodes([mim, mim2]);
         _ ->
-            {skip, "CETS is not configured with RDBMS"}
+            Config
     end.
 
 end_per_suite(Config) ->
-    ensure_bad_node_unregistered(),
-    escalus:end_per_suite(Config).
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
+        {ok, rdbms} ->
+            ensure_bad_node_unregistered(),
+            escalus:end_per_suite(Config);
+        _ ->
+            ok
+    end.
 
 init_per_group(admin_cets_http, Config) ->
-    graphql_helper:init_admin_handler(Config);
+    Config1 = graphql_helper:init_admin_handler(Config),
+    skip_if_cets_not_configured(Config1);
 init_per_group(admin_cets_cli, Config) ->
-    graphql_helper:init_admin_cli(Config);
+    Config1 = graphql_helper:init_admin_cli(Config),
+    skip_if_cets_not_configured(Config1);
 init_per_group(domain_admin_cets, Config) ->
-    graphql_helper:init_domain_admin_handler(Config).
+    Config1 = graphql_helper:init_domain_admin_handler(Config),
+    skip_if_cets_not_configured(Config1);
+init_per_group(cets_not_configured, Config) ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets]]) of
+        {error, not_found} ->
+            graphql_helper:init_admin_handler(Config);
+        {ok, _} ->
+            {skip, "CETS is configured"}
+    end.
 
+end_per_group(cets_not_configured, _Config) ->
+    graphql_helper:clean();
 end_per_group(_, _Config) ->
     graphql_helper:clean(),
     escalus_fresh:clean().
+
+skip_if_cets_not_configured(Config) ->
+    case rpc_call(mongoose_config, lookup_opt, [[internal_databases, cets, backend]]) of
+        {ok, rdbms} ->
+            Config;
+        _ ->
+            {skip, "CETS is not configured with RDBMS"}
+    end.
 
 init_per_testcase(has_sm_table_in_info, Config) ->
     case rpc_call(ejabberd_sm, sm_backend, []) of
@@ -186,6 +217,14 @@ domain_admin_get_table_info_test(Config) ->
 domain_admin_get_system_info_test(Config) ->
     get_unauthorized(get_system_info(Config)).
 
+% CETS not configured tests
+
+get_table_info_not_configured_test(Config) ->
+    get_not_loaded(get_table_info(Config)).
+
+get_system_info_not_configured_test(Config) ->
+    get_not_loaded(get_system_info(Config)).
+
 %--------------------------------------------------------------------------------------------------
 %                                         Helpers
 %--------------------------------------------------------------------------------------------------
@@ -206,16 +245,17 @@ register_bad_node() ->
     ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
     Num = 100,
+    Address = <<>>,
     Timestamp = rpc(mim(), mongoose_rdbms_timestamp, select, []),
-    InsertArgs = [ClusterName, Node, Num, Timestamp],
-    {updated, 1} = rpc(mim(), mongoose_rdbms, execute, [global, cets_disco_insert_new, InsertArgs]).
+    InsertArgs = [ClusterName, Node, Num, Address, Timestamp],
+    {updated, 1} = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, InsertArgs).
 
 ensure_bad_node_unregistered() ->
     ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
     DeleteArgs = [ClusterName, Node],
     %% Ensure the node is removed
-    {updated, _} = rpc(mim(), mongoose_rdbms, execute, [global, cets_delete_node_from_db, DeleteArgs]).
+    {updated, _} = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, DeleteArgs).
 
 force_check() ->
     Pid = rpc(mim(), erlang, whereis, [mongoose_cets_discovery]),

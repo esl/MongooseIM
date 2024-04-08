@@ -15,119 +15,7 @@
 %%==============================================================================
 -module(mam_SUITE).
 
-%% CT callbacks
--export([all/0,
-         groups/0,
-         suite/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2]).
-
-%% Tests
--export([no_elements/1,
-         only_stanzaid/1,
-         same_stanza_id/1,
-         muc_no_elements/1,
-         muc_only_stanzaid/1,
-         mam_service_discovery/1,
-         muc_service_discovery/1,
-         easy_archive_request/1,
-         easy_archive_request_for_the_receiver/1,
-         message_sent_to_yourself/1,
-         text_search_query_fails_if_disabled/1,
-         pagination_simple_enforced/1,
-         text_search_is_not_available/1,
-         easy_text_search_request/1,
-         long_text_search_request/1,
-         text_search_is_available/1,
-         muc_message_with_stanzaid/1,
-         retract_muc_message/1,
-         retract_muc_message_on_stanza_id/1,
-         retract_wrong_muc_message/1,
-         muc_text_search_request/1,
-         muc_archive_request/1,
-         muc_multiple_devices/1,
-         muc_protected_message/1,
-         muc_deny_protected_room_access/1,
-         muc_allow_access_to_owner/1,
-         muc_delete_x_user_in_anon_rooms/1,
-         muc_show_x_user_to_moderators_in_anon_rooms/1,
-         muc_show_x_user_for_your_own_messages_in_anon_rooms/1,
-         range_archive_request/1,
-         range_archive_request_not_empty/1,
-         limit_archive_request/1,
-         prefs_set_request/1,
-         retrieve_form_fields/1,
-         prefs_set_cdata_request/1,
-         query_get_request/1,
-         pagination_first5/1,
-         pagination_last5/1,
-         pagination_offset5/1,
-         pagination_first0/1,
-         pagination_last0/1,
-         pagination_offset5_max0/1,
-         pagination_before10/1,
-         pagination_after10/1,
-         pagination_simple_before10/1,
-         pagination_simple_before3/1,
-         pagination_simple_before6/1,
-         pagination_simple_before1_pagesize0/1,
-         pagination_simple_before2_pagesize0/1,
-         pagination_simple_after5/1,
-         pagination_simple_after10/1,
-         pagination_simple_after12/1,
-         pagination_last_after_id5/1,
-         pagination_last_after_id5_before_id11/1,
-         pagination_empty_rset/1,
-         pagination_first_page_after_id4/1,
-         pagination_last_page_after_id4/1,
-         server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
-         server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
-         server_returns_item_not_found_for_after_filter_with_invalid_id/1,
-         %% complete_flag_cases tests
-         before_complete_false_last5/1,
-         before_complete_false_before10/1,
-         before_complete_true_before1/1,
-         before_complete_true_before5/1,
-         before_complete_true_before6/1,
-         after_complete_false_first_page/1,
-         after_complete_false_after2/1,
-         after_complete_false_after9/1,
-         after_complete_true_after10/1,
-         after_complete_true_after11/1,
-         archived/1,
-         message_with_stanzaid/1,
-         retract_message/1,
-         retract_message_on_stanza_id/1,
-         retract_wrong_message/1,
-         ignore_bad_retraction/1,
-         filter_forwarded/1,
-         offline_message/1,
-         nostore_hint/1,
-         querying_for_all_messages_with_jid/1,
-         muc_querying_for_all_messages/1,
-         muc_querying_for_all_messages_with_jid/1,
-         muc_light_easy/1,
-         muc_light_shouldnt_modify_pm_archive/1,
-         muc_light_stored_in_pm_if_allowed_to/1,
-         muc_light_chat_markers_are_archived_if_enabled/1,
-         muc_light_chat_markers_are_not_archived_if_disabled/1,
-         messages_filtered_when_prefs_default_policy_is_always/1,
-         messages_filtered_when_prefs_default_policy_is_never/1,
-         messages_filtered_when_prefs_default_policy_is_roster/1,
-         run_set_and_get_prefs_cases/1,
-         check_user_exist/1,
-         metric_incremented_on_archive_request/1,
-         metric_incremented_when_store_message/1,
-         metrics_incremented_for_async_pools/1,
-         archive_chat_markers/1,
-         dont_archive_chat_markers/1,
-         save_unicode_messages/1,
-         unicode_messages_can_be_extracted/1,
-         stanza_id_is_appended_to_carbons/1]).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -162,6 +50,9 @@
          maybe_wait_for_archive/1,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
+         stanza_include_groupchat_request/3,
+         stanza_fetch_by_id_request/3,
+         stanza_fetch_by_id_request/4,
          stanza_date_range_archive_request_not_empty/3,
          wait_archive_respond/1,
          wait_for_complete_archive_response/3,
@@ -184,11 +75,14 @@
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
+         stanza_flip_page_archive_request/3,
          wait_empty_rset/2,
          wait_message_range/2,
          wait_message_range/3,
          wait_message_range/5,
          message_id/2,
+         get_pre_generated_msgs_ids/2,
+         get_received_msgs_ids/1,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
          stanza_query_get_request/1,
@@ -196,8 +90,12 @@
          mam_ns_binary/0,
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
+         mam_ns_binary_extended/0,
          retract_ns/0,
          retract_tombstone_ns/0,
+         groupchat_field_ns/0,
+         groupchat_available_ns/0,
+         data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -207,7 +105,8 @@
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host_type/0,
-         config_opts/1
+         config_opts/1,
+         stanza_metadata_request/0
         ]).
 
 -import(muc_light_helper,
@@ -221,10 +120,9 @@
 
 -import(domain_helper, [domain/0]).
 
--import(config_parser_helper, [default_mod_config/1]).
-
 -include("mam_helper.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
 %%--------------------------------------------------------------------
@@ -244,15 +142,15 @@ configurations() ->
 %% Called by test-runner for autocompletion
 all_configurations() ->
     cassandra_configs(true)
-    ++ rdbms_configs(true)
+    ++ rdbms_configs(true, mnesia)
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host_type()))
-    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()))
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()), ct_helper:get_internal_database())
     ++ elasticsearch_configs(is_elasticsearch_enabled(host_type())).
 
-rdbms_configs(true) ->
+rdbms_configs(true, mnesia) ->
     [rdbms,
      rdbms_easy,
      rdbms_async_pool,
@@ -261,7 +159,14 @@ rdbms_configs(true) ->
      rdbms_cache,
      rdbms_mnesia_cache
     ];
-rdbms_configs(_) ->
+rdbms_configs(true, cets) ->
+    [rdbms,
+     rdbms_easy,
+     rdbms_async_pool,
+     rdbms_async_cache,
+     rdbms_cache
+    ];
+rdbms_configs(_, _) ->
     [].
 
 cassandra_configs(true) ->
@@ -323,7 +228,9 @@ basic_groups() ->
      {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
             {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
-            {mam06, [parallel], mam_cases() ++ stanzaid_cases() ++ retract_cases()},
+            {mam06, [parallel], mam_cases() ++ [retrieve_form_fields_extra_features]
+                                ++ stanzaid_cases() ++ retract_cases()
+                                ++ metadata_cases() ++ fetch_specific_msgs_cases()},
             {nostore, [parallel], nostore_cases()},
             {archived, [parallel], archived_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
@@ -342,7 +249,8 @@ basic_groups() ->
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
-            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()},
+            {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
+                                ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -357,7 +265,9 @@ basic_groups() ->
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
       [{mam06, [parallel], disabled_retract_cases() ++
-            [mam_service_discovery]}]},
+            [mam_service_discovery,
+             mam_service_discovery_to_client_bare_jid,
+             mam_service_discovery_to_different_client_bare_jid_results_in_error]}]},
      {muc_disabled_retraction, [],
       [{muc06, [parallel], disabled_muc_retract_cases() ++
             [muc_service_discovery]}]}
@@ -373,6 +283,8 @@ mam_metrics_cases() ->
 
 mam_cases() ->
     [mam_service_discovery,
+     mam_service_discovery_to_client_bare_jid,
+     mam_service_discovery_to_different_client_bare_jid_results_in_error,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
@@ -380,6 +292,8 @@ mam_cases() ->
      range_archive_request_not_empty,
      limit_archive_request,
      querying_for_all_messages_with_jid,
+     querying_for_all_messages_with_jid_after,
+     querying_with_invalid_mam_id_in_after,
      unicode_messages_can_be_extracted
     ].
 
@@ -400,6 +314,20 @@ disabled_text_search_cases() ->
 disabled_complex_queries_cases() ->
     [
      pagination_simple_enforced
+    ].
+
+metadata_cases() ->
+    [
+     metadata_archive_request,
+     metadata_archive_request_empty,
+     metadata_archive_request_one_message
+    ].
+
+fetch_specific_msgs_cases() ->
+    [
+     query_messages_by_ids,
+     simple_query_messages_by_ids,
+     server_returns_item_not_found_for_ids_filter_with_nonexistent_id
     ].
 
 muc_text_search_cases() ->
@@ -430,18 +358,20 @@ nostore_cases() ->
      nostore_hint].
 
 muc_cases() ->
-    [muc_service_discovery,
-     muc_archive_request,
+    [muc_service_discovery | muc_cases_with_room()].
+
+muc_cases_with_room() ->
+    [muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
      muc_allow_access_to_owner,
+     muc_sanitize_x_user_in_non_anon_rooms,
      muc_delete_x_user_in_anon_rooms,
      muc_show_x_user_to_moderators_in_anon_rooms,
      muc_show_x_user_for_your_own_messages_in_anon_rooms,
      muc_querying_for_all_messages,
-     muc_querying_for_all_messages_with_jid
-     ].
+     muc_querying_for_all_messages_with_jid].
 
 muc_stanzaid_cases() ->
     [muc_message_with_stanzaid].
@@ -460,6 +390,20 @@ muc_configurable_archiveid_cases() ->
      muc_only_stanzaid
     ].
 
+muc_metadata_cases() ->
+    [
+     muc_metadata_archive_request,
+     muc_metadata_archive_request_empty,
+     muc_metadata_archive_request_one_message
+    ].
+
+muc_fetch_specific_msgs_cases() ->
+    [
+     muc_query_messages_by_ids,
+     muc_simple_query_messages_by_ids,
+     muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id
+    ].
+
 configurable_archiveid_cases() ->
     [no_elements,
      only_stanzaid,
@@ -469,11 +413,16 @@ configurable_archiveid_cases() ->
 
 muc_light_cases() ->
     [
+     muc_light_service_discovery_stored_in_pm,
      muc_light_easy,
      muc_light_shouldnt_modify_pm_archive,
      muc_light_stored_in_pm_if_allowed_to,
+     muc_light_include_groupchat_filter,
+     muc_light_no_pm_stored_include_groupchat_filter,
+     muc_light_include_groupchat_messages_by_default,
      muc_light_chat_markers_are_archived_if_enabled,
-     muc_light_chat_markers_are_not_archived_if_disabled
+     muc_light_chat_markers_are_not_archived_if_disabled,
+     muc_light_failed_to_decode_message_in_database
     ].
 
 muc_rsm_cases() ->
@@ -492,11 +441,13 @@ rsm_cases() ->
        pagination_before10,
        pagination_after10,
        pagination_empty_rset,
+       pagination_flipped_page,
        %% Border cases
        pagination_last_after_id5,
        pagination_last_after_id5_before_id11,
        pagination_first_page_after_id4,
        pagination_last_page_after_id4,
+       pagination_border_flipped_page,
        %% Simple cases
        pagination_simple_before10,
        pagination_simple_before3,
@@ -533,13 +484,14 @@ prefs_cases() ->
      run_set_and_get_prefs_cases].
 
 impl_specific() ->
-    [check_user_exist].
+    [check_user_exist,
+     pm_failed_to_decode_message_in_database].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     mam_helper:prepare_for_suite(
       increase_limits(
         delete_users([{escalus_user_db, {module, escalus_ejabberd}}
@@ -566,7 +518,7 @@ delete_users(Config) ->
 
 increase_limits(Config) ->
     Config1 = mongoose_helper:backup_and_set_config(Config, increased_limits()),
-    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]),
+    rpc_apply(mongoose_shaper, reset_all_shapers, [host_type()]),
     Config1.
 
 increased_limits() ->
@@ -661,7 +613,8 @@ required_modules_for_group(C, muc_light, Config) ->
     MUCHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_muc_light, default_mod_config(mod_muc_light)},
+    Backend = mongoose_helper:mnesia_or_rdbms_backend(),
+    {[{mod_muc_light, config_parser_helper:mod_config(mod_muc_light, #{backend => Backend})},
       {mod_mam, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->
@@ -745,244 +698,164 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(C=metrics_incremented_for_async_pools, Config) ->
+init_per_testcase(CaseName, Config) ->
+    case maybe_skip(CaseName, Config) of
+        ok ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Config)),
+            lists:foldl(fun(StepF, ConfigIn) -> StepF(CaseName, ConfigIn) end, Config, init_steps());
+        {skip, Msg} ->
+            {skip, Msg}
+    end.
+
+init_steps() ->
+    [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
+     fun escalus:init_per_testcase/2].
+
+maybe_skip(metrics_incremented_for_async_pools, Config) ->
+    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
+            "Not an async-pool test");
+maybe_skip(C, Config) when C =:= retract_message;
+                           C =:= retract_wrong_message;
+                           C =:= ignore_bad_retraction;
+                           C =:= retract_message_on_stanza_id;
+                           C =:= retract_muc_message;
+                           C =:= retract_muc_message_on_stanza_id;
+                           C =:= retract_wrong_muc_message ->
+    ConfList = rdbms_configs(true, ct_helper:get_internal_database()),
+    skip_if(not lists:member(?config(configuration, Config), ConfList),
+            "message retraction not supported");
+maybe_skip(C, Config) when C =:= muc_light_failed_to_decode_message_in_database;
+                           C =:= pm_failed_to_decode_message_in_database ->
+    skip_if(?config(configuration, Config) =:= elasticsearch,
+            "elasticsearch does not support encodings");
+maybe_skip(C, Config) when C =:= muc_light_include_groupchat_filter;
+                           C =:= muc_light_no_pm_stored_include_groupchat_filter;
+                           C =:= muc_light_include_groupchat_messages_by_default ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "include_groupchat field is not supported for cassandra backend");
+maybe_skip(C, Config) when C =:= easy_text_search_request;
+                           C =:= long_text_search_request;
+                           C =:= save_unicode_messages;
+                           C =:= muc_text_search_request ->
+    skip_if(?config(configuration, Config) =:= cassandra,
+            "full text search is not implemented for cassandra backend");
+maybe_skip(_C, _Config) ->
+    ok.
+
+skip_if(false, _Msg) -> ok;
+skip_if(true, Msg) -> {skip, Msg}.
+
+init_users(CaseName, Config) ->
+    case fresh_users(CaseName) of
+        [] ->
+            Config;
+        UserSpecs ->
+            escalus_fresh:create_users(Config, UserSpecs)
+    end.
+
+-define(requires_pm_archive(C),
+        C =:= querying_for_all_messages_with_jid;
+        C =:= query_messages_by_ids;
+        C =:= simple_query_messages_by_ids;
+        C =:= server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= pagination_simple_enforced;
+        C =:= range_archive_request_not_empty;
+        C =:= limit_archive_request;
+        C =:= metadata_archive_request).
+
+-define(requires_muc_archive(C),
+        C =:= muc_query_messages_by_ids;
+        C =:= muc_simple_query_messages_by_ids;
+        C =:= muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id;
+        C =:= muc_querying_for_all_messages;
+        C =:= muc_querying_for_all_messages_with_jid;
+        C =:= muc_metadata_archive_request).
+
+fresh_users(C) when ?requires_pm_archive(C) ->
+    [{alice, 1}, {bob, 1}, {carol, 1}];
+fresh_users(C) when C =:= offline_message;
+                    C =:= archived;
+                    C =:= no_elements;
+                    C =:= only_stanzaid;
+                    C =:= same_stanza_id;
+                    C =:= metadata_archive_request_empty;
+                    C =:= metadata_archive_request_one_message;
+                    C =:= archive_chat_markers;
+                    C =:= dont_archive_chat_markers ->
+    [{alice, 1}, {bob, 1}];
+fresh_users(C) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> [{alice, 1}, {bob, 1}];
+        false -> []
+    end.
+
+init_archive(C, Config) when C =:= metrics_incremented_for_async_pools;
+                             C =:= metric_incremented_when_store_message ->
+    clean_archives(Config);
+init_archive(C, Config) when ?requires_pm_archive(C) ->
+    bootstrap_archive(Config);
+init_archive(C, Config) when ?requires_muc_archive(C) ->
+    muc_bootstrap_archive(start_alice_room(Config));
+init_archive(_CaseName, Config) ->
+    Config.
+
+start_room(C, Config) when C =:= muc_deny_protected_room_access;
+                           C =:= muc_allow_access_to_owner ->
+    start_alice_protected_room(Config);
+start_room(C, Config) when C =:= muc_delete_x_user_in_anon_rooms;
+                           C =:= muc_show_x_user_to_moderators_in_anon_rooms;
+                           C =:= muc_show_x_user_for_your_own_messages_in_anon_rooms ->
+    start_alice_anonymous_room(Config);
+start_room(C, Config) ->
+    case lists:member(C, all_cases_with_room()) of
+        true -> start_alice_room(Config);
+        false -> Config
+    end.
+
+init_metrics(metric_incremented_when_store_message, ConfigIn) ->
+    case ?config(configuration, ConfigIn) of
+        rdbms_async_pool ->
+            MongooseMetrics = [
+                               {[global, data, rdbms, default],
+                                [{recv_oct, '>'}, {send_oct, '>'}]}
+                              ],
+            [{mongoose_metrics, MongooseMetrics} | ConfigIn];
+        _ ->
+            ConfigIn
+    end;
+init_metrics(muc_archive_request, Config) ->
+    %% Check that metric is incremented on MUC flushed
     case ?config(configuration, Config) of
         rdbms_async_pool ->
-            escalus:init_per_testcase(C, clean_archives(Config));
+            MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
+            [{mongoose_metrics, MongooseMetrics} | Config];
         _ ->
-            {skip, "Not an async-pool test"}
+            Config
     end;
-init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
-    Config = case ?config(configuration, ConfigIn) of
-                 rdbms_async_pool ->
-                     MongooseMetrics = [
-                                        {[global, data, rdbms, default],
-                                         [{recv_oct, '>'}, {send_oct, '>'}]}
-                                       ],
-                     [{mongoose_metrics, MongooseMetrics} | ConfigIn];
-                 _ ->
-                     ConfigIn
-             end,
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=archived, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C, Config) when C =:= retract_message;
-                                  C =:= retract_wrong_message;
-                                  C =:= ignore_bad_retraction ->
-    skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=retract_message_on_stanza_id, Config) ->
-    Init = fun() ->
-                   dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-                   escalus:init_per_testcase(C, Config)
-        end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=offline_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C,
-        muc_bootstrap_archive(start_alice_room(Config1)));
-init_per_testcase(C=muc_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    Config2 = %% Check that metric is incremented on MUC flushed
-        case ?config(configuration, Config1) of
-            rdbms_async_pool ->
-                MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
-                [{mongoose_metrics, MongooseMetrics} | Config1];
-            _ ->
-                Config1
-        end,
-    escalus:init_per_testcase(C, start_alice_room(Config2));
-init_per_testcase(C=muc_no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=same_stanza_id, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_message_with_stanzaid, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C, Config) when C =:= retract_muc_message;
-                                  C =:= retract_muc_message_on_stanza_id;
-                                  C =:= retract_wrong_muc_message ->
-    Init = fun() ->
-                   Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-                   escalus:init_per_testcase(C, start_alice_room(Config1))
-           end,
-    skip_if_retraction_not_supported(Config, Init);
-init_per_testcase(C=muc_multiple_devices, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_protected_message, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_protected_room(Config1));
-init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_anonymous_room(Config1));
-init_per_testcase(C=pagination_simple_enforced, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=limit_archive_request, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
-    escalus:init_per_testcase(C, bootstrap_archive(Config1));
-init_per_testcase(C=easy_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=long_text_search_request, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=save_unicode_messages, Config) ->
-    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
-init_per_testcase(C=muc_text_search_request, Config) ->
-    Init =
-        fun() ->
-            Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-            escalus:init_per_testcase(C, start_alice_room(Config1))
-        end,
+init_metrics(_CaseName, Config) ->
+    Config.
 
-    skip_if_cassandra(Config, Init);
-init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    clean_archives(Config),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C, Config) when C =:= muc_light_easy;
-                                  C =:= muc_light_shouldnt_modify_pm_archive;
-                                  C =:= muc_light_chat_markers_are_archived_if_enabled;
-                                  C =:= muc_light_chat_markers_are_not_archived_if_disabled->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
-    escalus:init_per_testcase(C, Config);
-init_per_testcase(C=archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C=dont_archive_chat_markers, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
-
-skip_if_retraction_not_supported(Config, Init) ->
-    case lists:member(?config(configuration, Config), rdbms_configs(true)) of
-        false ->
-            {skip, "message retraction not supported"};
-        true ->
-            Init()
-    end.
-
-skip_if_cassandra(Config, Init) ->
-    case ?config(configuration, Config) of
-        cassandra ->
-            {skip, "full text search is not implemented for cassandra backend"};
-        _ ->
-            Init()
-    end.
-
-end_per_testcase(C=muc_text_search_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_multiple_devices, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_protected_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_deny_protected_room_access, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_message_with_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C, Config) when C =:= retract_muc_message;
-                                 C =:= retract_muc_message_on_stanza_id;
-                                 C =:= retract_wrong_muc_message ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_no_elements, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_only_stanzaid, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = retract_message_on_stanza_id, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = no_elements, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = only_stanzaid, Config) ->
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C = same_stanza_id, Config) ->
-    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
+    maybe_destroy_room(CaseName, Config),
     escalus:end_per_testcase(CaseName, Config).
+
+maybe_destroy_room(CaseName, Config) ->
+    case lists:member(CaseName, all_cases_with_room()) of
+        true -> destroy_room(Config);
+        false -> ok
+    end.
+
+all_cases_with_room() ->
+    muc_cases_with_room() ++ muc_fetch_specific_msgs_cases() ++ muc_configurable_archiveid_cases() ++
+        muc_stanzaid_cases() ++ muc_retract_cases() ++ muc_metadata_cases() ++ muc_text_search_cases().
 
 %% Module configuration per testcase
 
-required_modules(muc_light_stored_in_pm_if_allowed_to, Config) ->
+required_modules(CaseName, Config) when CaseName =:= muc_light_service_discovery_stored_in_pm;
+                                        CaseName =:= muc_light_stored_in_pm_if_allowed_to;
+                                        CaseName =:= muc_light_include_groupchat_messages_by_default;
+                                        CaseName =:= muc_light_no_pm_stored_include_groupchat_filter;
+                                        CaseName =:= muc_light_include_groupchat_filter ->
     Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
     [{mod_mam, NewOpts}];
@@ -993,6 +866,14 @@ required_modules(muc_light_chat_markers_are_archived_if_enabled, Config) ->
 required_modules(muc_no_elements, Config) ->
     Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
     NewOpts = Opts#{muc := MUC#{no_stanzaid_element => true}},
+    [{mod_mam, NewOpts}];
+required_modules(muc_light_failed_to_decode_message_in_database, Config) ->
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{db_message_format => mam_message_eterm}},
+    [{mod_mam, NewOpts}];
+required_modules(pm_failed_to_decode_message_in_database, Config) ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{db_message_format => mam_message_eterm}},
     [{mod_mam, NewOpts}];
 required_modules(muc_only_stanzaid, Config) ->
     Opts = ?config(mam_meta_opts, Config),
@@ -1010,6 +891,16 @@ required_modules(CaseName, Config) when CaseName =:= same_stanza_id;
 required_modules(_, Config) ->
     Opts = ?config(mam_meta_opts, Config),
     [{mod_mam, Opts}].
+
+pm_with_db_message_format_xml(Config) ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{db_message_format => mam_message_xml}},
+    [{mod_mam, NewOpts}].
+
+muc_with_db_message_format_xml(Config) ->
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{db_message_format => mam_message_xml}},
+    [{mod_mam, NewOpts}].
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -1289,7 +1180,8 @@ text_search_is_available(Config) ->
         escalus:assert(is_iq_with_ns, [Namespace], Res),
         QueryEl = exml_query:subelement(Res, <<"query">>),
         XEl = exml_query:subelement(QueryEl, <<"x">>),
-        escalus:assert(has_field_with_type, [<<"full-text-search">>, <<"text-single">>], XEl),
+        escalus:assert(has_field_with_type, [<<"{https://erlang-solutions.com/}full-text-search">>,
+                                             <<"text-single">>], XEl),
         ok
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
@@ -1517,6 +1409,170 @@ querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-msgs-by-ids">>, IDs),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, Stanza),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, Stanza),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [5, 10]),
+
+        Stanza = stanza_fetch_by_id_request(P, <<"fetch-muc-msgs-by-ids">>, IDs),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+
+        Result = wait_archive_respond(Alice),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        assert_respond_size(2, Result),
+        ?assert_equal(lists:sort(ResultIDs), lists:sort(IDs)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_simple_query_messages_by_ids(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        [ID1, ID2, ID5] = get_pre_generated_msgs_ids(Msgs, [1, 2, 5]),
+
+        RSM = #rsm_in{max = 10, direction = 'after', id = ID1, simple = true},
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-simple-fetch-msgs-by-ids">>, [ID2, ID5], RSM),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+
+        Result = wait_archive_respond(Alice),
+        ParsedIQ = parse_result_iq(Result),
+        ResultIDs = get_received_msgs_ids(Result),
+
+        ?assert_equal(lists:sort(ResultIDs), lists:sort([ID2, ID5])),
+        ?assert_equal(undefined, ParsedIQ#result_iq.count),
+        ?assert_equal(undefined, ParsedIQ#result_iq.first_index),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Msgs = ?config(pre_generated_muc_msgs, Config),
+        IDs = get_pre_generated_msgs_ids(Msgs, [3, 12]),
+        NonexistentID = <<"AV25E9SCO50K">>,
+
+        Stanza = stanza_fetch_by_id_request(P, <<"muc-ids-not-found">>, IDs ++ [NonexistentID]),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        Result = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, [Stanza], Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+%% Based on https://github.com/esl/MongooseIM/issues/4222
+querying_for_all_messages_with_jid_after(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob, Kate) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Kate!">>)),
+        mam_helper:wait_for_archive_size(Alice, 2),
+        escalus:send(Kate, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        escalus:assert(is_chat_message, [<<"Hi, Alice!">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 3),
+        escalus:send(Kate, escalus_stanza:chat_to(Alice, <<"How are you?">>)),
+        escalus:assert(is_chat_message, [<<"How are you?">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 4),
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"I am busy now">>)),
+        escalus:assert(is_chat_message, [<<"I am busy now">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 5),
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, #{})),
+        AllRes = wait_archive_respond(Alice),
+        assert_respond_size(5, AllRes),
+        %% Third message overall, second message in the conversation with Kate
+        Msg3 = lists:nth(3, respond_messages(AllRes)),
+        #forwarded_message{result_id = MamId3, message_body = <<"Hi, Alice!">>} =
+            parse_forwarded_message(Msg3),
+        KateJid = escalus_client:short_jid(Kate),
+        Params = #{
+            with_jid => KateJid,
+            rsm => #rsm_in{max = 50, direction = 'after', id = MamId3}
+        },
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
+        WithRes = wait_archive_respond(Alice),
+        assert_respond_size(1, WithRes),
+        [WithMsg] = respond_messages(WithRes),
+        #forwarded_message{message_body = <<"How are you?">>} =
+            parse_forwarded_message(WithMsg)
+    end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+querying_with_invalid_mam_id_in_after(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Params = #{rsm => #rsm_in{max = 50, direction = 'after', id = <<"PURPLEFE965CC9">>}},
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [], Result),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Result)
+    end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -1556,9 +1612,16 @@ muc_querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+muc_light_service_discovery_stored_in_pm(Config) ->
+    F = fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        discover_features(Config, Alice, Server)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
 muc_light_easy(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, []),
 
             M1 = when_muc_light_message_is_sent(Alice, Room,
@@ -1572,7 +1635,7 @@ muc_light_easy(Config) ->
             Aff = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
             then_muc_light_affiliations_are_received_by([Alice, Bob], Aff),
 
-            maybe_wait_for_archive(Config),
+            mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 4),
             when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
             ExpectedResponse = [{create, [{Alice, owner}]},
                                 {muc_message, Room, Alice, <<"Msg 1">>},
@@ -1583,7 +1646,7 @@ muc_light_easy(Config) ->
 
 muc_light_shouldnt_modify_pm_archive(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom2">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
@@ -1611,8 +1674,8 @@ muc_light_shouldnt_modify_pm_archive(Config) ->
         end).
 
 muc_light_stored_in_pm_if_allowed_to(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_pm">>,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             maybe_wait_for_archive(Config),
@@ -1634,9 +1697,83 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
             then_archive_response_is(Bob, [BobAffEvent, MessageEvent], Config)
         end).
 
+muc_light_include_groupchat_filter(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            P = ?config(props, Config),
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
+            then_pm_message_is_received(Bob, <<"private hi!">>),
+
+            maybe_wait_for_archive(Config),
+
+            Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"false">>),
+            escalus:send(Alice, Stanza),
+            Res = wait_archive_respond(Alice),
+            assert_respond_size(1, Res),
+
+            Stanza2 = stanza_include_groupchat_request(P, <<"q2">>, <<"true">>),
+            escalus:send(Alice, Stanza2),
+            Res2 = wait_archive_respond(Alice),
+            assert_respond_size(3, Res2),
+            ok
+        end).
+
+muc_light_no_pm_stored_include_groupchat_filter(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            P = ?config(props, Config),
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+            then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+            maybe_wait_for_archive(Config),
+
+            Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"false">>),
+            escalus:send(Alice, Stanza),
+            Res = wait_archive_respond(Alice),
+            assert_respond_size(0, Res),
+            ok
+        end).
+
+muc_light_include_groupchat_messages_by_default(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        P = ?config(props, Config),
+        MsgCount = 4,
+        Room = muc_helper:fresh_room_name(),
+        given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+        M1 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 1">>, <<"Id 1">>),
+        then_muc_light_message_is_received_by([Alice, Bob], M1),
+
+        M2 = when_muc_light_message_is_sent(Alice, Room, <<"Msg 2">>, <<"Id 2">>),
+        then_muc_light_message_is_received_by([Alice, Bob], M2),
+
+        when_pm_message_is_sent(Alice, Bob, <<"private hi!">>),
+        then_pm_message_is_received(Bob, <<"private hi!">>),
+
+        maybe_wait_for_archive(Config),
+
+        when_archive_query_is_sent(Alice, undefined, Config),
+        Res = wait_archive_respond(Alice),
+
+        Stanza = stanza_include_groupchat_request(P, <<"q1">>, <<"true">>),
+        escalus:send(Alice, Stanza),
+        Res2 = wait_archive_respond(Alice),
+
+        assert_respond_size(MsgCount, Res),
+        assert_respond_size(MsgCount, Res2),
+        ok
+        end).
+
 muc_light_chat_markers_are_archived_if_enabled(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_markers">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             %% Alice sends 3 chat markers
@@ -1664,7 +1801,7 @@ muc_light_chat_markers_are_archived_if_enabled(Config) ->
 
 muc_light_chat_markers_are_not_archived_if_disabled(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom_no_markers">>,
+            Room = muc_helper:fresh_room_name(),
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             %% Alice sends 3 chat markers
@@ -1685,6 +1822,34 @@ muc_light_chat_markers_are_not_archived_if_disabled(Config) ->
             then_archive_response_is(Bob, ExpectedResponse, Config)
         end).
 
+muc_light_failed_to_decode_message_in_database(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            Room = muc_helper:fresh_room_name(),
+            given_muc_light_room(Room, Alice, []),
+            M1 = when_muc_light_message_is_sent(Alice, Room,
+                                                <<"Msg 1">>, <<"Id1">>),
+            then_muc_light_message_is_received_by([Alice], M1),
+            mam_helper:wait_for_room_archive_size(muc_light_host(), Room, 2),
+            NewMods = muc_with_db_message_format_xml(Config),
+            %% Change the encoding format for messages in the database
+            dynamic_modules:ensure_modules(host_type(), NewMods),
+            when_archive_query_is_sent(Alice, muc_light_helper:room_bin_jid(Room), Config),
+            [ArcMsg | _] = respond_messages(assert_respond_size(2, wait_archive_respond(Alice))),
+            assert_failed_to_decode_message(ArcMsg)
+        end).
+
+pm_failed_to_decode_message_in_database(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
+            mam_helper:wait_for_archive_size(Alice, 1),
+            NewMods = pm_with_db_message_format_xml(Config),
+            %% Change the encoding format for messages in the database
+            dynamic_modules:ensure_modules(host_type(), NewMods),
+            when_archive_query_is_sent(Alice, undefined, Config),
+            [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
+            assert_failed_to_decode_message(ArcMsg)
+        end).
+
 retrieve_form_fields(ConfigIn) ->
     escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
         P = ?config(props, ConfigIn),
@@ -1692,6 +1857,24 @@ retrieve_form_fields(ConfigIn) ->
         escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_with_ns, [Namespace], Res)
+    end).
+
+retrieve_form_fields_extra_features(ConfigIn) ->
+    escalus_fresh:story(ConfigIn, [{alice, 1}], fun(Alice) ->
+        P = ?config(props, ConfigIn),
+        Namespace = get_prop(mam_ns, P),
+        escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_with_ns, [Namespace], Res),
+        QueryEl = exml_query:subelement(Res, <<"query">>),
+        XEl = exml_query:subelement(QueryEl, <<"x">>),
+        IDsEl = exml_query:subelement_with_attr(XEl, <<"var">>, <<"ids">>),
+        ValidateEl = exml_query:path(IDsEl, [{element_with_ns, <<"validate">>, data_validate_ns()},
+                                             {element, <<"open">>}]),
+        escalus:assert(has_field_with_type, [<<"before-id">>, <<"text-single">>], XEl),
+        escalus:assert(has_field_with_type, [<<"after-id">>, <<"text-single">>], XEl),
+        escalus:assert(has_field_with_type, [<<"include-groupchat">>, <<"boolean">>], XEl),
+        ?assertNotEqual(ValidateEl, undefined)
     end).
 
 archived(Config) ->
@@ -2155,6 +2338,59 @@ muc_allow_access_to_owner(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+muc_sanitize_x_user_in_non_anon_rooms(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {Room, _} = enter_room(Config, [Alice, Bob]),
+        Text = <<"Hi all!">>,
+        SpoofJid = <<"spoof@test.com">>,
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice received presences.
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice received the room's subject.
+        escalus:wait_for_stanzas(Alice, 1),
+
+        X = #xmlel{name = <<"x">>,
+                   attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}],
+                   children = [#xmlel{name = <<"item">>,
+                                      attrs = [{<<"affiliation">>, <<"owner">>},
+                                               {<<"jid">>, SpoofJid},
+                                               {<<"role">>, <<"moderator">>}]}]},
+        Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content = Text}]},
+        Stanza = #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"groupchat">>}],
+                        children = [Body, X]},
+
+        %% Bob sends to the chat room.
+        escalus:send(Bob, stanza_to_room(Stanza, Room)),
+
+        %% Alice receives the message.
+        escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
+
+        maybe_wait_for_archive(Config),
+        Props = ?config(props, Config),
+
+        %% Alice requests the room's archive.
+        escalus:send(Alice, stanza_to_room(stanza_archive_request(Props, <<"q1">>), Room)),
+
+        %% mod_mam_muc returns result.
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
+        Item = exml_query:path(ArcMsg, [{element, <<"result">>},
+                                        {element, <<"forwarded">>},
+                                        {element, <<"message">>},
+                                        {element, <<"x">>},
+                                        {element, <<"item">>}]),
+
+        Jid = exml_query:attr(Item, <<"jid">>),
+        ?assertNotEqual(Jid, SpoofJid),
+        ok
+    end).
+
 muc_delete_x_user_in_anon_rooms(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {Room, RoomAddr} = enter_room(Config, [Alice, Bob]),
@@ -2324,6 +2560,161 @@ limit_archive_request(Config) ->
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}], F).
 
+metadata_archive_request(Config) ->
+    F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+
+        {{StartMsgId, _}, _, _, _, _} = hd(Msgs),
+        {{EndMsgId, _}, _, _, _, _} = lists:last(Msgs),
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {EndMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [EndMsgId]),
+
+        StartTime = list_to_binary(make_iso_time(StartMicro)),
+        EndTime = list_to_binary(make_iso_time(EndMicro)),
+        StartId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [StartMsgId]),
+        EndId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [EndMsgId]),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        ?assertEqual(StartId, exml_query:attr(Start, <<"id">>)),
+        ?assertEqual(StartTime, exml_query:attr(Start, <<"timestamp">>)),
+
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(EndId, exml_query:attr(End, <<"id">>)),
+        ?assertEqual(EndTime, exml_query:attr(End, <<"timestamp">>)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+metadata_archive_request_empty(Config) ->
+    F = fun(Alice) ->
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Metadata = exml_query:path(IQ, [{element, <<"metadata">>}]),
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+
+        ?assertNotEqual(Metadata, undefined),
+        ?assertEqual(Start, undefined),
+        ?assertEqual(End, undefined),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+metadata_archive_request_one_message(Config) ->
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+
+        mam_helper:wait_for_archive_size(Alice, 1),
+        maybe_wait_for_archive(Config),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, Stanza),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(exml_query:attr(Start, <<"id">>), exml_query:attr(End, <<"id">>)),
+        ?assertEqual(exml_query:attr(Start, <<"timestamp">>),
+                     exml_query:attr(End, <<"timestamp">>)),
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_metadata_archive_request(Config) ->
+    F = fun(Alice) ->
+            Room = ?config(room, Config),
+            MucMsgs = ?config(pre_generated_muc_msgs, Config),
+
+            {{StartMsgId, _}, _, _, _, _} = hd(MucMsgs),
+            {{EndMsgId, _}, _, _, _, _} = lists:last(MucMsgs),
+            {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+            {EndMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [EndMsgId]),
+
+            StartTime = list_to_binary(make_iso_time(StartMicro)),
+            EndTime = list_to_binary(make_iso_time(EndMicro)),
+            StartId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [StartMsgId]),
+            EndId = rpc_apply(mod_mam_utils, mess_id_to_external_binary, [EndMsgId]),
+
+            Stanza = stanza_metadata_request(),
+            escalus:send(Alice, stanza_to_room(Stanza, Room)),
+            IQ = escalus:wait_for_stanza(Alice),
+
+            Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+            ?assertEqual(StartId, exml_query:attr(Start, <<"id">>)),
+            ?assertEqual(StartTime, exml_query:attr(Start, <<"timestamp">>)),
+
+            End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+            ?assertEqual(EndId, exml_query:attr(End, <<"id">>)),
+            ?assertEqual(EndTime, exml_query:attr(End, <<"timestamp">>)),
+            ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_metadata_archive_request_empty(Config) ->
+    F = fun(Alice) ->
+        Room = ?config(room, Config),
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Metadata = exml_query:path(IQ, [{element, <<"metadata">>}]),
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+
+        ?assertNotEqual(Metadata, undefined),
+        ?assertEqual(Start, undefined),
+        ?assertEqual(End, undefined),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+muc_metadata_archive_request_one_message(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"OH, HAI!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice received presences.
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice received the room's subject.
+        escalus:wait_for_stanzas(Alice, 1),
+
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+
+        mam_helper:wait_for_room_archive_size(muc_host(), Room, 1),
+        maybe_wait_for_archive(Config),
+
+        Stanza = stanza_metadata_request(),
+        escalus:send(Alice, stanza_to_room(Stanza, Room)),
+        IQ = escalus:wait_for_stanza(Alice),
+
+        Start = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"start">>}]),
+        End = exml_query:path(IQ, [{element, <<"metadata">>}, {element, <<"end">>}]),
+        ?assertEqual(exml_query:attr(Start, <<"id">>), exml_query:attr(End, <<"id">>)),
+        ?assertEqual(exml_query:attr(Start, <<"timestamp">>),
+                     exml_query:attr(End, <<"timestamp">>)),
+        ok
+    end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
 archive_chat_markers(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -2487,6 +2878,18 @@ pagination_before10(Config) ->
         end,
     parallel_story(Config, [{alice, 1}], F).
 
+pagination_flipped_page(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        rsm_send(Config, Alice,
+            stanza_flip_page_archive_request(P, <<"first5">>, RSM)),
+        wait_message_range(Alice, 5, 1),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
 pagination_simple_before10(Config) ->
     RSM = #rsm_in{max = 5, direction = before, id = message_id(10, Config), simple = true},
     pagination_test(before10, RSM, simple_range(5, 9, false), Config).
@@ -2590,6 +2993,20 @@ pagination_last_page_after_id4(Config) ->
         %% Messages 1, 2, 3, 4 are ignored in the result
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,          11,      6,     11,  15),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+pagination_border_flipped_page(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        RSM = #rsm_in{max=5, direction='before',
+                after_id=message_id(5, Config),
+                before_id=message_id(11, Config)},
+        rsm_send(Config, Alice,
+            stanza_flip_page_archive_request(P, <<"border_flipped_page">>, RSM)),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,           5,      0,     10,  6),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
@@ -2798,7 +3215,6 @@ after_complete_true_after11(Config) ->
 %% ------------------------------------------------------------------
 
 prefs_set_request(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2848,7 +3264,6 @@ query_get_request(Config) ->
 %% without whitespaces. In the real world it is not true.
 %% Put "\n" between two jid elements.
 prefs_set_cdata_request(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2878,16 +3293,30 @@ prefs_set_cdata_request(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
         discover_features(Config, Alice, Server)
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
+mam_service_discovery_to_client_bare_jid(Config) ->
+    F = fun(Alice) ->
+        Address = inbox_helper:to_bare_lower(Alice),
+        discover_features(Config, Alice, Address)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}], F).
+
+mam_service_discovery_to_different_client_bare_jid_results_in_error(Config) ->
+    F = fun(Alice, Bob) ->
+        Address = inbox_helper:to_bare_lower(Bob),
+        escalus:send(Alice, escalus_stanza:disco_info(Address)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
-    _P = ?config(props, Config),
     F = fun(Alice) ->
         Domain = domain(),
         Server = escalus_client:server(Alice),
@@ -2906,7 +3335,11 @@ discover_features(Config, Client, Service) ->
     escalus:assert(is_iq_result, Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v04()], Stanza),
     escalus:assert(has_feature, [mam_ns_binary_v06()], Stanza),
+    escalus:assert(has_feature, [mam_ns_binary_extended()], Stanza),
     escalus:assert(has_feature, [retract_ns()], Stanza),
+    check_include_groupchat_features(Stanza,
+                                     ?config(configuration, Config),
+                                     ?config(basic_group, Config)),
     ?assert_equal(message_retraction_is_enabled(Config),
                   escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
 
@@ -2993,7 +3426,6 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->
-    _P = ?config(props, ConfigIn),
     F = fun(Config, Alice, _Bob, _Kate) ->
         Namespace = mam_ns_binary_v04(),
         [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
@@ -3096,6 +3528,19 @@ message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
     BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
 
+check_include_groupchat_features(Stanza, cassandra, _BasicGroup) ->
+    ?assertNot(escalus_pred:has_feature(groupchat_field_ns(), Stanza)),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza));
+check_include_groupchat_features(Stanza, _Configuration, muc_light) ->
+    escalus:assert(has_feature, [groupchat_field_ns()], Stanza),
+    escalus:assert(has_feature, [groupchat_available_ns()], Stanza);
+check_include_groupchat_features(Stanza, _Configuration, muc_all) ->
+    ?assertNot(escalus_pred:has_feature(groupchat_field_ns(), Stanza)),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza));
+check_include_groupchat_features(Stanza, _Configuration, _BasicGroup) ->
+    escalus:assert(has_feature, [groupchat_field_ns()], Stanza),
+    ?assertNot(escalus_pred:has_feature(groupchat_available_ns(), Stanza)).
+
 expect_tombstone_and_retraction_message(Client, ApplyToElement) ->
     [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
     #forwarded_message{message_body = undefined,
@@ -3158,7 +3603,7 @@ origin_id() ->
 
 simple_range(From, To, IsComplete) ->
     #{total_count => undefined, offset => undefined,
-      from => From, to => To, is_complete => IsComplete}.
+      from => From, to => To, is_complete => IsComplete, step => 1}.
 
 pagination_test(Name, RSM, Range, Config) ->
     P = ?config(props, Config),
@@ -3167,3 +3612,15 @@ pagination_test(Name, RSM, Range, Config) ->
         wait_message_range(Alice, Range)
         end,
     parallel_story(Config, [{alice, 1}], F).
+
+assert_failed_to_decode_message(ArcMsg) ->
+    Forwarded = parse_forwarded_message(ArcMsg),
+    Err = <<"Failed to decode message in database">>,
+    ?assertMatch(#forwarded_message{message_body = Err}, Forwarded),
+    ?assertMatch(#forwarded_message{message_type = <<"error">>}, Forwarded),
+    #forwarded_message{message_children = [Msg]} = Forwarded,
+    ?assertMatch(#xmlel{
+        name = <<"error">>,
+        attrs = [{<<"code">>, <<"500">>}, {<<"type">>,<<"wait">>}],
+        children = [#xmlel{name = <<"internal-server-error">>},
+                    #xmlel{name = <<"text">>, children = [#xmlcdata{content = Err}]}]}, Msg).

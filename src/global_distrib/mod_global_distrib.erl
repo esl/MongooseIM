@@ -128,8 +128,7 @@ endpoint_spec() ->
     }.
 
 tls_spec() ->
-    TLSSection = mongoose_config_spec:tls([client, server], [fast_tls]),
-    TLSSection#section{process = fun mongoose_config_spec:process_fast_tls/1}.
+    mongoose_config_spec:tls([client, server], [fast_tls]).
 
 redis_spec() ->
     #section{

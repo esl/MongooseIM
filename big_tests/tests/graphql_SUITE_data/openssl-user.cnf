@@ -1,0 +1,38 @@
+HOME            = .
+RANDFILE        = $ENV::HOME/.rnd
+
+oid_section = xmpp_oids
+
+####################################################################
+[ req ]
+default_bits        = 4096
+distinguished_name  = client_distinguished_name
+req_extensions      = client_req_extensions
+string_mask         = utf8only
+prompt              = no
+
+####################################################################
+[ xmpp_oids ]
+{{{xmppOids}}}
+
+####################################################################
+[ client_distinguished_name ]
+commonName                  = {{cn}}
+
+####################################################################
+[ client_req_extensions ]
+
+subjectKeyIdentifier        = hash
+basicConstraints            = CA:FALSE
+keyUsage                    = digitalSignature, keyEncipherment
+subjectAltName              = @alternate_names
+nsComment                   = "Fake Dev-Only Certificate for GRAPHQL tests"
+
+###############################################################################################################
+## subjectAltName sections, see 'man x509v3_config' for more information
+## example:
+## otherName.1 = id-on-xmppAddr;UTF8:alice@localhost
+###############################################################################################################
+[ alternate_names ]
+{{{xmppAddrs}}}
+email = {{cn}}@mail.domain.com ## this is just to have sth in the section

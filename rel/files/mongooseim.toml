@@ -201,8 +201,6 @@
 #    tls.server_name_indication.enabled = false
 {{/outgoing_pools}}
 
-[services.service_admin_extra]
-
 [services.service_mongoose_system_metrics]
 
 {{#service_domain_db}}

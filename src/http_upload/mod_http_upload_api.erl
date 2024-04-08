@@ -1,23 +1,6 @@
 -module(mod_http_upload_api).
 
--export([get_urls/5, get_urls_mongooseimctl/5]).
-
--ignore_xref([get_urls_mongooseimctl/5]).
-
--spec get_urls_mongooseimctl(Domain :: jid:lserver(), Filename :: binary(), Size :: pos_integer(),
-               ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
-                {ok | error, string()}.
-get_urls_mongooseimctl(_Domain, _Filename, Size, _ContentType, _Timeout) when Size =< 0 ->
-    {error, "size must be positive integer"};
-get_urls_mongooseimctl(_Domain, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0 ->
-    {error, "timeout must be positive integer"};
-get_urls_mongooseimctl(Domain, Filename, Size, ContentType, Timeout) ->
-    case get_urls(Domain, Filename, Size, ContentType, Timeout) of
-        {ok, #{<<"putUrl">> := PutURL, <<"getUrl">> := GetURL, <<"headers">> := Headers}} ->
-            {ok, generate_output_message(PutURL, GetURL, Headers)};
-        {_, Message} ->
-            {error, Message}
-    end.
+-export([get_urls/5]).
 
 -spec get_urls(Domain :: jid:lserver(), Filename :: nonempty_binary(), Size :: pos_integer(),
                ContentType :: binary() | null | undefined, Timeout :: pos_integer()) ->
@@ -53,19 +36,3 @@ check_module_and_get_urls(HostType, Filename, Size, ContentType, Timeout) ->
         false ->
             {module_not_loaded_error, "mod_http_upload is not loaded for this host"}
     end.
-
--spec generate_output_message(PutURL :: binary(),
-                              GetURL :: binary(),
-                              Headers :: [{ok, map()}]) -> string().
-generate_output_message(PutURL, GetURL, Headers) ->
-    PutURLOutput = url_output("PutURL:", PutURL),
-    GetURLOutput = url_output("GetURL:", GetURL),
-    HeadersOutput = headers_output(Headers),
-    lists:flatten([PutURLOutput, GetURLOutput, HeadersOutput]).
-
-url_output(Name, Url) ->
-    io_lib:format("~s ~s~n", [Name, Url]).
-
-headers_output(Headers) ->
-    List = [{Name, Value} || {ok, #{<<"name">> := Name, <<"value">> := Value}} <- Headers],
-    io_lib:format("Header: ~p~n", [List]).

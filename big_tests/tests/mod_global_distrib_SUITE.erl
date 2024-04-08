@@ -120,8 +120,12 @@ init_per_suite(Config) ->
     case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, global_distrib]),
           rpc(asia_node, mongoose_wpool, get_worker, [redis, global, global_distrib])} of
         {{ok, _}, {ok, _}} ->
-            ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
-
+            case ct_helper:get_internal_database() of
+                mnesia ->
+                    ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]);
+                _ ->
+                    ok
+            end,
             enable_logging(),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
         Result ->
@@ -198,7 +202,9 @@ init_modules_per_node({NodeName, LocalHost, ReceiverPort}, Config0) ->
                      mod_stream_management],
     [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) || VirtHost <- VirtHosts],
 
-    SMOpts = config_parser_helper:mod_config(mod_stream_management, #{resume_timeout => 1}),
+    SMBackend = ct_helper:get_internal_database(),
+    SMOpts = config_parser_helper:mod_config(mod_stream_management,
+                                             #{resume_timeout => 1, backend => SMBackend}),
     dynamic_modules:ensure_modules(Node, domain(), [{mod_global_distrib, Opts},
                                                     {mod_stream_management, SMOpts}]),
     Config1.
@@ -254,7 +260,7 @@ init_per_testcase(CaseName, Config)
     {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     trigger_rebalance(asia_node, EuropeHost),
     %% Load muc on mim node
-    muc_helper:load_muc(Config),
+    muc_helper:load_muc(),
     RegNode = ct:get_config({hosts, reg, node}),
     %% Wait for muc.localhost to become visible from reg node
     wait_for_domain(RegNode, muc_helper:muc_host()),

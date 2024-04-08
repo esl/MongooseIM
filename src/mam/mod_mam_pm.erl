@@ -17,7 +17,7 @@
 %%%
 %%% This module should be started for each host.
 %%% Message archivation is not shaped here (use standard support for this).
-%%% MAM's IQs are shaped inside {@link shaper_srv}.
+%%% MAM's IQs are shaped inside {@link opuntia_srv}.
 %%%
 %%% Message identifiers (or UIDs in the spec) are generated based on:
 %%%
@@ -44,6 +44,7 @@
 
 %% hook handlers
 -export([disco_local_features/3,
+         disco_sm_features/3,
          user_send_message/3,
          filter_packet/3,
          remove_user/3,
@@ -142,7 +143,7 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
     case is_action_allowed(HostType, Action, From, To) of
         true  ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, Action, From) of
-                ok ->
+                continue ->
                     handle_error_iq(HostType, Acc, To, Action,
                                     handle_mam_iq(Action, From, To, IQ, Acc));
                 {error, max_delay_reached} ->
@@ -163,6 +164,13 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
 disco_local_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
     {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
 disco_local_features(Acc, _, _) ->
+    {ok, Acc}.
+
+-spec disco_sm_features(mongoose_disco:feature_acc(),
+                        map(), map()) -> {ok, mongoose_disco:feature_acc()}.
+disco_sm_features(Acc = #{host_type := HostType, node := <<>>}, _, _) ->
+    {ok, mongoose_disco:add_features(mod_mam_utils:features(?MODULE, HostType), Acc)};
+disco_sm_features(Acc, _, _) ->
     {ok, Acc}.
 
 %% @doc Handle an outgoing message.
@@ -317,7 +325,9 @@ handle_mam_iq(Action, From, To, IQ, Acc) ->
         mam_set_message_form ->
             handle_set_message_form(From, To, IQ, Acc);
         mam_get_message_form ->
-            handle_get_message_form(From, To, IQ, Acc)
+            handle_get_message_form(From, To, IQ, Acc);
+        mam_get_metadata ->
+            handle_get_metadata(From, IQ, Acc)
     end.
 
 -spec handle_set_prefs(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
@@ -389,9 +399,11 @@ do_handle_set_message_form(Params0, From, ArcID, ArcJID,
             return_error_iq(IQ, Reason);
         {ok, #{total_count := TotalCount, offset := Offset, messages := MessageRows,
                is_complete := IsComplete}} ->
+            %% Reverse order of messages if the client requested it
+            MessageRows1 = mod_mam_utils:maybe_reverse_messages(Params0, MessageRows),
             %% Forward messages
             {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, true),
+                                                         QueryID, MessageRows1, true),
             %% Make fin iq
             IsStable = true,
             ResultSetEl = mod_mam_utils:result_set(FirstMessID, LastMessID, Offset, TotalCount),
@@ -432,6 +444,27 @@ handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
     HostType = acc_to_host_type(Acc),
     return_message_form_iq(HostType, IQ).
 
+-spec handle_get_metadata(jid:jid(), jlib:iq(), mongoose_acc:t()) ->
+                                 jlib:iq() | {error, term(), jlib:iq()}.
+handle_get_metadata(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
+    HostType = acc_to_host_type(Acc),
+    ArcID = archive_id_int(HostType, ArcJID),
+    case mod_mam_utils:lookup_first_and_last_messages(HostType, ArcID, ArcJID,
+                                                      fun lookup_messages/2) of
+        {error, Reason} ->
+            report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, Reason);
+        {FirstMsg, LastMsg} ->
+            {FirstMsgID, FirstMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(FirstMsg),
+            {LastMsgID, LastMsgTS} = mod_mam_utils:get_msg_id_and_timestamp(LastMsg),
+            MetadataElement =
+                mod_mam_utils:make_metadata_element(FirstMsgID, FirstMsgTS, LastMsgID, LastMsgTS),
+            IQ#iq{type = result, sub_el = [MetadataElement]};
+        empty_archive ->
+            MetadataElement = mod_mam_utils:make_metadata_element(),
+            IQ#iq{type = result, sub_el = [MetadataElement]}
+    end.
+
 amp_deliver_strategy([none]) -> [stored, none];
 amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 
@@ -442,8 +475,9 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
     HostType = acc_to_host_type(Acc),
+    MsgType = exml_query:attr(Packet, <<"type">>),
     case is_archivable_message(HostType, Dir, Packet)
-         andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>))
+         andalso should_archive_if_groupchat(HostType, MsgType)
          andalso should_archive_if_sent_to_yourself(LocJID, RemJID, Dir) of
         true ->
             ArcID = archive_id_int(HostType, LocJID),
@@ -451,6 +485,7 @@ handle_package(Dir, ReturnMessID,
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = mod_mam_utils:get_or_generate_mam_id(Acc),
+                    IsGroupChat = mod_mam_utils:is_groupchat(MsgType),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,
@@ -458,7 +493,8 @@ handle_package(Dir, ReturnMessID,
                                source_jid => SrcJID,
                                origin_id => OriginID,
                                direction => Dir,
-                               packet => Packet},
+                               packet => Packet,
+                               is_groupchat => IsGroupChat},
                     Result = archive_message(HostType, Params),
                     ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
                     {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc)};
@@ -563,7 +599,14 @@ lookup_messages_without_policy_violation_check(
             {error, 'not-supported'};
         false ->
             StartT = erlang:monotonic_time(microsecond),
-            R = mongoose_hooks:mam_lookup_messages(HostType, Params),
+            R = case maps:get(message_ids, Params, undefined) of
+                    undefined ->
+                        mongoose_hooks:mam_lookup_messages(HostType,
+                            Params#{message_id => undefined});
+                    IDs ->
+                        mod_mam_utils:lookup_specific_messages(HostType, Params, IDs,
+                            fun mongoose_hooks:mam_lookup_messages/2)
+                end,
             Diff = erlang:monotonic_time(microsecond) - StartT,
             mongoose_metrics:update(HostType, [backends, ?MODULE, lookup], Diff),
             R
@@ -667,6 +710,7 @@ is_archivable_message(HostType, Dir, Packet) ->
 hooks(HostType) ->
     [
         {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
+        {disco_sm_features, HostType, fun ?MODULE:disco_sm_features/3, #{}, 99},
         {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 60},
         {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},

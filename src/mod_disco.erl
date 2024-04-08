@@ -245,7 +245,7 @@ disco_sm_items(Acc, _, _) ->
     Params :: map(),
     Extra :: map().
 disco_local_features(Acc = #{node := <<>>}, _, _) ->
-    {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc)};
+    {ok, mongoose_disco:add_features([<<"iq">>, <<"presence">>], Acc)};
 disco_local_features(Acc, _, _) ->
     {ok, Acc}.
 
@@ -317,8 +317,7 @@ is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
                             host_type => HostType,
                             lserver => LFromServer,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(A, FromJID),
-    Roster = mongoose_acc:get(roster, items, [], A2),
+    Roster = mongoose_hooks:roster_get(A, FromJID, false),
     lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
                       {TUser, TServer} = jid:to_lus(JID),
                       LToUser == TUser andalso LToServer == TServer andalso S /= none

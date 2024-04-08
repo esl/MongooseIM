@@ -20,6 +20,8 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(config_parser_helper, [mod_config_with_auto_backend/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -47,13 +49,12 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = mongoose_helper:get_backend_mnesia_rdbms(HostType),
-    ModConfig = create_config(Backend),
-    dynamic_modules:ensure_modules(HostType, ModConfig),
-    escalus:init_per_suite([{backend, Backend} | Config1]).
+    dynamic_modules:ensure_modules(HostType, create_config()),
+    escalus:init_per_suite(Config1).
 
-create_config(Backend) ->
-    [{mod_private, #{backend => Backend, iqdisc => one_queue}}].
+create_config() ->
+    [{mod_private,
+      mod_config_with_auto_backend(mod_private, #{iqdisc => one_queue})}].
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -175,6 +176,3 @@ check_body_rec(Element, [Name | Names]) ->
     [Child] = Element#xmlel.children,
     Name = Child#xmlel.name,
     check_body_rec(Child, Names).
-
-required_modules(Backend) ->
-    [{mod_private, [{backend, Backend}]}].
