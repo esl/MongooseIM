@@ -961,6 +961,7 @@ workflows:
 
             - small_tests_26
             - internal_mnesia_26
+            - pgsql_cets_26
             - pgsql_mnesia_26
             - mysql_redis_26
             - mssql_mnesia_26
