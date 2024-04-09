@@ -4,8 +4,10 @@
 -export([init/1, get_nodes/1]).
 
 %% these functions are exported for testing purposes only.
--export([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
--ignore_xref([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
+-export([select/1, insert_new/5, update_existing/3, delete_node_from_db/1,
+         cluster_name_with_vsn/1]).
+-ignore_xref([select/1, insert_new/5, update_existing/3, delete_node_from_db/1,
+              cluster_name_with_vsn/1]).
 
 -include("mongoose_logger.hrl").
 
@@ -25,8 +27,14 @@
 -spec init(opts()) -> state().
 init(Opts = #{cluster_name := ClusterName, node_name_to_insert := Node})
        when is_binary(ClusterName), is_binary(Node) ->
-    Keys = [cluster_name, node_name_to_insert, last_query_info, expire_time, node_ip_binary],
-    maps:with(Keys, maps:merge(defaults(), Opts)).
+    Keys = [node_name_to_insert, expire_time, last_query_info, node_ip_binary],
+    StateOpts = maps:merge(defaults(), maps:with(Keys, Opts)),
+    StateOpts#{cluster_name => cluster_name_with_vsn(ClusterName)}.
+
+cluster_name_with_vsn(ClusterName) ->
+    {ok, CetsVsn} = application:get_key(cets, vsn),
+    [MajorVsn, MinorVsn | _] = string:tokens(CetsVsn, "."),
+    iolist_to_binary([ClusterName, $-, MajorVsn, $., MinorVsn]).
 
 defaults() ->
     #{expire_time => 60 * 60 * 1, %% 1 hour in seconds

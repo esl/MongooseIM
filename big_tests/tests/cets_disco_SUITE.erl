@@ -23,6 +23,7 @@ file_cases() ->
 rdbms_cases() ->
     [rdbms_backend,
      rdbms_backend_supports_cluster_change,
+     rdbms_backend_cluster_name_contains_cets_version,
      rdbms_backend_supports_auto_cleaning,
      rdbms_backend_node_doesnt_remove_itself,
      rdbms_backend_db_queries,
@@ -119,6 +120,13 @@ rdbms_backend_supports_cluster_change(_Config) ->
     %% Node test2 moves to CN2, and the nodes are connected again
     init_and_get_nodes(mim2(), Opts2#{cluster_name := CN2}, [test1]),
     get_nodes(mim(), NewState1A, [test1, test2]).
+
+rdbms_backend_cluster_name_contains_cets_version(_Config) ->
+    CN = random_cluster_name(?FUNCTION_NAME),
+    Opts = #{cluster_name => CN, node_name_to_insert => <<"test1">>},
+    #{cluster_name := CNWithVsn} = init_and_get_nodes(mim(), Opts, []),
+    [<<>>, Vsn] = binary:split(CNWithVsn, CN),
+    ?assertMatch({match, _}, re:run(Vsn, "-[0-9]+\\.[0-9]+")).
 
 rdbms_backend_supports_auto_cleaning(_Config) ->
     Timestamp = month_ago(),
