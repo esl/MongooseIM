@@ -4,8 +4,10 @@
 -export([init/1, get_nodes/1]).
 
 %% these functions are exported for testing purposes only.
--export([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
--ignore_xref([select/1, insert_new/5, update_existing/3, delete_node_from_db/1]).
+-export([select/1, insert_new/5, update_existing/3, delete_node_from_db/1,
+         cluster_name_with_vsn/1]).
+-ignore_xref([select/1, insert_new/5, update_existing/3, delete_node_from_db/1,
+              cluster_name_with_vsn/1]).
 
 -include("mongoose_logger.hrl").
 

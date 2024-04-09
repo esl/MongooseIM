@@ -242,7 +242,7 @@ add_bad_node() ->
     wait_for_has_bad_node().
 
 register_bad_node() ->
-    ClusterName = <<"mim">>,
+    ClusterName = rpc(mim(), mongoose_cets_discovery_rdbms, cluster_name_with_vsn, [<<"mim">>]),
     Node = <<"badnode@localhost">>,
     Num = 100,
     Address = <<>>,
