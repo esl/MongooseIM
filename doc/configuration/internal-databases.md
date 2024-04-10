@@ -50,7 +50,7 @@ Backend for CETS discovery.
 
 ### `internal_databases.cets.cluster_name`
 
-Namespace for the cluster. Only nodes with the same cluster name would be discoverd. This option is for RDBMS backend.
+Namespace for the cluster. Only nodes with the same cluster name would be discovered. This option is for RDBMS backend.
 
 * **Syntax:** string.
 * **Default:** `"mongooseim"`
