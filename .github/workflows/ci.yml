@@ -33,6 +33,8 @@ jobs:
       PRESET: 'small_tests'
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{ matrix.otp }}
@@ -78,6 +80,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/big-tests
         with:
           otp: ${{matrix.otp}}
@@ -106,6 +110,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/big-tests
         with:
           otp: ${{matrix.otp}}
@@ -138,6 +144,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
@@ -152,6 +160,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
@@ -166,6 +176,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: erlef/setup-beam@v1.16.0
         with:
           otp-version: ${{matrix.otp}}
@@ -183,4 +195,6 @@ jobs:
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - run: tools/test.sh -p pkg
