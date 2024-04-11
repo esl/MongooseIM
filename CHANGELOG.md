@@ -13,7 +13,7 @@
 
 ### Added
 - RDBMS backend for `mod_caps` (#4211)
-- Commit hash to GraphQL server status (#4221)
+- Commit hash to GraphQL server status (#4221, #4262)
 - Erlang Doctor debugging tool (#4248)
 - Pools:
   - By host type (#4229)
@@ -41,6 +41,7 @@
 - Duplicate migration files (#4230)
 - Invalid MAM IDs parsing and overflow (#4242)
 - Certificate options verification on HTTPS (#4236)
+- GitHub Actions status badge (#4261)
 
 ### Other
 - Testing improvements/fixes (#4176, #4202, #4212, #4237, #4239, #4243, #4241, #4246, #4257, #4259, #4260)
