@@ -163,6 +163,7 @@
 {suites, "tests", tcp_listener_SUITE}.
 {suites, "tests", cets_disco_SUITE}.
 {suites, "tests", start_node_id_SUITE}.
+{suites, "tests", tr_util_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
