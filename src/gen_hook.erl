@@ -59,7 +59,9 @@
 -type hook_list() :: hook_list(hook_fn()).
 -type hook_list(HookFn) :: [hook_tuple(HookFn)].
 
--export_type([hook_fn/0,
+-export_type([hook_name/0,
+              hook_tag/0,
+              hook_fn/0,
               hook_list/0,
               hook_list/1,
               hook_fn_ret/0,

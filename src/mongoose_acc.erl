@@ -92,6 +92,7 @@
        }.
 
 -export_type([t/0,
+              stanza_metadata/0,
               new_acc_params/0]).
 
 -type new_acc_params() :: #{
