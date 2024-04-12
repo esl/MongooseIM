@@ -1,4 +1,4 @@
-# [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) - 2024-04-11
+# [MongooseIM 6.2.1](https://github.com/esl/MongooseIM/releases/tag/6.2.1) - 2024-04-12
 
 ## Highlights
 
@@ -50,11 +50,11 @@
 ## Commits, merged PRs and closed issues
 - [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A6.2.1)
 
-- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2023-12-13..2024-04-11)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2023-12-13..2024-04-12)
 
-- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2023-12-13&to=2024-04-11&type=c)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2023-12-13&to=2024-04-12&type=c)
 
-- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222023-12-13..2024-04-11%22+sort%3Acreated-asc+)
+- [List of merged PRs based on merge date](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222023-12-13..2024-04-12%22+sort%3Acreated-asc+)
 
 # [MongooseIM 6.2.0](https://github.com/esl/MongooseIM/releases/tag/6.2.0) - 2023-12-13
 
