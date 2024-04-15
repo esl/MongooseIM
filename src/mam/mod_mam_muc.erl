@@ -285,7 +285,7 @@ check_room_action_allowed_by_default(HostType, Acc, Action, From, To) ->
                     UserJid :: jid:jid(),
                     RoomJid :: jid:jid()) -> boolean().
 is_room_owner(HostType, Acc, UserJid, RoomJid) ->
-    mongoose_hooks:is_muc_room_owner(HostType, Acc, UserJid, RoomJid).
+    mongoose_hooks:is_muc_room_owner(HostType, Acc, RoomJid, UserJid).
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(HostType :: host_type(),
