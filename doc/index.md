@@ -1,4 +1,4 @@
-# MongooseIM platform overview
+# MongooseIM Documentation
 
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/esl/MongooseIM/tree/rel-6.2.svg?style=shield)](https://app.circleci.com/pipelines/github/esl/MongooseIM?branch=rel-6.2)
