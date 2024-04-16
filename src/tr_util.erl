@@ -99,7 +99,7 @@ tr_to_element_info(#tr{mfa = {mongoose_c2s_hooks, Hook, _},
 %% Predicates for use with `tr:filter' etc.
 
 -spec filter_c2s_hook(tr:tr()) -> boolean().
-filter_c2s_hook(#tr{mfa={mongoose_c2s_hooks, _, _}}) -> true.
+filter_c2s_hook(#tr{mfa = {mongoose_c2s_hooks, _, _}}) -> true.
 
 -spec filter_c2s_hook_with_element(tr:tr()) -> boolean().
 filter_c2s_hook_with_element(#tr{mfa = {mongoose_c2s_hooks, _, _},

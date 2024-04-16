@@ -16,6 +16,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config),
     rpc(mim(), tr, stop, []).
 
@@ -63,7 +64,7 @@ c2s_elements_story(Alice, Bob) ->
     %% Get elements exchanged between bare JIDs
     [Sent, Recv] = rpc(mim(), tr_util, c2s_elements_between_jids, [[AliceBareJid, BobBareJid]]),
     ?assertMatch(#{name := <<"message">>, type := <<"chat">>,
-                    jid := AliceJid, from_jid := AliceJid, to_jid := BobJid}, Sent),
+                   jid := AliceJid, from_jid := AliceJid, to_jid := BobJid}, Sent),
     ?assertMatch(#{name := <<"message">>, type := <<"chat">>,
                    jid := BobJid, from_jid := AliceJid, to_jid := BobJid}, Recv),
 
