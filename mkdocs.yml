@@ -1,5 +1,5 @@
-site_name: MongooseIM
-site_description: "MongooseIM is a mobile messaging platform with focus on performance and scalability"
+site_name: MongooseIM Docs
+site_description: "Documentation for MongooseIM - a mobile messaging platform with focus on performance and scalability"
 site_author: "Erlang Solutions"
 site_url: https://esl.github.io/MongooseDocs/latest/
 repo_url: https://github.com/esl/MongooseIM
