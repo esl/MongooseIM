@@ -219,13 +219,13 @@ tls_connect_user_no_certificate(Config) ->
     Port = get_listener_port(Config, user_listener_config),
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
     Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
-    ?assertMatch(ok, assert_match_result(Result)).
+    assert_match_error_result(certificate_required, Result).
 
 tls_connect_user_unknown_certificate(Config) ->
     Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
     Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
     Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
-    ?assertMatch({error, {tls_alert, {unknown_ca, _}}}, Result).
+    assert_match_error_result(unknown_ca, Result).
 
 tls_connect_user_selfsigned_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
@@ -244,19 +244,19 @@ tls_connect_admin_no_certificate(Config) ->
     Port = get_listener_port(Config, admin_listener_config),
     {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
     Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
-    ?assertMatch(ok, assert_match_result(Result)).
+    assert_match_error_result(certificate_required, Result).
 
 tls_connect_admin_unknown_certificate(Config) ->
     Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
     Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
     Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
-    ?assertMatch({error, {tls_alert, {unknown_ca, _}}}, Result).
+    assert_match_error_result(unknown_ca, Result).
 
 tls_connect_admin_selfsigned_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
     Key = maps:get(key, ?config(certificate_selfsigned, Config)),
     Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
-    ?assertMatch({error, {tls_alert, {bad_certificate, _}}}, Result).
+    assert_match_error_result(bad_certificate, Result).
 
 tls_connect_admin_signed_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_signed, Config)),
@@ -270,12 +270,10 @@ tls_connect_admin_signed_certificate(Config) ->
 % Sometimes for unknown reasons, the result is {error, connection_closed}. This test is important
 % to check if the server does not allow the connection when the certificate is not attached.
 %  Therefore, to prevent the creation of a flaky test, the function below was created.
-assert_match_result({error, {tls_alert, {certificate_required, _}}}) ->
+assert_match_error_result(_, {error, connection_closed}) ->
     ok;
-assert_match_result({error, connection_closed}) ->
-    ok;
-assert_match_result(_) ->
-    wrong_pattern.
+assert_match_error_result(AssertedError, Error) ->
+    ?assertMatch({error, {tls_alert, {AssertedError, _}}}, Error).
 
 send_request_with_cert(Cert, Key, Port) ->
     Opts = [{connect_options, [{verify, verify_none}, {certfile, Cert}, {keyfile, Key}]}],
