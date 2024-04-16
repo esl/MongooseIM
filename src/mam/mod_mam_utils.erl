@@ -135,6 +135,7 @@
 -include("mongoose_ns.hrl").
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
+-define(BIGINT_MAX, 16#7fffffffffffffff).  % 9223372036854775807, (2^63 - 1)
 
 -export_type([direction/0, retraction_id/0, retraction_info/0]).
 
@@ -216,7 +217,9 @@ mess_id_to_external_binary(MessID) when is_integer(MessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    try binary_to_integer(BExtMessID, 32)
+    try binary_to_integer(BExtMessID, 32) of
+        MessId when is_integer(MessId), MessId =< ?BIGINT_MAX -> MessId;
+        _ -> throw(invalid_stanza_id)
     catch error:badarg -> throw(invalid_stanza_id)
     end.
 

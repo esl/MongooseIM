@@ -17,8 +17,8 @@ init(_) ->
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE).
 
 node_cleanup(Node) ->
-    ets:match_delete(?TABLE, #external_component{node = Node, _ = '_'}),
-    ok.
+    Components = ets:match_object(?TABLE, #external_component{node = Node, _ = '_'}),
+    unregister_components(Components).
 
 register_components(Components) ->
     cets:insert_many(?TABLE, Components),

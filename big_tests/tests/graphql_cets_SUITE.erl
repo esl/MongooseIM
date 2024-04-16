@@ -16,7 +16,7 @@ all() ->
 
 groups() ->
     [{admin_cets_http, [parallel], admin_cets_tests()},
-     {admin_cets_cli, [parallel], admin_cets_tests()},
+     {admin_cets_cli, [], admin_cets_tests()},
      {domain_admin_cets, [], domain_admin_tests()},
      {cets_not_configured, [parallel], cets_not_configured_test()}].
 
@@ -242,7 +242,7 @@ add_bad_node() ->
     wait_for_has_bad_node().
 
 register_bad_node() ->
-    ClusterName = <<"mim">>,
+    ClusterName = rpc(mim(), mongoose_cets_discovery_rdbms, cluster_name_with_vsn, [<<"mim">>]),
     Node = <<"badnode@localhost">>,
     Num = 100,
     Address = <<>>,
@@ -251,9 +251,8 @@ register_bad_node() ->
     {updated, 1} = rpc(mim(), mongoose_cets_discovery_rdbms, insert_new, InsertArgs).
 
 ensure_bad_node_unregistered() ->
-    ClusterName = <<"mim">>,
     Node = <<"badnode@localhost">>,
-    DeleteArgs = [ClusterName, Node],
+    DeleteArgs = [Node],
     %% Ensure the node is removed
     {updated, _} = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, DeleteArgs).
 

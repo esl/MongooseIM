@@ -13,8 +13,6 @@
 %% Internal usage (export so the callback would survive multiple code reloads)
 -export([handle_secret_conflict/2]).
 
--include("mongoose_logger.hrl").
-
 -define(TABLE, cets_s2s_session).
 -define(SECRET_TABLE, cets_s2s_secret).
 
@@ -74,8 +72,8 @@ node_cleanup(Node) ->
     KeyPattern = {'_', '$1'},
     R = {KeyPattern},
     Guard = {'==', {node, '$1'}, Node},
-    ets:select_delete(?TABLE, [{R, [Guard], [true]}]),
-    ok.
+    Objects = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
+    cets:delete_objects(?TABLE, Objects).
 
 %% Secrets
 -spec register_secret(HostType :: mongooseim:host_type(),

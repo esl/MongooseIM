@@ -294,14 +294,25 @@ end_per_group(Group, _Config) when Group =:= user;
                                    Group =:= admin_http;
                                    Group =:= admin_cli;
                                    Group =:= domain_admin ->
+    maybe_clear_db(),
     graphql_helper:clean();
 end_per_group(Group, _Config) when Group =:= user_muc_light_with_mam;
                                    Group =:= admin_muc_light_with_mam;
                                    Group =:= domain_admin_muc_light_with_mam ->
+    maybe_clear_db(),
     ensure_muc_stopped(),
     escalus_fresh:clean();
 end_per_group(_Group, _Config) ->
+    maybe_clear_db(),
     escalus_fresh:clean().
+
+maybe_clear_db() ->
+    case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
+        true ->
+            ok = rpc(mim(), mod_muc_light_db_rdbms, force_clear, []);
+        false ->
+            ok
+    end.
 
 init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, [user_get_room_messages,

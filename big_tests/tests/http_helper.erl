@@ -25,8 +25,16 @@
 start(Port, Path, HandleFun) ->
     application:ensure_all_started(cowboy),
     Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, HandleFun}]}]),
-    {ok, _} = cowboy:start_clear(http_helper_listener, [{port, Port}],
-                                 #{env => #{dispatch => Dispatch}}).
+    case cowboy:start_clear(http_helper_listener, [{port, Port}],
+                            #{env => #{dispatch => Dispatch}}) of
+        {ok, Pid} ->
+            {ok, Pid};
+        {error, {already_started, _}} ->
+            ct:log("http_helper_listener was already running. Restarting it."),
+            stop(),
+            {ok, _} = cowboy:start_clear(http_helper_listener, [{port, Port}],
+                                         #{env => #{dispatch => Dispatch}})
+    end.
 
 stop() ->
     cowboy:stop_listener(http_helper_listener).

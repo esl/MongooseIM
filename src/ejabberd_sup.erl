@@ -38,7 +38,6 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    DistBlocker = worker_spec(cets_dist_blocker),
     Hooks = worker_spec(gen_hook),
     Instrument = worker_spec(mongoose_instrument),
     Cleaner = worker_spec(mongoose_cleaner),
@@ -66,8 +65,7 @@ init([]) ->
     IQSupervisor =
         ejabberd_tmp_sup_spec(ejabberd_iq_sup, [ejabberd_iq_sup, mongoose_iq_worker]),
     {ok, {{one_for_one, 10, 1},
-          [DistBlocker,
-           StartIdServer,
+          [StartIdServer,
            PG,
            Hooks,
            Instrument,

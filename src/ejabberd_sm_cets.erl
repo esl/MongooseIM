@@ -79,13 +79,11 @@ cleanup(Node) ->
     cets:ping_all(?TABLE),
     %% This is a full table scan, but cleanup is rare.
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
-    lists:foreach(fun({_Key, _, _} = Tuple) ->
+    cets:delete_many(?TABLE, [Key || {Key, _, _} <- Tuples]),
+    lists:foreach(fun(Tuple) ->
                           Session = tuple_to_session(Tuple),
                           ejabberd_sm:run_session_cleanup_hook(Session)
-                  end, Tuples),
-    %% We don't need to replicate deletes
-    %% We remove the local content here
-    ets:select_delete(?TABLE, [{R, [Guard], [true]}]).
+                  end, Tuples).
 
 -spec total_count() -> integer().
 total_count() ->

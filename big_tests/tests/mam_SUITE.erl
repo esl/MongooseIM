@@ -301,6 +301,8 @@ mam_cases() ->
      range_archive_request_not_empty,
      limit_archive_request,
      querying_for_all_messages_with_jid,
+     querying_for_all_messages_with_jid_after,
+     querying_with_invalid_mam_id_in_after,
      unicode_messages_can_be_extracted
     ].
 
@@ -1607,6 +1609,55 @@ muc_server_returns_item_not_found_for_ids_filter_with_nonexistent_id(Config) ->
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
+
+%% Based on https://github.com/esl/MongooseIM/issues/4222
+querying_for_all_messages_with_jid_after(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob, Kate) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Kate!">>)),
+        mam_helper:wait_for_archive_size(Alice, 2),
+        escalus:send(Kate, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        escalus:assert(is_chat_message, [<<"Hi, Alice!">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 3),
+        escalus:send(Kate, escalus_stanza:chat_to(Alice, <<"How are you?">>)),
+        escalus:assert(is_chat_message, [<<"How are you?">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 4),
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"I am busy now">>)),
+        escalus:assert(is_chat_message, [<<"I am busy now">>], escalus:wait_for_stanza(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 5),
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, #{})),
+        AllRes = wait_archive_respond(Alice),
+        assert_respond_size(5, AllRes),
+        %% Third message overall, second message in the conversation with Kate
+        Msg3 = lists:nth(3, respond_messages(AllRes)),
+        #forwarded_message{result_id = MamId3, message_body = <<"Hi, Alice!">>} =
+            parse_forwarded_message(Msg3),
+        KateJid = escalus_client:short_jid(Kate),
+        Params = #{
+            with_jid => KateJid,
+            rsm => #rsm_in{max = 50, direction = 'after', id = MamId3}
+        },
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
+        WithRes = wait_archive_respond(Alice),
+        assert_respond_size(1, WithRes),
+        [WithMsg] = respond_messages(WithRes),
+        #forwarded_message{message_body = <<"How are you?">>} =
+            parse_forwarded_message(WithMsg)
+    end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+querying_with_invalid_mam_id_in_after(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        Params = #{rsm => #rsm_in{max = 50, direction = 'after', id = <<"PURPLEFE965CC9">>}},
+        escalus:send(Alice, mam_helper:stanza_lookup_messages_iq(P, Params)),
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [], Result),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Result)
+    end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),

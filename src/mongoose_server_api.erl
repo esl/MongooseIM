@@ -17,7 +17,7 @@ set_loglevel(Level) ->
             {invalid_level, io_lib:format("Log level ~p does not exist.", [Level])}
     end.
 
--spec status() -> {ok, {boolean(), iolist(), iolist(), iolist()}}.
+-spec status() -> {ok, {boolean(), iolist(), iolist(), iodata()}}.
 status() ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     String1 = io_lib:format("The node ~p is ~p. Status: ~p.",
@@ -28,12 +28,16 @@ status() ->
                 {false, String1 ++ " MongooseIM is not running in that node.",
                  "MongooseIM is not running in that node", "MongooseIM is not running in that node"};
             {value, {_, _, Version}} ->
+                [Number | Rest] = string:tokens(Version, "-"),
                 {true,
                  String1 ++ io_lib:format(" MongooseIM ~s is running in that node.", [Version]),
-                 lists:nth(1, string:tokens(Version, "-")),
-                 string:slice(lists:nth(3, string:tokens(Version, "-")), 1)}
+                 Number,
+                 get_commit_hash(Rest)}
         end,
     {ok, Result}.
+
+get_commit_hash([_, "g" ++ Hash]) -> Hash;
+get_commit_hash(_) -> <<>>.
 
 -spec get_cookie() -> {ok, iolist()}.
 get_cookie() ->

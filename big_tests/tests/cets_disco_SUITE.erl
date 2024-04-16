@@ -22,6 +22,8 @@ file_cases() ->
 
 rdbms_cases() ->
     [rdbms_backend,
+     rdbms_backend_supports_cluster_change,
+     rdbms_backend_cluster_name_contains_cets_version,
      rdbms_backend_supports_auto_cleaning,
      rdbms_backend_node_doesnt_remove_itself,
      rdbms_backend_db_queries,
@@ -71,7 +73,7 @@ end_per_testcase(Name, Config) when Name == address_please_returns_ip;
                                     Name == address_please_returns_ip_127_0_0_1_from_db ->
     stop_cets_discovery(),
     Config;
-end_per_testcase(_CaseName, Config) ->
+end_per_testcase(_CaseName, _Config) ->
     unmock(mim()),
     unmock(mim2()).
 
@@ -91,21 +93,40 @@ rdbms_backend(_Config) ->
     Opts1 = #{cluster_name => CN, node_name_to_insert => <<"test1">>},
     Opts2 = #{cluster_name => CN, node_name_to_insert => <<"test2">>},
 
-    State1 = disco_init(mim(), Opts1),
-    {{ok, Nodes1_2}, State1_2} = disco_get_nodes(mim(), State1),
-    ?assertMatch(#{last_query_info := #{already_registered := false}}, State1_2),
-    ?assertEqual([], Nodes1_2),
+    init_and_get_nodes(mim(), Opts1, []),
 
     %% "test2" node can see "test1" on initial registration
-    State2 = disco_init(mim2(), Opts2),
-    {{ok, Nodes2_2}, State2_2} = disco_get_nodes(mim2(), State2),
-    ?assertMatch(#{last_query_info := #{already_registered := false}}, State2_2),
-    ?assertEqual([test1], Nodes2_2),
+    State2 = init_and_get_nodes(mim2(), Opts2, [test1]),
 
     %% "test2" node can see "test1" on update
-    {{ok, Nodes2_3}, State2_3} = disco_get_nodes(mim2(), State2_2),
-    ?assertEqual(lists:sort([test1, test2]), lists:sort(Nodes2_3)),
-    ?assertMatch(#{last_query_info := #{already_registered := true}}, State2_3).
+    get_nodes(mim2(), State2, [test1, test2]).
+
+rdbms_backend_supports_cluster_change(_Config) ->
+    CN1 = random_cluster_name(?FUNCTION_NAME),
+    CN2 = <<CN1/binary, "_new">>,
+    Opts1 = #{cluster_name => CN1, node_name_to_insert => <<"test1">>},
+    Opts2 = #{cluster_name => CN1, node_name_to_insert => <<"test2">>},
+
+    %% Nodes test1 and test2 are in CN1, and they become connected
+    State1 = init_and_get_nodes(mim(), Opts1, []),
+    State2 = init_and_get_nodes(mim2(), Opts2, [test1]),
+    get_nodes(mim(), State1, [test1, test2]),
+
+    %% Node test1 moves to CN2, and the nodes are disconnected
+    NewState1 = init_and_get_nodes(mim(), Opts1#{cluster_name := CN2}, []),
+    get_nodes(mim2(), State2, [test2]),
+    NewState1A = get_nodes(mim(), NewState1, [test1]),
+
+    %% Node test2 moves to CN2, and the nodes are connected again
+    init_and_get_nodes(mim2(), Opts2#{cluster_name := CN2}, [test1]),
+    get_nodes(mim(), NewState1A, [test1, test2]).
+
+rdbms_backend_cluster_name_contains_cets_version(_Config) ->
+    CN = random_cluster_name(?FUNCTION_NAME),
+    Opts = #{cluster_name => CN, node_name_to_insert => <<"test1">>},
+    #{cluster_name := CNWithVsn} = init_and_get_nodes(mim(), Opts, []),
+    [<<>>, Vsn] = binary:split(CNWithVsn, CN),
+    ?assertMatch({match, _}, re:run(Vsn, "-[0-9]+\\.[0-9]+")).
 
 rdbms_backend_supports_auto_cleaning(_Config) ->
     Timestamp = month_ago(),
@@ -115,24 +136,17 @@ rdbms_backend_supports_auto_cleaning(_Config) ->
     Opts2 = #{cluster_name => CN, node_name_to_insert => <<"test2">>},
 
     %% test1 row is written with an old (mocked) timestamp
-    State1 = disco_init(mim(), Opts1),
-    {{ok, Nodes1_2}, State1_2} = disco_get_nodes(mim(), State1),
-    {{ok, Nodes1_3}, State1_3} = disco_get_nodes(mim(), State1_2),
-    ?assertEqual([], Nodes1_2),
-    ?assertEqual([test1], Nodes1_3),
-    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1_2),
-    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1_3),
+    State1 = init_and_get_nodes(mim(), Opts1, []),
+    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1),
+    State1A = get_nodes(mim(), State1, [test1]),
+    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1A),
 
     %% test2 would clean test1 registration
     %% We don't mock on mim2 node, so timestamps would differ
-    State2 = disco_init(mim2(), Opts2),
-    {{ok, Nodes2_2}, State2_2} = disco_get_nodes(mim2(), State2),
-    ?assertEqual([], Nodes2_2),
-    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, [<<"test1">>]}}},
-                 State2_2),
-    {{ok, Nodes2_3}, State2_3} = disco_get_nodes(mim2(), State2),
-    ?assertEqual([test2], Nodes2_3),
-    #{last_query_info := #{last_rows := SelectedRows}} = State2_3,
+    State2 = init_and_get_nodes(mim2(), Opts2, []),
+    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, [<<"test1">>]}}}, State2),
+    State2A = get_nodes(mim2(), State2, [test2]),
+    #{last_query_info := #{last_rows := SelectedRows}} = State2A,
     ?assertMatch(1, length(SelectedRows)).
 
 rdbms_backend_node_doesnt_remove_itself(_Config) ->
@@ -143,24 +157,17 @@ rdbms_backend_node_doesnt_remove_itself(_Config) ->
     Opts2 = #{cluster_name => CN, node_name_to_insert => <<"test2">>},
 
     %% test1 row is written with an old (mocked) timestamp
-    State1 = disco_init(mim(), Opts1),
-    {{ok, Nodes1_2}, State1_2} = disco_get_nodes(mim(), State1),
-    ?assertEqual([], Nodes1_2),
-    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1_2),
+    State1 = init_and_get_nodes(mim(), Opts1, []),
+    ?assertMatch(#{last_query_info := #{timestamp := Timestamp}}, State1),
 
     unmock_timestamp(mim()),
     %% test1 row is not removed and timestamp is updated
-    {{ok, Nodes1_3}, State1_3} = disco_get_nodes(mim(), State1_2),
-    ?assertNotMatch(#{last_query_info := #{timestamp := Timestamp}}, State1_3),
-    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, []}}},
-                 State1_3),
-    ?assertEqual([test1], Nodes1_3),
+    State1A = get_nodes(mim(), State1, [test1]),
+    ?assertNotMatch(#{last_query_info := #{timestamp := Timestamp}}, State1A),
+    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, []}}}, State1A),
 
-    State2 = disco_init(mim2(), Opts2),
-    {{ok, Nodes2_2}, State2_2} = disco_get_nodes(mim2(), State2),
-    ?assertEqual([test1], Nodes2_2),
-    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, []}}},
-                 State2_2).
+    State2 = init_and_get_nodes(mim2(), Opts2, [test1]),
+    ?assertMatch(#{last_query_info := #{run_cleaning_result := {removed, []}}}, State2).
 
 rdbms_backend_db_queries(_Config) ->
     CN = random_cluster_name(?FUNCTION_NAME),
@@ -168,24 +175,27 @@ rdbms_backend_db_queries(_Config) ->
     TS2 = TS + 100,
 
     %% insertion fails if node name or node num is already added for the cluster
-    ?assertEqual({updated, 1}, insert_new(CN, <<"test1">>, 1, <<>>, TS)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, 1, <<>>, TS)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test1">>, 2, <<>>, TS)),
-    ?assertMatch({error, _}, insert_new(CN, <<"test2">>, 1, <<>>, TS)),
-    ?assertEqual({updated, 1}, insert_new(CN, <<"test2">>, 2, <<>>, TS)),
+    ?assertEqual({updated, 1}, insert_new(CN, <<"testA">>, 1, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"testA">>, 1, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"testA">>, 2, <<>>, TS)),
+    ?assertMatch({error, _}, insert_new(CN, <<"testB">>, 1, <<>>, TS)),
+    ?assertEqual({updated, 1}, insert_new(CN, <<"testB">>, 2, <<>>, TS)),
+
+    %% insertion fails if node is a member of another cluster
+    ?assertMatch({error, _}, insert_new(<<"my-cluster">>, <<"testA">>, 1, <<>>, TS)),
 
     %% update of the timestamp works correctly
     {selected, SelectedNodes1} = select(CN),
-    ?assertEqual(lists:sort([{<<"test1">>, 1, <<>>, TS}, {<<"test2">>, 2, <<>>, TS}]),
+    ?assertEqual(lists:sort([{<<"testA">>, 1, <<>>, TS}, {<<"testB">>, 2, <<>>, TS}]),
                  lists:sort(SelectedNodes1)),
-    ?assertEqual({updated, 1}, update_existing(CN, <<"test1">>, <<>>, TS2)),
+    ?assertEqual({updated, 1}, update_existing(<<"testA">>, <<>>, TS2)),
     {selected, SelectedNodes2} = select(CN),
-    ?assertEqual(lists:sort([{<<"test1">>, 1, <<>>, TS2}, {<<"test2">>, 2, <<>>, TS}]),
+    ?assertEqual(lists:sort([{<<"testA">>, 1, <<>>, TS2}, {<<"testB">>, 2, <<>>, TS}]),
                  lists:sort(SelectedNodes2)),
 
-    %% node removal work correctly
-    ?assertEqual({updated, 1}, delete_node_from_db(CN, <<"test1">>)),
-    ?assertEqual({selected, [{<<"test2">>, 2, <<>>, TS}]}, select(CN)).
+    %% node removal works correctly
+    ?assertEqual({updated, 1}, delete_node_from_db(<<"testA">>)),
+    ?assertEqual({selected, [{<<"testB">>, 2, <<>>, TS}]}, select(CN)).
 
 rdbms_backend_publishes_node_ip(_Config) ->
     %% get_pairs would return only real available nodes, so use the real node names
@@ -249,6 +259,19 @@ address_please_returns_ip_127_0_0_1_from_db(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+init_and_get_nodes(RPCNode, Opts, ExpectedNodes) ->
+    StateIn = disco_init(RPCNode, Opts),
+    get_nodes(RPCNode, StateIn, ExpectedNodes, false).
+
+get_nodes(RPCNode, StateIn, ExpectedNodes) ->
+    get_nodes(RPCNode, StateIn, ExpectedNodes, true).
+
+get_nodes(RPCNode, StateIn, ExpectedNodes, AlreadyRegistered) ->
+    {{ok, Nodes}, State} = disco_get_nodes(RPCNode, StateIn),
+    ?assertEqual(lists:sort(ExpectedNodes), lists:sort(Nodes)),
+    ?assertMatch(#{last_query_info := #{already_registered := AlreadyRegistered}}, State),
+    State.
+
 disco_init(Node, Opts) ->
     State = rpc(Node, mongoose_cets_discovery_rdbms, init, [Opts]),
     log_disco_request(?FUNCTION_NAME, Node, Opts, State),
@@ -311,14 +334,14 @@ select(CN) ->
     ct:log("select(~p) = ~p", [CN, Ret]),
     Ret.
 
-update_existing(CN, BinNode, Address, TS) ->
-    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, update_existing, [CN, BinNode, Address, TS]),
-    ct:log("select(~p, ~p, ~p, ~p) = ~p", [CN, BinNode, Address, TS, Ret]),
+update_existing(BinNode, Address, TS) ->
+    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, update_existing, [BinNode, Address, TS]),
+    ct:log("select(~p, ~p, ~p) = ~p", [BinNode, Address, TS, Ret]),
     Ret.
 
-delete_node_from_db(CN, BinNode) ->
-    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, [CN, BinNode]),
-    ct:log("delete_node_from_db(~p, ~p) = ~p", [CN, BinNode, Ret]),
+delete_node_from_db(BinNode) ->
+    Ret = rpc(mim(), mongoose_cets_discovery_rdbms, delete_node_from_db, [BinNode]),
+    ct:log("delete_node_from_db(~p) = ~p", [BinNode, Ret]),
     Ret.
 
 start_cets_discovery(Config) ->

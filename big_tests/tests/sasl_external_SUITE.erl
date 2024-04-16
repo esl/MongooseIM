@@ -360,50 +360,9 @@ generate_certs(C) ->
                    || M = #{ cn := CN , xmpp_addrs := Addrs} <- CA],
     CertSpecs = CA ++ SelfSigned,
     TemplateValues = #{"xmppOids" => xmpp_oids()},
-    Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec, TemplateValues)}
+    Certs = [{maps:get(cn, CertSpec), ca_certificate_helper:generate_cert(C, CertSpec, TemplateValues)}
              || CertSpec <- CertSpecs],
     [{certs, maps:from_list(Certs)} | C].
-
-generate_cert(C, #{cn := User} = CertSpec, BasicTemplateValues) ->
-    ConfigTemplate = filename:join(?config(mim_data_dir, C), "openssl-user.cnf"),
-    {ok, Template} = file:read_file(ConfigTemplate),
-    XMPPAddrs = maps:get(xmpp_addrs, CertSpec, undefined),
-    TemplateValues = maps:merge(BasicTemplateValues, prepare_template_values(User, XMPPAddrs)),
-    OpenSSLConfig = bbmustache:render(Template, TemplateValues),
-    UserConfig = filename:join(?config(priv_dir, C), User ++ ".cfg"),
-    ct:log("OpenSSL config: ~ts~n~ts", [UserConfig, OpenSSLConfig]),
-    file:write_file(UserConfig, OpenSSLConfig),
-    UserKey = filename:join(?config(priv_dir, C), User ++ "_key.pem"),
-    case maps:get(signed, CertSpec, ca) of
-	ca ->
-	    generate_ca_signed_cert(C, User, UserConfig, UserKey);
-	self ->
-	    generate_self_signed_cert(C, User, UserConfig, UserKey)
-    end.
-
-generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
-    UserCsr = filename:join(?config(priv_dir, C), User ++ ".csr"),
-    Cmd = ["openssl req -config ", UserConfig, " -newkey rsa:2048 -sha256 -nodes -out ",
-           UserCsr, " -keyout ", UserKey, " -outform PEM"],
-    Out = os:cmd(Cmd),
-    ct:log("generate_ca_signed_cert 1:~nCmd ~p~nOut ~ts", [Cmd, Out]),
-    UserCert = filename:join(?config(priv_dir, C), User ++ "_cert.pem"),
-    SignCmd = filename:join(?config(mim_data_dir, C), "sign_cert.sh"),
-    Cmd2 = [SignCmd, " --req ", UserCsr, " --out ", UserCert],
-    SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
-    OutLog = os:cmd("cd " ++ SSLDir ++ " && " ++ Cmd2),
-    ct:log("generate_ca_signed_cert 2:~nCmd ~p~nOut ~ts", [Cmd2, OutLog]),
-    #{key => UserKey,
-      cert => UserCert}.
-
-generate_self_signed_cert(C, User, UserConfig, UserKey) ->
-    UserCert = filename:join(?config(priv_dir, C), User ++ "_self_signed_cert.pem"),
-    Cmd = ["openssl req -config ", UserConfig, " -newkey rsa:2048 -sha256 -nodes -out ",
-           UserCert, " -keyout ", UserKey, " -x509 -outform PEM -extensions client_req_extensions"],
-    OutLog = os:cmd(Cmd),
-    ct:log("generate_self_signed_cert:~nCmd ~p~nOut ~ts", [Cmd, OutLog]),
-    #{key => UserKey,
-      cert => UserCert}.
 
 generate_user_tcp(C, User) ->
     generate_user(C, User, escalus_tcp).
@@ -431,26 +390,11 @@ transport_specific_options(_) ->
      [{port, ct:get_config({hosts, mim, cowboy_secure_port})},
       {ssl, true}].
 
-prepare_template_values(User, XMPPAddrsIn) ->
-    XMPPAddrs = maybe_prepare_xmpp_addresses(XMPPAddrsIn),
-    #{"cn" => User, "xmppAddrs" => XMPPAddrs}.
-
 xmpp_oids() ->
     case os:cmd("openssl list -objects | grep id-on-xmppAddr") of
         "id-on-xmppAddr" ++ _ -> ""; % already defined in OpenSSL 3.*
         _ -> "id-on-xmppAddr = 1.3.6.1.5.5.7.8.5\n"
     end.
-
-maybe_prepare_xmpp_addresses(undefined) ->
-    "";
-maybe_prepare_xmpp_addresses(Addrs) when is_list(Addrs) ->
-    AddrsWithSeq = lists:zip(Addrs, lists:seq(1, length(Addrs))),
-    Entries = [make_xmpp_addr_entry(Addr, I) || {Addr, I} <- AddrsWithSeq],
-    string:join(Entries, "\n").
-
-make_xmpp_addr_entry(Addr, I) ->
-    % id-on-xmppAddr OID is specified in the openssl-user.cnf config file
-    "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
 requested_name(User) ->
     add_domain(list_to_binary(User)).
