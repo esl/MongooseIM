@@ -36,6 +36,9 @@ api_test_cases() ->
      set_up_and_span_with_arg,
      set_up_and_span_with_error,
      span_fails_when_not_set_up,
+     set_up_probe,
+     set_up_failing_probe,
+     set_up_and_tear_down_probe,
      unexpected_events,
      add_and_remove_handler,
      cannot_add_existing_handler,
@@ -204,6 +207,51 @@ span_fails_when_not_set_up(Config) ->
                  mongoose_instrument:span(Event, Labels, fun crashing_op/0, fun measure_test_op/2)),
     [] = history(?HANDLER, handle_event, Event).
 
+set_up_probe(Config) ->
+    Event = ?config(event, Config),
+    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
+    ExpectedMeasurements = #{event => Event, count => 1},
+
+    %% Wait until the probe is called
+    {ok, History1} = async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                             fun(L) -> length(L) > 0 end),
+    ExpectedEvent = {[Event, ?LABELS, Cfg, ExpectedMeasurements], ok},
+    ?assertEqual([ExpectedEvent], History1),
+
+    %% Wait until it's called again to ensure that it is done periodically
+    {ok, History2} = async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                             fun(L) -> length(L) > 1 end),
+    ?assertEqual([ExpectedEvent, ExpectedEvent], History2).
+
+set_up_failing_probe(Config) ->
+    Event = ?config(event, Config),
+    Labels = ?LABELS,
+    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    ok = mongoose_instrument:set_up(Event, Labels, Cfg),
+
+    %% Wait until the error appears in logs
+    ?assertLog(error, #{what := probe_failed,
+                        class := error, reason := simulated_error, stacktrace := _,
+                        event_name := Event, labels := Labels, probe_mod := ?MODULE}, 5000),
+
+    %% Make sure that the failing probe is not disabled
+    ?assertLog(error, #{what := probe_failed,
+                        class := error, reason := simulated_error, stacktrace := _,
+                        event_name := Event, labels := Labels, probe_mod := ?MODULE}, 5000).
+
+set_up_and_tear_down_probe(Config) ->
+    Event = ?config(event, Config),
+    Cfg = #{probe => #{module => ?MODULE, interval => 1}},
+    ok = mongoose_instrument:set_up(Event, ?LABELS, Cfg),
+    mongoose_instrument:tear_down(Event, ?LABELS),
+
+    %% The probe shouldn't be called anymore
+    ?assertError({badmatch, _},
+                 async_helper:wait_until(fun() -> history(?HANDLER, handle_event, Event) end,
+                                         fun(L) -> length(L) > 0 end,
+                                         #{time_left => timer:seconds(2)})).
+
 unexpected_events(_Config) ->
     Pid = whereis(mongoose_instrument),
     {error, #{what := unexpected_call}} = gen_server:call(mongoose_instrument, bad_call),
@@ -260,3 +308,9 @@ crashing_op() ->
 
 measure_test_op(Time, Result) ->
     #{time => Time, result => Result}.
+
+probe(set_up_failing_probe_event, _Labels) ->
+    error(simulated_error);
+probe(Event, Labels) ->
+    ?assertEqual(?LABELS, Labels),
+    #{event => Event, count => 1}.
