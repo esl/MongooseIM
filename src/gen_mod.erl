@@ -55,8 +55,8 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
--ignore_xref([loaded_modules_with_opts/0,
-              loaded_modules_with_opts/1, hosts_and_opts_with_module/1]).
+-ignore_xref([loaded_modules_with_opts/0, loaded_modules_with_opts/1,
+              hosts_with_module/1, hosts_and_opts_with_module/1]).
 
 -include("mongoose.hrl").
 
