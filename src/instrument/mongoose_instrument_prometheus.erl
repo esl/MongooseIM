@@ -34,10 +34,14 @@ set_up_metric(EventName, Labels, MetricName, MetricType) ->
     LabelKeys = labels_to_keys(Labels),
     LabelValues = labels_to_values(Labels),
     MetricSpec = metric_spec(EventName, LabelKeys, MetricName),
+    FullName = proplists:get_value(name, MetricSpec),
     case declare_metric(MetricSpec, MetricType) of
-        true -> ok;
-        false -> reset_metric(proplists:get_value(name, MetricSpec), LabelValues, MetricType)
-    end.
+        true ->
+            ok; %% Metric does not exist - no need to reset
+        false ->
+            reset_metric(FullName, LabelValues, MetricType)
+    end,
+    initialize_metric(FullName, LabelValues, MetricType).
 
 -spec declare_metric(proplists:proplist(), mongoose_instrument:metric_type()) -> boolean().
 declare_metric(MetricSpec, spiral) ->
@@ -46,12 +50,20 @@ declare_metric(MetricSpec, histogram) ->
     prometheus_histogram:declare([{buckets, histogram_buckets()} | MetricSpec]).
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
-                   mongoose_instrument:metric_type()) -> ok.
+                   mongoose_instrument:metric_type()) -> boolean().
 reset_metric(Name, LabelValues, spiral) ->
-    prometheus_counter:reset(Name, LabelValues),
-    prometheus_counter:inc(Name, LabelValues, 0);
+    prometheus_counter:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, histogram) ->
-    prometheus_histogram:reset(Name, LabelValues),
+    prometheus_histogram:remove(Name, LabelValues).
+
+-spec initialize_metric(name(), [mongoose_instrument:label_value()],
+                        mongoose_instrument:metric_type()) -> ok.
+initialize_metric(Name, LabelValues, spiral) ->
+    %% Initialize counter, because it has a meaningful initial value of zero
+    %% Additionally, leaving it undefined would delay rate calculation in Prometheus
+    prometheus_counter:inc(Name, LabelValues, 0);
+initialize_metric(_Name, _LabelValues, _) ->
+    %% Don't initialize, because no meaningful value could be provided
     ok.
 
 -spec metric_spec(mongoose_instrument:event_name(), [mongoose_instrument:label_key()],
