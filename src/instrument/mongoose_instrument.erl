@@ -27,7 +27,7 @@
 -type label_value() :: mongooseim:host_type(). % to be extended
 -type metrics() :: #{metric_name() => metric_type()}.
 -type metric_name() :: atom().
--type metric_type() :: spiral | histogram. % to be extended
+-type metric_type() :: gauge | spiral | histogram. % to be extended
 -type measurements() :: #{atom() => term()}.
 -type spec() :: {event_name(), labels(), config()}.
 -type config() :: #{metrics => metrics()}. % to be extended

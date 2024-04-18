@@ -44,6 +44,8 @@ set_up_metric(EventName, Labels, MetricName, MetricType) ->
     initialize_metric(FullName, LabelValues, MetricType).
 
 -spec declare_metric(proplists:proplist(), mongoose_instrument:metric_type()) -> boolean().
+declare_metric(MetricSpec, gauge) ->
+    prometheus_gauge:declare(MetricSpec);
 declare_metric(MetricSpec, spiral) ->
     prometheus_counter:declare(MetricSpec);
 declare_metric(MetricSpec, histogram) ->
@@ -51,6 +53,8 @@ declare_metric(MetricSpec, histogram) ->
 
 -spec reset_metric(name(), [mongoose_instrument:label_value()],
                    mongoose_instrument:metric_type()) -> boolean().
+reset_metric(Name, LabelValues, gauge) ->
+    prometheus_gauge:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, spiral) ->
     prometheus_counter:remove(Name, LabelValues);
 reset_metric(Name, LabelValues, histogram) ->
@@ -113,6 +117,8 @@ labels_to_values(Labels) ->
 
 -spec update_metric(name(), [mongoose_instrument:label_value()],
                     mongoose_instrument:metric_type(), integer()) -> ok.
+update_metric(Name, Labels, gauge, Value) when is_integer(Value) ->
+    ok = prometheus_gauge:set(Name, Labels, Value);
 update_metric(Name, Labels, spiral, Value) when is_integer(Value), Value >= 0 ->
     ok = prometheus_counter:inc(Name, Labels, Value);
 update_metric(Name, Labels, histogram, Value) when is_integer(Value) ->

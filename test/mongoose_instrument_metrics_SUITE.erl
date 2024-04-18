@@ -20,12 +20,16 @@ all() ->
 
 groups() ->
     [{prometheus, [parallel], [prometheus_skips_non_metric_event,
+                               prometheus_gauge_is_created_and_updated,
+                               prometheus_gauge_is_updated_separately_for_different_labels,
                                prometheus_counter_is_created_and_updated,
                                prometheus_counter_is_updated_separately_for_different_labels,
                                prometheus_histogram_is_created_and_updated,
                                prometheus_histogram_is_updated_separately_for_different_labels,
                                multiple_prometheus_metrics_are_updated]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
+                             exometer_gauge_is_created_and_updated,
+                             exometer_gauge_is_updated_separately_for_different_labels,
                              exometer_spiral_is_created_and_updated,
                              exometer_spiral_is_updated_separately_for_different_labels,
                              exometer_histogram_is_created_and_updated,
@@ -74,6 +78,28 @@ prometheus_skips_non_metric_event(Config) ->
     Event = ?config(event, Config),
     false = mongoose_instrument_prometheus:set_up(Event, ?LABELS, #{}),
     false = mongoose_instrument_prometheus:set_up(Event, ?LABELS, #{loglevel => error}).
+
+prometheus_gauge_is_created_and_updated(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, count),
+
+    %% Prometheus gauge has no initial value, and reports the last registered value
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => gauge}}),
+    ?assertEqual(undefined, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
+    ?assertEqual(2, prometheus_gauge:value(Metric, [?HOST_TYPE])).
+
+prometheus_gauge_is_updated_separately_for_different_labels(Config) ->
+    Event = ?config(event, Config),
+    Metric = prom_name(Event, count),
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => gauge}}),
+    ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => gauge}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ok = mongoose_instrument:execute(Event, ?LABELS2, #{count => 2}),
+    ?assertEqual(1, prometheus_gauge:value(Metric, [?HOST_TYPE])),
+    ?assertEqual(2, prometheus_gauge:value(Metric, [?HOST_TYPE2])).
 
 prometheus_counter_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
@@ -147,6 +173,29 @@ exometer_skips_non_metric_event(Config) ->
     Event = ?config(event, Config),
     false = mongoose_instrument_exometer:set_up(Event, ?LABELS, #{}),
     false = mongoose_instrument_exometer:set_up(Event, ?LABELS, #{loglevel => error}).
+
+exometer_gauge_is_created_and_updated(Config) ->
+    Event = ?config(event, Config),
+    Metric = [?HOST_TYPE, Event, count],
+
+    %% Exometer gauge starts at zero, and reports the last registered value
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => gauge}}),
+    ?assertEqual({ok, [{value, 0}]}, exometer:get_value(Metric, value)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual({ok, [{value, 1}]}, exometer:get_value(Metric, value)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
+    ?assertEqual({ok, [{value, 2}]}, exometer:get_value(Metric, value)).
+
+exometer_gauge_is_updated_separately_for_different_labels(Config) ->
+    Event = ?config(event, Config),
+    Metric1 = [?HOST_TYPE, Event, count],
+    Metric2 = [<<"test_type">>, Event, count],
+    ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => gauge}}),
+    ok = mongoose_instrument:set_up(Event, ?LABELS2, #{metrics => #{count => gauge}}),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ok = mongoose_instrument:execute(Event, ?LABELS2, #{count => 2}),
+    ?assertEqual({ok, [{value, 1}]}, exometer:get_value(Metric1, value)),
+    ?assertEqual({ok, [{value, 2}]}, exometer:get_value(Metric2, value)).
 
 exometer_spiral_is_created_and_updated(Config) ->
     Event = ?config(event, Config),

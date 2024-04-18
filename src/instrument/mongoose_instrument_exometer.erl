@@ -66,6 +66,8 @@ handle_metric_event(EventName, Labels, MetricName, MetricType, Measurements) ->
     end.
 
 -spec update_metric(exometer:name(), spiral | histogram, integer()) -> ok.
+update_metric(Name, gauge, Value) when is_integer(Value) ->
+    ok = exometer:update(Name, Value);
 update_metric(Name, spiral, Value) when is_integer(Value), Value >= 0 ->
     ok = exometer:update(Name, Value);
 update_metric(Name, histogram, Value) when is_integer(Value) ->
