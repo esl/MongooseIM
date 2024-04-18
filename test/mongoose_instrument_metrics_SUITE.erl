@@ -20,15 +20,15 @@ all() ->
 
 groups() ->
     [{prometheus, [parallel], [prometheus_skips_non_metric_event,
-                               prometheus_counter_is_created_but_not_initialized,
+                               prometheus_counter_is_created_and_updated,
                                prometheus_counter_is_updated_separately_for_different_labels,
-                               prometheus_histogram_is_created_but_not_initialized,
+                               prometheus_histogram_is_created_and_updated,
                                prometheus_histogram_is_updated_separately_for_different_labels,
                                multiple_prometheus_metrics_are_updated]},
      {exometer, [parallel], [exometer_skips_non_metric_event,
-                             exometer_spiral_is_created_and_initialized,
+                             exometer_spiral_is_created_and_updated,
                              exometer_spiral_is_updated_separately_for_different_labels,
-                             exometer_histogram_is_created_and_initialized,
+                             exometer_histogram_is_created_and_updated,
                              exometer_histogram_is_updated_separately_for_different_labels,
                              multiple_exometer_metrics_are_updated]},
      {exometer_global, [parallel], [multiple_exometer_metrics_are_updated]},
@@ -75,11 +75,17 @@ prometheus_skips_non_metric_event(Config) ->
     false = mongoose_instrument_prometheus:set_up(Event, ?LABELS, #{}),
     false = mongoose_instrument_prometheus:set_up(Event, ?LABELS, #{loglevel => error}).
 
-prometheus_counter_is_created_but_not_initialized(Config) ->
+prometheus_counter_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
     Metric = prom_name(Event, count),
+
+    %% Prometheus counter starts at zero, and reports the sum of all values
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
-    ?assertEqual(undefined, prometheus_counter:value(Metric, [?HOST_TYPE])).
+    ?assertEqual(0, prometheus_counter:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual(1, prometheus_counter:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
+    ?assertEqual(3, prometheus_counter:value(Metric, [?HOST_TYPE])).
 
 prometheus_counter_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -91,11 +97,19 @@ prometheus_counter_is_updated_separately_for_different_labels(Config) ->
     ?assertEqual(1, prometheus_counter:value(Metric, [?HOST_TYPE])),
     ?assertEqual(2, prometheus_counter:value(Metric, [?HOST_TYPE2])).
 
-prometheus_histogram_is_created_but_not_initialized(Config) ->
+prometheus_histogram_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
     Metric = prom_name(Event, time),
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
-    ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])).
+
+    %% Prometheus histogram shows no value if there is no data
+    ?assertEqual(undefined, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
+    ?assertMatch({[1, 0|_], 1}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
+    ?assertMatch({[2, 0|_], 2}, prometheus_histogram:value(Metric, [?HOST_TYPE])),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 2}),
+    ?assertMatch({[2, 1|_], 4}, prometheus_histogram:value(Metric, [?HOST_TYPE])).
 
 prometheus_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -134,11 +148,17 @@ exometer_skips_non_metric_event(Config) ->
     false = mongoose_instrument_exometer:set_up(Event, ?LABELS, #{}),
     false = mongoose_instrument_exometer:set_up(Event, ?LABELS, #{loglevel => error}).
 
-exometer_spiral_is_created_and_initialized(Config) ->
+exometer_spiral_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
     Metric = [?HOST_TYPE, Event, count],
+
+    %% Exometer spiral starts at zero, and reports the sum of all values
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{count => spiral}}),
-    ?assertEqual({ok, [{count, 0}]}, exometer:get_value(Metric, count)).
+    ?assertEqual({ok, [{count, 0}]}, exometer:get_value(Metric, count)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 1}),
+    ?assertEqual({ok, [{count, 1}]}, exometer:get_value(Metric, count)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{count => 2}),
+    ?assertEqual({ok, [{count, 3}]}, exometer:get_value(Metric, count)).
 
 exometer_spiral_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
@@ -151,11 +171,17 @@ exometer_spiral_is_updated_separately_for_different_labels(Config) ->
     ?assertEqual({ok, [{count, 1}]}, exometer:get_value(Metric1, count)),
     ?assertEqual({ok, [{count, 2}]}, exometer:get_value(Metric2, count)).
 
-exometer_histogram_is_created_and_initialized(Config) ->
+exometer_histogram_is_created_and_updated(Config) ->
     Event = ?config(event, Config),
     Metric = [?HOST_TYPE, Event, time],
+
+    %% Exometer mean value is zero if there is no data
     ok = mongoose_instrument:set_up(Event, ?LABELS, #{metrics => #{time => histogram}}),
-    ?assertEqual({ok, [{mean, 0}]}, exometer:get_value(Metric, mean)).
+    ?assertEqual({ok, [{mean, 0}]}, exometer:get_value(Metric, mean)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 1}),
+    ?assertEqual({ok, [{mean, 1}]}, exometer:get_value(Metric, mean)),
+    ok = mongoose_instrument:execute(Event, ?LABELS, #{time => 3}),
+    ?assertEqual({ok, [{mean, 2}]}, exometer:get_value(Metric, mean)).
 
 exometer_histogram_is_updated_separately_for_different_labels(Config) ->
     Event = ?config(event, Config),
