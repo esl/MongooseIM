@@ -80,10 +80,13 @@
 
 [internal_databases.cets]
 
-[instrumentation.prometheus]
+[instrumentation]
+  probe_interval = 10
 
-[instrumentation.exometer]
-  all_metrics_are_global = true
+  [instrumentation.prometheus]
 
-[instrumentation.log]
-  level = "info"
+  [instrumentation.exometer]
+    all_metrics_are_global = true
+
+  [instrumentation.log]
+    level = "info"

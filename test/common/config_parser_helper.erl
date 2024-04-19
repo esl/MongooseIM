@@ -28,7 +28,7 @@ options("host_types") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{}},
+     {instrumentation, default_config([instrumentation])},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"some host type">>}, default_s2s()},
@@ -93,9 +93,11 @@ options("miscellaneous") ->
                                               id => "G-12345678",
                                               secret => "Secret"
                                              }}}},
-     {instrumentation, #{prometheus => #{},
-                         exometer => #{all_metrics_are_global => true},
-                         log => #{level => info}}},
+     {instrumentation, config([instrumentation],
+                              #{probe_interval => 10,
+                                prometheus => #{},
+                                exometer => #{all_metrics_are_global => true},
+                                log => #{level => info}})},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, mnesia},
@@ -129,7 +131,7 @@ options("modules") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{}},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, all_modules()},
@@ -265,8 +267,7 @@ options("mongooseim-pgsql") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{exometer => default_config([instrumentation, exometer]),
-                         log => default_config([instrumentation, log])}},
+     {instrumentation, config([instrumentation], #{exometer => #{}, log => #{}})},
      {{outgoing_pools, <<"anonymous.localhost">>},
       [host_pool_config(
          #{tag => special,
@@ -384,7 +385,7 @@ options("outgoing_pools") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{}},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{auth, <<"localhost.bis">>}, default_auth()},
@@ -412,7 +413,7 @@ options("s2s_only") ->
      {sm_backend, mnesia},
      {component_backend, mnesia},
      {s2s_backend, mnesia},
-     {instrumentation, #{}},
+     {instrumentation, default_config([instrumentation])},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, #{}},
@@ -1102,6 +1103,8 @@ extra_service_listener_config() ->
       conflict_behaviour => disconnect,
       connection_type => component}.
 
+default_config([instrumentation]) ->
+    #{probe_interval => 15};
 default_config([instrumentation, log]) ->
     #{level => debug};
 default_config([instrumentation, exometer]) ->
