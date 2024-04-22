@@ -28,6 +28,7 @@
          wait_until_resume_session/1,
          process_initial_stanza/1,
          kill_and_connect_resume/1,
+         kill_client_and_wait_for_termination/1,
          monitor_session/1]).
 
 %% Stanza helpers
