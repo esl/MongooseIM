@@ -2934,10 +2934,12 @@ service_mongoose_system_metrics(_Config) ->
 instrumentation(_Config) ->
     P = [instrumentation],
     T = fun(Opts) -> #{<<"instrumentation">> => Opts} end,
-    ?cfg(P, #{}, T(#{})),
-    ?cfg(P, #{prometheus => #{}}, T(#{<<"prometheus">> => #{}})),
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [prometheus], #{}, T(#{<<"prometheus">> => #{}})),
+    ?cfg(P ++ [probe_interval], 10, T(#{<<"probe_interval">> => 10})),
     ?err(T(#{<<"prometheus">> => #{<<"fire">> => 1}})),
-    ?err(T(#{<<"bad_module">> => #{}})).
+    ?err(T(#{<<"bad_module">> => #{}})),
+    ?err(T(#{<<"probe_interval">> => 0})).
 
 instrumentation_log(_Config) ->
     P = [instrumentation, log],
