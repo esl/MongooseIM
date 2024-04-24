@@ -346,18 +346,20 @@ init_restored(#{init_type := start_restored,
                 opts := Opts}) ->
     process_flag(trap_exit, true),
     Shaper = mongoose_shaper:new(RoomShaper),
+    RoomJid = jid:make_bare(Room, Host),
     State = set_opts(Opts, #state{host = Host, host_type = HostType,
                                   server_host = ServerHost,
                                   access = Access,
                                   room = Room,
                                   history = lqueue_new(HistorySize),
-                                  jid = jid:make_bare(Room, Host),
+                                  jid = RoomJid,
                                   room_shaper = Shaper,
                                   http_auth_pool = HttpAuthPool,
                                   hibernate_timeout = read_hibernate_timeout(HostType)
                                  }),
     add_to_log(room_existence, started, State),
-    mongoose_metrics:update(global, [mod_muc, process_recreations], 1),
+    mongoose_instrument:execute(mod_muc_process_recreations, #{host_type => HostType},
+                                #{count => 1, jid => RoomJid}),
     {ok, normal_state, State, State#state.hibernate_timeout}.
 
 %% @doc In the locked state StateData contains the same settings it previously
@@ -586,9 +588,10 @@ normal_state({http_auth, AuthPid, Result, From, Nick, Packet, Role}, StateData) 
     StateDataWithoutPid = StateData#state{http_auth_pids = lists:delete(AuthPid, AuthPids)},
     NewStateData = handle_http_auth_result(Result, From, Nick, Packet, Role, StateDataWithoutPid),
     destroy_temporary_room_if_empty(NewStateData, normal_state);
-normal_state(timeout, StateData) ->
+normal_state(timeout, StateData = #state{host_type = HostType, jid = RoomJid}) ->
     erlang:put(hibernated, os:timestamp()),
-    mongoose_metrics:update(global, [mod_muc, hibernations], 1),
+    mongoose_instrument:execute(mod_muc_hibernations, #{host_type => HostType},
+                                #{count => 1, jid => RoomJid}),
     {next_state, normal_state, StateData, hibernate};
 normal_state(_Event, StateData) ->
     next_normal_state(StateData).
@@ -751,10 +754,11 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
 stop_if_only_owner_is_online(_, _, State) ->
     next_normal_state(State).
 
-do_stop_persistent_room(_RoomName, State) ->
+do_stop_persistent_room(_RoomName, State = #state{host_type = HostType, jid = RoomJid}) ->
     ?LOG_INFO(ls(#{what => muc_room_stopping_persistent,
                    text => <<"Stopping persistent room's process">>}, State)),
-    mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
+    mongoose_instrument:execute(mod_muc_deep_hibernations, #{host_type => HostType},
+                                #{count => 1, jid => RoomJid}),
     {stop, normal, State}.
 
 %% @doc Purpose: Shutdown the fsm

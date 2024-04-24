@@ -3,7 +3,7 @@
 
 -module(instrument_helper).
 
--export([declared_events/1, start/1, stop/0, assert/3]).
+-export([declared_events/1, start/1, stop/0, assert/3, assert/4, wait_for_new/2, lookup/2, take/2]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -46,21 +46,42 @@ stop() ->
     verify_unlogged(Untested -- Logged),
     verify_logged_but_untested(Logged -- Tested).
 
-%% @doc `CheckF' can return a boolean or fail with `function_clause', which means `false'.
-%% This is for convenience - you only have to code one clause.
 -spec assert(event_name(), labels(), fun((measurements()) -> boolean())) -> ok.
 assert(EventName, Labels, CheckF) ->
-    Events = rpc(mim(), ?HANDLER_MODULE, get_events, [EventName, Labels]),
-    case lists:filter(fun({_, Measurements}) ->
+    assert(EventName, Labels, lookup(EventName, Labels), CheckF).
+
+%% @doc `CheckF' can return a boolean or fail with `function_clause', which means `false'.
+%% This is for convenience - you only have to code one clause.
+-spec assert(event_name(), labels(), [measurements()], fun((measurements()) -> boolean())) -> ok.
+assert(EventName, Labels, MeasurementsList, CheckF) ->
+    case lists:filter(fun(Measurements) ->
                               try CheckF(Measurements) catch error:function_clause -> false end
-                      end, Events) of
+                      end, MeasurementsList) of
         [] ->
-            ct:log("All ~p events with labels ~p:~n~p", [EventName, Labels, Events]),
+            ct:log("All measurements for event ~p with labels ~p:~n~p",
+                   [EventName, Labels, MeasurementsList]),
             ct:fail("No instrumentation events matched");
         Filtered ->
-            ct:log("Matching events: ~p", [Filtered]),
+            ct:log("Matching measurements: ~p", [Filtered]),
             event_tested(EventName, Labels)
     end.
+
+%% @doc Remove previous events, and wait for a new one.
+-spec wait_for_new(event_name(), labels()) -> [measurements()].
+wait_for_new(EventName, Labels) ->
+    take(EventName, Labels),
+    {ok, MeasurementsList} = mongoose_helper:wait_until(fun() -> lookup(EventName, Labels) end,
+                                                        fun(L) -> L =/= [] end,
+                                                        #{name => EventName}),
+    MeasurementsList.
+
+-spec lookup(event_name(), labels()) -> [measurements()].
+lookup(EventName, Labels) ->
+    [Measurements || {_, Measurements} <- rpc(mim(), ?HANDLER_MODULE, lookup, [EventName, Labels])].
+
+-spec take(event_name(), labels()) -> [measurements()].
+take(EventName, Labels) ->
+    [Measurements || {_, Measurements} <- rpc(mim(), ?HANDLER_MODULE, take, [EventName, Labels])].
 
 %% Internal functions
 

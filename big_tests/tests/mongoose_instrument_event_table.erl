@@ -6,7 +6,7 @@
 -define(TABLE, ?MODULE).
 
 %% API
--export([get_events/2, all_keys/0]).
+-export([lookup/2, take/2, all_keys/0]).
 
 %% mongoose_instrument callbacks
 -export([start/0, stop/0, set_up/3, handle_event/4]).
@@ -24,8 +24,11 @@ set_up(EventName, Labels, _Config) ->
 handle_event(EventName, Labels, _Config, Measurements) ->
     ets:insert(?TABLE, {{EventName, Labels}, Measurements}).
 
-get_events(EventName, Labels) ->
+lookup(EventName, Labels) ->
     ets:lookup(?TABLE, {EventName, Labels}).
+
+take(EventName, Labels) ->
+    ets:take(?TABLE, {EventName, Labels}).
 
 all_keys() ->
     all_keys(?TABLE).

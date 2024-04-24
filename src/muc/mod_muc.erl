@@ -31,6 +31,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
 -behaviour(mongoose_module_metrics).
+-behaviour(mongoose_instrument_probe).
 
 %% API
 -export([start_link/2,
@@ -38,6 +39,7 @@
          stop/1,
          supported_features/0,
          config_spec/0,
+         instrumentation/1,
          process_room_affiliation/1,
          room_destroyed/4,
          store_room/4,
@@ -61,6 +63,9 @@
 %% packet handler callback
 -export([process_packet/5]).
 
+%% mongoose_instrument_probe callback
+-export([probe/2]).
+
 %% Hooks handlers
 -export([is_muc_room_owner/3,
          can_access_room/3,
@@ -70,16 +75,10 @@
          disco_local_items/3,
          node_cleanup_for_host_type/3]).
 
-%% Stats
--export([online_rooms_number/0]).
--export([hibernated_rooms_number/0]).
-
 -export([config_metrics/1]).
 
--ignore_xref([
-    broadcast_service_message/2, create_instant_room/6, hibernated_rooms_number/0,
-    online_rooms_number/0, register_room/4, restore_room/3, start_link/2
-]).
+-ignore_xref([broadcast_service_message/2, create_instant_room/6,
+              register_room/4, restore_room/3, start_link/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -165,7 +164,6 @@ start_link(HostType, Opts) ->
 -spec start(host_type(), _) -> ok.
 start(HostType, Opts) when is_map(Opts) ->
     mod_muc_online_backend:start(HostType, Opts),
-    ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
     assert_server_running(HostType),
@@ -1266,63 +1264,33 @@ node_cleanup_for_host_type(Acc, #{node := Node}, #{host_type := HostType}) ->
     node_cleanup(HostType, Node),
     {ok, Acc}.
 
-online_rooms_number() ->
-    lists:sum([online_rooms_number(HostType)
-               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
-
-online_rooms_number(HostType) ->
-    try
-        Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
-        Stats = supervisor:count_children(Supervisor),
-        proplists:get_value(active, Stats)
-    catch _:_ ->
-              0
+-spec count_rooms(mongooseim:host_type()) -> mongoose_instrument:measurements().
+count_rooms(HostType) ->
+    try all_room_pids(HostType) of
+        AllRooms ->
+            InitialCounts = #{online => 0, hibernated => 0},
+            lists:foldl(fun count_rooms/2, InitialCounts, AllRooms)
+    catch exit:{noproc, _} ->
+            #{}
     end.
-
-hibernated_rooms_number() ->
-    lists:sum([hibernated_rooms_number(HostType)
-               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
-
-hibernated_rooms_number(HostType) ->
-    try
-        count_hibernated_rooms(HostType)
-    catch _:_ ->
-              0
-    end.
-
-count_hibernated_rooms(HostType) ->
-    AllRooms = all_room_pids(HostType),
-    lists:foldl(fun count_hibernated_rooms/2, 0, AllRooms).
 
 all_room_pids(HostType) ->
     Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
     [Pid || {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)].
 
-
-count_hibernated_rooms(Pid, Count) ->
+count_rooms(Pid, Counts = #{online := Online, hibernated := Hibernated}) ->
     case erlang:process_info(Pid, current_function) of
         {current_function, {erlang, hibernate, _}} ->
-            Count + 1;
+            #{online => Online + 1, hibernated => Hibernated + 1};
         _ ->
-            Count
+            Counts#{online := Online + 1}
     end.
-
-ensure_metrics(_Host) ->
-    Interval = mongoose_metrics:get_report_interval(),
-    mongoose_metrics:ensure_metric(global, [mod_muc, deep_hibernations], spiral),
-    mongoose_metrics:ensure_metric(global, [mod_muc, process_recreations], spiral),
-    mongoose_metrics:ensure_metric(global, [mod_muc, hibernations], spiral),
-    M1 = [{callback_module, mongoose_metrics_probe_muc_hibernated_rooms},
-          {sample_interval, Interval}],
-    M2 = [{callback_module, mongoose_metrics_probe_muc_online_rooms},
-          {sample_interval, Interval}],
-    mongoose_metrics:ensure_metric(global, [mod_muc, hibernated_rooms], {probe, M1}),
-    mongoose_metrics:ensure_metric(global, [mod_muc, online_rooms], {probe, M2}).
 
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend, online_backend]).
 
+-spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, fun ?MODULE:is_muc_room_owner/3, #{}, 50},
      {can_access_room, HostType, fun ?MODULE:can_access_room/3, #{}, 50},
@@ -1331,6 +1299,22 @@ hooks(HostType) ->
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 250},
      {node_cleanup_for_host_type, HostType, fun ?MODULE:node_cleanup_for_host_type/3, #{}, 50}].
+
+-spec instrumentation(host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_muc_deep_hibernations, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_muc_process_recreations, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_muc_hibernations, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {mod_muc_rooms, #{host_type => HostType},
+      #{probe => #{module => ?MODULE}, metrics => #{online => gauge, hibernated => gauge}}}].
+
+-spec probe(mongoose_instrument:event_name(), mongoose_instrument:labels()) ->
+          mongoose_instrument:measurements().
+probe(mod_muc_rooms, #{host_type := HostType}) ->
+    count_rooms(HostType).
 
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host).
