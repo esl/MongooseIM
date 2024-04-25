@@ -43,6 +43,8 @@ make install
 sed -i 's#RUNNER_USER=\"root\"#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/bin/mongooseimctl
 sed -i 's#RUNNER_USER=\"root\"#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/lib/mongooseim/bin/mongooseimctl
 sed -i 's#RUNNER_USER=root#RUNNER_USER=\"mongooseim\"#' %{buildroot}/usr/lib/mongooseim/bin/mongooseim
+chrpath -d %{buildroot}/usr/lib/mongooseim/lib/crypto-*/priv/lib/crypto.so
+chrpath -d %{buildroot}/usr/lib/mongooseim/lib/crypto-*/priv/lib/otp_test_engine.so
 
 install -p -D -m 0644 %{SOURCE0} %{buildroot}%{_unitdir}/mongooseim.service
 
