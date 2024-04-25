@@ -44,5 +44,5 @@ source /etc/os-release
 os=$ID
 os_version=$VERSION_CODENAME
 package_os_file_name=${os}~${os_version}
-mv mongooseim_*.deb ~/mongooseim_${version}_${revision}_otp_${otp_version/-1/}~${package_os_file_name}_${arch}.deb
+mv mongooseim_*.deb ~/mongooseim_${version}_${revision}_otp_${otp_version}~${package_os_file_name}_${arch}.deb
 
