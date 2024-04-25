@@ -26,10 +26,6 @@ RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
 ARG erlang_version
 
-RUN curl -O https://packages.erlang-solutions.com/erlang-solutions-2.0-1.noarch.rpm && \
-    rpm -Uvh erlang-solutions-2.0-1.noarch.rpm && \
-    yum install -y "esl-erlang-$erlang_version"
-
 # Copy source code and put building files in proper directories according to
 # defaults of `rpmdev-setuptree` and `rpmbuild` commands
 # The .dockerignore file in root dir ensures only needed files
@@ -37,6 +33,7 @@ RUN curl -O https://packages.erlang-solutions.com/erlang-solutions-2.0-1.noarch.
 RUN rpmdev-setuptree
 WORKDIR /root/rpmbuild
 COPY --from=source /SOURCE ./BUILD/mongooseim
+RUN ./BUILD/mongooseim/tools/pkg/scripts/rpm/install_erlang.sh
 
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.spec ./SPECS/.
 RUN cp ./BUILD/mongooseim/tools/pkg/scripts/rpm/mongooseim.service \

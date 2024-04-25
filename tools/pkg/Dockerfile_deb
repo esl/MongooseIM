@@ -6,14 +6,9 @@ FROM $dockerfile_platform AS builder
 # Install build deps
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
-RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev
+RUN apt-get install -y locales git make zlib1g-dev unixodbc-dev gcc g++ libssl-dev curl
 
-RUN apt-get -y update && apt-get -y install curl gnupg && \
-        curl -O http://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && \
-        dpkg -i erlang-solutions_2.0_all.deb && apt-get update
 ARG erlang_version
-RUN apt-get install -y esl-erlang=1:$erlang_version
-
 
 # Fix locales
 RUN locale-gen en_US.UTF-8
@@ -25,6 +20,9 @@ WORKDIR /root/
 COPY . ./mongooseim
 
 RUN cp -r ./mongooseim/tools/pkg/scripts/deb .
+
+ARG dockerfile_platform
+RUN ./deb/install_erlang.sh
 
 ARG version
 ARG revision
