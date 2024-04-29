@@ -85,7 +85,8 @@ rdbms_queries_cases() ->
      test_failed_transaction_with_execute_wrapped,
      test_failed_wrapper_transaction,
      test_incremental_upsert,
-     arguments_from_two_tables].
+     arguments_from_two_tables,
+     test_upsert_many].
 
 suite() ->
     escalus:suite().
@@ -602,6 +603,18 @@ do_test_incremental_upsert(Config) ->
     SelectResult = sql_query(Config, <<"SELECT timestamp FROM inbox">>),
     ?assertEqual({selected, [{<<"43">>}]}, selected_to_binary(SelectResult)).
 
+test_upsert_many(Config) ->
+    sql_prepare_upsert_many(Config, 2, upsert_many_last, last,
+                            [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+                            [<<"seconds">>, <<"state">>],
+                            [<<"server">>, <<"username">>]),
+    Insert1 = [<<"localhost">>, <<"alice">>, 0, <<>>],
+    Insert2 = [<<"localhost">>, <<"bob">>, 0, <<>>],
+    Update = [0, <<>>],
+    Key = [],
+    %% Records keys must be unique (i.e. we cannot insert alice twice)
+    {updated, 2} = sql_execute_upsert(Config, upsert_many_last, Insert1 ++ Insert2, Update, Key).
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -634,6 +647,9 @@ sql_prepare(_Config, Name, Table, Fields, Query) ->
 
 sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
     escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
+
+sql_prepare_upsert_many(_Config, RecordCount, Name, Table, Insert, Update, Unique) ->
+    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
 
 sql_execute(Config, Name, Parameters) ->
     ScopeAndTag = scope_and_tag(Config),

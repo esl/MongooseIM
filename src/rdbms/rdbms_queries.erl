@@ -43,6 +43,7 @@
 -export([join/2,
          prepare_upsert/6,
          prepare_upsert/7,
+         prepare_upsert_many/7,
          execute_upsert/5, execute_upsert/6,
          request_upsert/5]).
 
@@ -160,6 +161,30 @@ prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
         _ -> InsertFields ++ UpdateFields
     end.
 
+prepared_upsert_many_fields(RecordCount, InsertFields, Updates, UniqueKeyFields) ->
+    InsertFieldsMany = lists:append(lists:duplicate(RecordCount, InsertFields)),
+    UpdateFields = lists:filtermap(fun get_field_name/1, Updates),
+    case mongoose_rdbms:db_type() of
+        mssql ->
+            UniqueKeyFields ++ InsertFieldsMany ++ UpdateFields;
+        _ -> InsertFieldsMany ++ UpdateFields
+    end.
+
+-spec prepare_upsert_many(HostType :: mongooseim:host_type_or_global(),
+                          RecordCount :: pos_integer(),
+                          QueryName :: mongoose_rdbms:query_name(),
+                          TableName :: atom(),
+                          InsertFields :: [ColumnName :: binary()],
+                          Updates :: [binary() | {assignment | expression, binary(), binary()}],
+                          UniqueKeyFields :: [binary()]) ->
+    {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
+prepare_upsert_many(HostType, RecordCount, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
+    SQL = upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields),
+    Query = iolist_to_binary(SQL),
+    ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
+    Fields = prepared_upsert_many_fields(RecordCount, InsertFields, Updates, UniqueKeyFields),
+    mongoose_rdbms:prepare(Name, Table, Fields, Query).
+
 upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
@@ -168,6 +193,24 @@ upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, Incrementa
             upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField);
         {odbc, mssql} ->
             upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+-spec upsert_query_many(HostType :: mongooseim:host_type_or_global(),
+                        RecordCount :: pos_integer(),
+                        TableName :: atom(),
+                        InsertFields :: [binary()],
+                        Updates :: [binary() | {assignment | expression, binary(), binary()}],
+                        UniqueKeyFields :: [binary()]) ->
+    {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
+upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
+    case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
+        {mysql, _} ->
+            upsert_many_mysql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
+        {pgsql, _} ->
+            upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
+        {odbc, mssql} ->
+            upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
@@ -180,6 +223,14 @@ mysql_and_pgsql_insert(Table, Columns) ->
      join(Placeholders, ", "),
      ")"].
 
+mysql_and_pgsql_insert_many(RecordCount, Table, Columns) ->
+    JoinedFields = join(Columns, <<", ">>),
+    Placeholders = lists:duplicate(length(Columns), $?),
+    Values = ["(", join(Placeholders, ", "), ")"],
+    ManyValues = join(lists:duplicate(RecordCount, Values), ", "),
+    ["INSERT INTO ", atom_to_binary(Table, utf8), " (",
+     JoinedFields, ") VALUES ", ManyValues].
+
 upsert_mysql_query(Table, InsertFields, Updates, [Key | _], IncrementalField) ->
     Insert = mysql_and_pgsql_insert(Table, InsertFields),
     OnConflict = mysql_on_conflict(Table, Updates, Key, IncrementalField),
@@ -190,6 +241,16 @@ upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalFie
     OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
     WhereIncrements = pgsql_ensure_increments(Table, IncrementalField),
     [Insert, OnConflict, WhereIncrements].
+
+upsert_many_mysql_query(RecordCount, Table, InsertFields, Updates, [Key | _]) ->
+    Insert = mysql_and_pgsql_insert_many(RecordCount, Table, InsertFields),
+    OnConflict = mysql_on_conflict(Table, Updates, Key, none),
+    [Insert, OnConflict].
+
+upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
+    Insert = mysql_and_pgsql_insert_many(RecordCount, Table, InsertFields),
+    OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
+    [Insert, OnConflict].
 
 mysql_on_conflict(_Table, [], Key, _) ->
     %% Update field to itself (no-op), there is no 'DO NOTHING' in MySQL
@@ -246,6 +307,22 @@ upsert_mssql_query(Table, InsertFields, Updates, UniqueKeyFields) ->
      " WHEN NOT MATCHED THEN INSERT"
        " (", JoinedInsertFields, ")"
          " VALUES (", join(Placeholders, ", "), ")" | mssql_on_conflict(Updates)].
+
+upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
+    UniqueKeysInSelect = [[" ? AS ", Key] || Key <- UniqueKeyFields],
+    BinTab = atom_to_binary(Table, utf8),
+    UniqueConstraint = [[BinTab, ".", Key, " = source.", Key] || Key <- UniqueKeyFields],
+    JoinedInsertFields = join(InsertFields, ", "),
+    Placeholders = lists:duplicate(length(InsertFields), $?),
+    Values = ["(", join(Placeholders, ", "), ")"],
+    ManyValues = join(lists:duplicate(RecordCount, Values), ", "),
+    ["MERGE INTO ", BinTab, " WITH (SERIALIZABLE)"
+     " USING (SELECT ", join(UniqueKeysInSelect, ", "), ")"
+            " AS source (", join(UniqueKeyFields, ", "), ")"
+        " ON (", join(UniqueConstraint, " AND "), ")"
+     " WHEN NOT MATCHED THEN INSERT"
+       " (", JoinedInsertFields, ")"
+         " VALUES ", ManyValues | mssql_on_conflict(Updates)].
 
 mssql_on_conflict([]) -> ";";
 mssql_on_conflict(Updates) ->
