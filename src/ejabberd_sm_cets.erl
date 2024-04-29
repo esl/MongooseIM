@@ -80,10 +80,11 @@ cleanup(Node) ->
     %% This is a full table scan, but cleanup is rare.
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
     cets:delete_many(?TABLE, [Key || {Key, _, _} <- Tuples]),
-    lists:foreach(fun(Tuple) ->
-                          Session = tuple_to_session(Tuple),
-                          ejabberd_sm:run_session_cleanup_hook(Session)
-                  end, Tuples).
+    Sessions = tuples_to_sessions(Tuples),
+    ejabberd_sm:sessions_cleanup(Sessions),
+    lists:foreach(fun(Session) ->
+                          ejabberd_sm:session_cleanup(Session)
+                  end, Sessions).
 
 -spec total_count() -> integer().
 total_count() ->

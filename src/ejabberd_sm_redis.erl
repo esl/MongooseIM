@@ -116,7 +116,7 @@ cleanup(Node) ->
 maybe_initial_cleanup(Node, Initial) ->
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(Node)]),
     mongoose_redis:cmd(["DEL", n(Node)]),
-    lists:foreach(fun(H) ->
+    Sessions = lists:map(fun(H) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
                           %% Add possible removed ":" from encoded SID
                           SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
@@ -125,10 +125,12 @@ maybe_initial_cleanup(Node, Initial) ->
                               true ->
                                   ok;
                               false ->
-                                  ejabberd_sm:run_session_cleanup_hook(#session{usr = {U, S, R},
-                                                                                sid = SID})
+                                  Session = #session{usr = {U, S, R}, sid = SID},
+                                  ejabberd_sm:session_cleanup(Session),
+                                  Session
                           end
-                  end, Hashes).
+                  end, Hashes),
+    ejabberd_sm:sessions_cleanup(Sessions).
 
 -spec total_count() -> integer().
 total_count() ->
