@@ -325,12 +325,17 @@ handle_mam_iq(HostType, Action, From, To, IQ) ->
 handle_set_prefs(HostType, ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = mod_mam_utils:parse_prefs(PrefsEl),
+    % In MUC, preference elements resemble JID structures formatted as <room@service/nick>.
+    % Since nicknames are restricted to lowercase characters, storing preferences with 
+    % uppercase nicknames in the database would be incorrect.
+    AlwaysList = lists:map(fun(Element) -> binary_to_lowercase(Element) end, AlwaysJIDs),
+    NeverList = lists:map(fun(Element) -> binary_to_lowercase(Element) end, NeverJIDs),
     ?LOG_DEBUG(#{what => mam_muc_set_prefs, archive_jid => ArcJID,
                  default_mode => DefaultMode,
-                 always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
+                 always_jids => AlwaysList, never_jids => NeverList, iq => IQ}),
     ArcID = archive_id_int(HostType, ArcJID),
-    Res = set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
-    handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
+    Res = set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysList, NeverList),
+    handle_set_prefs_result(Res, DefaultMode, AlwaysList, NeverList, IQ).
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
     ResultPrefsEl = mod_mam_utils:result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
@@ -559,6 +564,10 @@ archive_message(HostType, Params) ->
 
 %% ----------------------------------------------------------------------
 %% Helpers
+
+-spec binary_to_lowercase(binary()) -> binary().
+binary_to_lowercase(Binary) ->
+    binary:list_to_bin(string:to_lower(binary:bin_to_list(Binary))).
 
 -spec message_row_to_xml(binary(), jid:jid(), boolean(), boolean(), row(), binary() | undefined) ->
                                 exml:element().

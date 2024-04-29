@@ -98,7 +98,9 @@
          data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
+         muc_run_prefs_case/6,
          prefs_cases2/0,
+         prefs_cases2_muc/0,
          default_policy/1,
          get_all_messages/2,
          parse_messages/1,
@@ -492,7 +494,10 @@ muc_prefs_cases() ->
     [muc_prefs_set_request,
      muc_prefs_set_request_not_an_owner,
      muc_prefs_set_cdata_request,
-     muc_query_get_request].
+     muc_query_get_request,
+     muc_messages_filtered_when_prefs_default_policy_is_always,
+     muc_messages_filtered_when_prefs_default_policy_is_never,
+     muc_messages_filtered_when_prefs_default_policy_is_roster].
 
 impl_specific() ->
     [check_user_exist,
@@ -562,7 +567,16 @@ init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
     
 init_per_group(muc_prefs_cases, Config) ->
-    Config;
+    MamOpts = ?config(mam_meta_opts, Config),
+    #{backend := Backend, user_prefs_store := PrefsStore} = MamOpts,
+    case mam_prefs_backend_module(Backend, PrefsStore) of
+        {error, _} -> 
+            {skip, "Database not supported"};
+        MamPrefsBackendModule ->
+            Config1 = dynamic_modules:save_modules(host_type(), Config),
+            dynamic_modules:restart(host_type(), MamPrefsBackendModule, #{muc => true, pm => true}),
+            Config1
+    end;
 init_per_group(nostore, Config) ->
     Config;
 init_per_group(archived, Config) ->
@@ -609,6 +623,7 @@ do_init_per_group(C, ConfigIn) ->
     end.
 
 end_per_group(muc_prefs_cases, Config) ->
+    dynamic_modules:restore_modules(Config),
     Config;
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
@@ -656,6 +671,15 @@ maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
     [{wait_for_parallel_writer, Types} | Config];
 maybe_set_wait(_C, _, Config) ->
     Config.
+
+mam_prefs_backend_module(rdbms, _) ->
+    mod_mam_rdbms_prefs;
+mam_prefs_backend_module(cassandra, cassandra) ->
+    mod_mam_cassandra_prefs;
+mam_prefs_backend_module(_, mnesia) ->
+    mod_mam_mnesia_prefs;
+mam_prefs_backend_module(_, _) ->
+    {error, wrong_db}.
 
 mam_opts_for_conf(elasticsearch) ->
     #{backend => elasticsearch,
@@ -3503,6 +3527,15 @@ messages_filtered_when_prefs_default_policy_is_never(Config) ->
 messages_filtered_when_prefs_default_policy_is_roster(Config) ->
     run_prefs_cases(roster, Config).
 
+muc_messages_filtered_when_prefs_default_policy_is_always(Config) ->
+    muc_run_prefs_cases(always, Config).
+
+muc_messages_filtered_when_prefs_default_policy_is_never(Config) ->
+    muc_run_prefs_cases(never, Config).
+
+muc_messages_filtered_when_prefs_default_policy_is_roster(Config) ->
+    muc_run_prefs_cases(roster, Config).
+
 
 -spec enter_room(Config :: proplists:proplist(), [User :: term()]) ->
     {Room :: binary(), RoomAddr  :: binary()}.
@@ -3536,6 +3569,36 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
         ?assert_equal([], Fails)
         end,
     escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+muc_run_prefs_cases(DefaultPolicy, ConfigIn) ->
+    P = ?config(props, ConfigIn),
+    F = fun(Config, Alice, Bob, Kate) ->
+        %% Just send messages for each prefs configuration
+        Namespace = mam_ns_binary_v04(),
+        Funs = [muc_run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config)
+                || Case <- prefs_cases2_muc(),
+                default_policy(Case) =:= DefaultPolicy],
+
+        maybe_wait_for_archive(Config),
+
+        %% Get ALL messages using several queries if required
+        
+        Room = ?config(room, Config),
+        IQ = stanza_archive_request([{mam_ns, <<"urn:xmpp:mam:1">>}], <<>>),
+        escalus:send(Alice, stanza_to_room(IQ, Room)),
+        Data = wait_archive_respond(Alice),
+
+        ParsedMessages = parse_messages(Data#mam_archive_respond.respond_messages),
+        Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
+
+        %% Check messages, print out all failed cases
+        Fails = lists:append([Fun(Bodies) || Fun <- Funs]),
+        %% If fails consult with ct:pal/2 why
+        ?assert_equal([], Fails)
+        end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->
