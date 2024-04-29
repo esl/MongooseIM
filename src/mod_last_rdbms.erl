@@ -15,6 +15,8 @@
 -behaviour(mod_last_backend).
 
 -include("mongoose.hrl").
+-include("session.hrl").
+-include("mongoose_logger.hrl").
 
 %% API
 -export([init/2,
@@ -43,10 +45,13 @@ prepare_queries(HostType) ->
                            <<"DELETE FROM last WHERE server = ? AND username = ?">>),
     mongoose_rdbms:prepare(last_remove_domain, last, [server],
                             <<"DELETE FROM last WHERE server = ?">>),
-    rdbms_queries:prepare_upsert(HostType, last_upsert, last,
-                                 [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
-                                 [<<"seconds">>, <<"state">>],
-                                 [<<"server">>, <<"username">>]).
+    Ins = [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+    Upd = [<<"seconds">>, <<"state">>],
+    Key = [<<"server">>, <<"username">>],
+    rdbms_queries:prepare_upsert(HostType, last_upsert, last, Ins, Upd, Key),
+    rdbms_queries:prepare_upsert_many(HostType, 10, last_upsert_many10, last, Ins, Upd, Key),
+    rdbms_queries:prepare_upsert_many(HostType, 100, last_upsert_many100, last, Ins, Upd, Key),
+    ok.
 
 -spec execute_get_last(host_type(), jid:lserver(), jid:luser()) -> mongoose_rdbms:query_result().
 execute_get_last(HostType, LServer, LUser) ->
@@ -85,8 +90,9 @@ count_active_users(HostType, LServer, Seconds) ->
 
 -spec session_cleanup(host_type(), jid:luser(), jid:lserver(), mod_last:timestamp(), mod_last:status()) ->
           ok | {error, term()}.
-session_cleanup(HostType, LUser, LServer, Seconds, State) ->
-    wrap_rdbms_result(execute_upsert_last(HostType, LServer, LUser, Seconds, State)).
+session_cleanup(_HostType, _LUser, _LServer, _Seconds, _State) ->
+    %% Cleaning is done in sessions_cleanup
+    ok.
 
 -spec set_last_info(host_type(), jid:luser(), jid:lserver(), mod_last:timestamp(), mod_last:status()) ->
           ok | {error, term()}.
@@ -113,5 +119,60 @@ wrap_rdbms_result({error, _} = Error) -> Error;
 wrap_rdbms_result(_) -> ok.
 
 -spec sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) -> ok.
-sessions_cleanup(_HostType, _Sessions) ->
+sessions_cleanup(HostType, Sessions) ->
+    Seconds = erlang:system_time(second),
+    %% server, username, seconds, state
+    Records = [[S, U, Seconds, <<>>] || #session{usr = {U, S, _}} <- Sessions],
+    %% PgSQL would complain if there are duplicates (i.e. when there are two sessions
+    %% with the same name but different resources)
+    Records2 = lists:usort(Records),
+    UpdateParams = [Seconds, <<>>],
+    UniqueKeyValues = [],
+    {Singles, Many100} = bucketize(100, Records2, []),
+    {Singles2, Many10} = bucketize(10, Singles, []),
+    %% Prepare data for queries
+    Tasks =
+        [{100, last_upsert_many100, lists:append(Batch)} || Batch <- Many100] ++
+        [{10, last_upsert_many10, lists:append(Batch)} || Batch <- Many10] ++
+        [{1, last_upsert, Rec} || Rec <- Singles2],
+    RunTask = fun({Count, QueryName, InsertParams}) ->
+        {updated, Count} = rdbms_queries:execute_upsert(HostType, QueryName,
+                                     InsertParams, UpdateParams, UniqueKeyValues)
+        end,
+    %% Run tasks in parallel
+    RunTasks = fun(TasksList) -> lists:map(RunTask, TasksList) end,
+    Workers = 8,
+    BatchSize = length(Tasks) div Workers,
+    Batches = smear(BatchSize, Tasks),
+    Results = mongoose_lib:pmap(RunTasks, Batches, timer:minutes(1)),
+    [check_result(Res) || Res <- Results],
     ok.
+
+check_result({ok, Results}) ->
+    lists:foreach(fun({updated, _}) -> ok end, Results),
+    ok;
+check_result({error, Reason}) ->
+    ?LOG_ERROR(#{what => session_cleanup_failed, reason => Reason}).
+
+%% Create chunks of size N
+bucketize(N, Records, Acc) ->
+    try
+        lists:split(N, Records)
+    of
+        {Batch, Records2} ->
+            bucketize(N, Records2, [Batch | Acc])
+    catch error:badarg ->
+         {Records, Acc}
+    end.
+
+%% Spread elements into buckets one element at a time before moving to the next bucket
+smear(N, Tasks) ->
+    Buckets = lists:duplicate(N, []),
+    smear(Tasks, Buckets, []).
+
+smear([Task | Tasks], [Bucket | Buckets], Acc) ->
+    smear(Tasks, Buckets, [[Task | Bucket] | Acc]);
+smear([], Buckets, Acc) ->
+   Buckets ++ Acc;
+smear(Tasks, [], Acc) ->
+    smear(Tasks, lists:reverse(Acc), []).

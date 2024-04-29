@@ -373,7 +373,7 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
 -spec sessions_cleanup(mongooseim:host_type(), ejabberd_sm:session()) -> map().
 sessions_cleanup(HostType, Sessions) ->
     Params = #{sessions => Sessions},
-    run_hook_for_host_type(sessions_cleanup, HostType, #{}, Params).
+    run_hook_for_host_type(sessions_cleanup, HostType, #{host_type => HostType}, Params).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
 -spec set_vcard(HostType, UserJID, VCard) -> Result when

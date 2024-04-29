@@ -19,6 +19,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(config_parser_helper, [mod_config_with_auto_backend/2]).
 
@@ -37,7 +38,7 @@ groups() ->
 valid_test_cases() -> [online_user_query,
                        last_online_user,
                        last_offline_user,
-                       last_server].
+                       last_server, sessions_cleanup].
 
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
@@ -169,6 +170,35 @@ user_not_subscribed_receives_error(Config) ->
         ok
     end).
 
+sessions_cleanup(Config) ->
+    N = distributed_helper:mim(),
+    HostType = domain_helper:host_type(),
+    Server = domain_helper:domain(),
+    CreateUser = fun(Name) ->
+        SID = {erlang:system_time(microsecond), spawn(fun() -> ok end)},
+        JID = mongoose_helper:make_jid(Name, Server, <<"res">>),
+        Priority = 0,
+        Info = #{},
+        distributed_helper:rpc(N, ejabberd_sm, open_session, [HostType, SID, JID, Priority, Info])
+        end,
+    Names = [<<"user", (list_to_binary((integer_to_list(X))))/binary>> || X <- lists:seq(1, 345)],
+    measure("create users", fun() ->
+            lists:foreach(CreateUser, Names)
+        end),
+    %% Check that user3 is properly updated
+    %% User should be registered if we want to use mod_last_api
+    {ok, _} = distributed_helper:rpc(N, mongoose_account_api, register_user, [<<"user3">>, Server, <<"secret123">>]),
+    Jid3 = mongoose_helper:make_jid(<<"user3">>, Server, <<>>),
+    {ok, _} = distributed_helper:rpc(N, mod_last_api, set_last, [Jid3, 1714000000, <<"old status">>]),
+    {ok, #{timestamp := 1714000000}} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
+    measure("node cleanup", fun() ->
+            distributed_helper:rpc(N#{timeout => timer:minutes(1)}, mongoose_hooks, node_cleanup, [node()])
+        end),
+    {ok, #{timestamp := TS, status := Status} = Data} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
+    ?assertNotEqual(TS, 1714000000, Data),
+    ?assertEqual(Status, <<>>, Data),
+    ok.
+
 
 %%-----------------------------------------------------------------
 %% Helpers
@@ -193,3 +223,8 @@ answer_last_activity(IQ = #xmlel{name = <<"iq">>}) ->
 
 required_modules() ->
     [{mod_last, mod_config_with_auto_backend(mod_last, #{iqdisc => one_queue})}].
+
+measure(Text, F) ->
+    {Time, _} = timer:tc(F),
+    ct:pal("Time  ~ts = ~p", [Text, Time]),
+    ok.
