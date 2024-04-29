@@ -27,7 +27,7 @@
          remove_user/3,
          resend_offline_messages_hook/2,
          session_cleanup/5,
-         sessions_cleanup/1,
+         sessions_cleanup/2,
          set_vcard/3,
          unacknowledged_message/2,
          filter_unacknowledged_messages/3,
@@ -370,10 +370,10 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(session_cleanup, HostType, Acc, Params).
 
--spec sessions_cleanup(ejabberd_sm:session()) -> map().
-sessions_cleanup(Sessions) ->
+-spec sessions_cleanup(mongooseim:host_type(), ejabberd_sm:session()) -> map().
+sessions_cleanup(HostType, Sessions) ->
     Params = #{sessions => Sessions},
-    run_global_hook(sessions_cleanup, #{}, Params).
+    run_hook_for_host_type(sessions_cleanup, HostType, #{}, Params).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
 -spec set_vcard(HostType, UserJID, VCard) -> Result when

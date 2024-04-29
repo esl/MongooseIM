@@ -21,8 +21,10 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
+         session_cleanup/5,
          remove_user/3,
-         remove_domain/2]).
+         remove_domain/2,
+         sessions_cleanup/2]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -81,8 +83,12 @@ count_active_users(HostType, LServer, Seconds) ->
     Result = execute_count_active_users(HostType, LServer, Seconds),
     mongoose_rdbms:selected_to_integer(Result).
 
--spec set_last_info(host_type(), jid:luser(), jid:lserver(),
-                    mod_last:timestamp(), mod_last:status()) ->
+-spec session_cleanup(host_type(), jid:luser(), jid:lserver(), mod_last:timestamp(), mod_last:status()) ->
+          ok | {error, term()}.
+session_cleanup(HostType, LUser, LServer, Seconds, State) ->
+    wrap_rdbms_result(execute_upsert_last(HostType, LServer, LUser, Seconds, State)).
+
+-spec set_last_info(host_type(), jid:luser(), jid:lserver(), mod_last:timestamp(), mod_last:status()) ->
           ok | {error, term()}.
 set_last_info(HostType, LUser, LServer, Seconds, State) ->
     wrap_rdbms_result(execute_upsert_last(HostType, LServer, LUser, Seconds, State)).
@@ -105,3 +111,7 @@ decode_last_result({selected, [{DbSeconds, State}]}) ->
 -spec wrap_rdbms_result({error, term()} | any()) -> ok | {error, term()}.
 wrap_rdbms_result({error, _} = Error) -> Error;
 wrap_rdbms_result(_) -> ok.
+
+-spec sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) -> ok.
+sessions_cleanup(_HostType, _Sessions) ->
+    ok.
