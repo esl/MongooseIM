@@ -128,8 +128,8 @@ sessions_cleanup(HostType, Sessions) ->
     Records2 = lists:usort(Records),
     UpdateParams = [Seconds, <<>>],
     UniqueKeyValues = [],
-    {Singles, Many100} = bucketize(100, Records2, []),
-    {Singles2, Many10} = bucketize(10, Singles, []),
+    {Singles, Many100} = bucketize(100, Records2),
+    {Singles2, Many10} = bucketize(10, Singles),
     %% Prepare data for queries
     Tasks =
         [{100, last_upsert_many100, lists:append(Batch)} || Batch <- Many100] ++
@@ -143,7 +143,7 @@ sessions_cleanup(HostType, Sessions) ->
     RunTasks = fun(TasksList) -> lists:map(RunTask, TasksList) end,
     Workers = 8,
     BatchSize = length(Tasks) div Workers,
-    Batches = smear(BatchSize, Tasks),
+    Batches = spread(BatchSize, Tasks),
     Results = mongoose_lib:pmap(RunTasks, Batches, timer:minutes(1)),
     [check_result(Res) || Res <- Results],
     ok.
@@ -155,6 +155,9 @@ check_result({error, Reason}) ->
     ?LOG_ERROR(#{what => session_cleanup_failed, reason => Reason}).
 
 %% Create chunks of size N
+bucketize(N, Records) ->
+    bucketize(N, Records, []).
+
 bucketize(N, Records, Acc) ->
     try
         lists:split(N, Records)
@@ -162,17 +165,28 @@ bucketize(N, Records, Acc) ->
         {Batch, Records2} ->
             bucketize(N, Records2, [Batch | Acc])
     catch error:badarg ->
-         {Records, Acc}
+         {Records, lists:reverse(Acc)}
     end.
 
 %% Spread elements into buckets one element at a time before moving to the next bucket
-smear(N, Tasks) ->
+spread(N, Tasks) ->
     Buckets = lists:duplicate(N, []),
-    smear(Tasks, Buckets, []).
+    spread(lists:reverse(Tasks), Buckets, []).
 
-smear([Task | Tasks], [Bucket | Buckets], Acc) ->
-    smear(Tasks, Buckets, [[Task | Bucket] | Acc]);
-smear([], Buckets, Acc) ->
-   Buckets ++ Acc;
-smear(Tasks, [], Acc) ->
-    smear(Tasks, lists:reverse(Acc), []).
+spread([Task | Tasks], [Bucket | Buckets], Acc) ->
+    spread(Tasks, Buckets, [[Task | Bucket] | Acc]);
+spread([], Buckets, Acc) ->
+   Acc ++ lists:reverse(Buckets);
+spread(Tasks, [], Acc) ->
+    spread(Tasks, lists:reverse(Acc), []).
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+bucketize_test_() ->
+    [?_assertEqual({[10], [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}, bucketize(3, lists:seq(1, 10)))].
+
+spread_test_() ->
+    [?_assertEqual([[1, 4, 7, 10], [2, 5, 8], [3, 6, 9]], spread(3, lists:seq(1, 10))),
+     ?_assertEqual([[1, 6], [2, 7], [3, 8], [4, 9], [5, 10]], spread(5, lists:seq(1, 10))),
+     ?_assertEqual([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10]], spread(2, lists:seq(1, 10)))].
+-endif.
