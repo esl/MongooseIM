@@ -279,8 +279,8 @@ session_cleanup(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
     {ok, session_cleanup(Acc, LUser, LServer, <<>>)}.
 
 -spec sessions_cleanup(Acc, Params, Extra) -> {ok, Acc} when
-    Acc :: mongoose_acc:t(),
-    Params :: #{sessions := ejabberd_sm:session()},
+    Acc :: map(),
+    Params :: #{sessions := [ejabberd_sm:session()]},
     Extra :: gen_hook:extra().
 sessions_cleanup(Acc = #{host_type := HostType}, #{sessions := Sessions}, _) ->
     mod_last_backend:sessions_cleanup(HostType, Sessions),

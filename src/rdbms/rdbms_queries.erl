@@ -196,13 +196,6 @@ upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, Incrementa
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
--spec upsert_query_many(HostType :: mongooseim:host_type_or_global(),
-                        RecordCount :: pos_integer(),
-                        TableName :: atom(),
-                        InsertFields :: [binary()],
-                        Updates :: [binary() | {assignment | expression, binary(), binary()}],
-                        UniqueKeyFields :: [binary()]) ->
-    {ok, QueryName :: mongoose_rdbms:query_name()} | {error, already_exists}.
 upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->

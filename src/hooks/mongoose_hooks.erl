@@ -370,7 +370,7 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(session_cleanup, HostType, Acc, Params).
 
--spec sessions_cleanup(mongooseim:host_type(), ejabberd_sm:session()) -> map().
+-spec sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) -> map().
 sessions_cleanup(HostType, Sessions) ->
     Params = #{sessions => Sessions},
     run_hook_for_host_type(sessions_cleanup, HostType, #{host_type => HostType}, Params).

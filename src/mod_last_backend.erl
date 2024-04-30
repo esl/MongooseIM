@@ -35,6 +35,9 @@
             mod_last:timestamp(),
             mod_last:status()) -> ok | {error, term()}.
 
+-callback sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) ->
+    ok | {error, term()}.
+
 -callback remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
     ok | {error, term()}.
 

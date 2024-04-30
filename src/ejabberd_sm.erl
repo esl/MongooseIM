@@ -365,7 +365,7 @@ session_cleanup(#session{usr = {U, S, R}, sid = SID}) ->
               element => undefined}),
     mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
 
--spec sessions_cleanup(#session{}) -> mongoose_acc:t().
+-spec sessions_cleanup([#session{}]) -> ok.
 sessions_cleanup(Sessions) ->
     SerSess = [{Server, Session} || Session = #session{usr = {_, Server, _}} <- Sessions],
     Servers = lists:usort([Server || {Server, _Session} <- SerSess]),
