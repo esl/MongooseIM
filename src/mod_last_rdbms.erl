@@ -135,8 +135,11 @@ sessions_cleanup(HostType, Sessions) ->
         [{100, last_upsert_many100, lists:append(Batch)} || Batch <- Many100] ++
         [{10, last_upsert_many10, lists:append(Batch)} || Batch <- Many10] ++
         [{1, last_upsert, Rec} || Rec <- Singles2],
-    RunTask = fun({Count, QueryName, InsertParams}) ->
-        {updated, Count} = rdbms_queries:execute_upsert(HostType, QueryName,
+    RunTask = fun({1, QueryName, InsertParams}) ->
+        {updated, 1} = rdbms_queries:execute_upsert(HostType, QueryName,
+                                     InsertParams, UpdateParams, UniqueKeyValues);
+                 ({Count, QueryName, InsertParams}) ->
+        {updated, Count} = rdbms_queries:execute_upsert_many(HostType, QueryName,
                                      InsertParams, UpdateParams, UniqueKeyValues)
         end,
     %% Run tasks in parallel
