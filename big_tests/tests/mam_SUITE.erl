@@ -573,6 +573,7 @@ init_per_group(muc_prefs_cases, Config) ->
         {error, _} -> 
             {skip, "Database not supported"};
         MamPrefsBackendModule ->
+            io:format("module: ~p", [MamPrefsBackendModule]),
             Config1 = dynamic_modules:save_modules(host_type(), Config),
             dynamic_modules:restart(host_type(), MamPrefsBackendModule, #{muc => true, pm => true}),
             Config1
@@ -672,7 +673,7 @@ maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
 maybe_set_wait(_C, _, Config) ->
     Config.
 
-mam_prefs_backend_module(rdbms, _) ->
+mam_prefs_backend_module(rdbms, rdbms) ->
     mod_mam_rdbms_prefs;
 mam_prefs_backend_module(cassandra, cassandra) ->
     mod_mam_cassandra_prefs;

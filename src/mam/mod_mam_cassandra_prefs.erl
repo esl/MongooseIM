@@ -35,6 +35,7 @@
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
+    ?LOG_DEBUG(#{what => cassandra_prefs_starting}),
     gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(host_type()) -> ok.
@@ -46,6 +47,7 @@ stop(HostType) ->
 %% Hooks
 
 hooks(HostType, Opts) ->
+    ?LOG_DEBUG(#{what => cassandra_prefs_starting}),
     lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
 hooks(HostType, pm, #{pm := true}) ->
@@ -121,8 +123,16 @@ set_prefs(_Result,
           #{owner := UserJID, default_mode := DefaultMode, always_jids := AlwaysJIDs,
             never_jids := NeverJIDs},
           #{host_type := HostType}) ->
+            set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs);
+set_prefs(_Result,
+          #{room := UserJID, default_mode := DefaultMode, always_jids := AlwaysJIDs,
+            never_jids := NeverJIDs},
+          #{host_type := HostType}) ->
+            set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs).
+
+set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
-        {ok, set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)}
+        {ok, set_prefs2(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)}
     catch Type:Error:StackTrace ->
               ?LOG_ERROR(#{what => mam_set_prefs_failed,
                            user_jid => UserJID, default_mode => DefaultMode,
@@ -131,7 +141,7 @@ set_prefs(_Result,
             {ok, {error, Error}}
     end.
 
-set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs2(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     %% Force order of operations using timestamps
     %% http://stackoverflow.com/questions/30317877/cassandra-batch-statement-execution-order
@@ -160,12 +170,16 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
     Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
     Extra :: gen_hook:extra().
 get_prefs({GlobalDefaultMode, _, _}, #{owner := UserJID}, #{host_type := HostType}) ->
+    get_prefs2(GlobalDefaultMode, UserJID, HostType);
+get_prefs({GlobalDefaultMode, _, _}, #{room := UserJID}, #{host_type := HostType}) ->
+    get_prefs2(GlobalDefaultMode, UserJID, HostType).
+
+get_prefs2(GlobalDefaultMode, UserJID, HostType) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
     {ok, Rows} = mongoose_cassandra:cql_read(pool_name(HostType), UserJID, ?MODULE,
                                              get_prefs_query, Params),
     {ok, decode_prefs_rows(Rows, GlobalDefaultMode, [], [])}.
-
 
 -spec remove_archive(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: term(),
