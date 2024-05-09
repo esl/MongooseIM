@@ -127,7 +127,7 @@ execute_upsert_many(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues)
 execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
-            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
+            mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
         {pgsql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
@@ -225,7 +225,7 @@ upsert_query(HostType, Table, InsertFields, Updates, UniqueKeyFields, Incrementa
 upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
-            upsert_many_mysql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
+            upsert_many_mysql_query(RecordCount, Table, InsertFields);
         {pgsql, _} ->
             upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields);
         {odbc, mssql} ->
@@ -242,7 +242,7 @@ mysql_and_pgsql_insert(Table, Columns) ->
      join(Placeholders, ", "),
      ")"].
 
-mysql_and_pgsql_insert_many(RecordCount, Table, Columns) ->
+pgsql_insert_many(RecordCount, Table, Columns) ->
     JoinedFields = join(Columns, <<", ">>),
     Placeholders = lists:duplicate(length(Columns), $?),
     Values = ["(", join(Placeholders, ", "), ")"],
@@ -261,13 +261,17 @@ upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalFie
     WhereIncrements = pgsql_ensure_increments(Table, IncrementalField),
     [Insert, OnConflict, WhereIncrements].
 
-upsert_many_mysql_query(RecordCount, Table, InsertFields, Updates, [Key | _]) ->
-    Insert = mysql_and_pgsql_insert_many(RecordCount, Table, InsertFields),
-    OnConflict = mysql_on_conflict(Table, Updates, Key, none),
-    [Insert, OnConflict].
+upsert_many_mysql_query(RecordCount, Table, InsertFields) ->
+    TableName = atom_to_list(Table),
+    Columns = join(InsertFields, ", "),
+    Placeholders = lists:duplicate(length(InsertFields), $?),
+    Values = ["(", join(Placeholders, ", "), ")"],
+    ManyValues = join(lists:duplicate(RecordCount, Values), ", "),
+    ["REPLACE INTO ", TableName, " (", Columns, ") ",
+     " VALUES ", ManyValues].
 
 upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
-    Insert = mysql_and_pgsql_insert_many(RecordCount, Table, InsertFields),
+    Insert = pgsql_insert_many(RecordCount, Table, InsertFields),
     OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
     [Insert, OnConflict].
 
