@@ -136,10 +136,11 @@ sessions_cleanup(HostType, Sessions) ->
         [{10, last_upsert_many10, lists:append(Batch)} || Batch <- Many10] ++
         [{1, last_upsert, Rec} || Rec <- Singles2],
     RunTask = fun({1, QueryName, InsertParams}) ->
-        {updated, 1} = rdbms_queries:execute_upsert(HostType, QueryName,
+        {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
                                      InsertParams, UpdateParams, UniqueKeyValues);
-                 ({Count, QueryName, InsertParams}) ->
-        {updated, Count} = rdbms_queries:execute_upsert_many(HostType, QueryName,
+                 ({_Count1, QueryName, InsertParams}) ->
+        %% MySQL replace returns wrong numbers
+        {updated, _Count2} = rdbms_queries:execute_upsert_many(HostType, QueryName,
                                      InsertParams, UpdateParams, UniqueKeyValues)
         end,
     %% Run tasks in parallel
