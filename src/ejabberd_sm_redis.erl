@@ -76,18 +76,19 @@ get_sessions(User, Server, Resource) ->
                   Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 set_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
+    Node = sid_to_node(Session#session.sid),
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->
             BOldSession = term_to_binary(OldSession),
             BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+            mongoose_redis:cmds([["SADD", n(Node), hash(User, Server, Resource, Session#session.sid)],
                                  ["SREM", hash(User, Server), BOldSession],
                                  ["SREM", hash(User, Server, Resource), BOldSession],
                                  ["SADD", hash(User, Server), BSession],
                                  ["SADD", hash(User, Server, Resource), BSession]]);
         false ->
             BSession = term_to_binary(Session),
-            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+            mongoose_redis:cmds([["SADD", n(Node), hash(User, Server, Resource, Session#session.sid)],
                                  ["SADD", hash(User, Server), BSession],
                                  ["SADD", hash(User, Server, Resource), BSession]])
     end.
@@ -103,7 +104,7 @@ delete_session(SID, User, Server, Resource) ->
             BSession = term_to_binary(Session),
             mongoose_redis:cmds([["SREM", hash(User, Server), BSession],
                                  ["SREM", hash(User, Server, Resource), BSession],
-                                 ["SREM", n(node()), hash(User, Server, Resource, SID)]]);
+                                 ["SREM", n(sid_to_node(SID)), hash(User, Server, Resource, SID)]]);
         false ->
             ok
     end.
@@ -162,3 +163,7 @@ hash(Val1, Val2, Val3, Val4) ->
 -spec n(atom()) -> iolist().
 n(Node) ->
     ["n:", atom_to_list(Node)].
+
+sid_to_node(SID) ->
+    {_, Pid} = SID,
+    node(Pid).
