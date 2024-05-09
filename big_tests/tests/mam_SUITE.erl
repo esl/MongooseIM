@@ -573,7 +573,6 @@ init_per_group(muc_prefs_cases, Config) ->
         {error, _} -> 
             {skip, "Database not supported"};
         MamPrefsBackendModule ->
-            io:format("module: ~p", [MamPrefsBackendModule]),
             Config1 = dynamic_modules:save_modules(host_type(), Config),
             dynamic_modules:restart(host_type(), MamPrefsBackendModule, #{muc => true, pm => true}),
             Config1
@@ -3418,7 +3417,6 @@ muc_query_get_request(ConfigIn) ->
              {element, <<"field">>},
              {element, <<"value">>},
               cdata]),
-        io:format("~p", [ResponseXmlns]),
         ?assert_equal(QueryXmlns, ResponseXmlns)
         end,
     RoomOpts = [{persistent, true}],
