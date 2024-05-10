@@ -614,9 +614,8 @@ test_upsert_many1(Config) ->
                             [<<"server">>, <<"username">>]),
     Insert1 = [<<"localhost">>, <<"kate">>, 0, <<>>],
     Update = [0, <<>>],
-    Key = [],
     %% Records keys must be unique (i.e. we cannot insert alice twice)
-    {updated, 1} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update, Key).
+    {updated, 1} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update).
 
 test_upsert_many2(Config) ->
     erase_last(Config),
@@ -627,9 +626,8 @@ test_upsert_many2(Config) ->
     Insert1 = [<<"localhost">>, <<"alice">>, 0, <<>>],
     Insert2 = [<<"localhost">>, <<"bob">>, 0, <<>>],
     Update = [0, <<>>],
-    Key = [],
     %% Records keys must be unique (i.e. we cannot insert alice twice)
-    {updated, 2} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update, Key).
+    {updated, 2} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update).
 
 test_upsert_many1_replaces_existing(Config) ->
     erase_last(Config),
@@ -641,10 +639,9 @@ test_upsert_many1_replaces_existing(Config) ->
     Update1 = [0, <<>>],
     Insert2 = [<<"localhost">>, <<"kate">>, 10, <<>>],
     Update2 = [10, <<>>],
-    Key = [],
     %% Replace returns wrong numbers with MySQL (2 instead of 1, 4 instead of 2)
-    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update1, Key),
-    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert2, Update2, Key),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update1),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert2, Update2),
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}]}, selected_to_binary(SelectResult)).
 
@@ -660,10 +657,9 @@ test_upsert_many2_replaces_existing(Config) ->
     Insert4 = [<<"localhost">>, <<"bob">>, 10, <<>>],
     Update1 = [0, <<>>],
     Update3 = [10, <<>>],
-    Key = [],
     %% Records keys must be unique (i.e. we cannot insert alice twice)
-    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update1, Key),
-    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert3 ++ Insert4, Update3, Key),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update1),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert3 ++ Insert4, Update3),
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
 
@@ -738,9 +734,9 @@ sql_execute_upsert(Config, Name, Insert, Update, Unique) ->
     ScopeAndTag = scope_and_tag(Config),
     slow_rpc(rdbms_queries, execute_upsert, ScopeAndTag ++ [Name, Insert, Update, Unique]).
 
-sql_execute_upsert_many(Config, Name, Insert, Update, Unique) ->
+sql_execute_upsert_many(Config, Name, Insert, Update) ->
     ScopeAndTag = scope_and_tag(Config),
-    slow_rpc(rdbms_queries, execute_upsert_many, ScopeAndTag ++ [Name, Insert, Update, Unique]).
+    slow_rpc(rdbms_queries, execute_upsert_many, ScopeAndTag ++ [Name, Insert, Update]).
 
 sql_query_request(Config, Query) ->
     ScopeAndTag = scope_and_tag(Config),

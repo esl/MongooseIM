@@ -127,7 +127,6 @@ sessions_cleanup(HostType, Sessions) ->
     %% with the same name but different resources)
     Records2 = lists:usort(Records),
     UpdateParams = [Seconds, <<>>],
-    UniqueKeyValues = [],
     {Singles, Many100} = bucketize(100, Records2),
     {Singles2, Many10} = bucketize(10, Singles),
     %% Prepare data for queries
@@ -137,11 +136,11 @@ sessions_cleanup(HostType, Sessions) ->
         [{1, last_upsert, Rec} || Rec <- Singles2],
     RunTask = fun({1, QueryName, InsertParams}) ->
         {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
-                                     InsertParams, UpdateParams, UniqueKeyValues);
+                                     InsertParams, UpdateParams, []);
                  ({_Count1, QueryName, InsertParams}) ->
         %% MySQL replace returns wrong numbers
         {updated, _Count2} = rdbms_queries:execute_upsert_many(HostType, QueryName,
-                                     InsertParams, UpdateParams, UniqueKeyValues)
+                                     InsertParams, UpdateParams)
         end,
     %% Run tasks in parallel
     RunTasks = fun(TasksList) -> lists:map(RunTask, TasksList) end,

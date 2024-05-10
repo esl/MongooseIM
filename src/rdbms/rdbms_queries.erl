@@ -45,11 +45,12 @@
          prepare_upsert/7,
          prepare_upsert_many/7,
          execute_upsert/5, execute_upsert/6,
-         execute_upsert_many/5, execute_upsert_many/6,
+         execute_upsert_many/4, execute_upsert_many/5,
          request_upsert/5]).
 
 -ignore_xref([
     execute_upsert/6, count_records_where/3,
+    execute_upsert_many/5,
     get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
 ]).
 
@@ -113,18 +114,16 @@ execute_upsert(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyVal
 -spec execute_upsert_many(HostType :: mongooseim:host_type_or_global(),
                           Name :: atom(),
                           InsertParams :: [any()],
-                          UpdateParams :: [any()],
-                          UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert_many(HostType, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    execute_upsert_many(HostType, default, Name, InsertParams, UpdateParams, UniqueKeyValues).
+                          UpdateParams :: [any()]) -> mongoose_rdbms:query_result().
+execute_upsert_many(HostType, Name, InsertParams, UpdateParams) ->
+    execute_upsert_many(HostType, default, Name, InsertParams, UpdateParams).
 
 -spec execute_upsert_many(HostType :: mongooseim:host_type_or_global(),
                           PoolTag :: mongoose_wpool:tag(),
                           Name :: atom(),
                           InsertParams :: [any()],
-                          UpdateParams :: [any()],
-                          UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
-execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+                          UpdateParams :: [any()]) -> mongoose_rdbms:query_result().
+execute_upsert_many(HostType, PoolTag, Name, InsertParams, UpdateParams) ->
     case {mongoose_rdbms:db_engine(HostType), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(HostType, PoolTag, Name, InsertParams);
@@ -187,7 +186,7 @@ prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
         _ -> InsertFields ++ UpdateFields
     end.
 
-prepared_upsert_many_fields(RecordCount, InsertFields, Updates, UniqueKeyFields) ->
+prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields) ->
     InsertFieldsMany = lists:append(lists:duplicate(RecordCount, InsertFields)),
     UpdateFields = lists:filtermap(fun get_field_name/1, Updates),
     case mongoose_rdbms:db_type() of
