@@ -197,7 +197,8 @@ sessions_cleanup(Config) ->
     {ok, #{timestamp := TS, status := Status} = Data} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
     ?assertNotEqual(TS, 1714000000, Data),
     ?assertEqual(Status, <<>>, Data),
-    distributed_helper:rpc(N, mongoose_metrics, update, [HostType, sessionCount, -345]).
+    distributed_helper:rpc(N, mongoose_metrics, update, [HostType, sessionCount, -345]),
+    {ok, _} = distributed_helper:rpc(N, mongoose_account_api, unregister_user, [<<"user3">>, Server]).
 
 
 %%-----------------------------------------------------------------
