@@ -35,7 +35,6 @@
 
 -spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    ?LOG_DEBUG(#{what => cassandra_prefs_starting}),
     gen_hook:add_handlers(hooks(HostType, Opts)).
 
 -spec stop(host_type()) -> ok.
@@ -47,7 +46,6 @@ stop(HostType) ->
 %% Hooks
 
 hooks(HostType, Opts) ->
-    ?LOG_DEBUG(#{what => cassandra_prefs_starting}),
     lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
 hooks(HostType, pm, #{pm := true}) ->

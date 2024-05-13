@@ -3570,7 +3570,6 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
     escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 muc_run_prefs_cases(DefaultPolicy, ConfigIn) ->
-    P = ?config(props, ConfigIn),
     F = fun(Config, Alice, Bob, Kate) ->
         %% Just send messages for each prefs configuration
         Namespace = mam_ns_binary_v04(),

@@ -1343,7 +1343,7 @@ stanza_prefs_set_request_muc({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, 
 
 users_to_nick(Users, Config) ->
     Room = ?config(room, Config),
-    [muc_helper:room_address(Room, nick(escalus_users:get_jid(Config, User))) || User <- Users].
+    [muc_helper:room_address(Room, string:lowercase(nick(escalus_users:get_jid(Config, User)))) || User <- Users].
 
 users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].

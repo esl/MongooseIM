@@ -41,7 +41,6 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    ?LOG_ERROR(#{what => mnesia_prefs_starting}),
     mongoose_mnesia:create_table(mam_prefs,
         [{disc_copies, [node()]},
          {attributes, record_info(fields, mam_prefs)}]),
@@ -68,7 +67,6 @@ hooks(HostType, pm, #{pm := true}) ->
      {mam_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
      {mam_remove_archive, HostType, fun ?MODULE:remove_archive/3, #{}, 50}];
 hooks(HostType, muc, #{muc := true}) ->
-    ?LOG_ERROR(#{what => mnesia_prefs_starting_muc}),
     [{mam_muc_get_behaviour, HostType, fun ?MODULE:get_behaviour/3, #{}, 50},
      {mam_muc_get_prefs, HostType, fun ?MODULE:get_prefs/3, #{}, 50},
      {mam_muc_set_prefs, HostType, fun ?MODULE:set_prefs/3, #{}, 50},
