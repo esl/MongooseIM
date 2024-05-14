@@ -183,7 +183,8 @@ prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
     case mongoose_rdbms:db_type() of
         mssql ->
             UniqueKeyFields ++ InsertFields ++ UpdateFields;
-        _ -> InsertFields ++ UpdateFields
+        _ ->
+            InsertFields ++ UpdateFields
     end.
 
 prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields) ->
@@ -192,7 +193,8 @@ prepared_upsert_many_fields(RecordCount, InsertFields, Updates, _UniqueKeyFields
     case mongoose_rdbms:db_type() of
         mssql ->
             InsertFieldsMany;
-        _ -> InsertFieldsMany ++ UpdateFields
+        _ ->
+            InsertFieldsMany ++ UpdateFields
     end.
 
 -spec prepare_upsert_many(HostType :: mongooseim:host_type_or_global(),
@@ -232,16 +234,7 @@ upsert_query_many(HostType, RecordCount, Table, InsertFields, Updates, UniqueKey
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 
-mysql_and_pgsql_insert(Table, Columns) ->
-    JoinedFields = join(Columns, <<", ">>),
-    Placeholders = lists:duplicate(length(Columns), $?),
-    ["INSERT INTO ", atom_to_binary(Table, utf8), " (",
-     JoinedFields,
-     ") VALUES (",
-     join(Placeholders, ", "),
-     ")"].
-
-pgsql_insert_many(RecordCount, Table, Columns) ->
+mysql_and_pgsql_insert_many(RecordCount, Table, Columns) ->
     JoinedFields = join(Columns, <<", ">>),
     Placeholders = lists:duplicate(length(Columns), $?),
     Values = ["(", join(Placeholders, ", "), ")"],
@@ -250,12 +243,12 @@ pgsql_insert_many(RecordCount, Table, Columns) ->
      JoinedFields, ") VALUES ", ManyValues].
 
 upsert_mysql_query(Table, InsertFields, Updates, [Key | _], IncrementalField) ->
-    Insert = mysql_and_pgsql_insert(Table, InsertFields),
+    Insert = mysql_and_pgsql_insert_many(1, Table, InsertFields),
     OnConflict = mysql_on_conflict(Table, Updates, Key, IncrementalField),
     [Insert, OnConflict].
 
 upsert_pgsql_query(Table, InsertFields, Updates, UniqueKeyFields, IncrementalField) ->
-    Insert = mysql_and_pgsql_insert(Table, InsertFields),
+    Insert = mysql_and_pgsql_insert_many(1, Table, InsertFields),
     OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
     WhereIncrements = pgsql_ensure_increments(Table, IncrementalField),
     [Insert, OnConflict, WhereIncrements].
@@ -270,7 +263,7 @@ upsert_many_mysql_query(RecordCount, Table, InsertFields) ->
      " VALUES ", ManyValues].
 
 upsert_many_pgsql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFields) ->
-    Insert = pgsql_insert_many(RecordCount, Table, InsertFields),
+    Insert = mysql_and_pgsql_insert_many(RecordCount, Table, InsertFields),
     OnConflict = pgsql_on_conflict(Updates, UniqueKeyFields),
     [Insert, OnConflict].
 
@@ -349,7 +342,6 @@ upsert_many_mssql_query(RecordCount, Table, InsertFields, Updates, UniqueKeyFiel
 
 tgt_equals_new(Updates) ->
     join([["tgt.", ColumnName, "=new.", ColumnName] || ColumnName <- Updates], ", ").
-
 
 mssql_on_conflict([]) -> ";";
 mssql_on_conflict(Updates) ->
