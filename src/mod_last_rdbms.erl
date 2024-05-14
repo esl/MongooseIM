@@ -157,8 +157,7 @@ run_upsert(HostType, _Count, QueryName, InsertParams, UpdateParams) ->
                                  InsertParams, UpdateParams).
 
 check_result({ok, Results}) ->
-    lists:foreach(fun({updated, _}) -> ok end, Results),
-    ok;
+    lists:foreach(fun({updated, _}) -> ok end, Results);
 check_result({error, Reason}) ->
     ?LOG_ERROR(#{what => session_cleanup_failed, reason => Reason}).
 
@@ -173,7 +172,7 @@ bucketize(N, Records, Acc) ->
         {Batch, Records2} ->
             bucketize(N, Records2, [Batch | Acc])
     catch error:badarg ->
-         {Records, lists:reverse(Acc)}
+        {Records, lists:reverse(Acc)}
     end.
 
 %% Create N chunks
@@ -185,7 +184,7 @@ spread(N, Tasks) ->
 spread([Task | Tasks], [Bucket | Buckets], Acc) ->
     spread(Tasks, Buckets, [[Task | Bucket] | Acc]);
 spread([], Buckets, Acc) ->
-   Acc ++ lists:reverse(Buckets);
+    Acc ++ lists:reverse(Buckets);
 spread(Tasks, [], Acc) ->
     spread(Tasks, lists:reverse(Acc), []).
 
