@@ -130,26 +130,28 @@ sessions_cleanup(HostType, Sessions) ->
     {Singles, Many100} = bucketize(100, Records2),
     {Singles2, Many10} = bucketize(10, Singles),
     %% Prepare data for queries
-    Tasks =
+    AllTasks =
         [{100, last_upsert_many100, lists:append(Batch)} || Batch <- Many100] ++
         [{10, last_upsert_many10, lists:append(Batch)} || Batch <- Many10] ++
         [{1, last_upsert, Rec} || Rec <- Singles2],
-    RunTask = fun({1, QueryName, InsertParams}) ->
-        {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
-                                     InsertParams, UpdateParams, []);
-                 ({_Count1, QueryName, InsertParams}) ->
-        %% MySQL replace returns wrong numbers
-        {updated, _Count2} = rdbms_queries:execute_upsert_many(HostType, QueryName,
-                                     InsertParams, UpdateParams)
-        end,
+    RunTask = fun({Count, QueryName, InsertParams}) ->
+                  run_upsert(HostType, Count, QueryName, InsertParams, UpdateParams)
+              end,
     %% Run tasks in parallel
-    RunTasks = fun(TasksList) -> lists:map(RunTask, TasksList) end,
+    RunTasks = fun(Tasks) -> lists:map(RunTask, Tasks) end,
     Workers = 8,
-    BatchSize = length(Tasks) div Workers,
-    Batches = spread(BatchSize, Tasks),
-    Results = mongoose_lib:pmap(RunTasks, Batches, timer:minutes(1)),
+    TasksForWorkers = spread(Workers, AllTasks),
+    Results = mongoose_lib:pmap(RunTasks, TasksForWorkers, timer:minutes(1)),
     [check_result(Res) || Res <- Results],
     ok.
+
+run_upsert(HostType, 1, QueryName, InsertParams, UpdateParams) ->
+    {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
+                                 InsertParams, UpdateParams, []);
+run_upsert(HostType, _Count, QueryName, InsertParams, UpdateParams) ->
+    %% MySQL replace returns wrong numbers
+    {updated, _} = rdbms_queries:execute_upsert_many(HostType, QueryName,
+                                 InsertParams, UpdateParams).
 
 check_result({ok, Results}) ->
     lists:foreach(fun({updated, _}) -> ok end, Results),
@@ -171,6 +173,7 @@ bucketize(N, Records, Acc) ->
          {Records, lists:reverse(Acc)}
     end.
 
+%% Create N chunks
 %% Spread elements into buckets one element at a time before moving to the next bucket
 spread(N, Tasks) ->
     Buckets = lists:duplicate(N, []),
