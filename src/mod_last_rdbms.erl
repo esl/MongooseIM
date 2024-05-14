@@ -141,16 +141,18 @@ prepare_cleanup_tasks(Records) ->
     [{1, last_upsert, Rec} || Rec <- Singles2].
 
 run_tasks_in_parallel(RunTaskF, AllTasks) ->
-    Workers = 8,
+    %% MSSQL fails with "Transaction (Process ID 52)  was deadlocked on lock resources with
+    %% another process and has been chosen as the deadlock victim. Rerun the transaction"
+    Workers = case mongoose_rdbms:db_type() of mssql -> 1; _ -> 8 end,
     TasksForWorkers = spread(Workers, AllTasks),
     RunTasksF = fun(Tasks) -> lists:map(RunTaskF, Tasks) end,
     Results = mongoose_lib:pmap(RunTasksF, TasksForWorkers, timer:minutes(1)),
     [check_result(Res) || Res <- Results],
     ok.
 
-run_upsert(HostType, 1, QueryName, InsertParams, UpdateParams) ->
+run_upsert(HostType, 1, QueryName, InsertParams = [S, U|_], UpdateParams) ->
     {updated, _} = rdbms_queries:execute_upsert(HostType, QueryName,
-                                 InsertParams, UpdateParams, []);
+                                 InsertParams, UpdateParams, [S, U]);
 run_upsert(HostType, _Count, QueryName, InsertParams, UpdateParams) ->
     %% MySQL replace returns wrong numbers
     {updated, _} = rdbms_queries:execute_upsert_many(HostType, QueryName,
