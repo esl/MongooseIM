@@ -11,6 +11,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/inet.hrl").
 
 %% Module aliases
 -define(dh, distributed_helper).
@@ -67,8 +68,8 @@ essentials() ->
     [simple_message].
 
 all_tests() ->
-    [connections_info, nonexistent_user, unknown_domain, malformed_jid,
-     dialback_with_wrong_key | essentials()].
+    [connections_info, dns_discovery, dns_discovery_ip_fail, nonexistent_user,
+     unknown_domain, malformed_jid, dialback_with_wrong_key | essentials()].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -114,9 +115,30 @@ init_per_group(GroupName, Config) ->
 end_per_group(_GroupName, _Config) ->
     ok.
 
+init_per_testcase(dns_discovery = CaseName, Config) ->
+    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect, [inet_res, getbyname, 3,
+             {ok, {hostent, "_xmpp-server._tcp.fed2", [], srv, 1, [{30, 10, 5299, "localhost"}]}}]),
+
+    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect, [inet, getaddr, 2, {ok, {127, 0, 0, 1}}]),
+
+    Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(dns_discovery_ip_fail = CaseName, Config) ->
+    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect, [inet_res, getbyname, 3,
+             {ok, {hostent, "_xmpp-server._tcp.fed3", [], srv, 1, [{30, 10, 5299, "localhost"}]}}]),
+
+    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CaseName, Config) when CaseName =:= dns_discovery;
+                                        CaseName =:= dns_discovery_ip_fail ->
+    rpc(mim(), meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -164,9 +186,42 @@ connections_info(Config) ->
     [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
     ok.
 
+dns_discovery(Config) ->
+    simple_message(Config),
+    %% Ensure that the mocked DNS discovery for connecting to the other server
+    History = rpc(mim(), meck, history, [inet_res]),
+    ?assertEqual(length(History), 2),
+    ?assertEqual(lists:all(fun(Tuple) -> contains_xmpp_server(Tuple) end, History), true),
+    ok.
+
+contains_xmpp_server({_, _, {ok, {hostent, "_xmpp-server._tcp.fed2", _, srv, _, _}}}) ->
+    true;
+contains_xmpp_server(_) ->
+    false.
+
+dns_discovery_ip_fail(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
+
+        escalus:send(Alice1, escalus_stanza:chat_to(
+            <<"alice2@fed3">>,
+            <<"Hello, second Alice!">>)),
+
+        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
+        History = rpc(mim(), meck, history, [inet]),
+        ?assertEqual(has_inet_errors(History), true)
+    end).
+
+has_inet_errors(History) ->
+    Inet = lists:any(fun({_, {inet, getaddr, ["fed3", inet]}, {error, nxdomain}}) -> true;
+                           (_) -> false end, History),
+    Inet6 = lists:any(fun({_, {inet, getaddr, ["fed3", inet6]}, {error, nxdomain}}) -> true;
+                           (_) -> false end, History),
+    Inet andalso Inet6.
+
 get_s2s_connections(RPCSpec, Domain, Type) ->
     AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
-    DomainS2SConnections = 
+    DomainS2SConnections =
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
                        Type =/= out orelse Domain =:= maps:get(server, Connection)],
