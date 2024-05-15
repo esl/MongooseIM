@@ -840,7 +840,7 @@ lookup_services(HostType, Server) ->
         ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr)
     end.
 
--spec do_lookup_services(mongooseim:host_type(),jid:lserver()) -> [addr()].
+-spec do_lookup_services(mongooseim:host_type(), jid:lserver()) -> [addr()].
 do_lookup_services(HostType, Server) ->
     Res = srv_lookup(HostType, Server),
     case Res of
@@ -848,7 +848,7 @@ do_lookup_services(HostType, Server) ->
             ?LOG_DEBUG(#{what => s2s_srv_lookup_failed,
                          reason => Reason, server => Server}),
             [];
-        {ok, #hostent{h_addr_list = AddrList, h_addrtype = Type}} ->
+        {AddrList, Type} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
@@ -863,13 +863,35 @@ do_lookup_services(HostType, Server) ->
             end
     end.
 
-
 -spec srv_lookup(mongooseim:host_type(), jid:lserver()) ->
-          {'error', atom()} | {'ok', inet:hostent()}.
+          {'error', atom()} | {list(), inet | inet6}.
 srv_lookup(HostType, Server) ->
     #{timeout := TimeoutSec, retries := Retries} = mongoose_config:get_opt([{s2s, HostType}, dns]),
-    srv_lookup(Server, timer:seconds(TimeoutSec), Retries).
+    case srv_lookup(Server, timer:seconds(TimeoutSec), Retries) of
+        {error, Reason} ->
+            {error, Reason};
+        {ok, #hostent{h_addr_list = AddrList}} ->
+            case get_inet_protocol(Server) of
+                {error, Reason} ->
+                    {error, Reason};
+                Type ->
+                    {AddrList, Type}
+            end
+    end.
 
+-spec get_inet_protocol(jid:lserver()) -> {'error', atom()} | inet | inet6.
+get_inet_protocol(Server) ->
+    case inet:getaddr(binary_to_list(Server), inet) of
+        {ok, _IPv6Addr} ->
+            inet;
+        {error, _} ->
+            case inet:getaddr(binary_to_list(Server), inet6) of
+                {ok, _IPv4Addr} ->
+                    inet6;
+                {error, Reason} ->
+                    {error, Reason}
+            end
+    end.
 
 %% @doc XXX - this behaviour is suboptimal in the case that the domain
 %% has a "_xmpp-server._tcp." but not a "_jabber._tcp." record and
