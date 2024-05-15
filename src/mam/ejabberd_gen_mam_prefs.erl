@@ -1,12 +1,14 @@
 -module(ejabberd_gen_mam_prefs).
 
 -type set_prefs_params() :: #{archive_id := undefined | mod_mam:archive_id(),
+                              room => jid:jid(),
                               owner := jid:jid(),
                               default_mode := mod_mam:archive_behaviour(),
                               always_jids := [jid:literal_jid()],
                               never_jids := [jid:literal_jid()]}.
 
 -type get_prefs_params() :: #{archive_id := undefined | mod_mam:archive_id(),
+                              room => jid:jid(),
                               owner := jid:jid()}.
 
 -type get_behaviour_params() :: #{archive_id := undefined | mod_mam:archive_id(),

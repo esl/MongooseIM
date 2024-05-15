@@ -1169,6 +1169,36 @@ prefs_cases2() ->
      {{always, [], [bob, kate]},     [false, false, false, false]}
     ].
 
+prefs_cases2_muc() ->
+    [
+     {{roster, [], []},              [true, true, true, true]},
+     {{roster, [bob], []},           [true, true, true, true]},
+     {{roster, [kate], []},          [true, true, true, true]},
+     {{roster, [kate, bob], []},     [true, true, true, true]},
+
+     {{roster, [], [bob]},           [false, true, true, true]},
+     {{roster, [], [kate]},          [true, true, false, true]},
+     {{roster, [], [bob, kate]},     [false, true, false, true]},
+
+     {{never, [], []},              [false, false, false, false]},
+     {{never, [bob], []},           [true, false, false, false]},
+     {{never, [kate], []},          [false, false, true, false]},
+     {{never, [kate, bob], []},     [true, false, true, false]},
+
+     {{never, [], [bob]},           [false, false, false, false]},
+     {{never, [], [kate]},          [false, false, false, false]},
+     {{never, [], [bob, kate]},     [false, false, false, false]},
+
+     {{always, [], []},              [true, true, true, true]},
+     {{always, [bob], []},           [true, true, true, true]},
+     {{always, [kate], []},          [true, true, true, true]},
+     {{always, [kate, bob], []},     [true, true, true, true]},
+
+     {{always, [], [bob]},           [false, true, true, true]},
+     {{always, [], [kate]},          [true, true, false, true]},
+     {{always, [], [bob, kate]},     [false, true, false, true]}
+    ].
+
 default_policy({{Default, _, _}, _}) -> Default.
 
 make_alice_and_bob_friends(Alice, Bob) ->
@@ -1228,6 +1258,44 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
                                alice_receives => [M3, M4]})
     end.
 
+muc_run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
+    Room = ?config(room, Config),
+    RoomAddr = room_address(Room),
+    escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+    escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+    escalus:send(Kate, stanza_muc_enter_room(Room, nick(Kate))),
+    escalus:wait_for_stanzas(Alice, 4),
+
+    {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
+    IqSet = stanza_prefs_set_request_muc({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
+    escalus:send(Alice, stanza_to_room(IqSet, Room)),
+    _ReplySet = escalus:wait_for_stanza(Alice),
+
+    Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
+                                               [N, PrefsState, os:timestamp()]))
+                || N <- [1, 2, 3, 4]],
+
+    escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, lists:nth(1,Messages))),
+    escalus:wait_for_stanza(Alice),
+
+    escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, lists:nth(2,Messages))),
+    escalus:wait_for_stanza(Alice),
+
+    escalus:send(Kate, escalus_stanza:groupchat_to(RoomAddr, lists:nth(3,Messages))),
+    escalus:wait_for_stanza(Alice),
+
+    escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, lists:nth(4,Messages))),
+    escalus:wait_for_stanza(Alice),
+
+    %% Delay check
+    fun(Bodies) ->
+        ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
+        Debug = make_debug_prefs(ExpectedMessageStates, ActualMessageStates),
+        ?_assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
+                             #{prefs_state => PrefsState,
+                               debug => Debug})
+    end.
+
 make_debug_prefs(ExpectedMessageStates, ActualMessageStates) ->
     Zipped = lists:zip(prefs_checks_descriptions(),
                        lists:zip(ExpectedMessageStates, ActualMessageStates)),
@@ -1266,6 +1334,16 @@ stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Conf
     AlwaysJIDs = users_to_jids(AlwaysUsers, Config),
     NeverJIDs  = users_to_jids(NeverUsers, Config),
     stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs, Namespace).
+
+stanza_prefs_set_request_muc({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config) ->
+    DefaultModeBin = atom_to_binary(DefaultMode, utf8),
+    AlwaysJIDs = users_to_nick(AlwaysUsers, Config),
+    NeverJIDs  = users_to_nick(NeverUsers, Config),
+    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs, Namespace).
+
+users_to_nick(Users, Config) ->
+    Room = ?config(room, Config),
+    [muc_helper:room_address(Room, string:lowercase(nick(escalus_users:get_jid(Config, User)))) || User <- Users].
 
 users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].
