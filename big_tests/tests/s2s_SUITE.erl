@@ -191,13 +191,9 @@ dns_discovery(Config) ->
     %% Ensure that the mocked DNS discovery for connecting to the other server
     History = rpc(mim(), meck, history, [inet_res]),
     ?assertEqual(length(History), 2),
-    ?assertEqual(lists:all(fun(Tuple) -> contains_xmpp_server(Tuple) end, History), true),
+    ?assertEqual(s2s_helper:has_xmpp_server(History, "fed2"), true),
     ok.
 
-contains_xmpp_server({_, _, {ok, {hostent, "_xmpp-server._tcp.fed2", _, srv, _, _}}}) ->
-    true;
-contains_xmpp_server(_) ->
-    false.
 
 dns_discovery_ip_fail(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
@@ -209,15 +205,8 @@ dns_discovery_ip_fail(Config) ->
         Stanza = escalus:wait_for_stanza(Alice1, 10000),
         escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
         History = rpc(mim(), meck, history, [inet]),
-        ?assertEqual(has_inet_errors(History), true)
+        ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
     end).
-
-has_inet_errors(History) ->
-    Inet = lists:any(fun({_, {inet, getaddr, ["fed3", inet]}, {error, nxdomain}}) -> true;
-                           (_) -> false end, History),
-    Inet6 = lists:any(fun({_, {inet, getaddr, ["fed3", inet6]}, {error, nxdomain}}) -> true;
-                           (_) -> false end, History),
-    Inet andalso Inet6.
 
 get_s2s_connections(RPCSpec, Domain, Type) ->
     AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),

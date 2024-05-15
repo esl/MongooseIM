@@ -882,11 +882,11 @@ srv_lookup(HostType, Server) ->
 -spec get_inet_protocol(jid:lserver()) -> {'error', atom()} | inet | inet6.
 get_inet_protocol(Server) ->
     case inet:getaddr(binary_to_list(Server), inet) of
-        {ok, _IPv6Addr} ->
+        {ok, _IPv4Addr} ->
             inet;
         {error, _} ->
             case inet:getaddr(binary_to_list(Server), inet6) of
-                {ok, _IPv4Addr} ->
+                {ok, _IPv6Addr} ->
                     inet6;
                 {error, Reason} ->
                     {error, Reason}
