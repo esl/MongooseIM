@@ -285,6 +285,54 @@ user_to_lower_jid(#client{} = C) ->
 user_to_lower_jid(Bin) when is_binary(Bin) ->
     jid:to_bare(jid:from_binary(escalus_utils:jid_to_lower(Bin))).
 
+%% Utilities for testing TLS error handling
+
+-type tls_data() :: {error, tuple()} | {ok, list()}.
+
+%% Open the connection without sending any requests yet
+%% This way we can check if there are any TLS errors before trying to send any data
+-spec connect_to_tls([ssl:tls_option()], inet:port_number()) -> ssl:socket().
+connect_to_tls(TLSOpts, Port) ->
+    {ok, Socket} = ssl:connect("localhost", Port, TLSOpts),
+    Socket.
+
+%% Construct and send an HTTP request over an already opened SSL socket
+-spec send_tls_request(ssl:socket(), jiffy:json_value()) -> ok.
+send_tls_request(Socket, Body) when is_map(Body) ->
+    {ok, {_, Port}} = ssl:peername(Socket),
+    Host = "localhost:" ++ integer_to_list(Port),
+    Cookies = {false, []},
+    {Req, _} = fusco_lib:format_request(<<"/api/graphql">>, <<"POST">>, headers(),
+                                        Host, jiffy:encode(Body), Cookies),
+    ok = ssl:send(Socket, Req).
+
+%% Parse the data returned by get_tls_data/1 using httpc_response utilities
+-spec parse_http_response(tls_data()) -> {status(), jiffy:jiffy_decode_result()}.
+parse_http_response({error, Error}) ->
+    ct:fail("Received unexpected error ~p", [Error]);
+parse_http_response({ok, Response}) ->
+    {ok, {_, Code, Msg, _Headers, Body}} =
+        httpc_response:parse([list_to_binary(Response), nolimit, false]),
+    {{integer_to_binary(Code), list_to_binary(Msg)}, jiffy:decode(Body, [return_maps])}.
+
+%% Receive a TLS error or an HTTP response from the SSL socket
+-spec get_tls_data(ssl:socket()) -> tls_data().
+get_tls_data(Socket) ->
+    receive
+        {ssl, Socket, Data} ->
+            {ok, Data};
+        {ssl_error, Socket, Error} ->
+            {error, Error};
+        {ssl_closed, Socket} ->
+            ct:fail("Server closed socket ~p", [Socket])
+    after 5000 ->
+            ct:fail("Timout waiting for data from socket ~p", [Socket])
+    end.
+
+headers() ->
+    [{<<"Content-Type">>, <<"application/json">>},
+     {<<"Request-Id">>, rest_helper:random_request_id()}].
+
 %% Internal
 
 % Gets a nested value given a path
