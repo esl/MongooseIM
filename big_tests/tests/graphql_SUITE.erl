@@ -336,13 +336,13 @@ maybe_atom_to_bin(null) -> null;
 maybe_atom_to_bin(X) -> atom_to_binary(X).
 
 admin_check_auth_body() ->
-    #{query => "{ checkAuth { domain authType authStatus } }"}.
+    #{query => <<"{ checkAuth { domain authType authStatus } }">>}.
 
 admin_server_get_loglevel_body() ->
-    #{query => "{ server { getLoglevel } }"}.
+    #{query => <<"{ server { getLoglevel } }">>}.
 
 user_check_auth_body() ->
-    #{query => "{ checkAuth { username authStatus } }"}.
+    #{query => <<"{ checkAuth { username authStatus } }">>}.
 
 user_check_auth_multiple() ->
-    #{query => "{ checkAuth { authStatus } server { getLoglevel } }"}.
+    #{query => <<"{ checkAuth { authStatus } server { getLoglevel } }">>}.
