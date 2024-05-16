@@ -44,8 +44,9 @@
          process_local_iq/5,
          process_sm_iq/5,
          remove_user/3,
-         on_presence_update/3,
+         unset_presence_hook/3,
          session_cleanup/3,
+         sessions_cleanup/3,
          remove_domain/3]).
 
 %% API
@@ -89,8 +90,9 @@ iq_handlers() ->
 hooks(HostType) ->
     [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-     {unset_presence_hook, HostType, fun ?MODULE:on_presence_update/3, #{}, 50},
+     {unset_presence_hook, HostType, fun ?MODULE:unset_presence_hook/3, #{}, 50},
      {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
+     {sessions_cleanup, HostType, fun ?MODULE:sessions_cleanup/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}
     | c2s_hooks(HostType) ].
 
@@ -262,11 +264,11 @@ maybe_forward_last(Acc) ->
             {stop, Acc}
     end.
 
--spec on_presence_update(Acc, Params, Extra) -> {ok, Acc} when
+-spec unset_presence_hook(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{jid := jid:jid(), status := status()},
     Extra :: gen_hook:extra().
-on_presence_update(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
+unset_presence_hook(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
     {ok, store_last_info(Acc, LUser, LServer, Status)}.
 
 -spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
@@ -274,7 +276,15 @@ on_presence_update(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status 
     Params :: #{jid := jid:jid()},
     Extra :: gen_hook:extra().
 session_cleanup(Acc, #{jid := #jid{luser = LUser, lserver = LServer}}, _) ->
-    {ok, store_last_info(Acc, LUser, LServer, <<>>)}.
+    {ok, session_cleanup(Acc, LUser, LServer, <<>>)}.
+
+-spec sessions_cleanup(Acc, Params, Extra) -> {ok, Acc} when
+    Acc :: map(),
+    Params :: #{sessions := [ejabberd_sm:session()]},
+    Extra :: gen_hook:extra().
+sessions_cleanup(Acc = #{host_type := HostType}, #{sessions := Sessions}, _) ->
+    mod_last_backend:sessions_cleanup(HostType, Sessions),
+    {ok, Acc}.
 
 -spec store_last_info(mongoose_acc:t(), jid:luser(), jid:lserver(), status()) -> mongoose_acc:t().
 store_last_info(Acc, LUser, LServer, Status) ->
@@ -283,12 +293,33 @@ store_last_info(Acc, LUser, LServer, Status) ->
     store_last_info(HostType, LUser, LServer, TimeStamp, Status),
     Acc.
 
+-spec session_cleanup(mongoose_acc:t(), jid:luser(), jid:lserver(), status()) -> mongoose_acc:t().
+session_cleanup(Acc, LUser, LServer, Status) ->
+    HostType = mongoose_acc:host_type(Acc),
+    TimeStamp = erlang:system_time(second),
+    session_cleanup(HostType, LUser, LServer, TimeStamp, Status),
+    Acc.
+
 -spec store_last_info(mongooseim:host_type(), jid:luser(), jid:lserver(),
                       timestamp(), status()) -> ok.
 store_last_info(HostType, LUser, LServer, TimeStamp, Status) ->
     case mod_last_backend:set_last_info(HostType, LUser, LServer, TimeStamp, Status) of
         {error, Reason} ->
             ?LOG_ERROR(#{what => set_last_info_failed,
+                         text => <<"Unexpected error while storing mod_last information">>,
+                         user => LUser, server => LServer,
+                         timestamp => TimeStamp, status => Status,
+                         reason => Reason});
+        ok ->
+            ok
+    end.
+
+-spec session_cleanup(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                      timestamp(), status()) -> ok.
+session_cleanup(HostType, LUser, LServer, TimeStamp, Status) ->
+    case mod_last_backend:session_cleanup(HostType, LUser, LServer, TimeStamp, Status) of
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => session_cleanup_failed,
                          text => <<"Unexpected error while storing mod_last information">>,
                          user => LUser, server => LServer,
                          timestamp => TimeStamp, status => Status,

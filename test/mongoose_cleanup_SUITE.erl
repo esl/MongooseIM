@@ -184,7 +184,7 @@ last(_Config) ->
                           config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
     not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
-    {ok, #{}} = mod_last:on_presence_update(new_acc(S), #{jid => JID, status => Status1}, #{}),
+    {ok, #{}} = mod_last:unset_presence_hook(new_acc(S), #{jid => JID, status => Status1}, #{}),
     {ok, TS1, Status1} = mod_last:get_last_info(HostType, U, S),
     async_helper:wait_until(
       fun() ->

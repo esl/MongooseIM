@@ -60,7 +60,8 @@
          is_offline/1,
          get_user_present_pids/2,
          sync/0,
-         run_session_cleanup_hook/1,
+         session_cleanup/1,
+         sessions_cleanup/1,
          terminate_session/2,
          sm_backend/0
         ]).
@@ -354,8 +355,8 @@ unregister_iq_handler(Host, XMLNS) ->
     ejabberd_sm ! {unregister_iq_handler, Host, XMLNS},
     ok.
 
--spec run_session_cleanup_hook(#session{}) -> mongoose_acc:t().
-run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
+-spec session_cleanup(#session{}) -> mongoose_acc:t().
+session_cleanup(#session{usr = {U, S, R}, sid = SID}) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(S),
     Acc = mongoose_acc:new(
             #{location => ?LOCATION,
@@ -363,6 +364,38 @@ run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
               lserver => S,
               element => undefined}),
     mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
+
+-spec sessions_cleanup([#session{}]) -> ok.
+sessions_cleanup(Sessions) ->
+    SerSess = [{Server, Session} || Session = #session{usr = {_, Server, _}} <- Sessions],
+    Servers = lists:usort([Server || {Server, _Session} <- SerSess]),
+    Map = maps:from_list([{Server, server_to_host_type(Server)} || Server <- Servers]),
+    HTSession = [{maps:get(Server, Map), Session} || {Server, Session} <- SerSess],
+    HT2Session = group_sessions(lists:sort(HTSession)),
+    [mongoose_hooks:sessions_cleanup(HostType, HTSessions)
+     || {HostType, HTSessions} <- HT2Session, HostType =/= undefined],
+    ok.
+
+%% Group sessions by HostType.
+%% Sessions should be sorted.
+group_sessions([{HostType, Session} | Sessions]) ->
+    {Acc, Sessions2} = group_sessions(HostType, [Session], Sessions),
+    [{HostType, Acc} | group_sessions(Sessions2)];
+group_sessions([]) ->
+    [].
+
+group_sessions(HostType, Acc, [{HostType, Session} | Sessions]) ->
+    group_sessions(HostType, [Session | Acc], Sessions);
+group_sessions(_HostType, Acc, Sessions) ->
+    {lists:reverse(Acc), Sessions}.
+
+server_to_host_type(Server) ->
+    case mongoose_domain_api:get_domain_host_type(Server) of
+        {ok, HostType} ->
+           HostType;
+        _ ->
+           undefined
+    end.
 
 -spec terminate_session(jid:jid() | pid(), binary()) -> ok | no_session.
 terminate_session(#jid{} = Jid, Reason) ->

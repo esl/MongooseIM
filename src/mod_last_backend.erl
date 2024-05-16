@@ -6,8 +6,10 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
+         session_cleanup/5,
          remove_user/3,
-         remove_domain/2]).
+         remove_domain/2,
+         sessions_cleanup/2]).
 
 -define(MAIN_MODULE, mod_last).
 
@@ -25,6 +27,16 @@
             jid:lserver(),
             mod_last:timestamp(),
             mod_last:status()) -> ok | {error, term()}.
+
+-callback session_cleanup(
+            mongooseim:host_type(),
+            jid:luser(),
+            jid:lserver(),
+            mod_last:timestamp(),
+            mod_last:status()) -> ok | {error, term()}.
+
+-callback sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) ->
+    ok | {error, term()}.
 
 -callback remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
     ok | {error, term()}.
@@ -61,6 +73,16 @@ set_last_info(HostType, LUser, LServer, Timestamp, Status) ->
     Args = [HostType, LUser, LServer, Timestamp, Status],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
+-spec session_cleanup(
+            mongooseim:host_type(),
+            jid:luser(),
+            jid:lserver(),
+            mod_last:timestamp(),
+            mod_last:status()) -> ok | {error, term()}.
+session_cleanup(HostType, LUser, LServer, Timestamp, Status) ->
+    Args = [HostType, LUser, LServer, Timestamp, Status],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
     ok | {error, term()}.
 remove_user(HostType, LUser, LServer) ->
@@ -71,4 +93,10 @@ remove_user(HostType, LUser, LServer) ->
     ok | {error, term()}.
 remove_domain(HostType, LServer) ->
     Args = [HostType, LServer],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) ->
+    ok | {error, term()}.
+sessions_cleanup(HostType, Sessions) ->
+    Args = [HostType, Sessions],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

@@ -22,8 +22,10 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
+         session_cleanup/5,
          remove_user/3,
-         remove_domain/2]).
+         remove_domain/2,
+         sessions_cleanup/2]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -63,6 +65,11 @@ set_last_info(_HostType, LUser, LServer, TimeStamp, Status) ->
     end,
     wrap_transaction_result(mnesia:transaction(F)).
 
+-spec session_cleanup(host_type(), jid:luser(), jid:lserver(),
+                      mod_last:timestamp(), mod_last:status()) -> ok | {error, term()}.
+session_cleanup(HostType, LUser, LServer, TimeStamp, Status) ->
+    set_last_info(HostType, LUser, LServer, TimeStamp, Status).
+
 -spec remove_user(host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
@@ -72,6 +79,10 @@ remove_user(_HostType, LUser, LServer) ->
 % Implementation only for RDBMS backends
 -spec remove_domain(host_type(), jid:lserver()) -> ok.
 remove_domain(_HostType, _Domain) ->
+    ok.
+
+-spec sessions_cleanup(mongooseim:host_type(), [ejabberd_sm:session()]) -> ok.
+sessions_cleanup(_HostType, _Sessions) ->
     ok.
 
 -spec wrap_transaction_result({atomic, ok | term()} | term()) -> ok | {error, term()}.
