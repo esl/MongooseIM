@@ -8,14 +8,16 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
+-type status() :: {Code :: binary(), Msg :: binary()}.
+
 -spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
-    {Status :: tuple(), Data :: map()}.
+    {status(), Data :: map() | binary()}.
 execute(EpName, Body, Creds) ->
     #{node := Node} = mim(),
     execute(Node, EpName, Body, Creds).
 
 -spec execute(node(), atom(), binary(), {binary(), binary()} | undefined) ->
-    {Status :: tuple(), Data :: map()}.
+    {status(), Data :: map() | binary()}.
 execute(Node, EpName, Body, Creds) ->
     Request = build_request(Node, EpName, Body, Creds),
     rest_helper:make_request(Request).
