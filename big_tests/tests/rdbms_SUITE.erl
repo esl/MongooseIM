@@ -85,7 +85,11 @@ rdbms_queries_cases() ->
      test_failed_transaction_with_execute_wrapped,
      test_failed_wrapper_transaction,
      test_incremental_upsert,
-     arguments_from_two_tables].
+     arguments_from_two_tables,
+     test_upsert_many1,
+     test_upsert_many2,
+     test_upsert_many1_replaces_existing,
+     test_upsert_many2_replaces_existing].
 
 suite() ->
     escalus:suite().
@@ -602,6 +606,63 @@ do_test_incremental_upsert(Config) ->
     SelectResult = sql_query(Config, <<"SELECT timestamp FROM inbox">>),
     ?assertEqual({selected, [{<<"43">>}]}, selected_to_binary(SelectResult)).
 
+test_upsert_many1(Config) ->
+    erase_last(Config),
+    sql_prepare_upsert_many(Config, 1, upsert_many_last1, last,
+                            [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+                            [<<"seconds">>, <<"state">>],
+                            [<<"server">>, <<"username">>]),
+    Insert1 = [<<"localhost">>, <<"kate">>, 0, <<>>],
+    Update = [0, <<>>],
+    %% Records keys must be unique (i.e. we cannot insert alice twice)
+    {updated, 1} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update).
+
+test_upsert_many2(Config) ->
+    erase_last(Config),
+    sql_prepare_upsert_many(Config, 2, upsert_many_last2, last,
+                            [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+                            [<<"seconds">>, <<"state">>],
+                            [<<"server">>, <<"username">>]),
+    Insert1 = [<<"localhost">>, <<"alice">>, 0, <<>>],
+    Insert2 = [<<"localhost">>, <<"bob">>, 0, <<>>],
+    Update = [0, <<>>],
+    %% Records keys must be unique (i.e. we cannot insert alice twice)
+    {updated, 2} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update).
+
+test_upsert_many1_replaces_existing(Config) ->
+    erase_last(Config),
+    sql_prepare_upsert_many(Config, 1, upsert_many_last1, last,
+                            [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+                            [<<"seconds">>, <<"state">>],
+                            [<<"server">>, <<"username">>]),
+    Insert1 = [<<"localhost">>, <<"kate">>, 0, <<>>],
+    Update1 = [0, <<>>],
+    Insert2 = [<<"localhost">>, <<"kate">>, 10, <<>>],
+    Update2 = [10, <<>>],
+    %% Replace returns wrong numbers with MySQL (2 instead of 1, 4 instead of 2)
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert1, Update1),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last1, Insert2, Update2),
+    SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
+    ?assertEqual({selected, [{<<"10">>}]}, selected_to_binary(SelectResult)).
+
+test_upsert_many2_replaces_existing(Config) ->
+    erase_last(Config),
+    sql_prepare_upsert_many(Config, 2, upsert_many_last2, last,
+                            [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
+                            [<<"seconds">>, <<"state">>],
+                            [<<"server">>, <<"username">>]),
+    Insert1 = [<<"localhost">>, <<"alice">>, 0, <<>>],
+    Insert3 = [<<"localhost">>, <<"alice">>, 10, <<>>],
+    Insert2 = [<<"localhost">>, <<"bob">>, 0, <<>>],
+    Insert4 = [<<"localhost">>, <<"bob">>, 10, <<>>],
+    Update1 = [0, <<>>],
+    Update3 = [10, <<>>],
+    %% Records keys must be unique (i.e. we cannot insert alice twice)
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert1 ++ Insert2, Update1),
+    {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert3 ++ Insert4, Update3),
+    SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
+    ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -634,6 +695,9 @@ sql_prepare(_Config, Name, Table, Fields, Query) ->
 
 sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
     escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
+
+sql_prepare_upsert_many(_Config, RecordCount, Name, Table, Insert, Update, Unique) ->
+    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert_many, [host_type(), RecordCount, Name, Table, Insert, Update, Unique]).
 
 sql_execute(Config, Name, Parameters) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -669,6 +733,10 @@ execute_wrapped_request_and_wait_response(HostType, Name, Parameters, WrapperFun
 sql_execute_upsert(Config, Name, Insert, Update, Unique) ->
     ScopeAndTag = scope_and_tag(Config),
     slow_rpc(rdbms_queries, execute_upsert, ScopeAndTag ++ [Name, Insert, Update, Unique]).
+
+sql_execute_upsert_many(Config, Name, Insert, Update) ->
+    ScopeAndTag = scope_and_tag(Config),
+    slow_rpc(rdbms_queries, execute_upsert_many, ScopeAndTag ++ [Name, Insert, Update]).
 
 sql_query_request(Config, Query) ->
     ScopeAndTag = scope_and_tag(Config),
@@ -725,6 +793,9 @@ decode_boolean(_Config, Value) ->
 erase_table(Config) ->
     {updated, _} = sql_query(Config, <<"DELETE FROM test_types">>).
 
+erase_last(Config) ->
+    {updated, _} = sql_query(Config, <<"DELETE FROM last">>).
+
 erase_users(Config) ->
     {updated, _} = sql_query(Config, <<"DELETE FROM users">>),
     {updated, _} = sql_query(Config, <<"DELETE FROM last">>).
@@ -765,10 +836,13 @@ integer_to_binary_or_null(X) -> integer_to_binary(X).
 %% Helper function to transform values to an uniform format.
 %% Single tuple, single element case.
 %% In ODBC int32 is integer, but int64 is binary.
-selected_to_binary({selected, [{Value}]}) when is_integer(Value) ->
-    {selected, [{integer_to_binary(Value)}]};
+selected_to_binary({selected, Rows}) ->
+    {selected, [row_to_binary(Row) || Row <- Rows]};
 selected_to_binary(Other) ->
     Other.
+
+row_to_binary(Row) ->
+    list_to_tuple([value_to_binary(Value) || Value <- tuple_to_list(Row)]).
 
 selected_to_sorted({selected, Rows}) ->
     {selected, lists:sort(Rows)};

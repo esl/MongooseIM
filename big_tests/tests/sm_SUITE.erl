@@ -40,8 +40,8 @@
 -define(LONG_TIMEOUT, 3600).
 -define(SHORT_TIMEOUT, 1).
 -define(SMALL_SM_BUFFER, 3).
--define(PING_REQUEST_TIMEOUT, 1).
--define(PING_INTERVAL, 3).
+-define(PING_REQUEST_TIMEOUT, 2).
+-define(PING_INTERVAL, 5).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -621,14 +621,23 @@ ping_timeout(Config) ->
     %% make sure there are no leftover stanzas in the history
     ?assertEqual([], get_stanzas_filtered_by_mod_ping()),
 
-    %% connect Alice and wait for the session to close
-    Alice = connect_fresh(Config, alice, sr_presence),
+    %% connect Alice
+    Alice = connect_fresh(Config, alice, session),
+
+    %% manually configure stream resumption to avoid ping stanzas
+    escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
+    Pred = fun(Stanza) -> escalus_pred:is_sm_enabled([resume], Stanza) end,
+    SM = escalus_connection:receive_stanza(Alice, #{pred => Pred}),
+    SMH = escalus_connection:get_sm_h(Alice),
+    SMID = exml_query:attr(SM, <<"id">>),
 
     escalus_client:wait_for_stanza(Alice),
     ct:sleep(?PING_REQUEST_TIMEOUT + ?PING_INTERVAL + timer:seconds(1)),
 
     %% attempt to resume the session after the connection drop
-    NewAlice = sm_helper:kill_and_connect_with_resume_session_without_waiting_for_result(Alice),
+    sm_helper:kill_client_and_wait_for_termination(Alice),
+    NewAlice = connect_same(Alice, auth),
+    escalus_connection:send(NewAlice, escalus_stanza:resume(SMID, SMH)),
 
     %% after resume_timeout, we expect the session to be closed
     escalus_connection:get_stanza(NewAlice, failed_resumption),
@@ -638,13 +647,17 @@ ping_timeout(Config) ->
     send_initial_presence(NewAlice),
 
     %% check if the error stanza was handled by mod_ping
-    [Stanza] = get_stanzas_filtered_by_mod_ping(),
-    escalus:assert(is_iq_error, Stanza),
-    ?assertNotEqual(undefined,
-        exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>)),
+    FilteredStanzas = get_stanzas_filtered_by_mod_ping(),
+    ?assertNotEqual(length(FilteredStanzas), 0),
+    Fun = fun(Stanza) ->
+            escalus:assert(is_iq_error, Stanza),
+            ?assertNotEqual(undefined,
+                exml_query:subelement_with_name_and_ns(Stanza, <<"ping">>, <<"urn:xmpp:ping">>))
+          end,
+    lists:foreach(Fun, FilteredStanzas),
 
-    %% stop the connection
-    escalus_connection:stop(NewAlice).
+    %% kill the connection to avoid errors
+    escalus_connection:kill(NewAlice).
 
 resume_expired_session_returns_correct_h(Config) ->
     %% connect bob and alice

@@ -7,7 +7,9 @@
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute/3, execute_auth/2, execute_user/3,
-                         get_value/2, get_bad_request/1]).
+                         get_value/2, get_bad_request/1,
+                         connect_to_tls/2, get_tls_data/1, send_tls_request/2,
+                         parse_http_response/1]).
 
 -define(assertAdminAuth(Domain, Type, Auth, Data),
         assert_auth(#{<<"domain">> => Domain,
@@ -207,96 +209,90 @@ multiple_categories_query_test(Config) ->
     ?assertEqual(<<"AUTHORIZED">>, get_value([checkAuth, authStatus], DataMsg)).
 
 tls_connect_domain_admin_no_certificate(Config) ->
-    Opts = [{connect_options, [{verify, verify_none}]}],
-    Port = get_listener_port(Config, domain_admin_listener_config),
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
-    fusco_cp:stop(Client),
-    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+    Socket = connect_to_tls(tls_opts(), get_listener_port(Config, domain_admin_listener_config)),
+    send_tls_request(Socket, admin_check_auth_body()),
+    Result = parse_http_response(get_tls_data(Socket)),
+    ?assertAdminAuth(null, null, 'UNAUTHORIZED', Result).
 
 tls_connect_user_no_certificate(Config) ->
-    Opts = [{connect_options, [{verify, verify_none}]}],
-    Port = get_listener_port(Config, user_listener_config),
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
+    Socket = connect_to_tls(tls_opts(), get_listener_port(Config, user_listener_config)),
+    Result = get_tls_data(Socket),
     assert_match_error_result(certificate_required, Result).
 
 tls_connect_user_unknown_certificate(Config) ->
     Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
     Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, user_listener_config)),
+    Result = get_tls_data(Socket),
     assert_match_error_result(unknown_ca, Result).
 
 tls_connect_user_selfsigned_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
     Key = maps:get(key, ?config(certificate_selfsigned, Config)),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
-    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, user_listener_config)),
+    send_tls_request(Socket, user_check_auth_body()),
+    Result = parse_http_response(get_tls_data(Socket)),
+    ?assertUserAuth(null, 'UNAUTHORIZED', Result).
 
 tls_connect_user_signed_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_signed, Config)),
     Key = maps:get(key, ?config(certificate_signed, Config)),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, user_listener_config)),
-    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, user_listener_config)),
+    send_tls_request(Socket, user_check_auth_body()),
+    Result = parse_http_response(get_tls_data(Socket)),
+    ?assertUserAuth(null, 'UNAUTHORIZED', Result).
 
 tls_connect_admin_no_certificate(Config) ->
-    Opts = [{connect_options, [{verify, verify_none}]}],
-    Port = get_listener_port(Config, admin_listener_config),
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    Result = fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000),
+    Socket = connect_to_tls(tls_opts(), get_listener_port(Config, admin_listener_config)),
+    Result = get_tls_data(Socket),
     assert_match_error_result(certificate_required, Result).
 
 tls_connect_admin_unknown_certificate(Config) ->
     Cert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "cert.pem"]),
     Key = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "mongooseim", "key.pem"]),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, admin_listener_config)),
+    Result = get_tls_data(Socket),
     assert_match_error_result(unknown_ca, Result).
 
 tls_connect_admin_selfsigned_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_selfsigned, Config)),
     Key = maps:get(key, ?config(certificate_selfsigned, Config)),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, admin_listener_config)),
+    Result = get_tls_data(Socket),
     assert_match_error_result(bad_certificate, Result).
 
 tls_connect_admin_signed_certificate(Config) ->
     Cert = maps:get(cert, ?config(certificate_signed, Config)),
     Key = maps:get(key, ?config(certificate_signed, Config)),
-    Result = send_request_with_cert(Cert, Key, get_listener_port(Config, admin_listener_config)),
-    ?assertMatch({ok, {{<<"400">>, <<"Bad Request">>}, _, _, _, _}}, Result).
+    Socket = connect_to_tls(tls_opts(Cert, Key), get_listener_port(Config, admin_listener_config)),
+    send_tls_request(Socket, admin_check_auth_body()),
+    Result = parse_http_response(get_tls_data(Socket)),
+    ?assertAdminAuth(null, null, 'UNAUTHORIZED', Result).
 
 %% Helpers
 
-% The proper error should be the first one, {error, {tls_alert, {certificate_required, _}}}.
-% Sometimes for unknown reasons, the result is {error, connection_closed}. This test is important
-% to check if the server does not allow the connection when the certificate is not attached.
-%  Therefore, to prevent the creation of a flaky test, the function below was created.
-assert_match_error_result(_, {error, connection_closed}) ->
-    ok;
 assert_match_error_result(AssertedError, Error) ->
     ?assertMatch({error, {tls_alert, {AssertedError, _}}}, Error).
 
-send_request_with_cert(Cert, Key, Port) ->
-    Opts = [{connect_options, [{verify, verify_none}, {certfile, Cert}, {keyfile, Key}]}],
-    {ok, Client} = fusco_cp:start_link({"localhost", Port, true}, Opts, 1),
-    fusco_cp:request(Client, <<"/api/graphql">>, <<"POST">>, headers(), <<>>, 2, 10000).
+tls_opts(Cert, Key) ->
+    [{certfile, Cert}, {keyfile, Key} | tls_opts()].
+
+tls_opts() ->
+    [{verify, verify_none}].
 
 get_listener_port(Config, Listener) ->
     ListenerConfig = ?config(Listener, Config),
     maps:get(port, ListenerConfig).
 
 generate_certificate_signed(Config) ->
-    CertSpec =#{cn => "signed_cert", signed => ca}, 
+    CertSpec = #{cn => "signed_cert", signed => ca},
     Filenames = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
     [{certificate_signed, Filenames} | Config].
 
 generate_certificate_selfsigned(Config) ->
-    CertSpec =#{cn => "selfsigned_cert", signed => self}, 
+    CertSpec = #{cn => "selfsigned_cert", signed => self},
     Filenames = ca_certificate_helper:generate_cert(Config, CertSpec, #{}),
     [{certificate_selfsigned, Filenames} | Config].
-
-headers() ->
-    [{<<"Content-Type">>, <<"application/json">>},
-     {<<"Request-Id">>, rest_helper:random_request_id()}].
 
 tls_config(VerifyMode, Config) ->
     CACert = filename:join([path_helper:repo_dir(Config), "tools", "ssl", "ca-clients", "cacert.pem"]),
@@ -336,13 +332,13 @@ maybe_atom_to_bin(null) -> null;
 maybe_atom_to_bin(X) -> atom_to_binary(X).
 
 admin_check_auth_body() ->
-    #{query => "{ checkAuth { domain authType authStatus } }"}.
+    #{query => <<"{ checkAuth { domain authType authStatus } }">>}.
 
 admin_server_get_loglevel_body() ->
-    #{query => "{ server { getLoglevel } }"}.
+    #{query => <<"{ server { getLoglevel } }">>}.
 
 user_check_auth_body() ->
-    #{query => "{ checkAuth { username authStatus } }"}.
+    #{query => <<"{ checkAuth { username authStatus } }">>}.
 
 user_check_auth_multiple() ->
-    #{query => "{ checkAuth { authStatus } server { getLoglevel } }"}.
+    #{query => <<"{ checkAuth { authStatus } server { getLoglevel } }">>}.

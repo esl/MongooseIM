@@ -138,7 +138,7 @@ init_per_group(GroupName, ConfigIn)
             {skip, "scram password type not supported"};
         true ->
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus])),
-            assert_password_format(GroupName, Config2)
+            add_protocol_opts_to_neustradamus(assert_password_format(GroupName, Config2))
     end;
 init_per_group(login_scram_tls = GroupName, ConfigIn) ->
     Config = backup_and_set_options(GroupName, ConfigIn),
@@ -148,7 +148,7 @@ init_per_group(login_scram_tls = GroupName, ConfigIn) ->
             {skip, "scram password type not supported"};
         true ->
             Config1 = configure_c2s_listener(Config),
-            Config2 = create_tls_users(Config1),
+            Config2 = add_protocol_opts_to_neustradamus(create_tls_users(Config1)),
             assert_password_format(scram, Config2)
     end;
 init_per_group(login_specific_scram = GroupName, ConfigIn) ->
@@ -158,7 +158,7 @@ init_per_group(login_specific_scram = GroupName, ConfigIn) ->
             mongoose_helper:restore_config(Config),
             {skip, "scram password type not supported"};
         true ->
-            escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus]))
+            add_protocol_opts_to_neustradamus(escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus])))
     end;
 init_per_group(GroupName, ConfigIn) ->
     Config = backup_and_set_options(GroupName, ConfigIn),
@@ -445,6 +445,22 @@ prepare_user_for_ssl(Users, User) ->
    UserSpec2 = lists:keystore(ssl, 1, UserSpec1, {ssl, true}),
    UserSpec3 = lists:keystore(ssl_opts, 1, UserSpec2, {ssl_opts, [{verify, verify_none}]}),
    lists:keystore(User, 1, Users, {User, UserSpec3}).
+
+%% fast_tls supports channel binding for TLSv1.3 but we haven't implemented that yet,
+%% nor in MongooseIM nor in escalus, hence we need to enforce neustradamus will use TLSv1.2 only
+add_protocol_opts_to_neustradamus(Config) ->
+    Users = proplists:get_value(escalus_users, Config, []),
+    UserSpec = proplists:get_value(neustradamus, Users),
+    ProtocolOpts = {protocol_options, <<"no_sslv2|no_sslv3|no_tlsv1|no_tlsv1_1|no_tlsv1_3">>},
+    SslOpts = case lists:keyfind(ssl_opts, 1, UserSpec) of
+                  false ->
+                      [ProtocolOpts];
+                  {ssl_opts, SSlOpts0} ->
+                      [ProtocolOpts | SSlOpts0]
+              end,
+    UserSpec1 = lists:keystore(ssl_opts, 1, UserSpec, {ssl_opts, SslOpts}),
+    Users1 = lists:keystore(neustradamus, 1, Users, {neustradamus, UserSpec1}),
+    lists:keystore(escalus_users, 1, Config, {escalus_users, Users1}).
 
 delete_tls_users(Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, neustradamus])).
