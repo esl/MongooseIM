@@ -94,6 +94,7 @@ start(_HostType, Opts) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    mod_bosh_socket:stop_supervisor(),
     gen_hook:delete_handlers(hooks()),
     ok.
 
