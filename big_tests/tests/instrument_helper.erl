@@ -66,7 +66,7 @@ assert(EventName, Labels, MeasurementsList, CheckF) ->
             event_tested(EventName, Labels)
     end.
 
-%% @doc Remove previous events, and wait for a new one.
+%% @doc Remove previous events, and wait for a new one. Use for probes only.
 -spec wait_for_new(event_name(), labels()) -> [measurements()].
 wait_for_new(EventName, Labels) ->
     take(EventName, Labels),
