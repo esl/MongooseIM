@@ -77,7 +77,9 @@ update_metric(Name, histogram, Value) when is_integer(Value) ->
 -spec exometer_metric_name(mongoose_instrument:event_name(), mongoose_instrument:labels(),
                            mongoose_instrument:metric_name()) -> exometer:name().
 exometer_metric_name(EventName, #{host_type := HostType}, MetricName) ->
-    [get_host_type_prefix(HostType), EventName, MetricName].
+    [get_host_type_prefix(HostType), EventName, MetricName];
+exometer_metric_name(EventName, #{}, MetricName) ->
+    [global, EventName, MetricName].
 
 -spec get_host_type_prefix(mongooseim:host_type()) -> global | binary().
 get_host_type_prefix(HostType) ->
