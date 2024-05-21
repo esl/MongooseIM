@@ -191,7 +191,7 @@ info(forward_body, Req, S) ->
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
     %% 'mod_bosh_data_sent' metric includes 'body' wrapping elements and resending attempts
-    mongoose_instrument:execute(mod_bosh_data_sent, #{}, #{byte_size =>  byte_size(BEl)}),
+    mongoose_instrument:execute(mod_bosh_data_sent, #{}, #{byte_size => byte_size(BEl)}),
     ?LOG_DEBUG(#{what => bosh_send, req_sid => S#rstate.req_sid, reply_body => BEl,
                  sid => exml_query:attr(El, <<"sid">>, <<"missing">>)}),
     Headers = bosh_reply_headers(),
@@ -316,7 +316,7 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
 -spec handle_request(pid(), event_type(), exml:element()) -> ok.
 handle_request(Socket, EventType, Body) ->
     %% 'mod_bosh_data_received' metric includes 'body' wrapping elements
-    mongoose_instrument:execute(mod_bosh_data_received, #{}, #{byte_size =>  exml:xml_size(Body)}),
+    mongoose_instrument:execute(mod_bosh_data_received, #{}, #{byte_size => exml:xml_size(Body)}),
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
 
