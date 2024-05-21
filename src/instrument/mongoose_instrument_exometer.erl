@@ -73,20 +73,25 @@ update_metric(Name, spiral, Value) when is_integer(Value), Value >= 0 ->
 update_metric(Name, histogram, Value) when is_integer(Value) ->
     ok = exometer:update(Name, Value).
 
-%% This logic will need extending if we add more labels
 -spec exometer_metric_name(mongoose_instrument:event_name(), mongoose_instrument:labels(),
                            mongoose_instrument:metric_name()) -> exometer:name().
-exometer_metric_name(EventName, #{host_type := HostType}, MetricName) ->
-    [get_host_type_prefix(HostType), EventName, MetricName];
-exometer_metric_name(EventName, #{}, MetricName) ->
-    [global, EventName, MetricName].
+exometer_metric_name(EventName, Labels, MetricName) ->
+    [get_host_type_prefix(Labels), EventName] ++ exometer_labels(Labels) ++ [MetricName].
 
--spec get_host_type_prefix(mongooseim:host_type()) -> global | binary().
-get_host_type_prefix(HostType) ->
+%% This logic will need extending if we add more labels
+exometer_labels(#{function := Function}) ->
+    [Function];
+exometer_labels(#{}) ->
+    [].
+
+-spec get_host_type_prefix(mongoose_instrument:labels()) -> mongooseim:host_type_or_global().
+get_host_type_prefix(#{host_type := HostType}) ->
     #{HostType := Prefix} = persistent_term:get(?PREFIXES),
-    Prefix.
+    Prefix;
+get_host_type_prefix(#{}) ->
+    global.
 
--spec make_host_type_prefix(mongooseim:host_type(), boolean()) -> global | binary().
+-spec make_host_type_prefix(mongooseim:host_type(), boolean()) -> mongooseim:host_type_or_global().
 make_host_type_prefix(_HostType, true) ->
     global;
 make_host_type_prefix(HostType, false) ->

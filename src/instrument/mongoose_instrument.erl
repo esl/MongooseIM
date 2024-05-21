@@ -22,9 +22,10 @@
 -include("mongoose_config_spec.hrl").
 
 -type event_name() :: atom().
--type labels() :: #{host_type => mongooseim:host_type()}. % to be extended
--type label_key() :: host_type. % to be extended
--type label_value() :: mongooseim:host_type(). % to be extended
+-type labels() :: #{host_type => mongooseim:host_type(),
+                    function => atom()}. % to be extended
+-type label_key() :: host_type | function. % to be extended
+-type label_value() :: mongooseim:host_type() | atom(). % to be extended
 -type metrics() :: #{metric_name() => metric_type()}.
 -type metric_name() :: atom().
 -type metric_type() :: gauge | spiral | histogram. % to be extended
