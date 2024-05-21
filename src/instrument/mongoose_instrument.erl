@@ -7,7 +7,7 @@
          start_link/0, persist/0,
          set_up/1, set_up/3,
          tear_down/1, tear_down/2,
-         span/4, span/5,
+         span/4, span/5, span/6,
          execute/3]).
 
 %% Test API
@@ -119,6 +119,15 @@ span(EventName, Labels, F, MeasureF) ->
 span(EventName, Labels, F, Args, MeasureF) ->
     Handlers = get_handlers(EventName, Labels),
     {Time, Result} = timer:tc(F, Args),
+    handle_event(EventName, Labels, MeasureF(Time, Result), Handlers),
+    Result.
+
+%% @doc Calls `Mod:F' with `Args', measuring its execution time.
+%% @see span/5
+-spec span(event_name(), labels(), module(), atom(), list(), measure_fun(Result)) -> Result.
+span(EventName, Labels, Mod, F, Args, MeasureF) ->
+    Handlers = get_handlers(EventName, Labels),
+    {Time, Result} = timer:tc(Mod, F, Args),
     handle_event(EventName, Labels, MeasureF(Time, Result), Handlers),
     Result.
 
