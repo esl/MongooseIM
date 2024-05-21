@@ -107,10 +107,12 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrumentation_events()),
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
     dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
@@ -172,8 +174,6 @@ required_bosh_opts(_Group) ->
 create_and_terminate_session(Config) ->
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, bosh], changed},
-                       {[global, data, xmpp, sent, c2s, bosh], changed},
                        {[global, data, xmpp, received, c2s, tcp], 0},
                        {[global, data, xmpp, sent, c2s, tcp], 0}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
@@ -195,6 +195,10 @@ create_and_terminate_session(Config) ->
     Sid = get_bosh_sid(Conn),
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = bosh_send_raw(Conn, Terminate),
+
+    % Assert that correct events have been executed
+    [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
+     || {Event, Label} <- instrumentation_events()],
 
     escalus_mongooseim:post_story(PreStoryData),
 
@@ -946,3 +950,8 @@ wait_for_zero_bosh_sessions() ->
                                end,
                                [],
                                #{name => get_bosh_sessions}).
+
+instrumentation_events() ->
+    % because mod_bosh starts instrumentation manually, it doesn't export instrumentation/1
+    Specs = rpc(mim(), mod_bosh, instrumentation, []),
+    [{Event, Labels} || {Event, Labels, _Config} <- Specs].

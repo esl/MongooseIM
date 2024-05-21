@@ -28,11 +28,11 @@
 -export([node_cleanup/3]).
 
 %% For testing and debugging
--export([get_session_socket/1, store_session/2]).
+-export([get_session_socket/1, store_session/2, instrumentation/0]).
 
 -export([config_metrics/1]).
 
--ignore_xref([get_session_socket/1, store_session/2]).
+-ignore_xref([get_session_socket/1, store_session/2, instrumentation/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -89,17 +89,29 @@ start(_HostType, Opts) ->
         false ->
             mod_bosh_backend:start(Opts),
             {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-            gen_hook:add_handlers(hooks())
+            gen_hook:add_handlers(hooks()),
+            % Because mod_bosh acts more like a service, than a module, instrumentation has to be
+            % set up manually, only once.
+            mongoose_instrument:set_up(instrumentation())
     end.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    mod_bosh_socket:stop_supervisor(),
+    mongoose_instrument:tear_down(instrumentation()),
     gen_hook:delete_handlers(hooks()),
     ok.
 
 -spec hooks() -> gen_hook:hook_list().
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
+
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    [{mod_bosh_data_sent, #{},
+      #{metrics => #{byte_size => spiral}}},
+     {mod_bosh_data_received, #{},
+      #{metrics => #{byte_size => spiral}}}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -178,9 +190,8 @@ info(forward_body, Req, S) ->
     forward_body(Req1, BodyElem, S#rstate{req_sid = Sid});
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
-    %% for BOSH 'data.xmpp.sent.raw' metric includes 'body' wrapping elements
-    %% and resending attempts
-    mongoose_metrics:update(global, [data, xmpp, sent, c2s, bosh], byte_size(BEl)),
+    %% 'mod_bosh_data_sent' metric includes 'body' wrapping elements and resending attempts
+    mongoose_instrument:execute(mod_bosh_data_sent, #{}, #{byte_size => byte_size(BEl)}),
     ?LOG_DEBUG(#{what => bosh_send, req_sid => S#rstate.req_sid, reply_body => BEl,
                  sid => exml_query:attr(El, <<"sid">>, <<"missing">>)}),
     Headers = bosh_reply_headers(),
@@ -304,8 +315,8 @@ forward_body(Req, #xmlel{} = Body, #rstate{opts = Opts} = S) ->
 
 -spec handle_request(pid(), event_type(), exml:element()) -> ok.
 handle_request(Socket, EventType, Body) ->
-    %% for BOSH 'data.xmpp.received.raw' metric includes 'body' wrapping elements
-    mongoose_metrics:update(global, [data, xmpp, received, c2s, bosh], exml:xml_size(Body)),
+    %% 'mod_bosh_data_received' metric includes 'body' wrapping elements
+    mongoose_instrument:execute(mod_bosh_data_received, #{}, #{byte_size => exml:xml_size(Body)}),
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
 
