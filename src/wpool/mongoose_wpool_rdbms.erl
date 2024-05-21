@@ -28,7 +28,7 @@ stop(_, _) ->
 %% Helper functions
 do_start(HostType, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0), is_map(RdbmsOpts) ->
     #{driver := BackendName} = RdbmsOpts,
-    mongoose_backend:init(global, mongoose_rdbms, [query, execute], #{backend => BackendName}),
+    mongoose_rdbms_backend:init(BackendName),
     mongoose_metrics:ensure_db_pool_metric({rdbms, HostType, Tag}),
     WpoolOpts = make_wpool_opts(WpoolOpts0, RdbmsOpts),
     ProcName = mongoose_wpool:make_pool_name(rdbms, HostType, Tag),
