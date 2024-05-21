@@ -25,7 +25,7 @@ Buffer size for messages queued when session was `inactive`.
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/MongooseIM-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[Host, modCSIInactive]` | spiral | A client becomes inactive. |
-| `[Host, modCSIActive]` | spiral | A client becomes active. |
+| Name               | Type   | Description (when it gets incremented) |
+|--------------------|--------|----------------------------------------|
+| `mod_csi_active`   | spiral | A client becomes active.               |
+| `mod_csi_inactive` | spiral | A client becomes inactive.             |
