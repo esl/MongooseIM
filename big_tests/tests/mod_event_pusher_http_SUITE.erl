@@ -193,7 +193,7 @@ start_http_listener(simple_message, Prefix) ->
 start_http_listener(simple_message_no_listener, _) ->
     ok;
 start_http_listener(simple_message_failing_listener, Prefix) ->
-    http_helper:start(http_notifications_port(), Prefix, fun(Req) -> Req end);
+    http_helper:start(http_notifications_port(), Prefix, fun(_Req) -> erlang:error(failing_listener) end);
 start_http_listener(proper_http_message_encode_decode, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1).
 
