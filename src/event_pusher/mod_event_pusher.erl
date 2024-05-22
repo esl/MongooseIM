@@ -75,8 +75,7 @@ config_spec() ->
 -spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
     case gen_mod:get_module_opts(HostType, ?MODULE) of
-        Empty when Empty =:= #{};
-                   Empty =:= [] -> % TODO remove when get_module_opts does not return [] anymore
+        Empty when Empty =:= #{} ->
             [{none, none}];
         Opts ->
             [{backend, Backend} || Backend <- maps:keys(Opts)]
