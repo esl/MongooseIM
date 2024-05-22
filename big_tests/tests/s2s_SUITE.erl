@@ -97,6 +97,7 @@ users() ->
 %%%===================================================================
 
 init_per_suite(Config) ->
+    mongoose_helper:inject_module(?MODULE, reload),
     Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
     escalus:create_users(Config1, escalus:get_users(users())).
 
@@ -116,24 +117,34 @@ end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(dns_discovery = CaseName, Config) ->
-    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect, [inet_res, getbyname, 3,
-             {ok, {hostent, "_xmpp-server._tcp.fed2", [], srv, 1, [{30, 10, 5299, "localhost"}]}}]),
-
+    meck_inet_res("_xmpp-server._tcp.fed2"),
     ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect, [inet, getaddr, 2, {ok, {127, 0, 0, 1}}]),
-
+    ok = rpc(mim(), meck, expect,
+             [inet, getaddr,
+                fun ("fed2", inet) ->
+                        {ok, {127, 0, 0, 1}};
+                    (Address, Family) ->
+                        meck:passthrough([Address, Family])
+                end]),
     Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
     escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(dns_discovery_ip_fail = CaseName, Config) ->
-    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
-    ok = rpc(mim(), meck, expect, [inet_res, getbyname, 3,
-             {ok, {hostent, "_xmpp-server._tcp.fed3", [], srv, 1, [{30, 10, 5299, "localhost"}]}}]),
-
+    meck_inet_res("_xmpp-server._tcp.fed3"),
     ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+meck_inet_res(Domain) ->
+    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [inet_res, getbyname,
+                fun (Domain1, srv, _Timeout) when Domain1 == Domain ->
+                        {ok, {hostent, Domain, [], srv, 1,
+                         [{30, 10, 5299, "localhost"}]}};
+                    (Name, Type, Timeout) ->
+                        meck:passthrough([Name, Type, Timeout])
+                end]).
 
 end_per_testcase(CaseName, Config) when CaseName =:= dns_discovery;
                                         CaseName =:= dns_discovery_ip_fail ->
