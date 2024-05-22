@@ -1261,10 +1261,6 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
 muc_run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
     Room = ?config(room, Config),
     RoomAddr = room_address(Room),
-    escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-    escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-    escalus:send(Kate, stanza_muc_enter_room(Room, nick(Kate))),
-    escalus:wait_for_stanzas(Alice, 4),
 
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request_muc({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
