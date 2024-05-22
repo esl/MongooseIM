@@ -3573,6 +3573,13 @@ muc_run_prefs_cases(DefaultPolicy, ConfigIn) ->
     F = fun(Config, Alice, Bob, Kate) ->
         %% Just send messages for each prefs configuration
         Namespace = mam_ns_binary_v04(),
+
+        Room = ?config(room, Config),
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        escalus:send(Kate, stanza_muc_enter_room(Room, nick(Kate))),
+        escalus:wait_for_stanzas(Alice, 4),
+
         Funs = [muc_run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config)
                 || Case <- prefs_cases2_muc(),
                 default_policy(Case) =:= DefaultPolicy],
