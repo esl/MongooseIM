@@ -7,6 +7,7 @@
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute_command/4, get_ok_value/2, get_unauthorized/1,
                          get_err_msg/1, get_err_code/1]).
+-import(domain_helper, [host_type/0]).
 
 suite() ->
     MIM2NodeName = maps:get(node, distributed_helper:mim2()),
@@ -96,8 +97,7 @@ get_all_metrics(Config) ->
     Result = get_metrics(Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
     Map = maps:from_list([{Name, X} || X = #{<<"name">> := Name} <- ParsedResult]),
-    ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
-    Reads = maps:get(ReadsKey, Map),
+    Reads = maps:get(roster_reads_key(), Map),
     %% Histogram integer keys have p prefix
     check_histogram_p(Reads),
     %% HistogramMetric type
@@ -151,9 +151,8 @@ get_by_name_global_erlang_metrics(Config) ->
     %% VMSystemInfoMetric type
     #{<<"type">> := <<"vm_system_info">>} = Info,
     check_metric_by_type(Info),
-    ReadsKey = [<<"global">>, <<"backends">>, <<"mod_roster">>, <<"read_roster_version">>],
     %% Other metrics are filtered out
-    undef = maps:get(ReadsKey, Map, undef).
+    undef = maps:get(roster_reads_key(), Map, undef).
 
 get_metrics_by_name_empty_args(Config) ->
     Result = get_metrics([], Config),
@@ -474,7 +473,7 @@ values_are_integers(Map, Keys) ->
     end.
 
 metric_host_type() ->
-    binary:replace(domain_helper:host_type(), <<" ">>, <<"_">>, [global]).
+    binary:replace(host_type(), <<" ">>, <<"_">>, [global]).
 
 is_cets_enabled() ->
     case rpc(mim(), mongoose_config, lookup_opt, [[internal_databases, cets]]) of
@@ -483,3 +482,7 @@ is_cets_enabled() ->
         _ ->
             false
     end.
+
+roster_reads_key() ->
+    RosterBackend = rpc(mim(), mongoose_backend, get_backend_module, [host_type(), mod_roster]),
+    [metric_host_type(), atom_to_binary(RosterBackend), <<"read_roster_version">>, <<"time">>].
