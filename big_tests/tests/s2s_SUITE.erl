@@ -11,6 +11,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/inet.hrl").
 
 %% Module aliases
 -define(dh, distributed_helper).
@@ -67,8 +68,8 @@ essentials() ->
     [simple_message].
 
 all_tests() ->
-    [connections_info, nonexistent_user, unknown_domain, malformed_jid,
-     dialback_with_wrong_key | essentials()].
+    [connections_info, dns_discovery, dns_discovery_ip_fail, nonexistent_user,
+     unknown_domain, malformed_jid, dialback_with_wrong_key | essentials()].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -96,6 +97,7 @@ users() ->
 %%%===================================================================
 
 init_per_suite(Config) ->
+    mongoose_helper:inject_module(?MODULE, reload),
     Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
     escalus:create_users(Config1, escalus:get_users(users())).
 
@@ -114,9 +116,40 @@ init_per_group(GroupName, Config) ->
 end_per_group(_GroupName, _Config) ->
     ok.
 
+init_per_testcase(dns_discovery = CaseName, Config) ->
+    meck_inet_res("_xmpp-server._tcp.fed2"),
+    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [inet, getaddr,
+                fun ("fed2", inet) ->
+                        {ok, {127, 0, 0, 1}};
+                    (Address, Family) ->
+                        meck:passthrough([Address, Family])
+                end]),
+    Config1 = escalus_users:update_userspec(Config, alice2, server, <<"fed2">>),
+    escalus:init_per_testcase(CaseName, Config1);
+init_per_testcase(dns_discovery_ip_fail = CaseName, Config) ->
+    meck_inet_res("_xmpp-server._tcp.fed3"),
+    ok = rpc(mim(), meck, new, [inet, [no_link, unstick, passthrough]]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+meck_inet_res(Domain) ->
+    ok = rpc(mim(), meck, new, [inet_res, [no_link, unstick, passthrough]]),
+    ok = rpc(mim(), meck, expect,
+             [inet_res, getbyname,
+                fun (Domain1, srv, _Timeout) when Domain1 == Domain ->
+                        {ok, {hostent, Domain, [], srv, 1,
+                         [{30, 10, 5299, "localhost"}]}};
+                    (Name, Type, Timeout) ->
+                        meck:passthrough([Name, Type, Timeout])
+                end]).
+
+end_per_testcase(CaseName, Config) when CaseName =:= dns_discovery;
+                                        CaseName =:= dns_discovery_ip_fail ->
+    rpc(mim(), meck, unload, []),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -164,9 +197,31 @@ connections_info(Config) ->
     [_ | _] = get_s2s_connections(?dh:mim(), FedDomain, out),
     ok.
 
+dns_discovery(Config) ->
+    simple_message(Config),
+    %% Ensure that the mocked DNS discovery for connecting to the other server
+    History = rpc(mim(), meck, history, [inet_res]),
+    ?assertEqual(length(History), 2),
+    ?assertEqual(s2s_helper:has_xmpp_server(History, "fed2"), true),
+    ok.
+
+
+dns_discovery_ip_fail(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
+
+        escalus:send(Alice1, escalus_stanza:chat_to(
+            <<"alice2@fed3">>,
+            <<"Hello, second Alice!">>)),
+
+        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza),
+        History = rpc(mim(), meck, history, [inet]),
+        ?assertEqual(s2s_helper:has_inet_errors(History, "fed3"), true)
+    end).
+
 get_s2s_connections(RPCSpec, Domain, Type) ->
     AllS2SConnections = ?dh:rpc(RPCSpec, mongoose_s2s_info, get_connections, [Type]),
-    DomainS2SConnections = 
+    DomainS2SConnections =
         [Connection || Connection <- AllS2SConnections,
                        Type =/= in orelse [Domain] =:= maps:get(domains, Connection),
                        Type =/= out orelse Domain =:= maps:get(server, Connection)],

@@ -121,11 +121,13 @@
                    | wait_before_retry.
 
 %% FSM handler return value
--type fsm_return() :: {'stop', Reason :: 'normal', state()}
-                    | {'next_state', statename(), state()}
-                    | {'next_state', statename(), state(), Timeout :: integer()}.
+-type fsm_return() :: {stop, Reason :: normal, state()}
+                    | {next_state, statename(), state()}
+                    | {next_state, statename(), state(), Timeout :: integer()}.
 
--type addr() :: #{ip_tuple := inet:ip_address(),
+-type dns_name() :: string().
+
+-type addr() :: #{address := inet:ip_address() | dns_name(),
                   port := inet:port_number(),
                   type := inet | inet6}.
 
@@ -171,11 +173,11 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(ejabberd_s2s:fromto(), _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
+-spec start(ejabberd_s2s:fromto(), _) -> {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(FromTo, Type) ->
     supervisor:start_child(ejabberd_s2s_out_sup, [FromTo, Type]).
 
--spec start_link(ejabberd_s2s:fromto(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(ejabberd_s2s:fromto(), _) -> ignore | {error, _} | {ok, pid()}.
 start_link(FromTo, Type) ->
     p1_fsm:start_link(ejabberd_s2s_out, [FromTo, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
@@ -197,7 +199,7 @@ stop_connection(Pid) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init(list()) -> {'ok', 'open_socket', state()}.
+-spec init(list()) -> {ok, open_socket, state()}.
 init([{From, Server} = FromTo, Type]) ->
     process_flag(trap_exit, true),
     ?LOG_DEBUG(#{what => s2s_out_started,
@@ -254,7 +256,7 @@ open_socket(init, StateData = #state{host_type = HostType}) ->
     AddrList = get_addr_list(HostType, StateData#state.server),
     case lists:foldl(fun(_, {ok, Socket}) ->
                              {ok, Socket};
-                        (#{ip_tuple := Addr, port := Port, type := Type}, _) ->
+                        (#{address := Addr, port := Port, type := Type}, _) ->
                              open_socket2(HostType, Type, Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
@@ -282,7 +284,7 @@ open_socket(_, StateData) ->
     {next_state, open_socket, StateData}.
 
 -spec open_socket2(mongooseim:host_type(), inet | inet6, inet:ip_address(), inet:port_number()) ->
-          {'error', _} | {'ok', _}.
+          {error, _} | {ok, _}.
 open_socket2(HostType, Type, Addr, Port) ->
     ?LOG_DEBUG(#{what => s2s_out_connecting,
                  address => Addr, port => Port}),
@@ -712,12 +714,12 @@ print_state(State) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec send_text(state(), binary()) -> 'ok'.
+-spec send_text(state(), binary()) -> ok.
 send_text(StateData, Text) ->
     mongoose_transport:send_text(StateData#state.socket, Text).
 
 
--spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
+-spec send_element(state(), exml:element()|mongoose_acc:t()) -> ok.
 send_element(StateData, #xmlel{} = El) ->
     mongoose_transport:send_element(StateData#state.socket, El).
 
@@ -727,7 +729,7 @@ send_element(StateData, Acc, El) ->
     Acc.
 
 
--spec send_queue(state(), Q :: element_queue()) -> 'ok'.
+-spec send_queue(state(), Q :: element_queue()) -> ok.
 send_queue(StateData, Q) ->
     case queue:out(Q) of
         {{value, {Acc, El}}, Q1} ->
@@ -739,7 +741,7 @@ send_queue(StateData, Q) ->
 
 
 %% @doc Bounce a single message (xmlel)
--spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
+-spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> ok.
 bounce_element(Acc, El, Error) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> ok;
@@ -752,7 +754,7 @@ bounce_element(Acc, El, Error) ->
     end.
 
 
--spec bounce_queue(Q :: element_queue(), Error :: exml:element()) -> 'ok'.
+-spec bounce_queue(Q :: element_queue(), Error :: exml:element()) -> ok.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
         {{value, {Acc, El}}, Q1} ->
@@ -768,7 +770,7 @@ new_id() ->
     mongoose_bin:gen_from_crypto().
 
 
--spec cancel_timer(reference()) -> 'ok'.
+-spec cancel_timer(reference()) -> ok.
 cancel_timer(Timer) ->
     erlang:cancel_timer(Timer),
     receive
@@ -779,7 +781,7 @@ cancel_timer(Timer) ->
     end.
 
 
--spec bounce_messages(exml:element()) -> 'ok'.
+-spec bounce_messages(exml:element()) -> ok.
 bounce_messages(Error) ->
     receive
         {send_element, Acc, El} ->
@@ -840,7 +842,7 @@ lookup_services(HostType, Server) ->
         ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr)
     end.
 
--spec do_lookup_services(mongooseim:host_type(),jid:lserver()) -> [addr()].
+-spec do_lookup_services(mongooseim:host_type(), jid:lserver()) -> [addr()].
 do_lookup_services(HostType, Server) ->
     Res = srv_lookup(HostType, Server),
     case Res of
@@ -848,14 +850,14 @@ do_lookup_services(HostType, Server) ->
             ?LOG_DEBUG(#{what => s2s_srv_lookup_failed,
                          reason => Reason, server => Server}),
             [];
-        {ok, #hostent{h_addr_list = AddrList, h_addrtype = Type}} ->
+        {AddrList, Type} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [];
                 IndexedAddrs ->
-                    Addrs = [#{ip_tuple => Addr, port => Port, type => Type}
+                    Addrs = [#{address => Addr, port => Port, type => Type}
                             || {_Index, Addr, Port} <- lists:keysort(1, IndexedAddrs)],
                     ?LOG_DEBUG(#{what => s2s_srv_lookup_success,
                                  addresses => Addrs, server => Server}),
@@ -863,13 +865,35 @@ do_lookup_services(HostType, Server) ->
             end
     end.
 
-
 -spec srv_lookup(mongooseim:host_type(), jid:lserver()) ->
-          {'error', atom()} | {'ok', inet:hostent()}.
+          {error, atom()} | {list(), inet | inet6}.
 srv_lookup(HostType, Server) ->
     #{timeout := TimeoutSec, retries := Retries} = mongoose_config:get_opt([{s2s, HostType}, dns]),
-    srv_lookup(Server, timer:seconds(TimeoutSec), Retries).
+    case srv_lookup(Server, timer:seconds(TimeoutSec), Retries) of
+        {error, Reason} ->
+            {error, Reason};
+        {ok, #hostent{h_addr_list = AddrList}} ->
+            case get_inet_protocol(Server) of
+                {error, Reason} ->
+                    {error, Reason};
+                Type ->
+                    {AddrList, Type}
+            end
+    end.
 
+-spec get_inet_protocol(jid:lserver()) -> {error, atom()} | inet | inet6.
+get_inet_protocol(Server) ->
+    case inet:getaddr(binary_to_list(Server), inet) of
+        {ok, _IPv4Addr} ->
+            inet;
+        {error, _} ->
+            case inet:getaddr(binary_to_list(Server), inet6) of
+                {ok, _IPv6Addr} ->
+                    inet6;
+                {error, Reason} ->
+                    {error, Reason}
+            end
+    end.
 
 %% @doc XXX - this behaviour is suboptimal in the case that the domain
 %% has a "_xmpp-server._tcp." but not a "_jabber._tcp." record and
@@ -878,7 +902,7 @@ srv_lookup(HostType, Server) ->
 -spec srv_lookup(jid:server(),
                  Timeout :: non_neg_integer(),
                  Retries :: pos_integer()
-                 ) -> {'error', atom()} | {'ok', inet:hostent()}.
+                 ) -> {error, atom()} | {ok, inet:hostent()}.
 srv_lookup(_Server, _Timeout, Retries) when Retries < 1 ->
     {error, timeout};
 srv_lookup(Server, Timeout, Retries) ->
@@ -901,7 +925,7 @@ srv_lookup(Server, Timeout, Retries) ->
 lookup_addrs(HostType, Server) ->
     Port = outgoing_s2s_port(HostType),
     lists:foldl(fun(Type, []) ->
-                        [#{ip_tuple => Addr, port => Port, type => Type}
+                        [#{address => Addr, port => Port, type => Type}
                          || Addr <- lookup_addrs_for_type(Server, Type)];
                    (_Type, Addrs) ->
                         Addrs
@@ -963,7 +987,7 @@ next_state(StateName, StateData) ->
 
 %% @doc Calculate timeout depending on which state we are in:
 %% Can return integer > 0 | infinity
--spec get_timeout_interval(statename()) -> 'infinity' | non_neg_integer().
+-spec get_timeout_interval(statename()) -> infinity | non_neg_integer().
 get_timeout_interval(StateName) ->
     case StateName of
         %% Validation implies dialback: Networking can take longer:
@@ -1021,7 +1045,7 @@ terminate_if_waiting_delay(FromTo) ->
       Pids).
 
 
--spec fsm_limit_opts() -> [{'max_queue', integer()}].
+-spec fsm_limit_opts() -> [{max_queue, integer()}].
 fsm_limit_opts() ->
     case mongoose_config:lookup_opt(max_fsm_queue) of
         {ok, N} ->
@@ -1045,7 +1069,7 @@ get_predefined_addresses(HostType, Server) ->
         {ok, #{ip_address := IPAddress} = M} ->
             {ok, IPTuple} = inet:parse_address(IPAddress),
             Port = get_predefined_port(HostType, M),
-            [#{ip_tuple => IPTuple, port => Port, type => addr_type(IPTuple)}];
+            [#{address => IPTuple, port => Port, type => addr_type(IPTuple)}];
         {error, not_found} ->
             []
     end.
