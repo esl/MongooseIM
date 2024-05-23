@@ -118,9 +118,7 @@ make_req(Acc, Dir, Domain, Sender, Receiver, Message, Opts) ->
                              fun mongoose_http_client:post/5, [HostType, PoolName, Path, Headers, Body],
                              fun(Time, Result) -> handle_post_result(Time, Result, LogMeta) end).
 
-handle_post_result(Time, {ok, {CodeBin, _Body}}, #{sender := Sender}) ->
-    % Fusco returns HTTP response codes as binaries
-    Code = binary_to_integer(CodeBin),
+handle_post_result(Time, {ok, {Code, _Body}}, #{sender := Sender}) ->
     #{count => 1, response_time => Time, sender => Sender, response_code => Code};
 handle_post_result(_Time, {error, Reason}, LogMeta = #{sender := Sender}) ->
     ?LOG_WARNING(LogMeta#{what => event_pusher_http_req_failed,

@@ -117,7 +117,7 @@ simple_message(Config) ->
     {_, _} = binary:match(Body, <<"Simple">>),
     AliceName = escalus_client:username(Alice),
     instrument_helper:assert(mod_event_pusher_http_sent, #{host_type => host_type()},
-                             fun(#{count := 1, sender := S, response_code := 200, response_time := T}) ->
+                             fun(#{count := 1, sender := S, response_code := <<"200">>, response_time := T}) ->
                                  ?assert(T > 0), AliceName =:= S end).
 
 simple_message_no_listener(Config) ->
@@ -131,7 +131,7 @@ simple_message_failing_listener(Config) ->
     Alice = do_simple_message(Config, <<"Hi, Failing!">>),
     AliceName = escalus_client:username(Alice),
     instrument_helper:assert(mod_event_pusher_http_sent, #{host_type => host_type()},
-                             fun(#{count := 1, sender := S, response_code := 500, response_time := T}) ->
+                             fun(#{count := 1, sender := S, response_code := <<"500">>, response_time := T}) ->
                                  ?assert(T > 0), AliceName =:= S end).
 
 do_simple_message(Config0, Msg) ->
