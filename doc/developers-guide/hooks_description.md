@@ -127,10 +127,10 @@ These hooks are handled by the following modules:
 * [`mod_privacy`](../modules/mod_privacy.md) - filters received stanzas according to privacy lists.
 * [`mod_stream_management`](../modules/mod_stream_management.md) - filters out stanzas with conflicting session ID's.
 
-## `offline_message_hook`
+## `offline_message`
 
 ```erlang
-mongoose_hooks:offline_message_hook(Acc, From, To, Packet)
+mongoose_hooks:offline_message(Acc, From, To, Packet)
 ```
 
 `ejabberd_sm` runs this hook for each message which cannot be delivered, because no resource (i.e. device or desktop client application) of its recipient is available online for delivery.
@@ -212,7 +212,7 @@ This is the perfect place to plug in custom security control.
 * amp_check_condition
 * amp_determine_strategy
 * amp_verify_support
-* anonymous_purge_hook
+* anonymous_purge
 * auth_failed
 * c2s_stream_features
 * can_access_identity
@@ -235,7 +235,7 @@ This is the perfect place to plug in custom security control.
 * filter_pep_recipient
 * filter_room_packet
 * filter_unacknowledged_messages
-* forbidden_session_hook
+* forbidden_session
 * foreign_event
 * forget_room
 * get_key
@@ -273,10 +273,10 @@ This is the perfect place to plug in custom security control.
 * mod_global_distrib_known_recipient
 * mod_global_distrib_unknown_recipient
 * node_cleanup
-* offline_groupchat_message_hook
-* offline_message_hook
+* offline_groupchat_message
+* offline_message
 * packet_to_component
-* presence_probe_hook
+* presence_probe
 * privacy_check_packet
 * privacy_get_user_list
 * privacy_iq_get
@@ -289,7 +289,7 @@ This is the perfect place to plug in custom security control.
 * remove_domain
 * remove_user
 * reroute_unacked_messages
-* resend_offline_messages_hook
+* resend_offline_messages
 * room_exists
 * room_new_affiliations
 * room_packet
@@ -309,16 +309,16 @@ This is the perfect place to plug in custom security control.
 * s2s_stream_features
 * session_cleanup
 * session_opening_allowed_for_user
-* set_presence_hook
+* set_presence
 * set_vcard
 * sm_filter_offline_message
-* sm_register_connection_hook
-* sm_remove_connection_hook
+* sm_register_connection
+* sm_remove_connection
 * unacknowledged_message
 * unregister_subhost
-* unset_presence_hook
+* unset_presence
 * update_inbox_for_muc
-* user_available_hook
+* user_available
 * user_open_session
 * user_ping_response
 * user_receive_iq

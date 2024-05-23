@@ -84,7 +84,7 @@ There are 2 test suites and one helper module in `big_tests/tests`.
 
 ## Hooks handled by this extension
 
-* `offline_groupchat_message_hook` handled by `mod_muc_light:prevent_service_unavailable/3`
+* `offline_groupchat_message` handled by `mod_muc_light:prevent_service_unavailable/3`
 
 Prevents the default behaviour of sending `service-unavailable` error to the room when a groupchat message is sent to an offline occupant.
 
