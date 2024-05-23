@@ -170,7 +170,7 @@ hooks(HostType) ->
      {roster_get_jid_info, HostType, fun ?MODULE:get_jid_info/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {roster_get_versioning_feature, HostType, fun ?MODULE:get_versioning_feature/3, #{}, 50},
      {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 

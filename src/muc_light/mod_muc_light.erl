@@ -288,7 +288,7 @@ hooks(HostType) ->
      {room_exists, HostType, fun ?MODULE:room_exists/3, #{}, 50},
      {can_access_identity, HostType, fun ?MODULE:can_access_identity/3, #{}, 50},
       %% Prevent sending service-unavailable on groupchat messages
-     {offline_groupchat_message_hook, HostType, fun ?MODULE:prevent_service_unavailable/3, #{}, 90},
+     {offline_groupchat_message, HostType, fun ?MODULE:prevent_service_unavailable/3, #{}, 90},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {disco_local_items, HostType, fun ?MODULE:disco_local_items/3, #{}, 50}] ++

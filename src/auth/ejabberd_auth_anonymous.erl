@@ -77,8 +77,8 @@ stop(HostType) ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [
-        {sm_register_connection_hook, HostType, fun ?MODULE:register_connection/3, #{}, 100},
-        {sm_remove_connection_hook, HostType, fun ?MODULE:unregister_connection/3, #{}, 100},
+        {sm_register_connection, HostType, fun ?MODULE:register_connection/3, #{}, 100},
+        {sm_remove_connection, HostType, fun ?MODULE:unregister_connection/3, #{}, 100},
         {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50}
     ].
 
@@ -155,7 +155,7 @@ purge_hook(true, HostType, LUser, LServer) ->
                               host_type => HostType,
                               lserver => LServer,
                               element => undefined }),
-    mongoose_hooks:anonymous_purge_hook(LServer, Acc, LUser).
+    mongoose_hooks:anonymous_purge(LServer, Acc, LUser).
 
 -spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),

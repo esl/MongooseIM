@@ -157,8 +157,8 @@ queued_messages_increase(_C) ->
       end, Fun).
 
 no_skip_metric(_C) ->
-    ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
-    undefined = exometer:info([<<"localhost">>, sm_register_connection_hook]).
+    ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection),
+    undefined = exometer:info([<<"localhost">>, sm_register_connection]).
 
 subscriptions_initialised(_C) ->
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).

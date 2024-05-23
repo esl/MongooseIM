@@ -10,7 +10,7 @@
 
 -export([adhoc_local_commands/4,
          adhoc_sm_commands/4,
-         anonymous_purge_hook/3,
+         anonymous_purge/3,
          auth_failed/3,
          does_user_exist/3,
          failed_to_store_message/1,
@@ -20,19 +20,19 @@
          extend_inbox_result/3,
          get_key/2,
          packet_to_component/3,
-         presence_probe_hook/5,
+         presence_probe/5,
          push_notifications/4,
          register_subhost/2,
          register_user/3,
          remove_user/3,
-         resend_offline_messages_hook/2,
+         resend_offline_messages/2,
          session_cleanup/5,
          sessions_cleanup/2,
          set_vcard/3,
          unacknowledged_message/2,
          filter_unacknowledged_messages/3,
          unregister_subhost/1,
-         user_available_hook/2,
+         user_available/2,
          user_ping_response/5,
          vcard_set/4,
          xmpp_send_element/3,
@@ -49,7 +49,7 @@
          filter_pep_recipient/3,
          c2s_stream_features/3,
          check_bl_c2s/1,
-         forbidden_session_hook/3,
+         forbidden_session/3,
          session_opening_allowed_for_user/2]).
 
 -export([privacy_check_packet/5,
@@ -59,13 +59,13 @@
          privacy_updated_list/3,
          privacy_list_push/5]).
 
--export([offline_groupchat_message_hook/4,
-         offline_message_hook/4,
-         set_presence_hook/3,
+-export([offline_groupchat_message/4,
+         offline_message/4,
+         set_presence/3,
          sm_filter_offline_message/4,
-         sm_register_connection_hook/4,
-         sm_remove_connection_hook/5,
-         unset_presence_hook/3,
+         sm_register_connection/4,
+         sm_remove_connection/5,
+         unset_presence/3,
          xmpp_bounce_message/1]).
 
 -export([roster_get/3,
@@ -183,17 +183,17 @@ adhoc_sm_commands(HostType, From, To, AdhocRequest) ->
     Params = #{from => From, to => To, request => AdhocRequest},
     run_hook_for_host_type(adhoc_sm_commands, HostType, empty, Params).
 
-%%% @doc The `anonymous_purge_hook' hook is called when anonymous user's data is removed.
--spec anonymous_purge_hook(LServer, Acc, LUser) -> Result when
+%%% @doc The `anonymous_purge' hook is called when anonymous user's data is removed.
+-spec anonymous_purge(LServer, Acc, LUser) -> Result when
     LServer :: jid:lserver(),
     Acc :: mongoose_acc:t(),
     LUser :: jid:user(),
     Result :: mongoose_acc:t().
-anonymous_purge_hook(LServer, Acc, LUser) ->
+anonymous_purge(LServer, Acc, LUser) ->
     Jid = jid:make_bare(LUser, LServer),
     Params = #{jid => Jid},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(anonymous_purge_hook, HostType, Acc, Params).
+    run_hook_for_host_type(anonymous_purge, HostType, Acc, Params).
 
 -spec auth_failed(HostType, Server, Username) -> Result when
     HostType :: mongooseim:host_type(),
@@ -291,16 +291,16 @@ packet_to_component(Acc, From, To) ->
     Params = #{from => From, to => To},
     run_global_hook(packet_to_component, Acc, Params).
 
--spec presence_probe_hook(HostType, Acc, From, To, Pid) -> Result when
+-spec presence_probe(HostType, Acc, From, To, Pid) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Pid :: pid(),
     Result :: mongoose_acc:t().
-presence_probe_hook(HostType, Acc, From, To, Pid) ->
+presence_probe(HostType, Acc, From, To, Pid) ->
     Params = #{from => From, to => To, pid => Pid},
-    run_hook_for_host_type(presence_probe_hook, HostType, Acc, Params).
+    run_hook_for_host_type(presence_probe, HostType, Acc, Params).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(HostType, Acc, NotificationForms, Options) -> Result when
@@ -347,14 +347,14 @@ remove_user(Acc, LServer, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(remove_user, HostType, Acc, Params).
 
--spec resend_offline_messages_hook(Acc, JID) -> Result when
+-spec resend_offline_messages(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-resend_offline_messages_hook(Acc, JID) ->
+resend_offline_messages(Acc, JID) ->
     Params = #{jid => JID},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, Params).
+    run_hook_for_host_type(resend_offline_messages, HostType, Acc, Params).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -411,14 +411,14 @@ unregister_subhost(LDomain) ->
     Params = #{ldomain => LDomain},
     run_global_hook(unregister_subhost, ok, Params).
 
--spec user_available_hook(Acc, JID) -> Result when
+-spec user_available(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-user_available_hook(Acc, JID) ->
+user_available(Acc, JID) ->
     Params = #{jid => JID},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(user_available_hook, HostType, Acc, Params).
+    run_hook_for_host_type(user_available, HostType, Acc, Params).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping, or times out
 -spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
@@ -548,14 +548,14 @@ check_bl_c2s(IP) ->
     Params = #{ip => IP},
     run_global_hook(check_bl_c2s, false, Params).
 
--spec forbidden_session_hook(HostType, Acc, JID) -> Result when
+-spec forbidden_session(HostType, Acc, JID) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-forbidden_session_hook(HostType, Acc, JID) ->
+forbidden_session(HostType, Acc, JID) ->
     Params = #{jid => JID},
-    run_hook_for_host_type(forbidden_session_hook, HostType, Acc, Params).
+    run_hook_for_host_type(forbidden_session, HostType, Acc, Params).
 
 -spec session_opening_allowed_for_user(HostType, JID) -> Result when
     HostType :: mongooseim:host_type(),
@@ -635,37 +635,37 @@ privacy_list_push(HostType, LUser, LServer, Item, SessionCount) ->
 
 %% Session management related hooks
 
--spec offline_groupchat_message_hook(Acc, From, To, Packet) -> Result when
+-spec offline_groupchat_message(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_groupchat_message_hook(Acc, From, To, Packet) ->
+offline_groupchat_message(Acc, From, To, Packet) ->
     Params = #{from => From, to => To, packet => Packet},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc, Params).
+    run_hook_for_host_type(offline_groupchat_message, HostType, Acc, Params).
 
--spec offline_message_hook(Acc, From, To, Packet) -> Result when
+-spec offline_message(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_message_hook(Acc, From, To, Packet) ->
+offline_message(Acc, From, To, Packet) ->
     Params = #{from => From, to => To, packet => Packet},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(offline_message_hook, HostType, Acc, Params).
+    run_hook_for_host_type(offline_message, HostType, Acc, Params).
 
--spec set_presence_hook(Acc, JID, Presence) -> Result when
+-spec set_presence(Acc, JID, Presence) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Presence :: any(),
     Result :: mongoose_acc:t().
-set_presence_hook(Acc, JID, Presence) ->
+set_presence(Acc, JID, Presence) ->
     Params = #{jid => JID, presence => Presence},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(set_presence_hook, HostType, Acc, Params).
+    run_hook_for_host_type(set_presence, HostType, Acc, Params).
 
 -spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
     HostType :: mongooseim:host_type(),
@@ -677,37 +677,37 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
     Params = #{from => From, to => To, packet => Packet},
     run_hook_for_host_type(sm_filter_offline_message, HostType, false, Params).
 
--spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
+-spec sm_register_connection(HostType, SID, JID, Info) -> Result when
     HostType :: mongooseim:host_type(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Result :: ok.
-sm_register_connection_hook(HostType, SID, JID, Info) ->
+sm_register_connection(HostType, SID, JID, Info) ->
     Params = #{sid => SID, jid => JID, info => Info},
-    run_hook_for_host_type(sm_register_connection_hook, HostType, ok, Params).
+    run_hook_for_host_type(sm_register_connection, HostType, ok, Params).
 
--spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
+-spec sm_remove_connection(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Reason :: ejabberd_sm:close_reason(),
     Result :: mongoose_acc:t().
-sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
+sm_remove_connection(Acc, SID, JID, Info, Reason) ->
     Params = #{sid => SID, jid => JID, info => Info, reason => Reason},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(sm_remove_connection_hook, HostType, Acc, Params).
+    run_hook_for_host_type(sm_remove_connection, HostType, Acc, Params).
 
--spec unset_presence_hook(Acc, JID, Status) -> Result when
+-spec unset_presence(Acc, JID, Status) -> Result when
     Acc :: mongoose_acc:t(),
     JID:: jid:jid(),
     Status :: binary(),
     Result :: mongoose_acc:t().
-unset_presence_hook(Acc, JID, Status) ->
+unset_presence(Acc, JID, Status) ->
     Params = #{jid => JID, status => Status},
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(unset_presence_hook, HostType, Acc, Params).
+    run_hook_for_host_type(unset_presence, HostType, Acc, Params).
 
 -spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),

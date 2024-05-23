@@ -9,13 +9,13 @@
 %%%            timestamp field added by mod_smart_markers.
 %%%
 %%%          * These packets are not going to mod_offline (notice the
-%%%            difference in priorities for the offline_message_hook handlers)
+%%%            difference in priorities for the offline_message hook handlers)
 %%%
 %%%          * The information about these chat markers is stored in DB,
 %%%            timestamp added by mod_smart_markers is important here!
 %%%
 %%%      2) After all the offline messages are inserted by mod_offline (notice
-%%%         the difference in priorities for the resend_offline_messages_hook
+%%%         the difference in priorities for the resend_offline_messages hook
 %%%         handlers), this module adds the latest chat markers as the last
 %%%         offline messages:
 %%%
@@ -76,13 +76,13 @@ stop(_HostType) ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     DefaultHooks = [
-        {offline_message_hook, HostType, fun ?MODULE:inspect_packet/3, #{}, 40},
-        {resend_offline_messages_hook, HostType, fun ?MODULE:pop_offline_messages/3, #{}, 60},
+        {offline_message, HostType, fun ?MODULE:inspect_packet/3, #{}, 40},
+        {resend_offline_messages, HostType, fun ?MODULE:pop_offline_messages/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50}
     ],
     case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages) of
         true ->
-            GroupChatHook = {offline_groupchat_message_hook,
+            GroupChatHook = {offline_groupchat_message,
                              HostType, fun ?MODULE:inspect_packet/3, #{}, 40},
             [GroupChatHook | DefaultHooks];
         _ -> DefaultHooks

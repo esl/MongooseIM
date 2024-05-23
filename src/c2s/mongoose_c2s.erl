@@ -545,7 +545,7 @@ verify_user(session_established, HostType, #{c2s_data := StateData} = HookParams
             {ok, Acc1};
         {stop, Acc1} ->
             Jid = StateData#c2s_data.jid,
-            Acc2 = mongoose_hooks:forbidden_session_hook(HostType, Acc1, Jid),
+            Acc2 = mongoose_hooks:forbidden_session(HostType, Acc1, Jid),
             ?LOG_INFO(#{what => forbidden_session, text => <<"User not allowed to open session">>,
                         acc => Acc2, c2s_state => StateData}),
             {stop, Acc2}
