@@ -37,9 +37,12 @@ groups() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(jid),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, mongoose_instrument, start_link, []).
 
 end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts(),
     Config.
 
 init_per_group(rsm_disco, Config) ->
@@ -51,7 +54,6 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(codec_calls, Config) ->
-    mongoose_config:set_opts(opts()),
     meck_mongoose_subdomain_core(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
@@ -73,7 +75,6 @@ end_per_testcase(codec_calls, Config) ->
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
     meck:unload(),
-    mongoose_config:erase_opts(),
     Config;
 end_per_testcase(_, Config) ->
     Config.
@@ -83,7 +84,8 @@ opts() ->
       host_types => [],
       all_metrics_are_global => false,
       component_backend => mnesia,
-      {modules, host_type()} => #{mod_muc_light => default_mod_config(mod_muc_light)}}.
+      {modules, host_type()} => #{mod_muc_light => default_mod_config(mod_muc_light)},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 %% ------------------------------------------------------------------
 %% Test cases
