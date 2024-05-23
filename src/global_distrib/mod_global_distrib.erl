@@ -26,7 +26,7 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--export([deps/2, start/2, stop/1, config_spec/0]).
+-export([deps/2, start/2, stop/1, config_spec/0, instrumentation/1]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
 -export([maybe_reroute/3]).
 -export([process_opts/1, process_endpoint/1]).
@@ -57,8 +57,6 @@ bounce_modules(#{enabled := false}) -> [].
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, #{global_host := HostType}) ->
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, spiral),
     gen_hook:add_handlers(hooks());
 start(_HostType, #{}) ->
     ok.
@@ -69,6 +67,11 @@ stop(HostType) ->
         HostType -> gen_hook:delete_handlers(hooks());
         _ -> ok
     end.
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(_HostType) ->
+    [{?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{metrics => #{ttl => histogram}}},
+     {?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{metrics => #{count => spiral}}}].
 
 hooks() ->
     [{filter_packet, global, fun ?MODULE:maybe_reroute/3, #{}, 99}].
@@ -248,14 +251,15 @@ maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
     TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
     ResultFPacket = case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
+            {ok, TTL} = find_metadata(Acc, ttl),
+            mongoose_instrument:execute(?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{ttl => TTL, from => From}),
+
             %% Continue routing with initialized metadata
             mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost,
                                                               From, To, LocalHost),
             ?LOG_DEBUG(#{what => gd_route_local,
                          text => <<"Routing global message to local datacenter">>,
                          gd_id => ID, local_host => LocalHost, acc => Acc}),
-            {ok, TTL} = find_metadata(Acc, ttl),
-            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, TTL),
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
@@ -267,7 +271,7 @@ maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
                     ?LOG_INFO(#{what => gd_route_ttl_zero,
                                 text => <<"Skip global distribution">>,
                                 gd_id => ID, acc => Acc, target_host => TargetHost}),
-                    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
+                    mongoose_instrument:execute(?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{count => 1}),
                     FPacket;
                 {ok, TTL} ->
                     ?LOG_DEBUG(#{what => gd_reroute, ttl => TTL,

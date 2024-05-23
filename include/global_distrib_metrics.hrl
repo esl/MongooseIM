@@ -6,8 +6,8 @@
 -define(GLOBAL_DISTRIB_MAPPING_FETCH_TIME, [mod_global_distrib, mapping_fetch_time]).
 -define(GLOBAL_DISTRIB_MAPPING_FETCHES, [mod_global_distrib, mapping_fetches]).
 -define(GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, [mod_global_distrib, mapping_cache_misses]).
--define(GLOBAL_DISTRIB_DELIVERED_WITH_TTL, [mod_global_distrib, delivered_with_ttl]).
--define(GLOBAL_DISTRIB_STOP_TTL_ZERO, [mod_global_distrib, stop_ttl_zero]).
+-define(GLOBAL_DISTRIB_DELIVERED_WITH_TTL, mod_global_distrib_delivered_with_ttl).
+-define(GLOBAL_DISTRIB_STOP_TTL_ZERO, mod_global_distrib_stop_ttl_zero).
 -define(GLOBAL_DISTRIB_INCOMING_ESTABLISHED, [mod_global_distrib, incoming, established]).
 -define(GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Server), [mod_global_distrib, incoming, first_packet, Server]).
 -define(GLOBAL_DISTRIB_INCOMING_CLOSED(Server), [mod_global_distrib, incoming, closed, Server]).

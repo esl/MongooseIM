@@ -127,6 +127,7 @@ init_per_suite(Config) ->
                     ok
             end,
             enable_logging(),
+            instrument_helper:start(instrument_helper:declared_events(mod_global_distrib)),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
@@ -137,7 +138,8 @@ end_per_suite(Config) ->
     disable_logging(),
     escalus_fresh:clean(),
     rpc(europe_node2, mongoose_cluster, leave, []),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(start_checks, Config) ->
     NodeName = europe_node1,
@@ -428,7 +430,12 @@ test_two_way_pm(Alice, Eve) ->
     escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi to Eve from Europe1!">>],
                    FromAlice),
     escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
-                   FromEve).
+                   FromEve),
+    % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
+    instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
+                             fun(#{ttl := TTL, from := From}) ->
+                                 ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
+                             end).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
