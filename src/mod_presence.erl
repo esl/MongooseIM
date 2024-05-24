@@ -139,7 +139,7 @@ handle_user_terminate(Acc, StateData, Presences, Reason) ->
     ParamsAcc = #{from_jid => Jid, to_jid => jid:to_bare(Jid), element => PresenceUnavailable},
     Acc1 = mongoose_acc:update_stanza(ParamsAcc, Acc),
     presence_broadcast(Acc1, Presences),
-    mongoose_hooks:unset_presence_hook(Acc1, Jid, Status),
+    mongoose_hooks:unset_presence(Acc1, Jid, Status),
     {ok, Acc}.
 
 -spec foreign_event(Acc, Params, Extra) -> Result when
@@ -314,7 +314,7 @@ route_probe(Acc, Presences, FromJid, ToJid) ->
     %% To is the one sending the presence (the target of the probe)
     Packet1 = jlib:maybe_append_delay(Packet0, ToJid, TS, <<>>),
     HostType = mongoose_acc:host_type(Acc),
-    Acc2 = mongoose_hooks:presence_probe_hook(HostType, Acc, FromJid, ToJid, self()),
+    Acc2 = mongoose_hooks:presence_probe(HostType, Acc, FromJid, ToJid, self()),
     %% Don't route a presence probe to oneself
     case jid:are_equal(FromJid, ToJid) of
         false ->
@@ -436,7 +436,7 @@ presence_broadcast(Acc, #presences_state{available = Available}) ->
     mongoose_acc:t().
 presence_update_to_available(Acc, FromJid, _ToJid, Packet, StateData, Presences, Pending,
                              _OldPriority, NewPriority, true) ->
-    Acc1 = mongoose_hooks:user_available_hook(Acc, FromJid),
+    Acc1 = mongoose_hooks:user_available(Acc, FromJid),
     Acc2 = case NewPriority >= 0 of
               true ->
                   resend_offline_messages(Acc1, StateData);
@@ -474,7 +474,7 @@ presence_broadcast_to_trusted(Acc, FromJid, Presences, Packet) ->
 resend_offline_messages(Acc, StateData) ->
     ?LOG_DEBUG(#{what => resend_offline_messages, acc => Acc, c2s_state => StateData}),
     Jid = mongoose_c2s:get_jid(StateData),
-    Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, Jid),
+    Acc1 = mongoose_hooks:resend_offline_messages(Acc, Jid),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(fun({route, FromJid, ToJid, MsgAcc}, A) ->
                            resend_offline_message(A, FromJid, ToJid, MsgAcc, in);

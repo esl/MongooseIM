@@ -57,7 +57,7 @@ If the check passes, the next step is to call the handler associated with the co
 
 `ejabberd_sm` determines the available resources of the recipient, takes into account their priorities and whether the message is addressed to a particular resource or a bare JID.
 It appropriately replicates (or not) the message and sends it to the recipient's C2S process(es) by calling `mongoose_c2s:route/2`.
-In case no resources are available for delivery (hence no C2S processes to pass the message to), `offline_message_hook` is run.
+In case no resources are available for delivery (hence no C2S processes to pass the message to), the `offline_message` hook is run.
 
 As Bob has one online session, the message is sent to the C2S process associated with that session.
 

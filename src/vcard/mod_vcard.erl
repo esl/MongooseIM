@@ -163,7 +163,7 @@ supported_features() -> [dynamic_domains].
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
      {set_vcard, HostType, fun ?MODULE:set_vcard/3, #{}, 50},
      {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].

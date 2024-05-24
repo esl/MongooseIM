@@ -190,7 +190,7 @@ make_new_sid() ->
 open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(HostType, JID),
-    mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
+    mongoose_hooks:sm_register_connection(HostType, SID, JID, Info),
     ReplacedPIDs.
 
 -spec close_session(Acc, SID, JID, Reason, Info) -> Acc1 when
@@ -203,7 +203,7 @@ open_session(HostType, SID, JID, Priority, Info) ->
 close_session(Acc, SID, JID, Reason, Info) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
-    mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
+    mongoose_hooks:sm_remove_connection(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), sid(), info_key(), any()) -> ok.
 store_info(JID, SID, Key, Value) ->
@@ -282,7 +282,7 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
       Info :: info().
 set_presence(Acc, SID, JID, Priority, Presence, Info) ->
     set_session(SID, JID, Priority, Info),
-    mongoose_hooks:set_presence_hook(Acc, JID, Presence).
+    mongoose_hooks:set_presence(Acc, JID, Presence).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
@@ -294,7 +294,7 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Info :: info().
 unset_presence(Acc, SID, JID, Status, Info) ->
     set_session(SID, JID, undefined, Info),
-    mongoose_hooks:unset_presence_hook(Acc, JID, Status).
+    mongoose_hooks:unset_presence(Acc, JID, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -487,8 +487,8 @@ create_metrics() ->
 hooks(HostType) ->
     [
      {roster_in_subscription, HostType, fun ?MODULE:check_in_subscription/3, #{}, 20},
-     {offline_message_hook, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
-     {offline_groupchat_message_hook, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
+     {offline_message, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
+     {offline_groupchat_message, HostType, fun ?MODULE:bounce_offline_message/3, #{}, 100},
      {remove_user, HostType, fun ?MODULE:disconnect_removed_user/3, #{}, 100}
     ].
 
@@ -772,7 +772,7 @@ route_message(From, To, Acc, Packet) ->
 route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
-    mongoose_hooks:offline_groupchat_message_hook(Acc, From, To, Packet);
+    mongoose_hooks:offline_groupchat_message(Acc, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, #{from => From, to => To, packet => Packet}, #{}),
     Acc1;
@@ -782,7 +782,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
-                    mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
+                    mongoose_hooks:offline_message(Acc, From, To, Packet);
                 false ->
                     mongoose_hooks:failed_to_store_message(Acc)
             end;

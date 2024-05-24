@@ -226,8 +226,8 @@ hooks(HostType) ->
     [{register_subhost, global, fun ?MODULE:register_subhost/3, #{}, 90},
      {unregister_subhost, global, fun ?MODULE:unregister_subhost/3, #{}, 90},
      {packet_to_component, global, fun ?MODULE:packet_to_component/3, #{}, 90},
-     {sm_register_connection_hook, HostType, fun ?MODULE:session_opened/3, #{}, 90},
-     {sm_remove_connection_hook, HostType, fun ?MODULE:session_closed/3, #{}, 90}].
+     {sm_register_connection, HostType, fun ?MODULE:session_opened/3, #{}, 90},
+     {sm_remove_connection, HostType, fun ?MODULE:session_closed/3, #{}, 90}].
 
 -spec normalize_jid(jid:ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->

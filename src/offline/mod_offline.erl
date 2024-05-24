@@ -134,11 +134,11 @@ supported_features() -> [dynamic_domains].
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     DefaultHooks = [
-        {offline_message_hook, HostType, fun ?MODULE:inspect_packet/3, #{}, 50},
-        {resend_offline_messages_hook, HostType, fun ?MODULE:pop_offline_messages/3, #{}, 50},
+        {offline_message, HostType, fun ?MODULE:inspect_packet/3, #{}, 50},
+        {resend_offline_messages, HostType, fun ?MODULE:pop_offline_messages/3, #{}, 50},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-        {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+        {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {disco_sm_features, HostType, fun ?MODULE:disco_features/3, #{}, 50},
         {disco_local_features, HostType, fun ?MODULE:disco_features/3, #{}, 50},
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 30},
@@ -147,7 +147,7 @@ hooks(HostType) ->
     ],
     case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages) of
         true ->
-            GroupChatHook = {offline_groupchat_message_hook,
+            GroupChatHook = {offline_groupchat_message,
                              HostType, fun ?MODULE:inspect_packet/3, #{}, 50},
             [GroupChatHook | DefaultHooks];
         _ -> DefaultHooks

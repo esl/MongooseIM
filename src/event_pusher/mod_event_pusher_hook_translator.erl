@@ -130,8 +130,8 @@ merge_acc(Acc, EventPusherAcc) ->
 hooks(HostType) ->
     [
         {filter_local_packet, HostType, fun ?MODULE:filter_local_packet/3, #{}, 80},
-        {unset_presence_hook, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
-        {user_available_hook, HostType, fun ?MODULE:user_present/3, #{}, 90},
+        {unset_presence, HostType, fun ?MODULE:user_not_present/3, #{}, 90},
+        {user_available, HostType, fun ?MODULE:user_present/3, #{}, 90},
         {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 90},
         {unacknowledged_message, HostType, fun ?MODULE:unacknowledged_message/3, #{}, 90}
     ].

@@ -93,7 +93,7 @@ hooks(HostType) ->
      {disco_local_features, HostType, fun ?MODULE:disco_local_features/3, #{}, 99},
      {bind2_stream_features, HostType, fun ?MODULE:bind2_stream_features/3, #{}, 50},
      {bind2_enable_features, HostType, fun ?MODULE:bind2_enable_features/3, #{}, 50},
-     {unset_presence_hook, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
+     {unset_presence, HostType, fun ?MODULE:remove_connection/3, #{}, 10},
      {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 89},
      {user_receive_message, HostType, fun ?MODULE:user_receive_message/3, #{}, 89}
     ].

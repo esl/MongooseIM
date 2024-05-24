@@ -117,7 +117,7 @@ total_roster_items() ->
     generic_count(mod_roster_backend).
 
 %% Need to clear last_activity after carol (connected over BOSH)
-%% It is possible that from time to time the unset_presence_hook,
+%% It is possible that from time to time the unset_presence hook,
 %% for user connected over BOSH, is called after user removal.
 %% This happens when the BOSH session is closed (on server side)
 %% after user's removal

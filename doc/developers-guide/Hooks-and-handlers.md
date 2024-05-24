@@ -26,7 +26,7 @@ I.e. if `mod_offline` was not available, the code would simply crash; if it was 
 To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-code-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` calls instead:
 
 ```erlang
-mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
+mongoose_hooks:offline_message(Acc, From, To, Packet);
 ```
 
 `mongoose_hooks` is a module which serves as an API for calling hooks in the server. All such modules are placed in `src/hooks`.
@@ -37,7 +37,7 @@ This means that there is some degree of coupling still - but this time between t
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
 This depends on which handlers are registered to process the event.
 
-`offline_message_hook` is the name of the hook (in other words of the event that is being signalled);
+`offline_message` is the name of the hook (in other words of the event that is being signalled);
 `Acc` is the [Accumulator, described later](#using-accumulators);
 `From`, `To` and `Packet` are the arguments passed to the handler, just as they would in case of the function being called directly.
 
@@ -86,10 +86,10 @@ If a Mongoose accumulator is passed to a hook, handlers should store their retur
 * If the value is to be passed on to be reused within the current processing context, use `mongoose_acc:set(Namespace, Key, Value, Acc)`.
 * If the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:set_permanent(Namespace, Key, Value, Acc)`.
 
-A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `mod_presence`:
+A real life example, then, with regard to `mod_offline` is the `resend_offline_messages` hook run in `mod_presence`:
 
 ```erlang
-Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, Jid),
+Acc1 = mongoose_hooks:resend_offline_messages(Acc, Jid),
 Rs = mongoose_acc:get(offline, messages, [], Acc1),
 ```
 
@@ -122,7 +122,7 @@ It is decided when creating a hook and can be checked in the `mongoose_hooks` mo
 
 ## Registering hook handlers
 
-In order to store a packet when `ejabberd_sm` runs `offline_message_hook`, the relevant module must register a handler for this hook.
+In order to store a packet when `ejabberd_sm` runs `offline_message`, the relevant module must register a handler for this hook.
 To attain the runtime configurability the module should register the handlers when it's loaded and unregister them when
 it's unloaded.
 That's usually done in, respectively, `start/2` and `stop/1` functions.
@@ -133,10 +133,10 @@ gen_hook:add_handlers(hooks(HostType)),
 ```
 and the `hooks/1` function returns a list of tuples describing hook handlers, like:
 ```erlang
-{offline_message_hook, HostType, fun ?MODULE:inspect_packet/3, #{}, 50}
+{offline_message, HostType, fun ?MODULE:inspect_packet/3, #{}, 50}
 ```
 
-It is clearly visible that the handler `inspect_packet` is added to the `offline_message_hook`.
+It is clearly visible that the handler `inspect_packet` is added to the `offline_message` hook.
 
 `HostType` is the one for which the handler will be executed.
 In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../configuration/general.md#generalhosts).
