@@ -355,8 +355,8 @@ remove_metric({Name, _, _}) ->
 
 %% decided whether to use a metric for given hook or not
 -spec filter_hook(hook_name()) -> use_or_skip().
-filter_hook(sm_register_connection_hook) -> skip;
-filter_hook(sm_remove_connection_hook) -> skip;
+filter_hook(sm_register_connection) -> skip;
+filter_hook(sm_remove_connection) -> skip;
 filter_hook(auth_failed) -> skip;
 filter_hook(user_send_packet) -> skip;
 filter_hook(user_send_message) -> skip;

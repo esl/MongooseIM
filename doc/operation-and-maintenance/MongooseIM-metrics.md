@@ -73,7 +73,7 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[HostType, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
+| `[HostType, anonymous_purge]` | spiral | An anonymous user disconnects. |
 | `[HostType, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
 | `[HostType, disco_local_features]` | spiral | A list of server features is gathered. |
 | `[HostType, disco_local_identity]` | spiral | A list of server identities is gathered. |
@@ -82,15 +82,15 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
 | `[HostType, disco_sm_items]` | spiral | A list of user's items is gathered. |
 | `[HostType, mam_lookup_messages]` | spiral | An archive lookup is performed. |
-| `[HostType, offline_message_hook]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
-| `[HostType, offline_groupchat_message_hook]` | spiral | A groupchat message was sent to an offline user. |
+| `[HostType, offline_message]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
+| `[HostType, offline_groupchat_message]` | spiral | A groupchat message was sent to an offline user. |
 | `[HostType, privacy_updated_list]` | spiral | User's privacy list is updated. |
-| `[HostType, resend_offline_messages_hook]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
+| `[HostType, resend_offline_messages]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
 | `[HostType, roster_get_subscription_lists]` |  spiral | Presence subscription lists (based on which presence updates are broadcasted) are gathered. |
 | `[HostType, roster_in_subscription]` | spiral | A presence with subscription update is processed. |
 | `[HostType, roster_out_subscription]` | spiral | A presence with subscription update is received from a client. |
 | `[HostType, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
-| `[HostType, unset_presence_hook]` | spiral | A user disconnects or sends an `unavailable` presence. |
+| `[HostType, unset_presence]` | spiral | A user disconnects or sends an `unavailable` presence. |
 
 ### Presences & rosters
 

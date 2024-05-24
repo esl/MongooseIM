@@ -728,7 +728,7 @@ hooks(HostType) ->
         {user_send_message, HostType, fun ?MODULE:user_send_message/3, #{}, 60},
         {filter_local_packet, HostType, fun ?MODULE:filter_packet/3, #{}, 60},
         {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-        {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+        {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
         {amp_determine_strategy, HostType, fun ?MODULE:determine_amp_strategy/3, #{}, 20},
         {sm_filter_offline_message, HostType, fun ?MODULE:sm_filter_offline_message/3, #{}, 50},
         {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}

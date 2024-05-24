@@ -86,7 +86,7 @@ supported_features() -> [dynamic_domains].
 hooks(HostType) ->
     [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {get_personal_data, HostType, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 config_spec() ->

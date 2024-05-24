@@ -47,7 +47,7 @@ supported_features() -> [dynamic_domains].
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
-    [{offline_message_hook, HostType, fun ?MODULE:stop_hook_processing/3, #{}, 75}].
+    [{offline_message, HostType, fun ?MODULE:stop_hook_processing/3, #{}, 75}].
 
 -spec stop_hook_processing(Acc, Params, Extra) -> {stop, Acc} when
     Acc :: mongoose_acc:t(),

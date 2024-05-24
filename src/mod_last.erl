@@ -44,7 +44,7 @@
          process_local_iq/5,
          process_sm_iq/5,
          remove_user/3,
-         unset_presence_hook/3,
+         unset_presence/3,
          session_cleanup/3,
          sessions_cleanup/3,
          remove_domain/3]).
@@ -89,8 +89,8 @@ iq_handlers() ->
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
     [{remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-     {unset_presence_hook, HostType, fun ?MODULE:unset_presence_hook/3, #{}, 50},
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50},
+     {unset_presence, HostType, fun ?MODULE:unset_presence/3, #{}, 50},
      {session_cleanup, HostType, fun ?MODULE:session_cleanup/3, #{}, 50},
      {sessions_cleanup, HostType, fun ?MODULE:sessions_cleanup/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50}
@@ -264,11 +264,11 @@ maybe_forward_last(Acc) ->
             {stop, Acc}
     end.
 
--spec unset_presence_hook(Acc, Params, Extra) -> {ok, Acc} when
+-spec unset_presence(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
     Params :: #{jid := jid:jid(), status := status()},
     Extra :: gen_hook:extra().
-unset_presence_hook(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
+unset_presence(Acc, #{jid := #jid{luser = LUser, lserver = LServer}, status := Status}, _) ->
     {ok, store_last_info(Acc, LUser, LServer, Status)}.
 
 -spec session_cleanup(Acc, Params, Extra) -> {ok, Acc} when

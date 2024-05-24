@@ -449,12 +449,12 @@ init_backend(ServerHost, Opts) ->
 
 hooks(ServerHost) ->
     [{disco_local_features, ServerHost, fun ?MODULE:disco_local_features/3, #{}, 75},
-     {sm_remove_connection_hook, ServerHost, fun ?MODULE:on_user_offline/3, #{}, 75},
-     {presence_probe_hook, ServerHost, fun ?MODULE:presence_probe/3, #{}, 80},
+     {sm_remove_connection, ServerHost, fun ?MODULE:on_user_offline/3, #{}, 75},
+     {presence_probe, ServerHost, fun ?MODULE:presence_probe/3, #{}, 80},
      {roster_in_subscription, ServerHost, fun ?MODULE:in_subscription/3, #{}, 50},
      {roster_out_subscription, ServerHost, fun ?MODULE:out_subscription/3, #{}, 50},
      {remove_user, ServerHost, fun ?MODULE:remove_user/3, #{}, 50},
-     {anonymous_purge_hook, ServerHost, fun ?MODULE:remove_user/3, #{}, 50},
+     {anonymous_purge, ServerHost, fun ?MODULE:remove_user/3, #{}, 50},
      {get_personal_data, ServerHost, fun ?MODULE:get_personal_data/3, #{}, 50}].
 
 pep_hooks(ServerHost) ->

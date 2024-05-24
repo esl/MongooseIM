@@ -104,7 +104,7 @@ hooks(HostType) ->
      {privacy_updated_list, HostType, fun ?MODULE:updated_list/3, #{}, 50},
      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
      {remove_domain, HostType, fun ?MODULE:remove_domain/3, #{}, 50},
-     {anonymous_purge_hook, HostType, fun ?MODULE:remove_user/3, #{}, 50}
+     {anonymous_purge, HostType, fun ?MODULE:remove_user/3, #{}, 50}
      | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).

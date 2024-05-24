@@ -2,6 +2,8 @@
 -export([init_s2s/1]).
 -export([end_s2s/1]).
 -export([configure_s2s/2]).
+-export([has_inet_errors/2]).
+-export([has_xmpp_server/2]).
 
 -import(distributed_helper, [rpc_spec/1, rpc/4]).
 -import(domain_helper, [host_type/1]).
@@ -82,3 +84,24 @@ restart_s2s(#{} = Spec, S2SListener) ->
      {_, Pid, _, _} <- ChildrenIn],
 
     mongoose_helper:restart_listener(Spec, S2SListener).
+
+has_inet_errors(History, Server) ->
+    Inet = lists:any(
+        fun({_, {inet, getaddr, [Server1, inet]}, {error, nxdomain}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History),
+    Inet6 = lists:any(
+        fun({_, {inet, getaddr, [Server1, inet6]}, {error, nxdomain}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History),
+    Inet andalso Inet6.
+
+has_xmpp_server(History, Server) ->
+    lists:all(
+        fun({_, _, {ok, {hostent, "_xmpp-server._tcp." ++ Server1, _, srv, _, _}}})
+            when Server1 == Server -> true;
+           (_) -> false
+        end, History).
+
