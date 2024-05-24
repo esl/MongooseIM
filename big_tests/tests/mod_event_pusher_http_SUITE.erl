@@ -51,11 +51,13 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 init_per_suite(Config0) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_event_pusher_http)),
     escalus:init_per_suite(Config0).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(no_prefix, Config) ->
     set_modules(Config, #{});
@@ -108,17 +110,29 @@ proper_http_message_encode_decode(Config) ->
 
 simple_message(Config) ->
     %% we expect one notification message
-    do_simple_message(Config, <<"Hi, Simple!">>),
+    Alice = do_simple_message(Config, <<"Hi, Simple!">>),
     %% fail if we didn't receive http notification
     Body = get_http_request(),
     {_, _} = binary:match(Body, <<"alice">>),
-    {_, _} = binary:match(Body, <<"Simple">>).
+    {_, _} = binary:match(Body, <<"Simple">>),
+    AliceName = escalus_client:username(Alice),
+    instrument_helper:assert(mod_event_pusher_http_sent, #{host_type => host_type()},
+                             fun(#{count := 1, sender := S, response_code := <<"200">>, response_time := T}) ->
+                                 ?assert(T > 0), AliceName =:= S end).
 
 simple_message_no_listener(Config) ->
-    do_simple_message(Config, <<"Hi, NoListener!">>).
+    Alice = do_simple_message(Config, <<"Hi, NoListener!">>),
+    AliceName = escalus_client:username(Alice),
+    instrument_helper:assert(mod_event_pusher_http_sent, #{host_type => host_type()},
+                             fun(#{failure_count := 1, sender := S}) -> AliceName =:= S end).
+
 
 simple_message_failing_listener(Config) ->
-    do_simple_message(Config, <<"Hi, Failing!">>).
+    Alice = do_simple_message(Config, <<"Hi, Failing!">>),
+    AliceName = escalus_client:username(Alice),
+    instrument_helper:assert(mod_event_pusher_http_sent, #{host_type => host_type()},
+                             fun(#{count := 1, sender := S, response_code := <<"500">>, response_time := T}) ->
+                                 ?assert(T > 0), AliceName =:= S end).
 
 do_simple_message(Config0, Msg) ->
     Config = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
@@ -135,7 +149,8 @@ do_simple_message(Config0, Msg) ->
     %% He receives his initial presence and the message
     Stanzas = escalus:wait_for_stanzas(Bob, 2),
     escalus_new_assert:mix_match([is_presence, is_chat(Msg)], Stanzas),
-    escalus_client:stop(Config, Bob).
+    escalus_client:stop(Config, Bob),
+    Alice.
 
 %%%===================================================================
 %%% Helpers
@@ -193,7 +208,7 @@ start_http_listener(simple_message, Prefix) ->
 start_http_listener(simple_message_no_listener, _) ->
     ok;
 start_http_listener(simple_message_failing_listener, Prefix) ->
-    http_helper:start(http_notifications_port(), Prefix, fun(Req) -> Req end);
+    http_helper:start(http_notifications_port(), Prefix, fun(_Req) -> erlang:error(failing_listener) end);
 start_http_listener(proper_http_message_encode_decode, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1).
 
