@@ -21,7 +21,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [domain/0, host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -70,12 +70,14 @@ ping_req_timeout() ->
     timer:seconds(2).
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_ping)),
     mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(client_ping, Config) ->
     start_mod_ping(#{}),
@@ -93,7 +95,7 @@ init_per_group(server_ping_kill, Config) ->
     [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     dynamic_modules:stop(HostType, mod_ping),
     Config.
 
@@ -110,12 +112,12 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_ping(Opts) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     dynamic_modules:start(HostType, mod_ping, config_parser_helper:mod_config(mod_ping, Opts)).
 
 setup_pong_hook(Config) ->
     Pid = self(),
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
     [{pid, Pid} | Config].
 
@@ -132,7 +134,7 @@ pong_hook_handler(Acc,
 
 clear_pong_hook(Config) ->
     {value, {_, Pid}, NConfig} = lists:keytake(pid, 1, Config),
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Pid]),
     NConfig.
 
@@ -155,11 +157,11 @@ disco(Config) ->
 
 ping(ConfigIn) ->
     Domain = domain(),
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostTypePrefix, mod_ping, ping_response],0},
-        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping_response, count], 0},
+        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -206,11 +208,11 @@ service_unavailable_response(Config) ->
 
 active(ConfigIn) ->
     Domain = domain(),
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostTypePrefix, mod_ping, ping_response],0},
-        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping_response, count], 0},
+        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -225,11 +227,11 @@ active(ConfigIn) ->
         end).
 
 active_keep_alive(ConfigIn) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostTypePrefix, mod_ping, ping_response],0},
-        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping_response, count], 0},
+        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -242,12 +244,12 @@ active_keep_alive(ConfigIn) ->
         end).
 
 server_ping_pong(ConfigIn) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostTypePrefix, mod_ping, ping_response], 5},
-        {[HostTypePrefix, mod_ping, ping_response_timeout], 0},
-        {[HostTypePrefix, mod_ping, ping_response_time], changed}
+        {[HostTypePrefix, mod_ping_response, count], 5},
+        {[HostTypePrefix, mod_ping_response, time], changed},
+        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
@@ -260,14 +262,17 @@ server_ping_pong(ConfigIn) ->
                                       escalus_client:send(Alice, Pong)
                               end, [Alice1, Alice2, Alice3, Alice4, Alice5]),
                 wait_for_pong_hooks(5)
-        end).
+            end),
+    assert_event(mod_ping_response, fun(#{count := 1, time := Time}) ->
+                                         is_integer(Time) andalso Time >= 0
+                                    end).
 
 server_ping_pang(ConfigIn) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostTypePrefix, mod_ping, ping_response], 0},
-        {[HostTypePrefix, mod_ping, ping_response_timeout], 1}
+        {[HostTypePrefix, mod_ping_response, count], 0},
+        {[HostTypePrefix, mod_ping_response_timeout, count], 1}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -278,7 +283,8 @@ server_ping_pang(ConfigIn) ->
                 TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice),
                 escalus_client:kill_connection(Config, Alice)
-        end).
+            end),
+    assert_event(mod_ping_response_timeout, fun(#{count := 1}) -> true end).
 
 wait_ping_interval(Ration) ->
     WaitTime = ping_interval() * Ration,
@@ -305,3 +311,6 @@ wait_for_pong_hooks(N) ->
         5000 ->
             ct:fail({pong_hook_runs_missing, N})
     end.
+
+assert_event(EventName, F) ->
+    instrument_helper:assert(EventName, #{host_type => host_type()}, F).
