@@ -22,7 +22,6 @@ groups() ->
 
 all_metrics_list() ->
     [
-     no_skip_metric,
      subscriptions_initialised,
      tcp_connections_detected,
      tcp_metric_varies_with_tcp_variations,
@@ -159,10 +158,6 @@ queued_messages_increase(_C) ->
               {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
               lists:sort(L)
       end, Fun).
-
-no_skip_metric(_C) ->
-    ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection),
-    undefined = exometer:info([<<"localhost">>, sm_register_connection]).
 
 subscriptions_initialised(_C) ->
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
