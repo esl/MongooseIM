@@ -127,18 +127,23 @@ init_per_suite(Config) ->
                     ok
             end,
             enable_logging(),
-            instrument_helper:start(instrument_helper:declared_events(mod_global_distrib)),
-            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
+            instrument_helper:start(events([mod_global_distrib, mod_global_distrib_bounce])),
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config1]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
             {skip, "GD Redis default pool not available"}
     end.
+
+events(Modules) ->
+    lists:append([instrument_helper:declared_events(M) || M <- Modules]).
 
 end_per_suite(Config) ->
     disable_logging(),
     escalus_fresh:clean(),
     rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config),
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
     instrument_helper:stop().
 
 init_per_group(start_checks, Config) ->
@@ -858,7 +863,9 @@ test_messages_bounced_in_order(Config) ->
               %% Make sure all messages land in bounce storage
               delete_mapping(europe_node1, Eve),
 
-              Seq = lists:seq(1, 100),
+              wait_for_bounce_size(0),
+
+              Seq = lists:seq(1, 99),
               lists:foreach(
                 fun(I) ->
                         Stanza = escalus_stanza:chat_to(Eve, integer_to_binary(I)),
@@ -866,9 +873,17 @@ test_messages_bounced_in_order(Config) ->
                 end,
                 Seq),
 
+              wait_for_bounce_size(99),
+
               %% Restore the mapping so that bounce eventually succeeds
               ?assertEqual(undefined, get_mapping(europe_node1, Eve)),
               set_mapping(europe_node1, Eve, <<"reg1">>),
+
+              %% Test used to work if the mapping is restored while Alice was still sending the 100 stanzas.
+              %% This may actually be a race condition, and it should work like in the
+              %% test_in_order_messages_on_multiple_connections_with_bounce testcase:
+              %% Make sure that the last message is sent when the mapping is known
+              escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"100">>)),
 
               lists:foreach(
                 fun(I) ->
@@ -877,6 +892,11 @@ test_messages_bounced_in_order(Config) ->
                 end,
                 Seq)
       end).
+
+wait_for_bounce_size(ExpectedSize) ->
+    [Measurements | _] = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue_size, #{}),
+    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
+    instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, [Measurements], F).
 
 test_update_senders_host(Config) ->
     escalus:fresh_story(

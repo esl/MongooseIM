@@ -15,4 +15,4 @@
 -define(GLOBAL_DISTRIB_OUTGOING_ESTABLISHED(Server), [mod_global_distrib, outgoing, established, Server]).
 -define(GLOBAL_DISTRIB_OUTGOING_CLOSED(Server), [mod_global_distrib, outgoing, closed, Server]).
 -define(GLOBAL_DISTRIB_OUTGOING_ERRORED(Server), [mod_global_distrib, outgoing, errored, Server]).
--define(GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, [mod_global_distrib, bounce_queue_size]).
+-define(GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, mod_global_distrib_bounce_queue_size).
