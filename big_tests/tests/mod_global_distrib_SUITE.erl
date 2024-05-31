@@ -430,12 +430,7 @@ test_two_way_pm(Alice, Eve) ->
     escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi to Eve from Europe1!">>],
                    FromAlice),
     escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
-                   FromEve),
-    % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
-    instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
-                             fun(#{ttl := TTL, from := From}) ->
-                                 ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
-                             end).
+                   FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -507,7 +502,14 @@ test_muc_conversation_history(Config0) ->
               %% the service MAY then send discussion history, the room subject,
               %% live messages, presence updates, and other in-room traffic.
               receive_n_muc_messages(Eve, 3),
-              wait_for_subject(Eve)
+              wait_for_subject(Eve),
+
+              % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
+              EveJid = escalus_client:full_jid(Eve),
+              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
+                                       fun(#{ttl := TTL, from := From}) ->
+                                           ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
+                                       end)
       end),
     muc_helper:destroy_room(Config).
 
