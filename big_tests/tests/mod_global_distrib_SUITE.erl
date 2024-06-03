@@ -512,7 +512,7 @@ test_muc_conversation_history(Config0) ->
 
               % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
               EveJid = escalus_client:full_jid(Eve),
-              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
+              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{host_type => domain_helper:host_type()},
                                        fun(#{ttl := TTL, from := From}) ->
                                            ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
                                        end)
