@@ -139,7 +139,7 @@ run_fold(HookName, Tag, Acc, Params) ->
     Key = hook_key(HookName, Tag),
     case persistent_term:get(?MODULE, #{}) of
         #{Key := Ls} ->
-            mongoose_metrics:increment_generic_hook_metric(Tag, HookName),
+            mongoose_instrument_hooks:execute(HookName, Tag),
             run_hook(Ls, Acc, Params, Key);
         _ ->
             {ok, Acc}
@@ -156,12 +156,12 @@ init([]) ->
     erlang:process_flag(trap_exit, true), %% We need to make sure that terminate is called in tests
     {ok, #{}}.
 
-handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
+handle_call({add_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, _From, State) ->
     NewState =
         case maps:get(Key, State, []) of
             [] ->
                 NewLs = [HookHandler],
-                create_hook_metric(Key),
+                mongoose_instrument_hooks:set_up(Name, Tag),
                 maps:put(Key, NewLs, State);
             Ls ->
                 case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
@@ -178,7 +178,7 @@ handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
         end,
     maybe_insert_immediately(NewState),
     {reply, ok, NewState};
-handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
+handle_call({delete_handler, Key = {Name, Tag}, #hook_handler{} = HookHandler}, _From, State) ->
     NewState =
         case maps:get(Key, State, []) of
             [] ->
@@ -190,6 +190,10 @@ handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) 
                 %% by using `erlang:fun_info/2`
                 Pred = fun_is_handler_equal_to(HookHandler),
                 {_, NewLs} = lists:partition(Pred, Ls),
+                case NewLs of
+                    [] -> mongoose_instrument_hooks:tear_down(Name, Tag);
+                    _ -> ok
+                end,
                 maps:put(Key, NewLs, State)
         end,
     maybe_insert_immediately(NewState),
@@ -324,7 +328,3 @@ extend_extra({HookName, Tag, _Function, OriginalExtra, _Priority}) ->
     %% only the new keys from the ExtraExtension map will be added
     %% to the NewExtra map
     maps:merge(ExtraExtension, OriginalExtra).
-
--spec create_hook_metric(Key :: key()) -> any().
-create_hook_metric({HookName, Tag}) ->
-    mongoose_metrics:create_generic_hook_metric(Tag, HookName).
