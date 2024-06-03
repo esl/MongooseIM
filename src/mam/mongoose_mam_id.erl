@@ -17,12 +17,17 @@
 -module(mongoose_mam_id).
 -author('konrad.zemek@erlang-solutions.com').
 
--export([next_unique/1]).
+-export([next_unique/1, reset/0]).
 -on_load(load/0).
+
+-ignore_xref([reset/0]).
 
 load() ->
     Path = filename:join(ejabberd:get_so_path(), ?MODULE_STRING),
     erlang:load_nif(Path, 0).
 
 next_unique(_Candidate) ->
+    erlang:nif_error(not_loaded).
+
+reset() ->
     erlang:nif_error(not_loaded).

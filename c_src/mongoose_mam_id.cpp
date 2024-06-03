@@ -42,7 +42,14 @@ static ERL_NIF_TERM next_unique(ErlNifEnv *env, int argc, const ERL_NIF_TERM arg
     return enif_make_uint64(env, candidate);
 }
 
-static ErlNifFunc nif_funcs[] = { { "next_unique", 1, next_unique } };
+static ERL_NIF_TERM reset(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    std::uint_fast64_t zero = 0;
+    counter = zero;
+    return enif_make_uint64(env, zero);
+}
+
+static ErlNifFunc nif_funcs[] = { { "next_unique", 1, next_unique }, { "reset", 0, reset } };
 
 ERL_NIF_INIT(mongoose_mam_id, nif_funcs, nullptr, nullptr, nullptr, nullptr)
 }

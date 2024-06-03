@@ -362,6 +362,7 @@ muc_cases() ->
 
 muc_cases_with_room() ->
     [muc_archive_request,
+     muc_archive_request_after_mam_id_reset,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -2190,6 +2191,52 @@ muc_archive_request(Config) ->
         ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_archive_request_after_mam_id_reset(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        StartTS = erlang:system_time(microsecond),
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends another message to Bob.
+        %% The message is not archived by the room.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+
+        %% Alice sends to the chat room.
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+        0 = rpc(mim(), mongoose_mam_id, reset, []),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        escalus:wait_for_stanza(Bob),
+
+        maybe_wait_for_archive(Config),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
+        #forwarded_message{result_id=ArcId} =
+            parse_forwarded_message(ArcMsg),
+
+        %% Check that timestamp is not 0
+        MessId = rpc_apply(mod_mam_utils, external_binary_to_mess_id, [ArcId]),
+        {ArcTS, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [MessId]),
+        [ct:fail({bad_mam_id, ArcId, ArcTS, StartTS, MessId}) || ArcTS < StartTS],
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
