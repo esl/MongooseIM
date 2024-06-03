@@ -39,67 +39,51 @@ groups() ->
       ]}
     ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     mongoose_config:set_opts(opts()),
-    C.
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []}]).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts().
 
 opts() ->
-    #{{modules, host_type()} => #{?TESTED => config_parser_helper:default_mod_config(?TESTED)}}.
+    #{{modules, host_type()} => #{?TESTED => config_parser_helper:default_mod_config(?TESTED)},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 init_per_testcase(Test, Config)
         when Test =:= serialize_deserialize_property;
              Test =:= validation_test;
              Test =:= validation_property;
              Test =:= choose_key_by_token_type ->
-    mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, [{mongooseim_helper, start_link_loaded_hooks, []}]),
     mock_keystore(),
     mock_rdbms_backend(),
-    Config1;
-
+    Config;
 init_per_testcase(validity_period_test, Config) ->
     mock_rdbms_backend(),
-    mock_mongoose_metrics(),
     mock_gen_iq_handler(),
-    async_helper:start(Config, [{mongooseim_helper, start_link_loaded_hooks, []}]);
-
+    Config;
 init_per_testcase(revoked_token_is_not_valid, Config) ->
-    mock_mongoose_metrics(),
     mock_tested_backend(),
-    Config1 = async_helper:start(Config, [{mongooseim_helper, start_link_loaded_hooks, []}]),
     mock_keystore(),
-    Config1;
-
+    Config;
 init_per_testcase(_, C) -> C.
 
-end_per_testcase(Test, C)
+end_per_testcase(Test, _C)
         when Test =:= serialize_deserialize_property;
              Test =:= validation_test;
              Test =:= validation_property;
              Test =:= choose_key_by_token_type ->
-    meck:unload(mongoose_metrics),
+    meck:unload(mod_auth_token_backend);
+end_per_testcase(validity_period_test, _C) ->
     meck:unload(mod_auth_token_backend),
-    async_helper:stop_all(C),
-    C;
-
-end_per_testcase(validity_period_test, C) ->
-    meck:unload(mod_auth_token_backend),
-    meck:unload(mongoose_metrics),
-    meck:unload(gen_iq_handler),
-    async_helper:stop_all(C),
-    C;
-
-end_per_testcase(revoked_token_is_not_valid, C) ->
-    meck:unload(mongoose_metrics),
-    meck:unload(mod_auth_token_backend),
-    async_helper:stop_all(C),
-    C;
-
-end_per_testcase(_, C) -> C.
+    meck:unload(gen_iq_handler);
+end_per_testcase(revoked_token_is_not_valid, _C) ->
+    meck:unload(mod_auth_token_backend);
+end_per_testcase(_, _) ->
+    ok.
 
 %%
 %% Tests
@@ -217,12 +201,6 @@ utc_now_as_seconds() ->
 negative_prop(Name, Prop) ->
     Props = proper:conjunction([{Name, Prop}]),
     [[{Name, _}]] = proper:quickcheck(Props, [verbose, long_result, {numtests, 50}]).
-
-mock_mongoose_metrics() ->
-    meck:new(mongoose_metrics, []),
-    meck:expect(mongoose_metrics, create_generic_hook_metric, fun (_, _) -> ok end),
-    meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
-    ok.
 
 mock_rdbms_backend() ->
     meck:new(mod_auth_token_backend, []),

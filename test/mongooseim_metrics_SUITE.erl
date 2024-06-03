@@ -35,6 +35,8 @@ init_per_suite(C) ->
     application:load(exometer_core),
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
     {Port, Socket} = carbon_cache_server:start(),
+    mongoose_config:set_opts(opts()),
+    C1 = async_helper:start(C, mongoose_instrument, start_link, []),
     Sup = spawn(fun() ->
         mim_ct_sup:start_link(ejabberd_sup),
         Hooks = {gen_hook,
@@ -55,11 +57,13 @@ init_per_suite(C) ->
     gen_tcp:controlling_process(Socket, PortServer),
     {ok, _Apps} = application:ensure_all_started(exometer_core),
     exometer:new([carbon, packets], spiral),
-    [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
+    [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C1].
 
 end_per_suite(C) ->
     Sup = ?config(test_sup, C),
     Sup ! stop,
+    async_helper:stop_all(C),
+    mongoose_config:erase_opts(),
     CarbonServer = ?config(carbon_server, C),
     erlang:exit(CarbonServer, kill),
     CarbonSocket = ?config(carbon_socket, C),
@@ -68,7 +72,7 @@ end_per_suite(C) ->
     C.
 
 init_per_group(Group, C) ->
-    mongoose_config:set_opts(opts(Group)),
+    mongoose_config:set_opt(all_metrics_are_global, Group =:= all_metrics_are_global),
     mongoose_metrics:init(),
     mongoose_metrics:init_mongooseim_metrics(),
     C.
@@ -76,7 +80,7 @@ init_per_group(Group, C) ->
 end_per_group(_Group, _C) ->
     mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
     mongoose_metrics:remove_host_type_metrics(global),
-    mongoose_config:erase_opts().
+    mongoose_config:unset_opt(all_metrics_are_global).
 
 init_per_testcase(CN, C) when tcp_connections_detected =:= CN;
                               tcp_metric_varies_with_tcp_variations =:= CN ->
@@ -171,10 +175,10 @@ wait_for_update({ok, [{count,0}]}, N) ->
     timer:sleep(1000),
     wait_for_update(exometer:get_value([carbon, packets], count), N-1).
 
-opts(Group) ->
+opts() ->
     #{hosts => [<<"localhost">>],
       host_types => [],
-      all_metrics_are_global => Group =:= all_metrics_are_global}.
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 get_reporters_cfg(Port) ->
     [{reporters, [

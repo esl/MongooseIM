@@ -52,10 +52,13 @@ suite() ->
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     {ok, _} = application:ensure_all_started(cache_tab),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []}]).
 
 end_per_suite(Config) ->
-    Config.
+    mongoose_config:erase_opts(),
+    async_helper:stop_all(Config).
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -65,23 +68,20 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(_CaseName, Config) ->
     set_meck(),
-    mongoose_config:set_opts(opts()),
     mongoose_domain_sup:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    mongooseim_helper:start_link_loaded_hooks(),
     mongoose_modules:start(),
     Config.
 
 end_per_testcase(_CaseName, Config) ->
     mongoose_modules:stop(),
-    mongoose_config:erase_opts(),
     unset_meck(),
     Config.
 
 opts() ->
     maps:from_list([{hosts, hosts()},
                     {host_types, []},
-                    {all_metrics_are_global, false} |
+                    {instrumentation, config_parser_helper:default_config([instrumentation])} |
                     [{{modules, HostType}, modules(HostType)} || HostType <- hosts()]]).
 
 hosts() ->
