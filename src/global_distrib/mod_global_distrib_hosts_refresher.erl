@@ -23,6 +23,7 @@
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
+-include("global_distrib_metrics.hrl").
 
 %% API
 -export([start_link/1]).
@@ -31,7 +32,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% gen_mod API
--export([deps/2, start/2, stop/1]).
+-export([deps/2, start/2, stop/1, instrumentation/1]).
 
 %% Test & debug API
 -export([pause/0, unpause/0]).
@@ -79,6 +80,19 @@ start(_HostType, Opts) ->
 stop(_HostType) ->
     stop_outgoing_conns_sup(),
     ok.
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(_HostType) ->
+    [{?GLOBAL_DISTRIB_MESSAGES_SENT, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_SEND_QUEUE, #{},
+      #{metrics => #{time => histogram}}},
+     {?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_OUTGOING_ERRORED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_OUTGOING_CLOSED, #{},
+      #{metrics => #{count => spiral}}}].
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->

@@ -50,16 +50,6 @@ init([{Addr, Port}, Server]) ->
                  server => Server, address => Addr, port => Port,
                  pid => self(), conn_id => ConnID}),
     process_flag(trap_exit, true),
-    MetricServer = mod_global_distrib_utils:binary_to_metric_atom(Server),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_SENT(MetricServer), spiral),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_SEND_QUEUE_TIME(MetricServer), histogram),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED(MetricServer), spiral),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_OUTGOING_ERRORED(MetricServer), spiral),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_OUTGOING_CLOSED(MetricServer), spiral),
     try
         {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
         {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections),
@@ -67,8 +57,9 @@ init([{Addr, Port}, Server]) ->
         GdStart = gd_start(Server, ConnID),
         ok = mod_global_distrib_transport:send(Socket, <<(byte_size(GdStart)):32, GdStart/binary>>),
         mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-        mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED(MetricServer), 1),
-        {ok, #state{socket = Socket, host = MetricServer, conn_id = ConnID,
+        mongoose_instrument:execute(?GLOBAL_DISTRIB_OUTGOING_ESTABLISHED, #{},
+                                    #{count => 1, host => Server}),
+        {ok, #state{socket = Socket, host = Server, conn_id = ConnID,
                     peer = mod_global_distrib_transport:peername(Socket)}}
     catch
         error:{badmatch, Reason}:StackTrace ->
@@ -85,12 +76,12 @@ handle_call(Msg, From, State) ->
 handle_cast({data, Stamp, Data}, #state{socket = Socket, host = ToHost} = State) ->
     QueueTimeNative = erlang:monotonic_time() - Stamp,
     QueueTimeUS = erlang:convert_time_unit(QueueTimeNative, native, microsecond),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_SEND_QUEUE_TIME(ToHost), QueueTimeUS),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_SEND_QUEUE, #{}, #{time => QueueTimeUS, host => ToHost}),
     ClockTime = erlang:system_time(microsecond),
     Annotated = <<(byte_size(Data) + 8):32, ClockTime:64, Data/binary>>,
     case mod_global_distrib_transport:send(Socket, Annotated) of
         ok ->
-            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_SENT(ToHost), 1);
+            mongoose_instrument:execute(?GLOBAL_DISTRIB_MESSAGES_SENT, #{}, #{count => 1, host => ToHost});
         Error ->
             ?LOG_ERROR(#{what => gd_cant_send_packet,
                          reason => Error, packet => Data, conn_id => State#state.conn_id}),
@@ -108,7 +99,7 @@ handle_info({tcp_closed, _}, State) ->
 handle_info({tcp_error, _Socket, Reason}, State) ->
     ?LOG_ERROR(#{what => gd_outgoing_socket_error,
                  reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_ERRORED(State#state.host), 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_OUTGOING_ERRORED, #{}, #{count => 1, host => State#state.host}),
     {stop, {error, Reason}, State};
 handle_info(_, State) ->
     {noreply, State}.
@@ -119,7 +110,7 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(Reason, State) ->
     ?LOG_ERROR(#{what => gd_outgoing_socket_error,
                  reason => Reason, peer => State#state.peer, conn_id => State#state.conn_id}),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_OUTGOING_CLOSED(State#state.host), 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_OUTGOING_CLOSED, #{}, #{count => 1, host => State#state.host}),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
 

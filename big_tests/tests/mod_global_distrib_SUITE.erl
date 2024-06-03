@@ -50,7 +50,7 @@ groups() ->
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
-           test_component_disconnect ,
+           test_component_disconnect,
            test_component_on_one_host,
            test_components_in_different_regions,
            test_hidden_component_disco_in_different_region,
@@ -127,7 +127,7 @@ init_per_suite(Config) ->
                     ok
             end,
             enable_logging(),
-            instrument_helper:start(events([mod_global_distrib, mod_global_distrib_bounce])),
+            instrument_helper:start(events()),
             Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config1]);
         Result ->
@@ -135,7 +135,8 @@ init_per_suite(Config) ->
             {skip, "GD Redis default pool not available"}
     end.
 
-events(Modules) ->
+events() ->
+    Modules = [mod_global_distrib, mod_global_distrib_bounce, mod_global_distrib_hosts_refresher],
     lists:append([instrument_helper:declared_events(M) || M <- Modules]).
 
 end_per_suite(Config) ->
@@ -618,7 +619,15 @@ test_component_disconnect(Config) ->
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
                     Error = escalus:wait_for_stanza(User, 5000),
-                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error)
+                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+                    instrument_helper:assert(mod_global_distrib_outgoing_established, #{},
+                                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
+                    instrument_helper:assert(mod_global_distrib_outgoing_queue, #{},
+                                            fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
+                    instrument_helper:assert(mod_global_distrib_outgoing_messages, #{},
+                                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
+                    instrument_helper:assert(mod_global_distrib_outgoing_closed, #{},
+                                             fun(#{count := 1, host := <<"reg1">>}) -> true end)
             end,
 
     [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
