@@ -22,34 +22,22 @@ groups() ->
                    ]}
     ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
-    C.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []},
+                                {ejabberd_router, start_link, []}]).
 
-end_per_suite(_C) ->
+end_per_suite(Config) ->
     meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
-    application:stop(exometer_core),
-    ok.
-
-init_per_group(routing, Config) ->
-    mongoose_config:set_opts(opts()),
-    mongooseim_helper:start_link_loaded_hooks(),
-    ejabberd_router:start_link(),
-    Config.
-
-end_per_group(routing, _Config) ->
+    async_helper:stop_all(Config),
     mongoose_config:erase_opts().
-
-init_per_testcase(_CaseName, Config) ->
-    Config.
-
-end_per_testcase(_CaseName, _Config) ->
-    ok.
 
 %% ---------------------------------------------------------------
 %% Test cases
@@ -173,5 +161,6 @@ resend_as_error(From0, To0, Acc0, Packet0) ->
 opts() ->
     RoutingModules = [xmpp_router_a, xmpp_router_b, xmpp_router_c],
     #{all_metrics_are_global => false,
+      instrumentation => config_parser_helper:default_config([instrumentation]),
       component_backend => mnesia,
       routing_modules => xmpp_router:expand_routing_modules(RoutingModules)}.

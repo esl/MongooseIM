@@ -98,7 +98,9 @@
          data_validate_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
+         muc_run_prefs_case/6,
          prefs_cases2/0,
+         prefs_cases2_muc/0,
          default_policy/1,
          get_all_messages/2,
          parse_messages/1,
@@ -106,7 +108,12 @@
          muc_light_host/0,
          host_type/0,
          config_opts/1,
-         stanza_metadata_request/0
+         stanza_metadata_request/0,
+         assert_archive_message_event/2,
+         assert_lookup_event/2,
+         assert_flushed_event_if_async/2,
+         assert_dropped_iq_event/2,
+         assert_event_with_jid/2
         ]).
 
 -import(muc_light_helper,
@@ -252,6 +259,7 @@ basic_groups() ->
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
                                 ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
+            {muc_prefs_cases, [parallel], muc_prefs_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {muc_light,        [], muc_light_cases()},
@@ -278,13 +286,13 @@ chat_markers_cases() ->
      dont_archive_chat_markers].
 
 mam_metrics_cases() ->
-    [metric_incremented_on_archive_request,
-     metric_incremented_when_store_message].
+    [metric_incremented_when_store_message].
 
 mam_cases() ->
     [mam_service_discovery,
      mam_service_discovery_to_client_bare_jid,
      mam_service_discovery_to_different_client_bare_jid_results_in_error,
+     archive_is_instrumented,
      easy_archive_request,
      easy_archive_request_for_the_receiver,
      message_sent_to_yourself,
@@ -337,9 +345,7 @@ muc_text_search_cases() ->
 
 archived_cases() ->
     [archived,
-     filter_forwarded,
-     metrics_incremented_for_async_pools
-    ].
+     filter_forwarded].
 
 stanzaid_cases() ->
     [message_with_stanzaid,
@@ -361,7 +367,8 @@ muc_cases() ->
     [muc_service_discovery | muc_cases_with_room()].
 
 muc_cases_with_room() ->
-    [muc_archive_request,
+    [muc_archive_is_instrumented,
+     muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -483,6 +490,15 @@ prefs_cases() ->
      messages_filtered_when_prefs_default_policy_is_roster,
      run_set_and_get_prefs_cases].
 
+muc_prefs_cases() ->
+    [muc_prefs_set_request,
+     muc_prefs_set_request_not_an_owner,
+     muc_prefs_set_cdata_request,
+     muc_query_get_request,
+     muc_messages_filtered_when_prefs_default_policy_is_always,
+     muc_messages_filtered_when_prefs_default_policy_is_never,
+     muc_messages_filtered_when_prefs_default_policy_is_roster].
+
 impl_specific() ->
     [check_user_exist,
      pm_failed_to_decode_message_in_database].
@@ -491,11 +507,18 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrument_helper:declared_events(instrumented_modules())),
     muc_helper:load_muc(),
     mam_helper:prepare_for_suite(
       increase_limits(
         delete_users([{escalus_user_db, {module, escalus_ejabberd}}
                   | escalus:init_per_suite(Config)]))).
+
+instrumented_modules() ->
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
+        true -> [mod_mam_rdbms_arch_async, mod_mam_muc_rdbms_arch_async];
+        false -> []
+    end ++ [mod_mam_pm, mod_mam_muc].
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
@@ -505,7 +528,8 @@ end_per_suite(Config) ->
     mongoose_helper:kick_everyone(),
     %% so we don't have sessions anymore and other tests will not fail
     mongoose_helper:restore_config(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 user_names() ->
     [alice, bob, kate, carol].
@@ -541,7 +565,18 @@ init_per_group(rsm04_comp, Config) ->
     [{props, mam04_props()}|Config];
 init_per_group(with_rsm04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
-
+    
+init_per_group(muc_prefs_cases, Config) ->
+    MamOpts = ?config(mam_meta_opts, Config),
+    #{backend := Backend, user_prefs_store := PrefsStore} = MamOpts,
+    case mam_prefs_backend_module(Backend, PrefsStore) of
+        {error, _} -> 
+            {skip, "Database not supported"};
+        MamPrefsBackendModule ->
+            Config1 = dynamic_modules:save_modules(host_type(), Config),
+            dynamic_modules:restart(host_type(), MamPrefsBackendModule, #{muc => true, pm => true}),
+            Config1
+    end;
 init_per_group(nostore, Config) ->
     Config;
 init_per_group(archived, Config) ->
@@ -587,10 +622,12 @@ do_init_per_group(C, ConfigIn) ->
             Config0
     end.
 
+end_per_group(muc_prefs_cases, Config) ->
+    dynamic_modules:restore_modules(Config),
+    Config;
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
-    G == muc06; G == mam06;
-    G == archived; G == mam_metrics ->
+    G == muc06; G == mam06; G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -634,6 +671,15 @@ maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
     [{wait_for_parallel_writer, Types} | Config];
 maybe_set_wait(_C, _, Config) ->
     Config.
+
+mam_prefs_backend_module(rdbms, rdbms) ->
+    mod_mam_rdbms_prefs;
+mam_prefs_backend_module(cassandra, cassandra) ->
+    mod_mam_cassandra_prefs;
+mam_prefs_backend_module(_, mnesia) ->
+    mod_mam_mnesia_prefs;
+mam_prefs_backend_module(_, _) ->
+    {error, wrong_db}.
 
 mam_opts_for_conf(elasticsearch) ->
     #{backend => elasticsearch,
@@ -711,9 +757,6 @@ init_steps() ->
     [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
      fun escalus:init_per_testcase/2].
 
-maybe_skip(metrics_incremented_for_async_pools, Config) ->
-    skip_if(?config(configuration, Config) =/= rdbms_async_pool,
-            "Not an async-pool test");
 maybe_skip(C, Config) when C =:= retract_message;
                            C =:= retract_wrong_message;
                            C =:= ignore_bad_retraction;
@@ -789,9 +832,6 @@ fresh_users(C) ->
         false -> []
     end.
 
-init_archive(C, Config) when C =:= metrics_incremented_for_async_pools;
-                             C =:= metric_incremented_when_store_message ->
-    clean_archives(Config);
 init_archive(C, Config) when ?requires_pm_archive(C) ->
     bootstrap_archive(Config);
 init_archive(C, Config) when ?requires_muc_archive(C) ->
@@ -822,15 +862,6 @@ init_metrics(metric_incremented_when_store_message, ConfigIn) ->
             [{mongoose_metrics, MongooseMetrics} | ConfigIn];
         _ ->
             ConfigIn
-    end;
-init_metrics(muc_archive_request, Config) ->
-    %% Check that metric is incremented on MUC flushed
-    case ?config(configuration, Config) of
-        rdbms_async_pool ->
-            MongooseMetrics = [{['_', 'modMucMamFlushed'], changed}],
-            [{mongoose_metrics, MongooseMetrics} | Config];
-        _ ->
-            Config
     end;
 init_metrics(_CaseName, Config) ->
     Config.
@@ -1057,6 +1088,19 @@ same_stanza_id(Config) ->
     end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+archive_is_instrumented(Config) ->
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+        assert_archive_message_event(mod_mam_pm_archive_message, escalus_utils:get_jid(Alice)),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        assert_flushed_event_if_async(mod_mam_pm_flushed, Config),
+        {S, U} = {escalus_utils:get_server(Alice), escalus_utils:get_username(Alice)},
+        mam_helper:delete_archive(S, U),
+        assert_event_with_jid(mod_mam_pm_remove_archive, escalus_utils:get_short_jid(Alice))
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
 %% Querying the archive for messages
 easy_archive_request(Config) ->
     P = ?config(props, Config),
@@ -1072,6 +1116,7 @@ easy_archive_request(Config) ->
         mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(Alice),
+        assert_lookup_event(mod_mam_pm_lookup, escalus_utils:get_jid(Alice)),
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
         ok
@@ -1886,7 +1931,6 @@ archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
-        try
         StanzaId = exml_query:subelement(Msg, <<"stanza-id">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(StanzaId, <<"by">>),
@@ -1902,10 +1946,6 @@ archived(Config) ->
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Id, ArcId),
         ok
-        catch Class:Reason:StackTrace ->
-            ct:pal("Msg ~p", [Msg]),
-            erlang:raise(Class, Reason, StackTrace)
-        end
         end,
     %% Made fresh in init_per_testcase
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2135,6 +2175,26 @@ test_retract_muc_message(Config) ->
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+muc_archive_is_instrumented(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob received presences, the room's subject and the message.
+        escalus:wait_for_stanzas(Bob, 4),
+        assert_archive_message_event(mod_mam_muc_archive_message, RoomAddr),
+        maybe_wait_for_archive(Config),
+        assert_flushed_event_if_async(mod_mam_muc_flushed, Config),
+
+        mam_helper:delete_room_archive(muc_host(), ?config(room, Config)),
+        assert_event_with_jid(mod_mam_muc_remove_archive, RoomAddr)
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
 muc_archive_request(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -2190,6 +2250,7 @@ muc_archive_request(Config) ->
         ?assert_equal(escalus_utils:jid_to_lower(RoomAddr), By),
         ?assert_equal_extra(true, has_x_user_element(ArcMsg),
                             [{forwarded_message, ArcMsg}]),
+        assert_lookup_event(mod_mam_muc_lookup, escalus_utils:get_jid(Bob)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -3040,7 +3101,7 @@ server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Conditio
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [IQ], Res),
         escalus:assert(is_error, Condition, Res),
-        ok
+        assert_dropped_iq_event(Config, escalus_utils:get_jid(Alice))
         end,
     parallel_story(Config, [{alice, 1}], F).
 
@@ -3233,9 +3294,11 @@ prefs_set_request(Config) ->
                                                      [<<"montague@montague.net">>],
                                                      mam_ns_binary())),
         ReplySet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_pm_set_prefs, escalus_utils:get_short_jid(Alice)),
 
         escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary())),
         ReplyGet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_pm_get_prefs, escalus_utils:get_short_jid(Alice)),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
         ResultIQ2 = parse_prefs_result_iq(ReplyGet),
@@ -3292,6 +3355,114 @@ prefs_set_cdata_request(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}], F).
 
+muc_prefs_set_request(ConfigIn) ->
+    F = fun(Config, Alice, _Bob) ->
+        %% Send
+        %%
+        %% <iq type='set' id='juliet2' to='room-alice'>
+        %%   <prefs xmlns='urn:xmpp:mam:1' default='roster'>
+        %%     <always>
+        %%       <jid>romeo@montague.net</jid>
+        %%     </always>
+        %%     <never>
+        %%       <jid>montague@montague.net</jid>
+        %%     </never>
+        %%   </prefs>
+        %% </iq>
+        
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        escalus:send(Alice, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
+                                                                    [<<"romeo@montague.net">>],
+                                                                    [<<"montague@montague.net">>],
+                                                                    mam_ns_binary()), Room)),
+        ReplySet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_muc_set_prefs, RoomAddr),
+
+        escalus:send(Alice, stanza_to_room(stanza_prefs_get_request(mam_ns_binary()), Room)),
+        ReplyGet = escalus:wait_for_stanza(Alice),
+        assert_event_with_jid(mod_mam_muc_get_prefs, RoomAddr),
+
+        ResultIQ1 = parse_prefs_result_iq(ReplySet),
+        ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+        ?assert_equal(ResultIQ1, ResultIQ2),
+        ok
+        end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
+
+muc_prefs_set_request_not_an_owner(ConfigIn) ->
+    F = fun(Config, _Alice, Bob) ->
+        Room = ?config(room, Config),
+        escalus:send(Bob, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
+                                                                    [<<"romeo@montague.net">>],
+                                                                    [<<"montague@montague.net">>],
+                                                                    mam_ns_binary()), Room)),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], escalus:wait_for_stanza(Bob))
+    end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}, {bob, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
+
+muc_query_get_request(ConfigIn) ->
+    F = fun(Config, Alice) ->
+        Room = ?config(room, Config),
+        QueryXmlns = mam_ns_binary_v04(),
+        escalus:send(Alice, stanza_to_room(stanza_query_get_request(QueryXmlns), Room)),
+        ReplyFields = escalus:wait_for_stanza(Alice),
+        ResponseXmlns = exml_query:path(ReplyFields,
+            [{element, <<"query">>},
+             {element, <<"x">>},
+             {element, <<"field">>},
+             {element, <<"value">>},
+              cdata]),
+        ?assert_equal(QueryXmlns, ResponseXmlns)
+        end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
+
+%% Test reproducing https://github.com/esl/MongooseIM/issues/263
+%% The idea is this: in a "perfect" world jid elements are put together
+%% without whitespaces. In the real world it is not true.
+%% Put "\n" between two jid elements.
+muc_prefs_set_cdata_request(ConfigIn) ->
+    F = fun(Config, Alice) ->
+        %% Send
+        %%
+        %% <iq type='set' id='juliet2' to='room-alice'>
+        %%   <prefs xmlns='urn:xmpp:mam:1' default='roster'>
+        %%     <always>
+        %%       <jid>romeo@montague.net</jid>
+        %%       <jid>montague@montague.net</jid>
+        %%     </always>
+        %%     <never>
+        %%       <jid>montague@montague.net</jid>
+        %%     </never>
+        %%   </prefs>
+        %% </iq>
+
+        Room = ?config(room, Config),
+        escalus:send(Alice, stanza_to_room(stanza_prefs_set_request(<<"roster">>,
+                                                                    [<<"romeo@montague.net">>,
+                                                                     {xmlcdata, <<"\n">>}, %% Put as it is
+                                                                     <<"montague@montague.net">>], [],
+                                                                    mam_ns_binary_v04()), Room)),
+        ReplySet = escalus:wait_for_stanza(Alice),
+
+        escalus:send(Alice, stanza_to_room(stanza_prefs_get_request(mam_ns_binary_v04()), Room)),
+        ReplyGet = escalus:wait_for_stanza(Alice),
+
+        ResultIQ1 = parse_prefs_result_iq(ReplySet),
+        ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+        ?assert_equal(ResultIQ1, ResultIQ2),
+        ok
+        end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
+
 mam_service_discovery(Config) ->
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
@@ -3343,41 +3514,6 @@ discover_features(Config, Client, Service) ->
     ?assert_equal(message_retraction_is_enabled(Config),
                   escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
 
-metric_incremented_on_archive_request(ConfigIn) ->
-    P = ?config(props, ConfigIn),
-    F = fun(Alice) ->
-        escalus:send(Alice, stanza_archive_request(P, <<"metric_q1">>)),
-        Res = wait_archive_respond(Alice),
-        assert_respond_size(0, Res),
-        assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(Res)),
-        ok
-        end,
-    HostType = domain_helper:host_type(mim),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[HostTypePrefix, backends, mod_mam_pm, lookup], changed}],
-    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus_fresh:story(Config, [{alice, 1}], F).
-
-metrics_incremented_for_async_pools(Config) ->
-    OldValue = get_mongoose_async_metrics(),
-    archived(Config),
-    Validator = fun(NewValue) -> OldValue =/= NewValue end,
-    mongoose_helper:wait_until(
-      fun get_mongoose_async_metrics/0,
-      Validator, #{name => ?FUNCTION_NAME}).
-
-get_mongoose_async_metrics() ->
-    HostType = domain_helper:host_type(mim),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    #{batch_flushes => get_mongoose_async_metrics(HostTypePrefix, batch_flushes),
-      timed_flushes => get_mongoose_async_metrics(HostTypePrefix, timed_flushes)}.
-
-get_mongoose_async_metrics(HostTypePrefix, MetricName) ->
-    Metric = [HostTypePrefix, mongoose_async_pools, pm_mam, MetricName],
-    {ok, Value} = rpc(mim(), mongoose_metrics, get_metric_value, [Metric]),
-    {value, Count} = lists:keyfind(value, 1, Value),
-    Count.
-
 metric_incremented_when_store_message(Config) ->
     archived(Config).
 
@@ -3389,6 +3525,15 @@ messages_filtered_when_prefs_default_policy_is_never(Config) ->
 
 messages_filtered_when_prefs_default_policy_is_roster(Config) ->
     run_prefs_cases(roster, Config).
+
+muc_messages_filtered_when_prefs_default_policy_is_always(Config) ->
+    muc_run_prefs_cases(always, Config).
+
+muc_messages_filtered_when_prefs_default_policy_is_never(Config) ->
+    muc_run_prefs_cases(never, Config).
+
+muc_messages_filtered_when_prefs_default_policy_is_roster(Config) ->
+    muc_run_prefs_cases(roster, Config).
 
 
 -spec enter_room(Config :: proplists:proplist(), [User :: term()]) ->
@@ -3423,6 +3568,42 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
         ?assert_equal([], Fails)
         end,
     escalus_fresh:story_with_config(ConfigIn, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+muc_run_prefs_cases(DefaultPolicy, ConfigIn) ->
+    F = fun(Config, Alice, Bob, Kate) ->
+        %% Just send messages for each prefs configuration
+        Namespace = mam_ns_binary_v04(),
+
+        Room = ?config(room, Config),
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+        escalus:send(Kate, stanza_muc_enter_room(Room, nick(Kate))),
+        escalus:wait_for_stanzas(Alice, 4),
+
+        Funs = [muc_run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config)
+                || Case <- prefs_cases2_muc(),
+                default_policy(Case) =:= DefaultPolicy],
+
+        maybe_wait_for_archive(Config),
+
+        %% Get ALL messages using several queries if required
+        
+        Room = ?config(room, Config),
+        IQ = stanza_archive_request([{mam_ns, <<"urn:xmpp:mam:1">>}], <<>>),
+        escalus:send(Alice, stanza_to_room(IQ, Room)),
+        Data = wait_archive_respond(Alice),
+
+        ParsedMessages = parse_messages(Data#mam_archive_respond.respond_messages),
+        Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
+
+        %% Check messages, print out all failed cases
+        Fails = lists:append([Fun(Bodies) || Fun <- Funs]),
+        %% If fails consult with ct:pal/2 why
+        ?assert_equal([], Fails)
+        end,
+    RoomOpts = [{persistent, true}],
+    UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
+    muc_helper:story_with_room(ConfigIn, RoomOpts, UserSpecs, F).
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->

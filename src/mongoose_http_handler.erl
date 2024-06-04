@@ -75,7 +75,7 @@ add_handler_routes(#{host := Host, path := Path, module := Module} = HandlerOpts
     HostRoutes = proplists:get_value(Host, Routes, []),
     lists:keystore(Host, 1, Routes, {Host, HostRoutes ++ HandlerRoutes}).
 
-%% @doc Translate "_" used in TOML to '_' expected by COwboy
+%% @doc Translate "_" used in TOML to '_' expected by Cowboy
 cowboy_host("_") -> '_';
 cowboy_host(Host) -> Host.
 

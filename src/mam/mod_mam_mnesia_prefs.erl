@@ -134,13 +134,21 @@ set_prefs(_Result,
           #{archive_id := ArcID, owner := ArcJID, default_mode := DefaultMode,
             always_jids := AlwaysJIDs, never_jids := NeverJIDs},
           _Extra) ->
+            set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs);
+set_prefs(_Result,
+          #{archive_id := ArcID, room := ArcJID, default_mode := DefaultMode,
+            always_jids := AlwaysJIDs, never_jids := NeverJIDs},
+          _Extra) ->
+            set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs).
+
+set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
-        {ok, set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs)}
+        {ok, set_prefs2(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs)}
     catch _Type:Error ->
         {ok, {error, Error}}
     end.
 
-set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs2(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SU = su_key(ArcJID),
     NewARules = lists:usort(rules(ArcJID, AlwaysJIDs)),
     NewNRules = lists:usort(rules(ArcJID, NeverJIDs)),
@@ -161,7 +169,11 @@ set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     Params :: ejabberd_gen_mam_prefs:get_prefs_params(),
     Extra :: gen_hook:extra().
 get_prefs({GlobalDefaultMode, _, _}, #{owner := ArcJID}, _Extra) ->
+    get_prefs1(GlobalDefaultMode, ArcJID);
+get_prefs({GlobalDefaultMode, _, _}, #{room := ArcJID}, _Extra) ->
+    get_prefs1(GlobalDefaultMode, ArcJID).
 
+get_prefs1(GlobalDefaultMode, ArcJID) ->
     SU = su_key(ArcJID),
     case mnesia:dirty_read(mam_prefs, SU) of
         [] ->

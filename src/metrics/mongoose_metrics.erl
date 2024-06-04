@@ -21,7 +21,6 @@
 %% API
 -export([init/0,
          init_mongooseim_metrics/0,
-         create_generic_hook_metric/2,
          create_probe_metric/3,
          ensure_db_pool_metric/1,
          update/3,
@@ -34,7 +33,6 @@
          get_host_type_metric_names/1,
          get_global_metric_names/0,
          get_aggregated_values/1,
-         increment_generic_hook_metric/2,
          get_rdbms_data_stats/0,
          get_rdbms_data_stats/1,
          get_dist_data_stats/0,
@@ -53,8 +51,6 @@
 -define(PREFIXES, mongoose_metrics_prefixes).
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
--type use_or_skip() :: use | skip.
--type hook_name() :: atom().
 -type metric_name() :: atom() | list(atom() | binary()).
 -type short_metric_type() :: spiral | histogram | counter | gauge.
 -type metric_type() :: tuple() | short_metric_type().
@@ -84,12 +80,6 @@ init_subscriptions() ->
                 Interval = get_report_interval(),
                 subscribe_to_all(Name, Interval)
         end, Reporters).
-
--spec create_generic_hook_metric(mongooseim:host_type(), atom()) ->
-    ok | {ok, already_present} | {error, any()}.
-create_generic_hook_metric(HostType, Hook) ->
-    UseOrSkip = filter_hook(Hook),
-    do_create_generic_hook_metric(HostType, Hook, UseOrSkip).
 
 -spec create_probe_metric(mongooseim:host_type_or_global(), atom(), module()) ->
     ok | {ok, already_present} | {error, any()}.
@@ -144,11 +134,6 @@ get_global_metric_names() ->
 
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
-
--spec increment_generic_hook_metric(mongooseim:host_type_or_global(), atom()) -> ok | {error, any()}.
-increment_generic_hook_metric(HostType, Hook) ->
-    UseOrSkip = filter_hook(Hook),
-    do_increment_generic_hook_metric(HostType, Hook, UseOrSkip).
 
 get_rdbms_data_stats() ->
     Pools = lists:filter(fun({Type, _Host, _Tag}) -> Type == rdbms end, mongoose_wpool:get_pools()),
@@ -235,24 +220,6 @@ name_by_all_metrics_are_global(HostType, Name) ->
 get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
-
--spec do_create_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
-                                    Hook :: hook_name(),
-                                    UseOrSkip :: use_or_skip()) ->
-    ok | {ok, already_present} | {error, any()}.
-do_create_generic_hook_metric(_, _, skip) ->
-    ok;
-do_create_generic_hook_metric(HostType, Hook, use) ->
-    ensure_metric(HostType, Hook, spiral).
-
--spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
-                                       Hook :: hook_name(),
-                                       UseOrSkip :: use_or_skip()) ->
-    ok | {error, any()}.
-do_increment_generic_hook_metric(_, _, skip) ->
-    ok;
-do_increment_generic_hook_metric(HostType, Hook, use) ->
-    update(HostType, Hook, 1).
 
 get_rdbms_stats(RDBMSWorkers) ->
     RDBMSConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- RDBMSWorkers],
@@ -352,43 +319,6 @@ inet_stats(Port) ->
 
 remove_metric({Name, _, _}) ->
     exometer_admin:delete_entry(Name).
-
-%% decided whether to use a metric for given hook or not
--spec filter_hook(hook_name()) -> use_or_skip().
-filter_hook(sm_register_connection) -> skip;
-filter_hook(sm_remove_connection) -> skip;
-filter_hook(auth_failed) -> skip;
-filter_hook(user_send_packet) -> skip;
-filter_hook(user_send_message) -> skip;
-filter_hook(user_send_presence) -> skip;
-filter_hook(user_send_iq) -> skip;
-filter_hook(user_receive_packet) -> skip;
-filter_hook(user_receive_message) -> skip;
-filter_hook(user_receive_presence) -> skip;
-filter_hook(user_receive_iq) -> skip;
-filter_hook(xmpp_bounce_message) -> skip;
-filter_hook(xmpp_stanza_dropped) -> skip;
-filter_hook(xmpp_send_element) -> skip;
-filter_hook(roster_get) -> skip;
-filter_hook(roster_set) -> skip;
-filter_hook(roster_push) -> skip;
-filter_hook(register_user) -> skip;
-filter_hook(remove_user) -> skip;
-filter_hook(privacy_iq_get) -> skip;
-filter_hook(privacy_iq_set) -> skip;
-filter_hook(privacy_check_packet) -> skip;
-filter_hook(mam_get_prefs) -> skip;
-filter_hook(mam_set_prefs) -> skip;
-filter_hook(mam_remove_archive) -> skip;
-filter_hook(mam_archive_message) -> skip;
-filter_hook(mam_muc_get_prefs) -> skip;
-filter_hook(mam_muc_set_prefs) -> skip;
-filter_hook(mam_muc_remove_archive) -> skip;
-filter_hook(mam_muc_lookup_messages) -> skip;
-filter_hook(mam_muc_archive_message) -> skip;
-filter_hook(mam_muc_flush_messages) -> skip;
-
-filter_hook(_) -> use.
 
 create_global_metrics(Metrics) ->
     lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end, Metrics).

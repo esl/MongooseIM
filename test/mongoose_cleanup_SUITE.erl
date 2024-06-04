@@ -45,7 +45,8 @@ init_per_suite(Config) ->
     lists:foreach(fun setup_meck/1, meck_mods()),
     async_helper:start(Config, [{mim_ct_sup, start_link, [ejabberd_sup]},
                                 {mongooseim_helper, start_link_loaded_hooks, []},
-                                {mongoose_domain_sup, start_link, []}]).
+                                {mongoose_domain_sup, start_link, []},
+                                {mongoose_instrument, start_link, []}]).
 
 end_per_suite(Config) ->
     async_helper:stop_all(Config),
@@ -94,7 +95,8 @@ opts() ->
       all_metrics_are_global => false,
       s2s_backend => mnesia,
       {auth, ?HOST} => config_parser_helper:extra_auth(),
-      {modules, ?HOST} => #{}}.
+      {modules, ?HOST} => #{},
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 meck_mods() ->
     [exometer, mod_bosh_socket, mongoose_bin, ejabberd_sm, ejabberd_local].
