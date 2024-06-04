@@ -3,9 +3,8 @@
 -define(GLOBAL_DISTRIB_TRANSFER_TIME(Server), [mod_global_distrib, incoming, transfer_time, Server]).
 -define(GLOBAL_DISTRIB_SEND_QUEUE, mod_global_distrib_outgoing_queue).
 -define(GLOBAL_DISTRIB_RECV_QUEUE_TIME, [mod_global_distrib, incoming, queue_time]).
--define(GLOBAL_DISTRIB_MAPPING_FETCH_TIME, [mod_global_distrib, mapping_fetch_time]).
--define(GLOBAL_DISTRIB_MAPPING_FETCHES, [mod_global_distrib, mapping_fetches]).
--define(GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, [mod_global_distrib, mapping_cache_misses]).
+-define(GLOBAL_DISTRIB_MAPPING_FETCHES, mod_global_distrib_mapping_fetches).
+-define(GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, mod_global_distrib_mapping_cache_misses).
 -define(GLOBAL_DISTRIB_DELIVERED_WITH_TTL, mod_global_distrib_delivered_with_ttl).
 -define(GLOBAL_DISTRIB_STOP_TTL_ZERO, mod_global_distrib_stop_ttl_zero).
 -define(GLOBAL_DISTRIB_INCOMING_ESTABLISHED, [mod_global_distrib, incoming, established]).

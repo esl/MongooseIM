@@ -136,7 +136,8 @@ init_per_suite(Config) ->
     end.
 
 events() ->
-    Modules = [mod_global_distrib, mod_global_distrib_bounce, mod_global_distrib_hosts_refresher],
+    Modules = [mod_global_distrib, mod_global_distrib_bounce, mod_global_distrib_hosts_refresher,
+               mod_global_distrib_mapping],
     lists:append([instrument_helper:declared_events(M) || M <- Modules]).
 
 end_per_suite(Config) ->
@@ -436,7 +437,14 @@ test_two_way_pm(Alice, Eve) ->
     escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi to Eve from Europe1!">>],
                    FromAlice),
     escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
-                   FromEve).
+                   FromEve),
+
+    EveJidB = jid:to_binary(EveJid),
+    instrument_helper:assert(mod_global_distrib_mapping_cache_misses, #{},
+                             fun(#{count := 1, jid := EveJidB}) -> true end),
+
+    instrument_helper:assert(mod_global_distrib_mapping_fetches, #{},
+                             fun(#{count := 1, time := T, jid := EveJid}) -> T >= 0 end).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
