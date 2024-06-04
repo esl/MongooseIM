@@ -251,6 +251,7 @@ basic_groups() ->
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()
                                 ++ muc_metadata_cases() ++ muc_fetch_specific_msgs_cases()},
+            {muc_seq, [], [muc_validate_mam_id]},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
              [{muc_rsm04, [parallel], muc_rsm_cases()}]}]},
@@ -362,7 +363,6 @@ muc_cases() ->
 
 muc_cases_with_room() ->
     [muc_archive_request,
-     muc_validate_mam_id,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -554,6 +554,8 @@ init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 init_per_group(muc06, Config) ->
     [{props, mam06_props()}, {with_rsm, true}|Config];
+init_per_group(muc_seq, Config) ->
+    [{props, mam04_props()}, {with_rsm, true}|Config];
 
 init_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:save_modules(host_type(), Config);
@@ -592,7 +594,7 @@ do_init_per_group(C, ConfigIn) ->
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
     G == muc06; G == mam06;
-    G == archived; G == mam_metrics ->
+    G == archived; G == mam_metrics; G == muc_seq  ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -838,7 +840,6 @@ init_metrics(_CaseName, Config) ->
     Config.
 
 end_per_testcase(CaseName = muc_validate_mam_id, Config) ->
-    maybe_destroy_room(CaseName, Config),
     unmock_mongoose_mam_id(mim()),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -2200,9 +2201,9 @@ muc_archive_request(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
-muc_validate_mam_id(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
+muc_validate_mam_id(Config0) ->
+    P = ?config(props, Config0),
+    F = fun(Config, Alice, Bob) ->
         mock_mongoose_mam_id(mim()),
         StartTS = erlang:system_time(microsecond),
         Room = ?config(room, Config),
@@ -2240,7 +2241,7 @@ muc_validate_mam_id(Config) ->
                 ok
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    muc_helper:story_with_room(Config0, [{persistent, true}], [{alice, 1}, {bob, 1}], F).
 
 muc_multiple_devices(Config) ->
     P = ?config(props, Config),
