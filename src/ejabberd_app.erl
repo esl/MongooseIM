@@ -96,12 +96,12 @@ prep_stop(State) ->
     broadcast_c2s_shutdown_sup(),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
-    mongoose_config:stop(),
     mongoose_graphql_commands:stop(),
     State.
 
 %% All the processes were killed when this function is called
 stop(_State) ->
+    mongoose_config:stop(),
     ?LOG_NOTICE(#{what => mongooseim_node_stopped, version => ?MONGOOSE_VERSION, node => node()}),
     delete_pid_file(),
     update_status_file(stopped),

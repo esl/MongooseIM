@@ -109,7 +109,6 @@ do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
             process_list_results(Process, HostType)
     end,
     [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
-    mongoose_hooks:mam_flush_messages(HostType, MessageCount),
     ok.
 
 process_batch_result({updated, _Count}, _, _, _) ->

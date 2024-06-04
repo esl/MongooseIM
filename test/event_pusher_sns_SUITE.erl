@@ -106,13 +106,15 @@ calls_callback_module_to_retrieve_attributes_for_message(Config) ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
-    Config.
+    mongoose_config:set_opts(opts()),
+    async_helper:start(Config, [{mongoose_instrument, start_link, []},
+                                {mongooseim_helper, start_link_loaded_hooks, []}]).
 
-end_per_suite(_) ->
-    ok.
+end_per_suite(Config) ->
+    async_helper:stop_all(Config),
+    mongoose_config:erase_opts().
 
 init_per_testcase(CaseName, Config) ->
-    mongooseim_helper:start_link_loaded_hooks(),
     meck:new(erlcloud_sns, [non_strict, passthrough]),
     meck:new([mongoose_wpool, mongoose_metrics], [stub_all]),
     meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
@@ -197,18 +199,16 @@ sns_config(_) ->
     common_sns_opts().
 
 start_modules(SNSExtra) ->
-    mongoose_config:set_opts(opts(SNSExtra)),
+    mongoose_config:set_opt({modules, host_type()}, modules(SNSExtra)),
     mongoose_modules:start().
 
 stop_modules() ->
-    mongoose_modules:stop(),
-    mongoose_config:erase_opts().
+    mongoose_modules:stop().
 
-opts(SNSExtra) ->
+opts() ->
     #{hosts => [host_type()],
       host_types => [],
-      all_metrics_are_global => false,
-      {modules, host_type()} => modules(SNSExtra)}.
+      instrumentation => config_parser_helper:default_config([instrumentation])}.
 
 modules(SNSExtra) ->
     gen_mod_deps:resolve_deps(host_type(), #{mod_event_pusher => module_opts(SNSExtra)}).
