@@ -23,10 +23,6 @@
          xmpp_bounce_message/3,
          xmpp_stanza_dropped/3,
          xmpp_send_element/3,
-         roster_get/3,
-         roster_set/3,
-         roster_push/3,
-         roster_in_subscription/3,
          register_user/3,
          remove_user/3,
          privacy_iq_get/3,
@@ -48,10 +44,6 @@ get_hooks(HostType) ->
       {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
       {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50},
-      {roster_get, HostType, fun ?MODULE:roster_get/3, #{}, 55},
-      {roster_set, HostType, fun ?MODULE:roster_set/3, #{}, 50},
-      {roster_push, HostType, fun ?MODULE:roster_push/3, #{}, 50},
-      {roster_in_subscription, HostType, fun ?MODULE:roster_in_subscription/3, #{}, 55},
       {register_user, HostType, fun ?MODULE:register_user/3, #{}, 50},
       {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
       {privacy_iq_get, HostType, fun ?MODULE:privacy_iq_get/3, #{}, 1},
@@ -175,46 +167,6 @@ user_open_session(Acc, _Params, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaCount, 1),
     mongoose_metrics:update(HostType, xmppIqSent, 1),
     {ok, Acc}.
-
-%% Roster
-
--spec roster_get(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: term(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-roster_get(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modRosterGets, 1),
-    {ok, Acc}.
-
--spec roster_set(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: #{from := jid:jid()},
-      Extra :: map().
-roster_set(Acc, #{from := #jid{lserver = LServer}}, _) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
-    mongoose_metrics:update(HostType, modRosterSets, 1),
-    {ok, Acc}.
-
--spec roster_in_subscription(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: #{type := mod_roster:sub_presence()},
-      Extra :: #{host_type := mongooseim:host_type()}.
-roster_in_subscription(Acc, #{type := subscribed}, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modPresenceSubscriptions, 1),
-    {ok, Acc};
-roster_in_subscription(Acc, #{type := unsubscribed}, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modPresenceUnsubscriptions, 1),
-    {ok, Acc};
-roster_in_subscription(Acc, _, _) ->
-    {ok, Acc}.
-
--spec roster_push(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-roster_push(HookAcc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modRosterPush, 1),
-    {ok, HookAcc}.
 
 %% Register
 
