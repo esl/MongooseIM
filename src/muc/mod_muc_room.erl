@@ -900,7 +900,7 @@ can_send_broadcasts(Role, StateData) ->
 
 broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
     Activity = get_user_activity(From, StateData),
-    TS = Activity#activity.message_time,
+    TS = erlang:system_time(microsecond),
     Affiliation = get_affiliation(From, StateData),
     EventData = #{from_nick => FromNick, from_jid => From,
                   room_jid => StateData#state.jid, role => Role,
