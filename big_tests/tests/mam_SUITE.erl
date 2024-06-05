@@ -2228,10 +2228,9 @@ muc_validate_mam_id(Config0) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         [ArcMsg] = respond_messages(assert_respond_size(1, wait_archive_respond(Bob))),
-        #forwarded_message{result_id=ArcId} =
-            parse_forwarded_message(ArcMsg),
+        #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
 
-        %% Check that timestamp is not 0
+        %% Check that timestamp is greater than the initial one
         MessId = rpc_apply(mod_mam_utils, external_binary_to_mess_id, [ArcId]),
         {ArcTS, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [MessId]),
         case ArcTS < StartTS of
