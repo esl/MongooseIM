@@ -25,7 +25,6 @@
          ensure_db_pool_metric/1,
          update/3,
          ensure_metric/3,
-         ensure_subscribed_metric/3,
          get_metric_value/1,
          get_metric_values/1,
          get_metric_value/2,
@@ -369,32 +368,6 @@ ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
         undefined ->
             do_create_metric(PrefixedMetric, Type, []);
         ShortType -> {ok, already_present}
-    end.
-
-%% @doc Creates a metric and subcribes it to the reporters
--spec ensure_subscribed_metric(HostType :: mongooseim:host_type_or_global(),
-                               Metric :: metric_name(),
-                               Type :: metric_type()) -> ok | term().
-ensure_subscribed_metric(HostType, Metric, Type) ->
-    case ensure_metric(HostType, Metric, Type) of
-        ok ->
-            PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
-            Reporters = exometer_report:list_reporters(),
-            Interval = get_report_interval(),
-            lists:foreach(
-              fun({Reporter, _Pid}) ->
-                      FullMetric = {PrefixedMetric, Type, []},
-                      subscribe_metric(Reporter, FullMetric, Interval)
-              end,
-              Reporters);
-        {ok, already_present} ->
-            ?LOG_DEBUG(#{what => metric_already_present,
-                         host_type => HostType, metric => Metric, type => Type}),
-            ok;
-        Other ->
-            ?LOG_WARNING(#{what => cannot_create_metric, reason => Other,
-                           host_type => HostType, metric => Metric,type => Type}),
-            Other
     end.
 
 do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->

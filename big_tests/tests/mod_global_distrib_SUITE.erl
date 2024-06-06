@@ -66,6 +66,7 @@ groups() ->
 
            %% with node 2 disabled
            test_muc_conversation_on_one_host,
+           test_instrumentation_events_on_one_host,
            test_global_disco
           ]},
          {hosts_refresher, [],
@@ -138,7 +139,7 @@ init_per_suite(Config) ->
 
 events() ->
     Modules = [mod_global_distrib, mod_global_distrib_bounce, mod_global_distrib_hosts_refresher,
-               mod_global_distrib_mapping],
+               mod_global_distrib_mapping, mod_global_distrib_receiver],
     lists:append([instrument_helper:declared_events(M) || M <- Modules]).
 
 end_per_suite(Config) ->
@@ -259,9 +260,9 @@ end_per_group_generic(Config) ->
     dynamic_modules:restore_modules(#{timeout => timer:seconds(30)}, Config).
 
 init_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
-       CaseName == test_muc_conversation_history ->
-    %% There is no helper to load MUC on node2
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_instrumentation_events_on_one_host;
+       CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
+    %% There is no helper to load MUC, or count instrumentation events on node2
     %% For now it's easier to hide node2
     %% TODO: Do it right at some point!
     hide_node(europe_node2, Config),
@@ -307,8 +308,8 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
     catch escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
-  when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
-       CaseName == test_muc_conversation_history ->
+  when CaseName == test_muc_conversation_on_one_host; CaseName == test_instrumentation_events_on_one_host;
+       CaseName == test_global_disco; CaseName == test_muc_conversation_history ->
     refresh_mappings(europe_node2, "by_end_per_testcase,testcase=" ++ atom_to_list(CaseName)),
     muc_helper:unload_muc(),
     generic_end_per_testcase(CaseName, Config);
@@ -481,6 +482,35 @@ test_muc_conversation_on_one_host(Config0) ->
               escalus:assert(is_groupchat_message, [Msg2], escalus:wait_for_stanza(Alice))
       end),
     muc_helper:destroy_room(Config).
+
+test_instrumentation_events_on_one_host(Config) ->
+    % testing is done with mim1 and reg1, and without mim2, so that we don't miss any events that could have been
+    % emitted there
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {eve, 1}]),
+    {ok, Alice} = escalus_client:start(Config1, alice, <<"res1">>),
+    {ok, Eve} = escalus_client:start(Config1, eve, <<"res1">>),
+
+    test_two_way_pm(Alice, Eve),
+
+    Host = escalus_client:server(Alice),
+    instrument_helper:assert(mod_global_distrib_incoming_established, #{},
+                             fun(#{count := 1, peer := Host}) -> true end),
+    instrument_helper:assert(mod_global_distrib_incoming_first_packet, #{},
+                             fun(#{count := 1, host := Host}) -> true end),
+    instrument_helper:assert(mod_global_distrib_incoming_transfer, #{},
+                             fun(#{time := T, host := Host}) -> T >= 0 end),
+    instrument_helper:assert(mod_global_distrib_incoming_messages, #{},
+                             fun(#{count := 1, host := Host}) -> true end),
+    instrument_helper:assert(mod_global_distrib_incoming_queue, #{},
+                             fun(#{time := T, host := Host}) -> T >= 0 end),
+
+    escalus_client:stop(Config1, Alice),
+    escalus_client:stop(Config1, Eve),
+
+    {ok, _} = mongoose_helper:wait_until(fun() -> instrument_helper:lookup(mod_global_distrib_incoming_closed, #{}) end,
+                                         fun(L) -> L =/= [] end,
+                                         #{name => mod_global_distrib_incoming_closed}),
+    instrument_helper:assert(mod_global_distrib_incoming_closed, #{}, fun(#{count := 1, host := Host}) -> true end).
 
 test_muc_conversation_history(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),

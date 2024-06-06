@@ -25,7 +25,7 @@
 
 -record(state, {
           socket :: mod_global_distrib_transport:t(),
-          host :: atom(),
+          host :: binary(),
           peer :: tuple() | unknown,
           conn_id :: binary()
          }).

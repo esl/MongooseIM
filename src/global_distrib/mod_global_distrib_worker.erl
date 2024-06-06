@@ -57,9 +57,9 @@ handle_cast({route, {From, To, Acc, Packet}}, State) ->
 handle_cast({data, Host, TransferTime, Stamp, Data}, State) ->
     QueueTimeNative = erlang:monotonic_time() - Stamp,
     QueueTimeUS = erlang:convert_time_unit(QueueTimeNative, native, microsecond),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, QueueTimeUS),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_TRANSFER_TIME(Host), TransferTime),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_RECV_QUEUE, #{}, #{time => QueueTimeUS, host => Host}),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_TRANSFER, #{}, #{time => TransferTime, host => Host}),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_MESSAGES_RECEIVED, #{}, #{count => 1, host => Host}),
     do_work(Data),
     {noreply, State, ?TIMEOUT}.
 

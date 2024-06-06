@@ -26,8 +26,7 @@ all_metrics_list() ->
      tcp_connections_detected,
      tcp_metric_varies_with_tcp_variations,
      up_time_positive,
-     queued_messages_increase,
-     function_ensure_subscribed_metric_subscribes
+     queued_messages_increase
     ].
 
 init_per_suite(C) ->
@@ -109,19 +108,6 @@ up_time_positive(_C) ->
     {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
     ?assert(X > 0).
 
-function_ensure_subscribed_metric_subscribes(_C) ->
-    SubMetric = [happy_metric],
-    UnsubMetric = [sad_metric],
-    mongoose_metrics:ensure_subscribed_metric(global, SubMetric, spiral),
-    mongoose_metrics:ensure_metric(global, UnsubMetric, spiral),
-    Subs = exometer_report:list_subscriptions(exometer_report_graphite),
-    try
-        true = lists:keymember([global|SubMetric], 1, Subs),
-        false = lists:keymember([global|UnsubMetric], 1, Subs)
-    catch C:E:S ->
-              ct:pal("Subs ~p", [Subs]),
-              erlang:raise(C, E, S)
-    end.
 
 get_new_tcp_metric_value(OldValue) ->
     Validator = fun(NewValue) -> OldValue =/= NewValue end,
