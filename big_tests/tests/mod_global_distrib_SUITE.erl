@@ -25,6 +25,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
+-define(PROBE_INTERVAL, 1). %% seconds
 
 -import(domain_helper, [domain/0]).
 -import(config_parser_helper, [config/2, mod_config/2]).
@@ -128,7 +129,7 @@ init_per_suite(Config) ->
             end,
             enable_logging(),
             instrument_helper:start(events()),
-            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], ?PROBE_INTERVAL),
             escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config1]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
@@ -910,11 +911,6 @@ test_messages_bounced_in_order(Config) ->
                 Seq)
       end).
 
-wait_for_bounce_size(ExpectedSize) ->
-    [Measurements | _] = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue_size, #{}),
-    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
-    instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, [Measurements], F).
-
 test_update_senders_host(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
@@ -1331,6 +1327,21 @@ bare_client(Client) ->
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
 
+wait_for_bounce_size(ExpectedSize) ->
+    wait_for_bounce_size(ExpectedSize, 5).
+wait_for_bounce_size(ExpectedSize, 0) ->
+    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
+    instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, F);
+wait_for_bounce_size(ExpectedSize, Retries) ->
+    Measurements = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue_size, #{}),
+    F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
+    case lists:any(F, Measurements) of
+        true ->
+            instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, Measurements, F);
+        false ->
+            timer:sleep(timer:seconds(?PROBE_INTERVAL)),
+            wait_for_bounce_size(ExpectedSize, Retries - 1)
+    end.
 
 %% -----------------------------------------------------------------------
 %% Waiting helpers
