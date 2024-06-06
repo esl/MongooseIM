@@ -1,21 +1,18 @@
 -module(mongoose_metrics_probe_cets).
--behaviour(mongoose_metrics_probe).
+-behaviour(mongoose_instrument_probe).
 -include("mongoose_logger.hrl").
 
 %% Init the metrics
 -export([start/0]).
 
 %% Probe callbacks
--export([sample/0, datapoints/0]).
+-export([probe/2, instrumentation/1]).
 
 %% GraphQL helper
 -export([format_probe_cets/1]).
 
 start() ->
-    Interval = mongoose_metrics:get_report_interval(),
-    M = [{callback_module, ?MODULE},
-         {sample_interval, Interval}],
-    mongoose_metrics:ensure_metric(global, [cets, system], {probe, M}),
+    mongoose_instrument:set_up(instrumentation(global)),
     ok.
 
 format_probe_cets(#{available_nodes := AvNodes,
@@ -45,20 +42,27 @@ format_probe_cets(#{available_nodes := AvNodes,
       <<"conflict_tables">> => ConTabs}.
 
 all_zeros() ->
-    #{<<"available_nodes">> => 0,
-      <<"unavailable_nodes">> => 0,
-      <<"joined_nodes">> => 0,
-      <<"discovered_nodes">> => 0,
-      <<"discovery_works">> => 0,
-      <<"remote_nodes_without_disco">> => 0,
-      <<"remote_nodes_with_unknown_tables">> => 0,
-      <<"remote_unknown_tables">> => 0,
-      <<"remote_nodes_with_missing_tables">> => 0,
-      <<"remote_missing_tables">> => 0,
-      <<"conflict_nodes">> => 0,
-      <<"conflict_tables">> => 0}.
+    #{available_nodes => 0,
+      unavailable_nodes => 0,
+      joined_nodes => 0,
+      discovered_nodes => 0,
+      discovery_works => 0,
+      remote_nodes_without_disco => 0,
+      remote_nodes_with_unknown_tables => 0,
+      remote_unknown_tables => 0,
+      remote_nodes_with_missing_tables => 0,
+      remote_missing_tables => 0,
+      conflict_nodes => 0,
+      conflict_tables => 0}.
 
-datapoints() ->
+-spec instrumentation(_) -> [mongoose_instrument:spec()].
+instrumentation(_) ->
+    [{cets_info, #{}, #{probe => #{module => ?MODULE}, metrics => instrumentation_metrics()}}].
+
+instrumentation_metrics() ->
+    maps:from_list([{Name, gauge} || Name <- instrumentation_metrics_names()]).
+
+instrumentation_metrics_names() ->
     [available_nodes,
      unavailable_nodes,
      joined_nodes,
@@ -72,7 +76,7 @@ datapoints() ->
      conflict_nodes,
      conflict_tables].
 
-sample() ->
+probe(cets_info, _labels) ->
     try cets_status:status(mongoose_cets_discovery) of
         #{available_nodes := AvNodes,
           unavailable_nodes := UnNodes,
