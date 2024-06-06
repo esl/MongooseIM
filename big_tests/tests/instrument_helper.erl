@@ -62,7 +62,7 @@ assert(EventName, Labels, MeasurementsList, CheckF) ->
                    [EventName, Labels, MeasurementsList]),
             ct:fail("No instrumentation events matched");
         Filtered ->
-            ct:log("Matching measurements: ~p", [Filtered]),
+            ct:log("Matching measurements for event ~p: ~p", [EventName, Filtered]),
             event_tested(EventName, Labels)
     end.
 
