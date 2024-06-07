@@ -138,9 +138,12 @@ init_per_suite(Config) ->
     end.
 
 events() ->
-    Modules = [mod_global_distrib, mod_global_distrib_bounce, mod_global_distrib_hosts_refresher,
-               mod_global_distrib_mapping, mod_global_distrib_receiver],
-    lists:append([instrument_helper:declared_events(M) || M <- Modules]).
+    % because mod_global_distrib starts instrumentation manually, it doesn't export instrumentation/1
+    Specs = rpc(europe_node1, mod_global_distrib, instrumentation, []),
+    GDEvents = [{Event, Labels} || {Event, Labels, _Config} <- Specs],
+    OtherModules = [mod_global_distrib_bounce, mod_global_distrib_hosts_refresher,
+                    mod_global_distrib_mapping, mod_global_distrib_receiver],
+    GDEvents ++ lists:append([instrument_helper:declared_events(M) || M <- OtherModules]).
 
 end_per_suite(Config) ->
     disable_logging(),
@@ -444,9 +447,14 @@ test_two_way_pm(Alice, Eve) ->
     EveJidB = jid:to_binary(EveJid),
     instrument_helper:assert(mod_global_distrib_mapping_cache_misses, #{},
                              fun(#{count := 1, jid := EveJidB}) -> true end),
-
     instrument_helper:assert(mod_global_distrib_mapping_fetches, #{},
-                             fun(#{count := 1, time := T, jid := EveJid}) -> T >= 0 end).
+                             fun(#{count := 1, time := T, jid := EveJid}) -> T >= 0 end),
+    instrument_helper:assert(mod_global_distrib_outgoing_established, #{},
+                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
+    instrument_helper:assert(mod_global_distrib_outgoing_queue, #{},
+                             fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
+    instrument_helper:assert(mod_global_distrib_outgoing_messages, #{},
+                             fun(#{count := 1, host := <<"reg1">>}) -> true end).
 
 test_muc_conversation_on_one_host(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -551,7 +559,7 @@ test_muc_conversation_history(Config0) ->
 
               % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
               EveJid = escalus_client:full_jid(Eve),
-              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{host_type => domain_helper:host_type()},
+              instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
                                        fun(#{ttl := TTL, from := From}) ->
                                            ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
                                        end)
@@ -659,17 +667,21 @@ test_component_disconnect(Config) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
                     Error = escalus:wait_for_stanza(User, 5000),
                     escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
-                    instrument_helper:assert(mod_global_distrib_outgoing_established, #{},
-                                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
-                    instrument_helper:assert(mod_global_distrib_outgoing_queue, #{},
-                                            fun(#{time := Time, host := <<"reg1">>}) -> Time >= 0 end),
-                    instrument_helper:assert(mod_global_distrib_outgoing_messages, #{},
-                                             fun(#{count := 1, host := <<"reg1">>}) -> true end),
                     instrument_helper:assert(mod_global_distrib_outgoing_closed, #{},
                                              fun(#{count := 1, host := <<"reg1">>}) -> true end)
             end,
 
-    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+    AliceStory = fun(User) ->
+        Story(User),
+        % only check Alice, because Eve's event is executed on other node
+        Jid = escalus_client:full_jid(User),
+        instrument_helper:assert(mod_global_distrib_stop_ttl_zero, #{},
+                                 fun(#{count := 1, from := From}) ->
+                                     jid:to_binary(From) =:= Jid end)
+                 end,
+
+    escalus:fresh_story(Config, [{alice, 1}], AliceStory),
+    escalus:fresh_story(Config, [{eve, 1}], Story).
 
 test_location_disconnect(Config) ->
     try

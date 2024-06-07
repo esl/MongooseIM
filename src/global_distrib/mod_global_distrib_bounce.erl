@@ -123,7 +123,7 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket, _, _) ->
             ?LOG_IF(error, To#jid.luser == <<>>,
                     #{what => gd_message_to_component_ttl_zero,
                       gd_id => ID, acc => Acc0}),
-            mongoose_instrument:execute(?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{host_type => LocalHost}, #{count => 1}),
+            mongoose_instrument:execute(?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{count => 1, from => From}),
             {ok, FPacket};
         OldTTL ->
             ResendAfterMs = opt([bounce, resend_after_ms]),
