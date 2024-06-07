@@ -13,11 +13,10 @@ all() ->
      {group, disco_with_extra_features}].
 
 groups() ->
-    G = [{disco_with_caps, [parallel], basic_test_cases() ++ caps_test_cases()},
-         {disco_with_caps_and_extra_features, [parallel],
-          basic_test_cases() ++ caps_test_cases() ++ extra_feature_test_cases()},
-         {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{disco_with_caps, [parallel], basic_test_cases() ++ caps_test_cases()},
+     {disco_with_caps_and_extra_features, [parallel],
+      basic_test_cases() ++ caps_test_cases() ++ extra_feature_test_cases()},
+     {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()}].
 
 basic_test_cases() ->
     [user_cannot_query_stranger_resources,
@@ -37,11 +36,13 @@ extra_feature_test_cases() ->
      user_can_query_server_info].
 
 init_per_suite(C) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_disco)),
     C.
 
 end_per_suite(C) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(C).
+    escalus:end_per_suite(C),
+    instrument_helper:stop().
 
 init_per_group(Name, C) ->
     C2 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), C)),
@@ -89,7 +90,8 @@ user_cannot_query_stranger_resources(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [Request], Stanza),
         escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
-        escalus:assert(is_stanza_from, [BobJid], Stanza)
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
     end).
 
 user_cannot_query_stranger_features(Config) ->
@@ -100,7 +102,8 @@ user_cannot_query_stranger_features(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [Request], Stanza),
         escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
-        escalus:assert(is_stanza_from, [BobJid], Stanza)
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
     end).
 
 user_can_query_friend_resources(Config) ->
@@ -114,7 +117,8 @@ user_can_query_friend_resources(Config) ->
         BobName = escalus_client:username(Bob),
         Item = exml_query:subelement_with_attr(Query, <<"jid">>, BobFullJid),
         ?assertEqual(BobName, exml_query:attr(Item, <<"name">>)),
-        escalus:assert(is_stanza_from, [BobJid], Stanza)
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
     end).
 
 user_can_query_friend_features(Config) ->
@@ -124,7 +128,8 @@ user_can_query_friend_features(Config) ->
         escalus:send(Alice, escalus_stanza:disco_info(BobJid)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_identity, [<<"account">>, <<"registered">>], Stanza),
-        escalus:assert(is_stanza_from, [BobJid], Stanza)
+        escalus:assert(is_stanza_from, [BobJid], Stanza),
+        assert_roster_get_event(Alice)
     end).
 
 user_cannot_query_own_resources_with_unknown_node(Config) ->
@@ -227,3 +232,8 @@ name(sales) -> <<"sales-addresses">>.
 urls(abuse) -> [<<"abuse@example.com">>];
 urls(admin) -> [<<"admin@example.com">>, <<"operations@example.com">>];
 urls(sales) -> [<<"sales@example.com">>].
+
+assert_roster_get_event(Client) ->
+    ClientJid = jid:from_binary(escalus_client:full_jid(Client)),
+    instrument_helper:assert(mod_disco_roster_get, #{host_type => host_type()},
+                             fun(#{count := 1, jid := Jid}) -> ClientJid =:= Jid end).
