@@ -2,17 +2,22 @@
 -behaviour(mongoose_instrument_probe).
 -include("mongoose_logger.hrl").
 
-%% Init the metrics
--export([start/0]).
+-export([start/0, stop/0]).
 
 %% Probe callbacks
--export([probe/2, instrumentation/1]).
+-export([probe/2, instrumentation/0]).
 
 %% GraphQL helper
 -export([format_probe_cets/1]).
 
+-ignore_xref([stop/0]).
+
 start() ->
-    mongoose_instrument:set_up(instrumentation(global)),
+    mongoose_instrument:set_up(instrumentation()),
+    ok.
+
+stop() ->
+    mongoose_instrument:tear_down(instrumentation()),
     ok.
 
 format_probe_cets(#{available_nodes := AvNodes,
@@ -55,8 +60,8 @@ all_zeros() ->
       conflict_nodes => 0,
       conflict_tables => 0}.
 
--spec instrumentation(_) -> [mongoose_instrument:spec()].
-instrumentation(_) ->
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
     [{cets_info, #{}, #{probe => #{module => ?MODULE}, metrics => instrumentation_metrics()}}].
 
 instrumentation_metrics() ->

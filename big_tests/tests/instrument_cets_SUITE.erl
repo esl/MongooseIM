@@ -21,13 +21,17 @@ init_per_suite(Config) ->
         {error, not_found} ->
             {skip, "CETS is not configured"};
         {ok, _} ->
-            instrument_helper:start(instrument_helper:declared_events(mongoose_metrics_probe_cets)),
-            mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1)
+            instrument_helper:start([{cets_info, #{}}]),
+            Config2 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            %% We have to restart probes after setting probe_interval
+            restart_cets_probe(),
+            Config2
     end.
 
 end_per_suite(Config) ->
     instrument_helper:stop(),
-    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]).
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
+    restart_cets_probe().
 
 init_per_group(_, Config) ->
     Config.
@@ -39,8 +43,29 @@ init_per_testcase(_, Config) ->
     Config.
 
 check_instrumentation(Config) ->
-    timer:sleep(5000),
-    Rpc = distributed_helper:rpc(mim(), mongoose_instrument_event_table, all_keys, []),
-    ct:fail("RPC ~p", [Rpc]),
-    Res = instrument_helper:wait_for_new(cets_info, #{}),
-    ct:fail(Res).
+    instrument_helper:wait_for_new(cets_info, #{}),
+    instrument_helper:assert(cets_info, #{}, fun(Res) ->
+            %% Values are integers
+            lists:all(fun(Name) -> is_integer(maps:get(Name, Res)) end, instrumentation_metrics_names())
+            andalso
+            %% Check that there are no unknown fields
+            [] =:= maps:keys(maps:without(instrumentation_metrics_names(), maps:without(instrumentation_metrics_names(), Res)))
+        end).
+
+instrumentation_metrics_names() ->
+    [available_nodes,
+     unavailable_nodes,
+     joined_nodes,
+     discovered_nodes,
+     discovery_works,
+     remote_nodes_without_disco,
+     remote_nodes_with_unknown_tables,
+     remote_unknown_tables,
+     remote_nodes_with_missing_tables,
+     remote_missing_tables,
+     conflict_nodes,
+     conflict_tables].
+
+restart_cets_probe() ->
+    rpc_call(mongoose_metrics_probe_cets, stop, []),
+    rpc_call(mongoose_metrics_probe_cets, start, []).
