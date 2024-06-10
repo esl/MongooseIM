@@ -103,13 +103,16 @@ domain_admin_tests() ->
     ].
 
 init_per_suite(Config) ->
+    HostType = domain_helper:host_type(),
+    instrument_helper:start([{mod_roster_get, #{host_type => HostType}}]),
     Config1 = ejabberd_node_utils:init(mim(), Config),
     Config2 = escalus:init_per_suite(Config1),
-    dynamic_modules:save_modules(domain_helper:host_type(), Config2).
+    dynamic_modules:save_modules(HostType, Config2).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 init_per_group(admin_roster_http, Config) ->
     graphql_helper:init_admin_handler(Config);
@@ -394,7 +397,8 @@ admin_list_contacts_story(Config, Alice, Bob) ->
     Res = admin_list_contacts(Alice, Config),
     [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
        <<"name">> := BobName, <<"groups">> := ?DEFAULT_GROUPS}] =
-        get_ok_value([data, roster, listContacts], Res).
+        get_ok_value([data, roster, listContacts], Res),
+    roster_helper:assert_roster_event(Alice, mod_roster_get).
 
 admin_list_contacts_wrong_user(Config) ->
     % User with a non-existent domain
@@ -543,7 +547,8 @@ user_list_contacts_story(Config, Alice, Bob) ->
     Res = user_list_contacts(Alice, Config),
     [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
        <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS}] =
-        get_ok_value(?LIST_CONTACTS_PATH, Res).
+        get_ok_value(?LIST_CONTACTS_PATH, Res),
+    roster_helper:assert_roster_event(Alice, mod_roster_get).
 
 user_get_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],

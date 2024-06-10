@@ -35,7 +35,8 @@
          stop/1,
          hooks/1,
          config_spec/0,
-         supported_features/0]).
+         supported_features/0,
+         instrumentation/1]).
 
 %% iq handlers
 -export([process_local_iq_items/5,
@@ -115,6 +116,10 @@ server_info_spec() ->
       }.
 
 supported_features() -> [dynamic_domains].
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{mod_disco_roster_get, #{host_type => HostType}, #{metrics => #{count => spiral}}}].
 
 %% IQ handlers
 
@@ -317,6 +322,8 @@ is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
                             host_type => HostType,
                             lserver => LFromServer,
                             element => undefined }),
+    mongoose_instrument:execute(mod_disco_roster_get, #{host_type => HostType},
+                                #{count => 1, jid => FromJID}),
     Roster = mongoose_hooks:roster_get(A, FromJID, false),
     lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
                       {TUser, TServer} = jid:to_lus(JID),

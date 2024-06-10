@@ -77,7 +77,9 @@ handle_get(Req, State) ->
         #{} ->
             {HostTypes, Metrics} = get_available_host_type_metrics(),
             Global = get_available_global_metrics(),
-            Reply = #{host_types => HostTypes, metrics => Metrics, global => Global},
+            Reply = #{host_types => HostTypes,
+                      metrics => lists:map(fun prepare_name/1, Metrics),
+                      global => lists:map(fun prepare_name/1, Global)},
             {jiffy:encode(Reply), Req, State}
     end.
 
@@ -103,9 +105,9 @@ handle_get_values(Req, State, Bindings, HostType) ->
 -spec get_sum_metrics() -> map().
 get_sum_metrics() ->
     {_HostTypes, Metrics} = get_available_host_type_metrics(),
-    maps:from_list([{Metric, get_sum_metric(Metric)} || Metric <- Metrics]).
+    maps:from_list([{prepare_name(Metric), get_sum_metric(Metric)} || Metric <- Metrics]).
 
--spec get_sum_metric(atom()) -> map().
+-spec get_sum_metric([atom()]) -> map().
 get_sum_metric(Metric) ->
     maps:from_list(mongoose_metrics:get_aggregated_values(Metric)).
 
@@ -116,26 +118,26 @@ get_available_metrics(HostType) ->
 -spec get_available_host_type_metrics() -> {[any(), ...], [any()]}.
 get_available_host_type_metrics() ->
     HostTypes = get_available_host_types(),
-    Metrics = [Metric || [Metric] <- get_available_metrics(hd(HostTypes))],
+    Metrics = get_available_metrics(hd(HostTypes)), %% Note: works only for the first host type
     {HostTypes, Metrics}.
 
 get_available_global_metrics() ->
-    [Metric || [Metric] <- mongoose_metrics:get_global_metric_names()].
+    mongoose_metrics:get_global_metric_names().
 
 -spec get_available_host_types() -> [mongooseim:host_type()].
 get_available_host_types() ->
     ?ALL_HOST_TYPES.
 
 prepare_metrics(Metrics) ->
-    maps:from_list([{prepare_name(NameParts, FullName), prepare_value(Value)}
-                    || {FullName = [_HostType | NameParts], Value} <- Metrics]).
+    maps:from_list([{prepare_name(NameParts), prepare_value(Value)}
+                    || {[_HostType | NameParts], Value} <- Metrics]).
 
-prepare_name(NameParts, FullName) ->
+prepare_name(NameParts) ->
     try
         ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
         list_to_binary(string:join(ToStrings, "."))
     catch Class:Reason:Stacktrace ->
-        erlang:raise(Class, {failed_to_prepare_name, FullName, Reason}, Stacktrace)
+        erlang:raise(Class, {failed_to_prepare_name, NameParts, Reason}, Stacktrace)
     end.
 
 prepare_value(KVs) ->
@@ -145,7 +147,8 @@ prepare_key(K) when is_integer(K) -> integer_to_binary(K);
 prepare_key(K) when is_atom(K) -> atom_to_binary(K).
 
 get_metric_name(#{metric := MetricBin}) ->
-    try {metric, binary_to_existing_atom(MetricBin)}
+    Parts = binary:split(MetricBin, <<".">>, [global]),
+    try {metric, lists:map(fun binary_to_existing_atom/1, Parts)}
     catch _:_ -> throw_error(not_found, <<"Metric not found">>)
     end;
 get_metric_name(#{}) ->
