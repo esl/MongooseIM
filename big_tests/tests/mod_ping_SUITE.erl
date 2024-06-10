@@ -20,6 +20,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -import(domain_helper, [domain/0, host_type/0]).
 
@@ -83,11 +84,13 @@ init_per_group(client_ping, Config) ->
     start_mod_ping(#{}),
     Config;
 init_per_group(server_ping, Config) ->
+    clear_events(),
     start_mod_ping(#{send_pings => true,
                      ping_interval => ping_interval(),
                      ping_req_timeout => ping_req_timeout()}),
     Config;
 init_per_group(server_ping_kill, Config) ->
+    clear_events(),
     start_mod_ping(#{send_pings => true,
                      ping_interval => ping_interval(),
                      ping_req_timeout => ping_req_timeout(),
@@ -155,15 +158,8 @@ disco(Config) ->
               escalus:assert(has_feature, [?NS_PING], Response)
       end).
 
-ping(ConfigIn) ->
+ping(Config) ->
     Domain = domain(),
-    HostType = host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    Metrics = [
-        {[HostTypePrefix, mod_ping_response, count], 0},
-        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
-    ],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 PingReq = escalus_stanza:ping_request(Domain),
@@ -171,7 +167,9 @@ ping(ConfigIn) ->
 
                 PingResp = escalus_client:wait_for_stanza(Alice),
                 escalus:assert(is_iq_result, [PingReq], PingResp)
-        end).
+        end),
+    assert_no_event(mod_ping_response),
+    assert_no_event(mod_ping_response_timeout).
 
 wrong_ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
@@ -206,15 +204,8 @@ service_unavailable_response(Config) ->
             escalus_client:kill_connection(Config, Alice)
         end).
 
-active(ConfigIn) ->
+active(Config) ->
     Domain = domain(),
-    HostType = host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    Metrics = [
-        {[HostTypePrefix, mod_ping_response, count], 0},
-        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
-    ],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_ping_interval(0.75),
@@ -224,16 +215,11 @@ active(ConfigIn) ->
                 wait_ping_interval(0.5),
                 % it shouldn't as the ping was sent
                 false = escalus_client:has_stanzas(Alice)
-        end).
+        end),
+    assert_no_event(mod_ping_response),
+    assert_no_event(mod_ping_response_timeout).
 
-active_keep_alive(ConfigIn) ->
-    HostType = host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    Metrics = [
-        {[HostTypePrefix, mod_ping_response, count], 0},
-        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
-    ],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
+active_keep_alive(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_ping_interval(0.75),
@@ -241,17 +227,11 @@ active_keep_alive(ConfigIn) ->
                 wait_ping_interval(0.5),
 
                 false = escalus_client:has_stanzas(Alice)
-        end).
+        end),
+    assert_no_event(mod_ping_response),
+    assert_no_event(mod_ping_response_timeout).
 
-server_ping_pong(ConfigIn) ->
-    HostType = host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    Metrics = [
-        {[HostTypePrefix, mod_ping_response, count], 5},
-        {[HostTypePrefix, mod_ping_response, time], changed},
-        {[HostTypePrefix, mod_ping_response_timeout, count], 0}
-    ],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
+server_ping_pong(Config) ->
     %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
     %% due to exometer histogram implementation
     escalus:fresh_story(Config, [{alice, 5}],
@@ -265,16 +245,10 @@ server_ping_pong(ConfigIn) ->
             end),
     assert_event(mod_ping_response, fun(#{count := 1, time := Time}) ->
                                          is_integer(Time) andalso Time >= 0
-                                    end).
+                                    end),
+    assert_no_event(mod_ping_response_timeout).
 
-server_ping_pang(ConfigIn) ->
-    HostType = host_type(),
-    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    Metrics = [
-        {[HostTypePrefix, mod_ping_response, count], 0},
-        {[HostTypePrefix, mod_ping_response_timeout, count], 1}
-    ],
-    Config = [{mongoose_metrics, Metrics} | ConfigIn],
+server_ping_pang(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_for_ping_req(Alice),
@@ -314,3 +288,11 @@ wait_for_pong_hooks(N) ->
 
 assert_event(EventName, F) ->
     instrument_helper:assert(EventName, #{host_type => host_type()}, F).
+
+assert_no_event(EventName) ->
+    ?assertEqual([], instrument_helper:lookup(EventName, #{host_type => host_type()})).
+
+%% Clears logged events before tests to ensure that the assertion of no events is accurate
+clear_events() ->
+    instrument_helper:take(mod_ping_response, #{host_type => host_type()}),
+    instrument_helper:take(mod_ping_response_timeout, #{host_type => host_type()}).
