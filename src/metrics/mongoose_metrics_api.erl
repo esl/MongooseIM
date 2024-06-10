@@ -107,7 +107,7 @@ format_dict2(#{port_count := _} = Dict) ->
 format_dict2(#{fsm := _, regular := _} = Dict) ->
     format_probe_queues(Dict);
 format_dict2(#{unavailable_nodes := _, available_nodes := _} = Dict) ->
-    mongoose_metrics_probe_cets:format_probe_cets(Dict);
+    mongoose_instrument_probe_cets:format_probe_cets(Dict);
 format_dict2(#{recv_cnt := _, workers := _} = Dict) ->
     format_rdbms_stats(Dict).
 

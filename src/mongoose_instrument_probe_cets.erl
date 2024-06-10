@@ -1,4 +1,4 @@
--module(mongoose_metrics_probe_cets).
+-module(mongoose_instrument_probe_cets).
 -behaviour(mongoose_instrument_probe).
 -include("mongoose_logger.hrl").
 
@@ -10,7 +10,7 @@
 %% GraphQL helper
 -export([format_probe_cets/1]).
 
--ignore_xref([stop/0]).
+-ignore_xref([stop/0, instrumentation/0]).
 
 start() ->
     mongoose_instrument:set_up(instrumentation()),

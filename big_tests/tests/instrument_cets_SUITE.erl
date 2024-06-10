@@ -67,5 +67,5 @@ instrumentation_metrics_names() ->
      conflict_tables].
 
 restart_cets_probe() ->
-    rpc_call(mongoose_metrics_probe_cets, stop, []),
-    rpc_call(mongoose_metrics_probe_cets, start, []).
+    rpc_call(mongoose_instrument_probe_cets, stop, []),
+    rpc_call(mongoose_instrument_probe_cets, start, []).
