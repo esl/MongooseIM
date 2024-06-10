@@ -14,4 +14,4 @@
 -define(GLOBAL_DISTRIB_OUTGOING_ESTABLISHED, mod_global_distrib_outgoing_established).
 -define(GLOBAL_DISTRIB_OUTGOING_CLOSED, mod_global_distrib_outgoing_closed).
 -define(GLOBAL_DISTRIB_OUTGOING_ERRORED, mod_global_distrib_outgoing_errored).
--define(GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, mod_global_distrib_bounce_queue_size).
+-define(GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, mod_global_distrib_bounce_queue).

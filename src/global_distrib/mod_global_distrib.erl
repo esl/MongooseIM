@@ -73,7 +73,7 @@ stop(HostType) ->
 
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
-    [{?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{metrics => #{ttl => histogram}}},
+    [{?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{metrics => #{value => histogram}}},
      {?GLOBAL_DISTRIB_STOP_TTL_ZERO, #{}, #{metrics => #{count => spiral}}}].
 
 hooks() ->
@@ -255,7 +255,7 @@ maybe_reroute({From, To, _, Packet} = FPacket, _, _) ->
     ResultFPacket = case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
             {ok, TTL} = find_metadata(Acc, ttl),
-            mongoose_instrument:execute(?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{ttl => TTL, from => From}),
+            mongoose_instrument:execute(?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, #{}, #{value => TTL, from => From}),
 
             %% Continue routing with initialized metadata
             mongoose_hooks:mod_global_distrib_known_recipient(GlobalHost,

@@ -560,7 +560,7 @@ test_muc_conversation_history(Config0) ->
               % events are checked only on mim host, the other event was executed on Eve's reg ("asia_node") host
               EveJid = escalus_client:full_jid(Eve),
               instrument_helper:assert(mod_global_distrib_delivered_with_ttl, #{},
-                                       fun(#{ttl := TTL, from := From}) ->
+                                       fun(#{value := TTL, from := From}) ->
                                            ?assert(TTL > 0), jid:to_binary(From) =:= EveJid
                                        end)
       end),
@@ -1373,13 +1373,13 @@ wait_for_bounce_size(ExpectedSize) ->
     wait_for_bounce_size(ExpectedSize, 5).
 wait_for_bounce_size(ExpectedSize, 0) ->
     F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
-    instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, F);
+    instrument_helper:assert(mod_global_distrib_bounce_queue, #{}, F);
 wait_for_bounce_size(ExpectedSize, Retries) ->
-    Measurements = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue_size, #{}),
+    Measurements = instrument_helper:wait_for_new(mod_global_distrib_bounce_queue, #{}),
     F = fun(#{size := Size}) -> Size =:= ExpectedSize end,
     case lists:any(F, Measurements) of
         true ->
-            instrument_helper:assert(mod_global_distrib_bounce_queue_size, #{}, Measurements, F);
+            instrument_helper:assert(mod_global_distrib_bounce_queue, #{}, Measurements, F);
         false ->
             timer:sleep(timer:seconds(?PROBE_INTERVAL)),
             wait_for_bounce_size(ExpectedSize, Retries - 1)
