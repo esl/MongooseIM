@@ -124,15 +124,19 @@ get_metric_values(HostType) ->
 sample_metric(Metric) ->
     exometer:sample(Metric).
 
+%% Return metrics that have simple values, i.e. that can be used with get_aggregated_values/1
 get_host_type_metric_names(HostType) ->
     HostTypeName = get_host_type_prefix(HostType),
-    [MetricName || {[_HostTypeName | MetricName], _, _} <- exometer:find_entries([HostTypeName])].
+    [MetricName || {[_HostTypeName | MetricName], Type, _} <- exometer:find_entries([HostTypeName]),
+                   Type =:= gauge orelse Type =:= counter orelse Type =:= spiral].
 
 get_global_metric_names() ->
     get_host_type_metric_names(global).
 
-get_aggregated_values(Metric) ->
-    exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
+get_aggregated_values(Metric) when is_list(Metric) ->
+    exometer:aggregate([{{['_' | Metric], '_', '_'}, [], [true]}], [one, count, value]);
+get_aggregated_values(Metric) when is_atom(Metric) ->
+    get_aggregated_values([Metric]).
 
 get_rdbms_data_stats() ->
     Pools = lists:filter(fun({Type, _Host, _Tag}) -> Type == rdbms end, mongoose_wpool:get_pools()),

@@ -473,6 +473,7 @@ init([]) ->
     gen_hook:add_handler(node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50),
     lists:foreach(fun(HostType) -> gen_hook:add_handlers(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
+    mongoose_instrument:set_up(instrumentation()),
     %% Create metrics after backend has started, otherwise probe could have null value
     create_metrics(),
     {ok, #state{}}.
@@ -563,7 +564,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    ok.
+    mongoose_instrument:tear_down(instrumentation()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -631,11 +632,21 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
+            execute_subscription_instrumentation(From, To, Type),
             Res = mongoose_hooks:roster_in_subscription(Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
     end.
+
+execute_subscription_instrumentation(From, To, subscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{},
+                                #{from_jid => From, to_jid => To, subscription_count => 1});
+execute_subscription_instrumentation(From, To, unsubscribed) ->
+    mongoose_instrument:execute(sm_presence_subscription, #{},
+                                #{from_jid => From, to_jid => To, unsubscription_count => 1});
+execute_subscription_instrumentation(_From, _To, _Type) ->
+    ok.
 
 -spec do_route_no_resource_presence(Type, From, To, Acc, Packet) -> boolean() when
       Type :: binary(),
@@ -970,3 +981,8 @@ get_cached_unique_count() ->
 -spec sm_backend() -> backend().
 sm_backend() ->
     mongoose_backend:get_backend_module(global, ?MODULE).
+
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    [{sm_presence_subscription, #{},
+      #{metrics => #{subscription_count => spiral, unsubscription_count => spiral}}}].

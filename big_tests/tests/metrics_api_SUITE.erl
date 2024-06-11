@@ -178,7 +178,7 @@ one_iq_sent(Config) ->
         end,
        [{xmppIqSent, 3},
         {xmppIqReceived, 3},
-        {modRosterGets, 1},
+        {'mod_roster_get.count', 1},
         {xmppStanzaSent, 1 + user_alpha(3)},
         {xmppStanzaReceived, 1 + user_alpha(3)}]).
 

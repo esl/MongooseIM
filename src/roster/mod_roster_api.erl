@@ -46,6 +46,8 @@ list_contacts(#jid{lserver = LServer} = CallerJID) ->
         {ok, HostType} ->
             case ejabberd_auth:does_user_exist(CallerJID) of
                 true ->
+                    mongoose_instrument:execute(mod_roster_get, #{host_type => HostType},
+                                                #{count => 1, jid => CallerJID}),
                     Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
                                                host_type => HostType,
                                                lserver => LServer,
