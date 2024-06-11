@@ -215,15 +215,15 @@ handle_ping_action(HostType, Reason) ->
 
 -spec user_ping_response(Acc, Params, Extra) -> {ok, Acc} when
     Acc :: mongoose_acc:t(),
-    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer()},
+    Params :: #{response := timeout | jlib:iq(), time_delta := non_neg_integer(), jid := jid:jid()},
     Extra :: #{host_type := mongooseim:host_type()}.
-user_ping_response(Acc, #{response := timeout}, #{host_type := HostType}) ->
+user_ping_response(Acc, #{response := timeout, jid := Jid}, #{host_type := HostType}) ->
     mongoose_instrument:execute(mod_ping_response_timeout, #{host_type => HostType},
-                                #{count => 1}),
+                                #{count => 1, jid => Jid}),
     {ok, Acc};
-user_ping_response(Acc, #{time_delta := TDelta}, #{host_type := HostType}) ->
+user_ping_response(Acc, #{time_delta := TDelta, jid := Jid}, #{host_type := HostType}) ->
     mongoose_instrument:execute(mod_ping_response, #{host_type => HostType},
-                                #{count => 1, time => TDelta}),
+                                #{count => 1, time => TDelta, jid => Jid}),
     {ok, Acc}.
 
 %%====================================================================

@@ -35,12 +35,10 @@ all() ->
     ].
 
 groups() ->
-    % Don't make these parallel! Metrics tests will most probably fail
-    % and injected hook will most probably won't work as expected.
     [
-     {client_ping, [], [disco, ping]},
-     {server_ping, [], all_tests()},
-     {server_ping_kill, [], all_tests()}
+     {client_ping, [parallel], [disco, ping]},
+     {server_ping, [parallel], all_tests()},
+     {server_ping_kill, [parallel], all_tests()}
     ].
 
 client_ping_test_cases() ->
@@ -84,13 +82,11 @@ init_per_group(client_ping, Config) ->
     start_mod_ping(#{}),
     Config;
 init_per_group(server_ping, Config) ->
-    clear_events(),
     start_mod_ping(#{send_pings => true,
                      ping_interval => ping_interval(),
                      ping_req_timeout => ping_req_timeout()}),
     Config;
 init_per_group(server_ping_kill, Config) ->
-    clear_events(),
     start_mod_ping(#{send_pings => true,
                      ping_interval => ping_interval(),
                      ping_req_timeout => ping_req_timeout(),
@@ -166,10 +162,10 @@ ping(Config) ->
                 escalus_client:send(Alice, PingReq),
 
                 PingResp = escalus_client:wait_for_stanza(Alice),
-                escalus:assert(is_iq_result, [PingReq], PingResp)
-        end),
-    assert_no_event(mod_ping_response),
-    assert_no_event(mod_ping_response_timeout).
+                escalus:assert(is_iq_result, [PingReq], PingResp),
+                assert_no_event(mod_ping_response, Alice),
+                assert_no_event(mod_ping_response_timeout, Alice)
+        end).
 
 wrong_ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
@@ -214,10 +210,10 @@ active(Config) ->
                 % wait more time and check if connection got ping req
                 wait_ping_interval(0.5),
                 % it shouldn't as the ping was sent
-                false = escalus_client:has_stanzas(Alice)
-        end),
-    assert_no_event(mod_ping_response),
-    assert_no_event(mod_ping_response_timeout).
+                false = escalus_client:has_stanzas(Alice),
+                assert_no_event(mod_ping_response, Alice),
+                assert_no_event(mod_ping_response_timeout, Alice)
+        end).
 
 active_keep_alive(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
@@ -226,39 +222,41 @@ active_keep_alive(Config) ->
                 escalus_tcp:send(Alice#client.rcv_pid, #xmlcdata{content = "\n"}),
                 wait_ping_interval(0.5),
 
-                false = escalus_client:has_stanzas(Alice)
-        end),
-    assert_no_event(mod_ping_response),
-    assert_no_event(mod_ping_response_timeout).
+                false = escalus_client:has_stanzas(Alice),
+
+                assert_no_event(mod_ping_response, Alice),
+                assert_no_event(mod_ping_response_timeout, Alice)
+        end).
 
 server_ping_pong(Config) ->
-    %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
-    %% due to exometer histogram implementation
-    escalus:fresh_story(Config, [{alice, 5}],
-        fun(Alice1, Alice2, Alice3, Alice4, Alice5) ->
-                lists:foreach(fun(Alice) ->
-                                      PingReq = wait_for_ping_req(Alice),
-                                      Pong = escalus_stanza:iq_result(PingReq),
-                                      escalus_client:send(Alice, Pong)
-                              end, [Alice1, Alice2, Alice3, Alice4, Alice5]),
-                wait_for_pong_hooks(5)
-            end),
-    assert_event(mod_ping_response, fun(#{count := 1, time := Time}) ->
-                                         is_integer(Time) andalso Time >= 0
-                                    end),
-    assert_no_event(mod_ping_response_timeout).
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+            PingReq = wait_for_ping_req(Alice),
+            Pong = escalus_stanza:iq_result(PingReq),
+            escalus_client:send(Alice, Pong),
+            wait_for_pong_hook(escalus_utils:get_jid(Alice)),
+            assert_no_event(mod_ping_response_timeout, Alice),
+            assert_event(mod_ping_response,
+                fun(#{count := 1, time := Time, jid := Jid}) ->
+                    is_integer(Time)
+                    andalso Time >= 0
+                    andalso eq_jid(Alice, Jid)
+                end)
+        end).
 
 server_ping_pang(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                wait_for_ping_req(Alice),
-                %% do not resp to ping req
-                ct:sleep(ping_req_timeout() + timer:seconds(1)/2),
-                TimeoutAction = ?config(timeout_action, Config),
-                check_connection(TimeoutAction, Alice),
-                escalus_client:kill_connection(Config, Alice)
-            end),
-    assert_event(mod_ping_response_timeout, fun(#{count := 1}) -> true end).
+            wait_for_ping_req(Alice),
+            %% do not resp to ping req
+            ct:sleep(ping_req_timeout() + timer:seconds(1)/2),
+            TimeoutAction = ?config(timeout_action, Config),
+            check_connection(TimeoutAction, Alice),
+            escalus_client:kill_connection(Config, Alice),
+            assert_no_event(mod_ping_response, Alice),
+            assert_event(mod_ping_response_timeout,
+                fun(#{count := 1, jid := Jid}) -> eq_jid(Alice, Jid) end)
+        end).
 
 wait_ping_interval(Ration) ->
     WaitTime = ping_interval() * Ration,
@@ -276,23 +274,20 @@ wait_for_ping_req(Alice) ->
                                                     {attr, <<"xmlns">>}]),
     PingReq.
 
-wait_for_pong_hooks(0) ->
-    ok;
-wait_for_pong_hooks(N) ->
+wait_for_pong_hook(Alice) ->
     receive
-        {pong, _} -> wait_for_pong_hooks(N-1)
+        {pong, Alice} -> ok
     after
         5000 ->
-            ct:fail({pong_hook_runs_missing, N})
+            ct:fail({pong_hook_run_missing})
     end.
 
 assert_event(EventName, F) ->
     instrument_helper:assert(EventName, #{host_type => host_type()}, F).
 
-assert_no_event(EventName) ->
-    ?assertEqual([], instrument_helper:lookup(EventName, #{host_type => host_type()})).
+assert_no_event(EventName, User) ->
+    Events = instrument_helper:lookup(EventName, #{host_type => host_type()}),
+    EventsWithJid = lists:filter(fun(#{jid := Jid}) -> eq_jid(User, Jid) end, Events),
+    ?assertEqual([], EventsWithJid).
 
-%% Clears logged events before tests to ensure that the assertion of no events is accurate
-clear_events() ->
-    instrument_helper:take(mod_ping_response, #{host_type => host_type()}),
-    instrument_helper:take(mod_ping_response_timeout, #{host_type => host_type()}).
+eq_jid(User, Jid) -> jid:from_binary(escalus_utils:get_jid(User)) =:= Jid.
