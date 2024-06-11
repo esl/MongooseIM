@@ -101,7 +101,7 @@
 %% API and gen_server callbacks
 -export([start_link/2, start/2, stop/1, deps/2, init/1,
          handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+         terminate/2, code_change/3, instrumentation/1]).
 
 %% Config callbacks
 -export([config_spec/0, process_pep_mapping/1]).
@@ -279,7 +279,6 @@ start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    ensure_metrics(Host),
     start_pool(Host, Opts),
     ejabberd_sup:start_child(ChildSpec).
 
@@ -1313,18 +1312,16 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
           Lang, Access, Plugins) ->
     case xml:remove_cdata(SubEls) of
         [#xmlel{name = Name} = ActionEl | _] ->
-            report_iq_action_metrics_before_result(ServerHost, IQType, Name),
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
-            {Time, Result} = timer:tc(fun iq_pubsub_action/6,
-                                      [IQType, Name, Host, Node, From,
-                                       #{server_host => ServerHost,
-                                         plugins => Plugins,
-                                         access => Access,
-                                         action_el => ActionEl,
-                                         query_el => QueryEl,
-                                         lang => Lang}]),
-            report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
-            Result;
+            mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_action/6,
+                                     [IQType, Name, Host, Node, From,
+                                      #{server_host => ServerHost,
+                                        plugins => Plugins,
+                                        access => Access,
+                                        action_el => ActionEl,
+                                        query_el => QueryEl,
+                                        lang => Lang}],
+                                     fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
         Other ->
             ?LOG_INFO(#{what => pubsub_bad_request, exml_packet => Other}),
             {error, mongoose_xmpp_errors:bad_request()}
@@ -1356,12 +1353,11 @@ iq_pubsub_action(IQType, Name, Host, Node, From, ExtraArgs) ->
             {error, mongoose_xmpp_errors:feature_not_implemented()}
     end.
 
-ensure_metrics(Host) ->
-     [mongoose_metrics:ensure_metric(Host, metric_name(IQType, Name, MetricSuffix), Type) ||
-      {IQType, Name} <- all_metrics(),
-      {MetricSuffix, Type} <- [{count, spiral},
-                               {errors, spiral},
-                               {time, histogram}]].
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    Measurements = #{count => spiral, errors => spiral, time => histogram},
+    [{event_name(IQType, Name), #{host_type => HostType}, #{metrics => Measurements}} ||
+        {IQType, Name} <- all_metrics()].
 
 all_metrics() ->
     [{set, create},
@@ -1396,23 +1392,48 @@ iq_action_to_metric_name(<<"purge">>) -> purge;
 iq_action_to_metric_name(<<"subscriptions">>) -> subscriptions;
 iq_action_to_metric_name(<<"affiliations">>) -> affiliations.
 
-
-metric_name(IQType, Name, MetricSuffix) when is_binary(Name) ->
+event_name(IQType, Name) when is_binary(Name) ->
     NameAtom = iq_action_to_metric_name(Name),
-    metric_name(IQType, NameAtom, MetricSuffix);
-metric_name(IQType, Name, MetricSuffix) when is_atom(Name) ->
-    [pubsub, IQType, Name, MetricSuffix].
+    event_name(IQType, NameAtom);
+event_name(set, create) ->
+    mod_pubsub_set_create;
+event_name(set, publish) ->
+    mod_pubsub_set_publish;
+event_name(set, retract) ->
+    mod_pubsub_set_retract;
+event_name(set, subscribe) ->
+    mod_pubsub_set_subscribe;
+event_name(set, unsubscribe) ->
+    mod_pubsub_set_unsubscribe;
+event_name(get, items) ->
+    mod_pubsub_get_items;
+event_name(get, options) ->
+    mod_pubsub_get_options;
+event_name(set, options) ->
+    mod_pubsub_set_options;
+event_name(get, configure) ->
+    mod_pubsub_get_configure;
+event_name(set, configure) ->
+    mod_pubsub_set_configure;
+event_name(get, default) ->
+    mod_pubsub_get_default;
+event_name(set, delete) ->
+    mod_pubsub_set_delete;
+event_name(set, purge) ->
+    mod_pubsub_set_purge;
+event_name(get, subscriptions) ->
+    mod_pubsub_get_subscriptions;
+event_name(set, subscriptions) ->
+    mod_pubsub_set_subscriptions;
+event_name(get, affiliations) ->
+    mod_pubsub_get_affiliations;
+event_name(set, affiliations) ->
+    mod_pubsub_set_affiliations.
 
-report_iq_action_metrics_before_result(Host, IQType, Name) ->
-    mongoose_metrics:update(Host, metric_name(IQType, Name, count), 1).
-
-report_iq_action_metrics_after_return(Host, Result, Time, IQType, Name) ->
-    case Result of
-        {error, _} ->
-            mongoose_metrics:update(Host, metric_name(IQType, Name, erros), 1);
-        _ ->
-            mongoose_metrics:update(Host, metric_name(IQType, Name, time), Time)
-    end.
+ip_action_result_to_measurements(_Time, {error, _}, From) ->
+    #{errors => 1, jid => From};
+ip_action_result_to_measurements(Time, _Result, From) ->
+    #{time => Time, count => 1, jid => From}.
 
 iq_pubsub_set_create(Host, Node, From,
                      #{server_host := ServerHost, access := Access, plugins := Plugins,
@@ -1522,15 +1543,13 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     Action = xml:remove_cdata(SubEls),
     case Action of
         [#xmlel{name = Name} = ActionEl] ->
-            report_iq_action_metrics_before_result(ServerHost, IQType, Name),
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
-            {Time, Result} = timer:tc(fun iq_pubsub_owner_action/6,
-                                      [IQType, Name, Host, From, Node,
-                                       #{server_host => ServerHost,
-                                         action_el => ActionEl,
-                                         lang => Lang}]),
-            report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
-            Result;
+            mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_owner_action/6,
+                                     [IQType, Name, Host, From, Node,
+                                      #{server_host => ServerHost,
+                                        action_el => ActionEl,
+                                        lang => Lang}],
+                                     fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
         _ ->
             ?LOG_INFO(#{what => pubsub_too_many_actions, exml_packet => Action}),
             {error, mongoose_xmpp_errors:bad_request()}
