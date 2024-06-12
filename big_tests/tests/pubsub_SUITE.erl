@@ -356,15 +356,8 @@ subscribe_unsubscribe_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_set_subscribe, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                       end),
-              instrument_helper:assert(mod_pubsub_set_unsubscribe, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_subscribe, Bob),
+              assert_event(mod_pubsub_set_unsubscribe, Bob)
       end).
 
 subscribe_options_test(Config) ->
@@ -391,11 +384,7 @@ subscribe_options_test(Config) ->
               pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
                                                     [{expected_result, BobOpts}]),
 
-              BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_get_options, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_get_options, Bob)
       end).
 
 subscribe_options_deliver_option_test(Config) ->
@@ -446,11 +435,7 @@ subscribe_options_separate_request_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_options, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_options, Alice)
       end).
 
 publish_test(Config) ->
@@ -467,11 +452,7 @@ publish_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_publish, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_publish, Alice)
       end).
 
 publish_with_max_items_test(Config) ->
@@ -571,11 +552,7 @@ request_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_get_items, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_get_items, Bob)
       end).
 
 request_particular_item_test(Config) ->
@@ -669,11 +646,7 @@ purge_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_purge, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_purge, Alice)
       end).
 
 publish_only_retract_items_scope_test(Config) ->
@@ -701,11 +674,7 @@ publish_only_retract_items_scope_test(Config) ->
 
                 pubsub_tools:delete_node(Alice, Node, []),
 
-                BobJid = escalus_utils:get_jid(Bob),
-                instrument_helper:assert(mod_pubsub_set_retract, #{host_type => domain()},
-                                         fun(#{count := 1, jid := From, time := T}) ->
-                                             T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                         end)
+                assert_event(mod_pubsub_set_retract, Bob)
       end).
 
 
@@ -742,12 +711,7 @@ retrieve_default_configuration_test(Config) ->
               pubsub_tools:get_default_configuration(Alice, NodeAddr,
                                                      [{expected_result, default_config()}]),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              Measurements = instrument_helper:wait_for(mod_pubsub_get_default, #{host_type => domain()}),
-              instrument_helper:assert(mod_pubsub_get_default, #{host_type => domain()}, Measurements,
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_wait_for_event(mod_pubsub_get_default, Alice)
       end).
 
 retrieve_configuration_test(Config) ->
@@ -763,11 +727,7 @@ retrieve_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_get_configure, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_get_configure, Alice)
       end).
 
 set_configuration_test(Config) ->
@@ -785,11 +745,7 @@ set_configuration_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_configure, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_configure, Alice)
       end).
 
 set_configuration_errors_test(Config) ->
@@ -1002,11 +958,7 @@ get_affiliations_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, []),
 
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_get_affiliations, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_get_affiliations, Alice)
       end).
 
 add_publisher_and_member_test(Config) ->
@@ -1032,20 +984,9 @@ add_publisher_and_member_test(Config) ->
               pubsub_tools:receive_item_notification(Kate, <<"item1">>, Node, []),
 
               pubsub_tools:delete_node(Alice, Node, []),
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_create, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end),
-              instrument_helper:assert(mod_pubsub_set_affiliations, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end),
-              Measurements = instrument_helper:wait_for(mod_pubsub_set_delete, #{host_type => domain()}),
-              instrument_helper:assert(mod_pubsub_set_delete, #{host_type => domain()}, Measurements,
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_create, Alice),
+              assert_event(mod_pubsub_set_affiliations, Alice),
+              assert_wait_for_event(mod_pubsub_set_delete, Alice)
       end).
 
 swap_owners_test(Config) ->
@@ -1120,11 +1061,7 @@ retrieve_user_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, []),
               pubsub_tools:delete_node(Alice, Node2, []),
 
-              BobJid = escalus_utils:get_jid(Bob),
-              instrument_helper:assert(mod_pubsub_get_subscriptions, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso BobJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_get_subscriptions, Bob)
       end).
 
 retrieve_node_subscriptions_test(Config) ->
@@ -1195,11 +1132,7 @@ modify_node_subscriptions_test(Config) ->
                                        fun(#{errors := 1, jid := From}) ->
                                            BobJid =:= jid:to_binary(From)
                                        end),
-              AliceJid = escalus_utils:get_jid(Alice),
-              instrument_helper:assert(mod_pubsub_set_subscriptions, #{host_type => domain()},
-                                       fun(#{count := 1, jid := From, time := T}) ->
-                                           T >= 0 andalso AliceJid =:= jid:to_binary(From)
-                                       end)
+              assert_event(mod_pubsub_set_subscriptions, Alice)
       end).
 
 process_subscription_requests_test(Config) ->
@@ -2094,3 +2027,18 @@ is_not_allowed_and_closed(IQError) ->
     ?NS_PUBSUB_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
                                                   {element, <<"closed-node">>},
                                                   {attr, <<"xmlns">>}]).
+
+assert_event(EventName, Client) ->
+    ClientJid = escalus_utils:get_jid(Client),
+    instrument_helper:assert(EventName, #{host_type => domain()},
+                             fun(#{count := 1, jid := From, time := T}) ->
+                                 T >= 0 andalso ClientJid =:= jid:to_binary(From)
+                             end).
+
+assert_wait_for_event(EventName, Client) ->
+    ClientJid = escalus_utils:get_jid(Client),
+    Measurements = instrument_helper:wait_for(EventName, #{host_type => domain()}),
+    instrument_helper:assert(EventName, #{host_type => domain()}, Measurements,
+                             fun(#{count := 1, jid := From, time := T}) ->
+                                 T >= 0 andalso ClientJid =:= jid:to_binary(From)
+                             end).
