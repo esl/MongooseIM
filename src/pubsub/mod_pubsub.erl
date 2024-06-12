@@ -1313,14 +1313,14 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
     case xml:remove_cdata(SubEls) of
         [#xmlel{name = Name} = ActionEl | _] ->
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
+            ActionExtraArgs = #{server_host => ServerHost,
+                                plugins => Plugins,
+                                access => Access,
+                                action_el => ActionEl,
+                                query_el => QueryEl,
+                                lang => Lang},
             mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_action/6,
-                                     [IQType, Name, Host, Node, From,
-                                      #{server_host => ServerHost,
-                                        plugins => Plugins,
-                                        access => Access,
-                                        action_el => ActionEl,
-                                        query_el => QueryEl,
-                                        lang => Lang}],
+                                     [IQType, Name, Host, Node, From, ActionExtraArgs],
                                      fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
         Other ->
             ?LOG_INFO(#{what => pubsub_bad_request, exml_packet => Other}),
@@ -1544,11 +1544,11 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     case Action of
         [#xmlel{name = Name} = ActionEl] ->
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
+            ActionExtraArgs = #{server_host => ServerHost,
+                                action_el => ActionEl,
+                                lang => Lang},
             mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_owner_action/6,
-                                     [IQType, Name, Host, From, Node,
-                                      #{server_host => ServerHost,
-                                        action_el => ActionEl,
-                                        lang => Lang}],
+                                     [IQType, Name, Host, From, Node, ActionExtraArgs],
                                      fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
         _ ->
             ?LOG_INFO(#{what => pubsub_too_many_actions, exml_packet => Action}),
