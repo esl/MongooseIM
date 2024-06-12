@@ -27,7 +27,7 @@
 -include("global_distrib_metrics.hrl").
 
 -export([start_link/3]).
--export([start/2, stop/1, deps/2]).
+-export([start/2, stop/1, deps/2, instrumentation/1]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 
 -define(LISTEN_RETRIES, 5). %% Number of retries in case of eaddrinuse
@@ -37,7 +37,7 @@
     socket :: mod_global_distrib_transport:t(),
     waiting_for :: header | non_neg_integer(),
     buffer = <<>> :: binary(),
-    host :: undefined | atom(),
+    host :: undefined | binary(),
     conn_id = <<>> :: binary(),
     peer :: tuple() | unknown
 }).
@@ -60,10 +60,6 @@ start_link(Ref, ranch_tcp, Opts) ->
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(_HostType, _Opts) ->
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_RECV_QUEUE_TIME, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, spiral),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_ERRORED(undefined), spiral),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_CLOSED(undefined), spiral),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
     ejabberd_sup:start_child(Child),
@@ -78,6 +74,23 @@ stop(_HostType) ->
 deps(_HostType, Opts) ->
     [{mod_global_distrib_utils, Opts, hard}].
 
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(_HostType) ->
+    [{?GLOBAL_DISTRIB_RECV_QUEUE, #{},
+      #{metrics => #{time => histogram}}},
+     {?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_INCOMING_ERRORED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_INCOMING_CLOSED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_TRANSFER, #{},
+      #{metrics => #{time => histogram}}},
+     {?GLOBAL_DISTRIB_MESSAGES_RECEIVED, #{},
+      #{metrics => #{count => spiral}}},
+     {?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET, #{},
+      #{metrics => #{count => spiral}}}].
+
 %%--------------------------------------------------------------------
 %% ranch_protocol API
 %%--------------------------------------------------------------------
@@ -88,7 +101,8 @@ init({Ref, ranch_tcp, _Opts}) ->
     ConnOpts = opt(connections),
     {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, ConnOpts),
     ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_ESTABLISHED, #{},
+                                #{count => 1, peer => mod_global_distrib_transport:peername(Socket)}),
     State = #state{socket = Socket, waiting_for = header,
                    peer = mod_global_distrib_transport:peername(Socket)},
     gen_server:enter_loop(?MODULE, [], State).
@@ -105,7 +119,7 @@ handle_info({tcp_error, _Socket, Reason}, State) ->
     ?LOG_ERROR(#{what => gd_incoming_socket_error, reason => Reason,
                  text => <<"mod_global_distrib_receiver received tcp_error">>,
                  peer => State#state.peer, conn_id => State#state.conn_id}),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ERRORED(State#state.host), 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_ERRORED, #{}, #{count => 1, host => State#state.host}),
     {stop, {error, Reason}, State};
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
@@ -124,7 +138,8 @@ terminate(Reason, State) ->
     ?LOG_WARNING(#{what => gd_incoming_socket_closed,
                    peer => State#state.peer, server => State#state.host,
                    reason => Reason, conn_id => State#state.conn_id}),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_CLOSED(State#state.host), 1),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_CLOSED, #{},
+                                #{count => 1, host => State#state.host}),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
 
@@ -161,18 +176,9 @@ do_receive_data(Socket, Buffer, RawData, State) ->
 -spec handle_data(Data :: binary(), state()) -> state().
 handle_data(GdStart, State = #state{host = undefined}) ->
     {ok, #xmlel{name = <<"gd_start">>, attrs = Attrs}} = exml:parse(GdStart),
-    #{<<"server">> := BinHost, <<"conn_id">> := ConnId} = maps:from_list(Attrs),
-    Host = mod_global_distrib_utils:binary_to_metric_atom(BinHost),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), spiral),
-    mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_TRANSFER_TIME(Host), histogram),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), spiral),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_INCOMING_ERRORED(Host), spiral),
-    mod_global_distrib_utils:ensure_metric(
-      ?GLOBAL_DISTRIB_INCOMING_CLOSED(Host), spiral),
-    mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), 1),
-    ?LOG_INFO(#{what => gd_incoming_connection, server => BinHost, conn_id => ConnId}),
+    #{<<"server">> := Host, <<"conn_id">> := ConnId} = maps:from_list(Attrs),
+    mongoose_instrument:execute(?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET, #{}, #{count => 1, host => Host}),
+    ?LOG_INFO(#{what => gd_incoming_connection, server => Host, conn_id => ConnId}),
     State#state{host = Host, conn_id = ConnId};
 handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
