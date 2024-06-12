@@ -20,7 +20,9 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--import(distributed_helper, [mim/0]).
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -45,18 +47,20 @@ test_cases() ->
      too_big_stanza_is_rejected].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrumentation_events()),
     Config1 = escalus:init_per_suite(Config),
     Config2 = setup_listeners(Config1),
     escalus:create_users(Config2, escalus:get_users([alice, geralt, geralt_s, carol])).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
     Listeners = ?config(original_listeners, Config),
     [mongoose_helper:restart_listener(mim(), Listener) || Listener <- Listeners],
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, geralt, geralt_s, carol])),
@@ -99,8 +103,6 @@ update_handler(Handler) ->
 metrics_test(Config) ->
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, websocket], changed},
-                       {[global, data, xmpp, sent, c2s, websocket], changed},
                        {[global, data, xmpp, received, c2s, tcp], 0},
                        {[global, data, xmpp, sent, c2s, tcp], 0}],
     escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
@@ -111,8 +113,12 @@ metrics_test(Config) ->
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Geralt)),
 
         escalus_client:send(Geralt, escalus_stanza:chat_to(GeraltS, <<"Hello!">>)),
-        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS))
+        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS)),
 
+        % Assert that correct events have been executed
+        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
+         || {Event, Label} <- instrumentation_events()],
+        ok
         end).
 
 too_big_stanza_is_rejected(Config) ->
@@ -161,3 +167,10 @@ escape_attrs(Config) ->
         special_chars_helper:check_attr_from_to(Geralt, Carol)
 
     end).
+
+instrumentation_events() ->
+    % because mod_websockets is mongoose_http_handler, it starts http_handler_instrumentation globally.
+    % To avoid conflicts with cases when the module is both mongoose_http_handler and gen_mod,
+    % we use http_handler_instrumentation/0 name instead of instrumentation/0.
+    Specs = rpc(mim(), mod_websockets, http_handler_instrumentation, []),
+    [{Event, Labels} || {Event, Labels, _Config} <- Specs].

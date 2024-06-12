@@ -12,6 +12,8 @@
 -export([start/0, stop/0]).
 
 -callback start_listener(options()) -> ok.
+-callback listener_instrumentation(options()) -> [mongoose_instrument:spec()].
+-optional_callbacks([listener_instrumentation/1]).
 
 -type options() :: #{port := inet:port_number(),
                      ip_tuple := inet:ip_address(),
@@ -27,10 +29,15 @@
 %% API
 
 start() ->
-    lists:foreach(fun start_listener/1, mongoose_config:get_opt(listen)).
+    %% Each listener module could be started more than on different ports.
+    Listeners = mongoose_config:get_opt(listen),
+    mongoose_instrument:set_up(instrumentation(Listeners)),
+    lists:foreach(fun start_listener/1, Listeners).
 
 stop() ->
-    lists:foreach(fun stop_listener/1, mongoose_config:get_opt(listen)).
+    Listeners = mongoose_config:get_opt(listen),
+    lists:foreach(fun stop_listener/1, Listeners),
+    mongoose_instrument:tear_down(instrumentation(Listeners)).
 
 %% Internal functions
 
@@ -50,3 +57,16 @@ stop_listener(Opts) ->
     ListenerId = mongoose_listener_config:listener_id(Opts),
     supervisor:terminate_child(mongoose_listener_sup, ListenerId),
     supervisor:delete_child(mongoose_listener_sup, ListenerId).
+
+-spec instrumentation([options()]) -> [mongoose_instrument:spec()].
+instrumentation(Listeners) ->
+    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)]).
+
+-spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
+listener_instrumentation(Opts = #{module := Module}) ->
+    case erlang:function_exported(Module, listener_instrumentation, 1) of
+        true ->
+            Module:listener_instrumentation(Opts);
+        false ->
+            []
+    end.
