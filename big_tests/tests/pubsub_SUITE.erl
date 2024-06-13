@@ -179,9 +179,11 @@ last_item_cache_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrument_helper:declared_events(mod_pubsub)),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -352,7 +354,10 @@ subscribe_unsubscribe_test(Config) ->
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
               pubsub_tools:unsubscribe(Bob, Node, [{jid_type, bare}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_set_subscribe, Bob),
+              assert_event(mod_pubsub_set_unsubscribe, Bob)
       end).
 
 subscribe_options_test(Config) ->
@@ -379,7 +384,7 @@ subscribe_options_test(Config) ->
               pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
                                                     [{expected_result, BobOpts}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              assert_event(mod_pubsub_get_options, Bob)
       end).
 
 subscribe_options_deliver_option_test(Config) ->
@@ -428,7 +433,9 @@ subscribe_options_separate_request_test(Config) ->
                                                     [{expected_result, [OptionAfterUpdate]}])
               || Client <- Clients ],
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_set_options, Alice)
       end).
 
 publish_test(Config) ->
@@ -443,7 +450,9 @@ publish_test(Config) ->
               Node = pubsub_node(),
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_set_publish, Alice)
       end).
 
 publish_with_max_items_test(Config) ->
@@ -541,7 +550,9 @@ request_all_items_test(Config) ->
                                          [{expected_result, [<<"item2">>, <<"item1">>]}]),
               %% TODO check ordering (although XEP does not specify this)
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_get_items, Bob)
       end).
 
 request_particular_item_test(Config) ->
@@ -633,7 +644,9 @@ purge_all_items_test(Config) ->
 
               pubsub_tools:get_all_items(Bob, Node, [{expected_result, []}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_set_purge, Alice)
       end).
 
 publish_only_retract_items_scope_test(Config) ->
@@ -659,7 +672,9 @@ publish_only_retract_items_scope_test(Config) ->
                 pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),
                 pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
 
-                pubsub_tools:delete_node(Alice, Node, [])
+                pubsub_tools:delete_node(Alice, Node, []),
+
+                assert_event(mod_pubsub_set_retract, Bob)
       end).
 
 
@@ -694,7 +709,9 @@ retrieve_default_configuration_test(Config) ->
       fun(Alice) ->
               NodeAddr = node_addr(),
               pubsub_tools:get_default_configuration(Alice, NodeAddr,
-                                                     [{expected_result, default_config()}])
+                                                     [{expected_result, default_config()}]),
+
+              assert_wait_for_event(mod_pubsub_get_default, Alice)
       end).
 
 retrieve_configuration_test(Config) ->
@@ -708,7 +725,9 @@ retrieve_configuration_test(Config) ->
               NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
               verify_config_fields(NodeConfig),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_get_configure, Alice)
       end).
 
 set_configuration_test(Config) ->
@@ -724,7 +743,9 @@ set_configuration_test(Config) ->
                                              [{response_timeout, 10000}]),
               pubsub_tools:get_configuration(Alice, Node, [{expected_result, ValidNodeConfig}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_set_configure, Alice)
       end).
 
 set_configuration_errors_test(Config) ->
@@ -935,7 +956,9 @@ get_affiliations_test(Config) ->
               verify_affiliations(pubsub_tools:get_affiliations(Alice, Node, []),
                                   [{Alice, <<"owner">>}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              assert_event(mod_pubsub_get_affiliations, Alice)
       end).
 
 add_publisher_and_member_test(Config) ->
@@ -960,7 +983,10 @@ add_publisher_and_member_test(Config) ->
               pubsub_tools:publish(Bob, <<"item1">>, Node, []),
               pubsub_tools:receive_item_notification(Kate, <<"item1">>, Node, []),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+              assert_event(mod_pubsub_set_create, Alice),
+              assert_event(mod_pubsub_set_affiliations, Alice),
+              assert_wait_for_event(mod_pubsub_set_delete, Alice)
       end).
 
 swap_owners_test(Config) ->
@@ -1033,7 +1059,9 @@ retrieve_user_subscriptions_test(Config) ->
               pubsub_tools:get_user_subscriptions(Alice, node_addr(), [{expected_result, []}]),
 
               pubsub_tools:delete_node(Alice, Node, []),
-              pubsub_tools:delete_node(Alice, Node2, [])
+              pubsub_tools:delete_node(Alice, Node2, []),
+
+              assert_event(mod_pubsub_get_subscriptions, Bob)
       end).
 
 retrieve_node_subscriptions_test(Config) ->
@@ -1097,7 +1125,14 @@ modify_node_subscriptions_test(Config) ->
               ModSubs = [{Geralt, bare, <<"subscribed">>}, {Geralt, full, <<"subscribed">>}],
               pubsub_tools:get_node_subscriptions(Alice, Node, [{expected_result, ModSubs}]),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              BobJid = escalus_utils:get_jid(Bob),
+              instrument_helper:assert(mod_pubsub_set_subscriptions, #{host_type => domain()},
+                                       fun(#{errors := 1, jid := From}) ->
+                                           BobJid =:= jid:to_binary(From)
+                                       end),
+              assert_event(mod_pubsub_set_subscriptions, Alice)
       end).
 
 process_subscription_requests_test(Config) ->
@@ -1992,3 +2027,18 @@ is_not_allowed_and_closed(IQError) ->
     ?NS_PUBSUB_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
                                                   {element, <<"closed-node">>},
                                                   {attr, <<"xmlns">>}]).
+
+assert_event(EventName, Client) ->
+    ClientJid = escalus_utils:get_jid(Client),
+    instrument_helper:assert(EventName, #{host_type => domain()},
+                             fun(#{count := 1, jid := From, time := T}) ->
+                                 T >= 0 andalso ClientJid =:= jid:to_binary(From)
+                             end).
+
+assert_wait_for_event(EventName, Client) ->
+    ClientJid = escalus_utils:get_jid(Client),
+    Measurements = instrument_helper:wait_for(EventName, #{host_type => domain()}),
+    instrument_helper:assert(EventName, #{host_type => domain()}, Measurements,
+                             fun(#{count := 1, jid := From, time := T}) ->
+                                 T >= 0 andalso ClientJid =:= jid:to_binary(From)
+                             end).

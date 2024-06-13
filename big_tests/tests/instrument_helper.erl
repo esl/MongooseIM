@@ -3,7 +3,7 @@
 
 -module(instrument_helper).
 
--export([declared_events/1, start/1, stop/0, assert/3, assert/4, wait_for_new/2, lookup/2, take/2]).
+-export([declared_events/1, start/1, stop/0, assert/3, assert/4, wait_for/2, wait_for_new/2, lookup/2, take/2]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -71,6 +71,11 @@ assert(EventName, Labels, MeasurementsList, CheckF) ->
 -spec wait_for_new(event_name(), labels()) -> [measurements()].
 wait_for_new(EventName, Labels) ->
     take(EventName, Labels),
+    wait_for(EventName, Labels).
+
+%% @doc Lookup an element, or wait for it, if it didn't happen yet.
+-spec wait_for(event_name(), labels()) -> [measurements()].
+wait_for(EventName, Labels) ->
     {ok, MeasurementsList} = mongoose_helper:wait_until(fun() -> lookup(EventName, Labels) end,
                                                         fun(L) -> L =/= [] end,
                                                         #{name => EventName}),
