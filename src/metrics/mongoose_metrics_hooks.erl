@@ -24,11 +24,7 @@
          xmpp_stanza_dropped/3,
          xmpp_send_element/3,
          register_user/3,
-         remove_user/3,
-         privacy_iq_get/3,
-         privacy_iq_set/3,
-         privacy_check_packet/3,
-         privacy_list_push/3
+         remove_user/3
         ]).
 
 %%-------------------
@@ -45,11 +41,7 @@ get_hooks(HostType) ->
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
       {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50},
       {register_user, HostType, fun ?MODULE:register_user/3, #{}, 50},
-      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50},
-      {privacy_iq_get, HostType, fun ?MODULE:privacy_iq_get/3, #{}, 1},
-      {privacy_iq_set, HostType, fun ?MODULE:privacy_iq_set/3, #{}, 1},
-      {privacy_check_packet, HostType, fun ?MODULE:privacy_check_packet/3, #{}, 55},
-      {privacy_list_push, HostType, fun ?MODULE:privacy_list_push/3, #{}, 1}
+      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50}
       | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -186,57 +178,6 @@ register_user(Acc, #{jid := #jid{lserver = LServer}}, _) ->
       Extra :: #{host_type := mongooseim:host_type()}.
 remove_user(Acc, _, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, modUnregisterCount, 1),
-    {ok, Acc}.
-
-%% Privacy
-
--spec privacy_iq_get(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-privacy_iq_get(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modPrivacyGets, 1),
-    {ok, Acc}.
-
--spec privacy_iq_set(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: #{iq := jlib:iq()},
-      Extra :: #{host_type := mongooseim:host_type()}.
-privacy_iq_set(Acc, #{iq := #iq{sub_el = SubEl}}, #{host_type := HostType}) ->
-    #xmlel{children = Els} = SubEl,
-    case xml:remove_cdata(Els) of
-        [#xmlel{name = <<"active">>}] ->
-            mongoose_metrics:update(HostType, modPrivacySetsActive, 1);
-        [#xmlel{name = <<"default">>}] ->
-            mongoose_metrics:update(HostType, modPrivacySetsDefault, 1);
-        _ ->
-            ok
-    end,
-    mongoose_metrics:update(HostType, modPrivacySets, 1),
-    {ok, Acc}.
-
--spec privacy_list_push(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: #{session_count := non_neg_integer()},
-      Extra :: #{host_type := mongooseim:host_type()}.
-privacy_list_push(Acc, #{session_count := SessionCount}, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modPrivacyPush, SessionCount),
-    {ok, Acc}.
-
--spec privacy_check_packet(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-privacy_check_packet(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modPrivacyStanzaAll, 1),
-    case mongoose_acc:get(privacy, check, allow, Acc) of
-        deny ->
-            mongoose_metrics:update(HostType, modPrivacyStanzaDenied, 1);
-        block ->
-            mongoose_metrics:update(HostType, modPrivacyStanzaBlocked, 1);
-        allow ->
-            ok
-    end,
     {ok, Acc}.
 
 %%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:
