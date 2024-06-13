@@ -169,5 +169,4 @@ escape_attrs(Config) ->
     end).
 
 instrumentation_events() ->
-    Specs = rpc(mim(), mod_websockets, instrumentation, []),
-    [{Event, Labels} || {Event, Labels, _Config} <- Specs].
+    instrument_helper:declared_events(mod_websockets, []).

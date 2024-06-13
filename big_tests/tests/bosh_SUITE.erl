@@ -952,6 +952,4 @@ wait_for_zero_bosh_sessions() ->
                                #{name => get_bosh_sessions}).
 
 instrumentation_events() ->
-    % because mod_bosh starts instrumentation manually, it doesn't export instrumentation/1
-    Specs = rpc(mim(), mod_bosh, instrumentation, []),
-    [{Event, Labels} || {Event, Labels, _Config} <- Specs].
+    instrument_helper:declared_events(mod_bosh, []).

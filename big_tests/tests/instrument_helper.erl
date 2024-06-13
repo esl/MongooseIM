@@ -3,7 +3,7 @@
 
 -module(instrument_helper).
 
--export([declared_events/1, start/1, stop/0, assert/3, assert/4, wait_for/2, wait_for_new/2, lookup/2, take/2]).
+-export([declared_events/1, declared_events/2, start/1, stop/0, assert/3, assert/4, wait_for/2, wait_for_new/2, lookup/2, take/2]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
@@ -19,11 +19,14 @@
 %% API
 
 %% @doc Helper to get `DeclaredEvents' needed by `start/1'
--spec declared_events([module()] | module()) -> [{event_name(), labels()}].
-declared_events(Modules) when is_list(Modules) ->
-    lists:flatmap(fun declared_events/1, Modules);
-declared_events(Module) ->
-    Specs = rpc(mim(), Module, instrumentation, [domain_helper:host_type()]),
+declared_events(Modules) ->
+    declared_events(Modules, [domain_helper:host_type()]).
+
+-spec declared_events([module()] | module(), Args :: list()) -> [{event_name(), labels()}].
+declared_events(Modules, Args) when is_list(Modules) ->
+    lists:flatmap(fun(Module) -> declared_events(Module, Args) end, Modules);
+declared_events(Module, Args) ->
+    Specs = rpc(mim(), Module, instrumentation, Args),
     [{Event, Labels} || {Event, Labels, _Config} <- Specs].
 
 %% @doc Only `DeclaredEvents' will be logged, and can be tested with `assert/3'
