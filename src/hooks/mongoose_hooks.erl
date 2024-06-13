@@ -56,8 +56,7 @@
          privacy_get_user_list/2,
          privacy_iq_get/6,
          privacy_iq_set/5,
-         privacy_updated_list/3,
-         privacy_list_push/5]).
+         privacy_updated_list/3]).
 
 -export([offline_groupchat_message/4,
          offline_message/4,
@@ -619,17 +618,6 @@ privacy_iq_set(HostType, Acc, From, To, IQ) ->
 privacy_updated_list(HostType, OldList, NewList) ->
     Params = #{old_list => OldList, new_list => NewList},
     run_hook_for_host_type(privacy_updated_list, HostType, false, Params).
-
--spec privacy_list_push(HostType, LUser, LServer, Item, SessionCount) -> Result when
-    HostType :: mongooseim:host_type(),
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
-    Item :: term(),
-    SessionCount :: non_neg_integer(),
-    Result :: any().
-privacy_list_push(HostType, LUser, LServer, Item, SessionCount) ->
-    Params = #{luse => LUser, lserver => LServer, item => Item, session_count => SessionCount},
-    run_hook_for_host_type(privacy_list_push, HostType, ok, Params).
 
 %% Session management related hooks
 
