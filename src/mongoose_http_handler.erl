@@ -18,9 +18,9 @@
 
 -callback config_spec() -> mongoose_config_spec:config_section().
 -callback routes(options()) -> routes().
--callback http_handler_instrumentation() -> [mongoose_instrument:spec()].
+-callback instrumentation() -> [mongoose_instrument:spec()].
 
--optional_callbacks([config_spec/0, routes/1, http_handler_instrumentation/0]).
+-optional_callbacks([config_spec/0, routes/1, instrumentation/0]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").

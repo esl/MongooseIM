@@ -34,6 +34,8 @@
          get_tls_last_message/1,
          is_ssl/1]).
 
+-ignore_xref([instrumentation/0]).
+
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("jlib.hrl").

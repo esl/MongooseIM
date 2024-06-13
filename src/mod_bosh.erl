@@ -9,7 +9,11 @@
 -behaviour(mongoose_module_metrics).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
--behaviour(mongoose_http_handler).
+%% Implements mongoose_http_handler, but we cannot add the option
+%% because we would get conflicting config_spec/0 callback warning.
+%% config_spec/0 is not called by mongoose_http_handler, because
+%% mod_bosh is not in a list of configurable HTTP handlers.
+%%-behaviour(mongoose_http_handler).
 
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11.2"}]).
@@ -36,7 +40,7 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([get_session_socket/1, store_session/2]).
+-ignore_xref([get_session_socket/1, store_session/2, instrumentation/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
