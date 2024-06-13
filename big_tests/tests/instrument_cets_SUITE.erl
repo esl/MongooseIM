@@ -49,7 +49,7 @@ check_instrumentation(Config) ->
             lists:all(fun(Name) -> is_integer(maps:get(Name, Res)) end, instrumentation_metrics_names())
             andalso
             %% Check that there are no unknown fields
-            [] =:= maps:keys(maps:without(instrumentation_metrics_names(), maps:without(instrumentation_metrics_names(), Res)))
+            [] =:= maps:keys(maps:without(instrumentation_metrics_names(), Res))
         end).
 
 instrumentation_metrics_names() ->
