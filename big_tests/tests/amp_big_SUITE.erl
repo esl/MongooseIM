@@ -118,6 +118,7 @@ init_per_suite(Config) ->
     {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [amp_test_helper_code()]),
     rpc(mim(), code, load_binary, [Mod, "amp_test_helper.erl", Code]),
     setup_meck(suite),
+    instrument_helper:start(declared_events()),
     escalus:init_per_suite(ConfigWithHooks).
 
 amp_test_helper_code() ->
@@ -131,10 +132,16 @@ amp_test_helper_code() ->
     "    _ -> meck:passthrough([Socket, Data])\n"
     "  end.\n".
 
+declared_events() ->
+    [
+     {mod_privacy_set, #{host_type => host_type()}} % tested by privacy helpers
+    ].
+
 end_per_suite(C) ->
     teardown_meck(suite),
     escalus_fresh:clean(),
-    escalus:end_per_suite(C).
+    escalus:end_per_suite(C),
+    instrument_helper:stop().
 
 init_per_group(GroupName, Config) ->
     Config1 = case lists:member(GroupName, main_group_names()) of
