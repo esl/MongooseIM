@@ -22,9 +22,7 @@
          user_open_session/3,
          xmpp_bounce_message/3,
          xmpp_stanza_dropped/3,
-         xmpp_send_element/3,
-         register_user/3,
-         remove_user/3
+         xmpp_send_element/3
         ]).
 
 %%-------------------
@@ -39,9 +37,7 @@ get_hooks(HostType) ->
       {auth_failed, HostType, fun ?MODULE:auth_failed/3, #{}, 50},
       {xmpp_stanza_dropped, HostType, fun ?MODULE:xmpp_stanza_dropped/3, #{}, 50},
       {xmpp_bounce_message, HostType, fun ?MODULE:xmpp_bounce_message/3, #{}, 50},
-      {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50},
-      {register_user, HostType, fun ?MODULE:register_user/3, #{}, 50},
-      {remove_user, HostType, fun ?MODULE:remove_user/3, #{}, 50}
+      {xmpp_send_element, HostType, fun ?MODULE:xmpp_send_element/3, #{}, 50}
       | c2s_hooks(HostType)].
 
 -spec c2s_hooks(mongooseim:host_type()) -> gen_hook:hook_list(mongoose_c2s_hooks:fn()).
@@ -159,25 +155,3 @@ user_open_session(Acc, _Params, #{host_type := HostType}) ->
     mongoose_metrics:update(HostType, xmppStanzaCount, 1),
     mongoose_metrics:update(HostType, xmppIqSent, 1),
     {ok, Acc}.
-
-%% Register
-
-%% #rh
--spec register_user(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: any(),
-      Params :: #{jid := jid:jid()},
-      Extra :: map().
-register_user(Acc, #{jid := #jid{lserver = LServer}}, _) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
-    mongoose_metrics:update(HostType, modRegisterCount, 1),
-    {ok, Acc}.
-
--spec remove_user(Acc, Params, Extra) -> {ok, Acc} when
-      Acc :: mongoose_acc:t(),
-      Params :: map(),
-      Extra :: #{host_type := mongooseim:host_type()}.
-remove_user(Acc, _, #{host_type := HostType}) ->
-    mongoose_metrics:update(HostType, modUnregisterCount, 1),
-    {ok, Acc}.
-
-%%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:
