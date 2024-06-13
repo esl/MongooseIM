@@ -133,8 +133,9 @@ type_to_keys(<<"vm_system_info">>) ->
     [<<"ets_limit">>, <<"port_count">>, <<"port_limit">>,
      <<"process_count">>, <<"process_limit">>];
 type_to_keys(<<"probe_queues">>) ->
-    [<<"fsm">>, <<"regular">>, <<"total">>];
-type_to_keys(<<"cets_system">>) ->
+    [<<"fsm">>, <<"regular">>, <<"total">>].
+
+cets_info_keys() ->
     [<<"available_nodes">>, <<"unavailable_nodes">>,
     <<"remote_nodes_without_disco">>, <<"joined_nodes">>,
     <<"remote_nodes_with_unknown_tables">>, <<"remote_unknown_tables">>,
@@ -204,10 +205,21 @@ get_vm_stats_memory(Config) ->
     check_metric_by_type(Mem).
 
 get_cets_system(Config) ->
-    Result = get_metrics([<<"global">>, <<"cets">>, <<"system">>], Config),
+    Result = get_metrics([<<"global">>, <<"cets_info">>], Config),
     ParsedResult = get_ok_value([data, metric, getMetrics], Result),
-    [#{<<"type">> := <<"cets_system">>} = Sys] = ParsedResult,
-    check_metric_by_type(Sys).
+    Names = lists:sort(lists:map(fun(Metric) -> check_cets_metric(Metric) end, ParsedResult)),
+    Names = lists:sort(cets_info_keys()).
+
+check_cets_metric(Metric) ->
+    check_metric_by_type(Metric),
+    #{<<"name">> := [<<"global">>, <<"cets_info">>, Name]} = Metric,
+    case lists:member(Name, cets_info_keys()) of
+        true ->
+            ok;
+        false ->
+            ct:fail({check_cets_metric, Metric})
+    end,
+    Name.
 
 get_all_metrics_as_dicts(Config) ->
     Result = get_metrics_as_dicts(Config),

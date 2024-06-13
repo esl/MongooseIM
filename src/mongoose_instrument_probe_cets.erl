@@ -6,10 +6,6 @@
 
 %% Probe callbacks
 -export([probe/2, instrumentation/0]).
-
-%% GraphQL helper
--export([format_probe_cets/1]).
-
 -ignore_xref([stop/0, instrumentation/0]).
 
 start() ->
@@ -19,32 +15,6 @@ start() ->
 stop() ->
     mongoose_instrument:tear_down(instrumentation()),
     ok.
-
-format_probe_cets(#{available_nodes := AvNodes,
-                    unavailable_nodes := UnNodes,
-                    joined_nodes := Joined,
-                    discovered_nodes := DiscoNodes,
-                    discovery_works := DiscoveryWorks,
-                    remote_nodes_without_disco := NoDisco,
-                    remote_nodes_with_unknown_tables := UnkNodes,
-                    remote_unknown_tables := UnkTabs,
-                    remote_nodes_with_missing_tables := MissNodes,
-                    remote_missing_tables := MissTabs,
-                    conflict_nodes := ConNodes,
-                    conflict_tables := ConTabs}) ->
-    #{<<"type">> => <<"cets_system">>,
-      <<"available_nodes">> => AvNodes,
-      <<"unavailable_nodes">> => UnNodes,
-      <<"joined_nodes">> => Joined,
-      <<"discovered_nodes">> => DiscoNodes,
-      <<"discovery_works">> => DiscoveryWorks,
-      <<"remote_nodes_without_disco">> => NoDisco,
-      <<"remote_nodes_with_unknown_tables">> => UnkNodes,
-      <<"remote_unknown_tables">> => UnkTabs,
-      <<"remote_nodes_with_missing_tables">> => MissNodes,
-      <<"remote_missing_tables">> => MissTabs,
-      <<"conflict_nodes">> => ConNodes,
-      <<"conflict_tables">> => ConTabs}.
 
 all_zeros() ->
     #{available_nodes => 0,
