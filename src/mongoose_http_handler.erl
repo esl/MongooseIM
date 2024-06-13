@@ -4,6 +4,8 @@
 
 -export([config_spec/0, process_config/2, cowboy_host/1, get_routes/1]).
 
+-export([instrumentation/1]).
+
 -type options() :: #{host := '_' | string(),
                      path := string(),
                      module := module(),
@@ -86,3 +88,13 @@ configurable_handler_modules() ->
      mongoose_client_api,
      mongoose_admin_api,
      mongoose_graphql_handler].
+
+%% @doc Call instrumentation for a module of `mongoose_http_handler' behaviour
+-spec instrumentation(module()) -> [mongoose_instrument:spec()].
+instrumentation(Module) ->
+    case erlang:function_exported(Module, instrumentation, 0) of
+        true ->
+            Module:instrumentation();
+        false ->
+            []
+    end.

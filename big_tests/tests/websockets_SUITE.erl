@@ -169,8 +169,5 @@ escape_attrs(Config) ->
     end).
 
 instrumentation_events() ->
-    % because mod_websockets is mongoose_http_handler, it starts http_handler_instrumentation globally.
-    % To avoid conflicts with cases when the module is both mongoose_http_handler and gen_mod,
-    % we use http_handler_instrumentation/0 name instead of instrumentation/0.
-    Specs = rpc(mim(), mod_websockets, http_handler_instrumentation, []),
+    Specs = rpc(mim(), mod_websockets, instrumentation, []),
     [{Event, Labels} || {Event, Labels, _Config} <- Specs].

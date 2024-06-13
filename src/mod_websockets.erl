@@ -11,7 +11,7 @@
 
 %% mongoose_http_handler callbacks
 -export([config_spec/0,
-         http_handler_instrumentation/0]).
+         instrumentation/0]).
 
 %% cowboy_http_websocket_handler callbacks
 -export([init/2,
@@ -79,8 +79,9 @@ config_spec() ->
                           <<"backwards_compatible_session">> => true}
             }.
 
--spec http_handler_instrumentation() -> [mongoose_instrument:spec()].
-http_handler_instrumentation() ->
+%% mongoose_http_handler instrumentation
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
     [{mod_websocket_data_sent, #{},
       #{metrics => #{byte_size => spiral}}},
      {mod_websocket_data_received, #{},

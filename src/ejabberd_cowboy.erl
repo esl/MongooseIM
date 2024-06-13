@@ -22,7 +22,7 @@
 
 %% mongoose_listener API
 -export([start_listener/1,
-         listener_instrumentation/1]).
+         instrumentation/1]).
 
 %% cowboy_middleware API
 -export([execute/2]).
@@ -61,9 +61,9 @@
 %% mongoose_listener API
 %%--------------------------------------------------------------------
 
--spec listener_instrumentation(listener_options()) -> [mongoose_instrument:spec()].
-listener_instrumentation(#{handlers := Handlers}) ->
-    [Spec || #{module := Module} <- Handlers, Spec <- handler_instumentation(Module)].
+-spec instrumentation(listener_options()) -> [mongoose_instrument:spec()].
+instrumentation(#{handlers := Handlers}) ->
+    [Spec || #{module := Module} <- Handlers, Spec <- mongoose_http_handler:instrumentation(Module)].
 
 -spec start_listener(listener_options()) -> ok.
 start_listener(Opts = #{proto := tcp}) ->
@@ -222,13 +222,4 @@ store_trails(Routes) ->
     catch Class:Reason:Stacktrace ->
               ?LOG_WARNING(#{what => store_trails_failed,
                              class => Class, reason => Reason, stacktrace => Stacktrace})
-    end.
-
--spec handler_instumentation(module()) -> [mongoose_instrument:spec()].
-handler_instumentation(Module) ->
-    case erlang:function_exported(Module, http_handler_instrumentation, 0) of
-        true ->
-            Module:http_handler_instrumentation();
-        false ->
-            []
     end.

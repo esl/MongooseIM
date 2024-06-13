@@ -9,6 +9,7 @@
 -behaviour(mongoose_module_metrics).
 %% cowboy_loop is a long polling handler
 -behaviour(cowboy_loop).
+-behaviour(mongoose_http_handler).
 
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11.2"}]).
@@ -28,11 +29,14 @@
 -export([node_cleanup/3]).
 
 %% For testing and debugging
--export([get_session_socket/1, store_session/2, instrumentation/0]).
+-export([get_session_socket/1, store_session/2]).
+
+%% mongoose_http_listener callbacks
+-export([instrumentation/0]).
 
 -export([config_metrics/1]).
 
--ignore_xref([get_session_socket/1, store_session/2, instrumentation/0]).
+-ignore_xref([get_session_socket/1, store_session/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -89,16 +93,12 @@ start(_HostType, Opts) ->
         false ->
             mod_bosh_backend:start(Opts),
             {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-            gen_hook:add_handlers(hooks()),
-            % Because mod_bosh acts more like a service, than a module, instrumentation has to be
-            % set up manually, only once.
-            mongoose_instrument:set_up(instrumentation())
+            gen_hook:add_handlers(hooks())
     end.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     mod_bosh_socket:stop_supervisor(),
-    mongoose_instrument:tear_down(instrumentation()),
     gen_hook:delete_handlers(hooks()),
     ok.
 
@@ -106,6 +106,7 @@ stop(_HostType) ->
 hooks() ->
     [{node_cleanup, global, fun ?MODULE:node_cleanup/3, #{}, 50}].
 
+%% mongoose_http_handler instrumentation
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
     [{mod_bosh_data_sent, #{},
