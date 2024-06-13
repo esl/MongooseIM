@@ -64,9 +64,12 @@
 -export([remove_domain/3]).
 -export([on_does_user_exist/3]).
 
+%% Exported for tests
+-export([instrumentation/1]).
+
 -ignore_xref([
     auth_methods/1, auth_modules/1, check_password/4, get_vh_registered_users/2,
-    get_vh_registered_users_number/2, start/1, stop/1]).
+    get_vh_registered_users_number/2, start/1, stop/1, instrumentation/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -97,20 +100,20 @@
 start() ->
     lists:foreach(fun start/1, ?ALL_HOST_TYPES).
 
--spec start(HostType :: mongooseim:host_type()) -> 'ok'.
+-spec start(mongooseim:host_type()) -> ok.
 start(HostType) ->
     ensure_metrics(HostType),
+    mongoose_instrument:set_up(instrumentation(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    gen_hook:add_handlers(hooks(HostType)),
-    ok.
+    gen_hook:add_handlers(hooks(HostType)).
 
--spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     gen_hook:delete_handlers(hooks(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ok.
+    mongoose_instrument:tear_down(instrumentation(HostType)).
 
 -spec hooks(mongooseim:host_type()) -> gen_hook:hook_list().
 hooks(HostType) ->
@@ -229,6 +232,8 @@ do_try_register_if_does_not_exist(_, JID, Password) ->
     F = fun(HostType, Mod) ->
                 case mongoose_gen_auth:try_register(Mod, HostType, LUser, LServer, Password) of
                     ok ->
+                        mongoose_instrument:execute(auth_register_user, #{host_type => HostType},
+                                                    #{count => 1, user => LUser, server => LServer}),
                         mongoose_hooks:register_user(HostType, LServer, LUser),
                         {stop, ok};
                     {error, _Error} ->
@@ -381,6 +386,8 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
         true ->
             case call_auth_modules_for_domain(LServer, F, #{default => {error, not_allowed}}) of
                 {ok, HostType} ->
+                    mongoose_instrument:execute(auth_unregister_user, #{host_type => HostType},
+                                                #{count => 1, user => LUser, server => LServer}),
                     Acc = mongoose_acc:new(#{location => ?LOCATION,
                                                 host_type => HostType,
                                                 lserver => LServer,
@@ -593,3 +600,10 @@ is_user_number_below_limit(Domain) ->
         {error, not_found} ->
             true
     end.
+
+-spec instrumentation(mongooseim:host_type()) -> [mongoose_instrument:spec()].
+instrumentation(HostType) ->
+    [{auth_register_user, #{host_type => HostType},
+      #{metrics => #{count => spiral}}},
+     {auth_unregister_user, #{host_type => HostType},
+      #{metrics => #{count => spiral}}}].
