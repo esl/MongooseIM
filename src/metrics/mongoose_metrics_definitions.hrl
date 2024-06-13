@@ -37,12 +37,10 @@
 -define(GLOBAL_SPIRALS, [
     [data, xmpp, received, c2s, tcp],
     [data, xmpp, received, c2s, tls],
-    [data, xmpp, received, c2s, websocket],
     [data, xmpp, received, s2s],
     [data, xmpp, received, component],
     [data, xmpp, sent, c2s, tcp],
     [data, xmpp, sent, c2s, tls],
-    [data, xmpp, sent, c2s, websocket],
     [data, xmpp, sent, s2s],
     [data, xmpp, sent, component]
 ]).
