@@ -1321,7 +1321,7 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
                                 lang => Lang},
             mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_action/6,
                                      [IQType, Name, Host, Node, From, ActionExtraArgs],
-                                     fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
+                                     fun(Time, Result) -> iq_action_result_to_measurements(Time, Result, From) end);
         Other ->
             ?LOG_INFO(#{what => pubsub_bad_request, exml_packet => Other}),
             {error, mongoose_xmpp_errors:bad_request()}
@@ -1430,9 +1430,9 @@ event_name(get, affiliations) ->
 event_name(set, affiliations) ->
     mod_pubsub_set_affiliations.
 
-ip_action_result_to_measurements(_Time, {error, _}, From) ->
+iq_action_result_to_measurements(_Time, {error, _}, From) ->
     #{errors => 1, jid => From};
-ip_action_result_to_measurements(Time, _Result, From) ->
+iq_action_result_to_measurements(Time, _Result, From) ->
     #{time => Time, count => 1, jid => From}.
 
 iq_pubsub_set_create(Host, Node, From,
@@ -1549,7 +1549,7 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
                                 lang => Lang},
             mongoose_instrument:span(event_name(IQType, Name), #{host_type => ServerHost}, fun iq_pubsub_owner_action/6,
                                      [IQType, Name, Host, From, Node, ActionExtraArgs],
-                                     fun(Time, Result) -> ip_action_result_to_measurements(Time, Result, From) end);
+                                     fun(Time, Result) -> iq_action_result_to_measurements(Time, Result, From) end);
         _ ->
             ?LOG_INFO(#{what => pubsub_too_many_actions, exml_packet => Action}),
             {error, mongoose_xmpp_errors:bad_request()}
