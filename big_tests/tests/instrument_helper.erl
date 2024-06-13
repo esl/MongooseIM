@@ -3,7 +3,11 @@
 
 -module(instrument_helper).
 
--export([declared_events/1, declared_events/2, start/1, stop/0, assert/3, assert/4, wait_for/2, wait_for_new/2, lookup/2, take/2]).
+-export([declared_events/1, declared_events/2,
+         start/1, stop/0,
+         assert/3, assert/4,
+         wait_for/2, wait_for_new/2,
+         lookup/2, take/2]).
 
 -import(distributed_helper, [rpc/4, mim/0]).
 
