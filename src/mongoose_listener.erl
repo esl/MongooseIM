@@ -58,14 +58,14 @@ stop_listener(Opts) ->
     supervisor:delete_child(mongoose_listener_sup, ListenerId).
 
 %% Return deduplicated instrumentation specs.
-%% Each listener module could be started more than on different ports.
+%% Each listener module could be started more than once on different ports.
 -spec instrumentation([options()]) -> [mongoose_instrument:spec()].
 instrumentation(Listeners) ->
     lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)]).
 
 -spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
 listener_instrumentation(Opts = #{module := Module}) ->
-    case erlang:function_exported(Module, instrumentation, 1) of
+    case mongoose_lib:is_exported(Module, instrumentation, 1) of
         true ->
             Module:instrumentation(Opts);
         false ->
