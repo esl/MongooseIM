@@ -1,23 +1,11 @@
 -module(privacy_helper).
 
+-compile([export_all, nowarn_export_all]).
+
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
-
--export([set_and_activate/2,
-         set_list/2,
-         set_list/3,
-         send_set_list/2,
-         activate_list/2,
-         set_default_list/2,
-         privacy_list/1,
-         gets_error/2,
-         gets_error/3,
-         is_privacy_list_push/1,
-         is_presence_error/1,
-         does_user_process_crash/4,
-         does_user_process_crash/5]).
 
 gets_error(Who, Type) ->
     gets_error(Who, <<"cancel">>, Type).
@@ -58,7 +46,8 @@ set_list(Client, ListName, NewItems) ->
 
 verify_set_list_response(Client) ->
     Responses = escalus:wait_for_stanzas(Client, 2),
-    escalus:assert_many([is_iq_result, is_privacy_set], Responses).
+    escalus:assert_many([is_iq_result, is_privacy_set], Responses),
+    assert_privacy_set_event(Client, #{}).
 
 verify_list(Client, ListName, Stanza) ->
     GetStanza = escalus_stanza:privacy_get_lists([ListName]),
@@ -102,12 +91,14 @@ attr_match(Name, Value, Props) ->
 %% Make the list the active one.
 activate_list(Client, ListName) ->
     escalus:send(Client, escalus_stanza:privacy_activate(ListName)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)).
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)),
+    assert_privacy_set_event(Client, #{active_count => 1}).
 
 %% Make the list the default one.
 set_default_list(Client, ListName) ->
     escalus:send(Client, escalus_stanza:privacy_set_default(ListName)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)).
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)),
+    assert_privacy_set_event(Client, #{default_count => 1}).
 
 %% Is this iq a notification about a privacy list being changed?
 is_privacy_list_push(Iq) ->
@@ -262,3 +253,38 @@ does_user_process_crash(From, To, Type, Children, Message) ->
     escalus:assert(is_chat_message,
                    [Message],
                    escalus:wait_for_stanza(To)).
+
+send_and_check_blocked_message(Sender, Recipient) ->
+    escalus_client:send(Sender, escalus_stanza:chat_to(Recipient, <<"Hi, blocker!">>)),
+    timer:sleep(100),
+    escalus_assert:has_no_stanzas(Recipient),
+    privacy_helper:gets_error(Sender, <<"service-unavailable">>),
+    assert_privacy_check_packet_event(Sender, #{dir => out}),
+    assert_privacy_check_packet_event(Recipient, #{dir => in, denied_count => 1}).
+
+%% Intrumentation events
+
+assert_privacy_get_event(Client) ->
+    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
+    instrument_helper:assert(
+      mod_privacy_get, #{host_type => domain_helper:host_type()},
+      fun(M) -> M =:= #{count => 1, jid => ClientJid} end).
+
+assert_privacy_set_event(Client, ExtraM) ->
+    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
+    instrument_helper:assert(
+      mod_privacy_set, #{host_type => domain_helper:host_type()},
+      fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
+
+assert_privacy_check_packet_event(Client, ExtraM) ->
+    ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
+    instrument_helper:assert(
+      mod_privacy_check_packet, #{host_type => domain_helper:host_type()},
+      fun(M) -> M =:= maps:merge(#{jid => ClientJid, count => 1}, ExtraM) end).
+
+assert_privacy_push_item_event(Client, ExpCount) ->
+    User = escalus_utils:get_username(Client),
+    Server = escalus_utils:get_server(Client),
+    instrument_helper:assert(
+      mod_privacy_push_item, #{host_type => domain_helper:host_type()},
+      fun(M) -> M =:= #{user => User, server => Server, count => ExpCount} end).
