@@ -107,7 +107,7 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events()),
+    instrument_helper:start(instrumentation_events() ++ negative_instrumentation_events()),
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
@@ -173,9 +173,7 @@ required_bosh_opts(_Group) ->
 
 create_and_terminate_session(Config) ->
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, tcp], 0},
-                       {[global, data, xmpp, sent, c2s, tcp], 0}],
+                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
@@ -199,6 +197,9 @@ create_and_terminate_session(Config) ->
     % Assert that correct events have been executed
     [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
      || {Event, Label} <- instrumentation_events()],
+
+    %% Verify C2S listener is not used
+    instrument_helper:assert_not_emitted(negative_instrumentation_events(), true),
 
     escalus_mongooseim:post_story(PreStoryData),
 
@@ -953,3 +954,12 @@ wait_for_zero_bosh_sessions() ->
 
 instrumentation_events() ->
     instrument_helper:declared_events(mod_bosh, []).
+
+negative_instrumentation_events() ->
+    [{Name, #{}} || Name <- negative_instrumentation_events_names()].
+
+negative_instrumentation_events_names() ->
+    [c2s_tcp_data_sent,
+     c2s_tcp_data_received,
+     c2s_tls_data_sent,
+     c2s_tls_data_received].

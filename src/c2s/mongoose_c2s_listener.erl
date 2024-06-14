@@ -3,7 +3,8 @@
 -include("mongoose.hrl").
 
 -behaviour(mongoose_listener).
--export([start_listener/1]).
+-export([start_listener/1,
+         instrumentation/1]).
 
 -behaviour(ranch_protocol).
 -export([start_link/3]).
@@ -17,6 +18,17 @@
 
 -type options() :: #{module := module(),
                      atom() => any()}.
+
+-spec instrumentation(options()) -> [mongoose_instrument:spec()].
+instrumentation(_Opts) ->
+    [{c2s_tcp_data_sent, #{},
+      #{metrics => #{byte_size => spiral}}},
+     {c2s_tls_data_sent, #{},
+      #{metrics => #{byte_size => spiral}}},
+     {c2s_tcp_data_received, #{},
+      #{metrics => #{byte_size => spiral}}},
+     {c2s_tls_data_received, #{},
+      #{metrics => #{byte_size => spiral}}}].
 
 %% mongoose_listener
 -spec start_listener(options()) -> ok.

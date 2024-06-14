@@ -6,6 +6,7 @@
 -export([declared_events/1, declared_events/2,
          start/1, stop/0,
          assert/3, assert/4,
+         assert_not_emitted/2, assert_not_emitted/3,
          wait_for/2, wait_for_new/2,
          lookup/2, take/2]).
 
@@ -73,6 +74,18 @@ assert(EventName, Labels, MeasurementsList, CheckF) ->
                    [EventName, Labels, Filtered]),
             event_tested(EventName, Labels)
     end.
+
+assert_not_emitted(EventName, Labels, MarkAsTested) ->
+    case lookup(EventName, Labels) of
+        [] ->
+            event_tested(EventName, Labels);
+        Events ->
+            ct:fail("Measurements emitted but should not ~p", [Events])
+    end.
+
+assert_not_emitted(Events, MarkAsTested) ->
+    [assert_not_emitted(Event, Label, MarkAsTested)
+     || {Event, Label} <- Events].
 
 %% @doc Remove previous events, and wait for a new one. Use for probes only.
 -spec wait_for_new(event_name(), labels()) -> [measurements()].
