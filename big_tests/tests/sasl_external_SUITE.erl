@@ -381,11 +381,10 @@ generate_user(C, User, Transport) ->
                           {versions, ['tlsv1.2']},
                           {certfile, maps:get(cert, UserCert)},
                           {keyfile, maps:get(key, UserCert)}]}],
-    Common ++ transport_specific_options(Transport)
-    ++ [{port, ct:get_config({hosts, mim, c2s_port})}].
+    Common ++ transport_specific_options(Transport).
 
 transport_specific_options(escalus_tcp) ->
-    [{starttls, required}];
+    [{starttls, required}, {port, ct:get_config({hosts, mim, c2s_port})}];
 transport_specific_options(_) ->
      [{port, ct:get_config({hosts, mim, cowboy_secure_port})},
       {ssl, true}].
