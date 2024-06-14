@@ -9,12 +9,10 @@
 -ignore_xref([stop/0, instrumentation/0]).
 
 start() ->
-    mongoose_instrument:set_up(instrumentation()),
-    ok.
+    mongoose_instrument:set_up(instrumentation()).
 
 stop() ->
-    mongoose_instrument:tear_down(instrumentation()),
-    ok.
+    mongoose_instrument:tear_down(instrumentation()).
 
 all_zeros() ->
     #{available_nodes => 0,
