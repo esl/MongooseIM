@@ -178,6 +178,7 @@ retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 groupchat_field_ns() -> <<"urn:xmpp:mam:2#groupchat-field">>.
 groupchat_available_ns() -> <<"urn:xmpp:mam:2#groupchat-available">>.
 data_validate_ns() -> <<"http://jabber.org/protocol/xdata-validate">>.
+stanzas_ns() -> <<"urn:ietf:params:xml:ns:xmpp-stanzas">>.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -412,6 +413,16 @@ verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
     true = IsCreate orelse is_binary(Version),
     Items = exml_query:subelements(X, <<"user">>),
     muc_light_helper:verify_aff_users(Items, BinAffUsersChanges).
+
+verify_id_error_text_msg(Condition, Stanza) ->
+    Text = exml_query:path(Stanza, [{element, <<"error">>},
+                                    {element_with_ns, <<"text">>, stanzas_ns()}, cdata]),
+    case Condition of
+        [<<"modify">>, <<"not-acceptable">>] ->
+            ?assert_equal(<<"Invalid stanza ID provided">>, Text);
+        [<<"cancel">>, <<"item-not-found">>] ->
+            ?assert_equal(<<"Message with specified ID is not found">>, Text)
+    end.
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES

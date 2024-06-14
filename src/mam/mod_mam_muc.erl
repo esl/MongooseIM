@@ -596,10 +596,11 @@ return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>)]}};
 return_error_iq(IQ, invalid_stanza_id) ->
-    Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza id provided">>),
+    Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza ID provided">>),
     {error, invalid_stanza_id, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, item_not_found) ->
-    {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
+    Text = mongoose_xmpp_errors:item_not_found(<<"en">>, <<"Message with specified ID is not found">>),
+    {error, item_not_found, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_mam_muc">>)]}};
 return_error_iq(IQ, missing_with_jid) ->

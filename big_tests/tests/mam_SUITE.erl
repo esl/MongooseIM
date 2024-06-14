@@ -68,6 +68,7 @@
          assert_only_one_of_many_is_equal/2,
          add_nostore_hint/1,
          assert_not_stored/2,
+         verify_id_error_text_msg/2,
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
          make_iso_time/1,
@@ -3088,6 +3089,7 @@ server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Conditio
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_error, [IQ], Res),
         escalus:assert(is_error, Condition, Res),
+        verify_id_error_text_msg(Condition, Res),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
