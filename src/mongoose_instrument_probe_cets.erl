@@ -14,20 +14,6 @@ start() ->
 stop() ->
     mongoose_instrument:tear_down(instrumentation()).
 
-all_zeros() ->
-    #{available_nodes => 0,
-      unavailable_nodes => 0,
-      joined_nodes => 0,
-      discovered_nodes => 0,
-      discovery_works => 0,
-      remote_nodes_without_disco => 0,
-      remote_nodes_with_unknown_tables => 0,
-      remote_unknown_tables => 0,
-      remote_nodes_with_missing_tables => 0,
-      remote_missing_tables => 0,
-      conflict_nodes => 0,
-      conflict_tables => 0}.
-
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
     [{cets_info, #{}, #{probe => #{module => ?MODULE}, metrics => instrumentation_metrics()}}].
@@ -78,7 +64,7 @@ probe(cets_info, _labels) ->
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => cets_system_info_failed, class => Class,
                          reason => Reason, stacktrace => Stacktrace}),
-                all_zeros()
+                #{}
     end.
 
 boolean_to_integer(true) -> 1;
