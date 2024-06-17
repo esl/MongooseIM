@@ -101,9 +101,7 @@ update_handler(Handler) ->
 %%--------------------------------------------------------------------
 
 metrics_test(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
-    escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
+    escalus:story(Config,
                   [{geralt, 1}, {geralt_s, 1}],
                   fun(Geralt, GeraltS) ->
 

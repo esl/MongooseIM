@@ -166,13 +166,11 @@ intercomponent_communication(Config) ->
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
     MongooseMetrics = [{[global, data, xmpp, received, component], changed},
-                       {[global, data, xmpp, sent, component], changed},
-                       {[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
+                       {[global, data, xmpp, sent, component], changed}],
 
     PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     %% note that there is no c2s communication happens and 
-    %% data.xmpp.*.xml_stanza_size metrics are bounced
+    %% xmpp_stanza_size_sent/xmpp_stanza_size_received metrics are bounced
     %% for the components communication
 
     %% When the first component sends a message the second component
@@ -195,9 +193,7 @@ register_two_components(Config) ->
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
     MongooseMetrics = [{[global, data, xmpp, received, component], changed},
-                       {[global, data, xmpp, sent, component], changed},
-                       {[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
+                       {[global, data, xmpp, sent, component], changed}],
 
     escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
                   [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

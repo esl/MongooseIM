@@ -247,11 +247,29 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
+    [mongoose_instrument:execute(xmpp_stanza_size_received, #{},
+                                 #{byte_size => elem_size(El)})
+     || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
     StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
+
+elem_size(#xmlstreamerror{name = Name}) ->
+    byte_size(Name);
+elem_size(El) ->
+    try
+        exml:xml_size(patch_element(El))
+    catch _Class:Reason:Stacktrace ->
+        ?LOG_ERROR(#{what => failed_to_xml_size, element => El}),
+        0
+    end.
+
+patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
+    %% Skip `{<<\"from\">>, undefined}'
+    [{Name, Value} || {Name, Value} <- Attrs, Value =/= undefined];
+patch_element(El) ->
+    El.
 
 -spec maybe_pause(data(), integer()) -> any().
 maybe_pause(_StateData, Pause) when Pause > 0 ->
@@ -1020,7 +1038,7 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El)
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+    [mongoose_instrument:execute(xmpp_stanza_size_sent, #{}, #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
     mongoose_c2s_socket:send_xml(Socket, XmlElements).
 

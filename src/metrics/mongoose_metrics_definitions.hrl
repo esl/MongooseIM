@@ -74,10 +74,6 @@
                    {[erlang, memory], [function, erlang, memory, ['$dp'], value],
                     [total, processes_used, atom_used, binary, ets, system]}]).
 
--define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, xml_stanza_size],
-                            [data, xmpp, sent, xml_stanza_size]
-                           ]).
-
 -define(GENERAL_HISTOGRAMS, [[data, xmpp, c2s, message, processing_time]]).
 
 -define(DATA_FUN_METRICS,

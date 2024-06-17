@@ -172,9 +172,6 @@ required_bosh_opts(_Group) ->
 %%--------------------------------------------------------------------
 
 create_and_terminate_session(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
-    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
     Conn = escalus_connection:connect(CarolSpec),
@@ -200,8 +197,6 @@ create_and_terminate_session(Config) ->
 
     %% Verify C2S listener is not used
     instrument_helper:assert_not_emitted(negative_instrumentation_events(), true),
-
-    escalus_mongooseim:post_story(PreStoryData),
 
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().

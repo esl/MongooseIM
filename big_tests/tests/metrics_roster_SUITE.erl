@@ -51,9 +51,7 @@ subscription_tests() -> [subscribe,
 
 init_per_suite(Config) ->
     instrument_helper:start(declared_events()),
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {fun roster_rdbms_precondition/0, [global, data, rdbms, default],
+    MongooseMetrics = [{fun roster_rdbms_precondition/0, [global, data, rdbms, default],
                         [{recv_oct, '>'}, {send_oct, '>'}]}
                        ],
     [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].

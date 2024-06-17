@@ -118,9 +118,7 @@ two_users_can_log_and_chat(Config) ->
     AliceHost = escalus_users:get_server(Config, alice),
     HostType = domain_helper:domain_to_host_type(mim(), AliceHost),
     HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[HostTypePrefix, data, xmpp, c2s, message, processing_time], changed}],
+    MongooseMetrics = [{[HostTypePrefix, data, xmpp, c2s, message, processing_time], changed}],
     escalus:fresh_story([{mongoose_metrics, MongooseMetrics} | Config],
                         [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),

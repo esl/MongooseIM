@@ -401,16 +401,11 @@ starttls_should_fail_when_disabled(Config) ->
     escalus_connection:wait_for_close(Conn, timer:seconds(5)).
 
 metrics_test(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed}],
-    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     tls_authenticate(Config),
 
     % Assert that correct events have been executed
     [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
-     || {Event, Label} <- instrumentation_events()],
-
-    escalus_mongooseim:post_story(PreStoryData).
+     || {Event, Label} <- instrumentation_events()].
 
 tls_authenticate(Config) ->
     %% Given

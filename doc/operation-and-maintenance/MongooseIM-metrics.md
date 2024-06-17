@@ -161,8 +161,8 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 
 | Metric name | Type | Description |
 | ----------- | ---- | ----------- |
-| `[global, data, xmpp, received, xml_stanza_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
-| `[global, data, xmpp, sent, xml_stanza_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
+| `[global, xmpp_stanza_size_received, byte_size]` | histogram | A size (in bytes) of a received stanza after decryption. |
+| `[global, xmpp_stanza_size_sent, byte_size]` | histogram | A size (in bytes) of a sent stanza before encryption. |
 | `[global, c2s_tcp_data_received, byte_size]` | spiral | A size (in bytes) of unencrypted data received from a client via TCP channel. |
 | `[global, c2s_tcp_data_sent, byte_size]` | spiral | A size (in bytes) of unencrypted data sent to a client via TCP channel. |
 | `[global, c2s_tls_data_received, byte_size]` | spiral | A size (in bytes) of a data received from a client via TLS channel after decryption. |

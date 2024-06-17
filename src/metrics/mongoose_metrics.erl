@@ -382,8 +382,6 @@ do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
     end.
 
 create_data_metrics() ->
-    lists:foreach(fun(Metric) -> ensure_metric(global, Metric, histogram) end,
-        ?GLOBAL_HISTOGRAMS),
     lists:foreach(fun(Metric) -> ensure_metric(global, Metric, spiral) end,
         ?GLOBAL_SPIRALS),
     lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end,

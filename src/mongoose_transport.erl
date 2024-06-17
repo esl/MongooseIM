@@ -181,7 +181,7 @@ send_text(SocketData, Data) ->
 -spec send_element(socket_data(), exml:element()) -> ok.
 send_element(SocketData, El) ->
     BinEl = exml:to_binary(El),
-    mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], byte_size(BinEl)),
+    mongoose_instrument:execute(c2s_tcp_data_sent, #{}, #{byte_size => byte_size(BinEl)}),
     send_text(SocketData, BinEl).
 
 -spec get_peer_certificate(socket_data()) -> mongoose_tls:cert().
@@ -406,10 +406,10 @@ process_data(Data, #state{parser = Parser,
     State#state{parser = NewParser, shaper_state = NewShaperState}.
 
 wrap_xml_elements_and_update_metrics(#xmlel{} = E) ->
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
+    mongoose_instrument:execute(c2s_tcp_data_received, #{}, #{byte_size => exml:xml_size(E)}),
     {xmlstreamelement, E};
 wrap_xml_elements_and_update_metrics(E) ->
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], exml:xml_size(E)),
+    mongoose_instrument:execute(c2s_tcp_data_received, #{}, #{byte_size => exml:xml_size(E)}),
     E.
 
 -spec update_transport_metrics(non_neg_integer(),

@@ -116,7 +116,12 @@ instrumentation() ->
     [{mod_bosh_data_sent, #{},
       #{metrics => #{byte_size => spiral}}},
      {mod_bosh_data_received, #{},
-      #{metrics => #{byte_size => spiral}}}].
+      #{metrics => #{byte_size => spiral}}},
+     %% Shared between different types of C2S listeners
+     {xmpp_stanza_size_sent, #{},
+      #{metrics => #{byte_size => histogram}}},
+     {xmpp_stanza_size_received, #{},
+      #{metrics => #{byte_size => histogram}}}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

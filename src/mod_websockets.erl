@@ -87,7 +87,12 @@ instrumentation() ->
     [{mod_websocket_data_sent, #{},
       #{metrics => #{byte_size => spiral}}},
      {mod_websocket_data_received, #{},
-      #{metrics => #{byte_size => spiral}}}].
+      #{metrics => #{byte_size => spiral}}},
+     %% Shared between different types of C2S listeners
+     {xmpp_stanza_size_sent, #{},
+      #{metrics => #{byte_size => histogram}}},
+     {xmpp_stanza_size_received, #{},
+      #{metrics => #{byte_size => histogram}}}].
 
 %%--------------------------------------------------------------------
 %% Common callbacks for all cowboy behaviours
