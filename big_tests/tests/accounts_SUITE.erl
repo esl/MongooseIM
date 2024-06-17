@@ -1,13 +1,10 @@
 -module(accounts_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
-
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
-
 -include_lib("exml/include/exml.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -37,6 +34,7 @@ all() ->
 
 groups() ->
     [{register, [parallel], [register,
+                             unregister,
                              already_registered,
                              registration_conflict,
                              check_unregistered]},
@@ -68,13 +66,15 @@ change_password_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config1) ->
+    instrument_helper:start(instrument_helper:declared_events(ejabberd_auth)),
     ok = dynamic_modules:ensure_modules(host_type(), required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
     escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(Config),
+    instrument_helper:stop().
 
 required_modules() ->
     [{mod_register, mod_register_options()}].
@@ -178,7 +178,15 @@ end_per_testcase(CaseName, Config) ->
 
 register(Config) ->
     [{Name1, _UserSpec1}, {Name2, _UserSpec2}] = escalus_users:get_users([alice, bob]),
-    escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])).
+    Config1 = escalus_fresh:create_users(Config, escalus:get_users([Name1, Name2])),
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name1)),
+    assert_event(auth_register_user, escalus_users:get_jid(Config1, Name2)).
+
+unregister(Config) ->
+    UserSpec = escalus_fresh:freshen_spec(Config, alice),
+    escalus_users:create_user(Config, {alice, UserSpec}),
+    escalus_users:delete_user(Config, {alice, UserSpec}),
+    assert_event(auth_unregister_user, escalus_users:get_jid(Config, UserSpec)).
 
 already_registered(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], fun(Alice) ->
@@ -444,3 +452,10 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
+
+%% Instrumentation events
+
+assert_event(EventName, BinJid) ->
+    #jid{luser = LUser, lserver = LServer} = jid:from_binary(BinJid),
+    instrument_helper:assert(EventName, #{host_type => host_type()},
+                             fun(M) -> M =:= #{count => 1, user => LUser, server => LServer} end).

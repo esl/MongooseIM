@@ -74,11 +74,16 @@ end_per_group(Group, Config) ->
 init_per_testcase(s2s, Config) ->
     mongoose_config:set_opt(s2s_backend, ?config(backend, Config)),
     Config;
+init_per_testcase(auth_anonymous, Config) ->
+    mongoose_gen_auth:start(ejabberd_auth_anonymous, ?HOST),
+    Config;
 init_per_testcase(TestCase, Config) ->
     start_component_if_needed(?config(needs_component, Config)),
     start_modules(TestCase, Config),
     Config.
 
+end_per_testcase(auth_anonymous, _Config) ->
+    mongoose_gen_auth:stop(ejabberd_auth_anonymous, ?HOST);
 end_per_testcase(TestCase, Config) ->
     stop_modules(TestCase, Config),
     stop_component_if_needed(?config(needs_component, Config)).
@@ -169,7 +174,6 @@ notify_self_hook_for_host_type(Acc, #{node := Node}, #{self := Self, host_type :
 auth_anonymous(_Config) ->
     HostType = ?HOST,
     {U, S, R, JID, SID} = get_fake_session(),
-    ejabberd_auth_anonymous:start(HostType),
     Info = #{auth_module => cyrsasl_anonymous},
     ejabberd_auth_anonymous:register_connection(#{},
                                                 #{sid => SID, jid => JID, info => Info},

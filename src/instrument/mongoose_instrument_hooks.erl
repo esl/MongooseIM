@@ -80,6 +80,7 @@ is_instrumented(roster_set) -> false;
 is_instrumented(roster_push) -> false;
 is_instrumented(register_user) -> false;
 is_instrumented(remove_user) -> false;
+is_instrumented(anonymous_purge) -> false;
 is_instrumented(privacy_iq_get) -> false;
 is_instrumented(privacy_iq_set) -> false;
 is_instrumented(privacy_check_packet) -> false;
