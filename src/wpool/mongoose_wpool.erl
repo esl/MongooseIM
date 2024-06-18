@@ -86,9 +86,10 @@
 -callback start(host_type_or_global(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} | {error, Reason :: term()}.
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
+-callback instrumentation(mongooseim:host_type_or_global(), mongoose_wpool:tag()) -> [mongoose_instrument:spec()].
 -callback stop(host_type_or_global(), tag()) -> ok.
 
--optional_callbacks([is_supported_strategy/1]).
+-optional_callbacks([is_supported_strategy/1, instrumentation/2]).
 
 ensure_started() ->
     wpool:start(),
@@ -152,6 +153,7 @@ start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
         false ->
             error({strategy_not_supported, PoolType, HostType, Tag, Strategy});
         _ ->
+            mongoose_instrument:set_up(instrumentation(PoolType, HostType, Tag)),
             start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout)
     end.
 
@@ -208,7 +210,8 @@ stop(PoolType, HostType, Tag) ->
     try
         ets:delete(?MODULE, {PoolType, HostType, Tag}),
         call_callback(stop, PoolType, [HostType, Tag]),
-        mongoose_wpool_mgr:stop(PoolType, HostType, Tag)
+        mongoose_wpool_mgr:stop(PoolType, HostType, Tag),
+        mongoose_instrument:tear_down(instrumentation(PoolType, HostType, Tag))
     catch
         C:R:S ->
             ?LOG_ERROR(#{what => pool_stop_failed,
@@ -389,4 +392,14 @@ get_pool(PoolType, HostType, Tag) ->
         [] when is_binary(HostType) -> get_pool(PoolType, global, Tag);
         [] -> {error, {pool_not_started, {PoolType, HostType, Tag}}};
         [Pool] -> {ok, Pool}
+    end.
+
+-spec instrumentation(pool_type(), host_type_or_global(), tag()) -> [mongoose_instrument:spec()].
+instrumentation(PoolType, HostType, Tag) ->
+    CallbackModule = make_callback_module_name(PoolType),
+    case mongoose_lib:is_exported(CallbackModule, instrumentation, 2) of
+        true ->
+            CallbackModule:instrumentation(HostType, Tag);
+        false ->
+            []
     end.

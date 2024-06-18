@@ -233,8 +233,7 @@ is_skipped(_, _) ->
 basic_groups() ->
     [
      {mam_all, [parallel],
-           [{mam_metrics, [], mam_metrics_cases()},
-            {mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
+           [{mam04, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
             {mam06, [parallel], mam_cases() ++ [retrieve_form_fields_extra_features]
                                 ++ stanzaid_cases() ++ retract_cases()
                                 ++ metadata_cases() ++ fetch_specific_msgs_cases()},
@@ -284,9 +283,6 @@ basic_groups() ->
 chat_markers_cases() ->
     [archive_chat_markers,
      dont_archive_chat_markers].
-
-mam_metrics_cases() ->
-    [metric_incremented_when_store_message].
 
 mam_cases() ->
     [mam_service_discovery,
@@ -581,8 +577,6 @@ init_per_group(nostore, Config) ->
     Config;
 init_per_group(archived, Config) ->
     Config;
-init_per_group(mam_metrics, Config) ->
-    Config;
 init_per_group(muc04, Config) ->
     [{props, mam04_props()}, {with_rsm, true}|Config];
 init_per_group(muc06, Config) ->
@@ -627,7 +621,7 @@ end_per_group(muc_prefs_cases, Config) ->
     Config;
 end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04; G == rsm04_comp;
-    G == muc06; G == mam06; G == archived; G == mam_metrics ->
+    G == muc06; G == mam06; G == archived ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -754,7 +748,7 @@ init_per_testcase(CaseName, Config) ->
     end.
 
 init_steps() ->
-    [fun init_users/2, fun init_archive/2, fun start_room/2, fun init_metrics/2,
+    [fun init_users/2, fun init_archive/2, fun start_room/2,
      fun escalus:init_per_testcase/2].
 
 maybe_skip(C, Config) when C =:= retract_message;
@@ -851,20 +845,6 @@ start_room(C, Config) ->
         true -> start_alice_room(Config);
         false -> Config
     end.
-
-init_metrics(metric_incremented_when_store_message, ConfigIn) ->
-    case ?config(configuration, ConfigIn) of
-        rdbms_async_pool ->
-            MongooseMetrics = [
-                               {[global, data, rdbms, default],
-                                [{recv_oct, '>'}, {send_oct, '>'}]}
-                              ],
-            [{mongoose_metrics, MongooseMetrics} | ConfigIn];
-        _ ->
-            ConfigIn
-    end;
-init_metrics(_CaseName, Config) ->
-    Config.
 
 end_per_testcase(CaseName, Config) ->
     maybe_destroy_room(CaseName, Config),
@@ -3513,9 +3493,6 @@ discover_features(Config, Client, Service) ->
                                      ?config(basic_group, Config)),
     ?assert_equal(message_retraction_is_enabled(Config),
                   escalus_pred:has_feature(retract_tombstone_ns(), Stanza)).
-
-metric_incremented_when_store_message(Config) ->
-    archived(Config).
 
 messages_filtered_when_prefs_default_policy_is_always(Config) ->
     run_prefs_cases(always, Config).

@@ -22,7 +22,6 @@
 -export([init/0,
          init_mongooseim_metrics/0,
          create_probe_metric/3,
-         ensure_db_pool_metric/1,
          update/3,
          ensure_metric/3,
          get_metric_value/1,
@@ -83,13 +82,6 @@ init_subscriptions() ->
 create_probe_metric(HostType, Name, Module) ->
     {Metric, Spec} = ?PROBE(Name, Module),
     ensure_metric(HostType, Metric, Spec).
-
-% TODO: change to HostType after mongoose_wpool_rdbms
-ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
-    ensure_metric(Host,
-                  [data, rdbms, Tag],
-                  {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
-                   [workers | ?INET_STATS]}).
 
 -spec update(HostType :: mongooseim:host_type_or_global(), Name :: term() | list(),
              Change :: term()) -> any().

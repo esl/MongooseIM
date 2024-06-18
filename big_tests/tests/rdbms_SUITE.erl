@@ -89,7 +89,9 @@ rdbms_queries_cases() ->
      test_upsert_many1,
      test_upsert_many2,
      test_upsert_many1_replaces_existing,
-     test_upsert_many2_replaces_existing].
+     test_upsert_many2_replaces_existing,
+
+     pool_probe_metrics_are_updated].
 
 suite() ->
     escalus:suite().
@@ -104,22 +106,31 @@ init_per_suite(Config) ->
         true ->
             %% Warning: inject_module does not really work well with --rerun-big-tests flag
             mongoose_helper:inject_module(?MODULE),
-            escalus:init_per_suite(Config)
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, [instrumentation, probe_interval], 1),
+            escalus:init_per_suite(Config1)
     end.
 
 end_per_suite(Config) ->
+    mongoose_helper:restore_config_option(Config, [instrumentation, probe_interval]),
     escalus:end_per_suite(Config).
 
 init_per_group(tagged_rdbms_queries, Config) ->
     ExtraConfig = stop_global_default_pool(),
+    instrument_helper:start(instrument_helper:declared_events(mongoose_wpool_rdbms, [host_type(), tag()])),
     start_local_host_type_pool(ExtraConfig),
     ExtraConfig ++ Config;
 init_per_group(global_rdbms_queries, Config) ->
+    ExtraConfig = stop_global_default_pool(),
+    instrument_helper:start(instrument_helper:declared_events(mongoose_wpool_rdbms, [global, default])),
+    restart_global_default_pool(ExtraConfig),
     [{tag, global} | Config].
 
 end_per_group(tagged_rdbms_queries, Config) ->
+    stop_local_host_type_pool(),
+    instrument_helper:stop(),
     restart_global_default_pool(Config);
 end_per_group(global_rdbms_queries, Config) ->
+    instrument_helper:stop(),
     Config.
 
 init_per_testcase(test_incremental_upsert, Config) ->
@@ -662,6 +673,22 @@ test_upsert_many2_replaces_existing(Config) ->
     {updated, _} = sql_execute_upsert_many(Config, upsert_many_last2, Insert3 ++ Insert4, Update3),
     SelectResult = sql_query(Config, <<"SELECT seconds FROM last">>),
     ?assertEqual({selected, [{<<"10">>}, {<<"10">>}]}, selected_to_binary(SelectResult)).
+
+pool_probe_metrics_are_updated(Config) ->
+    Tag = ?config(tag, Config),
+    {Event, Labels} = case Tag of
+                          global ->
+                              {rdbms_stats_global, #{pool_tag => default}};
+                          Tag ->
+                              {rdbms_stats, #{host_type => host_type(), pool_tag => Tag}}
+                      end,
+    #{recv_oct := Recv, send_oct := Send} = rpc(mim(), mongoose_wpool_rdbms, probe, [Event, Labels]),
+
+    select_one_works_case(Config),
+
+    Measurements = instrument_helper:wait_for_new(Event, Labels),
+    F = fun(#{recv_oct := NewRecv, send_oct := NewSend}) -> NewRecv > Recv andalso NewSend > Send end,
+    instrument_helper:assert(Event, Labels, Measurements, F).
 
 %%--------------------------------------------------------------------
 %% Text searching
@@ -1273,6 +1300,9 @@ start_local_host_type_pool(Config) ->
     GlobalRdbmsPool = ?config(global_default_rdbms_pool, Config),
     LocalHostTypePool = GlobalRdbmsPool#{scope := host_type(), tag := tag()},
     rpc(mim(), mongoose_wpool, start_configured_pools, [[LocalHostTypePool], [host_type()]]).
+
+stop_local_host_type_pool() ->
+    ok = rpc(mim(), mongoose_wpool, stop, [rdbms, host_type(), tag()]).
 
 escape_column(Name) ->
     case is_mysql() of

@@ -23,9 +23,10 @@
 
 -type event_name() :: atom().
 -type labels() :: #{host_type => mongooseim:host_type(),
-                    function => atom()}. % to be extended
--type label_key() :: host_type | function. % to be extended
--type label_value() :: mongooseim:host_type() | atom(). % to be extended
+                    function => atom(),
+                    pool_tag => mongoose_wpool:tag()}. % to be extended
+-type label_key() :: host_type | function | pool_tag. % to be extended
+-type label_value() :: mongooseim:host_type() | atom() | mongoose_wpool:tag(). % to be extended
 -type metrics() :: #{metric_name() => metric_type()}.
 -type metric_name() :: atom().
 
