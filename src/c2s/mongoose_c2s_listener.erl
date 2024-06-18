@@ -28,12 +28,7 @@ instrumentation(_Opts) ->
      {c2s_tcp_data_received, #{},
       #{metrics => #{byte_size => spiral}}},
      {c2s_tls_data_received, #{},
-      #{metrics => #{byte_size => spiral}}},
-     %% Shared between different types of C2S listeners
-     {xmpp_stanza_size_sent, #{},
-      #{metrics => #{byte_size => histogram}}},
-     {xmpp_stanza_size_received, #{},
-      #{metrics => #{byte_size => histogram}}}].
+      #{metrics => #{byte_size => spiral}}}].
 
 %% mongoose_listener
 -spec start_listener(options()) -> ok.

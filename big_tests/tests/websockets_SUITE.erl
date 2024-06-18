@@ -112,7 +112,8 @@ metrics_test(Config) ->
         escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS)),
 
         % Assert that correct events have been executed
-        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
+        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                                   (#{time := Time}) -> Time > 0 end)
          || {Event, Label} <- instrumentation_events()],
 
         %% Verify C2S listener is not used
@@ -168,7 +169,9 @@ escape_attrs(Config) ->
     end).
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mod_websockets, []).
+    instrument_helper:declared_events(mod_websockets, [])
+    ++ instrument_helper:declared_events(mongoose_c2s, [global])
+    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()
 
 negative_instrumentation_events() ->
     [{Name, #{}} || Name <- negative_instrumentation_events_names()].

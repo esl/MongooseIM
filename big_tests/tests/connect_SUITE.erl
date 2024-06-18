@@ -404,8 +404,10 @@ metrics_test(Config) ->
     tls_authenticate(Config),
 
     % Assert that correct events have been executed
-    [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
-     || {Event, Label} <- instrumentation_events()].
+    [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                               (#{time := Time}) -> Time > 0 end)
+     || {Event, Label} <- instrumentation_events(),
+        Event =/= c2s_message_processing_time].
 
 tls_authenticate(Config) ->
     %% Given
@@ -814,4 +816,6 @@ proxy_info() ->
      }.
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mongoose_c2s_listener, [#{}]).
+    instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
+    ++ instrument_helper:declared_events(mongoose_c2s, [global])
+    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()

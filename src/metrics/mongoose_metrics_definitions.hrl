@@ -74,8 +74,6 @@
                    {[erlang, memory], [function, erlang, memory, ['$dp'], value],
                     [total, processes_used, atom_used, binary, ets, system]}]).
 
--define(GENERAL_HISTOGRAMS, [[data, xmpp, c2s, message, processing_time]]).
-
 -define(DATA_FUN_METRICS,
         [{[data, dist],
           {function, mongoose_metrics, get_dist_data_stats, [], proplist, [connections | ?INET_STATS]}}]).

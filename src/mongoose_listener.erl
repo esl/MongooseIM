@@ -62,7 +62,8 @@ stop_listener(Opts) ->
 -spec instrumentation([options()]) -> [mongoose_instrument:spec()].
 instrumentation(Listeners) ->
     %% c2s instrumentation is shared between Bosh, Websockets and TCP listeners
-    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)]).
+    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)])
+    ++ mongoose_c2s:instrumentation().
 
 -spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
 listener_instrumentation(Opts = #{module := Module}) ->
