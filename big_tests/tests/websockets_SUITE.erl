@@ -54,7 +54,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events() ++ negative_instrumentation_events()),
+    instrument_helper:start(instrumentation_events(), negative_instrumentation_events()),
     Config1 = escalus:init_per_suite(Config),
     Config2 = setup_listeners(Config1),
     escalus:create_users(Config2, escalus:get_users([alice, geralt, geralt_s, carol])).
@@ -117,7 +117,7 @@ metrics_test(Config) ->
          || {Event, Label} <- instrumentation_events()],
 
         %% Verify C2S listener is not used
-        instrument_helper:assert_not_emitted(negative_instrumentation_events(), true),
+        instrument_helper:assert_not_emitted(negative_instrumentation_events()),
         ok
         end).
 

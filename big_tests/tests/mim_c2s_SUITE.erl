@@ -129,7 +129,7 @@ two_users_can_log_and_chat(Config) ->
         [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
                                                    (#{time := Time}) -> Time > 0 end)
          || {Event, Label} <- tcp_instrumentation_events() ++ common_instrumentation_events()],
-        instrument_helper:assert_not_emitted(tls_instrumentation_events(), true)
+        instrument_helper:assert_not_emitted(tls_instrumentation_events())
     end).
 
 too_big_stanza_is_rejected(Config) ->
@@ -253,4 +253,6 @@ tls_instrumentation_events() ->
 
 common_instrumentation_events() ->
     HostType = domain_helper:host_type(),
-    [{c2s_message_processing_time, #{host_type => HostType}}].
+    [{c2s_message_processing_time, #{host_type => HostType}},
+     {xmpp_stanza_size_received, #{}},
+     {xmpp_stanza_size_sent, #{}}].

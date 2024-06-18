@@ -107,7 +107,7 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events() ++ negative_instrumentation_events()),
+    instrument_helper:start(instrumentation_events(), negative_instrumentation_events()),
     Config1 = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
@@ -196,7 +196,7 @@ create_and_terminate_session(Config) ->
      || {Event, Label} <- instrumentation_events(), Event =/= c2s_message_processing_time],
 
     %% Verify C2S listener is not used
-    instrument_helper:assert_not_emitted(negative_instrumentation_events(), true),
+    instrument_helper:assert_not_emitted(negative_instrumentation_events()),
 
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
@@ -370,6 +370,10 @@ interleave_requests(Config) ->
                        escalus_client:wait_for_stanza(Geralt)),
         escalus:assert(is_chat_message, [Msg4],
                        escalus_client:wait_for_stanza(Geralt)),
+
+        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                                   (#{time := Time}) -> Time > 0 end)
+         || {Event, Label} <- instrumentation_events()],
 
         true = is_bosh_connected(Carol)
     end).
