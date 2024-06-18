@@ -51,6 +51,7 @@
 {suites, "tests", graphql_http_upload_SUITE}.
 {suites, "tests", graphql_server_SUITE}.
 {suites, "tests", graphql_metric_SUITE}.
+{suites, "tests", instrument_cets_SUITE}.
 {suites, "tests", inbox_SUITE}.
 {suites, "tests", inbox_extensions_SUITE}.
 {suites, "tests", jingle_SUITE}.

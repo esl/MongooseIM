@@ -7,7 +7,7 @@
 start_link(DiscoOpts) ->
     Res = cets_discovery:start_link(DiscoOpts),
     %% Ensure metrics are added after the disco start
-    mongoose_metrics_probe_cets:start(),
+    mongoose_instrument_probe_cets:start(),
     Res.
 
 -include("mongoose_logger.hrl").

@@ -363,7 +363,9 @@ start_cets_discovery_with_file_backnend(Config) ->
 
 stop_cets_discovery() ->
     ok = rpc(mim(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
-    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]).
+    ok = rpc(mim2(), supervisor, terminate_child, [ejabberd_sup, cets_discovery]),
+    rpc(mim(), mongoose_instrument_probe_cets, stop, []),
+    rpc(mim2(), mongoose_instrument_probe_cets, stop, []).
 
 stop_and_delete_cets_discovery() ->
     stop_cets_discovery(),
