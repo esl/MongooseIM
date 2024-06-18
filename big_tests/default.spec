@@ -62,7 +62,6 @@
 {suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", metrics_api_SUITE}.
 {suites, "tests", metrics_c2s_SUITE}.
-{suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
