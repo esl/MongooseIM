@@ -38,7 +38,7 @@ groups() ->
 valid_test_cases() -> [online_user_query,
                        last_online_user,
                        last_offline_user,
-                       last_server, sessions_cleanup].
+                       last_server].
 
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
@@ -170,7 +170,10 @@ user_not_subscribed_receives_error(Config) ->
         ok
     end).
 
-sessions_cleanup(Config) ->
+%% This test is disabled on CI, because it puts the system in an inconsistent state.
+%% The sessions are created with Pids from the test node, which is incorrect.
+%% This incorrectly generates 'sm_session' events, leading to inconsistent session count metrics.
+sessions_cleanup(_Config) ->
     N = distributed_helper:mim(),
     HostType = domain_helper:host_type(),
     Server = domain_helper:domain(),
@@ -197,9 +200,7 @@ sessions_cleanup(Config) ->
     {ok, #{timestamp := TS, status := Status} = Data} = distributed_helper:rpc(N, mod_last_api, get_last, [Jid3]),
     ?assertNotEqual(TS, 1714000000, Data),
     ?assertEqual(Status, <<>>, Data),
-    distributed_helper:rpc(N, mongoose_metrics, update, [HostType, sessionCount, -345]),
     {ok, _} = distributed_helper:rpc(N, mongoose_account_api, unregister_user, [<<"user3">>, Server]).
-
 
 %%-----------------------------------------------------------------
 %% Helpers
