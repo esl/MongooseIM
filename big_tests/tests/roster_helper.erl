@@ -11,7 +11,7 @@ set_versioning(Versioning, VersionStore, Config) ->
                                                                     store_current_id => VersionStore}}]),
     Config.
 
-%% Intrumentation events
+%% Instrumentation events
 
 assert_roster_event(Client, Event) ->
     ClientJid = jid:from_binary(escalus_utils:get_jid(Client)),
@@ -23,7 +23,7 @@ assert_subscription_event(FromClient, ToClient, CheckF) ->
     FromClientJid = jid:from_binary(escalus_utils:get_short_jid(FromClient)),
     ToClientJid = jid:from_binary(escalus_utils:get_short_jid(ToClient)),
     instrument_helper:assert(
-      sm_presence_subscription, #{},
+      sm_presence_subscription, #{host_type => host_type()},
       fun(#{from_jid := FromJid, to_jid := ToJid} = M) ->
               FromClientJid =:= FromJid andalso ToClientJid =:= ToJid andalso CheckF(M)
       end).
