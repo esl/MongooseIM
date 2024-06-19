@@ -62,15 +62,17 @@ c2s_elements_story(Alice, Bob) ->
     BobJid = escalus_utils:get_jid(Bob),
 
     %% Get elements exchanged between bare JIDs
-    [Sent, Recv] = rpc(mim(), tr_util, c2s_elements_between_jids, [[AliceBareJid, BobBareJid]]),
+    %% There can be more than 2 elements if the hook traces are interleaved
+    %% between the sender and the receiver
+    [Sent, Recv | _] = Events =
+        rpc(mim(), tr_util, c2s_elements_between_jids, [[AliceBareJid, BobBareJid]]),
     ?assertMatch(#{name := <<"message">>, type := <<"chat">>,
                    jid := AliceJid, from_jid := AliceJid, to_jid := BobJid}, Sent),
     ?assertMatch(#{name := <<"message">>, type := <<"chat">>,
                    jid := BobJid, from_jid := AliceJid, to_jid := BobJid}, Recv),
 
     %% Get elements exchanged between full JIDs
-    ?assertEqual([Sent, Recv],
-                 rpc(mim(), tr_util, c2s_elements_between_jids, [[AliceJid, BobJid]])),
+    ?assertEqual(Events, rpc(mim(), tr_util, c2s_elements_between_jids, [[AliceJid, BobJid]])),
 
     %% Get all elements
     AllElements = rpc(mim(), tr_util, c2s_elements, []),
