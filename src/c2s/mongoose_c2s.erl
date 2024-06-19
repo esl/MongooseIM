@@ -72,12 +72,11 @@
 
 -export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
 
-%% mongoose_http_handler instrumentation
 -spec instrumentation() -> [mongoose_instrument:spec()].
 instrumentation() ->
     lists:flatmap(fun instrumentation/1, [global | ?ALL_HOST_TYPES]).
 
--spec instrumentation(global | mongooseim:host_type()) -> [mongoose_instrument:spec()].
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
 instrumentation(global) ->
     [{xmpp_stanza_size_sent, #{},
       #{metrics => #{byte_size => histogram}}},
