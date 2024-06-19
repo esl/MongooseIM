@@ -61,7 +61,9 @@ stop_listener(Opts) ->
 %% Each listener module could be started more than once on different ports.
 -spec instrumentation([options()]) -> [mongoose_instrument:spec()].
 instrumentation(Listeners) ->
-    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)]).
+    %% c2s instrumentation is shared between Bosh, Websockets and TCP listeners
+    lists:usort([Spec || Listener <- Listeners, Spec <- listener_instrumentation(Listener)])
+    ++ mongoose_c2s:instrumentation().
 
 -spec listener_instrumentation(options()) -> [mongoose_instrument:spec()].
 listener_instrumentation(Opts = #{module := Module}) ->

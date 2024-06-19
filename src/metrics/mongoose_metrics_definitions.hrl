@@ -35,12 +35,8 @@
 ]).
 
 -define(GLOBAL_SPIRALS, [
-    [data, xmpp, received, c2s, tcp],
-    [data, xmpp, received, c2s, tls],
     [data, xmpp, received, s2s],
     [data, xmpp, received, component],
-    [data, xmpp, sent, c2s, tcp],
-    [data, xmpp, sent, c2s, tls],
     [data, xmpp, sent, s2s],
     [data, xmpp, sent, component]
 ]).
@@ -77,12 +73,6 @@
                     [port_count, port_limit, process_count, process_limit, ets_limit]},
                    {[erlang, memory], [function, erlang, memory, ['$dp'], value],
                     [total, processes_used, atom_used, binary, ets, system]}]).
-
--define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, xml_stanza_size],
-                            [data, xmpp, sent, xml_stanza_size]
-                           ]).
-
--define(GENERAL_HISTOGRAMS, [[data, xmpp, c2s, message, processing_time]]).
 
 -define(DATA_FUN_METRICS,
         [{[data, dist],

@@ -132,6 +132,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    instrument_helper:start(instrumentation_events()),
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => mongoose_c2s_listener}),
@@ -140,6 +141,7 @@ init_per_suite(Config) ->
     escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
 
 end_per_suite(Config) ->
+    instrument_helper:stop(),
     escalus_fresh:clean(),
     escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
     restore_c2s_listener(Config),
@@ -399,16 +401,13 @@ starttls_should_fail_when_disabled(Config) ->
     escalus_connection:wait_for_close(Conn, timer:seconds(5)).
 
 metrics_test(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, tls], changed},
-                       {[global, data, xmpp, sent, c2s, tls], changed},
-                       %% TCP traffic before starttls
-                       {[global, data, xmpp, received, c2s, tcp], changed},
-                       {[global, data, xmpp, sent, c2s, tcp], changed}],
-    PreStoryData = escalus_mongooseim:pre_story([{mongoose_metrics, MongooseMetrics}]),
     tls_authenticate(Config),
-    escalus_mongooseim:post_story(PreStoryData).
+
+    % Assert that correct events have been executed
+    [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                               (#{time := Time}) -> Time > 0 end)
+     || {Event, Label} <- instrumentation_events(),
+        Event =/= c2s_message_processing_time].
 
 tls_authenticate(Config) ->
     %% Given
@@ -815,3 +814,8 @@ proxy_info() ->
       dest_address => {192, 168, 0, 1},
       dest_port => 443
      }.
+
+instrumentation_events() ->
+    instrument_helper:declared_events(mongoose_c2s_listener, [#{}])
+    ++ instrument_helper:declared_events(mongoose_c2s, [global])
+    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()

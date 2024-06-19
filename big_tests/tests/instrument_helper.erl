@@ -4,8 +4,9 @@
 -module(instrument_helper).
 
 -export([declared_events/1, declared_events/2,
-         start/1, stop/0,
+         start/1, start/2, stop/0,
          assert/3, assert/4,
+         assert_not_emitted/1, assert_not_emitted/2,
          wait_for/2, wait_for_new/2,
          lookup/2, take/2]).
 
@@ -33,25 +34,30 @@ declared_events(Module, Args) ->
     Specs = rpc(mim(), Module, instrumentation, Args),
     [{Event, Labels} || {Event, Labels, _Config} <- Specs].
 
-%% @doc Only `DeclaredEvents' will be logged, and can be tested with `assert/3'
--spec start([{event_name(), labels()} | module()]) -> ok.
+-spec start([{event_name(), labels()}]) -> ok.
 start(DeclaredEvents) ->
+    start(DeclaredEvents, []).
+
+%% @doc Only `DeclaredEvents' will be logged, and can be tested with `assert/3'
+-spec start([{event_name(), labels()}], [{event_name(), labels()}]) -> ok.
+start(DeclaredEvents, NegativeEvents) ->
     mongoose_helper:inject_module(ets_helper),
     mongoose_helper:inject_module(?HANDLER_MODULE),
     ets_helper:new(?STATUS_TABLE),
+    [ets:insert(?STATUS_TABLE, {Event, negative}) || Event <- NegativeEvents],
     [ets:insert(?STATUS_TABLE, {Event, untested}) || Event <- DeclaredEvents],
     rpc(mim(), mongoose_instrument, add_handler,
-        [event_table, #{declared_events => DeclaredEvents}]).
+        [event_table, #{declared_events => DeclaredEvents ++ NegativeEvents}]).
 
 -spec stop() -> ok.
 stop() ->
-    #{tested := Tested, untested := Untested} = classify_events(),
+    #{tested := Tested, untested := Untested, negative := Negative} = classify_events(),
     ets_helper:delete(?STATUS_TABLE),
     Logged = rpc(mim(), ?HANDLER_MODULE, all_keys, []),
     rpc(mim(), mongoose_instrument, remove_handler, [event_table]),
     ct:log("Tested instrumentation events:~n~p", [lists:sort(Tested)]),
-    verify_unlogged(Untested -- Logged),
-    verify_logged_but_untested(Logged -- Tested).
+    verify_unlogged((Untested -- Logged) -- Negative),
+    verify_logged_but_untested((Logged -- Tested) -- Negative).
 
 -spec assert(event_name(), labels(), fun((measurements()) -> boolean())) -> ok.
 assert(EventName, Labels, CheckF) ->
@@ -73,6 +79,17 @@ assert(EventName, Labels, MeasurementsList, CheckF) ->
                    [EventName, Labels, Filtered]),
             event_tested(EventName, Labels)
     end.
+
+assert_not_emitted(EventName, Labels) ->
+    case lookup(EventName, Labels) of
+        [] ->
+            ok;
+        Events ->
+            ct:fail("Measurements emitted but should not ~p", [Events])
+    end.
+
+assert_not_emitted(Events) ->
+    [assert_not_emitted(Event, Label) || {Event, Label} <- Events].
 
 %% @doc Remove previous events, and wait for a new one. Use for probes only.
 -spec wait_for_new(event_name(), labels()) -> [measurements()].
@@ -116,7 +133,7 @@ event_tested(EventName, Labels) ->
     ok.
 
 classify_events() ->
-    ets:foldl(fun classify_event/2, #{tested => [], untested => []}, ?STATUS_TABLE).
+    ets:foldl(fun classify_event/2, #{tested => [], untested => [], negative => []}, ?STATUS_TABLE).
 
 classify_event({Event, Status}, M) ->
     M#{Status => [Event | maps:get(Status, M)]}.

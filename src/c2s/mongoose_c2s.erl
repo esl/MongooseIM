@@ -9,6 +9,8 @@
 -define(AUTH_RETRIES, 3).
 -define(BIND_RETRIES, 5).
 
+-export([instrumentation/0, instrumentation/1]).
+
 %% gen_statem callbacks
 -export([callback_mode/0, init/1, handle_event/4, terminate/3]).
 
@@ -24,7 +26,10 @@
 -export([replace_resource/2, generate_random_resource/0]).
 -export([verify_user/4, maybe_open_session/3]).
 
--ignore_xref([get_ip/1, get_socket/1]).
+-ignore_xref([get_ip/1, get_socket/1, instrumentation/1]).
+
+%% The pattern 'undefined' can never match the type binary()
+-dialyzer({no_match, patch_attr_value/1}).
 
 -record(c2s_data, {
           host_type :: undefined | mongooseim:host_type(),
@@ -69,6 +74,20 @@
                            term() => term()}.
 
 -export_type([packet/0, data/0, state/0, state/1, fsm_res/0, fsm_res/1, retries/0, listener_opts/0]).
+
+-spec instrumentation() -> [mongoose_instrument:spec()].
+instrumentation() ->
+    lists:flatmap(fun instrumentation/1, [global | ?ALL_HOST_TYPES]).
+
+-spec instrumentation(mongooseim:host_type_or_global()) -> [mongoose_instrument:spec()].
+instrumentation(global) ->
+    [{xmpp_stanza_size_sent, #{},
+      #{metrics => #{byte_size => histogram}}},
+     {xmpp_stanza_size_received, #{},
+      #{metrics => #{byte_size => histogram}}}];
+instrumentation(HostType) ->
+    [{c2s_message_processing_time, #{host_type => HostType},
+      #{metrics => #{byte_size => histogram}}}].
 
 %%%----------------------------------------------------------------------
 %%% gen_statem
@@ -247,11 +266,28 @@ handle_socket_packet(StateData = #c2s_data{parser = Parser}, Packet) ->
 -spec handle_socket_elements(data(), [exml:element()], non_neg_integer()) -> fsm_res().
 handle_socket_elements(StateData = #c2s_data{shaper = Shaper}, Elements, Size) ->
     {NewShaper, Pause} = mongoose_shaper:update(Shaper, Size),
-    mongoose_metrics:update(global, [data, xmpp, received, xml_stanza_size], Size),
+    [mongoose_instrument:execute(xmpp_stanza_size_received, #{},
+                                 #{byte_size => elem_size(El)})
+     || El <- Elements],
     NewStateData = StateData#c2s_data{shaper = NewShaper},
     MaybePauseTimeout = maybe_pause(NewStateData, Pause),
     StreamEvents = [ {next_event, internal, XmlEl} || XmlEl <- Elements ],
     {keep_state, NewStateData, MaybePauseTimeout ++ StreamEvents}.
+
+elem_size(#xmlstreamerror{name = Name}) ->
+    byte_size(Name);
+elem_size(El) ->
+    exml:xml_size(patch_element(El)).
+
+patch_element(El = #xmlstreamstart{attrs = Attrs}) ->
+    Attrs2 = [{Name, patch_attr_value(Value)} || {Name, Value} <- Attrs],
+    El#xmlstreamstart{attrs = Attrs2};
+patch_element(El) ->
+    El.
+
+-spec patch_attr_value(undefined | binary()) -> binary().
+patch_attr_value(undefined) -> <<>>;
+patch_attr_value(Bin) -> Bin.
 
 -spec maybe_pause(data(), integer()) -> any().
 maybe_pause(_StateData, Pause) when Pause > 0 ->
@@ -755,7 +791,7 @@ handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"m
     Acc1 = mongoose_c2s_hooks:user_send_message(HostType, Acc, HookParams),
     Acc2 = maybe_route(Acc1),
     TS1 = erlang:system_time(microsecond),
-    mongoose_metrics:update(HostType, [data, xmpp, c2s, message, processing_time], (TS1 - TS0)),
+    mongoose_instrument:execute(c2s_message_processing_time, #{host_type => HostType}, #{time => (TS1 - TS0)}),
     Acc2;
 handle_stanza_from_client(#c2s_data{host_type = HostType}, HookParams, Acc, <<"iq">>) ->
     Acc1 = mongoose_c2s_hooks:user_send_iq(HostType, Acc, HookParams),
@@ -1020,7 +1056,7 @@ do_send_element(StateData = #c2s_data{host_type = HostType}, Acc, #xmlel{} = El)
 send_xml(Data, XmlElement) when is_tuple(XmlElement) ->
     send_xml(Data, [XmlElement]);
 send_xml(#c2s_data{socket = Socket}, XmlElements) when is_list(XmlElements) ->
-    [mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], exml:xml_size(El))
+    [mongoose_instrument:execute(xmpp_stanza_size_sent, #{}, #{byte_size => exml:xml_size(El)})
       || El <- XmlElements],
     mongoose_c2s_socket:send_xml(Socket, XmlElements).
 

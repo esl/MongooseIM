@@ -54,7 +54,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    instrument_helper:start(instrumentation_events()),
+    instrument_helper:start(instrumentation_events(), negative_instrumentation_events()),
     Config1 = escalus:init_per_suite(Config),
     Config2 = setup_listeners(Config1),
     escalus:create_users(Config2, escalus:get_users([alice, geralt, geralt_s, carol])).
@@ -101,11 +101,7 @@ update_handler(Handler) ->
 %%--------------------------------------------------------------------
 
 metrics_test(Config) ->
-    MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
-                       {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {[global, data, xmpp, received, c2s, tcp], 0},
-                       {[global, data, xmpp, sent, c2s, tcp], 0}],
-    escalus:story([{mongoose_metrics, MongooseMetrics} | Config],
+    escalus:story(Config,
                   [{geralt, 1}, {geralt_s, 1}],
                   fun(Geralt, GeraltS) ->
 
@@ -116,8 +112,12 @@ metrics_test(Config) ->
         escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(GeraltS)),
 
         % Assert that correct events have been executed
-        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0 end)
+        [instrument_helper:assert(Event, Label, fun(#{byte_size := BS}) -> BS > 0;
+                                                   (#{time := Time}) -> Time > 0 end)
          || {Event, Label} <- instrumentation_events()],
+
+        %% Verify C2S listener is not used
+        instrument_helper:assert_not_emitted(negative_instrumentation_events()),
         ok
         end).
 
@@ -169,4 +169,15 @@ escape_attrs(Config) ->
     end).
 
 instrumentation_events() ->
-    instrument_helper:declared_events(mod_websockets, []).
+    instrument_helper:declared_events(mod_websockets, [])
+    ++ instrument_helper:declared_events(mongoose_c2s, [global])
+    ++ instrument_helper:declared_events(mongoose_c2s). %% For host_type()
+
+negative_instrumentation_events() ->
+    [{Name, #{}} || Name <- negative_instrumentation_events_names()].
+
+negative_instrumentation_events_names() ->
+    [c2s_tcp_data_sent,
+     c2s_tcp_data_received,
+     c2s_tls_data_sent,
+     c2s_tls_data_received].
